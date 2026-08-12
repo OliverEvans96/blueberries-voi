@@ -606,11 +606,12 @@ def test_multi_scenario_belief_path_uses_shelf_belief_factories() -> None:
 
 def test_rung0_arm_orders_positive_on_empty_shelf() -> None:
     """Rung 0 must wire NB protection-interval demand_target (not default 0)."""
+    from scipy.stats import nbinom
+
     from blueberries_voi.controller.damped_sw import PROTECTION_DEMAND_DAYS
     from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
     from blueberries_voi.filter.belief import ShelfBelief
     from blueberries_voi.model import ModelParams
-    from scipy.stats import nbinom
 
     mod = _resolve_multi_module()
     assert mod.__file__ is not None
