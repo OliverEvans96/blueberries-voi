@@ -6,6 +6,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Source: `notes/claude/architecture/decisions/*.md` → `ADR-EXPORT.md`
 - Domain ADRs: **0001–0076** (75 accepted, 1 superseded)
 - Repo tooling ADR: **[0077](./0077-uv-src-layout-agent-dev-team.md)** (renumbered from 0001 on import to preserve domain numbering)
+- M1 settle / defer (2026-08-12): **[0078](./0078-x-13-gate-0.md)–[0085](./0085-pyarrow-abdella-parquet.md)** (FIL-13/15 accepted after bakeoff; pyarrow for Abdella)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -90,3 +91,11 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0076](./0076-eng-04-test-and-validation-harness-scope.md) | `ENG-04` | Test and validation harness scope ⚑ | ACCEPTED |
 
 | [0077](./0077-uv-src-layout-agent-dev-team.md) | *(repo)* | uv + src layout + agent-dev-team for simulation work | ACCEPTED |
+| [0078](./0078-x-13-gate-0.md) | `X-13` | Gate 0 — both calculations before/alongside arrival generator | ACCEPTED |
+| [0079](./0079-mod-25-numeric-picking-sigma.md) | `MOD-25` | Numeric picking-kernel σ = 0.5 + uniform sensitivity | ACCEPTED |
+| [0080](./0080-mod-26-demand-case-shelf.md) | `MOD-26` | Demand μ=30, V/M=2, case 8 + sensitivity at 4 | ACCEPTED |
+| [0081](./0081-fil-14-cohort-extinction.md) | `FIL-14` | Cohort extinct when n = 0 exactly | ACCEPTED |
+| [0082](./0082-fil-13-tractability-bakeoff.md) | `FIL-13` | Tractability restore — full joint (E) at measured L | ACCEPTED |
+| [0083](./0083-fil-15-filter-numerics.md) | `FIL-15` | Filter numerics — K=8 on [0,8], N=2000, ESS=N/2 | ACCEPTED |
+| [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md) | *(repo)* | Runtime deps: numpy, scipy, matplotlib | ACCEPTED |
+| [0085](./0085-pyarrow-abdella-parquet.md) | *(repo)* | pyarrow for Abdella parquet I/O | ACCEPTED |

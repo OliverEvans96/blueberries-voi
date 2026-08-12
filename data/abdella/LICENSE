@@ -1,0 +1,12 @@
+CC BY 4.0
+
+Vendored shipment Parquet files under this directory are derived from:
+
+  NifferLi/cold-chain-strawberry-sensors
+  https://huggingface.co/datasets/NifferLi/cold-chain-strawberry-sensors
+
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Upstream source data: Abdella, Brecht & Uysal (2021), J. Food Eng. 298:110477 /
+arXiv:2103.12895 — six US strawberry cold-chain shipments with multi-position
+temperature loggers.
