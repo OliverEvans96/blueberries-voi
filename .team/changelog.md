@@ -27,6 +27,10 @@ Plain-English notes of what shipped, for non-technical readers.
 - When a delivery includes a pack date or a measured age at receipt, the filter now
   starts that new lot with a tighter age belief instead of the broad cold-chain
   default (T-013).
+- Checked whether a simpler per-lot age belief is close enough to the full
+  joint belief on small toy shelves: it passed the agreed accuracy gates, so
+  we recommend (but have not yet board-confirmed) switching to that simpler
+  form for production work (T-020; evidence-only MF Stage C).
 - Built the first working inventory simulator and age-tracking filter for the blueberry
   study, including real cold-chain temperature traces and a bakeoff that chose the
   tractable full joint age model for production at the small live-cohort counts we

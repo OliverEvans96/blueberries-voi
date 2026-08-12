@@ -8,6 +8,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Repo tooling ADR: **[0077](./0077-uv-src-layout-agent-dev-team.md)** (renumbered from 0001 on import to preserve domain numbering)
 - M1 settle / defer (2026-08-12): **[0078](./0078-x-13-gate-0.md)–[0085](./0085-pyarrow-abdella-parquet.md)** (FIL-13/15 accepted after bakeoff; pyarrow for Abdella)
 - M1.5 architecture lock (2026-08-12): **[0086](./0086-m15-richobs-unobserved-masks.md)–[0089](./0089-m15-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
+- FIL-11 Stage C / FIL-04 evidence (additive): **[0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md)** (`sequential_wor_pmf`; exact joint vs mean-field; does not replace M1.5 Stage C)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -104,3 +105,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0087](./0087-m15-mc-observation-likelihood.md) | `FIL-10` (M1.5) | MC observation likelihood from shared day_step | ACCEPTED |
 | [0088](./0088-m15-stage-c-generative-check.md) | `FIL-11` (M1.5) | Stage C generative check vs day_step | ACCEPTED |
 | [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | ACCEPTED |
+| [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
