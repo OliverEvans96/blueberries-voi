@@ -17,7 +17,7 @@ import importlib
 import inspect
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -75,7 +75,7 @@ def _resolve_policy_cls() -> type[Any]:
         for name in _POLICY_NAMES:
             found = getattr(mod, name, None)
             if found is not None:
-                return found
+                return cast("type[Any]", found)
     msg = (
         "CorrectedAgeBlindPolicy (or Rung0Policy) must be exported from "
         f"{_CANDIDATE_MODULES} per .team/specs/T-027.md"
