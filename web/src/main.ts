@@ -14,6 +14,10 @@ import {
 import { renderSalesDemand } from "./charts/salesDemand";
 import { renderGhostDeltas } from "./charts/ghostDeltas";
 import {
+  renderArrivalPrior,
+  renderArrivalShift,
+} from "./charts/arrivalPrior";
+import {
   controlsFromVm,
   mountPlayChrome,
   mountSectionControls,
@@ -49,7 +53,7 @@ app.innerHTML = `
       <h1>Blueberry inventory studio</h1>
       <p class="lede">
         Walk one idea at a time — order the store, then open Pricing, Physics,
-        Demand, Logistics, or Belief to see how each knob teaches through its plots.
+        Demand, Logistics, Arrival, or Belief to see how each knob teaches through its plots.
       </p>
     </header>
 
@@ -91,7 +95,7 @@ app.innerHTML = `
         <div class="focus-row">
           <nav class="section-nav panel" aria-label="Studio sections">
             ${navHtml}
-            <p class="section-nav-hint">Keys 1–6 or ← →</p>
+            <p class="section-nav-hint">Keys 1–7 or ← →</p>
           </nav>
 
           <section class="panel focus-pane" id="focus-pane">
@@ -128,6 +132,14 @@ app.innerHTML = `
               <div class="focus-plot" data-plot="plot-age-comp" hidden>
                 <div class="chart-caption impact-caption">On-hand by age band</div>
                 <div id="chart-age-comp" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-arrival-prior" hidden>
+                <div class="chart-caption impact-caption">Arrival-age prior · receipt rug</div>
+                <div id="chart-arrival-prior" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-arrival-shift" hidden>
+                <div class="chart-caption impact-caption">Transit ΔT shift vs baseline</div>
+                <div id="chart-arrival-shift" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-belief-lg" hidden>
                 <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
@@ -169,6 +181,8 @@ const els = {
   salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
   inventory: document.querySelector("#chart-inventory") as HTMLElement,
   ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
+  arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
+  arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
   ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
   focusTitle: document.querySelector("#focus-title") as HTMLElement,
   focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
@@ -243,6 +257,12 @@ function renderActiveFocusPlots(): void {
   }
   if (plotVisible("plot-demand")) {
     renderDemandDist(els.demand, vm.config, vm.on_hand, vm.effective_inv, 160);
+  }
+  if (plotVisible("plot-arrival-prior")) {
+    renderArrivalPrior(els.arrivalPrior, vm.config, vm.history, 160);
+  }
+  if (plotVisible("plot-arrival-shift")) {
+    renderArrivalShift(els.arrivalShift, vm.config, 150);
   }
 }
 

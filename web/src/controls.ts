@@ -1,4 +1,10 @@
-import type { Economics, ObsScenario, SimConfig, ViewModel } from "./types";
+import type {
+  ArrivalProduct,
+  Economics,
+  ObsScenario,
+  SimConfig,
+  ViewModel,
+} from "./types";
 import type { SectionId } from "./sections";
 
 export type ControlsCallbacks = {
@@ -31,7 +37,7 @@ type SliderSpec = {
   max: number;
   step: number;
   format: (v: number) => string;
-  group: "physics" | "demand" | "logistics" | "episode" | "pricing";
+  group: "physics" | "demand" | "logistics" | "arrival" | "episode" | "pricing";
 };
 
 const PRICE_SLIDERS: SliderSpec[] = [
@@ -47,12 +53,48 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "q10", label: "Q10", min: 1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "physics" },
   { id: "t_ref_c", label: "T_ref (°C)", min: -2, max: 8, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
   { id: "t_store_c", label: "T_store (°C)", min: 0, max: 12, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
-  { id: "sigma", label: "σ (quality noise)", min: 0, max: 1.5, step: 0.05, format: (v) => v.toFixed(2), group: "physics" },
+  { id: "sigma", label: "σ (picking)", min: 0, max: 1.5, step: 0.05, format: (v) => v.toFixed(2), group: "physics" },
   { id: "demand_mu", label: "demand μ", min: 5, max: 80, step: 1, format: (v) => v.toFixed(0), group: "demand" },
   { id: "demand_vm", label: "demand V/M", min: 1.1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "demand" },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "starting_inv", label: "starting inventory", min: 0, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
+  {
+    id: "spread_scale",
+    label: "spread_scale (FIL-11)",
+    min: 0.05,
+    max: 1.5,
+    step: 0.05,
+    format: (v) => v.toFixed(2),
+    group: "arrival",
+  },
+  {
+    id: "transit_temp_bias_c",
+    label: "transit ΔT (°C)",
+    min: -2,
+    max: 8,
+    step: 0.5,
+    format: (v) => v.toFixed(1),
+    group: "arrival",
+  },
+  {
+    id: "f2a_transit_sd",
+    label: "F2a transit SD",
+    min: 0.1,
+    max: 2,
+    step: 0.05,
+    format: (v) => v.toFixed(2),
+    group: "arrival",
+  },
+  {
+    id: "sensor_sigma",
+    label: "sensor σ (age)",
+    min: 0,
+    max: 1.5,
+    step: 0.05,
+    format: (v) => v.toFixed(2),
+    group: "arrival",
+  },
   { id: "seed", label: "seed", min: 1, max: 9999, step: 1, format: (v) => String(Math.round(v)), group: "episode" },
 ];
 
@@ -175,6 +217,21 @@ export function mountSectionControls(
         <p class="hint">Case snap and stocking targets for daily refill.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
       </div>
+      <div class="controls-block" data-section="arrival" hidden>
+        <p class="hint">
+          MOD-11/18/21: arrival age from transit mix + Arrhenius shift.
+          Daily lead time stays 1 (no pipeline Gantt).
+        </p>
+        <div class="field">
+          <span class="field-label">Arrival product (MOD-21)</span>
+          <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival product">
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Bootstrap all six Abdella shipments">All six</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="long_haul" title="CA→East long-haul only">Long-haul</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="short_haul" title="FL short-haul only (tight)">Short-haul</button>
+          </div>
+        </div>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
+      </div>
       <div class="controls-block" data-section="belief" hidden>
         <p class="hint">Observation richness changes belief blur vs truth lots.</p>
         <div class="field">
@@ -206,8 +263,11 @@ export function mountSectionControls(
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
     }
-    root.querySelectorAll<HTMLButtonElement>(".obs-chip").forEach((btn) => {
+    root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.obs === c.obs_scenario);
+    });
+    root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
   }
 
@@ -233,9 +293,17 @@ export function mountSectionControls(
     });
   }
 
-  root.querySelectorAll<HTMLButtonElement>(".obs-chip").forEach((btn) => {
+  root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
     btn.addEventListener("click", () => {
       cb.onConfigChange({ obs_scenario: btn.dataset.obs as ObsScenario });
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      cb.onConfigChange({
+        arrival_product: btn.dataset.arrival as ArrivalProduct,
+      });
     });
   });
 

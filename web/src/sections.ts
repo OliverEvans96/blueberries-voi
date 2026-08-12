@@ -4,6 +4,7 @@ export type SectionId =
   | "physics"
   | "demand"
   | "logistics"
+  | "arrival"
   | "belief";
 
 export type StudioSection = {
@@ -51,6 +52,14 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     blurb: "Case size and base-stock set how you refill the cooler each day.",
     plotIds: ["plot-inventory", "plot-age-comp"],
     controlSection: "logistics",
+  },
+  {
+    id: "arrival",
+    label: "Arrival",
+    blurb:
+      "Transit assumptions set age at receipt — the identification signal for relative freshness.",
+    plotIds: ["plot-arrival-prior", "plot-arrival-shift"],
+    controlSection: "arrival",
   },
   {
     id: "belief",

@@ -1,4 +1,5 @@
 import type {
+  ArrivalProduct,
   BeliefGrid,
   Day,
   Economics,
@@ -13,6 +14,23 @@ export const DEFAULT_ECONOMICS: Economics = {
   c_waste: 1.2,
   c_stockout: 2.5,
 };
+
+/**
+ * Abdella shipment effective ages at ModelParams defaults (q10=3, t_ref=0°C),
+ * from shipment_arrival_age on the six MOD-21 traces (S1…S6).
+ */
+const ABDELLA_AGES_BASE: Record<string, number> = {
+  S1: 6.067,
+  S2: 2.449, // FL short-haul
+  S3: 8.462,
+  S4: 7.661,
+  S5: 8.376,
+  S6: 6.033,
+};
+
+const LONG_HAUL_IDS = ["S1", "S3", "S4", "S5", "S6"] as const;
+const SHORT_HAUL_IDS = ["S2"] as const;
+const ALL_IDS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const;
 
 /** Defaults aligned with blueberries_voi.model.ModelParams where applicable. */
 export const DEFAULT_SIM_CONFIG: SimConfig = {
@@ -31,6 +49,11 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   seed: 42,
   obs_scenario: "P1",
   window_days: 14,
+  arrival_product: "abdella_all",
+  spread_scale: 1,
+  transit_temp_bias_c: 0,
+  f2a_transit_sd: 0.75,
+  sensor_sigma: 0,
 };
 
 export type SimState = {
@@ -55,6 +78,112 @@ function mulberry32(seed: number): () => number {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+function gaussian(rng: () => number): number {
+  // Box–Muller
+  const u = Math.max(1e-12, rng());
+  const v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function productShipmentIds(product: ArrivalProduct): readonly string[] {
+  if (product === "long_haul") return LONG_HAUL_IDS;
+  if (product === "short_haul") return SHORT_HAUL_IDS;
+  return ALL_IDS;
+}
+
+/** Arrhenius scale vs published cold traces (MOD-18 teaching bias). */
+function transitAgeFactor(cfg: SimConfig): number {
+  const q10 = Math.max(1.01, cfg.q10);
+  return q10 ** (cfg.transit_temp_bias_c / 10);
+}
+
+/** Base mix ages after Q10 rescale from the q10=3 calibration point. */
+function baseMixAges(cfg: SimConfig): number[] {
+  const ids = productShipmentIds(cfg.arrival_product);
+  const q10Scale = Math.max(1.01, cfg.q10) / 3;
+  // Mild Q10 rescale of integrated ages (mock stand-in for re-integrating paths).
+  return ids.map((id) => ABDELLA_AGES_BASE[id]! * q10Scale);
+}
+
+/**
+ * Pushforward arrival-age samples (MOD-11=C / generate_arrival_age):
+ * bootstrap mix → shrink by spread_scale → transit temp bias → sensor noise.
+ */
+export function sampleArrivalAge(cfg: SimConfig, rng: () => number): number {
+  const ages = baseMixAges(cfg);
+  const mean = ages.reduce((s, a) => s + a, 0) / ages.length;
+  const raw = ages[Math.floor(rng() * ages.length)]!;
+  const scaled = mean + cfg.spread_scale * (raw - mean);
+  const withTransit = scaled * transitAgeFactor(cfg);
+  const noisy =
+    cfg.sensor_sigma > 0
+      ? withTransit + gaussian(rng) * cfg.sensor_sigma
+      : withTransit;
+  return clamp(noisy, 0, 14);
+}
+
+/** Discrete prior PMF on a uniform age grid (FIL-03-style teaching view). */
+export function arrivalAgePriorPdf(
+  cfg: SimConfig,
+  opts?: { transitBiasOverride?: number; nGrid?: number },
+): { tau: number; density: number }[] {
+  const nGrid = opts?.nGrid ?? 81;
+  const tauMax = 12;
+  const bias =
+    opts?.transitBiasOverride !== undefined
+      ? opts.transitBiasOverride
+      : cfg.transit_temp_bias_c;
+  const factor = Math.max(1.01, cfg.q10) ** (bias / 10);
+  const mix = baseMixAges(cfg);
+  const ages = mix.map((a) => meanShrink(a, mix, cfg.spread_scale) * factor);
+  const bw = Math.max(0.15, cfg.f2a_transit_sd * 0.55);
+  const dx = tauMax / (nGrid - 1);
+  const pts: { tau: number; density: number }[] = [];
+  for (let i = 0; i < nGrid; i++) {
+    const tau = i * dx;
+    let dens = 0;
+    for (const a of ages) {
+      const z = (tau - a) / bw;
+      dens += Math.exp(-0.5 * z * z);
+    }
+    dens /= ages.length * bw * Math.sqrt(2 * Math.PI);
+    pts.push({ tau, density: dens });
+  }
+  let mass = 0;
+  for (const p of pts) mass += p.density * dx;
+  if (mass > 0) for (const p of pts) p.density /= mass;
+  return pts;
+}
+
+function meanShrink(age: number, mix: number[], spreadScale: number): number {
+  const mean = mix.reduce((s, a) => s + a, 0) / mix.length;
+  return mean + spreadScale * (age - mean);
+}
+
+/** F2a-style Gaussian centered on mix mean (pack-date prior width). */
+export function f2aPriorPdf(
+  cfg: SimConfig,
+  nGrid = 81,
+): { tau: number; density: number }[] {
+  const mix = baseMixAges(cfg);
+  const ages = mix.map((a) => meanShrink(a, mix, cfg.spread_scale));
+  const mean =
+    (ages.reduce((s, a) => s + a, 0) / ages.length) * transitAgeFactor(cfg);
+  const sd = Math.max(0.05, cfg.f2a_transit_sd);
+  const tauMax = 12;
+  const pts: { tau: number; density: number }[] = [];
+  const dx = tauMax / (nGrid - 1);
+  for (let i = 0; i < nGrid; i++) {
+    const tau = i * dx;
+    const z = (tau - mean) / sd;
+    pts.push({
+      tau,
+      density: Math.exp(-0.5 * z * z) / (sd * Math.sqrt(2 * Math.PI)),
+    });
+  }
+  return pts;
 }
 
 export function snapCases(qty: number, caseSize: number): number {
@@ -324,27 +453,34 @@ export function generateBelief(
   return { tau_edges, count_edges, density };
 }
 
-function buildStartingLots(cfg: SimConfig): Lot[] {
+function buildStartingLots(cfg: SimConfig, rng: () => number): Lot[] {
   const cs = Math.max(1, Math.round(cfg.case_size));
   const total = snapCases(cfg.starting_inv, cs);
   if (total <= 0) return [];
-  const ages = [2, 4, 6];
-  const weights = [0.35, 0.4, 0.25];
+  const nLots = 3;
   const lots: Lot[] = [];
   let allocated = 0;
-  for (let i = 0; i < ages.length; i++) {
+  for (let i = 0; i < nLots; i++) {
     const raw =
-      i === ages.length - 1
+      i === nLots - 1
         ? total - allocated
-        : snapCases(Math.round(total * weights[i]!), cs);
+        : snapCases(Math.round(total / nLots), cs);
     const n = Math.max(0, Math.min(total - allocated, raw));
     if (n > 0) {
-      lots.push({ lot_id: i + 1, n, tau: ages[i]! });
+      lots.push({
+        lot_id: i + 1,
+        n,
+        tau: Math.round(sampleArrivalAge(cfg, rng) * 10) / 10,
+      });
       allocated += n;
     }
   }
   if (allocated < total) {
-    lots.push({ lot_id: lots.length + 1, n: total - allocated, tau: 1 });
+    lots.push({
+      lot_id: lots.length + 1,
+      n: total - allocated,
+      tau: Math.round(sampleArrivalAge(cfg, rng) * 10) / 10,
+    });
   }
   return lots;
 }
@@ -372,8 +508,13 @@ function runDay(
     .filter((o) => o.arriveOn === day)
     .reduce((s, o) => s + o.qty, 0);
   pending = pending.filter((o) => o.arriveOn !== day);
+  let age_at_receipt: number | null = null;
   if (arrivals > 0) {
-    stateLots = [...stateLots, { lot_id: nid++, n: arrivals, tau: 0 }];
+    age_at_receipt = Math.round(sampleArrivalAge(cfg, rng) * 100) / 100;
+    stateLots = [
+      ...stateLots,
+      { lot_id: nid++, n: arrivals, tau: age_at_receipt },
+    ];
   }
 
   const aged = ageAndSpoil(stateLots, cfg, rng);
@@ -409,6 +550,7 @@ function runDay(
       order_qty,
       arrivals,
       stockout: sold.stockout,
+      age_at_receipt,
     },
   };
 }
@@ -416,7 +558,7 @@ function runDay(
 export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
-  let lots = buildStartingLots(config);
+  let lots = buildStartingLots(config, rng);
   let nextLotId = lots.reduce((m, l) => Math.max(m, l.lot_id), 0) + 1;
   let pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];

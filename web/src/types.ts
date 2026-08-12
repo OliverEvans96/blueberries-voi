@@ -15,6 +15,8 @@ export type Day = {
   order_qty: number;
   arrivals: number;
   stockout: number;
+  /** Effective age at receipt for today's delivery (null if none). */
+  age_at_receipt: number | null;
 };
 
 export type Economics = {
@@ -26,6 +28,12 @@ export type Economics = {
 
 /** Fake physics / logistics knobs (aligned with ModelParams defaults). */
 export type ObsScenario = "P0" | "P1" | "P2";
+
+/**
+ * MOD-21 Abdella sampling frame (mock): all six vs corridor subsets.
+ * Matches ADR alternatives A / B / C.
+ */
+export type ArrivalProduct = "abdella_all" | "long_haul" | "short_haul";
 
 export type SimConfig = {
   beta: number;
@@ -43,6 +51,25 @@ export type SimConfig = {
   seed: number;
   obs_scenario: ObsScenario;
   window_days: number;
+  /** MOD-21: which Abdella corridor mix seeds the arrival prior. */
+  arrival_product: ArrivalProduct;
+  /**
+   * FIL-11 / sim.generate_arrival_age: shrink ages toward mix mean
+   * (&lt;1 tighter, identification stress).
+   */
+  spread_scale: number;
+  /**
+   * MOD-18 teaching knob: °C bias on transit path vs published traces
+   * (Arrhenius shift of effective arrival age).
+   */
+  transit_temp_bias_c: number;
+  /** F2a transit-uncertainty SD (arrival_priors.F2A_TRANSIT_UNCERTAINTY_SD). */
+  f2a_transit_sd: number;
+  /**
+   * Reserved STREAM_ARRIVAL_SENSOR: Gaussian noise on lot age at receipt
+   * (0 = unused, matching current Python sim).
+   */
+  sensor_sigma: number;
 };
 
 export type DayPnL = {
