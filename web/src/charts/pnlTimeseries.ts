@@ -1,10 +1,36 @@
 import * as d3 from "d3";
-import type { ChartContext, DayPnL } from "../types";
+import type { DayPnL, HoverDay } from "../types";
+import type { HoverHandler } from "./history";
 
+function rootG(
+  container: HTMLElement,
+): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  const g = container.querySelector("svg g.chart-root");
+  return g ? d3.select(g as SVGGElement) : null;
+}
+
+/** Linked-day highlight without rebuilding paths or markers. */
+export function setPnLHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = rootG(container);
+  if (!g) return;
+
+  g.selectAll<SVGGElement, DayPnL>(".pnl-day").each(function (d) {
+    const active = hoveredDay === d.day;
+    const gg = d3.select(this);
+    gg.classed("pnl-day--active", active);
+    gg.select(".pnl-guide").attr("opacity", active ? 1 : 0);
+    gg.selectAll(".pnl-dot").attr("r", active ? 4.5 : 3);
+  });
+}
+
+/** Data join only — stroke-only revenue / cost / profit lines. */
 export function renderPnLTimeseries(
   container: HTMLElement,
   series: DayPnL[],
-  ctx: ChartContext,
+  onHoverDay: HoverHandler,
   height = 140,
 ): void {
   const width = container.clientWidth || 720;
@@ -23,6 +49,7 @@ export function renderPnLTimeseries(
 
   const g = svg
     .append("g")
+    .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   if (series.length === 0) return;
@@ -66,7 +93,6 @@ export function renderPnLTimeseries(
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
-  // zero line
   if (yExtent[0] < 0 && yExtent[1] > 0) {
     g.append("line")
       .attr("class", "zero-line")
@@ -94,16 +120,16 @@ export function renderPnLTimeseries(
       .datum(series)
       .attr("class", `pnl-line ${s.cls}`)
       .attr("fill", "none")
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round")
       .attr("d", line(s.key));
   }
 
-  // Hover targets + markers
   g.selectAll(".pnl-day")
-    .data(series)
+    .data(series, (d) => String((d as DayPnL).day))
     .join("g")
-    .attr("class", (d) =>
-      ctx.hoveredDay === d.day ? "pnl-day pnl-day--active" : "pnl-day",
-    )
+    .attr("class", "pnl-day")
+    .attr("data-day", (d) => d.day)
     .attr("transform", (d) => `translate(${x(d.day) ?? 0},0)`)
     .each(function (d) {
       const gg = d3.select(this);
@@ -111,25 +137,26 @@ export function renderPnLTimeseries(
         .attr("class", "pnl-guide")
         .attr("y1", 0)
         .attr("y2", innerH)
-        .attr("opacity", ctx.hoveredDay === d.day ? 1 : 0);
+        .attr("opacity", 0);
       for (const s of seriesSpec) {
         gg.append("circle")
           .attr("class", `pnl-dot ${s.cls}`)
           .attr("cy", y(d[s.key] as number))
-          .attr("r", ctx.hoveredDay === d.day ? 4.5 : 3);
+          .attr("r", 3)
+          .attr("fill", "currentColor")
+          .attr("stroke", "var(--paper)")
+          .attr("stroke-width", 1.5);
       }
       gg.append("rect")
         .attr("class", "pnl-hit")
+        .attr("data-day", d.day)
         .attr("x", -10)
         .attr("y", 0)
         .attr("width", 20)
         .attr("height", innerH)
-        .on("mouseenter", () => ctx.onHoverDay(d.day))
-        .on("mouseleave", () => ctx.onHoverDay(null))
         .append("title")
         .text(
-          () =>
-            `Day ${d.day}\nRev $${d.revenue.toFixed(0)} · Cost $${d.cost_total.toFixed(0)} · Profit $${d.profit.toFixed(0)}`,
+          `Day ${d.day}\nRev $${d.revenue.toFixed(0)} · Cost $${d.cost_total.toFixed(0)} · Profit $${d.profit.toFixed(0)}`,
         );
     });
 
@@ -154,4 +181,14 @@ export function renderPnLTimeseries(
       .attr("class", "legend-label")
       .text(s.label);
   });
+
+  g.on("mouseover", (event: MouseEvent) => {
+    const target = event.target as Element | null;
+    if (!target) return;
+    const hit = target.closest("[data-day]");
+    if (!hit || !g.node()?.contains(hit)) return;
+    const day = Number((hit as HTMLElement).dataset.day);
+    if (!Number.isFinite(day)) return;
+    onHoverDay(day);
+  }).on("mouseleave", () => onHoverDay(null));
 }

@@ -1,12 +1,12 @@
 import "./styles.css";
 import { MockAdapter } from "./mock/adapter";
-import { renderHistory } from "./charts/history";
-import { renderMarginal } from "./charts/marginals";
-import { renderPnLTimeseries } from "./charts/pnlTimeseries";
+import { renderHistory, setHistoryHover } from "./charts/history";
+import { renderMarginal, setMarginalHover } from "./charts/marginals";
+import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
 import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
 import { controlsFromVm, mountControls } from "./controls";
-import type { ChartContext, Economics, HoverDay, ViewModel } from "./types";
+import type { Economics, HoverDay, ViewModel } from "./types";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
@@ -93,29 +93,35 @@ const els = {
   controls: document.querySelector("#controls") as HTMLElement,
 };
 
-function chartCtx(): ChartContext {
-  return {
-    hoveredDay,
-    onHoverDay(day) {
-      if (hoveredDay === day) return;
-      hoveredDay = day;
-      els.hoverNote.textContent =
-        day == null ? "Hover a day to link charts" : `Linked day ${day}`;
-      renderLinked();
-    },
-  };
+function onHoverDay(day: HoverDay): void {
+  if (hoveredDay === day) return;
+  hoveredDay = day;
+  els.hoverNote.textContent =
+    day == null ? "Hover a day to link charts" : `Linked day ${day}`;
+  // Style-only updates — never rebind/recreate marks on hover
+  setMarginalHover(els.sales, day);
+  setHistoryHover(els.history, day);
+  setMarginalHover(els.spoil, day);
+  setPnLHover(els.pnlSeries, day);
 }
 
-function renderLinked(): void {
-  const ctx = chartCtx();
-  renderMarginal(els.sales, vm.history, "sales", ctx, 78);
-  renderHistory(els.history, vm.history, ctx, { height: 230 });
-  renderMarginal(els.spoil, vm.history, "spoilage", ctx, 90);
-  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, ctx, 150);
+/** Full data redraw (step / resize / economics money series). */
+function renderDataCharts(): void {
+  renderMarginal(els.sales, vm.history, "sales", onHoverDay, 78);
+  renderHistory(els.history, vm.history, onHoverDay, { height: 230 });
+  renderMarginal(els.spoil, vm.history, "spoilage", onHoverDay, 90);
+  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, onHoverDay, 150);
+  // Re-apply current hover after rebuild
+  if (hoveredDay != null) {
+    setMarginalHover(els.sales, hoveredDay);
+    setHistoryHover(els.history, hoveredDay);
+    setMarginalHover(els.spoil, hoveredDay);
+    setPnLHover(els.pnlSeries, hoveredDay);
+  }
 }
 
 function renderAll(): void {
-  renderLinked();
+  renderDataCharts();
   renderPnLTotals(els.pnlTotals, vm);
   renderBeliefAgeCount(els.belief, vm.belief, 270);
   controlsApi.update(controlsFromVm(vm, orderQty));
@@ -134,9 +140,9 @@ const controlsApi = mountControls(
     },
     onEconomicsChange(partial: Partial<Economics>) {
       vm = adapter.setEconomics(partial);
-      // Pricing levers: money only — keep belief/history; still refresh totals + series
       renderPnLTotals(els.pnlTotals, vm);
-      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, chartCtx(), 150);
+      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, onHoverDay, 150);
+      if (hoveredDay != null) setPnLHover(els.pnlSeries, hoveredDay);
       controlsApi.update(controlsFromVm(vm, orderQty));
     },
   },
@@ -145,6 +151,6 @@ const controlsApi = mountControls(
 renderAll();
 
 window.addEventListener("resize", () => {
-  renderLinked();
+  renderDataCharts();
   renderBeliefAgeCount(els.belief, vm.belief, 270);
 });

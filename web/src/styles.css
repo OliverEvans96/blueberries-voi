@@ -200,8 +200,32 @@ body {
   fill: rgba(184, 134, 11, 0.12);
 }
 
+.lot {
+  pointer-events: none;
+}
+
 .lot--dim {
   opacity: 0.28;
+}
+
+.bar--sales {
+  fill: var(--sales);
+}
+
+.bar--spoilage {
+  fill: var(--spoil);
+}
+
+.bar--sales.bar--active {
+  fill: var(--sales-strong);
+}
+
+.bar--spoilage.bar--active {
+  fill: var(--spoil-strong);
+}
+
+.bar {
+  cursor: crosshair;
 }
 
 .zero-line {
@@ -210,27 +234,29 @@ body {
 }
 
 .pnl-line {
+  fill: none;
   stroke-width: 2.2;
 }
 
 .series-revenue {
   stroke: var(--revenue);
-  fill: var(--revenue);
+  color: var(--revenue);
 }
 
 .series-cost {
   stroke: var(--cost);
-  fill: var(--cost);
+  color: var(--cost);
 }
 
 .series-profit {
   stroke: var(--profit);
-  fill: var(--profit);
+  color: var(--profit);
 }
 
 .pnl-guide {
   stroke: rgba(184, 134, 11, 0.55);
   stroke-width: 1;
+  pointer-events: none;
 }
 
 .pnl-hit {
@@ -239,8 +265,7 @@ body {
 }
 
 .pnl-dot {
-  stroke: var(--paper);
-  stroke-width: 1.5;
+  pointer-events: none;
 }
 
 .controls {
