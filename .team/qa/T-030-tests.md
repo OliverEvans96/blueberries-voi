@@ -40,6 +40,8 @@
 - Forward steps call the same `model.day_step` (AST/identity; no shadow dynamics)
   → `tests/test_rollout.py::test_rollout_forward_steps_use_shared_model_day_step`
   — currently failing: missing rollout module to AST/identity-check
+  → `tests/test_rollout.py::test_rollout_forward_steps_call_day_step_via_spy`
+  — currently failing: missing rollout module / day_step call path
 
 - Rollouts are sequential (AST: no `multiprocessing` / `ProcessPoolExecutor`)
   → `tests/test_rollout.py::test_rollout_module_is_sequential_no_multiprocessing`

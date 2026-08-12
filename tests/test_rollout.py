@@ -537,7 +537,7 @@ def test_rollout_forward_steps_use_shared_model_day_step() -> None:
 def test_rollout_forward_steps_call_day_step_via_spy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Behavioural identity: forward sims invoke the shared ``model.day_step`` object."""
+    """Behavioural identity: forward sims call shared model.day_step."""
     mod = _rollout_defining_module()
     calls: list[int] = []
     real = model_pkg.day_step
