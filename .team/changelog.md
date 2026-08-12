@@ -2,6 +2,11 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 5 ladder + automated safety gates
+
+- **The five ordering baselines can now be scored end-to-end in one run** — constant order, age-blind baseline, survival-weighted rule, look-ahead improvement, and the tiny exact planner — with results saved under experiments, and profit claims refused unless the tuned service-level table is present (T-032).
+- **Three automatic checks now fail the test suite if broken:** age-aware and age-blind orders match when aging is turned off, paired random streams stay synchronized for fair comparisons, and the look-ahead rule’s gap to the tiny exact planner is reported (T-032).
+
 ## 2026-08-12 — M2 Wave 4 rollout + toy DP certificate
 
 - **Ordering can try one short look-ahead improvement step** around the survival-weighted base rule, scoring candidate orders over a shelf-life-scale horizon with a documented end-of-horizon salvage value, and paired random streams keep the comparison fair (T-030).
