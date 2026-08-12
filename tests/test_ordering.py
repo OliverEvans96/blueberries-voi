@@ -54,7 +54,7 @@ _CASE_ROUND_FIXTURES_CS4: tuple[tuple[float, int], ...] = (
     (3.0, 4),
     (4.0, 4),
     (6.0, 8),  # tie 4↔8 → 8
-    (10.0, 8),
+    (10.0, 12),  # tie 8↔12 → 12
 )
 
 _FORBIDDEN_IMPORT_ROOTS = frozenset({"matplotlib", "pyarrow", "pyarrow.parquet"})
