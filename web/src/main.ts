@@ -62,7 +62,7 @@ app.innerHTML = `
           </div>
           <div class="legend-inline store-legend">
             <span class="chip chip-sales">Sales</span>
-            <span class="chip chip-lots">Lots</span>
+            <span class="chip chip-lots">Age × day heatmap</span>
             <span class="chip chip-spoil">Spoilage</span>
           </div>
           <div class="chart-stack">

@@ -391,26 +391,28 @@ body {
 
 .day-col--active,
 .day-hit--active {
-  fill: rgba(184, 134, 11, 0.12);
+  fill: rgba(255, 255, 255, 0.14);
+  stroke: rgba(184, 134, 11, 0.55);
+  stroke-width: 1;
+}
+
+.heat-cell--dim {
+  opacity: 0.28;
+}
+
+.is-hovering .heat-cell:not(.heat-cell--dim) {
+  opacity: 1;
 }
 
 .hover-rule {
-  stroke: rgba(184, 134, 11, 0.7);
+  stroke: rgba(184, 134, 11, 0.85);
   stroke-width: 1.25;
   stroke-dasharray: 3 3;
   pointer-events: none;
 }
 
-.lot {
-  pointer-events: none;
-}
-
-.is-hovering .lot {
-  opacity: 0.28;
-}
-
-.is-hovering .lot.lot--active {
-  opacity: 1;
+.heat-legend .axis text {
+  font-size: 9px;
 }
 
 .bar--sales {
