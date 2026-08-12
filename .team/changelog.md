@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 6 multi-scenario closed-loop + L remeasure
+
+- **Ordering rules can now be compared under three different information views** — rich lot visibility, storewide sales only, and a simple age-blind baseline — with a short written report that also records how long product is lasting under the real controller, while age tracking stays on the simpler production model (T-033).
+
 ## 2026-08-12 — M2 Wave 5 ladder + automated safety gates
 
 - **The five ordering baselines can now be scored end-to-end in one run** — constant order, age-blind baseline, survival-weighted rule, look-ahead improvement, and the tiny exact planner — with results saved under experiments, and profit claims refused unless the tuned service-level table is present (T-032).

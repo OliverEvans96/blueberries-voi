@@ -6,8 +6,10 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure per
-  [`.team/plans/M2-controller.md`](./plans/M2-controller.md)).
+- **Next — M2 Wave 7:** **T-034** (per
+  [`.team/plans/M2-controller.md`](./plans/M2-controller.md) / [`.team/specs/T-034.md`](./specs/T-034.md)).
+- **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
+  and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 5:** **T-032** (CTL-05 five-point ladder + ENG-04 M2 gates: β=1,
   CRN desync, DP certificate) integrated and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 4:** Parallel **T-030 ∥ T-031** (one-step rollout + salvage; toy exact DP
