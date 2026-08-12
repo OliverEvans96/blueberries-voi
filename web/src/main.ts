@@ -7,7 +7,7 @@ import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
 import { controlsFromVm, mountControls } from "./controls";
 import { attachLinkedHover } from "./hoverLink";
-import type { Economics, HoverDay, ViewModel } from "./types";
+import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
@@ -19,7 +19,8 @@ app.innerHTML = `
       <h1>Blueberry inventory simulator</h1>
       <p class="lede">
         Mock rolling history of lots, sales and spoilage, live P&amp;L, and a
-        fake age×count belief field. Advance a day or retune prices — no Python runtime.
+        fake age×count belief field. Tune physics and demand, then reset or
+        advance — no Python runtime.
       </p>
     </header>
 
@@ -56,7 +57,7 @@ app.innerHTML = `
       </main>
 
       <aside class="rail">
-        <section class="panel">
+        <section class="panel panel-controls">
           <div class="panel-head"><h2>Controls</h2></div>
           <div id="controls"></div>
         </section>
@@ -67,7 +68,7 @@ app.innerHTML = `
         <section class="panel">
           <div class="panel-head">
             <h2>Belief · age × count</h2>
-            <span class="panel-note">Synthetic KDE</span>
+            <span class="panel-note" id="belief-note">Scenario P1</span>
           </div>
           <div id="chart-belief" class="chart"></div>
         </section>
@@ -80,9 +81,9 @@ app.innerHTML = `
   </div>
 `;
 
-const adapter = new MockAdapter(42);
+const adapter = new MockAdapter();
 let vm: ViewModel = adapter.init();
-let orderQty = 24;
+let orderQty = adapter.snapOrder(24);
 let hoveredDay: HoverDay = null;
 
 const els = {
@@ -93,6 +94,7 @@ const els = {
   pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
   pnlTotals: document.querySelector("#chart-pnl-totals") as HTMLElement,
   belief: document.querySelector("#chart-belief") as HTMLElement,
+  beliefNote: document.querySelector("#belief-note") as HTMLElement,
   hoverNote: document.querySelector("#hover-note") as HTMLElement,
   controls: document.querySelector("#controls") as HTMLElement,
 };
@@ -120,7 +122,6 @@ attachLinkedHover(
   { onDay: onHoverDay },
 );
 
-/** Full data redraw (step / resize / economics money series). */
 function renderDataCharts(): void {
   renderMarginal(els.sales, vm.history, "sales", 78);
   renderHistory(els.history, vm.history, { height: 230 });
@@ -133,6 +134,8 @@ function renderAll(): void {
   renderDataCharts();
   renderPnLTotals(els.pnlTotals, vm);
   renderBeliefAgeCount(els.belief, vm.belief, 270);
+  els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario}`;
+  orderQty = adapter.snapOrder(orderQty);
   controlsApi.update(controlsFromVm(vm, orderQty));
 }
 
@@ -145,7 +148,12 @@ const controlsApi = mountControls(
     },
     onAdvance() {
       vm = adapter.step({ order_qty: orderQty });
-      // Episode advanced — clear hover (day indices shifted in window)
+      onHoverDay(null);
+      renderAll();
+    },
+    onReset() {
+      vm = adapter.reset();
+      orderQty = adapter.snapOrder(orderQty);
       onHoverDay(null);
       renderAll();
     },
@@ -154,6 +162,17 @@ const controlsApi = mountControls(
       renderPnLTotals(els.pnlTotals, vm);
       renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150);
       applyHoverStyles(hoveredDay);
+      controlsApi.update(controlsFromVm(vm, orderQty));
+    },
+    onConfigChange(partial: Partial<SimConfig>) {
+      vm = adapter.setConfig(partial);
+      if (partial.case_size != null) {
+        orderQty = adapter.snapOrder(orderQty);
+      }
+      if (partial.obs_scenario != null) {
+        renderBeliefAgeCount(els.belief, vm.belief, 270);
+        els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario}`;
+      }
       controlsApi.update(controlsFromVm(vm, orderQty));
     },
   },

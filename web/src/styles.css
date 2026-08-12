@@ -298,12 +298,27 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: min(72vh, 820px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.panel-controls {
+  position: sticky;
+  top: 12px;
 }
 
 .controls-block {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(28, 36, 32, 0.08);
+}
+
+.controls-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .block-title {
@@ -344,6 +359,12 @@ body {
   align-items: center;
 }
 
+.btn-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 8px;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
@@ -359,28 +380,75 @@ input[type="number"] {
   font: inherit;
 }
 
-.btn-advance {
+.btn-advance,
+.btn-reset {
   appearance: none;
   border: none;
   border-radius: 10px;
-  padding: 11px 14px;
-  background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
-  color: #f4f7f4;
+  padding: 11px 12px;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 
-.btn-advance:hover {
-  filter: brightness(1.06);
+.btn-advance {
+  background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
+  color: #f4f7f4;
+  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
+}
+
+.btn-reset {
+  background: #fffdf8;
+  color: var(--ink);
+  border: 1px solid var(--paper-edge);
+}
+
+.btn-advance:hover,
+.btn-reset:hover {
+  filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
-.btn-advance:active {
+.btn-advance:active,
+.btn-reset:active {
   transform: translateY(0);
+}
+
+.dirty-banner {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #6a4a12;
+  background: rgba(184, 134, 11, 0.14);
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.chip-row {
+  display: flex;
+  gap: 6px;
+}
+
+.obs-chip {
+  appearance: none;
+  flex: 1;
+  border: 1px solid var(--paper-edge);
+  background: #fffdf8;
+  color: var(--ink-soft);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.obs-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f4f7f4;
 }
 
 .meta-line {

@@ -24,6 +24,27 @@ export type Economics = {
   c_stockout: number;
 };
 
+/** Fake physics / logistics knobs (aligned with ModelParams defaults). */
+export type ObsScenario = "P0" | "P1" | "P2";
+
+export type SimConfig = {
+  beta: number;
+  eta_ref: number;
+  q10: number;
+  t_ref_c: number;
+  t_store_c: number;
+  sigma: number;
+  demand_mu: number;
+  demand_vm: number;
+  case_size: number;
+  lead_time: number;
+  base_stock: number;
+  starting_inv: number;
+  seed: number;
+  obs_scenario: ObsScenario;
+  window_days: number;
+};
+
 export type DayPnL = {
   day: number;
   revenue: number;
@@ -45,6 +66,8 @@ export type ViewModel = {
   window_days: number;
   history: Day[];
   economics: Economics;
+  config: SimConfig;
+  config_dirty: boolean;
   pnl_series: DayPnL[];
   pnl_totals: {
     revenue: number;

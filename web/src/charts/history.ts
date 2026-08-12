@@ -89,7 +89,11 @@ export function renderHistory(
 
   const days = history.map((d) => d.day);
   const step = days.length > 0 ? innerW / days.length : innerW;
-  const y = d3.scaleLinear().domain([0, 10]).range([innerH, 0]);
+  const maxTau = Math.max(
+    10,
+    d3.max(history, (d) => d3.max(d.lots, (l) => l.tau)) ?? 10,
+  );
+  const y = d3.scaleLinear().domain([0, maxTau]).nice().range([innerH, 0]);
 
   g.append("g")
     .attr("class", "axis axis-y")
