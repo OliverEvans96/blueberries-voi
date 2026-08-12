@@ -534,6 +534,43 @@ def test_rollout_forward_steps_use_shared_model_day_step() -> None:
             )
 
 
+def test_rollout_forward_steps_call_day_step_via_spy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Behavioural identity: forward sims invoke the shared ``model.day_step`` object."""
+    mod = _rollout_defining_module()
+    calls: list[int] = []
+    real = model_pkg.day_step
+
+    def _spy(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    # Patch the shared symbol and any module-local binding (identity must hold).
+    monkeypatch.setattr(model_pkg, "day_step", _spy)
+    if getattr(mod, "day_step", None) is not None:
+        monkeypatch.setattr(mod, "day_step", _spy)
+
+    fn = _resolve(_ROLLOUT_ATTR)
+    params = ModelParams()
+    belief = _table_belief(params)
+    base = DampedSurvivalWeightedPolicy(rho=0.8, alpha=0.9, params=params)
+    order = fn(
+        belief,
+        base_policy=base,
+        params=params,
+        rng_address={"root_seed": 33, "run_id": f"{_CRN_RUN_ID_PREFIX}-day-step"},
+        H=1,
+        n_rollout_paths=1,
+    )
+    assert isinstance(order, int)
+    assert order >= 0
+    assert sum(calls) >= 1, (
+        "rollout forward path must call model.day_step at least once "
+        "(no shadow dynamics)"
+    )
+
+
 # ---------------------------------------------------------------------------
 # AC: sequential rollouts (no multiprocessing / process pools)
 # ---------------------------------------------------------------------------
