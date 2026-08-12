@@ -75,7 +75,7 @@ def _as_int_list(value: Any) -> list[int]:
 def _export_payload(belief: Any) -> Any:
     if hasattr(belief, "to_export"):
         return belief.to_export()
-    if is_dataclass(belief):
+    if is_dataclass(belief) and not isinstance(belief, type):
         from dataclasses import asdict
 
         return asdict(belief)
@@ -162,9 +162,9 @@ def test_shelf_belief_is_frozen_public_type() -> None:
     belief = from_oracle(lot_counts=[3], ages=[2.0], tau_grid=grid)
     assert is_dataclass(belief) or is_dataclass(ShelfBelief)
     names = _public_field_names(belief)
-    assert _REQUIRED_FIELD_NAMES <= names
+    assert names >= _REQUIRED_FIELD_NAMES
     with pytest.raises((FrozenInstanceError, AttributeError, TypeError)):
-        belief.lot_counts = [99]  # type: ignore[misc]
+        belief.lot_counts = [99]
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +332,53 @@ def test_effective_inventory_rejects_negative_pending_quantities() -> None:
     belief = from_oracle(lot_counts=[1], ages=[0.0], tau_grid=grid)
     with pytest.raises((ValueError, TypeError)):
         effective_inventory(belief, pending_orders={1: -3}, params=params)
+
+
+def test_effective_inventory_from_rbpf_preserves_fractional_lot_means() -> None:
+    """MF weight-averaged counts are fractional; do not floor before SW (ADR 0092)."""
+    from_rbpf = _resolve("shelf_belief_from_rbpf")
+    effective_inventory = _resolve("effective_inventory")
+    rbpf = _stepped_production_rbpf(seed=11)
+    belief = from_rbpf(rbpf)
+
+    counts = [float(x) for x in list(belief.lot_counts)]
+    assert any(c != float(int(c)) for c in counts), (
+        "fixture must yield non-integer MF means so flooring bias is observable"
+    )
+
+    marg = np.asarray(belief.age_marginals, dtype=float)
+    grid = [float(t) for t in list(belief.tau_grid)]
+    on_hand_float = survival_weighted_on_hand(
+        counts,
+        marg,
+        params=rbpf.params,
+        tau_grid=grid,
+        from_marginals=True,
+    )
+    on_hand_floored = survival_weighted_on_hand(
+        [int(c) for c in counts],
+        marg,
+        params=rbpf.params,
+        tau_grid=grid,
+        from_marginals=True,
+    )
+    # Flooring biases tilde I_t low vs continuous expectation (~0.75 on N=40).
+    assert float(on_hand_float) > float(on_hand_floored)
+
+    pending: PendingOrders = {1: 5}
+    pipeline_w = _flat_prior_expected_survival(rbpf.params, grid)
+    expected = float(on_hand_float + 5.0 * pipeline_w)
+    got = effective_inventory(
+        belief,
+        pending_orders=pending,
+        params=rbpf.params,
+    )
+    assert got == pytest.approx(expected, rel=0.0, abs=1e-9)
+    assert got != pytest.approx(
+        float(on_hand_floored + 5.0 * pipeline_w),
+        rel=0.0,
+        abs=1e-6,
+    )
 
 
 # ---------------------------------------------------------------------------

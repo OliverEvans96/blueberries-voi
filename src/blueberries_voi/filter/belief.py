@@ -133,7 +133,8 @@ def effective_inventory(
             msg = "pending_orders quantities must be non-negative"
             raise ValueError(msg)
 
-    n_on_hand = [int(x) for x in belief.lot_counts]
+    # Preserve fractional MF means; flooring would bias tilde I_t low (ADR 0092).
+    n_on_hand = [float(x) for x in belief.lot_counts]
     marg = np.asarray(belief.age_marginals, dtype=float)
     on_hand = survival_weighted_on_hand(
         n_on_hand,
