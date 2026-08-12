@@ -6,8 +6,10 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M2 Wave 3:** **T-029** α tuning (service-level / fractile grid for the damped SW
-  base-stock). Team plan [`.team/plans/M2-controller.md`](./plans/M2-controller.md).
+- **Next — M2 Wave 4:** Parallel **T-030 ∥ T-031** (rollout and DP ladder arms). Team plan
+  [`.team/plans/M2-controller.md`](./plans/M2-controller.md).
+- **Done — M2 Wave 3:** **T-029** α fractile tuning (CTL-03=B) integrated and gate-green on
+  `team/T-022/verify`.
 - **Done — M2 Wave 2:** Parallel base policies **T-027 ∥ T-028** (age-blind Rung 0 and CTL-01
   damped survival-weighted base-stock) integrated and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 0 / Wave 1:** ADRs

@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 3 α tuning
+
+- **Each ladder ordering rule can now get a simulation-tuned service level (α)** from a shared-seed grid search that scores day/episode profit, with tuned values saved under experiments; profit claims that skip that tuned table are rejected (T-029).
+
 ## 2026-08-12 — M2 Wave 2 base policies
 
 - **An honest age-blind baseline can place orders from total stock on hand** (plus what is already on order), with a documented expected-spoilage correction, so the ladder has a fair competitor that does not peek at lot ages (T-027).

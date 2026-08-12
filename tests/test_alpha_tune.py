@@ -1,6 +1,6 @@
-"""T-029 CTL-03 α fractile tuning — expected RED until sim alpha-tune API lands.
+"""T-029 CTL-03 alpha fractile tuning — expected RED until sim alpha-tune API lands.
 
-Locks CTL-03=B simulation-tuned α per ladder arm under shared CRN, artifact I/O
+Locks CTL-03=B simulation-tuned alpha per ladder arm under shared CRN, artifact I/O
 under experiments/ and/or figures/m2/, SIM-01=B profit objective, controller
 purity, and rejection of untuned ladder profit claims. See `.team/specs/T-029.md`.
 """
@@ -21,11 +21,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TUNE_MODULE = "blueberries_voi.sim.alpha_tune"
 _CONTROLLER_DIR = _REPO_ROOT / "src" / "blueberries_voi" / "controller"
 
-# Ladder arms that must have a tuned α entry (CTL-05). Rollout / DP may be
+# Ladder arms that must have a tuned alpha entry (CTL-05). Rollout / DP may be
 # placeholders until T-030 / T-031 land; the arm ids must still be registered.
-_REQUIRED_ARMS: frozenset[str] = frozenset(
-    {"constant", "rung0", "sw", "rollout", "dp"}
-)
+_REQUIRED_ARMS: frozenset[str] = frozenset({"constant", "rung0", "sw", "rollout", "dp"})
 _AVAILABLE_NOW: frozenset[str] = frozenset({"constant", "rung0", "sw"})
 
 # Tiny CI grid (open question: desktop defaults live in artifact header).
@@ -85,7 +83,7 @@ def test_ladder_alpha_arms_include_constant_rung0_sw_and_placeholders() -> None:
 
 @pytest.mark.parametrize("arm_id", sorted(_AVAILABLE_NOW))
 def test_tune_alpha_grid_returns_best_alpha_from_grid_per_arm(arm_id: str) -> None:
-    """Per available ladder arm: grid search returns a candidate α under shared CRN."""
+    """Per available ladder arm: grid search returns a candidate alpha under CRN."""
     tune = _resolve("tune_alpha_grid")
     best = tune(arm_id, alphas=_CI_ALPHA_GRID, root_seed=42)
     assert isinstance(best, float)
@@ -121,12 +119,12 @@ def test_placeholder_arms_registered_and_callable_or_documented(arm_id: str) -> 
 
 
 # ---------------------------------------------------------------------------
-# AC: shared CRN across α candidates
+# AC: shared CRN across alpha candidates
 # ---------------------------------------------------------------------------
 
 
 def test_tune_alpha_grid_is_deterministic_under_shared_root_seed() -> None:
-    """Same arm + alphas + root_seed → same best α (CRN / SIM-05 addressing)."""
+    """Same arm + alphas + root_seed → same best alpha (CRN / SIM-05 addressing)."""
     tune = _resolve("tune_alpha_grid")
     a = tune("sw", alphas=_CI_ALPHA_GRID, root_seed=99)
     b = tune("sw", alphas=_CI_ALPHA_GRID, root_seed=99)
@@ -136,7 +134,7 @@ def test_tune_alpha_grid_is_deterministic_under_shared_root_seed() -> None:
 def test_tune_alpha_grid_evaluates_candidates_under_same_root_seed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """α candidates share one root_seed (paired CRN), not independent seeds per α."""
+    """Alpha candidates share one root_seed (CRN), not independent seeds per alpha."""
     mod = _tune_module()
     tune = _resolve("tune_alpha_grid")
     seen_seeds: list[int] = []
@@ -168,20 +166,20 @@ def test_tune_alpha_grid_evaluates_candidates_under_same_root_seed(
 
         tune("rung0", alphas=_CI_ALPHA_GRID, root_seed=123)
         assert call_count["n"] >= len(_CI_ALPHA_GRID), (
-            "objective must score each α candidate via episode_profit (SIM-01=B)"
+            "objective must score each alpha candidate via episode_profit (SIM-01=B)"
         )
         return
 
     tune("rung0", alphas=_CI_ALPHA_GRID, root_seed=123)
     assert seen_seeds, "expected evaluate_alpha_episode_profit to be invoked"
     assert all(s == 123 for s in seen_seeds), (
-        f"α candidates must share root_seed=123; saw {seen_seeds}"
+        f"alpha candidates must share root_seed=123; saw {seen_seeds}"
     )
     assert len(seen_seeds) >= len(_CI_ALPHA_GRID)
 
 
 # ---------------------------------------------------------------------------
-# AC: tuned α artifact under experiments/ and/or figures/m2/
+# AC: tuned alpha artifact under experiments/ and/or figures/m2/
 # ---------------------------------------------------------------------------
 
 
@@ -306,9 +304,7 @@ def test_tune_module_uses_episode_profit_not_waste_only() -> None:
         "ProfitCosts), not a waste-only objective"
     )
     # Waste-only smell: scoring only waste_total without sales/margin terms.
-    if "waste_total" in names_used and "episode_profit" not in (
-        imported | names_used
-    ):
+    if "waste_total" in names_used and "episode_profit" not in (imported | names_used):
         pytest.fail(
             "tuning must not optimize waste_total alone; use episode_profit",
             pytrace=False,
