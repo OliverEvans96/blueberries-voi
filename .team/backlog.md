@@ -10,7 +10,7 @@ Escalations and items that need a human decision land here.
   the M2 verify/implement line; landing on `main` is a human decision. Do not start M3
   VOI or reopen ENG-01 from backlog without a new ticket.
 - **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
-  non-goal locks) on `team/T-034/implement`.
+  non-goal locks) gate-green on `team/T-022/verify` (verifier PASS).
 - **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
   and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 5:** **T-032** (CTL-05 five-point ladder + ENG-04 M2 gates: β=1,
