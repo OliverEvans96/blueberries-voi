@@ -9,99 +9,128 @@ import { renderSurvival } from "./charts/survival";
 import { renderDemandDist } from "./charts/demandDist";
 import { renderPipeline } from "./charts/pipelineGantt";
 import { renderGhostDeltas } from "./charts/ghostDeltas";
-import { controlsFromVm, mountControls } from "./controls";
+import {
+  controlsFromVm,
+  mountPlayChrome,
+  mountSectionControls,
+} from "./controls";
 import { attachLinkedHover } from "./hoverLink";
+import {
+  STUDIO_SECTIONS,
+  loadSection,
+  saveSection,
+  type SectionId,
+} from "./sections";
 import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
 
+const navHtml = STUDIO_SECTIONS.map(
+  (s, i) => `
+  <button type="button" class="section-nav-item" data-section="${s.id}" data-index="${i}">
+    <span class="section-nav-index">${i + 1}</span>
+    <span class="section-nav-text">
+      <span class="section-nav-label">${s.label}</span>
+      <span class="section-nav-blurb">${s.blurb}</span>
+    </span>
+  </button>
+`,
+).join("");
+
 app.innerHTML = `
-  <div class="shell">
+  <div class="shell studio">
     <header class="hero">
       <div class="brand">Cold Case Ledger</div>
-      <h1>Blueberry inventory simulator</h1>
+      <h1>Blueberry inventory studio</h1>
       <p class="lede">
-        Mock rolling history of lots, sales and spoilage, live P&amp;L, and a
-        fake age×count belief field. Tune physics and demand, then reset or
-        advance — no Python runtime.
+        Walk one idea at a time — order the store, then open Pricing, Physics,
+        Demand, Logistics, or Belief to see how each knob teaches through its plots.
       </p>
     </header>
 
-    <div class="layout">
-      <main class="stage">
-        <div class="linked-charts" id="linked-charts">
-          <section class="panel panel-stage">
-            <div class="panel-head">
-              <h2>Rolling inventory</h2>
-              <div class="legend-inline">
-                <span class="chip chip-sales">Sales</span>
-                <span class="chip chip-lots">Lots (size ∝ qty)</span>
-                <span class="chip chip-spoil">Spoilage</span>
-              </div>
-            </div>
-            <div class="chart-stack">
-              <div class="chart-caption">Units sold</div>
-              <div id="chart-sales" class="chart"></div>
-              <div class="chart-caption">Lots · day × age</div>
-              <div id="chart-history" class="chart"></div>
-              <div class="chart-caption">Units spoiled</div>
-              <div id="chart-spoil" class="chart"></div>
-            </div>
-          </section>
-
-          <section class="panel panel-stage">
-            <div class="panel-head">
-              <h2>P&amp;L timeseries</h2>
-              <span class="panel-note" id="hover-note">Hover a day to highlight it everywhere</span>
-            </div>
-            <div id="chart-pnl-series" class="chart"></div>
-            <div id="ghost-deltas"></div>
-          </section>
-        </div>
+    <div class="studio-layout">
+      <main class="store">
+        <section class="panel panel-stage" id="linked-charts">
+          <div class="panel-head">
+            <h2>The store</h2>
+            <span class="panel-note" id="hover-note">Hover a day to highlight it everywhere</span>
+          </div>
+          <div class="legend-inline store-legend">
+            <span class="chip chip-sales">Sales</span>
+            <span class="chip chip-lots">Lots</span>
+            <span class="chip chip-spoil">Spoilage</span>
+          </div>
+          <div class="chart-stack">
+            <div class="chart-caption">Units sold</div>
+            <div id="chart-sales" class="chart"></div>
+            <div class="chart-caption">Lots · day × age</div>
+            <div id="chart-history" class="chart"></div>
+            <div class="chart-caption">Units spoiled</div>
+            <div id="chart-spoil" class="chart"></div>
+          </div>
+        </section>
+        <div id="ghost-deltas" class="ghost-slot"></div>
       </main>
 
-      <aside class="rail">
-        <section class="panel panel-controls">
-          <div class="panel-head"><h2>Controls</h2></div>
-          <div id="controls"></div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><h2>P&amp;L totals</h2></div>
-          <div id="chart-pnl-totals"></div>
-        </section>
-        <section class="panel panel-impact">
-          <div class="panel-head">
-            <h2>Controls impact</h2>
-            <span class="panel-note">Live knobs</span>
+      <aside class="focus-column">
+        <nav class="section-nav panel" aria-label="Studio sections">
+          ${navHtml}
+          <p class="section-nav-hint">Keys 1–6 or ← →</p>
+        </nav>
+
+        <section class="panel play-panel">
+          <div class="panel-head"><h2>Run</h2></div>
+          <div id="play-chrome"></div>
+          <div class="pnl-chrome">
+            <div id="chart-pnl-totals"></div>
+            <div class="chart-caption impact-caption">Profit sparkline</div>
+            <div id="chart-pnl-spark" class="chart"></div>
           </div>
-          <div class="impact-grid">
-            <div>
+        </section>
+
+        <section class="panel focus-pane" id="focus-pane">
+          <div class="focus-header">
+            <h2 id="focus-title">Play</h2>
+            <p class="focus-blurb" id="focus-blurb"></p>
+          </div>
+          <div id="section-controls"></div>
+          <div class="focus-plots">
+            <div class="focus-plot" data-plot="plot-belief" hidden>
+              <div class="chart-caption impact-caption">Belief vs truth</div>
+              <div id="chart-belief" class="chart"></div>
+            </div>
+            <div class="focus-plot" data-plot="plot-pipeline" hidden>
+              <div class="chart-caption impact-caption">Inbound pipeline</div>
+              <div id="chart-pipeline" class="chart"></div>
+            </div>
+            <div class="focus-plot" data-plot="plot-pnl" hidden>
+              <div class="chart-caption impact-caption">Revenue · cost · profit</div>
+              <div id="chart-pnl-series" class="chart"></div>
+            </div>
+            <div class="focus-plot" data-plot="plot-survival" hidden>
               <div class="chart-caption impact-caption">Survival + lot rug</div>
               <div id="chart-survival" class="chart"></div>
             </div>
-            <div>
+            <div class="focus-plot" data-plot="plot-demand" hidden>
               <div class="chart-caption impact-caption">Demand + coverage</div>
               <div id="chart-demand" class="chart"></div>
             </div>
-            <div>
-              <div class="chart-caption impact-caption">Order pipeline</div>
-              <div id="chart-pipeline" class="chart"></div>
+            <div class="focus-plot" data-plot="plot-pipeline-lg" hidden>
+              <div class="chart-caption impact-caption">Order → arrival Gantt</div>
+              <div id="chart-pipeline-lg" class="chart"></div>
+            </div>
+            <div class="focus-plot" data-plot="plot-belief-lg" hidden>
+              <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
+              <div id="chart-belief-lg" class="chart"></div>
             </div>
           </div>
-        </section>
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Belief · age × count</h2>
-            <span class="panel-note" id="belief-note">Scenario P1 · truth overlay</span>
-          </div>
-          <div id="chart-belief" class="chart"></div>
         </section>
       </aside>
     </div>
 
     <footer class="foot">
-      Fake data mockup · blueberries-voi · D3 + Vite
+      Fake data studio · blueberries-voi · D3 + Vite
     </footer>
   </div>
 `;
@@ -110,6 +139,7 @@ const adapter = new MockAdapter();
 let vm: ViewModel = adapter.init();
 let orderQty = adapter.snapOrder(24);
 let hoveredDay: HoverDay = null;
+let activeSection: SectionId = loadSection();
 
 const els = {
   linked: document.querySelector("#linked-charts") as HTMLElement,
@@ -117,22 +147,30 @@ const els = {
   history: document.querySelector("#chart-history") as HTMLElement,
   spoil: document.querySelector("#chart-spoil") as HTMLElement,
   pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
+  pnlSpark: document.querySelector("#chart-pnl-spark") as HTMLElement,
   pnlTotals: document.querySelector("#chart-pnl-totals") as HTMLElement,
   belief: document.querySelector("#chart-belief") as HTMLElement,
-  beliefNote: document.querySelector("#belief-note") as HTMLElement,
+  beliefLg: document.querySelector("#chart-belief-lg") as HTMLElement,
   hoverNote: document.querySelector("#hover-note") as HTMLElement,
-  controls: document.querySelector("#controls") as HTMLElement,
+  playChrome: document.querySelector("#play-chrome") as HTMLElement,
+  sectionControls: document.querySelector("#section-controls") as HTMLElement,
   survival: document.querySelector("#chart-survival") as HTMLElement,
   demand: document.querySelector("#chart-demand") as HTMLElement,
   pipeline: document.querySelector("#chart-pipeline") as HTMLElement,
+  pipelineLg: document.querySelector("#chart-pipeline-lg") as HTMLElement,
   ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
+  focusTitle: document.querySelector("#focus-title") as HTMLElement,
+  focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
+  focusPane: document.querySelector("#focus-pane") as HTMLElement,
 };
 
 function applyHoverStyles(day: HoverDay): void {
   setMarginalHover(els.sales, day);
   setHistoryHover(els.history, day);
   setMarginalHover(els.spoil, day);
-  setPnLHover(els.pnlSeries, day);
+  if (!els.pnlSeries.closest(".focus-plot")?.hasAttribute("hidden")) {
+    setPnLHover(els.pnlSeries, day);
+  }
 }
 
 function onHoverDay(day: HoverDay): void {
@@ -145,39 +183,92 @@ function onHoverDay(day: HoverDay): void {
   applyHoverStyles(day);
 }
 
-attachLinkedHover(
-  els.linked,
-  () => vm.history.map((d) => d.day),
-  { onDay: onHoverDay },
-);
+attachLinkedHover(els.linked, () => vm.history.map((d) => d.day), {
+  onDay: onHoverDay,
+});
 
-function renderImpactCharts(): void {
-  renderSurvival(els.survival, vm.config, vm.live_lots, 132);
-  renderDemandDist(els.demand, vm.config, vm.on_hand, vm.effective_inv, 132);
-  renderPipeline(els.pipeline, vm.pipeline, vm.config, 110);
+function plotVisible(plotId: string): boolean {
+  const node = document.querySelector(
+    `.focus-plot[data-plot="${plotId}"]`,
+  ) as HTMLElement | null;
+  return !!node && !node.hidden;
 }
 
-function renderDataCharts(): void {
-  renderMarginal(els.sales, vm.history, "sales", 78);
-  renderHistory(els.history, vm.history, { height: 230 });
-  renderMarginal(els.spoil, vm.history, "spoilage", 90, vm.ghost);
-  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150, vm.ghost);
-  renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
+function renderStore(): void {
+  renderMarginal(els.sales, vm.history, "sales", 72);
+  renderHistory(els.history, vm.history, { height: 220 });
+  renderMarginal(els.spoil, vm.history, "spoilage", 86, vm.ghost);
   applyHoverStyles(hoveredDay);
 }
 
-function renderAll(): void {
-  renderDataCharts();
-  renderImpactCharts();
+function renderChrome(): void {
   renderPnLTotals(els.pnlTotals, vm);
-  renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
-  els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario} · truth overlay`;
-  orderQty = adapter.snapOrder(orderQty);
-  controlsApi.update(controlsFromVm(vm, orderQty));
+  renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 64, vm.ghost);
+  renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
 }
 
-const controlsApi = mountControls(
-  els.controls,
+function renderActiveFocusPlots(): void {
+  if (plotVisible("plot-belief")) {
+    renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 200);
+  }
+  if (plotVisible("plot-belief-lg")) {
+    renderBeliefAgeCount(els.beliefLg, vm.belief, vm.live_lots, 280);
+  }
+  if (plotVisible("plot-pipeline")) {
+    renderPipeline(els.pipeline, vm.pipeline, vm.config, 100);
+  }
+  if (plotVisible("plot-pipeline-lg")) {
+    renderPipeline(els.pipelineLg, vm.pipeline, vm.config, 140);
+  }
+  if (plotVisible("plot-pnl")) {
+    renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
+    applyHoverStyles(hoveredDay);
+  }
+  if (plotVisible("plot-survival")) {
+    renderSurvival(els.survival, vm.config, vm.live_lots, 160);
+  }
+  if (plotVisible("plot-demand")) {
+    renderDemandDist(els.demand, vm.config, vm.on_hand, vm.effective_inv, 160);
+  }
+}
+
+function setSection(id: SectionId): void {
+  activeSection = id;
+  saveSection(id);
+  const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
+
+  document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.section === id);
+  });
+
+  els.focusTitle.textContent = meta.label;
+  els.focusBlurb.textContent = meta.blurb;
+  sectionControlsApi.showSection(id);
+
+  document.querySelectorAll<HTMLElement>(".focus-plot").forEach((plot) => {
+    const pid = plot.dataset.plot ?? "";
+    plot.hidden = !meta.plotIds.includes(pid);
+  });
+
+  els.focusPane.classList.remove("focus-flash");
+  void els.focusPane.offsetWidth;
+  els.focusPane.classList.add("focus-flash");
+
+  renderActiveFocusPlots();
+}
+
+function renderAll(): void {
+  renderStore();
+  renderChrome();
+  renderActiveFocusPlots();
+  orderQty = adapter.snapOrder(orderQty);
+  const state = controlsFromVm(vm, orderQty);
+  playChromeApi.update(state);
+  sectionControlsApi.update(state);
+}
+
+const playChromeApi = mountPlayChrome(
+  els.playChrome,
   controlsFromVm(vm, orderQty),
   {
     onOrderChange(qty) {
@@ -194,45 +285,76 @@ const controlsApi = mountControls(
       onHoverDay(null);
       renderAll();
     },
+  },
+);
+
+const sectionControlsApi = mountSectionControls(
+  els.sectionControls,
+  controlsFromVm(vm, orderQty),
+  {
     onEconomicsChange(partial: Partial<Economics>) {
       vm = adapter.setEconomics(partial);
-      renderPnLTotals(els.pnlTotals, vm);
-      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150, vm.ghost);
-      renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
-      applyHoverStyles(hoveredDay);
-      controlsApi.update(controlsFromVm(vm, orderQty));
+      renderChrome();
+      if (plotVisible("plot-pnl")) {
+        renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
+        applyHoverStyles(hoveredDay);
+      }
+      sectionControlsApi.update(controlsFromVm(vm, orderQty));
     },
     onConfigChange(partial: Partial<SimConfig>) {
       vm = adapter.setConfig(partial);
       if (partial.case_size != null) {
         orderQty = adapter.snapOrder(orderQty);
+        playChromeApi.update(controlsFromVm(vm, orderQty));
       }
-      // Physics / demand / scenario update impact + belief immediately
-      renderImpactCharts();
-      if (
-        partial.obs_scenario != null ||
-        partial.beta != null ||
-        partial.eta_ref != null ||
-        partial.q10 != null ||
-        partial.t_ref_c != null ||
-        partial.t_store_c != null ||
-        partial.sigma != null
-      ) {
-        renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
-        els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario} · truth overlay`;
-      }
-      if (partial.obs_scenario != null) {
-        renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
-      }
-      controlsApi.update(controlsFromVm(vm, orderQty));
+      playChromeApi.update(controlsFromVm(vm, orderQty));
+      sectionControlsApi.update(controlsFromVm(vm, orderQty));
+      renderActiveFocusPlots();
     },
+  },
+  (caseSize) => {
+    orderQty = adapter.snapOrder(orderQty);
+    playChromeApi.setOrderFromCaseChange(orderQty, caseSize);
   },
 );
 
+document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const id = btn.dataset.section as SectionId;
+    setSection(id);
+  });
+});
+
+window.addEventListener("keydown", (event) => {
+  const tag = (event.target as HTMLElement | null)?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+  const idx = STUDIO_SECTIONS.findIndex((s) => s.id === activeSection);
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    event.preventDefault();
+    setSection(STUDIO_SECTIONS[(idx + 1) % STUDIO_SECTIONS.length]!.id);
+    return;
+  }
+  if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    event.preventDefault();
+    setSection(
+      STUDIO_SECTIONS[(idx - 1 + STUDIO_SECTIONS.length) % STUDIO_SECTIONS.length]!
+        .id,
+    );
+    return;
+  }
+  const n = Number(event.key);
+  if (n >= 1 && n <= STUDIO_SECTIONS.length) {
+    event.preventDefault();
+    setSection(STUDIO_SECTIONS[n - 1]!.id);
+  }
+});
+
+setSection(activeSection);
 renderAll();
 
 window.addEventListener("resize", () => {
-  renderDataCharts();
-  renderImpactCharts();
-  renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
+  renderStore();
+  renderChrome();
+  renderActiveFocusPlots();
 });

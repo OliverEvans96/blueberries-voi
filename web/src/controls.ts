@@ -1,4 +1,5 @@
 import type { Economics, ObsScenario, SimConfig, ViewModel } from "./types";
+import type { SectionId } from "./sections";
 
 export type ControlsCallbacks = {
   onOrderChange: (qty: number) => void;
@@ -65,65 +66,31 @@ function sliderHtml(spec: SliderSpec): string {
   `;
 }
 
-export function mountControls(
+/** Persistent order / advance / reset chrome — always visible. */
+export function mountPlayChrome(
   root: HTMLElement,
   initial: ControlsState,
-  cb: ControlsCallbacks,
-): { update: (s: ControlsState) => void } {
+  cb: Pick<ControlsCallbacks, "onOrderChange" | "onAdvance" | "onReset">,
+): {
+  update: (s: ControlsState) => void;
+  setOrderFromCaseChange: (qty: number, caseSize: number) => void;
+} {
   root.innerHTML = `
-    <div class="controls">
-      <div class="controls-block">
-        <div class="block-title">Order</div>
-        <label class="field">
-          <span class="field-label">Order quantity <em id="case-em">(case ${initial.config.case_size})</em></span>
-          <div class="order-row">
-            <input type="range" id="order-range" min="0" max="160" step="${initial.config.case_size}" value="${initial.orderQty}" />
-            <input type="number" id="order-num" min="0" max="320" step="${initial.config.case_size}" value="${initial.orderQty}" />
-          </div>
-        </label>
-        <div class="btn-row">
-          <button type="button" class="btn-advance" id="btn-advance">Advance day</button>
-          <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
+    <div class="play-chrome">
+      <label class="field">
+        <span class="field-label">Order quantity <em id="case-em">(case ${initial.config.case_size})</em></span>
+        <div class="order-row">
+          <input type="range" id="order-range" min="0" max="160" step="${initial.config.case_size}" value="${initial.orderQty}" />
+          <input type="number" id="order-num" min="0" max="320" step="${initial.config.case_size}" value="${initial.orderQty}" />
         </div>
-        <div class="meta-line" id="order-meta"></div>
-        <div class="dirty-banner" id="dirty-banner" hidden>
-          Config edited — new days use it; <strong>Reset</strong> regenerates history from seed.
-        </div>
+      </label>
+      <div class="btn-row">
+        <button type="button" class="btn-advance" id="btn-advance">Advance day</button>
+        <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
       </div>
-
-      <div class="controls-block">
-        <div class="block-title">Pricing</div>
-        <p class="hint">Recompute P&amp;L from stored unit history — no re-sim.</p>
-        ${PRICE_SLIDERS.map(sliderHtml).join("")}
-      </div>
-
-      <div class="controls-block">
-        <div class="block-title">Physics · quality</div>
-        <p class="hint">Weibull spoilage + Q10 temperature shift (fake).</p>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
-      </div>
-
-      <div class="controls-block">
-        <div class="block-title">Demand</div>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
-      </div>
-
-      <div class="controls-block">
-        <div class="block-title">Logistics</div>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
-      </div>
-
-      <div class="controls-block">
-        <div class="block-title">Episode</div>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
-        <div class="field">
-          <span class="field-label">Observation scenario</span>
-          <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
-            <button type="button" class="obs-chip" data-obs="P0" title="Noisy / weak obs">P0</button>
-            <button type="button" class="obs-chip" data-obs="P1" title="Standard obs">P1</button>
-            <button type="button" class="obs-chip" data-obs="P2" title="Sharp / informative obs">P2</button>
-          </div>
-        </div>
+      <div class="meta-line" id="order-meta"></div>
+      <div class="dirty-banner" id="dirty-banner" hidden>
+        Config edited — new days use it; <strong>Reset</strong> regenerates history from seed.
       </div>
     </div>
   `;
@@ -131,11 +98,8 @@ export function mountControls(
   const orderRange = root.querySelector("#order-range") as HTMLInputElement;
   const orderNum = root.querySelector("#order-num") as HTMLInputElement;
   const caseEm = root.querySelector("#case-em") as HTMLElement;
-  const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
-  const btnReset = root.querySelector("#btn-reset") as HTMLButtonElement;
   const meta = root.querySelector("#order-meta") as HTMLElement;
   const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
-
   let caseSize = initial.config.case_size;
 
   function syncOrderInputs(qty: number, cs: number): void {
@@ -149,38 +113,6 @@ export function mountControls(
     caseEm.textContent = `(case ${cs})`;
   }
 
-  function syncSlider(
-    spec: SliderSpec,
-    value: number,
-  ): void {
-    const el = root.querySelector(`#${spec.id}`) as HTMLInputElement;
-    const label = root.querySelector(`#val-${spec.id}`) as HTMLElement;
-    el.value = String(value);
-    label.textContent = spec.format(value);
-  }
-
-  function syncEconomics(e: Economics): void {
-    for (const spec of PRICE_SLIDERS) {
-      syncSlider(spec, e[spec.id as keyof Economics]);
-    }
-  }
-
-  function syncConfig(c: SimConfig): void {
-    for (const spec of CONFIG_SLIDERS) {
-      const key = spec.id as keyof SimConfig;
-      const v = c[key];
-      if (typeof v === "number") syncSlider(spec, v);
-    }
-    root.querySelectorAll<HTMLButtonElement>(".obs-chip").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.obs === c.obs_scenario);
-    });
-  }
-
-  function syncMeta(s: ControlsState): void {
-    meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
-    dirtyBanner.hidden = !s.configDirty;
-  }
-
   function setOrder(raw: number): void {
     const snapped = snap(raw, caseSize);
     syncOrderInputs(snapped, caseSize);
@@ -189,8 +121,96 @@ export function mountControls(
 
   orderRange.addEventListener("input", () => setOrder(Number(orderRange.value)));
   orderNum.addEventListener("change", () => setOrder(Number(orderNum.value)));
-  btnAdvance.addEventListener("click", () => cb.onAdvance());
-  btnReset.addEventListener("click", () => cb.onReset());
+  (root.querySelector("#btn-advance") as HTMLButtonElement).addEventListener(
+    "click",
+    () => cb.onAdvance(),
+  );
+  (root.querySelector("#btn-reset") as HTMLButtonElement).addEventListener(
+    "click",
+    () => cb.onReset(),
+  );
+
+  syncOrderInputs(initial.orderQty, initial.config.case_size);
+  meta.textContent = `Episode day ${initial.episodeDay} · pending inbound ${initial.pendingOrder} units`;
+  dirtyBanner.hidden = !initial.configDirty;
+
+  return {
+    update(s) {
+      syncOrderInputs(s.orderQty, s.config.case_size);
+      meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
+      dirtyBanner.hidden = !s.configDirty;
+    },
+    setOrderFromCaseChange(qty, cs) {
+      syncOrderInputs(qty, cs);
+      cb.onOrderChange(snap(qty, cs));
+    },
+  };
+}
+
+/** Section-specific knobs — one block visible at a time. */
+export function mountSectionControls(
+  root: HTMLElement,
+  initial: ControlsState,
+  cb: Pick<ControlsCallbacks, "onEconomicsChange" | "onConfigChange">,
+  onCaseSizeChange?: (caseSize: number) => void,
+): { update: (s: ControlsState) => void; showSection: (id: SectionId) => void } {
+  root.innerHTML = `
+    <div class="section-controls">
+      <div class="controls-block" data-section="play">
+        <p class="hint">Seed reshapes the episode on Reset. Advance to step the store.</p>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
+      </div>
+      <div class="controls-block" data-section="pricing" hidden>
+        <p class="hint">Recompute P&amp;L from stored unit history — no re-sim.</p>
+        ${PRICE_SLIDERS.map(sliderHtml).join("")}
+      </div>
+      <div class="controls-block" data-section="physics" hidden>
+        <p class="hint">Weibull spoilage + Q10 temperature shift (fake).</p>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
+      </div>
+      <div class="controls-block" data-section="demand" hidden>
+        <p class="hint">Negative-binomial-ish demand from mean and V/M.</p>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
+      </div>
+      <div class="controls-block" data-section="logistics" hidden>
+        <p class="hint">Case snap, lead time, and stocking targets.</p>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
+      </div>
+      <div class="controls-block" data-section="belief" hidden>
+        <p class="hint">Observation richness changes belief blur vs truth lots.</p>
+        <div class="field">
+          <span class="field-label">Observation scenario</span>
+          <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
+            <button type="button" class="obs-chip" data-obs="P0" title="Noisy / weak obs">P0</button>
+            <button type="button" class="obs-chip" data-obs="P1" title="Standard obs">P1</button>
+            <button type="button" class="obs-chip" data-obs="P2" title="Sharp / informative obs">P2</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  function syncSlider(spec: SliderSpec, value: number): void {
+    const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
+    const label = root.querySelector(`#val-${spec.id}`) as HTMLElement | null;
+    if (!el || !label) return;
+    el.value = String(value);
+    label.textContent = spec.format(value);
+  }
+
+  function syncEconomics(e: Economics): void {
+    for (const spec of PRICE_SLIDERS) syncSlider(spec, e[spec.id as keyof Economics]);
+  }
+
+  function syncConfig(c: SimConfig): void {
+    for (const spec of CONFIG_SLIDERS) {
+      const v = c[spec.id as keyof SimConfig];
+      if (typeof v === "number") syncSlider(spec, v);
+    }
+    root.querySelectorAll<HTMLButtonElement>(".obs-chip").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.obs === c.obs_scenario);
+    });
+  }
 
   for (const spec of PRICE_SLIDERS) {
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement;
@@ -203,36 +223,35 @@ export function mountControls(
   }
 
   for (const spec of CONFIG_SLIDERS) {
-    const el = root.querySelector(`#${spec.id}`) as HTMLInputElement;
+    const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
+    if (!el) continue;
     el.addEventListener("input", () => {
       const value = Number(el.value);
       (root.querySelector(`#val-${spec.id}`) as HTMLElement).textContent =
         spec.format(value);
       cb.onConfigChange({ [spec.id]: value });
-      if (spec.id === "case_size") {
-        setOrder(Number(orderNum.value));
-      }
+      if (spec.id === "case_size") onCaseSizeChange?.(Math.round(value));
     });
   }
 
   root.querySelectorAll<HTMLButtonElement>(".obs-chip").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const obs = btn.dataset.obs as ObsScenario;
-      cb.onConfigChange({ obs_scenario: obs });
+      cb.onConfigChange({ obs_scenario: btn.dataset.obs as ObsScenario });
     });
   });
 
-  syncOrderInputs(initial.orderQty, initial.config.case_size);
   syncEconomics(initial.economics);
   syncConfig(initial.config);
-  syncMeta(initial);
 
   return {
-    update(s: ControlsState) {
-      syncOrderInputs(s.orderQty, s.config.case_size);
+    update(s) {
       syncEconomics(s.economics);
       syncConfig(s.config);
-      syncMeta(s);
+    },
+    showSection(id) {
+      root.querySelectorAll<HTMLElement>(".controls-block").forEach((block) => {
+        block.hidden = block.dataset.section !== id;
+      });
     },
   };
 }
