@@ -303,9 +303,10 @@ def test_gap_vs_rollout_reports_float_on_same_toy_instance() -> None:
     names = list(sig.parameters)
     if not names:
         gap = float(gap_fn())
-    elif names[0] in {"result", "toy_result", "dp_result", "optimal"} or "result" in names[
-        0
-    ]:
+    elif (
+        names[0] in {"result", "toy_result", "dp_result", "optimal"}
+        or "result" in names[0]
+    ):
         gap = float(gap_fn(result))
     elif "solve" in names[0].lower() or names[0] in {"instance", "toy"}:
         kwargs = _filter_kwargs(gap_fn, _toy_kwargs())

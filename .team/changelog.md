@@ -2,6 +2,11 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 4 rollout + toy DP certificate
+
+- **Ordering can try one short look-ahead improvement step** around the survival-weighted base rule, scoring candidate orders over a shelf-life-scale horizon with a documented end-of-horizon salvage value, and paired random streams keep the comparison fair (T-030).
+- **A tiny exact planner can compute the best possible value on a toy shelf** and report how far the look-ahead (or base) rule sits from that optimum, including a check that age-aware and age-blind rules share the same protection window when aging is turned off (T-031).
+
 ## 2026-08-12 — M2 Wave 3 α tuning
 
 - **Each ladder ordering rule can now get a simulation-tuned service level (α)** from a shared-seed grid search that scores day/episode profit, with tuned values saved under experiments; profit claims that skip that tuned table are rejected (T-029).

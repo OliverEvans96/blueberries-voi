@@ -20,7 +20,7 @@ import importlib
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -142,7 +142,7 @@ def _resolve_closed_loop() -> Callable[..., Any]:
             continue
         fn = getattr(mod, "run_closed_loop_episode", None)
         if callable(fn):
-            return fn
+            return cast("Callable[..., Any]", fn)
     pytest.fail(
         "run_closed_loop_episode required for T-030 profit CRN comparison",
         pytrace=False,
