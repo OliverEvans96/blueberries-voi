@@ -6,6 +6,7 @@ import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
 import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
 import { controlsFromVm, mountControls } from "./controls";
+import { attachLinkedHover } from "./hoverLink";
 import type { Economics, HoverDay, ViewModel } from "./types";
 
 const app = document.querySelector("#app");
@@ -24,32 +25,34 @@ app.innerHTML = `
 
     <div class="layout">
       <main class="stage">
-        <section class="panel panel-stage">
-          <div class="panel-head">
-            <h2>Rolling inventory</h2>
-            <div class="legend-inline">
-              <span class="chip chip-sales">Sales</span>
-              <span class="chip chip-lots">Lots (size ∝ qty)</span>
-              <span class="chip chip-spoil">Spoilage</span>
+        <div class="linked-charts" id="linked-charts">
+          <section class="panel panel-stage">
+            <div class="panel-head">
+              <h2>Rolling inventory</h2>
+              <div class="legend-inline">
+                <span class="chip chip-sales">Sales</span>
+                <span class="chip chip-lots">Lots (size ∝ qty)</span>
+                <span class="chip chip-spoil">Spoilage</span>
+              </div>
             </div>
-          </div>
-          <div class="chart-stack">
-            <div class="chart-caption">Units sold</div>
-            <div id="chart-sales" class="chart"></div>
-            <div class="chart-caption">Lots · day × age</div>
-            <div id="chart-history" class="chart"></div>
-            <div class="chart-caption">Units spoiled</div>
-            <div id="chart-spoil" class="chart"></div>
-          </div>
-        </section>
+            <div class="chart-stack">
+              <div class="chart-caption">Units sold</div>
+              <div id="chart-sales" class="chart"></div>
+              <div class="chart-caption">Lots · day × age</div>
+              <div id="chart-history" class="chart"></div>
+              <div class="chart-caption">Units spoiled</div>
+              <div id="chart-spoil" class="chart"></div>
+            </div>
+          </section>
 
-        <section class="panel panel-stage">
-          <div class="panel-head">
-            <h2>P&amp;L timeseries</h2>
-            <span class="panel-note" id="hover-note">Hover a day to link charts</span>
-          </div>
-          <div id="chart-pnl-series" class="chart"></div>
-        </section>
+          <section class="panel panel-stage">
+            <div class="panel-head">
+              <h2>P&amp;L timeseries</h2>
+              <span class="panel-note" id="hover-note">Hover a day to highlight it everywhere</span>
+            </div>
+            <div id="chart-pnl-series" class="chart"></div>
+          </section>
+        </div>
       </main>
 
       <aside class="rail">
@@ -83,6 +86,7 @@ let orderQty = 24;
 let hoveredDay: HoverDay = null;
 
 const els = {
+  linked: document.querySelector("#linked-charts") as HTMLElement,
   sales: document.querySelector("#chart-sales") as HTMLElement,
   history: document.querySelector("#chart-history") as HTMLElement,
   spoil: document.querySelector("#chart-spoil") as HTMLElement,
@@ -93,31 +97,36 @@ const els = {
   controls: document.querySelector("#controls") as HTMLElement,
 };
 
-function onHoverDay(day: HoverDay): void {
-  if (hoveredDay === day) return;
-  hoveredDay = day;
-  els.hoverNote.textContent =
-    day == null ? "Hover a day to link charts" : `Linked day ${day}`;
-  // Style-only updates — never rebind/recreate marks on hover
+function applyHoverStyles(day: HoverDay): void {
   setMarginalHover(els.sales, day);
   setHistoryHover(els.history, day);
   setMarginalHover(els.spoil, day);
   setPnLHover(els.pnlSeries, day);
 }
 
+function onHoverDay(day: HoverDay): void {
+  if (hoveredDay === day) return;
+  hoveredDay = day;
+  els.hoverNote.textContent =
+    day == null
+      ? "Hover a day to highlight it everywhere"
+      : `Day ${day} highlighted`;
+  applyHoverStyles(day);
+}
+
+attachLinkedHover(
+  els.linked,
+  () => vm.history.map((d) => d.day),
+  { onDay: onHoverDay },
+);
+
 /** Full data redraw (step / resize / economics money series). */
 function renderDataCharts(): void {
-  renderMarginal(els.sales, vm.history, "sales", onHoverDay, 78);
-  renderHistory(els.history, vm.history, onHoverDay, { height: 230 });
-  renderMarginal(els.spoil, vm.history, "spoilage", onHoverDay, 90);
-  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, onHoverDay, 150);
-  // Re-apply current hover after rebuild
-  if (hoveredDay != null) {
-    setMarginalHover(els.sales, hoveredDay);
-    setHistoryHover(els.history, hoveredDay);
-    setMarginalHover(els.spoil, hoveredDay);
-    setPnLHover(els.pnlSeries, hoveredDay);
-  }
+  renderMarginal(els.sales, vm.history, "sales", 78);
+  renderHistory(els.history, vm.history, { height: 230 });
+  renderMarginal(els.spoil, vm.history, "spoilage", 90);
+  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150);
+  applyHoverStyles(hoveredDay);
 }
 
 function renderAll(): void {
@@ -136,13 +145,15 @@ const controlsApi = mountControls(
     },
     onAdvance() {
       vm = adapter.step({ order_qty: orderQty });
+      // Episode advanced — clear hover (day indices shifted in window)
+      onHoverDay(null);
       renderAll();
     },
     onEconomicsChange(partial: Partial<Economics>) {
       vm = adapter.setEconomics(partial);
       renderPnLTotals(els.pnlTotals, vm);
-      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, onHoverDay, 150);
-      if (hoveredDay != null) setPnLHover(els.pnlSeries, hoveredDay);
+      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150);
+      applyHoverStyles(hoveredDay);
       controlsApi.update(controlsFromVm(vm, orderQty));
     },
   },

@@ -64,8 +64,3 @@ export type StepInput = {
 };
 
 export type HoverDay = number | null;
-
-export type ChartContext = {
-  hoveredDay: HoverDay;
-  onHoverDay: (day: HoverDay) => void;
-};

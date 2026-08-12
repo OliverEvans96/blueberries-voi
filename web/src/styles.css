@@ -155,10 +155,22 @@ body {
   border-color: rgba(47, 107, 79, 0.22);
 }
 
+.linked-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .chart-stack {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.chart-svg {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .chart-caption {
@@ -191,21 +203,34 @@ body {
   font-size: 11px;
 }
 
-.day-col {
+.day-col,
+.day-hit {
   fill: transparent;
-  cursor: crosshair;
+  pointer-events: none;
 }
 
-.day-col--active {
+.day-col--active,
+.day-hit--active {
   fill: rgba(184, 134, 11, 0.12);
+}
+
+.hover-rule {
+  stroke: rgba(184, 134, 11, 0.7);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
 }
 
 .lot {
   pointer-events: none;
 }
 
-.lot--dim {
+.is-hovering .lot {
   opacity: 0.28;
+}
+
+.is-hovering .lot.lot--active {
+  opacity: 1;
 }
 
 .bar--sales {
@@ -225,7 +250,7 @@ body {
 }
 
 .bar {
-  cursor: crosshair;
+  pointer-events: none;
 }
 
 .zero-line {
@@ -236,6 +261,7 @@ body {
 .pnl-line {
   fill: none;
   stroke-width: 2.2;
+  pointer-events: none;
 }
 
 .series-revenue {
@@ -253,19 +279,19 @@ body {
   color: var(--profit);
 }
 
-.pnl-guide {
-  stroke: rgba(184, 134, 11, 0.55);
-  stroke-width: 1;
-  pointer-events: none;
-}
-
-.pnl-hit {
-  fill: transparent;
-  cursor: crosshair;
-}
-
 .pnl-dot {
   pointer-events: none;
+}
+
+.is-hovering .pnl-dot {
+  opacity: 0.35;
+}
+
+.is-hovering .pnl-day--active .pnl-dot {
+  opacity: 1;
+  transform: scale(1.35);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .controls {

@@ -1,0 +1,75 @@
+import type { HoverDay } from "./types";
+
+export const CHART_MARGIN = {
+  top: 12,
+  right: 16,
+  bottom: 28,
+  left: 44,
+} as const;
+
+/** Map pointer X over a chart SVG to a day index using equal-width day bands. */
+export function dayFromClientX(
+  svg: SVGSVGElement,
+  clientX: number,
+  days: readonly number[],
+  marginLeft = CHART_MARGIN.left,
+  marginRight = CHART_MARGIN.right,
+): number | null {
+  if (days.length === 0) return null;
+
+  const rect = svg.getBoundingClientRect();
+  if (rect.width <= 0) return null;
+
+  const viewBox = svg.viewBox.baseVal;
+  const svgWidth = viewBox.width > 0 ? viewBox.width : rect.width;
+  const localX = ((clientX - rect.left) / rect.width) * svgWidth;
+  const innerX = localX - marginLeft;
+  const innerW = svgWidth - marginLeft - marginRight;
+  if (innerX < 0 || innerX > innerW) return null;
+
+  const i = Math.min(
+    days.length - 1,
+    Math.max(0, Math.floor((innerX / innerW) * days.length)),
+  );
+  return days[i] ?? null;
+}
+
+export type LinkedHoverHandlers = {
+  onDay: (day: HoverDay) => void;
+};
+
+/**
+ * One shared hover controller for stacked/linked charts.
+ * Uses pointermove + day-from-x; only clears when leaving the whole region
+ * (not when crossing captions / chart gaps).
+ */
+export function attachLinkedHover(
+  root: HTMLElement,
+  getDays: () => readonly number[],
+  handlers: LinkedHoverHandlers,
+): () => void {
+  const onMove = (event: PointerEvent): void => {
+    const target = event.target as Element | null;
+    if (!target) return;
+    const svg = target.closest("svg.chart-svg") as SVGSVGElement | null;
+    if (!svg || !root.contains(svg)) return;
+
+    const day = dayFromClientX(svg, event.clientX, getDays());
+    // Keep prior day while over y-axis gutter / legend; only set when resolved
+    if (day != null) handlers.onDay(day);
+  };
+
+  const onLeave = (event: PointerEvent): void => {
+    const next = event.relatedTarget as Node | null;
+    if (next && root.contains(next)) return;
+    handlers.onDay(null);
+  };
+
+  root.addEventListener("pointermove", onMove);
+  root.addEventListener("pointerleave", onLeave);
+
+  return () => {
+    root.removeEventListener("pointermove", onMove);
+    root.removeEventListener("pointerleave", onLeave);
+  };
+}

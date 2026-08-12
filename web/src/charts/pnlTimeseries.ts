@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import type { DayPnL, HoverDay } from "../types";
-import type { HoverHandler } from "./history";
+import { CHART_MARGIN } from "../hoverLink";
 
 function rootG(
   container: HTMLElement,
@@ -9,7 +9,7 @@ function rootG(
   return g ? d3.select(g as SVGGElement) : null;
 }
 
-/** Linked-day highlight without rebuilding paths or markers. */
+/** Style-only: one guide + active class. No geometry rebuild. */
 export function setPnLHover(
   container: HTMLElement,
   hoveredDay: HoverDay,
@@ -17,24 +17,41 @@ export function setPnLHover(
   const g = rootG(container);
   if (!g) return;
 
-  g.selectAll<SVGGElement, DayPnL>(".pnl-day").each(function (d) {
-    const active = hoveredDay === d.day;
-    const gg = d3.select(this);
-    gg.classed("pnl-day--active", active);
-    gg.select(".pnl-guide").attr("opacity", active ? 1 : 0);
-    gg.selectAll(".pnl-dot").attr("r", active ? 4.5 : 3);
-  });
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGGElement, DayPnL>(".pnl-day").classed(
+    "pnl-day--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const hit = g
+    .selectAll<SVGRectElement, DayPnL>(".day-hit")
+    .filter((d) => d.day === hoveredDay);
+  if (hit.empty()) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const x = Number(hit.attr("x")) + Number(hit.attr("width")) / 2;
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
 }
 
 /** Data join only — stroke-only revenue / cost / profit lines. */
 export function renderPnLTimeseries(
   container: HTMLElement,
   series: DayPnL[],
-  onHoverDay: HoverHandler,
   height = 140,
 ): void {
   const width = container.clientWidth || 720;
-  const margin = { top: 16, right: 16, bottom: 28, left: 44 };
+  const margin = {
+    top: 16,
+    right: CHART_MARGIN.right,
+    bottom: 28,
+    left: CHART_MARGIN.left,
+  };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
@@ -42,6 +59,7 @@ export function renderPnLTimeseries(
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
@@ -55,11 +73,11 @@ export function renderPnLTimeseries(
   if (series.length === 0) return;
 
   const days = series.map((d) => d.day);
-  const x = d3
-    .scalePoint<number>()
-    .domain(days)
-    .range([0, innerW])
-    .padding(0.4);
+  const step = innerW / days.length;
+  const xCenter = (day: number): number => {
+    const i = days.indexOf(day);
+    return i * step + step / 2;
+  };
 
   const yExtent = d3.extent(
     series.flatMap((d) => [d.revenue, d.cost_total, d.profit]),
@@ -82,12 +100,18 @@ export function renderPnLTimeseries(
     )
     .call((sel) => sel.select(".domain").remove());
 
+  const xAxis = d3
+    .scaleBand<number>()
+    .domain(days)
+    .range([0, innerW])
+    .padding(0);
+
   g.append("g")
     .attr("class", "axis axis-x")
     .attr("transform", `translate(0,${innerH})`)
     .call(
       d3
-        .axisBottom(x)
+        .axisBottom(xAxis)
         .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
         .tickSizeOuter(0),
     )
@@ -99,13 +123,28 @@ export function renderPnLTimeseries(
       .attr("x1", 0)
       .attr("x2", innerW)
       .attr("y1", y(0))
-      .attr("y2", y(0));
+      .attr("y2", y(0))
+      .attr("pointer-events", "none");
   }
+
+  // Contiguous day bands for aligned hover + highlight
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(series, (d) => String((d as DayPnL).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
 
   const line = (key: keyof DayPnL) =>
     d3
       .line<DayPnL>()
-      .x((d) => x(d.day) ?? 0)
+      .x((d) => xCenter(d.day))
       .y((d) => y(d[key] as number))
       .curve(d3.curveMonotoneX);
 
@@ -122,22 +161,26 @@ export function renderPnLTimeseries(
       .attr("fill", "none")
       .attr("stroke-linejoin", "round")
       .attr("stroke-linecap", "round")
+      .attr("pointer-events", "none")
       .attr("d", line(s.key));
   }
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
 
   g.selectAll(".pnl-day")
     .data(series, (d) => String((d as DayPnL).day))
     .join("g")
     .attr("class", "pnl-day")
     .attr("data-day", (d) => d.day)
-    .attr("transform", (d) => `translate(${x(d.day) ?? 0},0)`)
+    .attr("transform", (d) => `translate(${xCenter(d.day)},0)`)
+    .attr("pointer-events", "none")
     .each(function (d) {
       const gg = d3.select(this);
-      gg.append("line")
-        .attr("class", "pnl-guide")
-        .attr("y1", 0)
-        .attr("y2", innerH)
-        .attr("opacity", 0);
       for (const s of seriesSpec) {
         gg.append("circle")
           .attr("class", `pnl-dot ${s.cls}`)
@@ -147,22 +190,15 @@ export function renderPnLTimeseries(
           .attr("stroke", "var(--paper)")
           .attr("stroke-width", 1.5);
       }
-      gg.append("rect")
-        .attr("class", "pnl-hit")
-        .attr("data-day", d.day)
-        .attr("x", -10)
-        .attr("y", 0)
-        .attr("width", 20)
-        .attr("height", innerH)
-        .append("title")
-        .text(
-          `Day ${d.day}\nRev $${d.revenue.toFixed(0)} · Cost $${d.cost_total.toFixed(0)} · Profit $${d.profit.toFixed(0)}`,
-        );
+      gg.append("title").text(
+        `Day ${d.day}\nRev $${d.revenue.toFixed(0)} · Cost $${d.cost_total.toFixed(0)} · Profit $${d.profit.toFixed(0)}`,
+      );
     });
 
   const legend = svg
     .append("g")
     .attr("class", "legend")
+    .attr("pointer-events", "none")
     .attr("transform", `translate(${margin.left + 8}, 10)`);
 
   seriesSpec.forEach((s, i) => {
@@ -181,14 +217,4 @@ export function renderPnLTimeseries(
       .attr("class", "legend-label")
       .text(s.label);
   });
-
-  g.on("mouseover", (event: MouseEvent) => {
-    const target = event.target as Element | null;
-    if (!target) return;
-    const hit = target.closest("[data-day]");
-    if (!hit || !g.node()?.contains(hit)) return;
-    const day = Number((hit as HTMLElement).dataset.day);
-    if (!Number.isFinite(day)) return;
-    onHoverDay(day);
-  }).on("mouseleave", () => onHoverDay(null));
 }
