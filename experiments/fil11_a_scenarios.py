@@ -78,7 +78,9 @@ def run_stage_a_scenario(
     prior_full = _arrival_prior(1.0, K)
     prior_tight = _arrival_prior(0.05, K)
 
-    def filter_with_prior(spread: float, prior: np.ndarray) -> tuple[np.ndarray, float, float]:
+    def filter_with_prior(
+        spread: float, prior: np.ndarray
+    ) -> tuple[np.ndarray, float, float]:
         ep = run_episode(
             p,
             root_seed=SEED,
@@ -169,7 +171,7 @@ def run_stage_a_scenario(
 def scenarios() -> list[Scenario]:
     base = ModelParams()
     return [
-        Scenario("baseline", base, note="defaults μ=30 V/M=2 S=60 σ=0.5 β=2 T=4°C"),
+        Scenario("baseline", base, note="defaults μ=30 V/M=2 S=60 sigma=0.5 β=2 T=4°C"),
         Scenario(
             "slower_mu15",
             replace(base, demand_mu=15.0),
@@ -190,12 +192,12 @@ def scenarios() -> list[Scenario]:
         Scenario(
             "fresh_bias_sigma0.25",
             replace(base, sigma=0.25),
-            note="stronger fresh-bias linger σ=0.25",
+            note="stronger fresh-bias linger sigma=0.25",
         ),
         Scenario(
             "fresh_bias_sigma0.2",
             replace(base, sigma=0.2),
-            note="stronger fresh-bias linger σ=0.2",
+            note="stronger fresh-bias linger sigma=0.2",
         ),
         Scenario(
             "uniform_picking",
@@ -234,14 +236,15 @@ def write_report(results: list[ScenarioResult]) -> None:
         "knobs. **No production filter likelihood changes.**",
         "",
         "Settings (shared unless noted): K=8, N=500, L_filter=3, n_burn=20, "
-        "n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd × 0.95 "
+        "n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd x 0.95 "
         "and tight-spread control check.",
         "",
         "**Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), "
         "same as baseline Stage A. No single-cohort-from-birth API in the "
         "production RBPF; longer_score only lengthens the observation window.",
         "",
-        "| scenario | L p50 | L max | prior_sd | post_sd | Δ% | contracted? | pass/fail |",
+        "| scenario | L p50 | L max | prior_sd | post_sd | "
+        "Δ% | contracted? | pass/fail |",
         "|---|---:|---:|---:|---:|---:|:---:|:---:|",
     ]
     for r in results:
@@ -297,7 +300,7 @@ def write_report(results: list[ScenarioResult]) -> None:
             + (", ".join(passers) if passers else "none")
             + ". In this sweep, the knobs that restore contraction are long "
             "dwell (μ=15+S=120 together) and sharper Weibull spoilage (β=4.0); "
-            "μ or S alone, fresh-bias σ, uniform picking, cooler store, and a "
+            "μ or S alone, fresh-bias sigma, uniform picking, cooler store, and a "
             "longer score window do not clear the 5% bar. When empirical L "
             "exceeds L_filter=3, the RBPF still reports the oldest fixed slot."
         )

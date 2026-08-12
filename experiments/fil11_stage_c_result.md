@@ -1,13 +1,12 @@
-# FIL-11 Stage C — diagnostic (Stage A FAIL)
+# FIL-11 Stage C — generative vs day_step (T-012)
 
-Run at Oliver's request after Stage A contraction failure. Not a gate reopen; evidence only.
+Production gate is generative agreement with shared `day_step` kernels (ADR 0088). Soft `tv_vs_exact` is not the gate.
 
-- status: **PASS (diagnostic criteria)**
-- TV tolerance: 0.05
-- max TV: 0.000000
-- per-L TVs:
-  - L=2: TV=0.000000
-  - L=3: TV=0.000000
-- K: 4 (small grid for exact)
-- backend: full_joint vs exact forward
-- figure: /home/oliver/blog/blueberries-voi/figures/m1/fil11_exact.png
+- status: **PASS**
+- mode: `generative_day_step`
+- tolerance (TV on discrete P1 sales/waste): 0.05
+- production divergence: 0.000000
+- wrong-physics divergence: 0.495000 (passed=False)
+- L=2, K=4
+- alphabet: empirical support of day_step (sales, waste) pairs
+- figure: /home/oliver/blog/blueberries-voi/figures/m2.5/fil11_stage_c_generative.png

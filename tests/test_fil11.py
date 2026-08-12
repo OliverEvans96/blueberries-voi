@@ -54,19 +54,30 @@ def test_stage_b_defaults_use_production_n() -> None:
 
 
 def test_stage_c_smoke(tmp_path: Path) -> None:
-    result = run_fil11_stage_c(L=2, K=4, figures_dir=tmp_path)
+    """Generative Stage C under production MC LL (ADR 0088 / T-012)."""
+    result = run_fil11_stage_c(L=2, K=4, figures_dir=tmp_path, n_obs_samples=80)
     assert result.figure_path.is_file()
-    assert result.tv < 0.05
+    assert result.mode == "generative_day_step"
     assert result.passed
-    assert 2 in result.tvs
-    assert result.tvs[2] == result.tv
+    assert result.divergence <= result.tolerance
+    assert result.n_support > 1
+    assert result.L == 2
+    assert result.K == 4
 
 
-def test_stage_c_suite_l2_l3(tmp_path: Path) -> None:
-    result = run_fil11_stage_c(L=(2, 3), K=4, figures_dir=tmp_path)
-    assert set(result.tvs) == {2, 3}
-    assert result.tv == max(result.tvs.values())
-    assert result.passed == all(v < 0.05 for v in result.tvs.values())
+def test_stage_c_wrong_physics_fails(tmp_path: Path) -> None:
+    """Injected wrong-physics observation model must fail Stage C."""
+    result = run_fil11_stage_c(
+        L=2,
+        K=4,
+        figures_dir=tmp_path,
+        n_obs_samples=80,
+        inject_wrong_physics=True,
+    )
+    assert result.mode == "generative_day_step"
+    assert result.passed is False
+    assert result.divergence > result.tolerance
+    assert result.n_support > 1
     assert result.figure_path.is_file()
 
 

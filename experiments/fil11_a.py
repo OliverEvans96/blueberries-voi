@@ -43,8 +43,8 @@ def main() -> None:
     )
     b = run_fil11_stage_b(figures_dir=ROOT / "figures" / "m1", n_reps=50)
     print(f"Stage B coverage={b.coverage_90:.3f} passed={b.passed}")
-    c = run_fil11_stage_c(figures_dir=ROOT / "figures" / "m1", L=2, K=4)
-    print(f"Stage C tv={c.tv:.4f} passed={c.passed}")
+    c = run_fil11_stage_c(figures_dir=ROOT / "figures" / "m2.5", L=2, K=4)
+    print(f"Stage C divergence={c.divergence:.4f} passed={c.passed}")
 
 
 if __name__ == "__main__":

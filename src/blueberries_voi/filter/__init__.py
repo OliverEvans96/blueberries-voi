@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from blueberries_voi.filter.arrival_priors import (
+    arrival_age_prior_f2,
+    arrival_age_prior_f2a,
+)
+from blueberries_voi.filter.backends import observation_loglik_mc
+from blueberries_voi.filter.l_fallback import BackendChoice, choose_backend
 from blueberries_voi.filter.rbpf import (
     PRODUCTION_BACKEND,
     PRODUCTION_ESS_FRACTION,
@@ -10,7 +16,16 @@ from blueberries_voi.filter.rbpf import (
     PRODUCTION_N,
     RBPF,
 )
-from blueberries_voi.filter.types import FilterSummary, P1Obs
+from blueberries_voi.filter.types import (
+    UNOBSERVED,
+    FilterSummary,
+    ObsMask,
+    P1Obs,
+    RichObs,
+    is_unobserved,
+    mask_for,
+    rich_obs_from_day_log,
+)
 from blueberries_voi.model import day_step
 
 __all__ = [
@@ -20,7 +35,18 @@ __all__ = [
     "PRODUCTION_L",
     "PRODUCTION_N",
     "RBPF",
+    "UNOBSERVED",
+    "BackendChoice",
     "FilterSummary",
+    "ObsMask",
     "P1Obs",
+    "RichObs",
+    "arrival_age_prior_f2",
+    "arrival_age_prior_f2a",
+    "choose_backend",
     "day_step",
+    "is_unobserved",
+    "mask_for",
+    "observation_loglik_mc",
+    "rich_obs_from_day_log",
 ]
