@@ -1,0 +1,429 @@
+:root {
+  --bg: #e8e2d4;
+  --bg-deep: #d9d0bc;
+  --paper: #f7f2e8;
+  --paper-edge: #cfc5b0;
+  --ink: #1c2420;
+  --ink-soft: #4a554e;
+  --muted: #6d766f;
+  --sales: #3d7ea6;
+  --sales-strong: #1f5f86;
+  --spoil: #c46a3a;
+  --spoil-strong: #9a4520;
+  --profit: #2f6b4f;
+  --cost: #8a5a2b;
+  --revenue: #2a6f8f;
+  --accent: #1a3d32;
+  --focus: #b8860b;
+  --shadow: 0 10px 30px rgba(28, 36, 32, 0.08);
+  --radius: 14px;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(61, 126, 166, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(196, 106, 58, 0.1), transparent 50%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+
+.hero {
+  margin-bottom: 22px;
+  padding: 8px 4px 4px;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
+  line-height: 1.15;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.lede {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.stage,
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px 16px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.panel-head h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.panel-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.legend-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.chip-sales {
+  color: var(--sales-strong);
+  background: rgba(61, 126, 166, 0.12);
+  border-color: rgba(61, 126, 166, 0.25);
+}
+
+.chip-spoil {
+  color: var(--spoil-strong);
+  background: rgba(196, 106, 58, 0.12);
+  border-color: rgba(196, 106, 58, 0.28);
+}
+
+.chip-lots {
+  color: var(--accent);
+  background: rgba(47, 107, 79, 0.1);
+  border-color: rgba(47, 107, 79, 0.22);
+}
+
+.chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chart-caption {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 4px 0 0 44px;
+}
+
+.chart {
+  width: 100%;
+  min-height: 40px;
+}
+
+.axis text,
+.legend-label {
+  fill: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 11px;
+}
+
+.axis line,
+.axis path {
+  stroke: rgba(28, 36, 32, 0.28);
+}
+
+.axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.day-col {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.day-col--active {
+  fill: rgba(184, 134, 11, 0.12);
+}
+
+.lot--dim {
+  opacity: 0.28;
+}
+
+.zero-line {
+  stroke: rgba(28, 36, 32, 0.25);
+  stroke-dasharray: 4 4;
+}
+
+.pnl-line {
+  stroke-width: 2.2;
+}
+
+.series-revenue {
+  stroke: var(--revenue);
+  fill: var(--revenue);
+}
+
+.series-cost {
+  stroke: var(--cost);
+  fill: var(--cost);
+}
+
+.series-profit {
+  stroke: var(--profit);
+  fill: var(--profit);
+}
+
+.pnl-guide {
+  stroke: rgba(184, 134, 11, 0.55);
+  stroke-width: 1;
+}
+
+.pnl-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.pnl-dot {
+  stroke: var(--paper);
+  stroke-width: 1.5;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.controls-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block-title {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.hint {
+  margin: -4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field-label em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.order-row {
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  gap: 8px;
+  align-items: center;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--paper-edge);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fffdf8;
+  color: var(--ink);
+  font: inherit;
+}
+
+.btn-advance {
+  appearance: none;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
+  color: #f4f7f4;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.btn-advance:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btn-advance:active {
+  transform: translateY(0);
+}
+
+.meta-line {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.pnl-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pnl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.pnl-row--emphasis {
+  padding-top: 2px;
+}
+
+.pnl-label {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.pnl-value {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pnl-value--rev {
+  color: var(--revenue);
+}
+
+.pnl-value--cost {
+  color: var(--cost);
+}
+
+.pnl-value--profit.is-pos,
+.micro-value.is-pos {
+  color: var(--profit);
+}
+
+.pnl-value--profit.is-neg,
+.micro-value.is-neg {
+  color: var(--spoil-strong);
+}
+
+.pnl-divider {
+  height: 1px;
+  background: rgba(28, 36, 32, 0.12);
+  margin: 4px 0;
+}
+
+.pnl-today-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.pnl-today-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.micro-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.micro-value {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.foot {
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

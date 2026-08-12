@@ -41,3 +41,7 @@ result-*
 .data/
 data/raw/
 outputs/
+
+# Web mockup (Vite)
+web/node_modules/
+web/dist/
