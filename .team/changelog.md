@@ -2,6 +2,15 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 close-out: controller and multi-scenario
+
+- **The ordering controller milestone is complete:** you can run the full ladder of
+  ordering rules under several information views (rich lot visibility, storewide sales
+  only, and an age-blind baseline), with tuned service levels and the agreed safety
+  checks, while age tracking stays on the simpler production model. No dollar
+  value-of-information headlines and no Pyodide packaging / ENG-01 browser demo /
+  WASM ship in this close-out (T-034).
+
 ## 2026-08-12 — M2 Wave 6 multi-scenario closed-loop + L remeasure
 
 - **Ordering rules can now be compared under three different information views** — rich lot visibility, storewide sales only, and a simple age-blind baseline — with a short written report that also records how long product is lasting under the real controller, while age tracking stays on the simpler production model (T-033).

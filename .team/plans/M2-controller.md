@@ -1,6 +1,6 @@
 # M2 — Controller and multi-scenario
 
-**Status:** PLAN (architecture lock in Wave 0; implementation T-023+)  
+**Status:** COMPLETE (Waves 0–7 done; T-034 close-out)  
 **Date:** 2026-08-12  
 **Authority:** Board milestone `M2 — controller and multi-scenario` (CTL-01–06 ACCEPTED); team-owned copy of the Cursor draft with post–T-021 edits  
 **Does not edit:** M1 / M1.5 Cursor plan files
@@ -39,7 +39,7 @@ Controller belief = **MF marginals** `age_post` shape `(N, L, K)` via **`ShelfBe
 | In M2 | Out (M3 / locked out) |
 |-------|------------------------|
 | Belief API for CTL (`ShelfBelief` → \(\tilde I_t\)) on MF RBPF + B-state oracle | Full VOI sweep (scenario × β), VOI-01–04 headlines |
-| CTL-01 damped SW base-stock; CTL-02/04 one-step rollout + H/salvage | Browser packaging / ENG-01; Plotly (ENG-03) |
+| CTL-01 damped SW base-stock; CTL-02/04 one-step rollout + H/salvage | Out / parked: no browser packaging, no ENG-01; Plotly (ENG-03) |
 | CTL-03 α tuned by sim for **every** ladder arm | Misspecification / CE arms (VOI-02=A) |
 | CTL-05 full ladder + CTL-06 toy exact DP gap | Cull/markdown sequencing (X-04=A); SCN-B-clair |
 | ENG-04 M2 CI gates: β=1 degeneracy, CRN desync, DP certificate | New runtime deps without ADR; reopen ⚑ without Oliver |
@@ -52,7 +52,10 @@ Controller belief = **MF marginals** `age_post` shape `(N, L, K)` via **`ShelfBe
 
 Cite [M2-controller-agent-brief.md](./M2-controller-agent-brief.md): keep `controller/` a pure library so a future ENG-01 / Pyodide façade is not painted into a desktop-only corner. Prefer list/float-friendly belief fields, optional compute-budget knobs on rollout APIs, CRN via `spawn_rng`, one `day_step` physics path, no FS/viz/pyarrow inside `controller/`.
 
-**Not M2 deliverables:** Pyodide packaging, GH Release wheels, Astro islands, WASM/FFI, browser demo. If a brief item conflicts with shipping CTL cleanly, **ship CTL** and leave a one-line ticket note. M2 success = CTL ladder + multi-scenario closed-loop, not WASM.
+**Not M2 deliverables:** no Pyodide packaging, no GH Release wheels, no Astro islands,
+no WASM/FFI, no browser demo. If a brief item conflicts with shipping CTL cleanly,
+**ship CTL** and leave a one-line ticket note. M2 success = CTL ladder + multi-scenario
+closed-loop, not WASM.
 
 ---
 
@@ -104,14 +107,14 @@ flowchart LR
 
 | Wave | Tickets | Mode |
 |------|---------|------|
-| **0** | T-022 + ADR 0092–0093 + specs T-023–T-034 | Serial architect (docs only) — **next / in progress** |
-| **1** | T-023 ∥ T-024 ∥ T-025 ∥ T-026 | Parallel foundations |
-| **2** | T-027 ∥ T-028 | Parallel base policies |
-| **3** | T-029 | Serial α tuning gate |
-| **4** | T-030 ∥ T-031 | Parallel rollout + toy DP |
-| **5** | T-032 | Ladder + ENG-04 gates |
-| **6** | T-033 | Multi-scenario + L remeasure |
-| **7** | T-034 | Close-out |
+| **0** | T-022 + ADR 0092–0093 + specs T-023–T-034 | Serial architect (docs only) — **complete** |
+| **1** | T-023 ∥ T-024 ∥ T-025 ∥ T-026 | Parallel foundations — **complete** |
+| **2** | T-027 ∥ T-028 | Parallel base policies — **complete** |
+| **3** | T-029 | Serial α tuning gate — **complete** |
+| **4** | T-030 ∥ T-031 | Parallel rollout + toy DP — **complete** |
+| **5** | T-032 | Ladder + ENG-04 gates — **complete** |
+| **6** | T-033 | Multi-scenario + L remeasure — **complete** |
+| **7** | T-034 | Close-out — **complete** |
 
 | ID | Title | Depends |
 |----|-------|---------|
@@ -164,4 +167,6 @@ Belief wording for all tickets: **MF marginals** / `from_marginals=True` — not
 
 ## 7. Immediate next step
 
-**Wave 0** (this ticket family): land ADR 0092–0093 ACCEPTED, specs T-022–T-034, README M2 table, backlog Next → Wave 1 after lock. Then Wave 1 parallel qa RED on T-023–T-026.
+**M2 complete** through Wave 7 / T-034 close-out on the ticket tip. Human merges the
+integrated tip to `main`. Do **not** start M3 VOI or reopen ENG-01 / Pyodide packaging
+from this plan — those remain parked non-goals until explicitly ticketed.

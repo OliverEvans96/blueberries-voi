@@ -6,8 +6,11 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M2 Wave 7:** **T-034** (per
-  [`.team/plans/M2-controller.md`](./plans/M2-controller.md) / [`.team/specs/T-034.md`](./specs/T-034.md)).
+- **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
+  the M2 verify/implement line; landing on `main` is a human decision. Do not start M3
+  VOI or reopen ENG-01 from backlog without a new ticket.
+- **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
+  non-goal locks) on `team/T-034/implement`.
 - **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
   and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 5:** **T-032** (CTL-05 five-point ladder + ENG-04 M2 gates: β=1,
