@@ -90,9 +90,7 @@ def _round_trip(belief_cls: Any, belief: Any) -> Any:
     return belief_cls(**payload)
 
 
-def _flat_prior_expected_survival(
-    params: ModelParams, tau_grid: list[float]
-) -> float:
+def _flat_prior_expected_survival(params: ModelParams, tau_grid: list[float]) -> float:
     """E_g[S(τ)] under flat arrival-age prior on the discrete grid (pipeline weight)."""
     if not tau_grid:
         return 0.0
