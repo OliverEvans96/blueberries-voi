@@ -74,11 +74,6 @@ app.innerHTML = `
       </main>
 
       <aside class="focus-column">
-        <nav class="section-nav panel" aria-label="Studio sections">
-          ${navHtml}
-          <p class="section-nav-hint">Keys 1–6 or ← →</p>
-        </nav>
-
         <section class="panel play-panel">
           <div class="panel-head"><h2>Run</h2></div>
           <div id="play-chrome"></div>
@@ -89,43 +84,50 @@ app.innerHTML = `
           </div>
         </section>
 
-        <section class="panel focus-pane" id="focus-pane">
-          <div class="focus-header">
-            <h2 id="focus-title">Play</h2>
-            <p class="focus-blurb" id="focus-blurb"></p>
-          </div>
-          <div id="section-controls"></div>
-          <div class="focus-plots">
-            <div class="focus-plot" data-plot="plot-belief" hidden>
-              <div class="chart-caption impact-caption">Belief vs truth</div>
-              <div id="chart-belief" class="chart"></div>
+        <div class="focus-row">
+          <nav class="section-nav panel" aria-label="Studio sections">
+            ${navHtml}
+            <p class="section-nav-hint">Keys 1–6 or ← →</p>
+          </nav>
+
+          <section class="panel focus-pane" id="focus-pane">
+            <div class="focus-header">
+              <h2 id="focus-title">Play</h2>
+              <p class="focus-blurb" id="focus-blurb"></p>
             </div>
-            <div class="focus-plot" data-plot="plot-pipeline" hidden>
-              <div class="chart-caption impact-caption">Inbound pipeline</div>
-              <div id="chart-pipeline" class="chart"></div>
+            <div id="section-controls"></div>
+            <div class="focus-plots">
+              <div class="focus-plot" data-plot="plot-belief" hidden>
+                <div class="chart-caption impact-caption">Belief vs truth</div>
+                <div id="chart-belief" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-pipeline" hidden>
+                <div class="chart-caption impact-caption">Inbound pipeline</div>
+                <div id="chart-pipeline" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-pnl" hidden>
+                <div class="chart-caption impact-caption">Revenue · cost · profit</div>
+                <div id="chart-pnl-series" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-survival" hidden>
+                <div class="chart-caption impact-caption">Survival + lot rug</div>
+                <div id="chart-survival" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-demand" hidden>
+                <div class="chart-caption impact-caption">Demand + coverage</div>
+                <div id="chart-demand" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-pipeline-lg" hidden>
+                <div class="chart-caption impact-caption">Order → arrival Gantt</div>
+                <div id="chart-pipeline-lg" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-belief-lg" hidden>
+                <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
+                <div id="chart-belief-lg" class="chart"></div>
+              </div>
             </div>
-            <div class="focus-plot" data-plot="plot-pnl" hidden>
-              <div class="chart-caption impact-caption">Revenue · cost · profit</div>
-              <div id="chart-pnl-series" class="chart"></div>
-            </div>
-            <div class="focus-plot" data-plot="plot-survival" hidden>
-              <div class="chart-caption impact-caption">Survival + lot rug</div>
-              <div id="chart-survival" class="chart"></div>
-            </div>
-            <div class="focus-plot" data-plot="plot-demand" hidden>
-              <div class="chart-caption impact-caption">Demand + coverage</div>
-              <div id="chart-demand" class="chart"></div>
-            </div>
-            <div class="focus-plot" data-plot="plot-pipeline-lg" hidden>
-              <div class="chart-caption impact-caption">Order → arrival Gantt</div>
-              <div id="chart-pipeline-lg" class="chart"></div>
-            </div>
-            <div class="focus-plot" data-plot="plot-belief-lg" hidden>
-              <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
-              <div id="chart-belief-lg" class="chart"></div>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </aside>
     </div>
 
