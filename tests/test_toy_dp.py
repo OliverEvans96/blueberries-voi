@@ -3,15 +3,17 @@
 Locks ADR 0063 (CTL-06=A), ADR 0059 (gap adjudicates single-step rollout),
 and `.team/specs/T-031.md` before production ``controller/toy_dp.py`` exists.
 
-Toy grid (CI runtime target: under a few seconds):
+Frozen toy instance (CI runtime target: under a few seconds):
 
 * demand support ``{0, 1, 2}``
-* truncated τ bins (few discrete ages)
-* ``L_max = 2`` lots; small max inventory
+* τ grid length ≤ 4 (truncated ages)
+* ``max_lots = 2``; small max inventory
+* short horizon (≤ 4 decision epochs)
 
 β=1 / constant-``w`` trap (ADR 0063): age-aware
 ``DampedSurvivalWeightedPolicy.delta_tau_L`` must equal the Rung 0 / toy
-protection convention on the same instance (daily LT=1 → R+L=2).
+protection convention on the same instance (daily LT=1 → R+L=2 /
+``protection_days=2``).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
+import math
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +32,7 @@ from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.model import ModelParams, q10_age_increment
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_CONTROLLER_DIR = _REPO_ROOT / "src" / "blueberries_voi" / "controller"
 _CONTROLLER_PKG = "blueberries_voi.controller"
 _TOY_MODULE = "blueberries_voi.controller.toy_dp"
 _TOY_MODULE_CANDIDATES = (
@@ -42,9 +46,10 @@ _TOY_MODULE_CANDIDATES = (
 # Fixture locks (open question in T-031: keep CI under a few seconds)
 # ---------------------------------------------------------------------------
 _DEMAND_SUPPORT: tuple[int, ...] = (0, 1, 2)
-_TAU_BINS: tuple[float, ...] = (0.0, 1.0, 2.0)  # truncated τ
+_TAU_BINS: tuple[float, ...] = (0.0, 1.0, 2.0, 3.0)  # length ≤ 4
 _MAX_LOTS: int = 2
-_MAX_INVENTORY: int = 4  # small on-hand per toy instance
+_MAX_INVENTORY: int = 4
+_HORIZON: int = 3  # short decision horizon
 _LEAD_TIME_DAYS: int = 1
 _PROTECTION_DEMAND_DAYS: int = 2  # R+L under daily LT=1 (X-11 / ADR 0006)
 _FORBIDDEN_IMPORT_ROOTS = frozenset({"matplotlib", "pyarrow", "pyarrow.parquet"})
@@ -63,7 +68,6 @@ def _resolve_toy_module() -> Any:
             last_err = exc
             continue
         if name == _CONTROLLER_PKG:
-            # Package alone is not enough unless solve_toy_dp is re-exported.
             if getattr(mod, "solve_toy_dp", None) is not None:
                 return mod
             continue
@@ -99,15 +103,26 @@ def _toy_kwargs() -> dict[str, Any]:
         "tau_bins": _TAU_BINS,
         "max_lots": _MAX_LOTS,
         "max_inventory": _MAX_INVENTORY,
+        "horizon": _HORIZON,
         "lead_time_days": _LEAD_TIME_DAYS,
         "protection_demand_days": _PROTECTION_DEMAND_DAYS,
     }
 
 
+def _filter_kwargs(fn: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    sig = inspect.signature(fn)
+    has_var_kw = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+    )
+    if has_var_kw:
+        named = {k: v for k, v in kwargs.items() if k in sig.parameters}
+        return named if named else dict(kwargs)
+    return {k: v for k, v in kwargs.items() if k in sig.parameters}
+
+
 def _call_solve_toy_dp(solve: Any) -> Any:
     """Invoke ``solve_toy_dp`` with locked fixtures when parameters exist."""
-    sig = inspect.signature(solve)
-    accepted = {k: v for k, v in _toy_kwargs().items() if k in sig.parameters}
+    accepted = _filter_kwargs(solve, _toy_kwargs())
     return solve(**accepted) if accepted else solve()
 
 
@@ -133,42 +148,68 @@ def _expected_delta_tau_l(params: ModelParams) -> float:
     )
 
 
-def _published_delta_tau_l(obj: Any) -> float | None:
-    for attr in ("delta_tau_L", "DELTA_TAU_L", "delta_tau_l", "TOY_DELTA_TAU_L"):
-        got = getattr(obj, attr, None)
+def _rung0_delta_tau_l(policy: Any, params: ModelParams) -> float:
+    """Rung 0 / toy protection convention as a comparable scalar to SW.delta_tau_L."""
+    for attr in ("delta_tau_L", "DELTA_TAU_L", "delta_tau_l"):
+        got = getattr(policy, attr, None)
         if got is not None:
             return float(got)
-    return None
+    cls = type(policy)
+    for attr in ("DELTA_TAU_L", "delta_tau_L", "delta_tau_l"):
+        got = getattr(cls, attr, None)
+        if got is not None:
+            return float(got)
+    toy = _resolve_toy_module()
+    for attr in ("DELTA_TAU_L", "delta_tau_L", "TOY_DELTA_TAU_L"):
+        got = getattr(toy, attr, None)
+        if got is not None:
+            return float(got)
+    # Last resort: protection_days == R+L calendar days with LT=1 age step.
+    days = getattr(policy, "protection_days", None)
+    if days is None:
+        days = getattr(cls, "PROTECTION_DAYS", None)
+    if days == _PROTECTION_DEMAND_DAYS:
+        return _expected_delta_tau_l(params)
+    pytest.fail(
+        "Rung 0 / toy must expose delta_tau_L (or protection_days=2 under LT=1) "
+        "matching DampedSurvivalWeightedPolicy.delta_tau_L (CTL-06 trap / ADR 0063)",
+        pytrace=False,
+    )
 
 
-def _call_gap_vs_rollout(gap_fn: Any, result: Any) -> float:
-    """Call ``gap_vs_rollout`` with result and/or locked toy kwargs."""
-    sig = inspect.signature(gap_fn)
-    params = sig.parameters
-    if not params:
-        return float(gap_fn())
-    kwargs: dict[str, Any] = {}
-    for name in ("result", "toy_result", "dp_result", "optimal", "toy_dp_result"):
-        if name in params:
-            kwargs[name] = result
-            break
-    else:
-        # Positional-first APIs: pass the solve result as the first argument.
-        first = next(iter(params))
-        if params[first].kind in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        ):
-            for k, v in _toy_kwargs().items():
-                if k in params:
-                    kwargs[k] = v
-            if kwargs:
-                return float(gap_fn(result, **kwargs))
-            return float(gap_fn(result))
-    for k, v in _toy_kwargs().items():
-        if k in params:
-            kwargs[k] = v
-    return float(gap_fn(**kwargs))
+def _imported_roots(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported.add(alias.name.split(".", maxsplit=1)[0])
+                imported.add(alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".", maxsplit=1)[0])
+            imported.add(node.module)
+    return imported
+
+
+def _assert_no_file_writes(path: Path) -> None:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id == "open":
+                pytest.fail(f"{path.name} must not call open()", pytrace=False)
+            if isinstance(func, ast.Attribute) and func.attr in {
+                "write_text",
+                "write_bytes",
+                "mkdir",
+                "touch",
+                "dump",
+                "savefig",
+            }:
+                pytest.fail(
+                    f"{path.name} must not write files ({func.attr})",
+                    pytrace=False,
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -197,13 +238,12 @@ def test_solve_toy_dp_returns_optimal_value_and_policy_tables() -> None:
     policy_table = _table_attr(result, _POLICY_TABLE_ATTRS, kind="policy")
     assert value_table is not None
     assert policy_table is not None
-    # Non-empty optimal tables (exact layout is implementer's choice).
     assert len(value_table) > 0
     assert len(policy_table) > 0
 
 
 def test_solve_toy_dp_uses_small_ci_state_space() -> None:
-    """Toy grid stays CI-cheap: demand {0,1,2}, truncated τ, ~2 lots."""
+    """Toy grid stays CI-cheap: demand {0,1,2}, τ≤4, ~2 lots, short horizon."""
     solve = _resolve_attr("solve_toy_dp")
     mod = _resolve_toy_module()
     result = _call_solve_toy_dp(solve)
@@ -232,8 +272,16 @@ def test_solve_toy_dp_uses_small_ci_state_space() -> None:
     if tau is None:
         tau = getattr(mod, "TOY_TAU_BINS", None)
     assert tau is not None, "toy instance must document truncated tau_bins"
-    assert len(tuple(tau)) <= len(_TAU_BINS) + 1
-    assert len(tuple(tau)) >= 2
+    tau_t = tuple(tau)
+    assert 2 <= len(tau_t) <= 4
+
+    horizon = getattr(result, "horizon", None)
+    if horizon is None:
+        horizon = getattr(mod, "HORIZON", None)
+    if horizon is None:
+        horizon = getattr(mod, "TOY_HORIZON", None)
+    assert horizon is not None, "toy instance must document a short horizon"
+    assert 1 <= int(horizon) <= 4
 
 
 # ---------------------------------------------------------------------------
@@ -251,11 +299,22 @@ def test_gap_vs_rollout_reports_float_on_same_toy_instance() -> None:
     solve = _resolve_attr("solve_toy_dp")
     gap_fn = _resolve_attr("gap_vs_rollout")
     result = _call_solve_toy_dp(solve)
-    gap = _call_gap_vs_rollout(gap_fn, result)
+    sig = inspect.signature(gap_fn)
+    names = list(sig.parameters)
+    if not names:
+        gap = float(gap_fn())
+    elif names[0] in {"result", "toy_result", "dp_result", "optimal"} or "result" in names[
+        0
+    ]:
+        gap = float(gap_fn(result))
+    elif "solve" in names[0].lower() or names[0] in {"instance", "toy"}:
+        kwargs = _filter_kwargs(gap_fn, _toy_kwargs())
+        gap = float(gap_fn(**kwargs) if kwargs else gap_fn())
+    else:
+        gap = float(gap_fn(result))
 
     assert isinstance(gap, float)
-    assert gap == gap  # finite (not NaN)
-    assert abs(gap) < float("inf")
+    assert math.isfinite(gap)
     # Optimality gap is non-negative when defined as J* - J_rollout (or abs gap).
     assert gap >= 0.0
 
@@ -276,7 +335,7 @@ def test_gap_vs_rollout_documented_as_same_instance_comparison() -> None:
 
 def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
     """CTL-06 trap: SW.delta_tau_L equals Rung 0 / toy protection convention."""
-    toy = _resolve_toy_module()
+    _resolve_toy_module()  # toy module must exist for the certificate instance
     params = ModelParams()
     sw = DampedSurvivalWeightedPolicy(rho=1.0, alpha=0.9, params=params)
     rung0 = CorrectedAgeBlindPolicy(
@@ -286,7 +345,6 @@ def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
         protection_days=_PROTECTION_DEMAND_DAYS,
     )
 
-    # Daily LT=1 / R+L=2 protection window (X-11); both arms must share it.
     assert sw.lead_time == _LEAD_TIME_DAYS
     assert sw.protection_demand_days == _PROTECTION_DEMAND_DAYS
     assert rung0.protection_days == _PROTECTION_DEMAND_DAYS
@@ -295,30 +353,25 @@ def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
     expected = _expected_delta_tau_l(params)
     assert sw_delta == pytest.approx(expected, rel=0.0, abs=1e-12)
 
+    rung0_delta = _rung0_delta_tau_l(rung0, params)
+    assert rung0_delta == pytest.approx(sw_delta, rel=0.0, abs=1e-12)
+
+    toy = _resolve_toy_module()
+    toy_delta = None
+    for attr in ("DELTA_TAU_L", "delta_tau_L", "TOY_DELTA_TAU_L"):
+        if getattr(toy, attr, None) is not None:
+            toy_delta = float(getattr(toy, attr))
+            break
     result = _call_solve_toy_dp(_resolve_attr("solve_toy_dp"))
-    toy_delta = _published_delta_tau_l(toy)
     if toy_delta is None:
-        toy_delta = _published_delta_tau_l(result)
+        for attr in ("delta_tau_L", "DELTA_TAU_L"):
+            if hasattr(result, attr):
+                toy_delta = float(getattr(result, attr))
+                break
     assert toy_delta is not None, (
         "toy_dp must publish delta_tau_L for the toy instance (CTL-06 trap)"
     )
     assert toy_delta == pytest.approx(sw_delta, rel=0.0, abs=1e-12)
-
-    # Rung 0 side of the trap: explicit delta_tau_L if present, else the toy
-    # module's published Rung0/toy protection convention (same scalar).
-    rung0_delta = _published_delta_tau_l(rung0)
-    if rung0_delta is None:
-        rung0_delta = _published_delta_tau_l(type(rung0))
-    if rung0_delta is None:
-        for attr in ("RUNG0_DELTA_TAU_L", "rung0_delta_tau_L"):
-            got = getattr(toy, attr, None)
-            if got is not None:
-                rung0_delta = float(got)
-                break
-    if rung0_delta is None:
-        # Same published toy scalar is the agreed Rung 0 / toy convention.
-        rung0_delta = toy_delta
-    assert rung0_delta == pytest.approx(sw_delta, rel=0.0, abs=1e-12)
 
 
 # ---------------------------------------------------------------------------
@@ -331,36 +384,18 @@ def test_toy_dp_module_has_no_matplotlib_pyarrow_or_file_writes() -> None:
     path = Path(inspect.getsourcefile(mod) or "")
     assert path.is_file(), f"missing source for {mod.__name__}"
     assert "controller" in path.parts
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
-    imported: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imported.add(alias.name.split(".")[0])
-                imported.add(alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.add(node.module.split(".")[0])
-            imported.add(node.module)
-    forbidden = imported & _FORBIDDEN_IMPORT_ROOTS
+    forbidden = _imported_roots(path) & _FORBIDDEN_IMPORT_ROOTS
     assert not forbidden, f"{path.name} imports forbidden: {sorted(forbidden)}"
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name) and func.id == "open":
-                pytest.fail(f"{path.name} must not call open()", pytrace=False)
-            if isinstance(func, ast.Attribute) and func.attr in {
-                "write_text",
-                "write_bytes",
-                "mkdir",
-                "touch",
-                "dump",
-                "savefig",
-            }:
-                pytest.fail(
-                    f"{path.name} must not write files ({func.attr})",
-                    pytrace=False,
-                )
+    _assert_no_file_writes(path)
+
+
+def test_controller_package_has_no_matplotlib_or_parquet() -> None:
+    """AST scan of controller/: no matplotlib / parquet; figures live elsewhere."""
+    assert _CONTROLLER_DIR.is_dir()
+    for path in sorted(_CONTROLLER_DIR.glob("*.py")):
+        forbidden = _imported_roots(path) & _FORBIDDEN_IMPORT_ROOTS
+        assert not forbidden, f"{path.name} imports forbidden: {sorted(forbidden)}"
+        _assert_no_file_writes(path)
 
 
 def test_toy_dp_lives_under_controller_package() -> None:
@@ -369,6 +404,11 @@ def test_toy_dp_lives_under_controller_package() -> None:
     assert path.is_file()
     assert path.name == "toy_dp.py" or mod.__name__.endswith(".toy_dp")
     assert "controller" in path.parts
+    # Prefer the agreed module path for implementer clarity.
+    preferred = _CONTROLLER_DIR / "toy_dp.py"
+    assert preferred.is_file(), (
+        "implementer should add src/blueberries_voi/controller/toy_dp.py"
+    )
 
 
 # ---------------------------------------------------------------------------
