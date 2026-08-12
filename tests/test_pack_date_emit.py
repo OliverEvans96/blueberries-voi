@@ -140,12 +140,15 @@ def test_f2a_birth_prior_from_sim_daylog_narrower_than_cold() -> None:
 
 
 def test_stage_a_f2a_contracts_when_pack_date_emitted(tmp_path: Path) -> None:
-    """AC: run_m15_stage_a F2a rung reports contracted=True under smoke defaults."""
+    """AC: run_m15_stage_a F2a rung reports contracted=True (tiny smoke compute)."""
     result = m15.run_m15_stage_a(
         root_seed=0,
         rungs=("F2a",),
         contraction_margin=0.05,
         figures_dir=tmp_path,
+        n_particles=4,
+        n_burn=1,
+        n_score=2,
         write_figure=False,
     )
     assert len(result.rows) == 1
