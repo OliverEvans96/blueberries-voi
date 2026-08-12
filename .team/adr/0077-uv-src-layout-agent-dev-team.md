@@ -1,6 +1,8 @@
-# 0001. uv + src layout + agent-dev-team for simulation work
+# 0077. uv + src layout + agent-dev-team for simulation work
 
 STATUS: ACCEPTED
+DATE: 2026-08-12
+NOTE: Renumbered from 0001 on import of Afresh domain ADRs 0001–0076.
 
 ## Context
 The repo starts empty. Work will mix simulation, analysis, visualization,
