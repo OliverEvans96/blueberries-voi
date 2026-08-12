@@ -1,14 +1,18 @@
 # 0082. FIL-13: Tractability restore — full joint (E) at measured L
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0091
 DATE: 2026-08-12
 BOARD-ID: FIL-13
 GROUP: FIL
-PROVENANCE: newly-raised; settled from T-005 bakeoff
+PROVENANCE: newly-raised; settled from T-005 bakeoff; production default superseded 2026-08-12
 TIER: 1
 MILESTONE: M1 — filter recovers truth from synthetic P1 data
 
 ## Context
+
+**Production default superseded by ADR [0091](./0091-fil13-production-mean-field.md):** FIL-13
+production is **B — `mean_field`**, not E. Bakeoff evidence and measured-L notes below remain
+historical context; arms A–E stay implemented for bakeoff.
 
 FIL-12=B chose a coarse joint age grid so `K^L` stays small, on a worked example with **L ≈ 4**.
 Board numbers previously suggested **L ≈ 12–20** under MOD-13=C + daily delivery, which would make
@@ -44,10 +48,11 @@ choice so T-006 can proceed.
 
 ## Consequences
 
-- Production `RBPF` uses full-joint age posterior at the configured L (guard still fires if
-  `K^L·N` exceeds budget — no silent truncation).
-- If a later controller/cadence regime raises L so the guard trips, reopen this ADR toward A.
-- FIL-15 locks K/N/ESS for the E path.
+**Historical (pre-0091):** Production `RBPF` used full-joint at measured L; guard fired rather than
+silently truncating L; FIL-15 locked K/N/ESS for that path.
+
+**Active (ADR 0091):** Production uses `mean_field`; joint guard remains for the bakeoff
+`full_joint` arm only.
 
 **Depends on:** `FIL-12`, `MOD-13`, `X-11`, `MOD-07`, `FIL-14`, `MOD-25`, `MOD-26`, T-005
 

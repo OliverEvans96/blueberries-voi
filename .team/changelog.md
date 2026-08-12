@@ -4,6 +4,12 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-12 — M1.5 filter complete across data-availability rungs
 
+- **Production age tracking now uses the simpler mean-field per-lot belief** confirmed
+  by the Stage C check: the live filter updates each lot’s age belief independently when
+  only storewide sales and shrink are known, keeps the detailed per-lot path when
+  lot IDs are visible, and no longer switches models just because more lots are
+  on the shelf (T-021).
+
 - **Delivery days now carry a pack date**, so the pack-date age check can tighten
   beliefs the way it was designed to — that rung is no longer blocked waiting
   on missing receipt metadata (T-019).

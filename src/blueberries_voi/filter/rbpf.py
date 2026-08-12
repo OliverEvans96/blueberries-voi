@@ -1,8 +1,7 @@
-"""Production RBPF (FIL-01 / T-006) after FIL-13 settle at measured L."""
+"""Production RBPF (FIL-01 / T-006) after ADR 0091 mean_field settle."""
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -10,9 +9,8 @@ import numpy as np  # needed for get_type_hints(RBPF.step)
 
 from blueberries_voi.filter.backends import (
     FilterBackend,
-    FullJointBackend,
+    MeanFieldBackend,
     ParticleState,
-    SlidingWindowBackend,
 )
 from blueberries_voi.filter.backends import (
     ess as ess_fn,
@@ -27,28 +25,26 @@ from blueberries_voi.filter.types import (
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
 
-logger = logging.getLogger(__name__)
-
-# Production numerics after FIL-13/15 settle (ADR 0082/0083).
-PRODUCTION_BACKEND: str = "full_joint"
+# Production numerics after FIL-13/15 settle; backend locked by ADR 0091.
+PRODUCTION_BACKEND: str = "mean_field"
 PRODUCTION_K: int = 8
 PRODUCTION_N: int = 2000
 PRODUCTION_ESS_FRACTION: float = 0.5
 # Measured L under M1 open-loop is ≤3; keep headroom for short spikes.
-# Dynamic L (T-015): configured / empirical L is preferred when joint fits.
+# Dynamic L (T-015): configured / empirical L is preferred; no joint gate.
 PRODUCTION_L: int = 3
 
 
 @dataclass
 class RBPF:
-    """Rao-Blackwellised PF: sample counts, marginalise joint age on a grid."""
+    """Rao-Blackwellised PF: sample counts, marginalise age via mean_field."""
 
     params: ModelParams
     N: int = PRODUCTION_N
     K: int = PRODUCTION_K
     ess_fraction: float = PRODUCTION_ESS_FRACTION
     L: int = PRODUCTION_L
-    _backend: FilterBackend = field(default_factory=FullJointBackend)
+    _backend: FilterBackend = field(default_factory=MeanFieldBackend)
     _state: ParticleState | None = None
     _day: int = 0
     _root_seed: int = 0
@@ -59,30 +55,16 @@ class RBPF:
         self._apply_backend_choice()
 
     def _apply_backend_choice(self) -> None:
-        """Pick full_joint or sliding_window; never truncate L (ADR 0089)."""
+        """Always select mean_field; never truncate L (ADR 0091)."""
         choice = choose_backend(self.K, self.L, self.N)
         self.backend_choice = choice
-        if choice.backend == "sliding_window":
-            logger.info(
-                "RBPF backend fallback: %s",
-                choice.reason,
-                extra={
-                    "K": choice.K,
-                    "L": choice.L,
-                    "N": choice.N,
-                    "joint_floats": choice.joint_floats,
-                    "backend": choice.backend,
-                    "reason": choice.reason,
-                },
-            )
-            self._backend = SlidingWindowBackend()
-        else:
-            self._backend = FullJointBackend()
+        if choice.backend == "mean_field":
+            self._backend = MeanFieldBackend()
 
     def initialize(self, rng: np.random.Generator, *, L: int | None = None) -> None:
         if L is not None:
             self.L = L
-        # Re-evaluate when L changes (or on first init); may fall back.
+        # Re-evaluate when L changes (or on first init); stays mean_field.
         self._apply_backend_choice()
         self._state = self._backend.initialize(
             N=self.N, K=self.K, L=self.L, params=self.params, rng=rng

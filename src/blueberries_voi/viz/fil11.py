@@ -200,11 +200,15 @@ def run_fil11_stage_b(
     n_particles: int = PRODUCTION_N,
     K: int = PRODUCTION_K,
     L: int = PRODUCTION_L,
+    n_burn: int = 10,
+    n_score: int = 25,
     figures_dir: Path | None = None,
 ) -> StageBResult:
-    """Calibration: 90% CI coverage + rank histogram (production full_joint).
+    """Calibration: 90% CI coverage + rank histogram (production mean_field).
 
     Diagnostic after Stage A fail — does not reopen the FIL-11=D gate.
+    Smoke tests should pass small ``n_particles`` / ``n_score`` (MF age update
+    is O(N) per day under ADR 0091).
     """
     import matplotlib.pyplot as plt
 
@@ -220,8 +224,8 @@ def run_fil11_stage_b(
             p,
             root_seed=100 + rep,
             run_id=f"b{rep}",
-            n_burn=10,
-            n_score=25,
+            n_burn=n_burn,
+            n_score=n_score,
             shipments=ships,
         )
         rbpf = RBPF(params=p, N=n_particles, K=K, L=L)

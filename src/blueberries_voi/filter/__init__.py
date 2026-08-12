@@ -1,4 +1,4 @@
-"""Filter package - shared ``day_step`` + production RBPF (full_joint)."""
+"""Filter package - shared ``day_step`` + production RBPF (mean_field)."""
 
 from __future__ import annotations
 

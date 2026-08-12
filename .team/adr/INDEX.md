@@ -9,6 +9,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M1 settle / defer (2026-08-12): **[0078](./0078-x-13-gate-0.md)–[0085](./0085-pyarrow-abdella-parquet.md)** (FIL-13/15 accepted after bakeoff; pyarrow for Abdella)
 - M1.5 architecture lock (2026-08-12): **[0086](./0086-m15-richobs-unobserved-masks.md)–[0089](./0089-m15-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
 - FIL-11 Stage C / FIL-04 evidence (additive): **[0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md)** (`sequential_wor_pmf`; exact joint vs mean-field; does not replace M1.5 Stage C)
+- Production mean-field settle (2026-08-12): **[0091](./0091-fil13-production-mean-field.md)** (FIL-13=B / FIL-04→C; supersedes 0082/0089 production defaults; 0049→C; 0057 historical)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -63,7 +64,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0046](./0046-fil-01-filter-family.md) | `FIL-01` | Filter family ⚑ | ACCEPTED |
 | [0047](./0047-fil-02-what-is-sampled-versus-marginalised.md) | `FIL-02` | What is sampled versus marginalised | ACCEPTED |
 | [0048](./0048-fil-03-arrival-age-discretisation.md) | `FIL-03` | Arrival-age discretisation ⚑ | ACCEPTED |
-| [0049](./0049-fil-04-factorisation-of-age-across-cohorts.md) | `FIL-04` | Factorisation of age across cohorts ⚑ | ACCEPTED |
+| [0049](./0049-fil-04-factorisation-of-age-across-cohorts.md) | `FIL-04` | Factorisation of age across cohorts (→ C via 0091) | SUPERSEDED BY 0091 |
 | [0050](./0050-fil-05-particle-count-and-resampling.md) | `FIL-05` | Particle count and resampling | ACCEPTED |
 | [0051](./0051-fil-06-handling-static-parameter-degeneracy.md) | `FIL-06` | Handling static-parameter degeneracy ⚑ | ACCEPTED |
 | [0052](./0052-fil-07-where-parameter-inference-lives.md) | `FIL-07` | Where parameter inference lives | ACCEPTED |
@@ -71,7 +72,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0054](./0054-fil-09-reporting-lag-on-waste.md) | `FIL-09` | Reporting lag on waste | ACCEPTED |
 | [0055](./0055-fil-10-proposal-distribution.md) | `FIL-10` | Proposal distribution | ACCEPTED |
 | [0056](./0056-fil-11-how-we-know-the-filter-works.md) | `FIL-11` | How we know the filter works | ACCEPTED |
-| [0057](./0057-fil-12-making-the-joint-age-posterior-tractable.md) | `FIL-12` | Making the joint age posterior tractable ⚑ | ACCEPTED |
+| [0057](./0057-fil-12-making-the-joint-age-posterior-tractable.md) | `FIL-12` | Making the joint age posterior tractable ⚑ | HISTORICAL (0091) |
 | [0058](./0058-ctl-01-base-policy-family.md) | `CTL-01` | Base policy family ⚑ | ACCEPTED |
 | [0059](./0059-ctl-02-depth-of-policy-improvement.md) | `CTL-02` | Depth of policy improvement | ACCEPTED |
 | [0060](./0060-ctl-03-fractile-determination.md) | `CTL-03` | Fractile determination ⚑ | ACCEPTED |
@@ -97,12 +98,13 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0079](./0079-mod-25-numeric-picking-sigma.md) | `MOD-25` | Numeric picking-kernel σ = 0.5 + uniform sensitivity | ACCEPTED |
 | [0080](./0080-mod-26-demand-case-shelf.md) | `MOD-26` | Demand μ=30, V/M=2, case 8 + sensitivity at 4 | ACCEPTED |
 | [0081](./0081-fil-14-cohort-extinction.md) | `FIL-14` | Cohort extinct when n = 0 exactly | ACCEPTED |
-| [0082](./0082-fil-13-tractability-bakeoff.md) | `FIL-13` | Tractability restore — full joint (E) at measured L | ACCEPTED |
+| [0082](./0082-fil-13-tractability-bakeoff.md) | `FIL-13` | Tractability restore — full joint (E) at measured L | SUPERSEDED BY 0091 |
 | [0083](./0083-fil-15-filter-numerics.md) | `FIL-15` | Filter numerics — K=8 on [0,8], N=2000, ESS=N/2 | ACCEPTED |
 | [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md) | *(repo)* | Runtime deps: numpy, scipy, matplotlib | ACCEPTED |
 | [0085](./0085-pyarrow-abdella-parquet.md) | *(repo)* | pyarrow for Abdella parquet I/O | ACCEPTED |
 | [0086](./0086-m15-richobs-unobserved-masks.md) | `FIL-08` (M1.5) | RichObs + UNOBSERVED + scenario masks | ACCEPTED |
 | [0087](./0087-m15-mc-observation-likelihood.md) | `FIL-10` (M1.5) | MC observation likelihood from shared day_step | ACCEPTED |
 | [0088](./0088-m15-stage-c-generative-check.md) | `FIL-11` (M1.5) | Stage C generative check vs day_step | ACCEPTED |
-| [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | ACCEPTED |
+| [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | SUPERSEDED BY 0091 |
 | [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
+| [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | ACCEPTED |

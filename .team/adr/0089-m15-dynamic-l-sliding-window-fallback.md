@@ -1,11 +1,15 @@
 # 0089. Dynamic L + joint→sliding_window fallback when budget trips
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0091
 DATE: 2026-08-12
 BOARD-ID: FIL-13 (M1.5 long-dwell policy)
 MILESTONE: M1.5 — filter complete across data-availability rungs
 
 ## Context
+
+**Production default superseded by ADR [0091](./0091-fil13-production-mean-field.md):** production
+always selects `mean_field` (no joint→`sliding_window` production fallback). Dynamic-L tracking may
+still matter for state dimension; the joint float gate is not a production selector.
 
 FIL-12=B (⚑) locks coarse-grid **full joint** age posteriors; do not reopen without Oliver.
 FIL-13=E accepted full joint at **measured** M1 L (p50≈2, max≈3) with `MAX_JOINT_FLOATS` guard that
@@ -45,11 +49,11 @@ silent contradiction of the joint default.
 
 ## Consequences
 
-- Easy: long-dwell cells complete; experiment logs show when/why fallback fired.
-- Hard: Stage A metrics must use cohort-from-birth (not oldest-slot-only) so sliding_window vs joint
-  comparisons stay honest; bakeoff note may need a short M1.5 addendum.
-- Locked: production default remains joint when budget allows; FIL-12=B not reopened.
-- Revisit FIL-13 toward making sliding_window the default only with new bakeoff evidence and Oliver.
+**Historical (pre-0091):** long-dwell cells could complete via joint→window fallback; production
+default remained joint when budget allowed.
+
+**Active (ADR 0091):** production `choose_backend` always returns `mean_field`; bakeoff may still
+exercise window/joint arms; FIL-12 joint path is historical.
 
 **Depends on:** FIL-12, FIL-13 (ADR 0082), FIL-15, `MAX_JOINT_FLOATS` in `filter.types`
-**Does not reopen:** FIL-12=B without Oliver
+**Superseded by:** ADR 0091 (production mean-field)

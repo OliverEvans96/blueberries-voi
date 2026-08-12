@@ -105,13 +105,14 @@ ORACLE_COMPARE_DEFAULT: tuple[ScenarioId, ...] = ("P1", "F2")
 B_STATE_AGE_ERROR_IS_ZERO: bool = True
 
 # Library smoke defaults stay cheap; experiment scripts may raise N / horizon.
-_SMOKE_N = 48
+# After T-021 MF age updates, keep these small so CI stays tractable.
+_SMOKE_N = 16
 _SMOKE_K = 8
 _SMOKE_L = 3
-_SMOKE_N_BURN = 4
-_SMOKE_N_SCORE = 8
-_SMOKE_B_REPS = 8
-_SMOKE_ORACLE_REPS = 4
+_SMOKE_N_BURN = 2
+_SMOKE_N_SCORE = 4
+_SMOKE_B_REPS = 4
+_SMOKE_ORACLE_REPS = 2
 _TIGHT_SPREAD = 0.05
 
 

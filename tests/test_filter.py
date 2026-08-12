@@ -74,5 +74,9 @@ def test_rbpf_requires_initialize() -> None:
         rbpf.age_posterior()
 
 
-def test_production_backend_is_full_joint() -> None:
-    assert filter_pkg.PRODUCTION_BACKEND == "full_joint"
+def test_production_backend_is_mean_field() -> None:
+    """T-021 / ADR 0091: production FIL-13 = B (mean_field)."""
+    assert filter_pkg.PRODUCTION_BACKEND == "mean_field"
+    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
+    assert rbpf.backend_choice.backend == "mean_field"
+    assert getattr(rbpf._backend, "name", None) == "mean_field"

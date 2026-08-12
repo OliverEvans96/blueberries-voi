@@ -7,6 +7,8 @@
 
 ## 1. Executive summary
 
+> **Settle note (ADR 0091, 2026-08-12):** production is now **B — `mean_field`**, not E. See § Settle addendum. Body below is the bakeoff-era lock.
+
 - Board worry was **L ≈ 12–20** under MOD-13=C + daily delivery, which would make FIL-12=B’s joint `K^L` infeasible. FIL-13 ran an in-repo bakeoff before locking production RBPF shape.
 - Under **M1 open-loop defaults** (σ=0.5, S=60, MOD-26 demand/case, FIL-14 extinction), empirical live-cohort count **L is small**: roughly **p50≈2, p90≈3, max≈3–4**. Fast ~2-day inventory turn explains why.
 - Per settle rule (prefer **A** if L large; **E** if L small enough), production locks **E — `full_joint`** (ADR **0082** ACCEPTED). Code: `PRODUCTION_BACKEND = "full_joint"`.
@@ -232,7 +234,8 @@ Once a **real** joint (and real W / mean-field) update exists, do **not** reuse 
 | `experiments/fil13_bakeoff.py` | Bakeoff runner |
 | `experiments/fil13_scaling.md` | Deep-dive: grocery L, microbench, slow-turn, effectiveness |
 | `experiments/fil13_scaling.py` | Scaling / slow-turn runner |
-| `.team/adr/0082-fil-13-tractability-bakeoff.md` | **E** locked |
+| `.team/adr/0082-fil-13-tractability-bakeoff.md` | **E** locked (bakeoff-era; production superseded by 0091) |
+| `.team/adr/0091-fil13-production-mean-field.md` | Production FIL-13=B mean_field settle |
 | `.team/adr/0083-fil-15-filter-numerics.md` | K/N/ESS locked |
 | `.team/adr/0057-fil-12-making-the-joint-age-posterior-tractable.md` | FIL-12=B coarse joint |
 | `figures/m1/fil13_runtime.png` | Bakeoff runtime figure |
@@ -249,3 +252,9 @@ Once a **real** joint (and real W / mean-field) update exists, do **not** reuse 
 ## 12. What another agent should not redo / should not assume
 
 Do not re-litigate FIL-13 options A–E from a blank board: **E is locked** at measured open-loop L, with **A retained as fallback**, and FIL-15 numerics already set. Do not assume the old board **L≈12–20** still applies under M1 defaults — measured L is ~2–3. Do not treat bakeoff **TV≈0** or similar wall times as proof that joint, window, and mean-field are equally accurate: they share a **factorized stub**, and **`full_joint` primarily enforces the `K^L·N` guard** rather than materializing a dense joint. Do not confuse that **in-process memory guard** with OS OOM. Do not lower `MAX_JOINT_FLOATS`, silently truncate L, or drop coverage/type gates to “make joint fit.” Before changing production backend, **remeasure empirical L under the real controller** and implement real W/joint update semantics; then re-run accuracy metrics that can actually distinguish approaches.
+
+---
+
+## Settle addendum (2026-08-12) — ADR 0091
+
+**Production default superseded.** ADR [0091](../adr/0091-fil13-production-mean-field.md) (ACCEPTED) sets production FIL-13 = **B — `mean_field`** (with FIL-04 → C). Sections above that lock **E / `full_joint`** describe the *bakeoff-era* production choice; they are historical context, not the current production path. Bakeoff arms A–E and measured-L notes remain valid evidence; the `K^L·N` memory guard applies to the bakeoff `full_joint` arm only. Implementation ticket: [T-021](../specs/T-021.md).

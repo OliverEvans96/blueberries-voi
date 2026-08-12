@@ -1,8 +1,9 @@
 """FIL-11 Stage C / FIL-04 evidence: ``sequential_wor_pmf`` joint vs mean-field.
 
 Shared filter density matching ``allocate_sales`` (sequential WOR product) plus
-independent Binomial waste via ``death_prob_survival_ratio``. Production soft
-``_rbpf_update`` is intentionally untouched.
+independent Binomial waste via ``death_prob_survival_ratio``. Production particle
+weights stay on MC ``observation_loglik_mc`` (ADR 0087); age belief under P1 uses
+``mean_field_update`` on the mean_field backend (ADR 0091 / T-021).
 """
 
 from __future__ import annotations

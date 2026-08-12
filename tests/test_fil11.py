@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
-from blueberries_voi.filter.rbpf import PRODUCTION_K, PRODUCTION_N
+from blueberries_voi.filter.rbpf import PRODUCTION_N
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.viz.fil11 import (
     _arrival_prior,
@@ -35,10 +35,19 @@ def test_arrival_prior_small_sample() -> None:
 
 def test_stage_b_smoke(tmp_path: Path) -> None:
     # Diagnostic only after Stage A fail - exercises calibration helper.
-    result = run_fil11_stage_b(n_reps=2, n_particles=40, figures_dir=tmp_path)
-    assert result.n_reps == 2
-    assert result.n_particles == 40
-    assert result.K == PRODUCTION_K
+    # Small N / short score window: MF age update is O(N) per day (T-021).
+    result = run_fil11_stage_b(
+        n_reps=1,
+        n_particles=4,
+        K=4,
+        L=2,
+        n_burn=1,
+        n_score=2,
+        figures_dir=tmp_path,
+    )
+    assert result.n_reps == 1
+    assert result.n_particles == 4
+    assert result.K == 4
     assert result.figure_path.is_file()
     assert 0.0 <= result.coverage_90 <= 1.0
     assert 0.0 <= result.rank_mean <= 1.0

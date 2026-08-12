@@ -1,14 +1,19 @@
 # 0049. FIL-04: Factorisation of age across cohorts
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0091
 DATE: 2026-08-12
 BOARD-ID: FIL-04
 GROUP: FIL
-PROVENANCE: contested
+PROVENANCE: contested → reopened to C (2026-08-12)
 TIER: 1
 MILESTONE: M2 — controller and multi-scenario
-AGAINST-RECOMMENDATION: true
+AGAINST-RECOMMENDATION: false
 
 ## Context
+
+**Reopened 2026-08-12:** FIL-04 settles to **C — Mean-field, validated by brute force at small
+cohort counts** via ADR [0091](./0091-fil13-production-mean-field.md) after FIL-11 Stage C PASS
+(ADR 0090 / `.team/reports/FIL-11-stage-c-mf-findings.md` §6). The historical B (joint) override
+below is retained for provenance only.
 
 *Milestone: M2. This is the one approximation that could quietly corrupt every downstream number.*
 
@@ -46,19 +51,26 @@ exactly the sort of assumption that gets made once for tractability and never re
 
 ## Decision
 
-We will adopt **B — Joint age posterior across cohorts**. Chosen against the card recommendation of **C — Mean-field, validated by brute force at small cohort counts**.
+**Historical (pre-0091):** We adopted **B — Joint age posterior across cohorts** against the card
+recommendation of **C**.
 
-**B — Joint age posterior across cohorts.** ⚑ Against the card's recommendation (C).
+**Active (ADR 0091):** **C — Mean-field, validated by brute force at small cohort counts.**
+Stage C evidence passed; production wires `mean_field_update`. See ADR 0091.
 
 ## Alternatives considered
 
-- **A — Mean-field — a separate age posterior per cohort** — not chosen on the board.
-- **C — Mean-field, validated by brute force at small cohort counts** _(card recommendation; not chosen)_ — not chosen on the board.
+- **A — Mean-field — a separate age posterior per cohort** — not chosen (unvalidated).
+- **B — Joint age posterior across cohorts** — original ⚑ board pick; superseded for production by
+  ADR 0091 after Stage C validation of C.
+- **C — Mean-field, validated by brute force at small cohort counts** _(card recommendation)_ —
+  **accepted** via ADR 0091 reopen.
 
 ## Consequences
 
-Deliberate override of the card recommendation (⚑). Do not reopen without asking Oliver.
+Production age factorisation is mean-field (C). Joint (B) remains available only as bakeoff /
+historical analysis, not the production default. Further reopen requires a new ADR (belief-sensitive
+VOI failure or new Stage C fail).
 
-**Depends on:** `FIL-02`
+**Depends on:** `FIL-02`, ADR 0090 (evidence), ADR 0091 (settle)
 
 **Milestone:** M2 — controller and multi-scenario

@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-12  
 **Board:** FIL-11 Stage C (exact check) · FIL-04 factorisation evidence  
-**ADR:** [0090](../adr/0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) (ACCEPTED — evidence machinery; does not flip ⚑ ADR 0049 / 0057)  
-**Spec:** [T-020](../specs/T-020.md)  
+**ADR:** [0090](../adr/0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) (ACCEPTED — evidence machinery) · settle locked in [0091](../adr/0091-fil13-production-mean-field.md) (ACCEPTED — FIL-04→C / FIL-13=B; see §6 addendum)  
+**Spec:** [T-020](../specs/T-020.md) (evidence) · [T-021](../specs/T-021.md) (production wire)  
 **Primary numbers:** [`experiments/fil11_stage_c_mf_result.md`](../../experiments/fil11_stage_c_mf_result.md)
 
 ---
@@ -20,13 +20,13 @@
 | Stage 4 action agreement | **1.000** (≥ 0.95 alternate) |
 | Stress fail (LIFO+rich + action flip) | **False** |
 
-**Board recommendation (settle move, not an ADR status flip):**
+**Board recommendation (settle move — later confirmed in ADR 0091):**
 
 - Reopen **FIL-04** toward **mean-field (C)** as the production factorisation choice.
 - **Park** joint / coarse-joint machinery pressure from **FIL-12 / FIL-13** (treat FIL-13 option **B — mean-field** as the intended production path for age belief, not full joint).
-- ⚑ **Do not flip ADR 0049 (FIL-04) or ADR 0057 (FIL-12) until Oliver confirms.** This report is evidence + recommendation only.
+- ~~⚑ Do not flip ADR 0049 (FIL-04) or ADR 0057 (FIL-12) until Oliver confirms.~~ **Confirmed** via ADR 0091 (see §6 settle addendum).
 
-Production soft `_rbpf_update` was **not** changed; Stage C is a fixed-count posterior comparison under a named shared likelihood, not a full RBPF bakeoff.
+Production soft `_rbpf_update` was **not** changed in the evidence ticket; Stage C is a fixed-count posterior comparison under a named shared likelihood, not a full RBPF bakeoff. Production wiring is T-021.
 
 ---
 
@@ -205,6 +205,16 @@ So: Stage 3 warns that long MF-only rollouts under mismatched obs may drift in j
 - Wire `sequential_wor_pmf` + MF into production RBPF under a later ticket after board settle.
 - If belief-sensitive VOI later fails under MF, revisit sliding window / joint with a new ADR — Stage 3 drift is a reason to watch, not to reverse the current gate PASS.
 
+### Settle addendum (2026-08-12) — confirmed
+
+Oliver confirmed the §6 settle via ADR [0091](../adr/0091-fil13-production-mean-field.md) (**ACCEPTED**):
+
+- **FIL-04 → C** (mean-field); ADR 0049 superseded.
+- **FIL-13 production = B (`mean_field`)**; ADR 0082 / 0089 production defaults superseded.
+- **FIL-12** (ADR 0057) marked **historical** (joint pressure parked).
+
+Wiring of production RBPF is [T-021](../specs/T-021.md). Claims above that ADR 0049 / 0057 were “not flipped” apply to the *evidence-only* phase of this report; they are settled afterward by 0091.
+
 ---
 
 ## 7. Artifacts
@@ -217,7 +227,9 @@ So: Stage 3 warns that long MF-only rollouts under mismatched obs may drift in j
 | Likelihood module | `src/blueberries_voi/filter/age_likelihood.py` |
 | Tests (Stage 0 / units) | `tests/test_age_likelihood.py` |
 | ADR (evidence lock) | `.team/adr/0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md` |
-| Spec | `.team/specs/T-020.md` |
+| ADR (production settle) | `.team/adr/0091-fil13-production-mean-field.md` |
+| Spec (evidence) | `.team/specs/T-020.md` |
+| Spec (production wire) | `.team/specs/T-021.md` |
 | This report | `.team/reports/FIL-11-stage-c-mf-findings.md` |
 
 **Re-run:**

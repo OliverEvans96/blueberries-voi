@@ -1,14 +1,19 @@
 # 0057. FIL-12: Making the joint age posterior tractable
-STATUS: ACCEPTED
+STATUS: HISTORICAL — production path superseded by 0091
 DATE: 2026-08-12
 BOARD-ID: FIL-12
 GROUP: FIL
-PROVENANCE: newly-raised
+PROVENANCE: newly-raised; parked after FIL-04 → C (ADR 0091)
 TIER: 1
 MILESTONE: M1 — filter recovers truth from synthetic P1 data
 AGAINST-RECOMMENDATION: true
 
 ## Context
+
+**Historical (2026-08-12):** ADR [0091](./0091-fil13-production-mean-field.md) parks joint /
+coarse-joint as the production age-posterior path after FIL-04 → C (mean-field). This card remains
+as the record of why joint was chosen and why `K^L` pressure existed; bakeoff `full_joint` /
+`sliding_window` arms may still use these ideas. Do not treat B as the production default.
 
 *Milestone: M1. **This is the one thing that blocks writing filter code.** Everything else in M1 is
 settled and consistent.*
@@ -53,9 +58,9 @@ We will adopt **B — Coarse age grid, joint**. Chosen against the card recommen
 
 ## Consequences
 
-Few grid points so grid^L stays small.
-
-Deliberate override of the card recommendation (⚑). Do not reopen without asking Oliver.
+**Historical:** Few grid points so grid^L stays small; deliberate ⚑ override of the card
+recommendation. **Production (ADR 0091):** age belief is mean-field; FIL-12 joint pressure is
+parked. Reopen only with a new ADR if MF production fails belief-sensitive gates.
 
 **Depends on:** `FIL-01`, `FIL-03`, `FIL-04`, `MOD-13`
 

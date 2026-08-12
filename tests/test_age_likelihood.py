@@ -346,7 +346,7 @@ def test_mean_field_update_rows_sum_to_one_and_distinct_from_exact() -> None:
 
 
 def test_production_rbpf_update_still_uses_mc_ll() -> None:
-    """M1.5 production path must remain MC LL; age_likelihood is additive only."""
+    """Weights stay on MC LL; T-021 may also wire mean_field_update for age belief."""
     backends_path = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -363,22 +363,31 @@ def test_production_rbpf_update_still_uses_mc_ll() -> None:
     assert "observation_loglik_mc" in body
     assert "sales_pow" not in body
     assert "waste_pow" not in body
-    assert "mean_field_update" not in body
+    # Soft / WOR weight scorers must not replace MC LL (ADR 0087 unchanged).
+    assert "sequential_wor_pmf" not in body
 
 
-def test_adr_0049_and_0057_status_still_accepted() -> None:
+def test_adr_0049_fil04_c_and_0057_historical_after_0091() -> None:
+    """T-021 / ADR 0091: FIL-04 → C; FIL-12 historical (no longer ACCEPTED-only)."""
     root = Path(__file__).resolve().parents[1] / ".team" / "adr"
-    for name in (
-        "0049-fil-04-factorisation-of-age-across-cohorts.md",
-        "0057-fil-12-making-the-joint-age-posterior-tractable.md",
-    ):
-        text = (root / name).read_text(encoding="utf-8")
-        # STATUS line must remain ACCEPTED (no flip in T-020).
-        status_lines = [
-            ln.strip() for ln in text.splitlines() if ln.startswith("STATUS:")
-        ]
-        assert status_lines, f"missing STATUS in {name}"
-        assert status_lines[0] == "STATUS: ACCEPTED"
+    text_0049 = (root / "0049-fil-04-factorisation-of-age-across-cohorts.md").read_text(
+        encoding="utf-8"
+    )
+    status_0049 = [
+        ln.strip() for ln in text_0049.splitlines() if ln.startswith("STATUS:")
+    ]
+    assert status_0049, "missing STATUS in 0049"
+    assert "SUPERSEDED BY 0091" in status_0049[0]
+    assert "C" in text_0049 and "mean-field" in text_0049.lower()
+
+    text_0057 = (
+        root / "0057-fil-12-making-the-joint-age-posterior-tractable.md"
+    ).read_text(encoding="utf-8")
+    status_0057 = [
+        ln.strip() for ln in text_0057.splitlines() if ln.startswith("STATUS:")
+    ]
+    assert status_0057, "missing STATUS in 0057"
+    assert "HISTORICAL" in status_0057[0]
 
 
 def test_metrics_helpers_and_stockout_path() -> None:

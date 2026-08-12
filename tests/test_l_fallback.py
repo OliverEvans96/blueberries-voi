@@ -1,4 +1,4 @@
-"""T-015 Dynamic L + joint→sliding_window fallback (RED / acceptance)."""
+"""T-021: production choose_backend always mean_field (ADR 0091)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPERIMENTS = _REPO_ROOT / "experiments"
 
 # Production numerics (ADR 0083 / FIL-15): K=8, N=2000 → joint fits L≤4, trips at L≥5.
-# (Bakeoff tables often used N=200 where the trip is near L≈6; do not copy that N here.)
+# Under ADR 0091 these numbers diagnose joint_floats only; they do not gate production.
 _PROD_K = 8
 _PROD_N = 2000
 _L_WITHIN = 4  # 8^4 * 2000 = 8.192e6 ≤ 5e7
@@ -47,7 +47,7 @@ def _resolve_choose_backend() -> Any:
         "blueberries_voi.filter.l_fallback",
         attr="choose_backend",
     )
-    assert fn is not None, "choose_backend(K, L, N) must be exported (ADR 0089 / T-015)"
+    assert fn is not None, "choose_backend(K, L, N) must be exported (ADR 0091 / T-021)"
     return fn
 
 
@@ -59,7 +59,7 @@ def _resolve_backend_choice_type() -> Any:
         "blueberries_voi.filter.l_fallback",
         attr="BackendChoice",
     )
-    assert cls is not None, "BackendChoice dataclass must be exported (T-015)"
+    assert cls is not None, "BackendChoice dataclass must be exported (T-021)"
     return cls
 
 
@@ -87,17 +87,17 @@ def _rbpf_backend_choice(rbpf: RBPF) -> Any:
 
 
 def test_joint_budget_boundary_l4_fits_l5_trips() -> None:
-    """Lock the FIL-13 float budget numbers tests rely on (prod K=8, N=2000)."""
+    """Lock the FIL-13 float budget numbers (diagnostics; not a production gate)."""
     within = joint_state_count(_PROD_K, _L_WITHIN, _PROD_N)
     over = joint_state_count(_PROD_K, _L_OVER, _PROD_N)
     assert within <= MAX_JOINT_FLOATS
     assert over > MAX_JOINT_FLOATS
 
 
-def test_choose_backend_selects_full_joint_when_within_budget() -> None:
+def test_choose_backend_selects_mean_field_when_within_budget() -> None:
     choose = _resolve_choose_backend()
     choice = choose(_PROD_K, _L_WITHIN, _PROD_N)
-    assert _choice_field(choice, "backend") == "full_joint"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert _choice_field(choice, "L") == _L_WITHIN
     assert _choice_field(choice, "K") == _PROD_K
     assert _choice_field(choice, "N") == _PROD_N
@@ -106,28 +106,30 @@ def test_choose_backend_selects_full_joint_when_within_budget() -> None:
     )
 
 
-def test_choose_backend_selects_full_joint_at_exact_budget_edge() -> None:
-    """≤ MAX_JOINT_FLOATS keeps full_joint (boundary inclusive)."""
+def test_choose_backend_selects_mean_field_at_exact_budget_edge() -> None:
+    """Exact MAX_JOINT_FLOATS edge still selects mean_field (no joint gate)."""
     choose = _resolve_choose_backend()
-    # Solve for N such that K^L*N == MAX_JOINT_FLOATS exactly (integer N).
     k, ell = 4, 3
     n_exact = int(MAX_JOINT_FLOATS // (k**ell))
     assert joint_state_count(k, ell, n_exact) <= MAX_JOINT_FLOATS
     choice = choose(k, ell, n_exact)
-    assert _choice_field(choice, "backend") == "full_joint"
+    assert _choice_field(choice, "backend") == "mean_field"
 
 
-def test_choose_backend_falls_back_to_sliding_window_when_over_budget() -> None:
+def test_choose_backend_selects_mean_field_when_over_budget() -> None:
+    """Former sliding_window fallback configs now stay on mean_field (ADR 0091)."""
     choose = _resolve_choose_backend()
     choice = choose(_PROD_K, _L_OVER, _PROD_N)
-    assert _choice_field(choice, "backend") == "sliding_window"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert _choice_field(choice, "L") == _L_OVER
+    assert _choice_field(choice, "backend") != "sliding_window"
+    assert _choice_field(choice, "backend") != "full_joint"
 
 
-def test_fallback_choice_records_structured_reason_fields() -> None:
+def test_choice_records_structured_fields_under_mean_field() -> None:
     choose = _resolve_choose_backend()
     choice = choose(_PROD_K, _L_LONG_DWELL, _PROD_N)
-    assert _choice_field(choice, "backend") == "sliding_window"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert _choice_field(choice, "K") == _PROD_K
     assert _choice_field(choice, "L") == _L_LONG_DWELL
     assert _choice_field(choice, "N") == _PROD_N
@@ -136,18 +138,17 @@ def test_fallback_choice_records_structured_reason_fields() -> None:
     assert floats > MAX_JOINT_FLOATS
     reason = _choice_field(choice, "reason")
     assert isinstance(reason, str) and reason.strip()
-    # Reason should be inspectable (K/L/N / budget / sliding_window).
     blob = reason.lower()
-    assert "sliding_window" in blob or "fallback" in blob or "budget" in blob
+    assert "mean_field" in blob or "mean-field" in blob
 
 
 def test_choose_backend_never_silently_truncates_l() -> None:
-    """FIL-13 guard: requested L is preserved; never full_joint with smaller L."""
+    """FIL-13 / ADR 0091: requested L is preserved; never shrink L to fit joint."""
     choose = _resolve_choose_backend()
     requested_l = _L_LONG_DWELL
     choice = choose(_PROD_K, requested_l, _PROD_N)
     assert _choice_field(choice, "L") == requested_l
-    assert _choice_field(choice, "backend") == "sliding_window"
+    assert _choice_field(choice, "backend") == "mean_field"
     # Forbidden pattern: fit budget by shrinking L while claiming joint.
     assert not (
         _choice_field(choice, "backend") == "full_joint"
@@ -155,7 +156,7 @@ def test_choose_backend_never_silently_truncates_l() -> None:
     )
 
 
-def test_rbpf_within_budget_uses_full_joint() -> None:
+def test_rbpf_within_budget_uses_mean_field() -> None:
     try:
         rbpf = RBPF(
             params=ModelParams(),
@@ -168,11 +169,12 @@ def test_rbpf_within_budget_uses_full_joint() -> None:
             "within-budget RBPF must construct without MemoryError"
         ) from exc
     choice = _rbpf_backend_choice(rbpf)
-    assert _choice_field(choice, "backend") == "full_joint"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert rbpf.L == 3
+    assert getattr(rbpf._backend, "name", None) == "mean_field"
 
 
-def test_rbpf_over_budget_falls_back_without_memory_error() -> None:
+def test_rbpf_over_budget_uses_mean_field_without_memory_error() -> None:
     try:
         rbpf = RBPF(
             params=ModelParams(),
@@ -182,19 +184,17 @@ def test_rbpf_over_budget_falls_back_without_memory_error() -> None:
         )
     except MemoryError as exc:
         raise AssertionError(
-            "over-budget L must auto-fallback to sliding_window, "
-            "not raise MemoryError (ADR 0089)"
+            "over-budget L must select mean_field, not raise MemoryError (ADR 0091)"
         ) from exc
     choice = _rbpf_backend_choice(rbpf)
-    assert _choice_field(choice, "backend") == "sliding_window"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert rbpf.L == _L_LONG_DWELL
     backend = getattr(rbpf, "_backend", None)
-    assert getattr(backend, "name", None) == "sliding_window"
+    assert getattr(backend, "name", None) == "mean_field"
 
 
-def test_rbpf_initialize_over_budget_preserves_l_and_falls_back() -> None:
-    """initialize(L=…) must not truncate L to fit joint; fallback instead."""
-    # Start within budget at production N, then raise L past the joint ceiling.
+def test_rbpf_initialize_over_budget_preserves_l_and_uses_mean_field() -> None:
+    """initialize(L=…) must not truncate L; production stays mean_field."""
     rbpf = RBPF(params=ModelParams(), K=_PROD_K, N=_PROD_N, L=3)
     assert joint_state_count(_PROD_K, 3, _PROD_N) <= MAX_JOINT_FLOATS
     assert joint_state_count(_PROD_K, _L_OVER, _PROD_N) > MAX_JOINT_FLOATS
@@ -202,16 +202,16 @@ def test_rbpf_initialize_over_budget_preserves_l_and_falls_back() -> None:
         rbpf.initialize(np.random.default_rng(0), L=_L_OVER)
     except MemoryError as exc:
         raise AssertionError(
-            "initialize with over-budget L must fallback, not MemoryError"
+            "initialize with over-budget L must use mean_field, not MemoryError"
         ) from exc
     assert rbpf.L == _L_OVER
     choice = _rbpf_backend_choice(rbpf)
-    assert _choice_field(choice, "backend") == "sliding_window"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert _choice_field(choice, "L") == _L_OVER
 
 
-def test_dynamic_l_follows_configured_max_when_joint_fits() -> None:
-    """No permanent hard-code ignoring measured/configured L when safe."""
+def test_dynamic_l_follows_configured_max_with_mean_field() -> None:
+    """Configured L is respected; production identity is mean_field."""
     configured_l = 4
     assert joint_state_count(_PROD_K, configured_l, 200) <= MAX_JOINT_FLOATS
     try:
@@ -222,26 +222,26 @@ def test_dynamic_l_follows_configured_max_when_joint_fits() -> None:
             L=configured_l,
         )
     except MemoryError as exc:
-        raise AssertionError("configured L within budget must not MemoryError") from exc
+        raise AssertionError("configured L must not MemoryError") from exc
     assert configured_l == rbpf.L
     choice = _rbpf_backend_choice(rbpf)
-    assert _choice_field(choice, "backend") == "full_joint"
+    assert _choice_field(choice, "backend") == "mean_field"
     assert _choice_field(choice, "L") == configured_l
-    # Dynamic path must not clamp to legacy PRODUCTION_L=3 when 4 is safe.
     assert rbpf.L != 3 or configured_l == 3
 
 
-def test_production_default_remains_full_joint_fil12_not_reopened() -> None:
-    """FIL-12=B stays the production preference; sliding_window is FIL-13 fallback."""
-    assert filter_pkg.PRODUCTION_BACKEND == "full_joint"
+def test_production_default_is_mean_field_fil04_c() -> None:
+    """ADR 0091: FIL-13=B / FIL-04=C; always mean_field (no joint fallback)."""
+    assert filter_pkg.PRODUCTION_BACKEND == "mean_field"
     choose = _resolve_choose_backend()
     within = choose(_PROD_K, 3, _PROD_N)
-    assert _choice_field(within, "backend") == "full_joint"
+    assert _choice_field(within, "backend") == "mean_field"
     over = choose(_PROD_K, _L_OVER, _PROD_N)
-    assert _choice_field(over, "backend") == "sliding_window"
-    # Fallback arm must not quietly reopen mean-field / bound_L as production.
+    assert _choice_field(over, "backend") == "mean_field"
+    # Must not resurrect joint / window as the production selector.
     assert _choice_field(over, "backend") not in {
-        "mean_field",
+        "full_joint",
+        "sliding_window",
         "bound_L",
         "bootstrap_pf",
     }
@@ -252,14 +252,14 @@ def test_backend_choice_type_is_frozen_structured_record() -> None:
     choose = _resolve_choose_backend()
     choice = choose(_PROD_K, _L_OVER, _PROD_N)
     assert isinstance(choice, cls)
+    assert _choice_field(choice, "backend") == "mean_field"
     # Frozen / immutable record (dataclass frozen=True in the spec).
     with pytest.raises((AttributeError, TypeError)):
-        choice.backend = "mean_field"
+        choice.backend = "full_joint"
 
 
 def test_m15_l_remeasure_experiment_note_documents_fallback() -> None:
-    """AC: dedicated M1.5 addendum (not the M1 fil13 bakeoff alone)."""
-    # Prefer an explicit new note; do not treat M1 fil13_*.md as sufficient.
+    """Historical M1.5 note retained; may still document pre-0091 joint→window path."""
     preferred = _EXPERIMENTS / "m15_l_remeasure.md"
     candidates = [preferred] if preferred.is_file() else []
     if not candidates:

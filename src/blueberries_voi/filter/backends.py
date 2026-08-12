@@ -11,6 +11,7 @@ import numpy as np
 from scipy.special import logsumexp
 from scipy.stats import poisson
 
+from blueberries_voi.filter.age_likelihood import mean_field_update
 from blueberries_voi.filter.arrival_priors import delivery_birth_age_prior
 from blueberries_voi.filter.types import (
     AGE_GRID_HI,
@@ -489,10 +490,38 @@ def _rbpf_update(
     log_w -= float(log_w.max())
     weights = np.exp(log_w)
     weights /= float(weights.sum())
-    # Lot-resolved maps update per-lot age marginals (T-014); birth priors stay T-013.
-    new_post = _apply_lot_map_age_update(
-        new_post, state.counts, days, dtau, grid, rich, params
-    )
+    # Lot-map (F1/F1s) for all RBPF-style arms; P1 mean-field only on mean_field
+    # backend (production / FIL-13=B). Bakeoff full_joint / sliding_window keep
+    # prior age mass + MC weights (no per-particle MF). Birth priors stay T-013.
+    sales_map = _observed_lot_map(rich.sales_by_lot)
+    waste_map = _observed_lot_map(rich.waste_by_lot)
+    sales_tot = _observed_int(rich.sales_total)
+    waste_tot = _observed_int(rich.waste_total)
+
+    if sales_map is not None or waste_map is not None:
+        # F1/F1s — keep existing lot-map path
+        new_post = _apply_lot_map_age_update(
+            new_post, state.counts, days, dtau, grid, rich, params
+        )
+    elif (
+        backend_name == "mean_field" and sales_tot is not None and waste_tot is not None
+    ):
+        # P1 path: real MF age factorisation (ADR 0091 / T-021)
+        y_p1 = P1Obs(sales_total=sales_tot, waste_total=waste_tot, arrivals=0)
+        # physiological ages for likelihood (bins are arrival-age identity)
+        tau_grid = grid + float(np.mean(days)) * float(dtau)
+        for i in range(n):
+            new_post[i] = mean_field_update(
+                state.counts[i],
+                new_post[i],
+                y_p1,
+                params,
+                tau_grid=tau_grid,
+                # Stage C used ≤5; 2 sweeps + TV early-stop keeps CI tractable
+                # while still moving mass under non-flat P1 LL (T-021).
+                max_sweeps=2,
+            )
+    # else: leave new_post as prior copy
     counts = np.maximum(0, state.counts + rng.integers(-1, 2, size=state.counts.shape))
 
     arrivals_v = _observed_int(rich.arrivals)
