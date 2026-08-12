@@ -78,7 +78,9 @@ def run_stage_a_scenario(
     prior_full = _arrival_prior(1.0, K)
     prior_tight = _arrival_prior(0.05, K)
 
-    def filter_with_prior(spread: float, prior: np.ndarray) -> tuple[np.ndarray, float, float]:
+    def filter_with_prior(
+        spread: float, prior: np.ndarray
+    ) -> tuple[np.ndarray, float, float]:
         ep = run_episode(
             p,
             root_seed=SEED,
@@ -169,33 +171,37 @@ def run_stage_a_scenario(
 def scenarios() -> list[Scenario]:
     base = ModelParams()
     return [
-        Scenario("baseline", base, note="defaults μ=30 V/M=2 S=60 σ=0.5 β=2 T=4°C"),
+        Scenario(
+            "baseline",
+            base,
+            note="defaults mu=30 V/M=2 S=60 sigma=0.5 beta=2 T=4 degC",
+        ),
         Scenario(
             "slower_mu15",
             replace(base, demand_mu=15.0),
-            note="demand μ=15, V/M=2, S=60",
+            note="demand mu=15, V/M=2, S=60",
         ),
         Scenario(
             "longer_dwell_S120",
             base,
             S=120,
-            note="S=120 base-stock (μ=30)",
+            note="S=120 base-stock (mu=30)",
         ),
         Scenario(
             "slower_mu15_S120",
             replace(base, demand_mu=15.0),
             S=120,
-            note="μ=15 and S=120 combined",
+            note="mu=15 and S=120 combined",
         ),
         Scenario(
             "fresh_bias_sigma0.25",
             replace(base, sigma=0.25),
-            note="stronger fresh-bias linger σ=0.25",
+            note="stronger fresh-bias linger sigma=0.25",
         ),
         Scenario(
             "fresh_bias_sigma0.2",
             replace(base, sigma=0.2),
-            note="stronger fresh-bias linger σ=0.2",
+            note="stronger fresh-bias linger sigma=0.2",
         ),
         Scenario(
             "uniform_picking",
@@ -205,17 +211,17 @@ def scenarios() -> list[Scenario]:
         Scenario(
             "weibull_beta3.5",
             replace(base, beta=3.5),
-            note="more age-sensitive spoilage β=3.5",
+            note="more age-sensitive spoilage beta=3.5",
         ),
         Scenario(
             "weibull_beta4.0",
             replace(base, beta=4.0),
-            note="more age-sensitive spoilage β=4.0",
+            note="more age-sensitive spoilage beta=4.0",
         ),
         Scenario(
             "cooler_store_T1C",
             replace(base, t_store_c=1.0),
-            note="slower in-store ageing T_store=1°C",
+            note="slower in-store ageing T_store=1 degC",
         ),
         Scenario(
             "longer_score_n60",
@@ -234,14 +240,17 @@ def write_report(results: list[ScenarioResult]) -> None:
         "knobs. **No production filter likelihood changes.**",
         "",
         "Settings (shared unless noted): K=8, N=500, L_filter=3, n_burn=20, "
-        "n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd × 0.95 "
+        "n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd x 0.95 "
         "and tight-spread control check.",
         "",
         "**Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), "
         "same as baseline Stage A. No single-cohort-from-birth API in the "
         "production RBPF; longer_score only lengthens the observation window.",
         "",
-        "| scenario | L p50 | L max | prior_sd | post_sd | Δ% | contracted? | pass/fail |",
+        (
+            "| scenario | L p50 | L max | prior_sd | post_sd | "
+            "delta% | contracted? | pass/fail |"
+        ),
         "|---|---:|---:|---:|---:|---:|:---:|:---:|",
     ]
     for r in results:
@@ -280,7 +289,7 @@ def write_report(results: list[ScenarioResult]) -> None:
             "Across this sweep, **no scenario restored ≥5% contraction** of the "
             "full-mix age posterior vs the arrival prior under the Stage A metric "
             "(oldest slot). Slower sales / higher S raise empirical L as expected, "
-            "stronger fresh-bias and higher Weibull β change the likelihood shape, "
+            "stronger fresh-bias and higher Weibull beta change the likelihood shape, "
             "and cooler store slows effective ageing — but none of these knobs alone "
             "moved posterior_sd below the 5% contraction threshold relative to "
             f"prior_sd≈{results[0].prior_sd:.2f}. The Stage A hard-stop outcome "
@@ -296,8 +305,8 @@ def write_report(results: list[ScenarioResult]) -> None:
             + ". Full Stage A PASS (including tight control): "
             + (", ".join(passers) if passers else "none")
             + ". In this sweep, the knobs that restore contraction are long "
-            "dwell (μ=15+S=120 together) and sharper Weibull spoilage (β=4.0); "
-            "μ or S alone, fresh-bias σ, uniform picking, cooler store, and a "
+            "dwell (mu=15+S=120 together) and sharper Weibull spoilage (beta=4.0); "
+            "mu or S alone, fresh-bias sigma, uniform picking, cooler store, and a "
             "longer score window do not clear the 5% bar. When empirical L "
             "exceeds L_filter=3, the RBPF still reports the oldest fixed slot."
         )
@@ -343,7 +352,7 @@ def main() -> None:
         delta = 100.0 * (r.prior_sd - r.post_sd) / r.prior_sd if r.prior_sd else 0.0
         print(
             f"  {r.status} prior={r.prior_sd:.4f} post={r.post_sd:.4f} "
-            f"Δ={delta:+.1f}% L_p50={r.l_p50:.1f} L_max={r.l_max:.0f}",
+            f"delta={delta:+.1f}% L_p50={r.l_p50:.1f} L_max={r.l_max:.0f}",
             flush=True,
         )
     write_report(results)

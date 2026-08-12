@@ -4,6 +4,10 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-12
 
+- Checked whether a simpler per-lot age belief is close enough to the full
+  joint belief on small toy shelves: it passed the agreed accuracy gates, so
+  we recommend (but have not yet board-confirmed) switching to that simpler
+  form for production work (T-008).
 - Built the first working inventory simulator and age-tracking filter for the blueberry
   study, including real cold-chain temperature traces and a bakeoff that chose the
   tractable full joint age model for production at the small live-cohort counts we

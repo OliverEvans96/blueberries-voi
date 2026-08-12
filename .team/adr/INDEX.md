@@ -7,6 +7,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Domain ADRs: **0001–0076** (75 accepted, 1 superseded)
 - Repo tooling ADR: **[0077](./0077-uv-src-layout-agent-dev-team.md)** (renumbered from 0001 on import to preserve domain numbering)
 - M1 settle / defer (2026-08-12): **[0078](./0078-x-13-gate-0.md)–[0085](./0085-pyarrow-abdella-parquet.md)** (FIL-13/15 accepted after bakeoff; pyarrow for Abdella)
+- FIL-11 Stage C / FIL-04 evidence (2026-08-12): **[0086](./0086-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md)** (`sequential_wor_pmf`; exact joint vs mean-field)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -99,3 +100,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0083](./0083-fil-15-filter-numerics.md) | `FIL-15` | Filter numerics — K=8 on [0,8], N=2000, ESS=N/2 | ACCEPTED |
 | [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md) | *(repo)* | Runtime deps: numpy, scipy, matplotlib | ACCEPTED |
 | [0085](./0085-pyarrow-abdella-parquet.md) | *(repo)* | pyarrow for Abdella parquet I/O | ACCEPTED |
+| [0086](./0086-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
