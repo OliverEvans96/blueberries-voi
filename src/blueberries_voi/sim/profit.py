@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from blueberries_voi.sim import DayLog, EpisodeLog
+if TYPE_CHECKING:
+    from blueberries_voi.sim import DayLog, EpisodeLog
 
 __all__ = [
     "ProfitCosts",

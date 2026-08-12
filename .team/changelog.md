@@ -2,6 +2,13 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 1 controller foundations
+
+- **Policies can read a shared shelf belief** built from the live age filter or from known true lot ages, including an effective on-hand figure that accounts for stock already on order (T-023).
+- **A closed-loop day driver can ask a policy for each day’s order**, keep the same store physics and random streams as the open-loop simulator, and take shipment traces as an input instead of reading cold-chain files by itself (T-024).
+- **Day and episode profit can be scored** from sales, waste, and lost sales only — holding cost is left out of that score, matching the agreed accounting rule (T-025).
+- **Orders can be rounded to whole cases** with a documented nearest-case rule, and a constant daily order policy is available as the ladder’s simple baseline (T-026).
+
 ## 2026-08-12 — M1.5 filter complete across data-availability rungs
 
 - **Production age tracking now uses the simpler mean-field per-lot belief** confirmed

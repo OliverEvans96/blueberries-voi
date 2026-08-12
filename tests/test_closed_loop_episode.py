@@ -12,7 +12,7 @@ import importlib
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -75,7 +75,7 @@ def _resolve_policy_type() -> type[Any]:
             continue
         policy = getattr(mod, "Policy", None)
         if policy is not None:
-            return policy
+            return cast("type[Any]", policy)
     raise AssertionError(
         "missing public Policy protocol/ABC under blueberries_voi.sim "
         "(or blueberries_voi.sim.episode)"
@@ -83,7 +83,7 @@ def _resolve_policy_type() -> type[Any]:
 
 
 def _resolve_closed_loop_runner() -> Callable[..., EpisodeLog]:
-    """Policy-driven episode entry: ``run_closed_loop_episode`` or ``run_episode(policy=...)``."""
+    """Resolve ``run_closed_loop_episode`` or ``run_episode(policy=...)``."""
     candidates: list[Callable[..., EpisodeLog]] = []
     for mod_name in ("blueberries_voi.sim.episode", "blueberries_voi.sim"):
         try:
@@ -149,7 +149,7 @@ def _run_closed_loop(
 
 
 class _ConstantOrderPolicy:
-    """Local stub implementing the expected Policy.order surface (T-026 lives elsewhere)."""
+    """Local stub for Policy.order surface (T-026 lives elsewhere)."""
 
     def __init__(self, q: int) -> None:
         self.q = int(q)
@@ -305,7 +305,7 @@ def test_closed_loop_requires_injectable_shipments_no_abdella_fs_default(
     policy = _ConstantOrderPolicy(8)
     with pytest.raises((TypeError, ValueError, AssertionError)):
         if getattr(runner, "__name__", "") == "run_episode":
-            runner(  # type: ignore[call-arg]
+            runner(
                 policy=policy,
                 params=ModelParams(),
                 root_seed=1,
@@ -315,7 +315,7 @@ def test_closed_loop_requires_injectable_shipments_no_abdella_fs_default(
             )
         else:
             try:
-                runner(  # type: ignore[call-arg]
+                runner(
                     policy,
                     params=ModelParams(),
                     root_seed=1,
@@ -324,7 +324,7 @@ def test_closed_loop_requires_injectable_shipments_no_abdella_fs_default(
                     n_score=1,
                 )
             except TypeError:
-                runner(  # type: ignore[call-arg]
+                runner(
                     policy=policy,
                     params=ModelParams(),
                     root_seed=1,
@@ -440,14 +440,14 @@ def test_closed_loop_crn_demand_alloc_spoil_stable_across_runs(
 ) -> None:
     _patch_abdella_fs_forbidden(monkeypatch)
     ships = _fixture_shipments()
-    kwargs = dict(
-        shipments=ships,
-        params=ModelParams(),
-        root_seed=42,
-        run_id="t024-crn",
-        n_burn=3,
-        n_score=7,
-    )
+    kwargs: dict[str, Any] = {
+        "shipments": ships,
+        "params": ModelParams(),
+        "root_seed": 42,
+        "run_id": "t024-crn",
+        "n_burn": 3,
+        "n_score": 7,
+    }
     a = _run_closed_loop(_ConstantOrderPolicy(8), **kwargs)
     b = _run_closed_loop(_ConstantOrderPolicy(8), **kwargs)
     assert len(a.days) == len(b.days)
@@ -480,9 +480,7 @@ def test_extra_unused_stream_draw_does_not_change_demand_alloc_spoil_slots(
     )
 
     # Consume an unrelated semantic stream before the second episode.
-    unused = spawn_rng(
-        root_seed, run_id=run_id, day=0, stream=STREAM_FILTER_RESAMPLE
-    )
+    unused = spawn_rng(root_seed, run_id=run_id, day=0, stream=STREAM_FILTER_RESAMPLE)
     _ = unused.random(500)
 
     perturbed = _run_closed_loop(

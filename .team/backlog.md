@@ -6,11 +6,15 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M2 Wave 0 / Wave 1:** Team plan
-  [`.team/plans/M2-controller.md`](./plans/M2-controller.md). Wave 0 locks ADRs
+- **Next — M2 Wave 2:** Parallel base policies **T-027 ∥ T-028** (age-blind Rung 0 and
+  CTL-01 damped survival-weighted base-stock). Team plan
+  [`.team/plans/M2-controller.md`](./plans/M2-controller.md). Wave 0 ADRs/specs and Wave 1
+  (T-023–T-026: belief API, closed-loop episode, day profit, caseRound) are verified on
+  `team/T-022/verify`.
+- **Done — M2 Wave 0 / Wave 1:** ADRs
   [0092](./adr/0092-controller-belief-api.md)–[0093](./adr/0093-day-profit-helper.md) and specs
-  [T-022](./specs/T-022.md)–[T-034](./specs/T-034.md). After Wave 0 freeze → Wave 1 parallel
-  T-023–T-026.
+  [T-022](./specs/T-022.md)–[T-034](./specs/T-034.md); Wave 1 implement tips integrated and
+  gate-green (T-023–T-026).
 - **Historical — M1.5 Wave 0 / T-011:** Architecture lock and honest MC LL are done; do not treat
   “Next: Wave 2 / T-011” as current work.
 - **Resolved — experiments lint:** `experiments/fil11_a_scenarios.py` RUF001

@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from blueberries_voi.sim import DayLog, EpisodeLog, LotState
+from blueberries_voi.sim.profit import ProfitCosts
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _RUNTIME_DEPS_LOCKED = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
@@ -42,9 +43,7 @@ def _costs(
     unit_margin: float = 2.0,
     waste_cost: float = 1.5,
     stockout_penalty: float = 3.0,
-) -> object:
-    from blueberries_voi.sim.profit import ProfitCosts
-
+) -> ProfitCosts:
     return ProfitCosts(
         unit_margin=unit_margin,
         waste_cost=waste_cost,

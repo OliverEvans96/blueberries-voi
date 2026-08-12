@@ -398,41 +398,46 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: no production CTL / VOI / browser beyond pre-existing stubs
+# AC: VOI / browser stay parked; controller may grow under M2 (Wave 1+)
 # ---------------------------------------------------------------------------
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """Controller/VOI remain stubs; no browser package landed under this milestone."""
+    """VOI + browser stay stubs; controller may export M2 Wave 1 ordering API."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
-    assert controller.is_file(), "expected pre-existing controller stub"
+    assert controller.is_file(), "expected pre-existing controller package"
     assert voi.is_file(), "expected pre-existing voi stub"
 
-    ctrl_text = controller.read_text(encoding="utf-8")
     voi_text = voi.read_text(encoding="utf-8")
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", ctrl_text), (
-        "controller package must remain an empty stub for M1.5 (no CTL production API)"
-    )
     assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
-        "voi package must remain an empty stub for M1.5 (no VOI sweep API)"
+        "voi package must remain an empty stub (no VOI sweep API in M1.5/M2)"
     )
 
-    # No extra production modules under controller/ or voi/
-    for pkg, label in (
-        (_SRC / "controller", "CTL"),
-        (_SRC / "voi", "VOI"),
-    ):
-        extras = [
-            p for p in pkg.rglob("*.py") if p.name != "__init__.py" and p.is_file()
-        ]
-        assert not extras, (
-            f"M1.5 non-goal: no {label} production modules; found "
-            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in extras)
-        )
+    # M2 Wave 1 may land controller/ordering.py; nothing else under voi/.
+    voi_extras = [
+        p
+        for p in (_SRC / "voi").rglob("*.py")
+        if p.name != "__init__.py" and p.is_file()
+    ]
+    assert not voi_extras, "non-goal: no VOI production modules; found " + ", ".join(
+        str(p.relative_to(_REPO_ROOT)) for p in voi_extras
+    )
+
+    ctrl_extras = [
+        p
+        for p in (_SRC / "controller").rglob("*.py")
+        if p.name != "__init__.py" and p.is_file()
+    ]
+    allowed_ctrl = {"ordering.py"}
+    unexpected = [p for p in ctrl_extras if p.name not in allowed_ctrl]
+    assert not unexpected, (
+        "unexpected controller modules (M2 Wave 1 allows ordering.py only): "
+        + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
+    )
 
     browser_hits = list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
-    assert not browser_hits, "M1.5 non-goal: no browser modules; found " + ", ".join(
+    assert not browser_hits, "non-goal: no browser modules; found " + ", ".join(
         str(p.relative_to(_REPO_ROOT)) for p in browser_hits
     )
 

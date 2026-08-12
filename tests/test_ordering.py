@@ -20,9 +20,7 @@ from blueberries_voi.model import ModelParams
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ORDERING_MODULE = "blueberries_voi.controller.ordering"
 _CONTROLLER_PKG = "blueberries_voi.controller"
-_ORDERING_PATH = (
-    _REPO_ROOT / "src" / "blueberries_voi" / "controller" / "ordering.py"
-)
+_ORDERING_PATH = _REPO_ROOT / "src" / "blueberries_voi" / "controller" / "ordering.py"
 
 # Nearest multiple of case_size; ties (exactly halfway) round half away from
 # zero — for non-negative x, toward +∞ (the larger multiple). Locked here per
@@ -70,8 +68,7 @@ def _resolve(attr: str) -> Any:
         )
     found = getattr(mod, attr, None)
     assert found is not None, (
-        f"{attr} must be exported from {_ORDERING_MODULE} "
-        "(see .team/specs/T-026.md)"
+        f"{attr} must be exported from {_ORDERING_MODULE} (see .team/specs/T-026.md)"
     )
     return found
 
@@ -93,7 +90,9 @@ def test_case_round_fixture_table_default_case_size_matches_model_params() -> No
     assert ModelParams().case_size == 8
     for x, expected in _CASE_ROUND_FIXTURES_CS8:
         got = case_round(x, 8)
-        assert isinstance(got, int), f"case_round({x}, 8) must return int, got {type(got)}"
+        assert isinstance(got, int), (
+            f"case_round({x}, 8) must return int, got {type(got)}"
+        )
         assert got == expected, f"case_round({x}, 8) → {got}, expected {expected}"
         assert got % 8 == 0
 
