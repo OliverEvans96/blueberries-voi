@@ -9,11 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from blueberries_voi.controller.ordering import case_round
+from scipy.stats import nbinom
+
+from blueberries_voi.controller.damped_sw import (
+    PROTECTION_DEMAND_DAYS,
+    DampedSurvivalWeightedPolicy,
+)
 from blueberries_voi.controller.rollout import detect_crn_desync
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.controller.toy_dp import gap_vs_rollout, solve_toy_dp
-from blueberries_voi.filter.belief import ShelfBelief
+from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams
 from blueberries_voi.rng import STREAM_DEMAND, STREAM_SPOIL
 
@@ -28,11 +33,12 @@ __all__ = [
     "probe_crn_desync_crossed",
 ]
 
-_FLAT_W: float = 0.75
-_DEMAND_TARGET: float = 64.0
+_ALPHA: float = 0.9
 _RHO: float = 1.0
 _CASE_SIZE: int = 8
-_PROTECTION_DAYS: int = 2
+_PROTECTION_DAYS: int = PROTECTION_DEMAND_DAYS
+_TAU_GRID: tuple[float, ...] = (0.0, 1.0, 2.0, 3.0, 4.0)
+_SAME_AGE_INDEX: int = 0
 
 
 @dataclass(frozen=True)
@@ -46,53 +52,62 @@ class GateResult:
     report: Mapping[str, float] | None = None
 
 
-def _belief(*, lot_counts: list[float]) -> ShelfBelief:
-    grid = [0.0, 1.0, 2.0, 3.0, 4.0]
+def _same_age_belief(*, lot_counts: list[float]) -> ShelfBelief:
+    """All lots Dirac on one grid age — flat-w across lots (β=1-style fixture)."""
+    grid = list(_TAU_GRID)
     k = len(grid)
+    idx = int(_SAME_AGE_INDEX) % k
     counts = [float(x) for x in lot_counts]
     margs: list[list[float]] = []
     for _ in counts:
         row = [0.0] * k
-        row[0] = 1.0
+        row[idx] = 1.0
         margs.append(row)
     return ShelfBelief(lot_counts=counts, age_marginals=margs, tau_grid=grid)
 
 
-def _flat_age_aware_order(
-    *,
-    lot_counts: list[float],
-    pending: dict[int, int],
-    flat_w: float = _FLAT_W,
-    demand_target: float = _DEMAND_TARGET,
-    rho: float = _RHO,
-    case_size: int = _CASE_SIZE,
-) -> int:
-    """Age-aware base-stock when ``w`` is constant (β=1 / flat-w fixture)."""
-    total = float(sum(float(x) for x in lot_counts))
-    inv = float(flat_w) * total + sum(
-        float(q) * float(flat_w) for q in pending.values()
-    )
-    raw = float(rho) * max(0.0, float(demand_target) - inv)
-    return int(case_round(raw, case_size))
+def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
+    """F^{-1} of protection-interval demand (matches DampedSurvivalWeightedPolicy)."""
+    r = float(params.nb_r()) * float(_PROTECTION_DAYS)
+    p = float(params.nb_p())
+    return float(nbinom.ppf(float(alpha), r, p))
+
+
+def _fixture_survival_weights(params: ModelParams) -> tuple[float, float]:
+    """On-hand / pipeline weights implied by ``effective_inventory`` on the fixture."""
+    unit = _same_age_belief(lot_counts=[1.0])
+    bar_w = float(effective_inventory(unit, pending_orders={}, params=params))
+    empty = _same_age_belief(lot_counts=[0.0])
+    pipe_w = float(effective_inventory(empty, pending_orders={1: 1}, params=params))
+    return bar_w, pipe_w
 
 
 def assert_beta1_degeneracy() -> GateResult:
     """β=1 / constant-w degeneracy: age-aware and age-blind orders coincide.
 
-    When survival weight ``w`` is flat (constant), corrected age-blind (Rung 0)
-    and the age-aware survival-weighted base-stock on the same protection
-    interval must return identical case-rounded orders (CTL-05 / ENG-04).
+    When survival weight ``w`` is flat across lots (same-age fixture), corrected
+    age-blind (Rung 0) and the real age-aware ``DampedSurvivalWeightedPolicy``
+    (via ``effective_inventory``) must return identical case-rounded orders under
+    matched ``rho`` and protection-interval demand fractile (CTL-05 / ENG-04).
     """
     params = ModelParams(case_size=_CASE_SIZE)
+    d_star = _protection_demand_fractile(_ALPHA, params)
+    bar_w, pipe_w = _fixture_survival_weights(params)
+
     age_blind = CorrectedAgeBlindPolicy(
-        alpha=0.9,
+        alpha=_ALPHA,
         params=params,
         rho=_RHO,
-        mean_survival_weight=_FLAT_W,
-        pipeline_weight=_FLAT_W,
-        demand_target=_DEMAND_TARGET,
+        mean_survival_weight=bar_w,
+        pipeline_weight=pipe_w,
+        demand_target=d_star,
         protection_days=_PROTECTION_DAYS,
         case_size=_CASE_SIZE,
+    )
+    age_aware = DampedSurvivalWeightedPolicy(
+        rho=_RHO,
+        alpha=_ALPHA,
+        params=params,
     )
     cases: tuple[tuple[list[float], dict[int, int]], ...] = (
         ([40.0], {}),
@@ -103,9 +118,9 @@ def assert_beta1_degeneracy() -> GateResult:
         ([20.0, 20.0], {1: 16}),
     )
     for lots, pending in cases:
-        belief = _belief(lot_counts=lots)
+        belief = _same_age_belief(lot_counts=lots)
         q_blind = int(age_blind.order(0, belief, pending_orders=pending))
-        q_aware = _flat_age_aware_order(lot_counts=lots, pending=pending)
+        q_aware = int(age_aware.order(belief, pending_orders=pending))
         if q_blind != q_aware:
             return GateResult(
                 ok=False,

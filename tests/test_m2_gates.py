@@ -132,6 +132,68 @@ def test_beta1_degeneracy() -> None:
         f"beta=1 / constant-w degeneracy gate must pass; got {result!r}"
     )
 
+    # Must drive the age-aware side through real SW / effective_inventory — not a
+    # hand copy of the Rung 0 formula (CI red if that wiring regresses).
+    mod = _resolve_gate_module()
+    assert mod.__file__ is not None
+    source = Path(mod.__file__).read_text(encoding="utf-8")
+    assert "DampedSurvivalWeightedPolicy" in source, (
+        "beta=1 gate must compare against DampedSurvivalWeightedPolicy"
+    )
+    assert "effective_inventory" in source, (
+        "beta=1 gate must wire effective_inventory for the flat-w fixture"
+    )
+    assert "CorrectedAgeBlindPolicy" in source
+
+
+def test_beta1_degeneracy_orders_match_on_same_age_fixture() -> None:
+    """Direct order equality: would fail if SW and Rung 0 diverge under flat w."""
+    from scipy.stats import nbinom
+
+    from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+    from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
+    from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
+    from blueberries_voi.model import ModelParams
+
+    params = ModelParams(case_size=8)
+    alpha, rho = 0.9, 1.0
+    grid = [0.0, 1.0, 2.0, 3.0, 4.0]
+    lots = [20.0, 20.0]
+    pending = {1: 16}
+    margs = [[1.0, 0.0, 0.0, 0.0, 0.0] for _ in lots]
+    belief = ShelfBelief(lot_counts=lots, age_marginals=margs, tau_grid=grid)
+
+    bar_w = float(
+        effective_inventory(
+            ShelfBelief(lot_counts=[1.0], age_marginals=[margs[0]], tau_grid=grid),
+            pending_orders={},
+            params=params,
+        )
+    )
+    pipe_w = float(
+        effective_inventory(
+            ShelfBelief(lot_counts=[0.0], age_marginals=[margs[0]], tau_grid=grid),
+            pending_orders={1: 1},
+            params=params,
+        )
+    )
+    d_star = float(nbinom.ppf(alpha, params.nb_r() * 2.0, params.nb_p()))
+
+    q_blind = CorrectedAgeBlindPolicy(
+        alpha=alpha,
+        params=params,
+        rho=rho,
+        mean_survival_weight=bar_w,
+        pipeline_weight=pipe_w,
+        demand_target=d_star,
+        protection_days=2,
+        case_size=8,
+    ).order(0, belief, pending_orders=pending)
+    q_aware = DampedSurvivalWeightedPolicy(rho=rho, alpha=alpha, params=params).order(
+        belief, pending_orders=pending
+    )
+    assert int(q_blind) == int(q_aware)
+
 
 def test_beta1_degeneracy_gate_documents_constant_w_contract() -> None:
     gate = _resolve_gate(_BETA1_ATTRS)
