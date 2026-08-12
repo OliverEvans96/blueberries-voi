@@ -403,7 +403,7 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """VOI + browser stay stubs; controller may export M2 Wave 1 ordering API."""
+    """VOI + browser stay stubs; controller may grow under M2 Waves 1-2."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
     assert controller.is_file(), "expected pre-existing controller package"
@@ -414,7 +414,7 @@ def test_no_production_ctl_voi_browser_under_m15() -> None:
         "voi package must remain an empty stub (no VOI sweep API in M1.5/M2)"
     )
 
-    # M2 Wave 1 may land controller/ordering.py; nothing else under voi/.
+    # M2 Waves 1-2 may land ordering / Rung 0 / damped SW; nothing else under voi/.
     voi_extras = [
         p
         for p in (_SRC / "voi").rglob("*.py")
@@ -429,10 +429,10 @@ def test_no_production_ctl_voi_browser_under_m15() -> None:
         for p in (_SRC / "controller").rglob("*.py")
         if p.name != "__init__.py" and p.is_file()
     ]
-    allowed_ctrl = {"ordering.py"}
+    allowed_ctrl = {"ordering.py", "rung0.py", "damped_sw.py"}
     unexpected = [p for p in ctrl_extras if p.name not in allowed_ctrl]
     assert not unexpected, (
-        "unexpected controller modules (M2 Wave 1 allows ordering.py only): "
+        "unexpected controller modules (M2 Waves 1-2 allow ordering/rung0/damped_sw): "
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
     )
 

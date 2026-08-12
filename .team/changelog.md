@@ -2,6 +2,11 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M2 Wave 2 base policies
+
+- **An honest age-blind baseline can place orders from total stock on hand** (plus what is already on order), with a documented expected-spoilage correction, so the ladder has a fair competitor that does not peek at lot ages (T-027).
+- **A damped survival-weighted ordering rule is available** that looks at age-aware effective inventory, applies a default 0.8 damping factor, and returns whole-case orders — the base stock policy the rest of the controller ladder builds on (T-028).
+
 ## 2026-08-12 — M2 Wave 1 controller foundations
 
 - **Policies can read a shared shelf belief** built from the live age filter or from known true lot ages, including an effective on-hand figure that accounts for stock already on order (T-023).

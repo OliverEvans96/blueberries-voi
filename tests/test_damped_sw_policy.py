@@ -5,9 +5,9 @@ before production policy code exists.
 
 Formula under test (ADR 0058 / T-028):
 
-    q_t = case_round(ρ · [F^{-1}_{D_{t:t+L}}(α) − Ĩ_t]⁺)
+    q_t = case_round(rho · [F^{-1}_{D_{t:t+L}}(alpha) - Ĩ_t]⁺)
 
-with default ρ=0.8, Ĩ_t from T-023 ``effective_inventory`` (MF marginals /
+with default rho=0.8, Ĩ_t from T-023 ``effective_inventory`` (MF marginals /
 ``from_marginals=True``), and protection demand over R+L=2 calendar days under
 daily delivery LT=1 (X-11 / ADR 0006: daily protection interval = 2).
 """
@@ -17,9 +17,11 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 import pytest
 from scipy.stats import nbinom
@@ -50,18 +52,18 @@ _TABLE_LOT_COUNTS = (20, 10)
 _TABLE_AGES = (0.0, 4.0)
 _TABLE_PENDING: dict[int, int] = {1: 8}
 
-# (ρ, α, expected order qty) under ModelParams() defaults + table belief/pending.
+# (rho, alpha, expected order qty) under ModelParams() defaults + table belief/pending.
 # Ĩ_t and F^{-1} are recomputed in the test so the table stays tied to helpers;
-# expected ints were hand-checked against case_round(ρ[d* − Ĩ]⁺).
+# expected ints were hand-checked against case_round(rho[d* - Ĩ]⁺).
 _ORDER_TABLE: tuple[tuple[float, float, int], ...] = (
     (1.0, 0.5, 24),
-    (0.8, 0.5, 16),  # ρ≠1 damping
+    (0.8, 0.5, 16),  # rho≠1 damping
     (0.5, 0.5, 8),
     (1.0, 0.8, 32),
     (0.8, 0.8, 24),
     (0.5, 0.8, 16),
     (1.0, 0.9, 40),
-    (0.8, 0.9, 32),  # default-ρ row
+    (0.8, 0.9, 32),  # default-rho row
     (0.5, 0.9, 16),
 )
 
@@ -190,7 +192,7 @@ def test_damped_sw_order_is_multiple_of_case_size() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: fixed fixtures → deterministic hand-computed table (incl. ρ≠1)
+# AC: fixed fixtures → deterministic hand-computed table (incl. rho≠1)
 # ---------------------------------------------------------------------------
 
 
@@ -227,7 +229,7 @@ def test_damped_sw_orders_are_deterministic_across_repeated_calls() -> None:
 
 
 def test_damped_sw_rho_damping_changes_order_vs_undamped() -> None:
-    """ρ≠1 must change the order when the undamped gap is large (ADR 0058 C)."""
+    """rho≠1 must change the order when the undamped gap is large (ADR 0058 C)."""
     cls = _resolve_policy_class()
     belief, params = _table_belief_and_params()
     undamped = _invoke_order(
@@ -279,7 +281,7 @@ def test_damped_sw_empty_shelf_orders_full_damped_quantile() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: default ρ=0.8; α is an explicit constructor argument
+# AC: default rho=0.8; alpha is an explicit constructor argument
 # ---------------------------------------------------------------------------
 
 
@@ -302,7 +304,7 @@ def test_damped_sw_alpha_is_required_constructor_argument() -> None:
     assert "alpha" in sig.parameters
     assert sig.parameters["alpha"].default is inspect.Parameter.empty
     with pytest.raises(TypeError):
-        cls(params=ModelParams())  # type: ignore[call-arg]
+        cls(params=ModelParams())
 
 
 def test_damped_sw_rho_override_is_honoured() -> None:
@@ -411,7 +413,7 @@ def test_damped_sw_module_documents_protection_interval_and_rung0_parity() -> No
     doc_l = doc.lower()
     assert "lead" in doc_l or "lt=1" in doc_l or "lt = 1" in doc_l
     assert "rung" in doc_l or "δτ" in doc.lower() or "delta_tau" in doc_l
-    assert "ρ" in doc or "rho" in doc_l
+    assert "rho" in doc or "rho" in doc_l
     source_path = Path(inspect.getsourcefile(mod) or "")
     assert source_path.is_file()
     # Prefer documentation living under controller/ (pure library; agent brief).
@@ -438,7 +440,7 @@ def test_damped_sw_demand_quantile_uses_protection_demand_days() -> None:
             params.case_size,
         )
     )
-    assert two_day == 72  # ppf=74 → nearest case 72 under empty Ĩ=0, ρ=1
+    assert two_day == 72  # ppf=74 → nearest case 72 under empty Ĩ=0, rho=1
     assert one_day == 40  # ppf=40
     assert got == two_day
     assert got != one_day

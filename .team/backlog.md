@@ -6,11 +6,10 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M2 Wave 2:** Parallel base policies **T-027 ∥ T-028** (age-blind Rung 0 and
-  CTL-01 damped survival-weighted base-stock). Team plan
-  [`.team/plans/M2-controller.md`](./plans/M2-controller.md). Wave 0 ADRs/specs and Wave 1
-  (T-023–T-026: belief API, closed-loop episode, day profit, caseRound) are verified on
-  `team/T-022/verify`.
+- **Next — M2 Wave 3:** **T-029** α tuning (service-level / fractile grid for the damped SW
+  base-stock). Team plan [`.team/plans/M2-controller.md`](./plans/M2-controller.md).
+- **Done — M2 Wave 2:** Parallel base policies **T-027 ∥ T-028** (age-blind Rung 0 and CTL-01
+  damped survival-weighted base-stock) integrated and gate-green on `team/T-022/verify`.
 - **Done — M2 Wave 0 / Wave 1:** ADRs
   [0092](./adr/0092-controller-belief-api.md)–[0093](./adr/0093-day-profit-helper.md) and specs
   [T-022](./specs/T-022.md)–[T-034](./specs/T-034.md); Wave 1 implement tips integrated and
