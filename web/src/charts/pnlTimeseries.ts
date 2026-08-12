@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import type { DayPnL, HoverDay } from "../types";
+import type { DayPnL, EpisodeGhost, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 
 function rootG(
@@ -44,6 +44,7 @@ export function renderPnLTimeseries(
   container: HTMLElement,
   series: DayPnL[],
   height = 140,
+  ghost: EpisodeGhost | null = null,
 ): void {
   const width = container.clientWidth || 720;
   const margin = {
@@ -78,9 +79,14 @@ export function renderPnLTimeseries(
     const i = days.indexOf(day);
     return i * step + step / 2;
   };
+  const xByIndex = (i: number): number => i * step + step / 2;
 
+  const ghostProfits = ghost?.series.map((p) => p.profit) ?? [];
   const yExtent = d3.extent(
-    series.flatMap((d) => [d.revenue, d.cost_total, d.profit]),
+    [
+      ...series.flatMap((d) => [d.revenue, d.cost_total, d.profit]),
+      ...ghostProfits,
+    ],
   ) as [number, number];
   const pad = Math.max(2, (yExtent[1] - yExtent[0]) * 0.08);
   const y = d3
@@ -127,7 +133,6 @@ export function renderPnLTimeseries(
       .attr("pointer-events", "none");
   }
 
-  // Contiguous day bands for aligned hover + highlight
   g.append("g")
     .attr("class", "day-hits")
     .attr("pointer-events", "none")
@@ -140,6 +145,20 @@ export function renderPnLTimeseries(
     .attr("y", 0)
     .attr("width", step)
     .attr("height", innerH);
+
+  if (ghost && ghost.series.length > 0) {
+    const ghostLine = d3
+      .line<(typeof ghost.series)[number]>()
+      .x((d) => xByIndex(Math.min(d.i, days.length - 1)))
+      .y((d) => y(d.profit))
+      .curve(d3.curveMonotoneX);
+    g.append("path")
+      .datum(ghost.series.slice(0, days.length))
+      .attr("class", "pnl-line series-ghost")
+      .attr("fill", "none")
+      .attr("pointer-events", "none")
+      .attr("d", ghostLine);
+  }
 
   const line = (key: keyof DayPnL) =>
     d3
@@ -201,7 +220,11 @@ export function renderPnLTimeseries(
     .attr("pointer-events", "none")
     .attr("transform", `translate(${margin.left + 8}, 10)`);
 
-  seriesSpec.forEach((s, i) => {
+  const legendItems = ghost
+    ? [...seriesSpec, { key: "profit" as keyof DayPnL, cls: "series-ghost", label: "Ghost profit" }]
+    : seriesSpec;
+
+  legendItems.forEach((s, i) => {
     const item = legend.append("g").attr("transform", `translate(${i * 88},0)`);
     item
       .append("line")

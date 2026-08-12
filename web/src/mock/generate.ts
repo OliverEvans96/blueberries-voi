@@ -78,6 +78,69 @@ function weibullSurvival(t: number, beta: number, eta: number): number {
   return Math.exp(-((t / eta) ** beta));
 }
 
+export { weibullSurvival };
+
+/** Deterministic Weibull survival curve under current Q10-adjusted η. */
+export function survivalCurve(
+  cfg: SimConfig,
+  tauMax = 24,
+  steps = 97,
+): { tau: number; s: number; h: number }[] {
+  const eta = etaEffective(cfg);
+  const pts: { tau: number; s: number; h: number }[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const tau = (i / steps) * tauMax;
+    const s = weibullSurvival(tau, cfg.beta, eta);
+    const s1 = weibullSurvival(tau + 1e-3, cfg.beta, eta);
+    const h = s > 1e-12 ? Math.max(0, (s - s1) / (1e-3 * s)) : 0;
+    pts.push({ tau, s, h });
+  }
+  return pts;
+}
+
+/** NB pmf under ModelParams convention (no seasonal factor — knob snapshot). */
+export function demandPmf(
+  cfg: SimConfig,
+  kMax?: number,
+): { k: number; p: number }[] {
+  const mu = Math.max(0.1, cfg.demand_mu);
+  const vm = Math.max(1.05, cfg.demand_vm);
+  const r = mu / (vm - 1);
+  const successP = r / (r + mu);
+  const maxK = kMax ?? Math.min(200, Math.ceil(mu + 8 * Math.sqrt(mu * vm) + 20));
+
+  const out: { k: number; p: number }[] = [];
+  // Recurrence: P(0)=p^r; P(k+1)/P(k) = (k+r)/(k+1) * (1-p)
+  let pk = successP ** r;
+  let sum = 0;
+  for (let k = 0; k <= maxK; k++) {
+    out.push({ k, p: pk });
+    sum += pk;
+    pk *= ((k + r) / (k + 1)) * (1 - successP);
+    if (pk < 1e-12 && k > mu) break;
+  }
+  if (sum > 0) {
+    for (const row of out) row.p /= sum;
+  }
+  return out;
+}
+
+export function survivalWeightedInventory(
+  lots: Lot[],
+  cfg: SimConfig,
+): number {
+  const eta = etaEffective(cfg);
+  return lots.reduce(
+    (s, l) => s + l.n * weibullSurvival(l.tau, cfg.beta, eta),
+    0,
+  );
+}
+
+export function onHandInventory(lots: Lot[]): number {
+  return totalInventory(lots);
+}
+
+
 /** Per-day spoil probability from Weibull survival ratio, with sigma noise. */
 function spoilProb(tau: number, cfg: SimConfig, rng: () => number): number {
   const eta = etaEffective(cfg) * Math.exp(cfg.sigma * (rng() - 0.5) * 0.4);

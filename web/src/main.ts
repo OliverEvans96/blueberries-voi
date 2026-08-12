@@ -5,6 +5,10 @@ import { renderMarginal, setMarginalHover } from "./charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
 import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
+import { renderSurvival } from "./charts/survival";
+import { renderDemandDist } from "./charts/demandDist";
+import { renderPipeline } from "./charts/pipelineGantt";
+import { renderGhostDeltas } from "./charts/ghostDeltas";
 import { controlsFromVm, mountControls } from "./controls";
 import { attachLinkedHover } from "./hoverLink";
 import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
@@ -52,6 +56,7 @@ app.innerHTML = `
               <span class="panel-note" id="hover-note">Hover a day to highlight it everywhere</span>
             </div>
             <div id="chart-pnl-series" class="chart"></div>
+            <div id="ghost-deltas"></div>
           </section>
         </div>
       </main>
@@ -65,10 +70,30 @@ app.innerHTML = `
           <div class="panel-head"><h2>P&amp;L totals</h2></div>
           <div id="chart-pnl-totals"></div>
         </section>
+        <section class="panel panel-impact">
+          <div class="panel-head">
+            <h2>Controls impact</h2>
+            <span class="panel-note">Live knobs</span>
+          </div>
+          <div class="impact-grid">
+            <div>
+              <div class="chart-caption impact-caption">Survival + lot rug</div>
+              <div id="chart-survival" class="chart"></div>
+            </div>
+            <div>
+              <div class="chart-caption impact-caption">Demand + coverage</div>
+              <div id="chart-demand" class="chart"></div>
+            </div>
+            <div>
+              <div class="chart-caption impact-caption">Order pipeline</div>
+              <div id="chart-pipeline" class="chart"></div>
+            </div>
+          </div>
+        </section>
         <section class="panel">
           <div class="panel-head">
             <h2>Belief · age × count</h2>
-            <span class="panel-note" id="belief-note">Scenario P1</span>
+            <span class="panel-note" id="belief-note">Scenario P1 · truth overlay</span>
           </div>
           <div id="chart-belief" class="chart"></div>
         </section>
@@ -97,6 +122,10 @@ const els = {
   beliefNote: document.querySelector("#belief-note") as HTMLElement,
   hoverNote: document.querySelector("#hover-note") as HTMLElement,
   controls: document.querySelector("#controls") as HTMLElement,
+  survival: document.querySelector("#chart-survival") as HTMLElement,
+  demand: document.querySelector("#chart-demand") as HTMLElement,
+  pipeline: document.querySelector("#chart-pipeline") as HTMLElement,
+  ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
 };
 
 function applyHoverStyles(day: HoverDay): void {
@@ -122,19 +151,27 @@ attachLinkedHover(
   { onDay: onHoverDay },
 );
 
+function renderImpactCharts(): void {
+  renderSurvival(els.survival, vm.config, vm.live_lots, 132);
+  renderDemandDist(els.demand, vm.config, vm.on_hand, vm.effective_inv, 132);
+  renderPipeline(els.pipeline, vm.pipeline, vm.config, 110);
+}
+
 function renderDataCharts(): void {
   renderMarginal(els.sales, vm.history, "sales", 78);
   renderHistory(els.history, vm.history, { height: 230 });
-  renderMarginal(els.spoil, vm.history, "spoilage", 90);
-  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150);
+  renderMarginal(els.spoil, vm.history, "spoilage", 90, vm.ghost);
+  renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150, vm.ghost);
+  renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
   applyHoverStyles(hoveredDay);
 }
 
 function renderAll(): void {
   renderDataCharts();
+  renderImpactCharts();
   renderPnLTotals(els.pnlTotals, vm);
-  renderBeliefAgeCount(els.belief, vm.belief, 270);
-  els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario}`;
+  renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
+  els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario} · truth overlay`;
   orderQty = adapter.snapOrder(orderQty);
   controlsApi.update(controlsFromVm(vm, orderQty));
 }
@@ -160,7 +197,8 @@ const controlsApi = mountControls(
     onEconomicsChange(partial: Partial<Economics>) {
       vm = adapter.setEconomics(partial);
       renderPnLTotals(els.pnlTotals, vm);
-      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150);
+      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 150, vm.ghost);
+      renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
       applyHoverStyles(hoveredDay);
       controlsApi.update(controlsFromVm(vm, orderQty));
     },
@@ -169,9 +207,22 @@ const controlsApi = mountControls(
       if (partial.case_size != null) {
         orderQty = adapter.snapOrder(orderQty);
       }
+      // Physics / demand / scenario update impact + belief immediately
+      renderImpactCharts();
+      if (
+        partial.obs_scenario != null ||
+        partial.beta != null ||
+        partial.eta_ref != null ||
+        partial.q10 != null ||
+        partial.t_ref_c != null ||
+        partial.t_store_c != null ||
+        partial.sigma != null
+      ) {
+        renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
+        els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario} · truth overlay`;
+      }
       if (partial.obs_scenario != null) {
-        renderBeliefAgeCount(els.belief, vm.belief, 270);
-        els.beliefNote.textContent = `Scenario ${vm.config.obs_scenario}`;
+        renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
       }
       controlsApi.update(controlsFromVm(vm, orderQty));
     },
@@ -182,5 +233,6 @@ renderAll();
 
 window.addEventListener("resize", () => {
   renderDataCharts();
-  renderBeliefAgeCount(els.belief, vm.belief, 270);
+  renderImpactCharts();
+  renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 240);
 });

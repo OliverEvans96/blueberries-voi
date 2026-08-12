@@ -1,10 +1,12 @@
 import * as d3 from "d3";
-import type { BeliefGrid } from "../types";
+import type { BeliefGrid, Lot } from "../types";
 
+/** Belief age×count heatmap with truth lot overlays. */
 export function renderBeliefAgeCount(
   container: HTMLElement,
   belief: BeliefGrid,
-  height = 260,
+  truthLots: Lot[] = [],
+  height = 240,
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 12, right: 12, bottom: 36, left: 44 };
@@ -18,7 +20,7 @@ export function renderBeliefAgeCount(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Belief heatmap of age versus inventory count");
+    .attr("aria-label", "Belief heatmap with truth lot overlay");
 
   const g = svg
     .append("g")
@@ -65,6 +67,39 @@ export function renderBeliefAgeCount(
         );
     }
   }
+
+  // Truth lots as open circles + crosshairs at (age, count=n)
+  const maxN = d3.max(truthLots, (l) => l.n) ?? 1;
+  const r = d3.scaleSqrt().domain([0, maxN]).range([4, 11]);
+
+  const truth = g.append("g").attr("class", "truth-overlay");
+  truth
+    .selectAll(".truth-lot")
+    .data(truthLots)
+    .join("g")
+    .attr("class", "truth-lot")
+    .attr("transform", (d) => `translate(${x(d.tau)},${y(d.n)})`)
+    .each(function (d) {
+      const gg = d3.select(this);
+      const rad = r(d.n);
+      gg.append("line")
+        .attr("class", "truth-cross")
+        .attr("x1", -rad - 2)
+        .attr("x2", rad + 2)
+        .attr("y1", 0)
+        .attr("y2", 0);
+      gg.append("line")
+        .attr("class", "truth-cross")
+        .attr("x1", 0)
+        .attr("x2", 0)
+        .attr("y1", -rad - 2)
+        .attr("y2", rad + 2);
+      gg.append("circle")
+        .attr("class", "truth-circle")
+        .attr("r", rad)
+        .attr("fill", "none");
+      gg.append("title").text(`truth lot ${d.lot_id}: age ${d.tau}, n=${d.n}`);
+    });
 
   g.append("g")
     .attr("class", "axis axis-x")

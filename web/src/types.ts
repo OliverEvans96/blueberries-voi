@@ -61,6 +61,37 @@ export type BeliefGrid = {
   density: number[][];
 };
 
+export type PipelineOrder = {
+  qty: number;
+  arrive_on: number;
+  days_until: number;
+};
+
+export type GhostSeriesPoint = {
+  /** Index within the rolling window (0 = oldest in ghost snapshot). */
+  i: number;
+  waste: number;
+  stockout: number;
+  sales: number;
+  demand: number;
+  profit: number;
+  profit_cum: number;
+};
+
+export type EpisodeGhost = {
+  series: GhostSeriesPoint[];
+  waste_total: number;
+  stockout_total: number;
+  profit_cum: number;
+  days: number;
+};
+
+export type GhostDeltas = {
+  waste_rate: number;
+  stockouts: number;
+  profit_cum: number;
+};
+
 export type ViewModel = {
   episode_day: number;
   window_days: number;
@@ -78,6 +109,13 @@ export type ViewModel = {
     today_profit: number;
   };
   belief: BeliefGrid;
+  /** Live truth lots (latest day). */
+  live_lots: Lot[];
+  on_hand: number;
+  effective_inv: number;
+  pipeline: PipelineOrder[];
+  ghost: EpisodeGhost | null;
+  ghost_deltas: GhostDeltas | null;
   case_size: number;
   pending_order: number;
 };

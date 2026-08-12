@@ -298,14 +298,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: min(72vh, 820px);
-  overflow-y: auto;
   padding-right: 4px;
 }
 
+/* Normal document flow — never sticky/fixed over charts */
 .panel-controls {
-  position: sticky;
-  top: 12px;
+  position: static;
 }
 
 .controls-block {
@@ -532,6 +530,118 @@ input[type="number"] {
   font-family: var(--font-display);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+}
+
+.series-ghost {
+  stroke: rgba(28, 36, 32, 0.35);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.75;
+  color: rgba(28, 36, 32, 0.35);
+}
+
+.bar-ghost {
+  fill: rgba(196, 106, 58, 0.22);
+}
+
+.impact-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.impact-caption {
+  margin-left: 0;
+  margin-bottom: 2px;
+}
+
+.impact-line.survival-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.lot-rug {
+  fill: var(--spoil);
+  fill-opacity: 0.85;
+  stroke: #0f241c;
+  stroke-opacity: 0.25;
+  stroke-width: 0.75;
+}
+
+.pmf-bar {
+  fill: var(--sales);
+  fill-opacity: 0.55;
+}
+
+.coverage-band {
+  fill: rgba(47, 107, 79, 0.12);
+  pointer-events: none;
+}
+
+.coverage-mark {
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.coverage-onhand {
+  stroke: var(--profit);
+  stroke-dasharray: 3 2;
+}
+
+.coverage-eff {
+  stroke: var(--spoil-strong);
+}
+
+.pipe-track {
+  fill: rgba(28, 36, 32, 0.06);
+}
+
+.pipe-bar {
+  fill: var(--revenue);
+}
+
+.pipe-label {
+  fill: var(--ink-soft);
+  font-size: 10px;
+  font-family: var(--font-body);
+}
+
+.truth-cross {
+  stroke: #8a2f1f;
+  stroke-width: 1;
+  opacity: 0.85;
+}
+
+.truth-circle {
+  stroke: #8a2f1f;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.ghost-deltas {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(28, 36, 32, 0.04);
+  border: 1px dashed rgba(28, 36, 32, 0.15);
+}
+
+.ghost-deltas--empty {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ghost-deltas-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.ghost-deltas-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
 
 .foot {
