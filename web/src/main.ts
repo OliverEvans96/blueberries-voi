@@ -7,7 +7,11 @@ import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
 import { renderSurvival } from "./charts/survival";
 import { renderDemandDist } from "./charts/demandDist";
-import { renderPipeline } from "./charts/pipelineGantt";
+import {
+  renderAgeComposition,
+  renderInventoryTarget,
+} from "./charts/inventoryTarget";
+import { renderSalesDemand } from "./charts/salesDemand";
 import { renderGhostDeltas } from "./charts/ghostDeltas";
 import {
   controlsFromVm,
@@ -101,9 +105,9 @@ app.innerHTML = `
                 <div class="chart-caption impact-caption">Belief vs truth</div>
                 <div id="chart-belief" class="chart"></div>
               </div>
-              <div class="focus-plot" data-plot="plot-pipeline" hidden>
-                <div class="chart-caption impact-caption">Inbound pipeline</div>
-                <div id="chart-pipeline" class="chart"></div>
+              <div class="focus-plot" data-plot="plot-sales-demand" hidden>
+                <div class="chart-caption impact-caption">Sales vs demand</div>
+                <div id="chart-sales-demand" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-pnl" hidden>
                 <div class="chart-caption impact-caption">Revenue · cost · profit</div>
@@ -117,9 +121,13 @@ app.innerHTML = `
                 <div class="chart-caption impact-caption">Demand + coverage</div>
                 <div id="chart-demand" class="chart"></div>
               </div>
-              <div class="focus-plot" data-plot="plot-pipeline-lg" hidden>
-                <div class="chart-caption impact-caption">Order → arrival Gantt</div>
-                <div id="chart-pipeline-lg" class="chart"></div>
+              <div class="focus-plot" data-plot="plot-inventory" hidden>
+                <div class="chart-caption impact-caption">Inventory vs base-stock</div>
+                <div id="chart-inventory" class="chart"></div>
+              </div>
+              <div class="focus-plot" data-plot="plot-age-comp" hidden>
+                <div class="chart-caption impact-caption">On-hand by age band</div>
+                <div id="chart-age-comp" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-belief-lg" hidden>
                 <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
@@ -158,8 +166,9 @@ const els = {
   sectionControls: document.querySelector("#section-controls") as HTMLElement,
   survival: document.querySelector("#chart-survival") as HTMLElement,
   demand: document.querySelector("#chart-demand") as HTMLElement,
-  pipeline: document.querySelector("#chart-pipeline") as HTMLElement,
-  pipelineLg: document.querySelector("#chart-pipeline-lg") as HTMLElement,
+  salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
+  inventory: document.querySelector("#chart-inventory") as HTMLElement,
+  ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
   ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
   focusTitle: document.querySelector("#focus-title") as HTMLElement,
   focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
@@ -205,7 +214,7 @@ function renderStore(): void {
 
 function renderChrome(): void {
   renderPnLTotals(els.pnlTotals, vm);
-  renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 64, vm.ghost);
+  renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118, vm.ghost);
   renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
 }
 
@@ -216,11 +225,14 @@ function renderActiveFocusPlots(): void {
   if (plotVisible("plot-belief-lg")) {
     renderBeliefAgeCount(els.beliefLg, vm.belief, vm.live_lots, 280);
   }
-  if (plotVisible("plot-pipeline")) {
-    renderPipeline(els.pipeline, vm.pipeline, vm.config, 100);
+  if (plotVisible("plot-sales-demand")) {
+    renderSalesDemand(els.salesDemand, vm.history, 130);
   }
-  if (plotVisible("plot-pipeline-lg")) {
-    renderPipeline(els.pipelineLg, vm.pipeline, vm.config, 140);
+  if (plotVisible("plot-inventory")) {
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 170);
+  }
+  if (plotVisible("plot-age-comp")) {
+    renderAgeComposition(els.ageComp, vm.history, 140);
   }
   if (plotVisible("plot-pnl")) {
     renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);

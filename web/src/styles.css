@@ -206,6 +206,14 @@ body {
   border-top: 1px solid rgba(28, 36, 32, 0.08);
 }
 
+#chart-pnl-spark {
+  min-height: 118px;
+}
+
+#chart-pnl-spark svg {
+  min-height: 118px;
+}
+
 .focus-header {
   margin-bottom: 12px;
 }
@@ -773,18 +781,54 @@ input[type="number"] {
   stroke: var(--spoil-strong);
 }
 
-.pipe-track {
-  fill: rgba(28, 36, 32, 0.06);
+.target-line {
+  stroke: rgba(184, 134, 11, 0.75);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
 }
 
-.pipe-bar {
-  fill: var(--revenue);
+.inv-line {
+  fill: none;
+  stroke-width: 2;
 }
 
-.pipe-label {
-  fill: var(--ink-soft);
-  font-size: 10px;
-  font-family: var(--font-body);
+.inv-onhand {
+  stroke: var(--accent);
+}
+
+.inv-effective {
+  stroke: var(--spoil-strong);
+  stroke-dasharray: 4 2;
+}
+
+.age-young {
+  fill: #7a9e7e;
+}
+
+.age-mid {
+  fill: #3d7ea6;
+}
+
+.age-old {
+  fill: #c46a3a;
+}
+
+.sd-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.sd-demand {
+  stroke: var(--cost);
+  stroke-dasharray: 4 2;
+}
+
+.sd-sales {
+  stroke: var(--sales);
+}
+
+.sales-demand-gap {
+  fill: rgba(196, 106, 58, 0.2);
 }
 
 .truth-cross {

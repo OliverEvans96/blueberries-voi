@@ -21,7 +21,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "play",
     label: "Play",
     blurb: "Run the store day by day. Watch inventory age, sales, and spoilage unfold.",
-    plotIds: ["plot-belief", "plot-pipeline"],
+    plotIds: ["plot-belief", "plot-sales-demand"],
     controlSection: "play",
   },
   {
@@ -48,8 +48,8 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   {
     id: "logistics",
     label: "Logistics",
-    blurb: "Cases, lead time, and base-stock fill the inbound pipeline.",
-    plotIds: ["plot-pipeline-lg"],
+    blurb: "Case size and base-stock set how you refill the cooler each day.",
+    plotIds: ["plot-inventory", "plot-age-comp"],
     controlSection: "logistics",
   },
   {

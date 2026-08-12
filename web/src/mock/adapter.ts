@@ -117,9 +117,8 @@ export class MockAdapter {
     if (typeof next.case_size === "number") {
       this.config.case_size = Math.max(1, Math.round(next.case_size));
     }
-    if (typeof next.lead_time === "number") {
-      this.config.lead_time = Math.max(0, Math.round(next.lead_time));
-    }
+    // Daily ordering: lead time fixed at 1 (not a user-facing knob)
+    this.config.lead_time = 1;
     if (typeof next.seed === "number") {
       this.config.seed = Math.round(next.seed);
     }

@@ -51,7 +51,6 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "demand_mu", label: "demand μ", min: 5, max: 80, step: 1, format: (v) => v.toFixed(0), group: "demand" },
   { id: "demand_vm", label: "demand V/M", min: 1.1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "demand" },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
-  { id: "lead_time", label: "lead time (days)", min: 0, max: 5, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "starting_inv", label: "starting inventory", min: 0, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "seed", label: "seed", min: 1, max: 9999, step: 1, format: (v) => String(Math.round(v)), group: "episode" },
@@ -173,7 +172,7 @@ export function mountSectionControls(
         ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="logistics" hidden>
-        <p class="hint">Case snap, lead time, and stocking targets.</p>
+        <p class="hint">Case snap and stocking targets for daily refill.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="belief" hidden>
