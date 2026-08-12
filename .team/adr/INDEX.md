@@ -10,6 +10,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M1.5 architecture lock (2026-08-12): **[0086](./0086-m15-richobs-unobserved-masks.md)–[0089](./0089-m15-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
 - FIL-11 Stage C / FIL-04 evidence (additive): **[0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md)** (`sequential_wor_pmf`; exact joint vs mean-field; does not replace M1.5 Stage C)
 - Production mean-field settle (2026-08-12): **[0091](./0091-fil13-production-mean-field.md)** (FIL-13=B / FIL-04→C; supersedes 0082/0089 production defaults; 0049→C; 0057 historical)
+- M2 controller lock (2026-08-12): **[0092](./0092-controller-belief-api.md)–[0093](./0093-day-profit-helper.md)** (`ShelfBelief` / MF marginals; `sim/profit.py` SIM-01 extract)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -108,3 +109,5 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | SUPERSEDED BY 0091 |
 | [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
 | [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | ACCEPTED |
+| [0092](./0092-controller-belief-api.md) | `CTL` / M2 | Controller belief API is ShelfBelief over MF marginals and oracle | ACCEPTED |
+| [0093](./0093-day-profit-helper.md) | `SIM-01` (M2 extract) | Day profit helper lives in sim/profit.py (SIM-01 extract for CTL) | ACCEPTED |

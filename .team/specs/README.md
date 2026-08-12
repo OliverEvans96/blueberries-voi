@@ -41,3 +41,28 @@ Non-goals: no CTL, no VOI, no browser; do not reopen ⚑ cards.
 | [T-019](./T-019.md) | Sim emits ASN `pack_date` on DayLog (F2a Stage A unblock) | T-009, T-013, T-016; Oliver pack-date approval |
 
 Wave order: T-008 → (T-009 ∥ T-010) → T-011 → T-012 → (T-013 ∥ T-014) → T-015 → T-016 → T-017 → T-018 → T-019.
+
+## M2 controller and multi-scenario (2026-08-12)
+
+Plan: [`.team/plans/M2-controller.md`](../plans/M2-controller.md).  
+ADRs: [0092](../adr/0092-controller-belief-api.md)–[0093](../adr/0093-day-profit-helper.md) (plus CTL-01–06 / SIM-01 already ACCEPTED).  
+Prerequisite: T-021 DONE (`PRODUCTION_BACKEND=mean_field`).  
+Non-goals: no VOI sweep; no Pyodide packaging / ENG-01; no joint production reopen; see also parked [M2-controller-agent-brief.md](../plans/M2-controller-agent-brief.md) (eventual compat only).
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-022](./T-022.md) | M2 ADR/spec lock (docs only) | T-021; ADRs 0092–0093 |
+| [T-023](./T-023.md) | Belief API (`ShelfBelief`) | T-022; ADR 0092 |
+| [T-024](./T-024.md) | Closed-loop driver + `Policy` | T-022 |
+| [T-025](./T-025.md) | Day profit helper (`sim/profit.py`) | T-022; ADR 0093 |
+| [T-026](./T-026.md) | `case_round` + constant order | T-022 |
+| [T-027](./T-027.md) | Rung 0 corrected age-blind | T-025, T-026 |
+| [T-028](./T-028.md) | CTL-01 damped SW | T-023, T-025, T-026 |
+| [T-029](./T-029.md) | CTL-03 α tuning | T-024, T-027, T-028 |
+| [T-030](./T-030.md) | Rollout + salvage (+ optional budgets) | T-024, T-025, T-028 |
+| [T-031](./T-031.md) | Toy exact DP | T-028 |
+| [T-032](./T-032.md) | Ladder + ENG-04 gates | T-029, T-030, T-031 |
+| [T-033](./T-033.md) | Multi-scenario + L remeasure | T-032 |
+| [T-034](./T-034.md) | M2 close-out | T-033 |
+
+Wave order: T-022 → (T-023 ∥ T-024 ∥ T-025 ∥ T-026) → (T-027 ∥ T-028) → T-029 → (T-030 ∥ T-031) → T-032 → T-033 → T-034.
