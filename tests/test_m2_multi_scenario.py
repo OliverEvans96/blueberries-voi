@@ -604,6 +604,53 @@ def test_multi_scenario_belief_path_uses_shelf_belief_factories() -> None:
     )
 
 
+def test_rung0_arm_orders_positive_on_empty_shelf() -> None:
+    """Rung 0 must wire NB protection-interval demand_target (not default 0)."""
+    from blueberries_voi.controller.damped_sw import PROTECTION_DEMAND_DAYS
+    from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
+    from blueberries_voi.filter.belief import ShelfBelief
+    from blueberries_voi.model import ModelParams
+    from scipy.stats import nbinom
+
+    mod = _resolve_multi_module()
+    assert mod.__file__ is not None
+    source = Path(mod.__file__).read_text(encoding="utf-8")
+    assert "demand_target" in source, (
+        "CorrectedAgeBlindPolicy must be built with demand_target "
+        "(protection-interval NB fractile); default 0 never orders"
+    )
+
+    params = ModelParams()
+    alpha = 0.9
+    d_star = float(
+        nbinom.ppf(
+            alpha,
+            float(params.nb_r()) * float(PROTECTION_DEMAND_DAYS),
+            float(params.nb_p()),
+        )
+    )
+    assert d_star > 0.0
+    # Mirror run_m2_multi_scenario Rung 0 construction.
+    fractile_fn = getattr(mod, "_protection_demand_fractile", None)
+    if callable(fractile_fn):
+        wired = float(fractile_fn(alpha, params))
+        assert wired == pytest.approx(d_star)
+
+    policy = CorrectedAgeBlindPolicy(
+        alpha=alpha,
+        params=params,
+        demand_target=d_star,
+        protection_days=PROTECTION_DEMAND_DAYS,
+        case_size=int(params.case_size),
+    )
+    empty = ShelfBelief(lot_counts=[], age_marginals=[], tau_grid=[0.0, 2.0, 4.0])
+    qty = int(policy.order(0, empty, pending_orders={}))
+    assert qty > 0, (
+        f"Rung 0 on empty shelf / zero pending must order > 0 "
+        f"(demand_target={d_star}); got {qty}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # AC: non-plot core smoke; no new runtime deps
 # ---------------------------------------------------------------------------

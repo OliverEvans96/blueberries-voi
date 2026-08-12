@@ -15,8 +15,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+from scipy.stats import nbinom
 
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+from blueberries_voi.controller.damped_sw import (
+    PROTECTION_DEMAND_DAYS,
+    DampedSurvivalWeightedPolicy,
+)
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.filter import PRODUCTION_BACKEND, RBPF
@@ -113,6 +117,16 @@ def _fixture_shipments() -> list[ShipmentTrace]:
             duration_d=2.0,
         )
     ]
+
+
+def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
+    """F^{-1} of protection-interval demand (matches alpha_tune / m2_gates / SW)."""
+    if not 0.0 < float(alpha) < 1.0:
+        msg = f"alpha must be in (0, 1), got {alpha}"
+        raise ValueError(msg)
+    r = float(params.nb_r()) * float(PROTECTION_DEMAND_DAYS)
+    p = float(params.nb_p())
+    return float(nbinom.ppf(float(alpha), r, p))
 
 
 def _empty_shelf_belief() -> ShelfBelief:
@@ -382,7 +396,14 @@ def run_m2_multi_scenario(
     ships = list(shipments) if shipments is not None else _fixture_shipments()
 
     sw = DampedSurvivalWeightedPolicy(alpha=float(alpha), params=p)
-    rung0 = CorrectedAgeBlindPolicy(alpha=float(alpha), params=p)
+    d_star = _protection_demand_fractile(float(alpha), p)
+    rung0 = CorrectedAgeBlindPolicy(
+        alpha=float(alpha),
+        params=p,
+        demand_target=d_star,
+        protection_days=PROTECTION_DEMAND_DAYS,
+        case_size=int(p.case_size),
+    )
     rollout = RolloutPolicy(
         base_policy=sw,
         params=p,
