@@ -18,7 +18,7 @@ DATE: 2026-08-12
 - [x] Under shared CRN, identical `(root_seed, run_id, params)` yields identical per-day `pack_date` sequences — verified by focused suite
 - [x] `rich_obs_from_day_log` + F2a vs P0/P1 mask observation rules — verified by focused suite
 - [x] Delivery DayLog via F2a yields birth prior strictly narrower (SD) than cold mix — verified by focused suite
-- [x] `run_m25_stage_a(..., rungs=("F2a",), ...)` reports `contracted=True` for F2a — verified by `test_stage_a_f2a_contracts_when_pack_date_emitted`
+- [x] `run_m15_stage_a(..., rungs=("F2a",), ...)` reports `contracted=True` for F2a — verified by `test_stage_a_f2a_contracts_when_pack_date_emitted`
 - [x] Quality gates stay green: `ruff check`, `mypy`, `pytest` with coverage ≥80% — verified by full AGENTS.md toolchain (all exit 0; coverage 88.96%)
 
 ## Preconditions

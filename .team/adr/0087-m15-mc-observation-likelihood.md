@@ -2,8 +2,8 @@
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
-BOARD-ID: FIL-10 (M2.5 elaboration) / ENG-02
-MILESTONE: M2.5 — filter complete across data-availability rungs
+BOARD-ID: FIL-10 (M1.5 elaboration) / ENG-02
+MILESTONE: M1.5 — filter complete across data-availability rungs
 
 ## Context
 
@@ -11,7 +11,7 @@ M1’s `_rbpf_update` scores particles with soft powers on picking/death probabi
 match terms on sales/waste totals. That is not the law of MOD-08 Wallenius allocation or MOD-04
 binomial deaths. Stage C’s TV-vs-exact check used the same soft likelihood, so TV≈0 was tautological.
 FIL-10=A already chose bootstrap proposal specifically so we never need a Wallenius *density*.
-ENG-02 / MOD-12 require sim and filter to import the same `model.day_step` kernels. M2.5 needs an
+ENG-02 / MOD-12 require sim and filter to import the same `model.day_step` kernels. M1.5 needs an
 honest observation likelihood before any rung Stage A/B “pass” claim is VOI-ready.
 
 ## Decision
@@ -30,7 +30,7 @@ We will score masked `RichObs` fields with a **Monte Carlo observation likelihoo
 
 Default production starts at **M=1** bootstrap-style weight; raise M only if ESS collapses and a
 follow-on ADR records the change. Exact per-lot forward solvers at F1+ may later sit behind the
-**same** log-likelihood interface and cross-check MC where both apply; M2.5 may ship MC-only first.
+**same** log-likelihood interface and cross-check MC where both apply; M1.5 may ship MC-only first.
 
 ## Alternatives considered
 

@@ -1,4 +1,4 @@
-# Wave 2 verification — T-011 (M2.5 filter)
+# Wave 2 verification — T-011 (M1.5 filter)
 
 DATE: 2026-08-12
 STATUS: **FAIL**
@@ -24,7 +24,7 @@ remain green. One non-sibling residual: soft Stage C smoke over tolerance.
 
 | Ticket | File | Failed | Notes |
 |--------|------|--------|-------|
-| T-012 | `tests/test_stage_c_generative.py` | 7 (+1 skip) | Missing generative kwargs / contract; soft `tv_vs_exact` still named; no `figures/m2.5/README.md` |
+| T-012 | `tests/test_stage_c_generative.py` | 7 (+1 skip) | Missing generative kwargs / contract; soft `tv_vs_exact` still named; no `figures/m1.5/README.md` |
 | T-013 | `tests/test_arrival_priors.py` | 8 | `arrival_age_prior_f2a` / `f2` absent; P0/P1/F2a/F2 prior injection not wired |
 | T-014 | `tests/test_lot_resolved_ll.py` | 6 | Lot-map LL not scored; also sole ruff + mypy breakages |
 

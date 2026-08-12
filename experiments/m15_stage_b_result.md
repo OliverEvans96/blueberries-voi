@@ -1,6 +1,6 @@
-# M2.5 Stage B — multi-rung calibration + oracle ladder
+# M1.5 Stage B — multi-rung calibration + oracle ladder
 
-Library: `blueberries_voi.viz.m25.run_m25_stage_b` / `run_m25_oracle_ladder` (T-017).
+Library: `blueberries_voi.viz.m15.run_m15_stage_b` / `run_m15_oracle_ladder` (T-017).
 Shared `root_seed=0`; only the observation mask differs by rung.
 
 ## Pass language
@@ -14,17 +14,17 @@ Stage B PASS when 90% CI coverage lies in [0.7, 0.99] around nominal 90% and ran
 
 | rung | coverage_90 | diagnostic_only | figure |
 | --- | --- | --- | --- |
-| P0 | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m25_stage_b_P0_rank.png` |
-| P1 | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m25_stage_b_P1_rank.png` |
-| F1 | 0.8750 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m25_stage_b_F1_rank.png` |
-| F1s | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m25_stage_b_F1s_rank.png` |
-| F2a | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m25_stage_b_F2a_rank.png` |
-| F2 | 0.0000 | no | `m25_stage_b_F2_rank.png` |
+| P0 | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m15_stage_b_P0_rank.png` |
+| P1 | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m15_stage_b_P1_rank.png` |
+| F1 | 0.8750 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m15_stage_b_F1_rank.png` |
+| F1s | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m15_stage_b_F1s_rank.png` |
+| F2a | 1.0000 | yes — diagnostic only — Stage A fail (or unmarked); calibration evidence only, not a Stage B gate reopen | `m15_stage_b_F2a_rank.png` |
+| F2 | 0.0000 | no | `m15_stage_b_F2_rank.png` |
 
 P0/P1 (and any other Stage A fail) runs are **diagnostic only** — evidence, not a gate reopen.
 
 **Postscript (T-019):** Stage A F2a now **contracts / PASS**
-(`experiments/m25_stage_a_result.md`). The F2a `diagnostic_only` row above is
+(`experiments/m15_stage_a_result.md`). The F2a `diagnostic_only` row above is
 the pre-pack_date-emit Stage B publication; regenerate with
 `stage_a_pass={'F2a': True, 'F2': True}` when refreshing calibration evidence.
 Coverage numbers above are unchanged until that republish.

@@ -7,7 +7,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Domain ADRs: **0001–0076** (75 accepted, 1 superseded)
 - Repo tooling ADR: **[0077](./0077-uv-src-layout-agent-dev-team.md)** (renumbered from 0001 on import to preserve domain numbering)
 - M1 settle / defer (2026-08-12): **[0078](./0078-x-13-gate-0.md)–[0085](./0085-pyarrow-abdella-parquet.md)** (FIL-13/15 accepted after bakeoff; pyarrow for Abdella)
-- M2.5 architecture lock (2026-08-12): **[0086](./0086-m25-richobs-unobserved-masks.md)–[0089](./0089-m25-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
+- M1.5 architecture lock (2026-08-12): **[0086](./0086-m15-richobs-unobserved-masks.md)–[0089](./0089-m15-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -100,7 +100,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0083](./0083-fil-15-filter-numerics.md) | `FIL-15` | Filter numerics — K=8 on [0,8], N=2000, ESS=N/2 | ACCEPTED |
 | [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md) | *(repo)* | Runtime deps: numpy, scipy, matplotlib | ACCEPTED |
 | [0085](./0085-pyarrow-abdella-parquet.md) | *(repo)* | pyarrow for Abdella parquet I/O | ACCEPTED |
-| [0086](./0086-m25-richobs-unobserved-masks.md) | `FIL-08` (M2.5) | RichObs + UNOBSERVED + scenario masks | ACCEPTED |
-| [0087](./0087-m25-mc-observation-likelihood.md) | `FIL-10` (M2.5) | MC observation likelihood from shared day_step | ACCEPTED |
-| [0088](./0088-m25-stage-c-generative-check.md) | `FIL-11` (M2.5) | Stage C generative check vs day_step | ACCEPTED |
-| [0089](./0089-m25-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M2.5) | Dynamic L + joint→sliding_window fallback | ACCEPTED |
+| [0086](./0086-m15-richobs-unobserved-masks.md) | `FIL-08` (M1.5) | RichObs + UNOBSERVED + scenario masks | ACCEPTED |
+| [0087](./0087-m15-mc-observation-likelihood.md) | `FIL-10` (M1.5) | MC observation likelihood from shared day_step | ACCEPTED |
+| [0088](./0088-m15-stage-c-generative-check.md) | `FIL-11` (M1.5) | Stage C generative check vs day_step | ACCEPTED |
+| [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | ACCEPTED |

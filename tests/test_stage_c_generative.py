@@ -133,22 +133,22 @@ def test_production_stage_c_does_not_gate_on_soft_tv_vs_exact() -> None:
     )
 
 
-def test_stage_c_default_figures_dir_is_m25() -> None:
-    """AC: Stage C figures land under figures/m2.5/ (not historical m1 soft gate)."""
+def test_stage_c_default_figures_dir_is_m15() -> None:
+    """AC: Stage C figures land under figures/m1.5/ (not historical m1 soft gate)."""
     import blueberries_voi.viz.fil11 as fil11
 
     fig = Path(fil11.FIG)
-    assert "m2.5" in fig.parts, (
+    assert "m1.5" in fig.parts, (
         f"fil11.FIG default is {fig}; generative Stage C must write under "
-        "figures/m2.5/ (T-012)"
+        "figures/m1.5/ (T-012)"
     )
 
 
-def test_stage_c_m25_entrypoint_documented() -> None:
-    """AC: documented uv run entrypoint + result MD path under m2.5 or experiments."""
-    readme = _ROOT / "figures" / "m2.5" / "README.md"
+def test_stage_c_m15_entrypoint_documented() -> None:
+    """AC: documented uv run entrypoint + result MD path under m1.5 or experiments."""
+    readme = _ROOT / "figures" / "m1.5" / "README.md"
     assert readme.is_file(), (
-        "figures/m2.5/README.md must document Stage C figure and result MD paths"
+        "figures/m1.5/README.md must document Stage C figure and result MD paths"
     )
     text = readme.read_text(encoding="utf-8")
     lowered = text.lower()
@@ -160,7 +160,7 @@ def test_stage_c_m25_entrypoint_documented() -> None:
         or "fil11" in lowered
     )
     assert asserts_stage, "README must mention Stage C / generative / FIL-11"
-    # Result note path must be pointed at (figures/m2.5 or experiments/).
+    # Result note path must be pointed at (figures/m1.5 or experiments/).
     mentions_result = (
         "result" in lowered or ".md" in lowered or "experiments/" in lowered
     )

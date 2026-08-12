@@ -2,8 +2,8 @@
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
-BOARD-ID: FIL-13 (M2.5 long-dwell policy)
-MILESTONE: M2.5 — filter complete across data-availability rungs
+BOARD-ID: FIL-13 (M1.5 long-dwell policy)
+MILESTONE: M1.5 — filter complete across data-availability rungs
 
 ## Context
 
@@ -25,7 +25,7 @@ When configured or empirical live-cohort count `L` would exceed the budget:
 1. **Auto-fallback to `sliding_window`** (existing bakeoff backend A), with a **logged reason**
    (K, L, N, joint float count, chosen backend).
 2. **Do not silently truncate L** (FIL-13 guard rule remains).
-3. Re-measure L under M2.5 open-loop and long-dwell verification cells; record in experiment MD.
+3. Re-measure L under M1.5 open-loop and long-dwell verification cells; record in experiment MD.
 4. Prefer **dynamic L** (track live cohorts / configured max) over a forever-fixed `PRODUCTION_L=3`
    when the joint backend is active and within budget.
 
@@ -34,12 +34,12 @@ silent contradiction of the joint default.
 
 ## Alternatives considered
 
-- **Always raise MemoryError when budget trips (M1 behaviour)** — rejected for M2.5 verification:
+- **Always raise MemoryError when budget trips (M1 behaviour)** — rejected for M1.5 verification:
   long-dwell cells must still run; hard fail blocks Stage A across rungs without a documented
   tractability path.
 - **Silently truncate L to fit budget** — rejected: explicitly forbidden by FIL-13 / ADR 0082.
 - **Reopen FIL-12 toward mean-field or bound-L as production default** — rejected: ⚑ / settled
-  without Oliver; out of M2.5 scope.
+  without Oliver; out of M1.5 scope.
 - **Always run sliding_window** — rejected: at measured L full joint is preferred and already
   validated by the FIL-13 bakeoff.
 
@@ -47,7 +47,7 @@ silent contradiction of the joint default.
 
 - Easy: long-dwell cells complete; experiment logs show when/why fallback fired.
 - Hard: Stage A metrics must use cohort-from-birth (not oldest-slot-only) so sliding_window vs joint
-  comparisons stay honest; bakeoff note may need a short M2.5 addendum.
+  comparisons stay honest; bakeoff note may need a short M1.5 addendum.
 - Locked: production default remains joint when budget allows; FIL-12=B not reopened.
 - Revisit FIL-13 toward making sliding_window the default only with new bakeoff evidence and Oliver.
 

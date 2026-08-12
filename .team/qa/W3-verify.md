@@ -1,4 +1,4 @@
-# Wave 3 verification — T-013 + T-014 (M2.5)
+# Wave 3 verification — T-013 + T-014 (M1.5)
 
 DATE: 2026-08-12
 STATUS: **FAIL**
@@ -46,7 +46,7 @@ uv run mypy src/blueberries_voi/filter/arrival_priors.py \
 
 | Ticket | File | Failed | Notes |
 |--------|------|--------|-------|
-| T-016 | `tests/test_stage_a_multirung.py` | 15 | RED: missing `run_m25_stage_a` / schemas / Stage A docs hooks |
+| T-016 | `tests/test_stage_a_multirung.py` | 15 | RED: missing `run_m15_stage_a` / schemas / Stage A docs hooks |
 | T-017 | `tests/test_stage_b_oracle.py` | 21 | RED: missing Stage B / oracle ladder surface; **sole** ruff + format + mypy breakages |
 
 ### Named siblings checked (user list)

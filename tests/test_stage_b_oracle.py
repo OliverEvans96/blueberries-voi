@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPERIMENTS = _REPO_ROOT / "experiments"
-_FIG_M25 = _REPO_ROOT / "figures" / "m2.5"
-_FIG_README = _FIG_M25 / "README.md"
+_FIG_M15 = _REPO_ROOT / "figures" / "m1.5"
+_FIG_README = _FIG_M15 / "README.md"
 
 # Spec / plan §4.2: Stage B on rungs Stage A can evaluate (same six).
 _STAGE_B_RUNGS: tuple[ScenarioId, ...] = ("P0", "P1", "F1", "F1s", "F2a", "F2")
@@ -31,7 +31,7 @@ _COVERAGE_LO = 0.70
 _COVERAGE_HI = 0.99
 
 _API_MODULES = (
-    "blueberries_voi.viz.m25",
+    "blueberries_voi.viz.m15",
     "blueberries_voi.viz.stage_b",
     "blueberries_voi.viz.oracle",
     "blueberries_voi.viz.fil11",
@@ -70,8 +70,8 @@ def _field_names(cls: Any) -> set[str]:
         return set()
 
 
-def _m25_surface_blobs() -> list[str]:
-    """Source/docs for m25 / stage_b / oracle surfaces (not legacy fil11 alone)."""
+def _m15_surface_blobs() -> list[str]:
+    """Source/docs for m15 / stage_b / oracle surfaces (not legacy fil11 alone)."""
     blobs: list[str] = []
     for name in _API_MODULES[:3]:
         try:
@@ -102,20 +102,20 @@ def test_stage_b_rung_result_schema_fields() -> None:
     assert not missing, f"StageBRungResult missing fields: {sorted(missing)}"
 
 
-def test_run_m25_stage_b_exported() -> None:
-    fn = _resolve("run_m25_stage_b")
+def test_run_m15_stage_b_exported() -> None:
+    fn = _resolve("run_m15_stage_b")
     assert callable(fn)
 
 
-def test_run_m25_stage_b_accepts_rungs() -> None:
-    fn = _resolve("run_m25_stage_b")
+def test_run_m15_stage_b_accepts_rungs() -> None:
+    fn = _resolve("run_m15_stage_b")
     sig = inspect.signature(fn)
-    assert "rungs" in sig.parameters, "run_m25_stage_b must accept rungs="
+    assert "rungs" in sig.parameters, "run_m15_stage_b must accept rungs="
 
 
-def test_run_m25_stage_b_accepts_shared_root_seed() -> None:
+def test_run_m15_stage_b_accepts_shared_root_seed() -> None:
     """Shared CRN across rungs (plan §4 / SIM-05); only mask differs."""
-    fn = _resolve("run_m25_stage_b")
+    fn = _resolve("run_m15_stage_b")
     sig = inspect.signature(fn)
     assert "root_seed" in sig.parameters
     assert sig.parameters["root_seed"].kind in (
@@ -124,13 +124,13 @@ def test_run_m25_stage_b_accepts_shared_root_seed() -> None:
     )
 
 
-def test_run_m25_stage_b_accepts_stage_a_pass_map() -> None:
+def test_run_m15_stage_b_accepts_stage_a_pass_map() -> None:
     """Stage B must know which Stage A rungs passed (full vs diagnostic-only)."""
-    fn = _resolve("run_m25_stage_b")
+    fn = _resolve("run_m15_stage_b")
     sig = inspect.signature(fn)
     markers = {"stage_a_pass", "stage_a_passed", "a_pass", "passed_rungs"}
     assert markers & set(sig.parameters), (
-        "run_m25_stage_b must accept a Stage A pass map "
+        "run_m15_stage_b must accept a Stage A pass map "
         f"(one of {sorted(markers)}) so A-failing rungs can be diagnostic-only"
     )
 
@@ -155,7 +155,7 @@ def test_rank_histogram_pass_rule_documented() -> None:
     rule = _load_attr("STAGE_B_RANK_FLATNESS_RULE")
     narrative = _load_attr("STAGE_B_PASS_FAIL_NARRATIVE")
     blobs = [str(rule or ""), str(narrative or "")]
-    blobs.extend(_m25_surface_blobs())
+    blobs.extend(_m15_surface_blobs())
     joined = "\n".join(blobs).lower()
     shape_ok = "u-shaped" in joined or "u shaped" in joined or "dome" in joined
     assert (
@@ -180,7 +180,7 @@ def test_diagnostic_only_labeling_for_a_failing_rungs() -> None:
 
 
 def test_stage_b_result_md_path_convention() -> None:
-    """Result MD under experiments/m25_stage_b_*.md (spec)."""
+    """Result MD under experiments/m15_stage_b_*.md (spec)."""
     path_hook = _load_attr("STAGE_B_RESULT_MD_PATH")
     if path_hook is not None:
         path = Path(path_hook)
@@ -188,11 +188,11 @@ def test_stage_b_result_md_path_convention() -> None:
             path = _REPO_ROOT / path
     else:
         # Accept either a single aggregate or glob-style convention name.
-        candidates = sorted(_EXPERIMENTS.glob("m25_stage_b_*.md"))
-        path = candidates[0] if candidates else _EXPERIMENTS / "m25_stage_b_result.md"
+        candidates = sorted(_EXPERIMENTS.glob("m15_stage_b_*.md"))
+        path = candidates[0] if candidates else _EXPERIMENTS / "m15_stage_b_result.md"
 
-    assert path.name.startswith("m25_stage_b"), (
-        f"Stage B result MD must be named m25_stage_b_*.md, got {path.name!r}"
+    assert path.name.startswith("m15_stage_b"), (
+        f"Stage B result MD must be named m15_stage_b_*.md, got {path.name!r}"
     )
     assert path.suffix == ".md"
     assert "experiments" in path.parts, (
@@ -201,7 +201,7 @@ def test_stage_b_result_md_path_convention() -> None:
 
     if not path.is_file():
         assert path_hook is not None, (
-            "Export STAGE_B_RESULT_MD_PATH pointing at experiments/m25_stage_b_*.md "
+            "Export STAGE_B_RESULT_MD_PATH pointing at experiments/m15_stage_b_*.md "
             "(or publish that file with diagnostic / coverage language)"
         )
         return
@@ -217,25 +217,25 @@ def test_stage_b_result_md_path_convention() -> None:
 
 
 def test_figures_readme_maps_stage_b_and_oracle() -> None:
-    """Figures under figures/m2.5/ with README mapping Stage B / oracle artifacts."""
+    """Figures under figures/m1.5/ with README mapping Stage B / oracle artifacts."""
     assert _FIG_README.is_file(), f"missing {_FIG_README}"
     body = _FIG_README.read_text(encoding="utf-8").lower()
     assert "stage b" in body or "stage_b" in body, (
-        "figures/m2.5/README.md must document Stage B multi-rung figures"
+        "figures/m1.5/README.md must document Stage B multi-rung figures"
     )
     assert "rank" in body or "calibration" in body or "coverage" in body
     assert "oracle" in body or "b-state" in body or "b_state" in body, (
-        "figures/m2.5/README.md must document oracle ladder / B-state gap figures"
+        "figures/m1.5/README.md must document oracle ladder / B-state gap figures"
     )
     assert "fil-11" in body or "fil11" in body
 
 
 def test_no_voi_or_ctl_in_stage_b_oracle_surface() -> None:
     """No CTL / VOI sweep code on the Stage B + oracle surface (spec)."""
-    blobs = _m25_surface_blobs()
+    blobs = _m15_surface_blobs()
     if not blobs:
         pytest.fail(
-            "blueberries_voi.viz.m25 (or viz.stage_b / viz.oracle) must exist for "
+            "blueberries_voi.viz.m15 (or viz.stage_b / viz.oracle) must exist for "
             "T-017 Stage B + oracle surface; must not include CTL or VOI sweep code"
         )
 
@@ -247,7 +247,7 @@ def test_no_voi_or_ctl_in_stage_b_oracle_surface() -> None:
     )
     assert not re.search(r"\bCTL\b|causal.?tree|uplift.?tree|base.?stock", joined, re.I)
     assert not re.search(r"\bb-clair\b|\bb_clair\b|scn-b-clair", joined, re.I), (
-        "B-clair must not be implemented on the M2.5 Stage B / oracle surface"
+        "B-clair must not be implemented on the M1.5 Stage B / oracle surface"
     )
 
 
@@ -265,14 +265,14 @@ def test_oracle_gap_row_schema_fields() -> None:
     assert not missing, f"OracleGapRow missing fields: {sorted(missing)}"
 
 
-def test_run_m25_oracle_ladder_exported() -> None:
-    fn = _resolve("run_m25_oracle_ladder")
+def test_run_m15_oracle_ladder_exported() -> None:
+    fn = _resolve("run_m15_oracle_ladder")
     assert callable(fn)
 
 
-def test_run_m25_oracle_ladder_shared_root_seed_and_compare_default() -> None:
+def test_run_m15_oracle_ladder_shared_root_seed_and_compare_default() -> None:
     """Oracle ladder uses shared CRN; default compare is P1 vs F2 (spec)."""
-    fn = _resolve("run_m25_oracle_ladder")
+    fn = _resolve("run_m15_oracle_ladder")
     sig = inspect.signature(fn)
     assert "root_seed" in sig.parameters
     assert sig.parameters["root_seed"].kind in (
@@ -373,14 +373,14 @@ def test_oracle_gap_table_f2_much_less_than_p1_vs_b_state() -> None:
 
 
 def test_oracle_gap_md_path_convention() -> None:
-    """Gap table in experiments/m25_stage_b_*.md (or dedicated oracle MD)."""
+    """Gap table in experiments/m15_stage_b_*.md (or dedicated oracle MD)."""
     path_hook = _load_attr("ORACLE_GAP_MD_PATH") or _load_attr("STAGE_B_RESULT_MD_PATH")
     if path_hook is not None:
         path = Path(path_hook)
         if not path.is_absolute():
             path = _REPO_ROOT / path
         assert "experiments" in path.parts
-        assert path.name.startswith("m25_stage_b") or "oracle" in path.name
+        assert path.name.startswith("m15_stage_b") or "oracle" in path.name
         return
 
     # Require an explicit path hook before expensive publish.
@@ -391,8 +391,8 @@ def test_oracle_gap_md_path_convention() -> None:
 
 
 def test_b_clair_not_implemented() -> None:
-    """SCN-B-clair remains out of M2.5 (spec out of scope)."""
-    assert _load_attr("run_m25_b_clair") is None
+    """SCN-B-clair remains out of M1.5 (spec out of scope)."""
+    assert _load_attr("run_m15_b_clair") is None
     assert _load_attr("BClairResult") is None
     hook = _load_attr("B_CLAIR_IMPLEMENTED")
     if hook is not None:
@@ -405,33 +405,33 @@ def test_b_clair_not_implemented() -> None:
 
 
 def test_stage_b_empty_rungs_rejected() -> None:
-    fn = _resolve("run_m25_stage_b")
+    fn = _resolve("run_m15_stage_b")
     with pytest.raises((ValueError, TypeError)):
         fn(root_seed=0, rungs=())
 
 
 def test_stage_b_unknown_rung_rejected() -> None:
-    fn = _resolve("run_m25_stage_b")
+    fn = _resolve("run_m15_stage_b")
     with pytest.raises((ValueError, KeyError, TypeError)):
         fn(root_seed=0, rungs=("NOT_A_RUNG",))
 
 
 def test_oracle_ladder_empty_compare_rejected() -> None:
-    fn = _resolve("run_m25_oracle_ladder")
+    fn = _resolve("run_m15_oracle_ladder")
     with pytest.raises((ValueError, TypeError)):
         fn(root_seed=0, compare=())
 
 
 def test_oracle_ladder_rejects_b_clair_in_compare() -> None:
     """B-clair must not sneak in via compare= (out of scope)."""
-    fn = _resolve("run_m25_oracle_ladder")
+    fn = _resolve("run_m15_oracle_ladder")
     with pytest.raises((ValueError, KeyError, TypeError)):
         fn(root_seed=0, compare=("P1", "B-clair"))
 
 
 def test_stage_b_rungs_default_or_explicit_six() -> None:
     """Callable surface covers the six data-availability rungs (plan §4.2)."""
-    fn = _resolve("run_m25_stage_b")
+    fn = _resolve("run_m15_stage_b")
     sig = inspect.signature(fn)
     rungs_param = sig.parameters.get("rungs")
     has_default = (
@@ -443,10 +443,10 @@ def test_stage_b_rungs_default_or_explicit_six() -> None:
     else:
         # Explicit-only API is OK if documented constant lists the six.
         documented = _load_attr("STAGE_B_DEFAULT_RUNGS") or _load_attr(
-            "M25_STAGE_B_RUNGS"
+            "M15_STAGE_B_RUNGS"
         )
         assert documented is not None, (
-            "Either default rungs= on run_m25_stage_b or export "
+            "Either default rungs= on run_m15_stage_b or export "
             "STAGE_B_DEFAULT_RUNGS covering P0…F2"
         )
         assert tuple(documented) == _STAGE_B_RUNGS

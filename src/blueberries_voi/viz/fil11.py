@@ -25,7 +25,7 @@ from blueberries_voi.model.abdella import load_abdella_shipments
 from blueberries_voi.sim import run_episode
 
 ROOT = Path(__file__).resolve().parents[3]
-FIG = ROOT / "figures" / "m2.5"
+FIG = ROOT / "figures" / "m1.5"
 
 # Documented Stage B coverage band around nominal 90% (diagnostic, not gate).
 STAGE_B_COVERAGE_LO = 0.70

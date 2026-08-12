@@ -28,7 +28,7 @@ STATUS: PASS — sim emits `pack_date` on delivery; Stage A F2a contracts.
 
 ## Not covered by tests
 
-- Full republish of `experiments/m25_stage_a_result.md` — implementer / verifier
+- Full republish of `experiments/m15_stage_a_result.md` — implementer / verifier
   after GREEN; unit smoke asserts contraction only
 - Backlog / changelog resolve — post-GREEN (verifier + changelog skill)
 - Exact episode calendar epoch for synthetic pack_date — open in spec; tests

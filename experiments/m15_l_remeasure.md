@@ -1,7 +1,7 @@
-# M2.5 L remeasure + joint→sliding_window fallback (T-015 / ADR 0089)
+# M1.5 L remeasure + joint→sliding_window fallback (T-015 / ADR 0089)
 
 Addendum to the M1 FIL-13 bakeoff (`fil13_bakeoff.md`, `fil13_scaling.md`) for
-**M2.5** open-loop and long-dwell verification cells. Production default remains
+**M1.5** open-loop and long-dwell verification cells. Production default remains
 **full_joint** (FIL-12=B); this note records re-measured live-cohort **L** and
 when the FIL-13 **sliding_window** fallback fires.
 
@@ -9,7 +9,7 @@ when the FIL-13 **sliding_window** fallback fires.
 
 | Regime | Setting (summary) | Empirical live L | Notes |
 | --- | --- | --- | --- |
-| M2.5 open-loop (baseline) | M1-like defaults (σ≈0.5, S=60, daily delivery) | p50≈2, max≈3–4 | Same order as M1; joint fits at production K=8, N=2000 for L≤4 |
+| M1.5 open-loop (baseline) | M1-like defaults (σ≈0.5, S=60, daily delivery) | p50≈2, max≈3–4 | Same order as M1; joint fits at production K=8, N=2000 for L≤4 |
 | Long-dwell Stage A cell | μ=15 + S=120 (slow turn) | p50≈7, max≈7–8 | Pushes past joint budget at prod N; filter must not silently truncate L |
 
 At production **K=8, N=2000**: `joint_state_count` ≤ `MAX_JOINT_FLOATS` for **L≤4**;

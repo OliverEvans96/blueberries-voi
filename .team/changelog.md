@@ -2,7 +2,7 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
-## 2026-08-12 — M2.5 filter complete across data-availability rungs
+## 2026-08-12 — M1.5 filter complete across data-availability rungs
 
 - **Delivery days now carry a pack date**, so the pack-date age check can tighten
   beliefs the way it was designed to — that rung is no longer blocked waiting
@@ -12,7 +12,7 @@ Plain-English notes of what shipped, for non-technical readers.
   rungs:** each rung only observes what that scenario allows from the rich daily
   store log, and the filter’s likelihood matches the same physics the simulator
   uses. Under defaults, P0 and P1 still do not tighten arrival-age beliefs (an
-  honest negative, not a papered-over pass); at M2.5 close-out F2a was still
+  honest negative, not a papered-over pass); at M1.5 close-out F2a was still
   blocked on missing pack-date metadata (cleared later the same day by T-019
   above); F2 passes, and the oracle ladder shows F2 much closer to known true
   ages than P1. (T-018)

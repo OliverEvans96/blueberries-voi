@@ -257,16 +257,16 @@ def test_backend_choice_type_is_frozen_structured_record() -> None:
         choice.backend = "mean_field"
 
 
-def test_m25_l_remeasure_experiment_note_documents_fallback() -> None:
-    """AC: dedicated M2.5 addendum (not the M1 fil13 bakeoff alone)."""
+def test_m15_l_remeasure_experiment_note_documents_fallback() -> None:
+    """AC: dedicated M1.5 addendum (not the M1 fil13 bakeoff alone)."""
     # Prefer an explicit new note; do not treat M1 fil13_*.md as sufficient.
-    preferred = _EXPERIMENTS / "m25_l_remeasure.md"
+    preferred = _EXPERIMENTS / "m15_l_remeasure.md"
     candidates = [preferred] if preferred.is_file() else []
     if not candidates:
         candidates = sorted(
             p
             for p in (
-                *_EXPERIMENTS.glob("*m25*"),
+                *_EXPERIMENTS.glob("*m15*"),
                 *_EXPERIMENTS.glob("*dynamic*l*"),
                 *_EXPERIMENTS.glob("*l_remeasure*"),
                 *_EXPERIMENTS.glob("*l_fallback*"),
@@ -274,13 +274,13 @@ def test_m25_l_remeasure_experiment_note_documents_fallback() -> None:
             if p.is_file() and p.suffix in {".md", ".txt"}
         )
     assert candidates, (
-        "expected experiments/m25_l_remeasure.md (or *m25* / *l_remeasure* "
-        "addendum) documenting M2.5 open-loop + long-dwell L and fallback"
+        "expected experiments/m15_l_remeasure.md (or *m15* / *l_remeasure* "
+        "addendum) documenting M1.5 open-loop + long-dwell L and fallback"
     )
 
     combined = "\n".join(p.read_text(encoding="utf-8") for p in candidates)
     lower = combined.lower()
-    has_m25 = "m2.5" in lower or "m25" in lower
+    has_m15 = "m1.5" in lower or "m15" in lower
     has_open_loop = "open-loop" in lower or "open loop" in lower
     has_long_dwell = "long-dwell" in lower or "long dwell" in lower
     has_remeasure = bool(re.search(r"re-?measur|empirical\s+l|live\s+cohort", lower))
@@ -288,10 +288,10 @@ def test_m25_l_remeasure_experiment_note_documents_fallback() -> None:
         "fallback" in lower or "budget" in lower
     )
     covered = (
-        has_m25 and has_open_loop and has_long_dwell and has_remeasure and has_fallback
+        has_m15 and has_open_loop and has_long_dwell and has_remeasure and has_fallback
     )
     assert covered, (
-        "M2.5 note must cover open-loop + long-dwell L remeasure and "
+        "M1.5 note must cover open-loop + long-dwell L remeasure and "
         "sliding_window fallback; files: "
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in candidates)
     )

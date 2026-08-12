@@ -23,7 +23,7 @@ from blueberries_voi.filter.types import (
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments
 from blueberries_voi.sim import EpisodeLog, run_episode
-from blueberries_voi.viz import m25
+from blueberries_voi.viz import m15
 
 _REPO = Path(__file__).resolve().parents[1]
 _ABDELLA = _REPO / "data" / "abdella"
@@ -140,8 +140,8 @@ def test_f2a_birth_prior_from_sim_daylog_narrower_than_cold() -> None:
 
 
 def test_stage_a_f2a_contracts_when_pack_date_emitted(tmp_path: Path) -> None:
-    """AC: run_m25_stage_a F2a rung reports contracted=True under smoke defaults."""
-    result = m25.run_m25_stage_a(
+    """AC: run_m15_stage_a F2a rung reports contracted=True under smoke defaults."""
+    result = m15.run_m15_stage_a(
         root_seed=0,
         rungs=("F2a",),
         contraction_margin=0.05,

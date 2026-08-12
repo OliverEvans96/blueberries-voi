@@ -3,7 +3,7 @@
 DATE: 2026-08-12
 STATUS: PASS
 
-Scope: T-016 / M2.5 multi-rung Stage A. Full-suite red from T-017 RED /
+Scope: T-016 / M1.5 multi-rung Stage A. Full-suite red from T-017 RED /
 in-flight Stage B+oracle and T-018 closeout process checks is **expected and
 not counted as a T-016 regression**. Claimed APPROVED artifacts present:
 `.team/qa/T-016.md` (PASS), `.team/reviews/T-016.md` (APPROVED).
@@ -17,9 +17,9 @@ not counted as a T-016 regression**. Claimed APPROVED artifacts present:
 - `uv run pytest tests/test_stage_a_multirung.py -q --no-cov` → exit 0, **15 passed**
 - `uv run pytest` → exit 1, **32 failed, 154 passed, 1 skipped**; failures are
   T-017 / T-018 closeout (labeled below), not `test_stage_a_multirung`
-- Live smoke: `run_m25_stage_a(root_seed=0)` → six rungs; F2 contracts
+- Live smoke: `run_m15_stage_a(root_seed=0)` → six rungs; F2 contracts
   (`posterior_sd=0.0`); P0/P1/F1/F1s/F2a uncontracted — matches
-  `experiments/m25_stage_a_result.md`
+  `experiments/m15_stage_a_result.md`
 
 ## Acceptance criteria
 
@@ -34,11 +34,11 @@ not counted as a T-016 regression**. Claimed APPROVED artifacts present:
   `tight_control`
 - [x] Result MD under `experiments/` publishes a plain table; **P0/P1 FAIL
   allowed** if documented; higher-rung honesty when they fail — verified by
-  `experiments/m25_stage_a_result.md` present; P0/P1 FAIL (allowed); F2a FAIL
+  `experiments/m15_stage_a_result.md` present; P0/P1 FAIL (allowed); F2a FAIL
   labeled **needs-human**; F2 PASS
-- [x] Figures land under `figures/m2.5/` with README mapping figure → rung /
-  FIL-11 — verified by `figures/m2.5/m25_stage_a_rung_map.png` +
-  `figures/m2.5/README.md` Stage A map table
+- [x] Figures land under `figures/m1.5/` with README mapping figure → rung /
+  FIL-11 — verified by `figures/m1.5/m15_stage_a_rung_map.png` +
+  `figures/m1.5/README.md` Stage A map table
 - [x] Does not claim VOI dollars; no CTL code — verified by
   `test_no_voi_dollars_or_ctl_in_stage_a_surface` + result MD disclaimer
 - [x] Quality gates green for T-016 scope — ruff, format, mypy clean; scoped
@@ -51,10 +51,10 @@ Not a T-016 library/regression failure. Observed failures:
 
 - **T-017 / Stage B + oracle** — all `tests/test_stage_b_oracle.py` RED
   (missing exports / MD / figure map); expected in-flight or RED ticket
-- **T-018 / M2.5 closeout** — unchecked AC checkboxes on several specs
+- **T-018 / M1.5 closeout** — unchecked AC checkboxes on several specs
   (including T-016’s still-`[ ]` boxes in `.team/specs/T-016.md`), T-017 QA
   RED without needs-human, missing T-017 review, changelog/DoD process
-- Closeout also fails `test_m25_ticket_spec_acceptance_criteria_done_or_waived[T-016]`
+- Closeout also fails `test_m15_ticket_spec_acceptance_criteria_done_or_waived[T-016]`
   solely because spec checkboxes were never flipped to `[x]` — process debt,
   not a Stage A runtime regression (`test_stage_a_multirung.py` is green)
 
@@ -69,7 +69,7 @@ scoped and full runs.
 
 Smoke table still records F2a FAIL as **needs-human** (sim does not yet emit
 ASN `pack_date` on `DayLog`). That honesty is present in
-`experiments/m25_stage_a_result.md` and matches live smoke.
+`experiments/m15_stage_a_result.md` and matches live smoke.
 
 **Gap:** `.team/backlog.md` has **no** F2a / `pack_date` / T-016 needs-human
 escalation entry. Human follow-up should add one if the sim gap remains open

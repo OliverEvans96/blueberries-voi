@@ -9,4 +9,4 @@ Production gate is generative agreement with shared `day_step` kernels (ADR 0088
 - wrong-physics divergence: 0.495000 (passed=False)
 - L=2, K=4
 - alphabet: empirical support of day_step (sales, waste) pairs
-- figure: /home/oliver/blog/blueberries-voi/figures/m2.5/fil11_stage_c_generative.png
+- figure: /home/oliver/blog/blueberries-voi/figures/m1.5/fil11_stage_c_generative.png

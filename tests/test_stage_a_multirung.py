@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPERIMENTS = _REPO_ROOT / "experiments"
-_FIG_M25 = _REPO_ROOT / "figures" / "m2.5"
-_FIG_README = _FIG_M25 / "README.md"
-_RESULT_MD = _EXPERIMENTS / "m25_stage_a_result.md"
+_FIG_M15 = _REPO_ROOT / "figures" / "m1.5"
+_FIG_README = _FIG_M15 / "README.md"
+_RESULT_MD = _EXPERIMENTS / "m15_stage_a_result.md"
 
 # Spec / plan §4.1: six data-availability rungs under shared CRN.
 _EXPECTED_RUNGS: tuple[ScenarioId, ...] = ("P0", "P1", "F1", "F1s", "F2a", "F2")
@@ -29,7 +29,7 @@ _DEFAULT_MARGIN = 0.05
 
 # Module candidates for the indicative interface in .team/specs/T-016.md.
 _API_MODULES = (
-    "blueberries_voi.viz.m25",
+    "blueberries_voi.viz.m15",
     "blueberries_voi.viz.stage_a",
     "blueberries_voi.viz.fil11",
     "blueberries_voi.viz",
@@ -91,24 +91,24 @@ def test_stage_a_multi_result_schema_fields() -> None:
     assert not missing, f"StageAMultiResult missing fields: {sorted(missing)}"
 
 
-def test_run_m25_stage_a_exported() -> None:
-    fn = _resolve("run_m25_stage_a")
+def test_run_m15_stage_a_exported() -> None:
+    fn = _resolve("run_m15_stage_a")
     assert callable(fn)
 
 
-def test_run_m25_stage_a_default_rungs_cover_six_scenarios() -> None:
+def test_run_m15_stage_a_default_rungs_cover_six_scenarios() -> None:
     """Runnable experiment covers {P0, P1, F1, F1s, F2a, F2} by default."""
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     sig = inspect.signature(fn)
-    assert "rungs" in sig.parameters, "run_m25_stage_a must accept rungs="
+    assert "rungs" in sig.parameters, "run_m15_stage_a must accept rungs="
     default = sig.parameters["rungs"].default
     assert default is not inspect.Parameter.empty, "rungs must have a default"
     assert tuple(default) == _EXPECTED_RUNGS
 
 
-def test_run_m25_stage_a_default_contraction_margin() -> None:
+def test_run_m15_stage_a_default_contraction_margin() -> None:
     """Documented margin e.g. ≥5% SD contraction (plan §4.1 / spec)."""
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     sig = inspect.signature(fn)
     assert "contraction_margin" in sig.parameters
     default = sig.parameters["contraction_margin"].default
@@ -116,9 +116,9 @@ def test_run_m25_stage_a_default_contraction_margin() -> None:
     assert float(default) == pytest.approx(_DEFAULT_MARGIN)
 
 
-def test_run_m25_stage_a_accepts_shared_root_seed() -> None:
+def test_run_m15_stage_a_accepts_shared_root_seed() -> None:
     """Shared CRN: same root_seed / SIM-05 streams; only observation mask differs."""
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     sig = inspect.signature(fn)
     assert "root_seed" in sig.parameters
     assert sig.parameters["root_seed"].kind in (
@@ -147,7 +147,7 @@ def test_cohort_from_birth_metric_documented() -> None:
         text_blobs.append(str(doc_hook))
     if mod is not None:
         text_blobs.append(inspect.getdoc(mod) or "")
-        for attr in ("run_m25_stage_a", "StageARungResult", "StageAMultiResult"):
+        for attr in ("run_m15_stage_a", "StageARungResult", "StageAMultiResult"):
             obj = getattr(mod, attr, None)
             if obj is not None:
                 text_blobs.append(inspect.getdoc(obj) or "")
@@ -161,7 +161,7 @@ def test_cohort_from_birth_metric_documented() -> None:
     )
     assert has_metric_doc, (
         "T-016 requires a documented cohort-from-birth Stage A metric "
-        "(export COHORT_FROM_BIRTH_METRIC / STAGE_A_METRIC_DOC or document in viz.m25)"
+        "(export COHORT_FROM_BIRTH_METRIC / STAGE_A_METRIC_DOC or document in viz.m15)"
     )
     assert "oldest-slot" not in joined or "not oldest" in joined or "avoid" in joined, (
         "cohort-from-birth docs must not endorse oldest-slot-only as the Stage A metric"
@@ -213,9 +213,9 @@ def test_result_md_convention_and_p0_p1_fail_language() -> None:
     else:
         path = _RESULT_MD
 
-    # Contract: documented default path is experiments/m25_stage_a_result.md
-    assert path.name == "m25_stage_a_result.md", (
-        f"Stage A result MD must be named m25_stage_a_result.md, got {path.name!r}"
+    # Contract: documented default path is experiments/m15_stage_a_result.md
+    assert path.name == "m15_stage_a_result.md", (
+        f"Stage A result MD must be named m15_stage_a_result.md, got {path.name!r}"
     )
     assert "experiments" in path.parts, (
         f"Result MD must live under experiments/: {path}"
@@ -226,7 +226,7 @@ def test_result_md_convention_and_p0_p1_fail_language() -> None:
         # implementers lock the convention before running grids.
         assert path_hook is not None, (
             "Export STAGE_A_RESULT_MD_PATH pointing at "
-            "experiments/m25_stage_a_result.md "
+            "experiments/m15_stage_a_result.md "
             "(or publish that file with P0/P1 fail-allowed language)"
         )
         return
@@ -240,15 +240,15 @@ def test_result_md_convention_and_p0_p1_fail_language() -> None:
 
 
 def test_figures_readme_maps_stage_a_rungs() -> None:
-    """Figures land under figures/m2.5/ with README mapping figure → rung / FIL-11."""
+    """Figures land under figures/m1.5/ with README mapping figure → rung / FIL-11."""
     assert _FIG_README.is_file(), f"missing {_FIG_README}"
     body = _FIG_README.read_text(encoding="utf-8").lower()
     assert "stage a" in body or "stage_a" in body, (
-        "figures/m2.5/README.md must document Stage A multi-rung figures"
+        "figures/m1.5/README.md must document Stage A multi-rung figures"
     )
     for rung in _EXPECTED_RUNGS:
         assert rung.lower() in body, (
-            f"figures/m2.5/README.md must map figures to rung {rung}"
+            f"figures/m1.5/README.md must map figures to rung {rung}"
         )
     assert "fil-11" in body or "fil11" in body
 
@@ -256,7 +256,7 @@ def test_figures_readme_maps_stage_a_rungs() -> None:
 def test_no_voi_dollars_or_ctl_in_stage_a_surface() -> None:
     """Does not claim VOI dollars; no CTL code on the Stage A surface."""
     blobs: list[str] = []
-    for name in _API_MODULES[:2]:  # m25 / stage_a only (fil11 predates T-016)
+    for name in _API_MODULES[:2]:  # m15 / stage_a only (fil11 predates T-016)
         try:
             mod = importlib.import_module(name)
         except ImportError:
@@ -273,7 +273,7 @@ def test_no_voi_dollars_or_ctl_in_stage_a_surface() -> None:
     # without VOI/CTL claims — fail for missing surface first.
     if not blobs:
         pytest.fail(
-            "blueberries_voi.viz.m25 (or viz.stage_a) must exist for T-016 Stage A "
+            "blueberries_voi.viz.m15 (or viz.stage_a) must exist for T-016 Stage A "
             "surface; must not claim VOI dollars or include CTL code"
         )
 
@@ -284,20 +284,20 @@ def test_no_voi_dollars_or_ctl_in_stage_a_surface() -> None:
 
 
 def test_empty_rungs_rejected() -> None:
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     with pytest.raises((ValueError, TypeError)):
         fn(root_seed=0, rungs=())
 
 
 def test_unknown_rung_rejected() -> None:
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     with pytest.raises((ValueError, KeyError, TypeError)):
         fn(root_seed=0, rungs=("NOT_A_RUNG",))
 
 
 def test_contraction_margin_boundaries() -> None:
     """Margin must be in (0, 1); reject non-positive and ≥1."""
-    fn = _resolve("run_m25_stage_a")
+    fn = _resolve("run_m15_stage_a")
     with pytest.raises((ValueError, AssertionError)):
         fn(root_seed=0, rungs=("P0",), contraction_margin=0.0)
     with pytest.raises((ValueError, AssertionError)):

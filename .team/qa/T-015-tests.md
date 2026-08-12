@@ -11,7 +11,7 @@
 - Dynamic L follows configured max when joint fits → `tests/test_l_fallback.py::test_dynamic_l_follows_configured_max_when_joint_fits` — currently failing: no `backend_choice` (L=4 already kept on construct)
 - FIL-12=B not reopened; sliding_window is FIL-13 fallback → `tests/test_l_fallback.py::test_production_default_remains_full_joint_fil12_not_reopened` — currently failing: `choose_backend` not exported (`PRODUCTION_BACKEND` already `full_joint`)
 - Frozen `BackendChoice` record → `tests/test_l_fallback.py::test_backend_choice_type_is_frozen_structured_record` — currently failing: `BackendChoice` not exported
-- M2.5 experiments note (open-loop + long-dwell + fallback) → `tests/test_l_fallback.py::test_m25_l_remeasure_experiment_note_documents_fallback` — currently failing: `experiments/m25_l_remeasure.md` absent
+- M1.5 experiments note (open-loop + long-dwell + fallback) → `tests/test_l_fallback.py::test_m15_l_remeasure_experiment_note_documents_fallback` — currently failing: `experiments/m15_l_remeasure.md` absent
 - Budget lock (prod K/N) → `tests/test_l_fallback.py::test_joint_budget_boundary_l4_fits_l5_trips` — currently **passing**
 
 ## Not covered by tests

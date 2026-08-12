@@ -1,8 +1,8 @@
-"""Exercise M2.5 Stage A/B/oracle runners under tiny smoke budgets (coverage).
+"""Exercise M1.5 Stage A/B/oracle runners under tiny smoke budgets (coverage).
 
 Contract tests in ``test_stage_a_multirung`` / ``test_stage_b_oracle`` lock the
 API without running episodes. This module calls the real runners with
-cheap ``n_particles`` / horizon / ``n_reps`` so ``viz.m25`` paths stay under
+cheap ``n_particles`` / horizon / ``n_reps`` so ``viz.m15`` paths stay under
 the ≥80% coverage gate without huge grids. Behaviour of T-016/T-017 is
 unchanged.
 """
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from blueberries_voi.viz import m25
+from blueberries_voi.viz import m15
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -27,27 +27,27 @@ def fig_dir(tmp_path: Path) -> Path:
 
 
 def test_apply_b_state_and_mean_abs_age_error_helpers() -> None:
-    bel = m25.apply_b_state_belief(true_n=2, true_tau=1.5)
+    bel = m15.apply_b_state_belief(true_n=2, true_tau=1.5)
     assert bel.n == 2
     assert bel.tau == pytest.approx(1.5)
-    assert m25.mean_abs_age_error(bel, true_n=2, true_tau=1.5) == pytest.approx(0.0)
-    assert m25.mean_abs_age_error(bel, true_n=2, true_tau=2.5) == pytest.approx(1.0)
-    assert m25.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=1.0, f2_vs_b_state=0.1)
-    assert not m25.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.1, f2_vs_b_state=1.0)
+    assert m15.mean_abs_age_error(bel, true_n=2, true_tau=1.5) == pytest.approx(0.0)
+    assert m15.mean_abs_age_error(bel, true_n=2, true_tau=2.5) == pytest.approx(1.0)
+    assert m15.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=1.0, f2_vs_b_state=0.1)
+    assert not m15.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.1, f2_vs_b_state=1.0)
     # Degenerate P1 gap ≤ 0: only pass when F2 is no worse.
-    assert m25.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.0, f2_vs_b_state=0.0)
-    assert not m25.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.0, f2_vs_b_state=0.1)
+    assert m15.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.0, f2_vs_b_state=0.0)
+    assert not m15.oracle_gap_f2_much_less_than_p1(p1_vs_b_state=0.0, f2_vs_b_state=0.1)
 
 
 def test_assert_oracle_gap_requires_p1_and_f2_rows() -> None:
-    row = m25.OracleGapRow(scenario="P1", mean_abs_age_error=1.0, vs_b_state=1.0)
+    row = m15.OracleGapRow(scenario="P1", mean_abs_age_error=1.0, vs_b_state=1.0)
     with pytest.raises(ValueError, match="P1 and F2"):
-        m25.assert_oracle_gap_f2_ll_p1([row])
+        m15.assert_oracle_gap_f2_ll_p1([row])
 
 
-def test_run_m25_stage_a_smoke_exercises_filter_and_figure(fig_dir: Path) -> None:
+def test_run_m15_stage_a_smoke_exercises_filter_and_figure(fig_dir: Path) -> None:
     """One shared episode, two rungs — covers ``_filter_rung`` + figure write."""
-    result = m25.run_m25_stage_a(
+    result = m15.run_m15_stage_a(
         root_seed=0,
         rungs=("P1", "F2"),
         contraction_margin=0.05,
@@ -61,15 +61,15 @@ def test_run_m25_stage_a_smoke_exercises_filter_and_figure(fig_dir: Path) -> Non
     assert result.figure_dir == fig_dir
     assert len(result.rows) == 2
     assert {r.scenario for r in result.rows} == {"P1", "F2"}
-    assert (fig_dir / "m25_stage_a_rung_map.png").is_file()
+    assert (fig_dir / "m15_stage_a_rung_map.png").is_file()
     for row in result.rows:
         assert row.prior_sd >= 0.0
         assert row.posterior_sd >= 0.0
 
 
-def test_run_m25_stage_b_smoke_diagnostic_and_pass_labels(fig_dir: Path) -> None:
+def test_run_m15_stage_b_smoke_diagnostic_and_pass_labels(fig_dir: Path) -> None:
     """Tiny Stage B: A-fail → diagnostic_only; A-pass → not diagnostic."""
-    rows = m25.run_m25_stage_b(
+    rows = m15.run_m15_stage_b(
         root_seed=0,
         rungs=("P1", "F2"),
         stage_a_pass={"P1": False, "F2": True},
@@ -90,9 +90,9 @@ def test_run_m25_stage_b_smoke_diagnostic_and_pass_labels(fig_dir: Path) -> None
     assert by["F2"].figure_path.is_file()
 
 
-def test_run_m25_stage_b_unmarked_stage_a_is_diagnostic(fig_dir: Path) -> None:
+def test_run_m15_stage_b_unmarked_stage_a_is_diagnostic(fig_dir: Path) -> None:
     """``stage_a_pass=None`` → conservative diagnostic-only for all rungs."""
-    rows = m25.run_m25_stage_b(
+    rows = m15.run_m15_stage_b(
         root_seed=1,
         rungs=("P0",),
         stage_a_pass=None,
@@ -108,8 +108,8 @@ def test_run_m25_stage_b_unmarked_stage_a_is_diagnostic(fig_dir: Path) -> None:
     assert rows[0].diagnostic_only is True
 
 
-def test_run_m25_oracle_ladder_smoke_writes_figure(fig_dir: Path) -> None:
-    rows = m25.run_m25_oracle_ladder(
+def test_run_m15_oracle_ladder_smoke_writes_figure(fig_dir: Path) -> None:
+    rows = m15.run_m15_oracle_ladder(
         root_seed=0,
         compare=("P1", "F2"),
         figures_dir=fig_dir,
@@ -124,16 +124,16 @@ def test_run_m25_oracle_ladder_smoke_writes_figure(fig_dir: Path) -> None:
     by = {r.scenario: r for r in rows}
     assert by["P1"].mean_abs_age_error >= 0.0
     assert by["F2"].mean_abs_age_error >= 0.0
-    assert (fig_dir / "m25_oracle_ladder_gap.png").is_file()
+    assert (fig_dir / "m15_oracle_ladder_gap.png").is_file()
 
 
-def test_run_m25_stage_b_write_md_embeds_oracle_gap(
+def test_run_m15_stage_b_write_md_embeds_oracle_gap(
     fig_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``write_md=True`` covers Stage B MD + nested oracle ladder."""
-    md_path = tmp_path / "m25_stage_b_smoke.md"
-    monkeypatch.setattr(m25, "STAGE_B_RESULT_MD_PATH", md_path)
-    rows = m25.run_m25_stage_b(
+    md_path = tmp_path / "m15_stage_b_smoke.md"
+    monkeypatch.setattr(m15, "STAGE_B_RESULT_MD_PATH", md_path)
+    rows = m15.run_m15_stage_b(
         root_seed=0,
         rungs=("F2",),
         stage_a_pass={"F2": True},
@@ -155,9 +155,9 @@ def test_run_m25_stage_b_write_md_embeds_oracle_gap(
 def test_write_stage_b_md_gap_fail_and_empty_branches(tmp_path: Path) -> None:
     """Direct MD helper: missing gap table + failing F2≪P1 wording."""
     path_empty = tmp_path / "empty_gap.md"
-    m25._write_stage_b_md(
+    m15._write_stage_b_md(
         [
-            m25.StageBRungResult(
+            m15.StageBRungResult(
                 scenario="P1",
                 coverage_90=0.9,
                 diagnostic_only=True,
@@ -169,13 +169,13 @@ def test_write_stage_b_md_gap_fail_and_empty_branches(tmp_path: Path) -> None:
         path=path_empty,
     )
     empty_text = path_empty.read_text(encoding="utf-8")
-    assert "run_m25_oracle_ladder" in empty_text
+    assert "run_m15_oracle_ladder" in empty_text
 
     path_fail = tmp_path / "fail_gap.md"
     bad_gap = [
-        m25.OracleGapRow(scenario="P1", mean_abs_age_error=0.1, vs_b_state=0.1),
-        m25.OracleGapRow(scenario="F2", mean_abs_age_error=1.0, vs_b_state=1.0),
+        m15.OracleGapRow(scenario="P1", mean_abs_age_error=0.1, vs_b_state=0.1),
+        m15.OracleGapRow(scenario="F2", mean_abs_age_error=1.0, vs_b_state=1.0),
     ]
-    m25._write_stage_b_md([], bad_gap, root_seed=0, path=path_fail)
+    m15._write_stage_b_md([], bad_gap, root_seed=0, path=path_fail)
     fail_text = path_fail.read_text(encoding="utf-8")
     assert "FAIL" in fail_text

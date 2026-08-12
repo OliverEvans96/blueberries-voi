@@ -1,4 +1,4 @@
-"""M2.5 multi-rung Stage A/B and B-state oracle ladder (FIL-11) under shared CRN.
+"""M1.5 multi-rung Stage A/B and B-state oracle ladder (FIL-11) under shared CRN.
 
 Stage A cohort-from-birth metric: arrival-age SD on a **tracked birth-lot
 slot** (first scored delivery, shifted left on later arrivals, re-anchored if
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[3]
-FIG_M25 = ROOT / "figures" / "m2.5"
+FIG_M15 = ROOT / "figures" / "m1.5"
 EXPERIMENTS = ROOT / "experiments"
 
 DEFAULT_STAGE_A_RUNGS: tuple[ScenarioId, ...] = (
@@ -57,7 +57,7 @@ DEFAULT_STAGE_A_RUNGS: tuple[ScenarioId, ...] = (
     "F2",
 )
 STAGE_B_DEFAULT_RUNGS: tuple[ScenarioId, ...] = DEFAULT_STAGE_A_RUNGS
-M25_STAGE_B_RUNGS: tuple[ScenarioId, ...] = STAGE_B_DEFAULT_RUNGS
+M15_STAGE_B_RUNGS: tuple[ScenarioId, ...] = STAGE_B_DEFAULT_RUNGS
 _KNOWN_RUNGS: frozenset[str] = frozenset(DEFAULT_STAGE_A_RUNGS)
 
 # Documented Stage A metric (plan §4.1 / T-016): birth-lot arrival age SD.
@@ -77,7 +77,7 @@ STAGE_A_PASS_FAIL_NARRATIVE: str = (
     "identify age better than totals."
 )
 
-STAGE_A_RESULT_MD_PATH: Path = EXPERIMENTS / "m25_stage_a_result.md"
+STAGE_A_RESULT_MD_PATH: Path = EXPERIMENTS / "m15_stage_a_result.md"
 
 # Stage B pass language (plan §4.2): coverage band re-exported from fil11.
 # Ranks must not be strongly U-shaped or dome-shaped.
@@ -96,8 +96,8 @@ STAGE_B_PASS_FAIL_NARRATIVE: str = (
     "ranks are not strongly U-shaped or dome-shaped. On rungs that Stage A "
     "failed, Stage B is diagnostic only (same pattern as M1 post-A-fail)."
 )
-STAGE_B_RESULT_MD_PATH: Path = EXPERIMENTS / "m25_stage_b_result.md"
-ORACLE_GAP_MD_PATH: Path = EXPERIMENTS / "m25_stage_b_result.md"
+STAGE_B_RESULT_MD_PATH: Path = EXPERIMENTS / "m15_stage_b_result.md"
+ORACLE_GAP_MD_PATH: Path = EXPERIMENTS / "m15_stage_b_result.md"
 
 # Shared-CRN oracle ladder: F2 vs B-state must be much smaller than P1.
 ORACLE_GAP_F2_VS_P1_MAX_RATIO: float = 0.5
@@ -176,7 +176,7 @@ def _filter_rung(
     mask = mask_for(scenario)
     rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
     rbpf._root_seed = root_seed
-    rbpf._run_id = f"m25_a_{scenario}"
+    rbpf._run_id = f"m15_a_{scenario}"
     rng = np.random.default_rng(root_seed + 17)
     rbpf.initialize(rng, L=L)
     assert rbpf._state is not None
@@ -233,13 +233,13 @@ def _write_rung_map_figure(
     ax.set_title(f"FIL-11 Stage A multi-rung map (≥{100 * margin:.0f}% contraction)")
     ax.legend(fontsize=8)
     fig.tight_layout()
-    path = figure_dir / "m25_stage_a_rung_map.png"
+    path = figure_dir / "m15_stage_a_rung_map.png"
     fig.savefig(path, dpi=120)
     plt.close(fig)
     return path
 
 
-def run_m25_stage_a(
+def run_m15_stage_a(
     *,
     root_seed: int = 0,
     rungs: Sequence[ScenarioId] = DEFAULT_STAGE_A_RUNGS,
@@ -266,7 +266,7 @@ def run_m25_stage_a(
     ep = run_episode(
         params,
         root_seed=root_seed,
-        run_id="m25_stage_a",
+        run_id="m15_stage_a",
         n_burn=n_burn,
         n_score=n_score,
         shipments=ships,
@@ -280,7 +280,7 @@ def run_m25_stage_a(
     prior_sd = _spread(prior_full, grid)
     prior_tight_sd = _spread(prior_tight, grid)
     margin = float(contraction_margin)
-    out_dir = figures_dir or FIG_M25
+    out_dir = figures_dir or FIG_M15
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows: list[StageARungResult] = []
@@ -471,14 +471,14 @@ def _calibrate_rung(
         ep = run_episode(
             params,
             root_seed=seed,
-            run_id=f"m25_b_{scenario}_{rep}",
+            run_id=f"m15_b_{scenario}_{rep}",
             n_burn=n_burn,
             n_score=n_score,
             shipments=ships,
         )
         rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
         rbpf._root_seed = seed
-        rbpf._run_id = f"m25_b_{scenario}_{rep}"
+        rbpf._run_id = f"m15_b_{scenario}_{rep}"
         rng = np.random.default_rng(seed + 19)
         rbpf.initialize(rng, L=L)
 
@@ -522,14 +522,14 @@ def _calibrate_rung(
 
     coverage = float(np.mean(covers)) if covers else 0.0
     figure_dir.mkdir(parents=True, exist_ok=True)
-    path = figure_dir / f"m25_stage_b_{scenario}_rank.png"
+    path = figure_dir / f"m15_stage_b_{scenario}_rank.png"
     if write_figure:
         fig, ax = plt.subplots(figsize=(6.0, 4.0))
         ax.hist(ranks, bins=10, range=(0, 1), color="#2a6f97", edgecolor="white")
         ax.axhline(max(n_reps, 1) / 10.0, color="k", ls="--", lw=1, label="uniform")
         ax.set_xlabel("Posterior rank of true age")
         ax.set_title(
-            f"M2.5 Stage B {scenario} — 90% CI coverage={coverage:.2f} "
+            f"M1.5 Stage B {scenario} — 90% CI coverage={coverage:.2f} "
             f"(N={n_particles}, K={K}, R={n_reps})"
         )
         ax.legend(fontsize=8)
@@ -547,10 +547,10 @@ def _write_stage_b_md(
     path: Path,
 ) -> None:
     lines = [
-        "# M2.5 Stage B — multi-rung calibration + oracle ladder",
+        "# M1.5 Stage B — multi-rung calibration + oracle ladder",
         "",
-        "Library: `blueberries_voi.viz.m25.run_m25_stage_b` / "
-        "`run_m25_oracle_ladder` (T-017).",
+        "Library: `blueberries_voi.viz.m15.run_m15_stage_b` / "
+        "`run_m15_oracle_ladder` (T-017).",
         f"Shared `root_seed={root_seed}`; only the observation mask differs by rung.",
         "",
         "## Pass language",
@@ -606,14 +606,14 @@ def _write_stage_b_md(
             lines.append(f"Gap check: **FAIL** ({exc}).")
     else:
         lines.append(
-            "Run `run_m25_oracle_ladder` to fill the F2/P1 vs B-state gap table."
+            "Run `run_m15_oracle_ladder` to fill the F2/P1 vs B-state gap table."
         )
     lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def run_m25_stage_b(
+def run_m15_stage_b(
     *,
     root_seed: int = 0,
     rungs: Sequence[ScenarioId] = STAGE_B_DEFAULT_RUNGS,
@@ -636,7 +636,7 @@ def run_m25_stage_b(
     a_pass = _resolve_stage_a_pass(stage_a_pass=stage_a_pass, rung_ids=rung_ids)
     params = ModelParams()
     ships = load_abdella_shipments(ROOT / "data" / "abdella")
-    out_dir = figures_dir or FIG_M25
+    out_dir = figures_dir or FIG_M15
     out_dir.mkdir(parents=True, exist_ok=True)
     K = _SMOKE_K
     L = _SMOKE_L
@@ -667,7 +667,7 @@ def run_m25_stage_b(
         )
 
     if write_md:
-        gap = run_m25_oracle_ladder(
+        gap = run_m15_oracle_ladder(
             root_seed=root_seed,
             n_particles=n_particles,
             n_reps=min(n_reps, _SMOKE_ORACLE_REPS),
@@ -708,14 +708,14 @@ def _mean_abs_age_error_for_scenario(
         ep = run_episode(
             params,
             root_seed=seed,
-            run_id=f"m25_oracle_{scenario}_{rep}",
+            run_id=f"m15_oracle_{scenario}_{rep}",
             n_burn=n_burn,
             n_score=n_score,
             shipments=ships,
         )
         rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
         rbpf._root_seed = seed
-        rbpf._run_id = f"m25_oracle_{scenario}_{rep}"
+        rbpf._run_id = f"m15_oracle_{scenario}_{rep}"
         rng = np.random.default_rng(seed + 23)
         rbpf.initialize(rng, L=L)
 
@@ -739,7 +739,7 @@ def _validate_oracle_compare(compare: Sequence[str]) -> tuple[ScenarioId, ...]:
     return _validate_rungs([str(c) for c in compare])
 
 
-def run_m25_oracle_ladder(
+def run_m15_oracle_ladder(
     *,
     root_seed: int,
     compare: Sequence[ScenarioId] = ("P1", "F2"),
@@ -759,7 +759,7 @@ def run_m25_oracle_ladder(
     scenarios = _validate_oracle_compare([str(c) for c in compare])
     params = ModelParams()
     ships = load_abdella_shipments(ROOT / "data" / "abdella")
-    out_dir = figures_dir or FIG_M25
+    out_dir = figures_dir or FIG_M15
     out_dir.mkdir(parents=True, exist_ok=True)
     K = _SMOKE_K
     L = _SMOKE_L
@@ -796,9 +796,9 @@ def run_m25_oracle_ladder(
         ax.bar(labels, vals, color="#2b6cb0")
         ax.axhline(0.0, color="k", lw=0.5)
         ax.set_ylabel("Mean abs age error vs B-state")
-        ax.set_title(f"M2.5 oracle ladder (root_seed={root_seed})")
+        ax.set_title(f"M1.5 oracle ladder (root_seed={root_seed})")
         fig.tight_layout()
-        fig_path = out_dir / "m25_oracle_ladder_gap.png"
+        fig_path = out_dir / "m15_oracle_ladder_gap.png"
         fig.savefig(fig_path, dpi=120)
         plt.close(fig)
 
@@ -813,7 +813,7 @@ __all__ = [
     "B_STATE_AGE_ERROR_IS_ZERO",
     "COHORT_FROM_BIRTH_METRIC",
     "DEFAULT_STAGE_A_RUNGS",
-    "M25_STAGE_B_RUNGS",
+    "M15_STAGE_B_RUNGS",
     "ORACLE_COMPARE_DEFAULT",
     "ORACLE_GAP_F2_VS_P1_MAX_RATIO",
     "ORACLE_GAP_MD_PATH",
@@ -837,7 +837,7 @@ __all__ = [
     "b_state_mean_abs_age_error",
     "mean_abs_age_error",
     "oracle_gap_f2_much_less_than_p1",
-    "run_m25_oracle_ladder",
-    "run_m25_stage_a",
-    "run_m25_stage_b",
+    "run_m15_oracle_ladder",
+    "run_m15_stage_a",
+    "run_m15_stage_b",
 ]

@@ -218,7 +218,7 @@ Once a **real** joint (and real W / mean-field) update exists, do **not** reuse 
 1. **Implement real W (and true joint) semantics** — current stubs cannot settle approximation quality.
 2. **Remeasure L under the intended controller** (and delivery cadence); open-loop S=60 is not the final policy world. Combo μ=15/σ=0.2/S=120 already reaches max L=13.
 3. **Do not trust TV≈0** from the bakeoff as accuracy evidence.
-4. **Dynamic L vs `PRODUCTION_L=3`:** long-dwell cells hit L≈7–8 while the filter still tracks 3 slots — escalate toward dynamic L + guard→sliding_window fallback (related ADRs/plans exist under M2.5; do not weaken the guard).
+4. **Dynamic L vs `PRODUCTION_L=3`:** long-dwell cells hit L≈7–8 while the filter still tracks 3 slots — escalate toward dynamic L + guard→sliding_window fallback (related ADRs/plans exist under M1.5; do not weaken the guard).
 5. **Stage A / FIL-11** remains a separate honesty/verification track; P1 Stage A fail under defaults is documented and not a FIL-13 reopen by itself.
 6. If guard trips in production-like regimes → **reopen ADR 0082 toward A**, possibly with smaller K per ADR 0083 note.
 

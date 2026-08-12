@@ -151,7 +151,7 @@ class ObsMask:
 
 
 def mask_for(scenario: ScenarioId | str) -> ObsMask:
-    """Return the ObsMask for a settled M2.5 scenario id.
+    """Return the ObsMask for a settled M1.5 scenario id.
 
     SCN-B-state is a verification bypass (true state → belief identity), not an
     observation mask that fabricates fields — calling ``mask_for("B-state")``

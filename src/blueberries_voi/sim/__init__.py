@@ -57,7 +57,7 @@ class DayLog:
     order_qty: int
     demand: int
     L: int
-    # M2.5 rich emit (SIM-04): per-lot maps + delivery receipt metadata.
+    # M1.5 rich emit (SIM-04): per-lot maps + delivery receipt metadata.
     sales_by_lot: dict[int, int] = field(default_factory=dict)
     waste_by_lot: dict[int, int] = field(default_factory=dict)
     age_at_receipt: float | None = None

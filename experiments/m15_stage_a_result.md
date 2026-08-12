@@ -1,6 +1,6 @@
-# M2.5 Stage A — multi-rung (shared CRN)
+# M1.5 Stage A — multi-rung (shared CRN)
 
-Library: `blueberries_voi.viz.m25.run_m25_stage_a` (T-016; F2a emit T-019).
+Library: `blueberries_voi.viz.m15.run_m15_stage_a` (T-016; F2a emit T-019).
 Metric: **cohort-from-birth** arrival-age SD on a tracked birth-lot slot after ≥1
 post-birth day (avoids oldest-slot-only artifacts). Default contraction margin
 5%. Shared `root_seed`; only the observation mask differs by rung.
@@ -8,7 +8,7 @@ post-birth day (avoids oldest-slot-only artifacts). Default contraction margin
 ## Honesty
 
 - **P0/P1 FAIL is allowed** under defaults if documented (optional gate; not an
-  M2.5 blocker alone).
+  M1.5 blocker alone).
 - **F2a/F2 should PASS.** If they fail, treat as **needs-human** — do not paper
   over.
 - F1/F1s should improve vs P1 when lot-resolved observations identify age

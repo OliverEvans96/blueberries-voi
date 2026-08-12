@@ -12,7 +12,7 @@ from blueberries_voi.viz.fil11 import STAGE_C_TV_TOL, run_fil11_stage_c
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTE = ROOT / "experiments" / "fil11_stage_c_result.md"
-FIG = ROOT / "figures" / "m2.5"
+FIG = ROOT / "figures" / "m1.5"
 
 
 def main() -> None:

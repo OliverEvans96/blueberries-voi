@@ -1,4 +1,4 @@
-"""T-018 M2.5 close-out - RED / Definition-of-Done contract checks.
+"""T-018 M1.5 close-out - RED / Definition-of-Done contract checks.
 
 Asserts plan §9 / `.team/specs/T-018.md` process artifacts exist and are signed.
 Does not implement product features; fails until close-out documentation lands.
@@ -18,11 +18,11 @@ _QA = _TEAM / "qa"
 _REVIEWS = _TEAM / "reviews"
 _CHANGELOG = _TEAM / "changelog.md"
 _BACKLOG = _TEAM / "backlog.md"
-_PLAN = _TEAM / "plans" / "M2.5-filter-complete.md"
+_PLAN = _TEAM / "plans" / "M1.5-filter-complete.md"
 _SRC = _REPO_ROOT / "src" / "blueberries_voi"
 
-# Implementation tickets that must be closed for M2.5 DoD (T-018 AC).
-_M25_TICKETS: tuple[str, ...] = tuple(f"T-{n:03d}" for n in range(9, 18))
+# Implementation tickets that must be closed for M1.5 DoD (T-018 AC).
+_M15_TICKETS: tuple[str, ...] = tuple(f"T-{n:03d}" for n in range(9, 18))
 
 _PASS_STATUS = re.compile(
     r"^STATUS:\s*(?:PASS|GREEN|APPROVED)\b",
@@ -90,7 +90,7 @@ def _review_paths_covering(ticket: str) -> list[Path]:
     """Reviews whose *subject* is this ticket (not incidental body mentions).
 
     Accepts per-ticket / combined filenames (``T-012.md``, ``T-009-T-010.md``)
-    or an APPROVED M2.5 / T-018 close-out review that explicitly lists the ticket
+    or an APPROVED M1.5 / T-018 close-out review that explicitly lists the ticket
     (or claims coverage of T-009-T-017).
     """
     found: list[Path] = []
@@ -105,10 +105,10 @@ def _review_paths_covering(ticket: str) -> list[Path]:
             found.append(path)
             continue
         stem_u = path.stem.upper().replace("_", "-")
-        if stem_u not in {"M2.5", "M25", "T-018"}:
+        if stem_u not in {"M1.5", "M15", "T-018"}:
             continue
         text = path.read_text(encoding="utf-8")
-        if not re.search(r"\bM2\.5\b", text):
+        if not re.search(r"\bM1\.5\b", text):
             continue
         # Close-out must explicitly cover this ticket or the full T-009-T-017 span.
         covers = bool(
@@ -129,12 +129,12 @@ def _closeout_dod_candidates() -> list[Path]:
     without being the signed checklist.
     """
     names = (
-        "M2.5.md",
-        "M25.md",
+        "M1.5.md",
+        "M15.md",
         "T-018.md",
-        "M2.5-closeout.md",
-        "M2.5-dod.md",
-        "m25-closeout.md",
+        "M1.5-closeout.md",
+        "M1.5-dod.md",
+        "m15-closeout.md",
     )
     out: list[Path] = []
     for name in names:
@@ -155,23 +155,23 @@ def _closeout_dod_candidates() -> list[Path]:
     return list(dict.fromkeys(out))
 
 
-def _changelog_m25_entry() -> str | None:
-    """Return the changelog block that looks like the M2.5 close-out entry."""
+def _changelog_m15_entry() -> str | None:
+    """Return the changelog block that looks like the M1.5 close-out entry."""
     if not _CHANGELOG.is_file():
         return None
     text = _CHANGELOG.read_text(encoding="utf-8")
-    # Prefer an explicit M2.5 heading or bullet.
-    if re.search(r"^##\s+.*M2\.5", text, re.I | re.M):
+    # Prefer an explicit M1.5 heading or bullet.
+    if re.search(r"^##\s+.*M1\.5", text, re.I | re.M):
         # Capture from that heading to next ## or EOF
-        m = re.search(r"^##\s+.*M2\.5.*$", text, re.I | re.M)
+        m = re.search(r"^##\s+.*M1\.5.*$", text, re.I | re.M)
         assert m is not None
         rest = text[m.start() :]
         nxt = re.search(r"^##\s+", rest[3:], re.M)
         return rest if nxt is None else rest[: nxt.start() + 3]
-    # Single preferred client-facing entry mentioning M2.5
+    # Single preferred client-facing entry mentioning M1.5
     bullets = []
     for line in text.splitlines():
-        if re.search(r"M2\.5|filter complete|data-availability rung", line, re.I):
+        if re.search(r"M1\.5|filter complete|data-availability rung", line, re.I):
             bullets.append(line)
     if bullets:
         return "\n".join(bullets)
@@ -183,9 +183,9 @@ def _changelog_m25_entry() -> str | None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ticket", _M25_TICKETS)
-def test_m25_ticket_spec_acceptance_criteria_done_or_waived(ticket: str) -> None:
-    """Each M2.5 implementation ticket's AC checkboxes are [x], or Oliver-waived."""
+@pytest.mark.parametrize("ticket", _M15_TICKETS)
+def test_m15_ticket_spec_acceptance_criteria_done_or_waived(ticket: str) -> None:
+    """Each M1.5 implementation ticket's AC checkboxes are [x], or Oliver-waived."""
     path = _SPECS / f"{ticket}.md"
     assert path.is_file(), f"missing spec {path}"
     items = _ac_checkboxes(_read(path))
@@ -201,16 +201,16 @@ def test_m25_ticket_spec_acceptance_criteria_done_or_waived(ticket: str) -> None
 
 
 # ---------------------------------------------------------------------------
-# AC: .team/qa/ green for M2.5 tickets; no open RED without needs-human
+# AC: .team/qa/ green for M1.5 tickets; no open RED without needs-human
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ticket", _M25_TICKETS)
-def test_m25_ticket_qa_record_green(ticket: str) -> None:
+@pytest.mark.parametrize("ticket", _M15_TICKETS)
+def test_m15_ticket_qa_record_green(ticket: str) -> None:
     """Primary QA record exists and STATUS is PASS/GREEN (not RED)."""
     path = _primary_qa(ticket)
     assert path is not None, (
-        f"missing .team/qa/{ticket}.md - M2.5 close-out requires a green QA record"
+        f"missing .team/qa/{ticket}.md - M1.5 close-out requires a green QA record"
     )
     text = _read(path)
     if _RED_STATUS.search(text):
@@ -232,14 +232,14 @@ def test_m25_ticket_qa_record_green(ticket: str) -> None:
         )
         return
     assert _PASS_STATUS.search(text), (
-        f"{path} must have STATUS: PASS or GREEN for M2.5 close-out"
+        f"{path} must have STATUS: PASS or GREEN for M1.5 close-out"
     )
 
 
 def test_no_open_red_qa_blockers_without_needs_human() -> None:
-    """Any RED QA under M2.5 tickets must carry needs-human (file or backlog)."""
+    """Any RED QA under M1.5 tickets must carry needs-human (file or backlog)."""
     blockers: list[str] = []
-    for ticket in _M25_TICKETS:
+    for ticket in _M15_TICKETS:
         path = _primary_qa(ticket)
         if path is None:
             blockers.append(f"{ticket}: missing qa record")
@@ -268,13 +268,13 @@ def test_no_open_red_qa_blockers_without_needs_human() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ticket", _M25_TICKETS)
-def test_m25_ticket_review_approved(ticket: str) -> None:
-    """Each ticket has an APPROVED review (per-ticket, combined, or M2.5 close-out)."""
+@pytest.mark.parametrize("ticket", _M15_TICKETS)
+def test_m15_ticket_review_approved(ticket: str) -> None:
+    """Each ticket has an APPROVED review (per-ticket, combined, or M1.5 close-out)."""
     paths = _review_paths_covering(ticket)
     assert paths, (
         f"no .team/reviews/ artifact covering {ticket} "
-        f"(need STATUS: APPROVED per-ticket or M2.5 close-out review)"
+        f"(need STATUS: APPROVED per-ticket or M1.5 close-out review)"
     )
     approved = [p for p in paths if _APPROVED.search(p.read_text(encoding="utf-8"))]
     assert approved, (
@@ -284,17 +284,17 @@ def test_m25_ticket_review_approved(ticket: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: changelog plain-English M2.5 entry (client voice)
+# AC: changelog plain-English M1.5 entry (client voice)
 # ---------------------------------------------------------------------------
 
 
-def test_changelog_has_m25_client_voice_entry() -> None:
-    """Changelog has an M2.5 entry: rungs/obs, physics-honest LL, P0/P1 caveats."""
+def test_changelog_has_m15_client_voice_entry() -> None:
+    """Changelog has an M1.5 entry: rungs/obs, physics-honest LL, P0/P1 caveats."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
-    entry = _changelog_m25_entry()
+    entry = _changelog_m15_entry()
     assert entry is not None, (
-        ".team/changelog.md must include a plain-English M2.5 close-out entry "
-        "(prefer one client-facing M2.5 section or bullet)"
+        ".team/changelog.md must include a plain-English M1.5 close-out entry "
+        "(prefer one client-facing M1.5 section or bullet)"
     )
     lowered = entry.lower()
     # What the filter can observe per rung
@@ -310,7 +310,7 @@ def test_changelog_has_m25_client_voice_entry() -> None:
             "data-availability",
             "data availability",
         )
-    ), "M2.5 changelog entry must describe what the filter can observe per rung"
+    ), "M1.5 changelog entry must describe what the filter can observe per rung"
     # Likelihood matches sim physics
     assert any(
         tok in lowered
@@ -322,12 +322,12 @@ def test_changelog_has_m25_client_voice_entry() -> None:
             "honest",
             "generative",
         )
-    ), "M2.5 changelog entry must say likelihood matches sim physics / honest LL"
+    ), "M1.5 changelog entry must say likelihood matches sim physics / honest LL"
     # Honest P0/P1 caveats if Stage A failed there
     assert ("p0" in lowered or "p1" in lowered) and any(
         tok in lowered
         for tok in ("fail", "caveat", "not", "did not", "still", "honest", "negative")
-    ), "M2.5 changelog entry must include honest P0/P1 Stage A caveats when applicable"
+    ), "M1.5 changelog entry must include honest P0/P1 Stage A caveats when applicable"
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +340,7 @@ def test_dod_checklist_copied_and_checked() -> None:
     assert _PLAN.is_file(), f"missing plan {_PLAN}"
     candidates = _closeout_dod_candidates()
     assert candidates, (
-        "Copy plan §9 Definition of done into .team/reviews/ (e.g. M2.5.md / T-018.md) "
+        "Copy plan §9 Definition of done into .team/reviews/ (e.g. M1.5.md / T-018.md) "
         "or a close-out note with each DoD item checked"
     )
 
@@ -402,7 +402,7 @@ def test_dod_checklist_copied_and_checked() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_no_production_ctl_voi_browser_under_m25() -> None:
+def test_no_production_ctl_voi_browser_under_m15() -> None:
     """Controller/VOI remain stubs; no browser package landed under this milestone."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
@@ -412,10 +412,10 @@ def test_no_production_ctl_voi_browser_under_m25() -> None:
     ctrl_text = controller.read_text(encoding="utf-8")
     voi_text = voi.read_text(encoding="utf-8")
     assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", ctrl_text), (
-        "controller package must remain an empty stub for M2.5 (no CTL production API)"
+        "controller package must remain an empty stub for M1.5 (no CTL production API)"
     )
     assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
-        "voi package must remain an empty stub for M2.5 (no VOI sweep API)"
+        "voi package must remain an empty stub for M1.5 (no VOI sweep API)"
     )
 
     # No extra production modules under controller/ or voi/
@@ -427,29 +427,29 @@ def test_no_production_ctl_voi_browser_under_m25() -> None:
             p for p in pkg.rglob("*.py") if p.name != "__init__.py" and p.is_file()
         ]
         assert not extras, (
-            f"M2.5 non-goal: no {label} production modules; found "
+            f"M1.5 non-goal: no {label} production modules; found "
             + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in extras)
         )
 
     browser_hits = list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
-    assert not browser_hits, "M2.5 non-goal: no browser modules; found " + ", ".join(
+    assert not browser_hits, "M1.5 non-goal: no browser modules; found " + ", ".join(
         str(p.relative_to(_REPO_ROOT)) for p in browser_hits
     )
 
 
-def test_m25_milestone_claims_do_not_assert_ctl_voi_shipped() -> None:
-    """Close-out / changelog must not claim CTL or VOI sweep shipped in M2.5."""
+def test_m15_milestone_claims_do_not_assert_ctl_voi_shipped() -> None:
+    """Close-out / changelog must not claim CTL or VOI sweep shipped in M1.5."""
     blobs: list[str] = []
     if _CHANGELOG.is_file():
-        entry = _changelog_m25_entry()
+        entry = _changelog_m15_entry()
         if entry:
             blobs.append(entry)
     for path in _closeout_dod_candidates():
         blobs.append(path.read_text(encoding="utf-8"))
     if not blobs:
         pytest.fail(
-            "No M2.5 changelog/close-out text yet - required before asserting "
-            "non-claims; add changelog M2.5 entry and DoD note first"
+            "No M1.5 changelog/close-out text yet - required before asserting "
+            "non-claims; add changelog M1.5 entry and DoD note first"
         )
     joined = "\n".join(blobs).lower()
     verbs = r"shipped|landed|implemented|added"
@@ -465,7 +465,7 @@ def test_m25_milestone_claims_do_not_assert_ctl_voi_shipped() -> None:
         if re.search(r"\b(?:no|not|without|non-goal|never|exclude)\b", window):
             continue
         pytest.fail(
-            "M2.5 close-out text must not claim CTL/VOI/browser shipped: "
+            "M1.5 close-out text must not claim CTL/VOI/browser shipped: "
             f"{m.group(0)!r}"
         )
 
@@ -479,7 +479,7 @@ def test_plan_section_9_dod_still_present() -> None:
     """Guard: plan §9 Definition of done section exists for checklist copy source."""
     text = _read(_PLAN)
     assert re.search(r"^##\s+9\.\s+Definition of done", text, re.M), (
-        "M2.5 plan must retain §9 Definition of done as the close-out checklist source"
+        "M1.5 plan must retain §9 Definition of done as the close-out checklist source"
     )
     for theme in ("RichObs", "DayLog", "Stage C", "Stage A", "sliding_window"):
         assert theme in text, (

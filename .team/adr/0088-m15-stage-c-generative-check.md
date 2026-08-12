@@ -2,8 +2,8 @@
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
-BOARD-ID: FIL-11 (M2.5 elaboration of Stage C)
-MILESTONE: M2.5 — filter complete across data-availability rungs
+BOARD-ID: FIL-11 (M1.5 elaboration of Stage C)
+MILESTONE: M1.5 — filter complete across data-availability rungs
 
 ## Context
 
@@ -16,7 +16,7 @@ match simulator physics within a documented tolerance.
 
 ## Decision
 
-We will redefine **FIL-11 Stage C** for M2.5 as a **generative agreement check vs `day_step`**, not
+We will redefine **FIL-11 Stage C** for M1.5 as a **generative agreement check vs `day_step`**, not
 as TV against a soft-LL exact path.
 
 **Pass language:** observation probabilities the filter uses match the simulator’s physics within
@@ -48,7 +48,7 @@ Stage A fail under defaults remains allowed if documented.
 - Easy: a regression that reintroduces soft powers fails Stage C while sim kernels stay honest.
 - Hard: tolerance X and discrete-obs binning must be chosen carefully so Monte Carlo noise does not
   flake CI; may need fixed seeds / more M draws in the check.
-- Locked: M2.5 DoD requires generative Stage C green; M1 soft Stage C figures are historical, not
+- Locked: M1.5 DoD requires generative Stage C green; M1 soft Stage C figures are historical, not
   the production gate.
 - FIL-11 card text’s “exact comparison” clause is **elaborated**, not reopened: exact/brute-force
   remains allowed as auxiliary under the same LL as production.

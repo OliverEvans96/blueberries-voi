@@ -17,10 +17,10 @@ scope). Create them with `/ticket` or the write-spec skill after intake.
 
 Wave order: T-001 ∥ T-002 ∥ T-003 → T-004 → T-005 → (human FIL-13/15) → T-006 → T-007.
 
-## M2.5 filter complete (2026-08-12)
+## M1.5 filter complete (2026-08-12)
 
-Plan: [`.team/plans/M2.5-filter-complete.md`](../plans/M2.5-filter-complete.md).  
-ADRs: [0086](../adr/0086-m25-richobs-unobserved-masks.md)–[0089](../adr/0089-m25-dynamic-l-sliding-window-fallback.md).  
+Plan: [`.team/plans/M1.5-filter-complete.md`](../plans/M1.5-filter-complete.md).  
+ADRs: [0086](../adr/0086-m15-richobs-unobserved-masks.md)–[0089](../adr/0089-m15-dynamic-l-sliding-window-fallback.md).  
 Non-goals: no CTL, no VOI, no browser; do not reopen ⚑ cards.
 
 | Ticket | Title | Depends on / notes |
@@ -35,7 +35,7 @@ Non-goals: no CTL, no VOI, no browser; do not reopen ⚑ cards.
 | [T-015](./T-015.md) | Dynamic L + joint→sliding_window fallback | T-011 |
 | [T-016](./T-016.md) | Multi-rung Stage A (shared CRN) | T-013, T-014, T-015 |
 | [T-017](./T-017.md) | Stage B + oracle ladder | T-016 |
-| [T-018](./T-018.md) | M2.5 close-out | T-012, T-017 |
+| [T-018](./T-018.md) | M1.5 close-out | T-012, T-017 |
 | [T-019](./T-019.md) | Sim emits ASN `pack_date` on DayLog (F2a Stage A unblock) | T-009, T-013, T-016; Oliver pack-date approval |
 
 Wave order: T-008 → (T-009 ∥ T-010) → T-011 → T-012 → (T-013 ∥ T-014) → T-015 → T-016 → T-017 → T-018 → T-019.
