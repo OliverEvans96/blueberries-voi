@@ -140,13 +140,13 @@ export function renderHistory(
   const cellW = innerW / days.length;
   const cellH = innerH / ages.length;
 
-  // Age 0 at bottom (matches prior scatter y orientation)
+  // Age 0 at bottom (matches prior scatter y orientation); no band padding
+  // so rows abut (overlap applied on rects below).
   const y = d3
     .scaleBand<number>()
     .domain(ages)
     .range([innerH, 0])
-    .paddingInner(0.04)
-    .paddingOuter(0);
+    .padding(0);
 
   const xAxis = d3
     .scaleBand<number>()
@@ -188,7 +188,8 @@ export function renderHistory(
     .attr("text-anchor", "middle")
     .text("Effective age τ (days)");
 
-  // Heatmap cells (zeros get near-floor viridis for grid continuity)
+  // Overlap by 1px to kill anti-aliasing hairlines between cells
+  const overlap = 1;
   g.append("g")
     .attr("class", "heat-layer")
     .attr("pointer-events", "none")
@@ -199,10 +200,11 @@ export function renderHistory(
     .attr("data-day", (d) => d.day)
     .attr("x", (d) => d.dayIndex * cellW)
     .attr("y", (d) => y(d.age) ?? 0)
-    .attr("width", Math.max(0.5, cellW - 0.5))
-    .attr("height", Math.max(0.5, (y.bandwidth() || cellH) - 0.25))
-    .attr("fill", (d) => (d.n <= 0 ? "rgba(28, 36, 32, 0.04)" : color(d.n)))
-    .attr("rx", 1)
+    .attr("width", cellW + overlap)
+    .attr("height", (y.bandwidth() || cellH) + overlap)
+    .attr("fill", (d) => color(d.n))
+    .attr("stroke", "none")
+    .attr("shape-rendering", "crispEdges")
     .append("title")
     .text((d) => `Day ${d.day} · age ${d.age} · qty ${d.n}`);
 
