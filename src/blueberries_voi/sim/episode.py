@@ -5,6 +5,7 @@ Requires injectable ``shipments=`` — no Abdella filesystem default on this pat
 
 from __future__ import annotations
 
+import inspect
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -60,6 +61,57 @@ def case_round(order_qty: int, case_size: int) -> int:
     return cases * case_size
 
 
+def _empty_shelf_belief() -> object:
+    """Minimal ShelfBelief when closed-loop has not yet wired filter beliefs."""
+    from blueberries_voi.filter.belief import ShelfBelief
+
+    return ShelfBelief(
+        lot_counts=[],
+        age_marginals=[],
+        tau_grid=[0.0, 2.0, 4.0, 6.0],
+    )
+
+
+def _invoke_policy_order(
+    policy: Policy,
+    day: int,
+    belief: object | None,
+    pending_orders: Mapping[int, int],
+) -> int:
+    """Dispatch day-first (T-024) or belief-first (T-028) policy surfaces."""
+    sig = inspect.signature(policy.order)
+    names = list(sig.parameters)
+    if names and names[0] == "day":
+        return int(policy.order(day, belief, pending_orders=pending_orders))
+    shelf = belief if belief is not None else _empty_shelf_belief()
+    kwargs: dict[str, object] = {"pending_orders": pending_orders}
+    if "day" in sig.parameters:
+        kwargs["day"] = day
+    return int(policy.order(shelf, **kwargs))  # type: ignore[arg-type]
+
+
+def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
+    """B-state ShelfBelief for CTL policies (ADR 0092 oracle path)."""
+    from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_oracle
+
+    live = [c for c in cohorts if c.n > 0]
+    if not live:
+        return ShelfBelief(
+            lot_counts=[],
+            age_marginals=[],
+            tau_grid=[0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0],
+        )
+    ages = [float(c.tau) for c in live]
+    # Cover observed ages plus a small pad so Dirac knots stay on-grid.
+    hi = max([*ages, 6.0]) + 2.0
+    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
+    return shelf_belief_from_oracle(
+        lot_counts=[int(c.n) for c in live],
+        ages=ages,
+        tau_grid=grid,
+    )
+
+
 def run_closed_loop_episode(
     policy: Policy,
     *,
@@ -92,7 +144,8 @@ def run_closed_loop_episode(
     for day in range(horizon):
         # Snapshot pipeline before placing today's order (ADR 0092).
         pending_view: Mapping[int, int] = dict(pending)
-        raw_qty = int(policy.order(day, None, pending_orders=pending_view))
+        belief = _shelf_belief_from_cohorts(cohorts)
+        raw_qty = _invoke_policy_order(policy, day, belief, pending_view)
         order_units = case_round(raw_qty, p.case_size)
         pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
 
