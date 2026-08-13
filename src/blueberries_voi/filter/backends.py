@@ -320,6 +320,7 @@ def observation_loglik_mc(
     rng: np.random.Generator,
     *,
     n_mc: int = 1,
+    day: int | None = None,
 ) -> np.ndarray:
     """Per-particle MC log likelihood for present RichObs sales/waste fields.
 
@@ -329,6 +330,9 @@ def observation_loglik_mc(
     When ``sales_by_lot`` / ``waste_by_lot`` are present (not ``UNOBSERVED``),
     also score per-lot maps via expected Wallenius sales / expected deaths
     keyed by ``lot_id``. Empty observed maps are scored (≠ masked-away).
+
+    Optional ``day`` forwards into ``day_step`` / ``draw_demand`` for calendar μ(day)
+    without scenario-keyed demand streams (T-084 / ADR 0113 CRN identity).
     """
     _ = _SHARED_MC_KERNELS  # keep bindings live for ENG-02 / ruff
     counts_arr = np.asarray(counts, dtype=int)
@@ -398,6 +402,7 @@ def observation_loglik_mc(
                 rng_demand=rng,
                 rng_alloc=rng,
                 rng_spoil=rng,
+                day=day,
             )
             ll = map_ll
             if score_sales:
