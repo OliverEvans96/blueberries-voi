@@ -87,7 +87,7 @@ def test_crn_passes_calendar_day_into_draw_demand(
     import blueberries_voi.voi.crn as crn_mod
 
     days_seen: list[int | None] = []
-    real_day_step = getattr(crn_mod, "day_step")
+    real_day_step = getattr(crn_mod, "day_step")  # noqa: B009
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
@@ -231,7 +231,7 @@ def test_observation_loglik_mc_forwards_day_without_scenario_demand_key(
     assert "scenario" not in sig.parameters
 
     days_seen: list[int | None] = []
-    real_day_step = getattr(backends_mod, "day_step")
+    real_day_step = getattr(backends_mod, "day_step")  # noqa: B009
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
