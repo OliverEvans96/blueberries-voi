@@ -366,7 +366,7 @@ const playChromeApi = mountPlayChrome(
     onReset() {
       void (async () => {
         try {
-          const snap = await adapter.reset();
+          const snap = await adapter.reset({ ...vm.config });
           vm = projector.applySnapshot(snap);
           projector.markConfigApplied();
           orderQty = snapOrder(orderQty);
@@ -448,7 +448,7 @@ async function bootstrap(): Promise<void> {
   if (bootstrapped) return;
   bootstrapped = true;
   try {
-    const snap = await adapter.init();
+    const snap = await adapter.init({ ...vm.config });
     vm = projector.applySnapshot(snap);
     projector.markConfigApplied();
     setSection(activeSection);

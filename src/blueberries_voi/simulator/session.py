@@ -8,6 +8,7 @@ from blueberries_voi.controller.ordering import ConstantOrderPolicy
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF
+from blueberries_voi.filter.types import mask_for
 from blueberries_voi.model import ModelParams
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
 from blueberries_voi.simulator.belief import (
@@ -26,6 +27,7 @@ from blueberries_voi.simulator.day_driver import (
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, Snapshot
 
@@ -58,6 +60,7 @@ class EngineSession:
         self._shipments: list[ShipmentTrace] = []
         self._lead_time: int = 1
         self._enable_filter: bool = True
+        self._obs_scenario: ScenarioId | str = "P1"
         self._L: int = 2
         self._K: int = 4
         self._n_particles: int = int(DEMO_BUDGETS["n_particles"])
@@ -146,6 +149,10 @@ class EngineSession:
         self._params = ModelParams()
         self._lead_time = int(config.get("lead_time", 1))
         self._enable_filter = bool(config.get("enable_filter", True))
+        raw_scenario = config.get("obs_scenario", "P1")
+        # Validate via mask_for spirit (unknown / B-state raise).
+        mask_for(raw_scenario)
+        self._obs_scenario = raw_scenario
         self._L = int(config.get("L", self._L))
         self._K = int(config.get("K", self._K))
         self._n_particles = int(config.get("n_particles", self._n_particles))
@@ -193,6 +200,7 @@ class EngineSession:
             "K": int(self._K),
             "enable_filter": bool(self._enable_filter),
             "lead_time": int(self._lead_time),
+            "obs_scenario": self._obs_scenario,
             "seed": int(self._seed),
         }
 
@@ -228,6 +236,7 @@ class EngineSession:
             run_id="session",
             lead_time=self._lead_time,
             enable_filter=self._enable_filter,
+            obs_scenario=self._obs_scenario,
         )
         self._state = result.state
         self._seq += 1

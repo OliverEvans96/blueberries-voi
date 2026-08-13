@@ -8,8 +8,8 @@ import type {
 import type {
   Economics,
   Lot,
-  ObsScenario,
   PipelineOrder,
+  ScenarioId,
   SimConfig,
   StepInput,
 } from "../types";
@@ -26,17 +26,20 @@ function configsEqual(a: SimConfig, b: SimConfig): boolean {
   return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
 }
 
-function beliefBlur(scenario: ObsScenario): number {
+function beliefBlur(scenario: ScenarioId): number {
   if (scenario === "P0") return 1.6;
-  if (scenario === "P2") return 0.55;
-  return 1;
+  if (scenario === "F2") return 0.55;
+  if (scenario === "F2a") return 0.7;
+  if (scenario === "F1s") return 0.85;
+  if (scenario === "F1") return 0.95;
+  return 1; // P1
 }
 
 /** Flat L×K belief from live lots (fake physics; JS heatmap derives density). */
 export function generateFlatBelief(
   lots: Lot[],
   rng: () => number,
-  scenario: ObsScenario = "P1",
+  scenario: ScenarioId = "P1",
   K = 12,
 ): FlatBelief {
   const L = lots.length;

@@ -14,12 +14,14 @@ No matplotlib / pyarrow imports on this path. Shipments must be injected.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
-from blueberries_voi.filter.types import P1Obs
+from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
 from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.model.abdella import shipment_arrival_age
 from blueberries_voi.rng import (
@@ -41,8 +43,12 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, MutableMapping, Sequence
 
     from blueberries_voi.filter.rbpf import RBPF
+    from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, FlatBelief
+
+# Same synthetic ASN epoch as ``sim.episode`` / ``sim.m2_multi_scenario`` (T-019).
+_EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
 
 
 def _case_round_ceil(order_qty: int, case_size: int) -> int:
@@ -116,10 +122,13 @@ def advance_day(
     lead_time: int = 1,
     spread_scale: float = 1.0,
     enable_filter: bool = True,
+    obs_scenario: ScenarioId | str = "P1",
 ) -> DayAdvanceResult:
     """Run order → pending/arrival → ``day_step`` → obs → optional RBPF → belief.
 
     Shared by ``EngineSession.step`` / ``act`` so hosts share one physics path.
+    Filter observations use ``mask_for(obs_scenario)`` + ``rich_obs_from_day_log``
+    on a DayLog-shaped richest day (same mapping as ``sim.episode``).
     """
     if not isinstance(order_qty, (int, np.integer)) or isinstance(order_qty, bool):
         msg = f"order_qty must be an int, got {type(order_qty)!r}"
@@ -136,6 +145,8 @@ def advance_day(
 
     arrival_units = int(pending.pop(day, 0))
     delivery: Cohort | None = None
+    age_at_receipt: float | None = None
+    pack_date: date | None = None
     if arrival_units > 0:
         tau_in = _arrival_age(
             shipments=shipments,
@@ -147,7 +158,12 @@ def advance_day(
         )
         delivery = Cohort(n=arrival_units, tau=tau_in, lot_id=next_lot_id)
         next_lot_id += 1
+        age_at_receipt = float(tau_in)
+        receipt_day = _EPISODE_CALENDAR_EPOCH + timedelta(days=day)
+        transit_days = max(round(age_at_receipt), 0)
+        pack_date = receipt_day - timedelta(days=transit_days)
 
+    pre_live_ids = [c.lot_id for c in cohorts if c.n > 0]
     rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
     rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
     rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
@@ -161,13 +177,30 @@ def advance_day(
     )
     cohorts = result.cohorts
 
+    sales_by_lot = {
+        int(pre_live_ids[i]): int(result.sales_by_cohort[i])
+        for i in range(len(pre_live_ids))
+        if int(result.sales_by_cohort[i]) != 0
+    }
+    waste_by_lot = {
+        int(pre_live_ids[i]): int(result.waste_by_cohort[i])
+        for i in range(len(pre_live_ids))
+        if int(result.waste_by_cohort[i]) != 0
+    }
+
     belief_flat: FlatBelief | None = None
     if enable_filter and rbpf is not None:
-        obs = P1Obs(
+        day_like = SimpleNamespace(
+            arrivals=int(arrival_units),
             sales_total=int(result.sales_total),
             waste_total=int(result.waste_total),
-            arrivals=int(arrival_units),
+            sales_by_lot=sales_by_lot,
+            waste_by_lot=waste_by_lot,
+            age_at_receipt=age_at_receipt,
+            pack_date=pack_date,
+            lots=cohorts,
         )
+        obs = rich_obs_from_day_log(day_like, mask_for(obs_scenario))
         step_rng = spawn_rng(
             int(root_seed),
             run_id=run_id,
