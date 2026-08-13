@@ -129,7 +129,7 @@ app.innerHTML = `
                 <div id="chart-survival" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-demand" hidden>
-                <div class="chart-caption impact-caption">Demand + coverage</div>
+                <div class="chart-caption impact-caption">DOW demand · protection 3 / 3 / 4</div>
                 <div id="chart-demand" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-inventory" hidden>
@@ -288,7 +288,12 @@ function renderActiveFocusPlots(): void {
     renderSurvival(els.survival, vm.config, vm.live_lots, 160);
   }
   if (plotVisible("plot-demand")) {
-    renderDemandDist(els.demand, vm.config, vm.on_hand, vm.effective_inv, 160);
+    renderDemandDist(
+      els.demand,
+      vm.demand_summary,
+      vm.schedule,
+      160,
+    );
   }
   if (plotVisible("plot-arrival-prior")) {
     renderArrivalPrior(els.arrivalPrior, vm.config, vm.history, 160);

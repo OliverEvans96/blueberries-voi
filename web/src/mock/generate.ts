@@ -387,6 +387,7 @@ function sampleDemand(
   cfg: SimConfig,
   day: number,
 ): number {
+  // Decorative non-physics seasonal wobble (teaching stub; not calendar DOW).
   const seasonal = 1 + 0.18 * Math.sin(day / 3);
   const mu = Math.max(0.1, cfg.demand_mu * seasonal);
   const vm = Math.max(1.05, cfg.demand_vm);

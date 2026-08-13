@@ -21,7 +21,13 @@ import {
   onHandInventory,
   survivalWeightedInventory,
 } from "../mock/generate";
-import type { DayDelta, FlatBelief, Snapshot } from "./types";
+import type {
+  DayDelta,
+  DemandSummary,
+  FlatBelief,
+  ScheduleWire,
+  Snapshot,
+} from "./types";
 
 export type ProjectorOptions = {
   economics?: Economics;
@@ -187,6 +193,8 @@ export class ViewModelProjector {
     tau_grid: [],
   };
   private ghost: EpisodeGhost | null = null;
+  private demandSummary: DemandSummary | null = null;
+  private schedule: ScheduleWire | null = null;
   private viewModel: ViewModel;
 
   constructor(opts?: ProjectorOptions) {
@@ -230,6 +238,20 @@ export class ViewModelProjector {
       if (typeof snapshot.applied_config.window_days === "number") {
         this.windowDays = snapshot.applied_config.window_days;
       }
+    }
+
+    if (snapshot.demand_summary) {
+      this.demandSummary = {
+        ...snapshot.demand_summary,
+        dow_means: [...snapshot.demand_summary.dow_means],
+      };
+    }
+    if (snapshot.schedule) {
+      this.schedule = {
+        ...snapshot.schedule,
+        delivery_weekdays: [...snapshot.schedule.delivery_weekdays],
+        order_weekdays: [...snapshot.schedule.order_weekdays],
+      };
     }
 
     this.viewModel = this.buildViewModel();
@@ -356,6 +378,19 @@ export class ViewModelProjector {
       ghost_deltas: ghostDeltas(this.history, this.economics, this.ghost),
       case_size: this.config.case_size,
       pending_order: pending,
+      demand_summary: this.demandSummary
+        ? {
+            ...this.demandSummary,
+            dow_means: [...this.demandSummary.dow_means],
+          }
+        : null,
+      schedule: this.schedule
+        ? {
+            ...this.schedule,
+            delivery_weekdays: [...this.schedule.delivery_weekdays],
+            order_weekdays: [...this.schedule.order_weekdays],
+          }
+        : null,
     };
   }
 }
