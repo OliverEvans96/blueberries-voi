@@ -1,4 +1,5 @@
 import "./styles.css";
+import { ViewModelProjector } from "./engine/projector";
 import { MockAdapter } from "./mock/adapter";
 import { renderHistory, setHistoryHover } from "./charts/history";
 import { renderMarginal, setMarginalHover } from "./charts/marginals";
@@ -158,10 +159,16 @@ app.innerHTML = `
 `;
 
 const adapter = new MockAdapter();
-let vm: ViewModel = adapter.init();
+const projector = new ViewModelProjector({
+  economics: adapter.getEconomics(),
+  config: adapter.getConfig(),
+  window_days: adapter.getConfig().window_days,
+});
+let vm: ViewModel = projector.getViewModel();
 let orderQty = adapter.snapOrder(24);
 let hoveredDay: HoverDay = null;
 let activeSection: SectionId = loadSection();
+let bootstrapped = false;
 
 const els = {
   linked: document.querySelector("#linked-charts") as HTMLElement,
@@ -309,15 +316,22 @@ const playChromeApi = mountPlayChrome(
       orderQty = qty;
     },
     onAdvance() {
-      vm = adapter.step({ order_qty: orderQty });
-      onHoverDay(null);
-      renderAll();
+      void (async () => {
+        const delta = await adapter.step(orderQty);
+        vm = projector.applyDelta(delta);
+        onHoverDay(null);
+        renderAll();
+      })();
     },
     onReset() {
-      vm = adapter.reset();
-      orderQty = adapter.snapOrder(orderQty);
-      onHoverDay(null);
-      renderAll();
+      void (async () => {
+        const snap = await adapter.reset();
+        vm = projector.applySnapshot(snap);
+        projector.markConfigApplied();
+        orderQty = adapter.snapOrder(orderQty);
+        onHoverDay(null);
+        renderAll();
+      })();
     },
   },
 );
@@ -327,7 +341,8 @@ const sectionControlsApi = mountSectionControls(
   controlsFromVm(vm, orderQty),
   {
     onEconomicsChange(partial: Partial<Economics>) {
-      vm = adapter.setEconomics(partial);
+      // Local reproject only — never round-trip to the engine.
+      vm = projector.setEconomics(partial);
       renderChrome();
       if (plotVisible("plot-pnl")) {
         renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
@@ -336,7 +351,9 @@ const sectionControlsApi = mountSectionControls(
       sectionControlsApi.update(controlsFromVm(vm, orderQty));
     },
     onConfigChange(partial: Partial<SimConfig>) {
-      vm = adapter.setConfig(partial);
+      const snap = adapter.setConfig(partial);
+      vm = projector.setConfig(partial);
+      vm = projector.patchEngineState(snap);
       if (partial.case_size != null) {
         orderQty = adapter.snapOrder(orderQty);
         playChromeApi.update(controlsFromVm(vm, orderQty));
@@ -384,8 +401,17 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-setSection(activeSection);
-renderAll();
+async function bootstrap(): Promise<void> {
+  if (bootstrapped) return;
+  bootstrapped = true;
+  const snap = await adapter.init();
+  vm = projector.applySnapshot(snap);
+  projector.markConfigApplied();
+  setSection(activeSection);
+  renderAll();
+}
+
+void bootstrap();
 
 window.addEventListener("resize", () => {
   renderStore();

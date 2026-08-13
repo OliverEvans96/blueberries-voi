@@ -1,25 +1,24 @@
+import type { EngineAdapter } from "../engine/adapter";
 import type {
-  BeliefGrid,
-  Day,
-  DayPnL,
+  DayDelta,
+  EngineConfig,
+  FlatBelief,
+  Snapshot,
+} from "../engine/types";
+import type {
   Economics,
-  EpisodeGhost,
-  GhostDeltas,
+  Lot,
+  ObsScenario,
   PipelineOrder,
   SimConfig,
   StepInput,
-  ViewModel,
 } from "../types";
 import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
-  computePnL,
   createInitialState,
-  generateBelief,
-  onHandInventory,
   snapCases,
   stepSimulation,
-  survivalWeightedInventory,
   type SimState,
 } from "./generate";
 
@@ -27,122 +26,138 @@ function configsEqual(a: SimConfig, b: SimConfig): boolean {
   return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
 }
 
-function snapshotGhost(
-  history: Day[],
-  economics: Economics,
-): EpisodeGhost {
-  const { series } = computePnL(history, economics);
-  let profitCum = 0;
-  const points = history.map((d, i) => {
-    const pnl = series[i]!;
-    profitCum += pnl.profit;
+function beliefBlur(scenario: ObsScenario): number {
+  if (scenario === "P0") return 1.6;
+  if (scenario === "P2") return 0.55;
+  return 1;
+}
+
+/** Flat L×K belief from live lots (fake physics; JS heatmap derives density). */
+export function generateFlatBelief(
+  lots: Lot[],
+  rng: () => number,
+  scenario: ObsScenario = "P1",
+  K = 12,
+): FlatBelief {
+  const L = lots.length;
+  if (L === 0) {
     return {
-      i,
-      waste: d.waste_total,
-      stockout: d.stockout,
-      sales: d.sales_total,
-      demand: d.demand,
-      profit: pnl.profit,
-      profit_cum: profitCum,
+      L: 0,
+      K,
+      lot_counts: [],
+      age_marginals: [],
+      tau_grid: Array.from({ length: K }, (_, i) => i),
     };
-  });
-  return {
-    series: points,
-    waste_total: points.reduce((s, p) => s + p.waste, 0),
-    stockout_total: points.reduce((s, p) => s + p.stockout, 0),
-    profit_cum: profitCum,
-    days: points.length,
-  };
+  }
+
+  const lot_counts = lots.map((l) => l.n);
+  const maxTau = Math.max(8, ...lots.map((l) => l.tau));
+  const tau_grid = Array.from(
+    { length: K },
+    (_, i) => (i / Math.max(1, K - 1)) * maxTau,
+  );
+  const blur = beliefBlur(scenario);
+  const age_marginals: number[] = [];
+
+  for (let l = 0; l < L; l++) {
+    const tau = lots[l]!.tau;
+    const row: number[] = [];
+    let sum = 0;
+    for (let k = 0; k < K; k++) {
+      const d = (tau_grid[k]! - tau) / blur;
+      const mass = Math.exp(-(d * d) / 2) * (0.75 + 0.5 * rng());
+      row.push(mass);
+      sum += mass;
+    }
+    for (const m of row) {
+      age_marginals.push(sum > 0 ? m / sum : 1 / K);
+    }
+  }
+
+  return { L, K, lot_counts, age_marginals, tau_grid };
 }
 
-function ghostDeltas(
-  history: Day[],
-  pnl: DayPnL[],
-  ghost: EpisodeGhost | null,
-): GhostDeltas | null {
-  if (!ghost || ghost.days === 0 || history.length === 0) return null;
-  const waste = history.reduce((s, d) => s + d.waste_total, 0);
-  const stockout = history.reduce((s, d) => s + d.stockout, 0);
-  const profit = pnl.reduce((s, d) => s + d.profit, 0);
-  const liveDays = history.length;
-  return {
-    waste_rate: waste / liveDays - ghost.waste_total / ghost.days,
-    stockouts: stockout - ghost.stockout_total,
-    profit_cum: profit - ghost.profit_cum,
-  };
-}
-
-export class MockAdapter {
+/**
+ * Mock engine speaking Snapshot / DayDelta (EngineAdapter). Presentation
+ * (PnL / economics / ghost / heatmap) stays in ViewModelProjector.
+ */
+export class MockAdapter implements EngineAdapter {
   private state: SimState;
   private config: SimConfig;
   private appliedConfig: SimConfig;
+  /** Kept for studio getEconomics; projector owns live economics for PnL. */
   private economics: Economics;
-  private belief: BeliefGrid;
-  private ghost: EpisodeGhost | null = null;
+  private flatBelief: FlatBelief;
+  private seq = 0;
 
   constructor(seed = DEFAULT_SIM_CONFIG.seed) {
     this.config = { ...DEFAULT_SIM_CONFIG, seed };
     this.appliedConfig = { ...this.config };
     this.economics = { ...DEFAULT_ECONOMICS };
     this.state = createInitialState(this.config);
-    this.belief = generateBelief(
+    this.flatBelief = generateFlatBelief(
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
     );
   }
 
-  init(): ViewModel {
-    return this.toViewModel();
-  }
-
-  step(input: StepInput): ViewModel {
-    const { state } = stepSimulation(this.state, input.order_qty, this.config);
-    this.state = state;
-    this.belief = generateBelief(
+  async init(config?: EngineConfig): Promise<Snapshot> {
+    if (config) {
+      this.applyConfigPartial(config);
+    }
+    this.appliedConfig = { ...this.config };
+    this.state = createInitialState(this.config);
+    this.flatBelief = generateFlatBelief(
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
     );
-    return this.toViewModel();
+    this.seq = 0;
+    return this.toSnapshot();
   }
 
-  setEconomics(next: Partial<Economics>): ViewModel {
-    this.economics = { ...this.economics, ...next };
-    return this.toViewModel();
+  async step(order_qty: number): Promise<DayDelta> {
+    return this.stepOnce(order_qty);
   }
 
-  setConfig(next: Partial<SimConfig>): ViewModel {
-    this.config = { ...this.config, ...next };
-    if (typeof next.case_size === "number") {
-      this.config.case_size = Math.max(1, Math.round(next.case_size));
+  async step_n(orders: number[]): Promise<DayDelta[]> {
+    const out: DayDelta[] = [];
+    for (const qty of orders) {
+      out.push(this.stepOnce(qty));
     }
-    // Daily ordering: lead time fixed at 1 (not a user-facing knob)
-    this.config.lead_time = 1;
-    if (typeof next.seed === "number") {
-      this.config.seed = Math.round(next.seed);
+    return out;
+  }
+
+  async reset(config?: EngineConfig): Promise<Snapshot> {
+    if (config) {
+      this.applyConfigPartial(config);
     }
+    this.appliedConfig = { ...this.config };
+    this.state = createInitialState(this.config);
+    this.flatBelief = generateFlatBelief(
+      this.state.lots,
+      this.state.rng,
+      this.config.obs_scenario,
+    );
+    this.seq = 0;
+    return this.toSnapshot();
+  }
+
+  /**
+   * Studio helper: stage knobs on the mock physics. Returns a Snapshot of the
+   * current engine fields (no presentation keys) so the projector can patch.
+   */
+  setConfig(next: Partial<SimConfig>): Snapshot {
+    this.applyConfigPartial(next);
     if (next.obs_scenario != null) {
-      this.belief = generateBelief(
+      this.flatBelief = generateFlatBelief(
         this.state.lots,
         this.state.rng,
         this.config.obs_scenario,
       );
     }
-    return this.toViewModel();
-  }
-
-  /** Snapshot prior episode as ghost, then regenerate from seed. */
-  reset(): ViewModel {
-    this.ghost = snapshotGhost(this.state.history, this.economics);
-    this.appliedConfig = { ...this.config };
-    this.state = createInitialState(this.config);
-    this.belief = generateBelief(
-      this.state.lots,
-      this.state.rng,
-      this.config.obs_scenario,
-    );
-    return this.toViewModel();
+    return this.toSnapshot();
   }
 
   getConfig(): SimConfig {
@@ -153,8 +168,67 @@ export class MockAdapter {
     return { ...this.economics };
   }
 
+  /** @deprecated Prefer ViewModelProjector.setEconomics — kept for callers. */
+  setEconomics(next: Partial<Economics>): void {
+    this.economics = { ...this.economics, ...next };
+  }
+
   snapOrder(qty: number): number {
     return snapCases(qty, this.config.case_size);
+  }
+
+  isConfigDirty(): boolean {
+    return !configsEqual(this.config, this.appliedConfig);
+  }
+
+  /** Compatibility: accept legacy `{ order_qty }` or a bare number. */
+  async stepInput(input: StepInput | number): Promise<DayDelta> {
+    const qty = typeof input === "number" ? input : input.order_qty;
+    return this.step(qty);
+  }
+
+  private applyConfigPartial(next: Partial<SimConfig> & Record<string, unknown>): void {
+    this.config = { ...this.config, ...next } as SimConfig;
+    if (typeof next.case_size === "number") {
+      this.config.case_size = Math.max(1, Math.round(next.case_size));
+    }
+    this.config.lead_time = 1;
+    if (typeof next.seed === "number") {
+      this.config.seed = Math.round(next.seed);
+    }
+  }
+
+  private stepOnce(orderQty: number): DayDelta {
+    const drop_oldest = this.state.history.length >= this.config.window_days;
+    const { state, dayRecord } = stepSimulation(
+      this.state,
+      orderQty,
+      this.config,
+    );
+    this.state = state;
+    this.flatBelief = generateFlatBelief(
+      this.state.lots,
+      this.state.rng,
+      this.config.obs_scenario,
+    );
+    this.seq += 1;
+    return {
+      seq: this.seq,
+      episode_day: this.state.day,
+      day: {
+        ...dayRecord,
+        lots: dayRecord.lots.map((l) => ({ ...l })),
+      },
+      drop_oldest,
+      belief: {
+        ...this.flatBelief,
+        lot_counts: [...this.flatBelief.lot_counts],
+        age_marginals: [...this.flatBelief.age_marginals],
+        tau_grid: [...this.flatBelief.tau_grid],
+      },
+      live_lots: this.state.lots.map((l) => ({ ...l })),
+      pipeline: this.pipeline(),
+    };
   }
 
   private pipeline(): PipelineOrder[] {
@@ -168,31 +242,23 @@ export class MockAdapter {
       .sort((a, b) => a.days_until - b.days_until || a.arrive_on - b.arrive_on);
   }
 
-  private toViewModel(): ViewModel {
-    const { series, totals } = computePnL(this.state.history, this.economics);
-    const pending = this.state.pendingOrders.reduce((s, o) => s + o.qty, 0);
-    const live_lots = this.state.lots.map((l) => ({ ...l }));
+  private toSnapshot(): Snapshot {
     return {
+      seq: this.seq,
       episode_day: this.state.day,
-      window_days: this.config.window_days,
+      belief: {
+        ...this.flatBelief,
+        lot_counts: [...this.flatBelief.lot_counts],
+        age_marginals: [...this.flatBelief.age_marginals],
+        tau_grid: [...this.flatBelief.tau_grid],
+      },
       history: this.state.history.map((d) => ({
         ...d,
         lots: d.lots.map((l) => ({ ...l })),
       })),
-      economics: { ...this.economics },
-      config: { ...this.config },
-      config_dirty: !configsEqual(this.config, this.appliedConfig),
-      pnl_series: series,
-      pnl_totals: totals,
-      belief: this.belief,
-      live_lots,
-      on_hand: onHandInventory(live_lots),
-      effective_inv: survivalWeightedInventory(live_lots, this.config),
+      live_lots: this.state.lots.map((l) => ({ ...l })),
       pipeline: this.pipeline(),
-      ghost: this.ghost,
-      ghost_deltas: ghostDeltas(this.state.history, series, this.ghost),
-      case_size: this.config.case_size,
-      pending_order: pending,
+      applied_config: { ...this.appliedConfig },
     };
   }
 }
