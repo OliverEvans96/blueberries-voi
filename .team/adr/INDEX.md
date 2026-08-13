@@ -18,6 +18,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M3 exact LL speedup (2026-08-12): **[0103](./0103-exact-faster-p1-f2a-likelihood.md)** (unique-particle MF dedup + NumPy sequential-WOR DP; no surrogate; no new runtime deps)
 - Audit remediation lock (2026-08-12): **[0104](./0104-audit-remediation-defaults.md)** (nearest `case_round`; Abdella shipment defaults; uncalibrated `DEFAULT_PROFIT_COSTS`; VOI α-table gate; MF sweeps=5; bakeoff stubs non-citeable)
 - ENG-01 dual-mode readiness (2026-08-13): **[0107](./0107-demo-hydrate-at-host-edges.md)–[0108](./0108-local-dual-mode-vite-wheel-cors.md)** (host-edge demo hydrate; Vite wheel/`wheelUrl`/CORS). Do **not** confuse with in-flight arrival-only ADR **0105–0106** on `team/T-067/architect`.
+- ENG-01 belief charts (2026-08-13): **[0109](./0109-js-belief-age-count-rebin.md)** (JS-only FlatBelief → age×count BeliefGrid rebin + merged age marginal; wire stays `L×K`). Provisional number — renumber at integrate if parallel Ticket B collides.
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -134,3 +135,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0106](./0106-shelfbelief-arrival-prior-age-exports.md) | `CTL` / ENG-01 | ShelfBelief ages are arrival-prior exports | ACCEPTED |
 | [0107](./0107-demo-hydrate-at-host-edges.md) | `ENG-01` | Demo hydrate shipments at API + Pyodide worker edges | ACCEPTED |
 | [0108](./0108-local-dual-mode-vite-wheel-cors.md) | `ENG-01` | Local dual-mode: Vite wheel + worker, wheelUrl, CORS | ACCEPTED |
+| [0109](./0109-js-belief-age-count-rebin.md) | `ENG-01` | JS-only FlatBelief → age×count BeliefGrid rebin + age marginal | ACCEPTED |
