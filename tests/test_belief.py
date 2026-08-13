@@ -102,7 +102,8 @@ def _flat_prior_expected_survival(params: ModelParams, tau_grid: list[float]) ->
 
 
 def _stepped_production_rbpf(*, seed: int = 11) -> RBPF:
-    assert PRODUCTION_BACKEND == "mean_field"
+    # ADR 0105: production identity is counts-only arrival-age, not age mean-field.
+    assert PRODUCTION_BACKEND != "mean_field"
     params = ModelParams()
     rbpf = RBPF(params=params, N=40, K=6, L=2)
     rng = np.random.default_rng(seed)

@@ -110,14 +110,21 @@ def test_production_rbpf_update_has_no_soft_pow_or_gaussian_ll_symbols() -> None
     )
 
 
-def test_production_rbpf_update_calls_observation_loglik_mc() -> None:
-    """AC: particle weights come from observation_loglik_mc on the RBPF path."""
+def test_production_rbpf_update_does_not_default_to_observation_loglik_mc() -> None:
+    """ADR 0105: MC LL remains for diagnostics; production weights are exact WOR."""
     src = _backends_source()
     fn = _ast_function(src, "_rbpf_update")
     names = _names_in_function(fn)
-    assert "observation_loglik_mc" in names, (
-        "_rbpf_update must call observation_loglik_mc for present RichObs fields"
+    assert "observation_loglik_mc" not in names, (
+        "production _rbpf_update must not default to observation_loglik_mc (ADR 0105)"
     )
+    wor = names & {
+        "log_p_sales_waste_given_ages",
+        "sequential_wor_pmf",
+        "sequential_wor_composition_prob",
+        "sequential_wor_composition_probs",
+    }
+    assert wor, "production particle weights must use exact sequential WOR"
 
 
 def test_observation_loglik_mc_exists_with_n_mc_default_one() -> None:

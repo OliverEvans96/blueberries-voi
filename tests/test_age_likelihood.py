@@ -345,8 +345,8 @@ def test_mean_field_update_rows_sum_to_one_and_distinct_from_exact() -> None:
     assert np.allclose(arr.sum(axis=1), 1.0, atol=1e-9)
 
 
-def test_production_rbpf_update_still_uses_mc_ll() -> None:
-    """Weights stay on MC LL; T-021 may also wire mean_field_update for age belief."""
+def test_production_rbpf_update_uses_exact_wor_not_mc_ll() -> None:
+    """ADR 0105: production weights are exact WOR; MC LL is diagnostic-only."""
     backends_path = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -355,16 +355,20 @@ def test_production_rbpf_update_still_uses_mc_ll() -> None:
         / "backends.py"
     )
     src = backends_path.read_text(encoding="utf-8")
-    # Isolate _rbpf_update body roughly between its def and the next top-level def.
     start = src.index("def _rbpf_update(")
     rest = src[start + 4 :]
     next_def = rest.find("\ndef ")
     body = rest[: next_def if next_def != -1 else len(rest)]
-    assert "observation_loglik_mc" in body
     assert "sales_pow" not in body
     assert "waste_pow" not in body
-    # Soft / WOR weight scorers must not replace MC LL (ADR 0087 unchanged).
-    assert "sequential_wor_pmf" not in body
+    assert "observation_loglik_mc" not in body, (
+        "production _rbpf_update must not default to observation_loglik_mc (ADR 0105)"
+    )
+    assert (
+        "log_p_sales_waste_given_ages" in body
+        or "sequential_wor" in body
+        or "sequential_wor_pmf" in body
+    ), "production weights must use exact sequential WOR"
 
 
 def test_adr_0049_fil04_c_and_0057_historical_after_0091() -> None:
