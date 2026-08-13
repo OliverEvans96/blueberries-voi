@@ -13,6 +13,8 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 ## Needs human now
 
 - **Frontend controls/plots audit:** Review UI controls and plots so that (1) no controls are redundant, (2) every control affects a plot, (3) every plot is relevant, (4) all relevant concepts are illustrated, and (5) no plots are redundant.
+- **Frontend truth vs belief audit:** Audit the UI so default views show what a produce manager would see (beliefs / estimates about hidden state), not god-mode sim truth. Add a global toggle to show/hide true sim values throughout; when on, true values use one clear, consistent visual style so they are easy to tell apart from belief state.
+- **Frontend knowledge-scenario UI audit:** Review whether the UI should differ across knowledge scenarios. Prefer one consistent layout throughout; if some charts only make sense in certain scenarios, keep the shell the same and show or hide those charts (or mark them unavailable) rather than forking the whole UI.
 - **needs-human — ENG-01 readiness merge:** Human merge of `team/ENG-01-readiness/wave2` / `team/T-075/implement` (verify tip `a75fc10`; tip includes post-handoff chore) into parent when ready (agents must not merge to `main`).
 - **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there). Still open.
 - **Optional — lazy-import pyarrow:** Consider deferring `pyarrow` import so dual-mode / slim paths avoid a hard runtime dependency unless parquet paths are used (non-blocking polish).
