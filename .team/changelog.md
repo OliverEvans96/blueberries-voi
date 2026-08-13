@@ -4,6 +4,7 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-13
 
+- **The default store now orders for Monday / Wednesday / Friday deliveries with a calendar-shaped weekly demand pattern instead of every-day i.i.d. sales; prior citeable value-of-information numbers from the daily base case need to be regenerated** (T-076–T-088 / CAL-01).
 - **You can run the studio against a real local API and a real in-browser engine using a wheel built on your machine, with Advance and Reset working without fake data** (T-075).
 
 ## 2026-08-12 — ENG-01 dual-runtime / live simulator

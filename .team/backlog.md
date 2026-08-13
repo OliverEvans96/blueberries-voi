@@ -8,11 +8,13 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 - **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
 - **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** — **Done / complete pending human merge.** Tip ready: `team/ENG-01-readiness/wave2` (= `team/T-075/implement`); verified close-out @ `a75fc10` (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md); smoke [T-075-smoke.md](./qa/T-075-smoke.md); verify [T-075.md](./qa/T-075.md)). Agents did not merge to `main`. Do **not** reuse T-067–T-069 / 0105–0106 for readiness.
-- **CAL-01 calendar realism (in progress):** **T-076–T-088**, ADR **0109–0113**. Plan [CAL-01-calendar-realism.md](./plans/CAL-01-calendar-realism.md). Wave 0 architect on `team/T-076/architect`. Oliver **reopened X-11 and MOD-09** (ADR 0011 → 0109, 0031 → 0110). Ticket map: T-076 Wave 0; T-077∥T-078; T-079∥T-080; T-081∥T-082; T-083∥T-084∥T-085; T-086∥T-087 → T-088.
+- **CAL-01 calendar realism:** **T-076–T-088**, ADR **0109–0113** — **Done / complete pending human merge.** Close-out tip: `team/T-088/implement` (DoD [CAL-01.md](./reviews/CAL-01.md); plan [CAL-01-calendar-realism.md](./plans/CAL-01-calendar-realism.md); smoke [T-088.md](./qa/T-088.md); FIL-13 remotesure [CAL-01-fil13-remeasure-L.md](./reports/CAL-01-fil13-remeasure-L.md)). Agents did not merge to `main`.
 - **Next free after CAL-01 claim:** **T-089+**, ADR **0114+** (provisional; renumber at integrate if needed).
 
 ## Needs human now
 
+- **needs-human — CAL-01 merge:** Human merge of `team/T-088/implement` (CAL-01 close-out) into parent when ready (agents must not merge to `main`). Citeable VOI regen after land; remotesure FIL-13 L before citing L-dependent filter claims.
+- **needs-human — T-071 xdist flake:** `tests/test_t071_demo_hydrate_edges.py` intermittently returns 422 `shipments[0] must be an object` under full `pytest -n auto` (reproduces on `main`; file-alone xdist passes). Related residual: VOI/CRN `isinstance` dual-import flakes under xdist (see T-087 verify). Blocks clean verify retries occasionally; not a CAL-01 product defect.
 - **needs-human — ENG-01 readiness merge:** Human merge of `team/ENG-01-readiness/wave2` / `team/T-075/implement` (verify tip `a75fc10`; tip includes post-handoff chore) into parent when ready (agents must not merge to `main`).
 - **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there). Still open.
 - **Optional — lazy-import pyarrow:** Consider deferring `pyarrow` import so dual-mode / slim paths avoid a hard runtime dependency unless parquet paths are used (non-blocking polish).

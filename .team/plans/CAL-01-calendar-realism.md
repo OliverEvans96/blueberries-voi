@@ -1,6 +1,6 @@
 # CAL-01: Calendar realism (MWF cadence + FreshNet demand)
 
-**Status:** IN PROGRESS — Wave 0 architect lock (T-076)  
+**Status:** COMPLETE — pending human merge to `main` (T-088 close-out)  
 **Date:** 2026-08-13  
 **Board / milestone:** CAL-01  
 **Supersedes:** ADR [0011](../adr/0011-x-11-delivery-cadence-for-the-base-case.md) (daily) → [0109](../adr/0109-x-11-mwf-delivery-base-case.md); ADR [0031](../adr/0031-mod-09-demand-model.md) (i.i.d.) → [0110](../adr/0110-mod-09-calendar-demand.md)
