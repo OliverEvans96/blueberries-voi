@@ -30,7 +30,7 @@ import the package.
 | Layout | **src/** package `blueberries_voi` |
 | Lint / format | **Ruff** |
 | Types | **Mypy** strict |
-| Tests | **pytest** + branch coverage (≥80%) |
+| Tests | **pytest** (+ **pytest-xdist** / branch coverage on verify·CI; optional **pytest-testmon**) |
 | Notebooks | optional extra `[notebooks]` (Jupyter + ipykernel) |
 | Team process | **agent-dev-team** → `.team/` |
 
@@ -51,25 +51,61 @@ import the package.
 - New modules, dependencies, or public interfaces → **architect** (ADR + spec)
   before implementation; **qa** writes failing tests before production code.
 
-## Toolchain (run locally before every push)
+## Role gate ladder
+
+Everyday `pytest` is **fast**: no coverage and no testmon in default `addopts`.
+Coverage ≥80% and xdist apply only on the **verify / CI** rung. Testmon is
+opt-in for implement loops (see below).
+
+| Role | Gates |
+|------|--------|
+| **qa** | `uv sync` once → `uv run pytest <new tests> --no-cov` (prove RED; **no** `--testmon`) |
+| **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff` / `mypy` on touched paths; optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style `pytest` with coverage before handoff |
+| **review** | No pytest |
+| **verify / CI** | `ruff` + `mypy` + **full** pytest **with** coverage ≥80% and xdist (command below). **No testmon selection** (`--no-testmon` if `addopts` ever gains `--testmon`). Does **not** refresh `.testmondata` in MVP |
+
+## Toolchain (verify / before push)
 
 ```bash
 uv sync --all-extras
 uv run ruff check .
 uv run ruff format .
 uv run mypy src tests
-uv run pytest
+uv run pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
 
-Pip-equivalent (matches CI):
+Pip-equivalent (matches the intended CI gate):
 
 ```bash
 pip install -e ".[dev]"
 ruff check .
 ruff format .
 mypy src tests
-pytest
+pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
+
+Fast day-to-day (no coverage):
+
+```bash
+uv run pytest                    # full suite, no cov, no testmon
+uv run pytest --testmon          # implement: deselect unaffected tests
+uv run pytest tests/test_foo.py --no-cov   # ticket slice / RED proof
+./scripts/refresh-testmon.sh     # after green tip: rebuild LFS seed (no cov)
+```
+
+### Testmon cache (`.testmondata`)
+
+- Seed is **Git LFS–tracked** (best-effort fingerprints across worktrees). After
+  `git worktree add` / clone, run `git lfs install` and `git lfs pull` so
+  `.testmondata` is a real SQLite file — not a pointer. Pointer / missing DB →
+  full `--testmon` collect (OK fallback).
+- Refresh only via `./scripts/refresh-testmon.sh` (**no** `--cov`; coverage forces
+  testmon nocollect). Script checkpoints WAL into a single file; never commit
+  `.testmondata-wal` / `.testmondata-shm`.
+- Merge conflicts: take one side (`./scripts/resolve-testmon-conflict.sh ours|theirs`
+  or `git checkout --ours/--theirs -- .testmondata && git add .testmondata`). Never
+  hand-merge SQLite; never block a ticket on cache merge.
+- Default `addopts` must stay free of `--testmon` and `--cov`.
 
 Notebooks:
 
@@ -85,8 +121,9 @@ uv run jupyter lab
 |-------------|----------|
 | Formatter / linter | **Ruff** — must pass |
 | Types | **Mypy** strict on `src` and `tests` |
-| Tests | **pytest** with branch coverage |
-| Coverage | **≥80%** on `blueberries_voi` (`--cov-fail-under=80`) |
+| Tests | **pytest**; verify/CI also use **pytest-xdist** (`-n auto`) |
+| Coverage | **≥80%** on `blueberries_voi` on verify/CI only (`--cov-fail-under=80`) |
+| Testmon | Optional implement speedup; never shrinks the verify/CI gate |
 
 ## Project layout
 
@@ -94,6 +131,7 @@ uv run jupyter lab
 src/blueberries_voi/   # installable package + CLI
 tests/                 # mirrors package modules (test_<module>.py)
 notebooks/             # exploration; import the package
+scripts/               # helpers (e.g. refresh-testmon.sh)
 .team/                 # intake, specs, ADRs, reviews, qa, changelog
 ```
 
@@ -112,14 +150,22 @@ done. Definition of done: acceptance criteria pass · `.team/reviews/` APPROVED 
   `outputs/` locally; they are gitignored).
 - Don't merge, force-push, or weaken CI gates.
 - Don't skip architect → qa → implement → reviewer → verifier for feature work.
+- Don't rely on testmon deselection for verify/CI coverage; don't commit
+  testmon WAL/SHM sidecars.
 
 ## CI
 
-GitHub Actions runs Ruff, Mypy, and pytest with coverage on Python 3.11 and 3.12.
-A pull request is not complete until CI is green.
+GitHub Actions should run Ruff, Mypy, and pytest with xdist + coverage on Python
+3.11 and 3.12 (same full command as the verify toolchain above — **no**
+`--testmon`). A pull request is not complete until CI is green. If the workflow
+file still invokes bare `pytest`, update it to the explicit cov+xdist command
+(workflow edits are a human / privileged step when agents are blocked from
+`.github/workflows/`).
 
 ## Summary for agents
 
-**Write tests first. Keep mypy strict and ruff clean. Keep coverage ≥80%. Prefer
-library code over notebook-only logic. Never "fix" failures by weakening
-configuration.**
+**Write tests first. Keep mypy strict and ruff clean. Keep coverage ≥80% on
+verify/CI. Prefer library code over notebook-only logic. Never "fix" failures
+by weakening configuration. Use the role gate ladder — do not run full coverage
+on every qa/implement loop. Use `--testmon` for implement speed; refresh the LFS
+seed without `--cov`; never let testmon shrink the verify/CI gate.**

@@ -20,6 +20,9 @@ venv/
 .coverage
 coverage.xml
 htmlcov/
+# pytest-testmon SQLite sidecars only — keep .testmondata (LFS-tracked seed)
+.testmondata-wal
+.testmondata-shm
 
 # Notebooks
 .ipynb_checkpoints/

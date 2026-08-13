@@ -5,7 +5,10 @@ work — a typed Python package with CLI scripts and optional Jupyter notebooks.
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+.
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+. For the optional
+pytest-testmon cache seed, also install [Git LFS](https://git-lfs.com/) and run
+`git lfs install` / `git lfs pull` after clone so `.testmondata` is a real SQLite
+file (not a pointer).
 
 ```bash
 uv sync --all-extras
@@ -13,12 +16,24 @@ uv sync --all-extras
 
 ## Quality gates
 
+Full verify / CI-style gate (coverage + xdist; **no** testmon selection):
+
 ```bash
 uv run ruff check .
 uv run ruff format .
 uv run mypy src tests
-uv run pytest
+uv run pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
+
+Everyday loops (no coverage):
+
+```bash
+uv run pytest                 # full suite
+uv run pytest --testmon       # deselect tests unaffected by local edits
+./scripts/refresh-testmon.sh  # rebuild LFS-tracked .testmondata after a green tip
+```
+
+See `AGENTS.md` for the role gate ladder, conflict policy, and LFS notes.
 
 ## Notebooks
 

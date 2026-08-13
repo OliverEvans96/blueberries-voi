@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,4 +44,10 @@ jobs:
         run: mypy src tests
 
       - name: Pytest with coverage
-        run: pytest
+        run: >-
+          pytest -n auto
+          --cov=blueberries_voi
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=80
