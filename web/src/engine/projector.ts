@@ -129,11 +129,28 @@ function ghostDeltas(
   };
 }
 
-function asDay(day: DayDelta["day"]): Day {
+/**
+ * Normalize a wire day into the chart Day shape.
+ *
+ * Python EngineSession (ADR 0100) emits end-of-day cohorts on DayDelta.live_lots
+ * and intentionally omits day.lots (minimal chart fields in day_driver). The
+ * history / effective-age chart reads history[].lots, so fall back to live_lots
+ * when the day payload has no lot snapshot (HTTP / Pyodide). Mock still sends
+ * day.lots explicitly and that wins.
+ */
+function asDay(
+  day: DayDelta["day"],
+  liveLotsFallback?: readonly Lot[] | undefined,
+): Day {
   const d = day as Day;
+  const fromDay = d.lots;
+  const lotsSrc =
+    fromDay != null && fromDay.length > 0
+      ? fromDay
+      : (liveLotsFallback ?? []);
   return {
     day: d.day,
-    lots: (d.lots ?? []).map((l) => ({ ...l })),
+    lots: lotsSrc.map((l) => ({ ...l })),
     sales_total: d.sales_total ?? 0,
     waste_total: d.waste_total ?? 0,
     demand: d.demand ?? 0,
@@ -243,7 +260,7 @@ export class ViewModelProjector {
       this.history = this.history.slice(1);
     }
 
-    this.history = [...this.history, asDay(delta.day)];
+    this.history = [...this.history, asDay(delta.day, delta.live_lots)];
     // Enforce rolling window even if drop_oldest was omitted.
     if (this.history.length > this.windowDays) {
       this.history = this.history.slice(-this.windowDays);

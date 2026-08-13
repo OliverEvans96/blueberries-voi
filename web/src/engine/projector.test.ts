@@ -131,6 +131,34 @@ describe("ViewModelProjector.applyDelta", () => {
     expect(vm.belief.density.length).toBeGreaterThan(0);
   });
 
+  it("fills history[].lots from live_lots when wire day omits lots (HTTP)", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+      window_days: 14,
+    });
+    projector.applySnapshot(sampleSnapshot());
+    const live = [{ lot_id: 2, n: 16, tau: 2.23 }];
+    const vm = projector.applyDelta(
+      sampleDelta({
+        day: {
+          day: 1,
+          L: 1,
+          arrivals: 16,
+          demand: 10,
+          order_qty: 16,
+          sales_total: 8,
+          waste_total: 0,
+          // no lots — matches EngineSession / golden DayDelta.day
+        },
+        live_lots: live,
+      }),
+    );
+
+    expect(vm.history).toHaveLength(1);
+    expect(vm.history[0]!.lots).toEqual(live);
+    expect(vm.live_lots).toEqual(live);
+  });
+
   it("honours drop_oldest when the rolling window is full", () => {
     const windowDays = 2;
     const projector = new ViewModelProjector({
