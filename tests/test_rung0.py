@@ -44,9 +44,10 @@ _POLICY_NAMES = (
 # ---------------------------------------------------------------------------
 # CTL-05 / X-12 fixture lock (outdating-correction estimator parameters)
 # ---------------------------------------------------------------------------
-# Daily delivery, LT=1 -> protection interval covers **2** days of demand
-# (X-11 / X-06 worked example: daily Delta tau_L = 2).
+# Legacy no-schedule default protection days (daily R+L=2). MWF base case is
+# day-indexed (ADR 0109 / T-081); T-083 supersedes immutable-daily locks.
 _PROTECTION_DAYS: int = 2
+_LEGACY_NO_SCHEDULE_PROTECTION_DAYS: int = 2
 # Mean survival weight under the stationary age distribution (outdating
 # correction). Naive age-blind uses 1.0; corrected Rung 0 uses bar_w < 1.
 _BAR_W: float = 0.75
@@ -325,21 +326,33 @@ def test_rung0_outdating_correction_differs_from_naive_bar_w_one() -> None:
     assert q_corr != q_naive
 
 
-def test_rung0_documents_protection_interval_lt1_daily() -> None:
-    """Protection interval locked to daily LT=1 / Delta tau_L = 2 days."""
+def test_rung0_documents_protection_interval_not_immutable_daily_two() -> None:
+    """Legacy scalar 2 may remain; docs must not lock daily-2 as MWF base case.
+
+    T-083 supersession of immutable ``PROTECTION_DEMAND_DAYS=2`` guards.
+    """
     policy = _make_policy()
     days = getattr(policy, "protection_days", None)
     if days is None:
         days = getattr(policy, "protection_horizon", None)
     if days is None:
         days = getattr(policy, "delta_tau_l_days", None)
-    assert days == _PROTECTION_DAYS, (
-        f"Rung 0 must use protection_days={_PROTECTION_DAYS} (daily LT=1); got {days}"
+    assert days == _LEGACY_NO_SCHEDULE_PROTECTION_DAYS, (
+        f"no-schedule Rung 0 default protection_days remains "
+        f"{_LEGACY_NO_SCHEDULE_PROTECTION_DAYS}; got {days}"
     )
     mod = _resolve_policy_module()
     doc = (mod.__doc__ or "").lower()
     assert "protection" in doc or "delta" in doc, (
         "module docstring must document the protection-interval convention"
+    )
+    # ADR 0109 / T-081: base case is periodic / day-indexed under MWF.
+    assert any(
+        token in doc
+        for token in ("periodic", "day-indexed", "day indexed", "mwf", "schedule")
+    ), (
+        "rung0 docs must acknowledge periodic / day-indexed MWF protection "
+        "(not immutable daily-2 as the only base case)"
     )
 
 
