@@ -108,3 +108,61 @@ view-model every tick).
 - **Repo split:** this repo owns library façade + wheel; Astro/D3 stays in the web
   mockup / site checkout and consumes the release artifact
 - Prior packaging prefs remain **binding** unless Oliver revises them in the answers above
+
+---
+
+# Intake 2026-08-13 — CAL-01 calendar realism (MWF + FreshNet)
+
+## Request (their words)
+
+> NEW BASE CASE: supersede X-11 (ADR 0011 daily) and amend/supersede MOD-09 (ADR 0031 i.i.d.).
+> Cadence: Mon/Wed/Fri deliveries, LT=1 → order days Sun/Tue/Thu.
+> Demand: FreshRetailNet-50K (hf://datasets/Dingdong-Inc/FreshRetailNet-50K); derived JSON product; optional `[freshnet]` extra for fit only.
+> Keep CRN: shared `(root_seed, PHYSICS_RUN_ID, day, :demand)` across VOI scenarios.
+> Daily physics ticks; UI jumps via step_n to next order day.
+> Scale demand shape from FreshNet; keep μ≈30 operational scale; don't transfer Chinese yuan economics.
+> Document China blueberry transferability in the FreshNet ADR.
+
+## What they want
+
+Replace the daily i.i.d. scientific base case with a realistic Mon/Wed/Fri produce cadence and
+FreshNet-fitted calendar demand, while preserving VOI CRN pairing and daily physics — shipped as a
+milestone (CAL-01) with parallel schedule / demand / web tracks, not a single ticket.
+
+## In scope
+
+- Explicit reopen of **X-11** and **MOD-09** (superseding ADR 0011 and 0031)
+- OrderSchedule API + episode/session order gates; day-indexed controllers / baselines / M2
+- FreshNet ingest, fit → committed `demand_profile.json` + PROVENANCE; runtime JSON loader only
+- CRN / VOI wire for day-indexed demand; web Snapshot + next-order-day UI + demand chrome
+- Wave-0 ADRs/plan/specs (T-076–T-088); changelog closeout
+
+## Out of scope
+
+- Reopening X-06 (cadence as VOI sweep axis) or VOI-02 honesty arms
+- Full FreshNet two-stage latent demand recovery as production prior
+- Collapsing physics to weekly ticks
+- Filter joint/cohort production changes beyond a remotesure note
+- Merging to `main` / editing `.github/workflows/`
+- Transferring Chinese yuan prices or pack sizes into economics
+
+## Open questions
+
+- [x] **Scientific landing:** **New base case** (supersede daily + i.i.d.), not a sensitivity cell.
+- [x] **Cadence:** Mon/Wed/Fri delivery, LT=1 → order Sun/Tue/Thu.
+- [x] **Demand source:** FreshRetailNet-50K; derived JSON; `[freshnet]` fit-only; no HF in runtime.
+- [x] **CRN:** keep `(root_seed, PHYSICS_RUN_ID, day, :demand)` shared across scenarios.
+- [x] **Physics / UI:** daily `day_step`; UI advances via `step_n` to next order day.
+- [x] **Scale / economics:** shape from FreshNet; μ≈30; no yuan transfer.
+- [x] **X-11 / MOD-09:** Oliver reopened both; Wave 0 supersedes ADR 0011 → 0109 and 0031 → 0110.
+- [x] **X-06:** remains parked (fixed base case change only).
+- [x] **Ticket / ADR block:** T-076–T-088; ADRs 0109–0113.
+
+## Assumptions if unanswered
+
+*(Superseded by checked answers above — retained for history.)*
+
+- If SKU IDs cannot isolate blueberries, use documented fruit / high-velocity perishable pool and
+  record IDs in PROVENANCE.
+- If V/M refit is unstable, keep `demand_vm = 2.0` and document in the fit report.
+- A2 may land before B3 with optional `day=` shim on `draw_demand`.

@@ -1,5 +1,5 @@
 # 0011. X-11: Delivery cadence for the base case
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0109
 DATE: 2026-08-12
 BOARD-ID: X-11
 GROUP: X

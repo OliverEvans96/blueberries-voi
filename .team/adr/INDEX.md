@@ -18,6 +18,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M3 exact LL speedup (2026-08-12): **[0103](./0103-exact-faster-p1-f2a-likelihood.md)** (unique-particle MF dedup + NumPy sequential-WOR DP; no surrogate; no new runtime deps)
 - Audit remediation lock (2026-08-12): **[0104](./0104-audit-remediation-defaults.md)** (nearest `case_round`; Abdella shipment defaults; uncalibrated `DEFAULT_PROFIT_COSTS`; VOI α-table gate; MF sweeps=5; bakeoff stubs non-citeable)
 - ENG-01 dual-mode readiness (2026-08-13): **[0107](./0107-demo-hydrate-at-host-edges.md)–[0108](./0108-local-dual-mode-vite-wheel-cors.md)** (host-edge demo hydrate; Vite wheel/`wheelUrl`/CORS). Do **not** confuse with in-flight arrival-only ADR **0105–0106** on `team/T-067/architect`.
+- CAL-01 calendar realism Wave 0 (2026-08-13): **[0109](./0109-x-11-mwf-delivery-base-case.md)–[0113](./0113-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. Do **not** confuse with in-flight arrival-only ADR **0105–0106**.
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -34,7 +35,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0008](./0008-x-08-data-provenance.md) | `X-08` | Data provenance | ACCEPTED |
 | [0009](./0009-x-09-language-and-stack.md) | `X-09` | Language and stack ⚑ | ACCEPTED |
 | [0010](./0010-x-10-reproducibility-standard.md) | `X-10` | Reproducibility standard | ACCEPTED |
-| [0011](./0011-x-11-delivery-cadence-for-the-base-case.md) | `X-11` | Delivery cadence for the base case ⚑ | ACCEPTED |
+| [0011](./0011-x-11-delivery-cadence-for-the-base-case.md) | `X-11` | Delivery cadence for the base case ⚑ (daily) | SUPERSEDED BY 0109 |
 | [0012](./0012-x-12-tripwire-if-the-headline-number-is-flat.md) | `X-12` | Tripwire if the headline number is flat ⚑ | ACCEPTED |
 | [0013](./0013-scn-b-clair-perfect-foresight-oracle.md) | `SCN-B-clair` | Perfect foresight oracle ⚑ | ACCEPTED |
 | [0014](./0014-scn-b-state-perfect-state-oracle.md) | `SCN-B-state` | Perfect state oracle | ACCEPTED |
@@ -54,7 +55,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0028](./0028-mod-06-clock-origin-and-left-truncation.md) | `MOD-06` | Clock origin and left-truncation | ACCEPTED |
 | [0029](./0029-mod-07-picking-kernel-form.md) | `MOD-07` | Picking kernel form | ACCEPTED |
 | [0030](./0030-mod-08-allocation-law.md) | `MOD-08` | Allocation law | ACCEPTED |
-| [0031](./0031-mod-09-demand-model.md) | `MOD-09` | Demand model | ACCEPTED |
+| [0031](./0031-mod-09-demand-model.md) | `MOD-09` | Demand model (i.i.d.) | SUPERSEDED BY 0110 |
 | [0032](./0032-mod-10-unmet-demand.md) | `MOD-10` | Unmet demand | ACCEPTED |
 | [0033](./0033-mod-11-arrival-age-distribution.md) | `MOD-11` | Arrival age distribution ⚑ | ACCEPTED |
 | [0034](./0034-mod-12-within-day-order-of-operations.md) | `MOD-12` | Within-day order of operations | ACCEPTED |
@@ -131,3 +132,8 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0104](./0104-audit-remediation-defaults.md) | *(repo audit)* | Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs | ACCEPTED |
 | [0107](./0107-demo-hydrate-at-host-edges.md) | `ENG-01` | Demo hydrate shipments at API + Pyodide worker edges | ACCEPTED |
 | [0108](./0108-local-dual-mode-vite-wheel-cors.md) | `ENG-01` | Local dual-mode: Vite wheel + worker, wheelUrl, CORS | ACCEPTED |
+| [0109](./0109-x-11-mwf-delivery-base-case.md) | `X-11` / CAL-01 | MWF delivery base case (LT=1; order Sun/Tue/Thu) | ACCEPTED |
+| [0110](./0110-mod-09-calendar-demand.md) | `MOD-09` / CAL-01 | Known NB with calendar DOW×week structure | ACCEPTED |
+| [0111](./0111-order-schedule-api.md) | `CAL-A1` | OrderSchedule type/API (can_order / protection_days) | ACCEPTED |
+| [0112](./0112-freshnet-derived-demand-product.md) | `CAL-B1` | FreshNet derived demand product + transferability | ACCEPTED |
+| [0113](./0113-cal-01-track-ownership.md) | `CAL-01` | Track ownership + draw_demand(day=) shim | ACCEPTED |

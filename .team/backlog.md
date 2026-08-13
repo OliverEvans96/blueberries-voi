@@ -8,7 +8,8 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 - **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
 - **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** — **Done / complete pending human merge.** Tip ready: `team/ENG-01-readiness/wave2` (= `team/T-075/implement`); verified close-out @ `a75fc10` (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md); smoke [T-075-smoke.md](./qa/T-075-smoke.md); verify [T-075.md](./qa/T-075.md)). Agents did not merge to `main`. Do **not** reuse T-067–T-069 / 0105–0106 for readiness.
-- **Next free after both:** **T-076+**, ADR **0109+**.
+- **CAL-01 calendar realism (in progress):** **T-076–T-088**, ADR **0109–0113**. Plan [CAL-01-calendar-realism.md](./plans/CAL-01-calendar-realism.md). Wave 0 architect on `team/T-076/architect`. Oliver **reopened X-11 and MOD-09** (ADR 0011 → 0109, 0031 → 0110). Ticket map: T-076 Wave 0; T-077∥T-078; T-079∥T-080; T-081∥T-082; T-083∥T-084∥T-085; T-086∥T-087 → T-088.
+- **Next free after CAL-01 claim:** **T-089+**, ADR **0114+** (provisional; renumber at integrate if needed).
 
 ## Needs human now
 
@@ -16,7 +17,7 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there). Still open.
 - **Optional — lazy-import pyarrow:** Consider deferring `pyarrow` import so dual-mode / slim paths avoid a hard runtime dependency unless parquet paths are used (non-blocking polish).
 - **Intake open questions → [GitHub issue #1](https://github.com/OliverEvans96/blueberries-voi/issues/1):** Confirm production β grid upper bound / knot placement, default `ProfitCosts` for headline VOI, and whether F1/F1s closed-loop must fully score lot-resolved masks in M3v1 (see `.team/intake.md`).
-- **M3 overnight production regen:** Keep tip `team/T-060/implement` (worktree `.worktrees/T-060-implement`) for citeable overnight VOI grid regeneration. Library M3 is on `main`; this tip is still needed for the production run.
+- **M3 overnight production regen:** Keep tip `team/T-060/implement` (worktree `.worktrees/T-060-implement`) for citeable overnight VOI grid regeneration. Library M3 is on `main`; this tip is still needed for the production run. **Note:** CAL-01 will invalidate daily/i.i.d. citeable numbers again once landed — regen after CAL-01 closeout.
 - **Optional — push `main`:** Local `main` is ahead of `origin/main` after integrate landings; push when ready (human).
 - **Optional later — ADR / ticket-id collision:** Audit remediation used ticket ids T-042–T-044 under `*-audit-remediation*` paths while ENG-01 also used T-042–T-058; ADR [0104](./adr/0104-audit-remediation-defaults.md) landed. Rename/clarify artifacts only if it confuses readers — not blocking.
 
@@ -31,7 +32,8 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 ## Settled / historical (do not reopen lightly)
 
 - **M1.5 / T-021 settled:** Production RBPF is mean-field (ADR [0091](./adr/0091-fil13-production-mean-field.md)). FIL-04=C; FIL-13 production=B; joint / `K^L` production parked. Do not reopen joint production without a **new** ADR.
-- **Do not reopen without Oliver:** ⚑ cards (FIL-01, FIL-08, MOD-14/15/17, SCN-P2/F3/B-clair, …). Exception / settle as ADR 0091 above.
+- **X-11 / MOD-09:** Previously “do not reopen without Oliver.” **Oliver reopened both for CAL-01** (2026-08-13). Daily cadence (0011) and i.i.d. demand (0031) are **SUPERSEDED** by [0109](./adr/0109-x-11-mwf-delivery-base-case.md) and [0110](./adr/0110-mod-09-calendar-demand.md). Further cadence/demand changes still need Oliver; X-06 remains parked.
+- **Do not reopen without Oliver:** other ⚑ cards (FIL-01, FIL-08, MOD-14/15/17, SCN-P2/F3/B-clair, X-06 cadence-as-axis, VOI-02, …). Exception / settle as ADR 0091 above; X-11/MOD-09 exception is CAL-01.
 - **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without ADR; do not reopen T-021 / joint production. ENG-01 packaging was a **separate** milestone and is now landed on `main` (see above); T-046 workflow install remains needs-human.
 - **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md) (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim emits synthetic ASN `pack_date` on delivery `DayLog` rows; Stage A F2a contracts under smoke defaults.
