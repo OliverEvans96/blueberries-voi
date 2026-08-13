@@ -4,6 +4,7 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-13
 
+- **Internal structure was cleaned up without changing scores or how the simulator, filter, or studio behave** (T-102).
 - **In the studio you can Autopilot-play day by day with controller policy knobs and pause safely** (T-091, T-097–T-101).
 - **The default store now orders for Monday / Wednesday / Friday deliveries with a calendar-shaped weekly demand pattern instead of every-day i.i.d. sales; prior citeable value-of-information numbers from the daily base case need to be regenerated** (T-076–T-088 / CAL-01).
 - **The in-browser store simulator starts again — the engine worker now loads in a way the current browser runtime accepts, so Advance and Reset are no longer blocked at startup** (T-092).
