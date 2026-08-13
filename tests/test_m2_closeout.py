@@ -375,17 +375,29 @@ def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
             )
 
 
+# Relative to ``src/blueberries_voi/``. T-044 slim interactive entry (ADR 0097);
+# Pyodide worker / wheel packaging modules remain T-046 / T-047.
+_ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
+
+
 def test_no_browser_or_pyodide_packaging_modules_in_src() -> None:
-    """No browser / pyodide / eng01 packaging modules under src/."""
+    """No premature Pyodide/WASM/ENG-01 host modules; T-044 browser.py allowed."""
     hits = (
         list(_SRC.rglob("*browser*"))
         + list(_SRC.rglob("*pyodide*"))
         + list(_SRC.rglob("*eng01*"))
         + list(_SRC.rglob("*wasm*"))
     )
-    hits = [p for p in hits if p.is_file()]
+    hits = [
+        p
+        for p in hits
+        if p.is_file()
+        and p.suffix == ".py"
+        and str(p.relative_to(_SRC)) not in _ALLOWED_BROWSER_MODULES
+    ]
     assert not hits, (
-        "M2 non-goal: no browser/Pyodide packaging modules; found "
+        "M2 non-goal: no Pyodide/WASM packaging or premature ENG-01 host "
+        f"modules (allowed: {sorted(_ALLOWED_BROWSER_MODULES)}); found "
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in hits)
     )
 
