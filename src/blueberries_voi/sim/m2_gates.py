@@ -2,6 +2,10 @@
 
 These are library helpers under ``sim/`` (outside ``controller/``). Named
 pytest node ids in ``tests/test_m2_gates.py`` are the CI contract.
+
+T-083 / ADR 0109: β=1 and DP gates run under default ``OrderSchedule``
+(orders Sun/Tue/Thu). Age-blind Rung 0 uses day-indexed survival weights
+(T-081). Protection lengths on order days are 3/3/4 (not legacy daily 2).
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from blueberries_voi.controller.toy_dp import gap_vs_rollout, solve_toy_dp
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams
 from blueberries_voi.rng import STREAM_DEMAND, STREAM_SPOIL
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -36,9 +41,14 @@ __all__ = [
 _ALPHA: float = 0.9
 _RHO: float = 1.0
 _CASE_SIZE: int = 8
+# Legacy scalar retained for unit docs; MWF gate uses schedule.protection_days.
 _PROTECTION_DAYS: int = PROTECTION_DEMAND_DAYS
+# T-083 retune record: order-day protection under DEFAULT_ORDER_SCHEDULE.
+_MWF_ORDER_PROTECTION_DAYS: tuple[int, ...] = (3, 3, 4)  # Sun / Tue / Thu
 _TAU_GRID: tuple[float, ...] = (0.0, 1.0, 2.0, 3.0, 4.0)
 _SAME_AGE_INDEX: int = 0
+# First-week calendar days that are order days (epoch Mon 2024-01-01).
+_ORDER_DAY_FIXTURES: tuple[int, ...] = (6, 1, 3)  # Sun, Tue, Thu
 
 
 @dataclass(frozen=True)
@@ -66,9 +76,14 @@ def _same_age_belief(*, lot_counts: list[float]) -> ShelfBelief:
     return ShelfBelief(lot_counts=counts, age_marginals=margs, tau_grid=grid)
 
 
-def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
+def _protection_demand_fractile(
+    alpha: float,
+    params: ModelParams,
+    *,
+    protection_days: int,
+) -> float:
     """F^{-1} of protection-interval demand (matches DampedSurvivalWeightedPolicy)."""
-    r = float(params.nb_r()) * float(_PROTECTION_DAYS)
+    r = float(params.nb_r()) * float(protection_days)
     p = float(params.nb_p())
     return float(nbinom.ppf(float(alpha), r, p))
 
@@ -82,32 +97,32 @@ def _fixture_survival_weights(params: ModelParams) -> tuple[float, float]:
     return bar_w, pipe_w
 
 
+def _order_days(schedule: OrderSchedule) -> tuple[int, ...]:
+    """Calendar days in the first week that ``schedule.can_order``."""
+    days = tuple(d for d in range(7) if schedule.can_order(d))
+    return days if days else _ORDER_DAY_FIXTURES
+
+
 def assert_beta1_degeneracy() -> GateResult:
-    """β=1 / constant-w degeneracy: age-aware and age-blind orders coincide.
+    """β=1 / constant-w degeneracy under default ``OrderSchedule``.
 
     When survival weight ``w`` is flat across lots (same-age fixture), corrected
     age-blind (Rung 0) and the real age-aware ``DampedSurvivalWeightedPolicy``
-    (via ``effective_inventory``) must return identical case-rounded orders under
-    matched ``rho`` and protection-interval demand fractile (CTL-05 / ENG-04).
+    must return identical case-rounded orders on each MWF order day (Sun/Tue/Thu)
+    under matched ``rho``, day-indexed Rung 0 weights, and day-indexed protection
+    fractiles (3/3/4). Legacy scalar R+L=2 is not the MWF gate base case.
     """
+    schedule = DEFAULT_ORDER_SCHEDULE
     params = ModelParams(case_size=_CASE_SIZE)
-    d_star = _protection_demand_fractile(_ALPHA, params)
     bar_w, pipe_w = _fixture_survival_weights(params)
+    # Homogeneous day-indexed table (T-081); values match the flat fixture.
+    weights_by_weekday = {wd: bar_w for wd in range(7)}
 
-    age_blind = CorrectedAgeBlindPolicy(
-        alpha=_ALPHA,
-        params=params,
-        rho=_RHO,
-        mean_survival_weight=bar_w,
-        pipeline_weight=pipe_w,
-        demand_target=d_star,
-        protection_days=_PROTECTION_DAYS,
-        case_size=_CASE_SIZE,
-    )
     age_aware = DampedSurvivalWeightedPolicy(
         rho=_RHO,
         alpha=_ALPHA,
         params=params,
+        schedule=schedule,
     )
     cases: tuple[tuple[list[float], dict[int, int]], ...] = (
         ([40.0], {}),
@@ -117,15 +132,37 @@ def assert_beta1_degeneracy() -> GateResult:
         ([96.0], {1: 24}),
         ([20.0, 20.0], {1: 16}),
     )
-    for lots, pending in cases:
-        belief = _same_age_belief(lot_counts=lots)
-        q_blind = int(age_blind.order(0, belief, pending_orders=pending))
-        q_aware = int(age_aware.order(belief, pending_orders=pending))
-        if q_blind != q_aware:
-            return GateResult(
-                ok=False,
-                status="fail",
-            )
+    for day in _order_days(schedule):
+        prot = int(schedule.protection_days(day))
+        d_star = _protection_demand_fractile(_ALPHA, params, protection_days=prot)
+        age_blind = CorrectedAgeBlindPolicy(
+            alpha=_ALPHA,
+            params=params,
+            rho=_RHO,
+            mean_survival_weight=weights_by_weekday,
+            pipeline_weight=pipe_w,
+            demand_target=d_star,
+            protection_days=prot,
+            case_size=_CASE_SIZE,
+            schedule=schedule,
+        )
+        # Touch day-indexed API so gates consume T-081 weights (not scalar-only).
+        _ = float(age_blind.mean_survival_weight_for_day(day))
+        for lots, pending in cases:
+            belief = _same_age_belief(lot_counts=lots)
+            q_blind = int(age_blind.order(day, belief, pending_orders=pending))
+            q_aware = int(age_aware.order(belief, day=day, pending_orders=pending))
+            if q_blind != q_aware:
+                return GateResult(
+                    ok=False,
+                    status="fail",
+                    report={
+                        "day": float(day),
+                        "protection_days": float(prot),
+                        "q_blind": float(q_blind),
+                        "q_aware": float(q_aware),
+                    },
+                )
     return GateResult(ok=True, status="ok")
 
 
@@ -171,7 +208,7 @@ def probe_crn_desync_crossed() -> GateResult:
 
 def assert_dp_certificate() -> GateResult:
     """M2 gate requiring T-031 DP-gap report (CI red if broken / missing)."""
-    toy = solve_toy_dp()
+    toy = solve_toy_dp(schedule=DEFAULT_ORDER_SCHEDULE)
     gap = float(gap_vs_rollout(toy))
     report = {"gap_vs_rollout": gap}
     return GateResult(

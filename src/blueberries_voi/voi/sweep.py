@@ -1,4 +1,8 @@
-"""VOI-04 / X-06 sweep orchestrator (scenario x beta) with smoke budgets."""
+"""VOI-04 / X-06 sweep orchestrator (scenario x beta) with smoke budgets.
+
+Production burn-in / rollout H follow weekly multiples of 7 under periodic
+MWF age (ADR 0109 / T-083); CI smoke budgets stay tiny by design.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from blueberries_voi.controller.rollout import (
+    DEFAULT_ROLLOUT_H,
+    DEFAULT_ROLLOUT_HORIZONS,
+)
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.voi.bootstrap import BootstrapCI, paired_bootstrap_ci
 from blueberries_voi.voi.crn import VOI_SCENARIOS, run_voi_crn_cell
@@ -29,15 +37,24 @@ _SMOKE_N_BOOT: int = 32
 _SMOKE_FILTER_N: int = 16
 _SMOKE_H: int = 2
 _SMOKE_PATHS: int = 1
-_PROD_N_BURN: int = 30
+# Weekly-aligned under periodic MWF age (supersedes daily-stationary 30).
+_PROD_N_BURN: int = 28
+PRODUCTION_N_BURN: int = _PROD_N_BURN
 _PROD_N_SCORE: int = 60
 _PROD_N_REP: int = 20
 _PROD_N_BOOT: int = 200
+# Locked to controller Hx7 presets (DEFAULT_ROLLOUT_HORIZONS).
+PRODUCTION_ROLLOUT_H: int = DEFAULT_ROLLOUT_H
+_PROD_H: int = PRODUCTION_ROLLOUT_H
 _BETA1_ABS_TOL: float = 50.0  # generous under smoke horizons
+
+assert PRODUCTION_ROLLOUT_H in DEFAULT_ROLLOUT_HORIZONS
 
 __all__ = [
     "DEFAULT_VOI_SMOKE_REPORT",
     "PRODUCTION_BETAS",
+    "PRODUCTION_N_BURN",
+    "PRODUCTION_ROLLOUT_H",
     "SMOKE_BETAS",
     "VoIArmResult",
     "VoISweepResult",
@@ -153,7 +170,7 @@ def run_voi_sweep(
     f_n = int(
         filter_n if filter_n is not None else (_SMOKE_FILTER_N if use_smoke else 64)
     )
-    h = int(H if H is not None else (_SMOKE_H if use_smoke else 28))
+    h = int(H if H is not None else (_SMOKE_H if use_smoke else PRODUCTION_ROLLOUT_H))
     paths = int(
         n_rollout_paths
         if n_rollout_paths is not None

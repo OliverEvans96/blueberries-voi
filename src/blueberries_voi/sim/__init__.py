@@ -133,7 +133,7 @@ def run_episode(
     *,
     root_seed: int = 0,
     run_id: str | int = "ep0",
-    n_burn: int = 30,
+    n_burn: int = 28,
     n_score: int = 90,
     S: int = 60,
     lead_time: int = 1,
@@ -144,6 +144,7 @@ def run_episode(
     """Open-loop forward sim with shared ``model.day_step`` and SIM-04 logs.
 
     Non-order days coerce base-stock qty to 0 (T-079; matches closed-loop gate).
+    Default burn-in is weekly-aligned (28 days) under periodic MWF age.
     """
     p = params or ModelParams()
     sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
