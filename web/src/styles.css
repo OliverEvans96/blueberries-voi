@@ -876,3 +876,14 @@ input[type="number"] {
   font-size: 0.78rem;
   text-align: center;
 }
+
+.studio-error {
+  margin: 12px auto 0;
+  max-width: 48rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--spoil);
+  border-radius: var(--radius);
+  background: rgba(196, 106, 58, 0.12);
+  color: var(--spoil-strong);
+  font-size: 0.9rem;
+}

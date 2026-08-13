@@ -2,6 +2,9 @@ import "./styles.css";
 import { ViewModelProjector } from "./engine/projector";
 import {
   createStudioAdapter,
+  reportStudioAdapterError,
+  resolveStudioAdapterKind,
+  studioFooterCopy,
   type StudioEnv,
 } from "./engine/studioAdapter";
 import { renderHistory, setHistoryHover } from "./charts/history";
@@ -155,13 +158,17 @@ app.innerHTML = `
       </aside>
     </div>
 
-    <footer class="foot">
-      Fake data studio · blueberries-voi · D3 + Vite
-    </footer>
+    <div id="studio-error" class="studio-error" hidden role="alert"></div>
+    <footer class="foot" id="studio-footer"></footer>
   </div>
 `;
 
 const studioEnv = import.meta.env as ImportMetaEnv & StudioEnv;
+const adapterKind = resolveStudioAdapterKind(studioEnv);
+const footerEl = document.querySelector("#studio-footer");
+if (footerEl) {
+  footerEl.textContent = studioFooterCopy(adapterKind);
+}
 const adapter = createStudioAdapter({
   env: studioEnv,
   baseUrl: studioEnv.VITE_ENGINE_API_BASE_URL ?? studioEnv.VITE_API_BASE_URL,
@@ -170,6 +177,11 @@ const adapter = createStudioAdapter({
 });
 const projector = new ViewModelProjector();
 let vm: ViewModel = projector.getViewModel();
+
+function formatAdapterError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
 
 /** Snap order qty to case multiples using the projector's local config. */
 function snapOrder(qty: number): number {
@@ -330,20 +342,28 @@ const playChromeApi = mountPlayChrome(
     },
     onAdvance() {
       void (async () => {
-        const delta = await adapter.step(orderQty);
-        vm = projector.applyDelta(delta);
-        onHoverDay(null);
-        renderAll();
+        try {
+          const delta = await adapter.step(orderQty);
+          vm = projector.applyDelta(delta);
+          onHoverDay(null);
+          renderAll();
+        } catch (err) {
+          reportStudioAdapterError(`Advance failed: ${formatAdapterError(err)}`);
+        }
       })();
     },
     onReset() {
       void (async () => {
-        const snap = await adapter.reset();
-        vm = projector.applySnapshot(snap);
-        projector.markConfigApplied();
-        orderQty = snapOrder(orderQty);
-        onHoverDay(null);
-        renderAll();
+        try {
+          const snap = await adapter.reset();
+          vm = projector.applySnapshot(snap);
+          projector.markConfigApplied();
+          orderQty = snapOrder(orderQty);
+          onHoverDay(null);
+          renderAll();
+        } catch (err) {
+          reportStudioAdapterError(`Reset failed: ${formatAdapterError(err)}`);
+        }
       })();
     },
   },
@@ -416,11 +436,15 @@ window.addEventListener("keydown", (event) => {
 async function bootstrap(): Promise<void> {
   if (bootstrapped) return;
   bootstrapped = true;
-  const snap = await adapter.init();
-  vm = projector.applySnapshot(snap);
-  projector.markConfigApplied();
-  setSection(activeSection);
-  renderAll();
+  try {
+    const snap = await adapter.init();
+    vm = projector.applySnapshot(snap);
+    projector.markConfigApplied();
+    setSection(activeSection);
+    renderAll();
+  } catch (err) {
+    reportStudioAdapterError(`Init failed: ${formatAdapterError(err)}`);
+  }
 }
 
 void bootstrap();
