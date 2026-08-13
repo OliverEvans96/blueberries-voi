@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 from blueberries_voi.controller.damped_sw import (
     PROTECTION_DEMAND_DAYS,
     DampedSurvivalWeightedPolicy,
+    protection_demand_quantile,
 )
-from blueberries_voi.controller.protection import protection_demand_quantile
 from blueberries_voi.controller.rollout import detect_crn_desync
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.controller.toy_dp import gap_vs_rollout, solve_toy_dp

@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.controller.ordering import ConstantOrderPolicy
-from blueberries_voi.controller.protocol import invoke_order
+from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_order
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF

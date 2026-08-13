@@ -169,6 +169,9 @@ def observation_loglik_mc(
     without scenario-keyed demand streams (T-084 / ADR 0116 CRN identity).
     """
     _ = _SHARED_MC_KERNELS  # keep bindings live for ENG-02 / ruff
+    # Resolve via backends so monkeypatch of backends.day_step is honored.
+    from blueberries_voi.filter import backends as be
+
     counts_arr = np.asarray(counts, dtype=int)
     if counts_arr.ndim != 2:
         msg = "counts must have shape (N, L)"
@@ -228,7 +231,7 @@ def observation_loglik_mc(
 
         draw_lls = np.empty(n_mc, dtype=float)
         for m in range(n_mc):
-            result = day_step(
+            result = be.day_step(
                 cohorts0,
                 params=params,
                 demand=None,

@@ -12,8 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from blueberries_voi.controller.ordering import case_round
-from blueberries_voi.controller.protocol import invoke_order
+from blueberries_voi.controller.ordering import case_round, invoke_order
 from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,

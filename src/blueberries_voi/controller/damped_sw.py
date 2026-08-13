@@ -26,8 +26,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from scipy.stats import nbinom
+
 from blueberries_voi.controller.ordering import case_round
-from blueberries_voi.controller.protection import protection_demand_quantile
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams, q10_age_increment
 
@@ -38,6 +39,26 @@ if TYPE_CHECKING:
 
 LEAD_TIME_DAYS: int = 1
 PROTECTION_DEMAND_DAYS: int = 2  # R+L under daily LT=1 (legacy / no schedule)
+
+
+def protection_demand_quantile(
+    alpha: float,
+    params: ModelParams,
+    *,
+    protection_days: int,
+) -> float:
+    """Alpha-quantile of ``protection_days`` i.i.d. daily NB demand.
+
+    Homogeneous μ: scale NB ``r`` by ``protection_days`` (ADR 0116 / T-081).
+    Call sites pass their own length / alpha; this helper does not unify
+    schedule-aware vs legacy scalar conventions.
+    """
+    if not 0.0 < float(alpha) < 1.0:
+        msg = f"alpha must be in (0, 1), got {alpha}"
+        raise ValueError(msg)
+    r = float(params.nb_r()) * float(protection_days)
+    p = float(params.nb_p())
+    return float(nbinom.ppf(float(alpha), r, p))
 
 
 def _protection_demand_quantile(
@@ -135,4 +156,5 @@ __all__ = [
     "LEAD_TIME_DAYS",
     "PROTECTION_DEMAND_DAYS",
     "DampedSurvivalWeightedPolicy",
+    "protection_demand_quantile",
 ]

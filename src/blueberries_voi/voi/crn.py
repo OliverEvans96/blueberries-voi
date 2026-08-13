@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Literal
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.controller.protocol import invoke_order
+from blueberries_voi.controller.ordering import invoke_order
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.belief import (

@@ -18,9 +18,9 @@ import numpy as np
 from blueberries_voi.controller.damped_sw import (
     PROTECTION_DEMAND_DAYS,
     DampedSurvivalWeightedPolicy,
+    protection_demand_quantile,
 )
-from blueberries_voi.controller.protection import protection_demand_quantile
-from blueberries_voi.controller.protocol import invoke_order
+from blueberries_voi.controller.ordering import invoke_order
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.filter import PRODUCTION_BACKEND, RBPF

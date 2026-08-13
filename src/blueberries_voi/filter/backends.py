@@ -63,10 +63,12 @@ from blueberries_voi.filter.types import P1Obs, RichObs, age_grid
 from blueberries_voi.model import (
     ModelParams,
     allocate_sales,
-    day_step,
     death_prob_survival_ratio,
     draw_demand,
     q10_age_increment,
+)
+from blueberries_voi.model import (
+    day_step as day_step,
 )
 
 # Bound in module globals for T-011 ENG-02 shared-kernel checks that inspect

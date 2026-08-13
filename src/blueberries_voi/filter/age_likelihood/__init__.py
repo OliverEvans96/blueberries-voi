@@ -27,11 +27,11 @@ from .mean_field_diag import (
     joint_total_variation,
     marginal_kl,
     marginal_total_variation,
-    marginals_from_joint,  # noqa: F401
+    marginals_from_joint,
     max_pairwise_mutual_information,
     mean_field_update,
 )
-from .sequential_wor import (  # noqa: F401
+from .sequential_wor import (
     sequential_wor_composition_prob,
     sequential_wor_composition_probs,
 )
@@ -49,9 +49,12 @@ __all__ = [
     "log_p_sales_waste_multinomial_given_ages",
     "marginal_kl",
     "marginal_total_variation",
+    "marginals_from_joint",
     "max_pairwise_mutual_information",
     "mean_field_update",
     "picking_weights",
+    "sequential_wor_composition_prob",
+    "sequential_wor_composition_probs",
     "survival_weighted_on_hand",
 ]
 
