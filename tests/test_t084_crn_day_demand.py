@@ -55,9 +55,7 @@ def _expected_day_indexed_demands(
     """Independent CRN demand sequence: PHYSICS_RUN_ID + draw_demand(..., day=)."""
     out: list[int] = []
     for day in range(horizon):
-        rng = spawn_rng(
-            root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_DEMAND
-        )
+        rng = spawn_rng(root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_DEMAND)
         out.append(int(draw_demand(rng, params, day=day)))
     return out
 
