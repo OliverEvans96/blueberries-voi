@@ -176,7 +176,7 @@ def test_composition_probs_align_with_allocate_sales_monte_carlo() -> None:
     n_mc = 20_000
     freq: dict[tuple[int, ...], int] = {}
     for _ in range(n_mc):
-        sold = allocate_sales(counts.copy(), sales_tot, ages, params, rng)
+        sold = allocate_sales(counts.copy(), sales_tot, w, rng)
         key = tuple(int(x) for x in sold)
         freq[key] = freq.get(key, 0) + 1
     for key, p in table.items():
