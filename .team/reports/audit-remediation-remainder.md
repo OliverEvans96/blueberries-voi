@@ -2,7 +2,7 @@
 
 **Tip documented:** `team/audit-remediation-integ` @ `c11d25a88af84a2484dfedd0b848b38a334bd793`  
 **Source audit:** four-way review of `main` @ `f4a467f` (stubs / parameters / architecture / realism)  
-**Remediation scope:** ADR [0097](../adr/0097-audit-remediation-defaults.md), tickets **T-042**–**T-044**  
+**Remediation scope:** ADR [0104](../adr/0104-audit-remediation-defaults.md), tickets **T-042**–**T-044**  
 **Status:** Straightforward silent-default / dual-semantic fixes landed. This file lists what the audit still leaves open. **Science VOI is not citeable.**
 
 ---

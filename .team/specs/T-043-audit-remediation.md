@@ -4,7 +4,7 @@
 
 Production-facing VOI / M2 / α-tune paths silently default to a synthetic **1°C cool** shipment
 fixture and duplicated `_DEFAULT_COSTS` literals, and production VOI still uses fixed **α=0.9**.
-ADR 0097 locks Abdella as the shipment default, one documented (uncalibrated) profit-cost constant,
+ADR 0104 locks Abdella as the shipment default, one documented (uncalibrated) profit-cost constant,
 and CTL-03 α-table gating for production VOI (smoke may keep α=0.9).
 
 ## Acceptance criteria
@@ -67,7 +67,7 @@ def run_voi_sweep(..., smoke: bool = False, alpha_table_path: str | Path | None 
 ## Open questions
 
 - [x] Shipment default — Oliver lock: Abdella (`load_abdella_shipments`); cool only via explicit
-      smoke helper (ADR 0097).
-- [x] Costs — keep numeric triple 2.0 / 1.5 / 3.0 but document uncalibrated (ADR 0097).
+      smoke helper (ADR 0104).
+- [x] Costs — keep numeric triple 2.0 / 1.5 / 3.0 but document uncalibrated (ADR 0104).
 - [x] File ownership — implement owns `sim/profit.py`, `voi/*`, `sim/m2_*.py`, `sim/alpha_tune.py`
       (+ related tests); does not edit episode `case_round`.

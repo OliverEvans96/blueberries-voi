@@ -1,6 +1,6 @@
 """T-044: MF sweeps=5, bakeoff stub markers, backlog/docstring hygiene.
 
-See `.team/specs/T-044.md` and ADR 0097.
+See `.team/specs/T-044-audit-remediation.md` and ADR 0104.
 """
 
 from __future__ import annotations

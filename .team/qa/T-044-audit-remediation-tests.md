@@ -10,7 +10,7 @@
 ## Not covered by tests
 
 - Full ruff/mypy cleanliness for touched modules — verifier / `AGENTS.md` gates after implement
-- Optional warn-once on stub backends — not required by ADR 0097 if `is_stub` present
+- Optional warn-once on stub backends — not required by ADR 0104 if `is_stub` present
 
 ## Notes for implement (T-044)
 

@@ -44,7 +44,7 @@ __all__ = [
     "survival_weighted_on_hand",
 ]
 
-# Shared production mean-field sweep budget (ADR 0097 / T-044).
+# Shared production mean-field sweep budget (ADR 0104 / T-044).
 MF_MAX_SWEEPS = 5
 _MF_TV_STOP = 1e-6
 

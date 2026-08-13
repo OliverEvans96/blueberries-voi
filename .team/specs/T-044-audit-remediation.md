@@ -4,7 +4,7 @@
 
 Production P1 mean-field updates hard-code `max_sweeps=2` while `age_likelihood` defaults to 5;
 bakeoff `SlidingWindowBackend` / `FullJointBackend` still look like real filters; and backlog /
-controller docstrings still describe pre-merge M2/M3 state. ADR 0097 locks shared sweeps=5 and
+controller docstrings still describe pre-merge M2/M3 state. ADR 0104 locks shared sweeps=5 and
 non-citeable stub markers; this ticket also corrects hygiene only.
 
 ## Acceptance criteria
@@ -63,7 +63,7 @@ class MeanFieldBackend:
 
 ## Open questions
 
-- [x] Stub marking mechanism — docstring **plus** machine-checkable flag (ADR 0097); warn-once is
+- [x] Stub marking mechanism — docstring **plus** machine-checkable flag (ADR 0104); warn-once is
       optional sugar, not required if `is_stub` is present.
 - [x] File ownership — implement owns `filter/backends.py`, MF constant wiring (possibly
       `filter/age_likelihood.py`), `controller/__init__.py`, `.team/backlog.md`, α-tune comment only.

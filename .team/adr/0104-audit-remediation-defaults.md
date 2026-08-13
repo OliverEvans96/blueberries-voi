@@ -1,4 +1,4 @@
-# 0097. Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs
+# 0104. Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs
 
 STATUS: ACCEPTED
 DATE: 2026-08-12

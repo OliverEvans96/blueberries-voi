@@ -7,7 +7,7 @@ Escalations and items that need a human decision land here.
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
 - **Ready for human merge — audit remediation tip:** `team/audit-remediation-integ`
-  (T-042–T-044 + ADR [0097](./adr/0097-audit-remediation-defaults.md)). Landing on `main` is a
+  (T-042–T-044 + ADR [0104](./adr/0104-audit-remediation-defaults.md)). Landing on `main` is a
   human decision. **Science VOI is not citeable.** Open remainder pointers:
   [audit-remediation-remainder.md](./reports/audit-remediation-remainder.md) (RBPF ±1 counts;
   oracle closed-loop default; rollout/DP α NotImplemented; Stage A/B honesty + MF/MC mismatch;

@@ -3,7 +3,7 @@
 ## Context
 
 Closed-loop episode code still carries a **ceil** `case_round` while policies use
-`controller.ordering.case_round` (nearest, half-away-from-zero). ADR 0097 locks a single semantic so
+`controller.ordering.case_round` (nearest, half-away-from-zero). ADR 0104 locks a single semantic so
 VOI / closed-loop cannot silently re-round with a different rule.
 
 ## Acceptance criteria
@@ -46,6 +46,6 @@ from blueberries_voi.controller.ordering import case_round  # or equivalent wrap
 
 ## Open questions
 
-- [x] Rounding mode — Oliver lock: nearest / half-away-from-zero (ADR 0097).
+- [x] Rounding mode — Oliver lock: nearest / half-away-from-zero (ADR 0104).
 - [x] File ownership — implement owns `controller/ordering.py` + `sim/episode.py` case_round path;
       T-043 must not edit episode `case_round`.

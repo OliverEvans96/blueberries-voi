@@ -10,7 +10,7 @@ TIP: b92a2defa24d54906f63b82e3562171419fb03a3 (`team/audit-remediation-integ`)
 
 ## Non-blocking
 
-- [src/blueberries_voi/sim/__init__.py:142] Open-loop `run_episode` still ceil-rounds orders inline (`np.ceil`) and does not call `case_round`. Out of T-042 AC (closed-loop / `sim.episode` / public export), but ADR 0097’s “nearest everywhere” wording leaves a residual dual semantic on the M1 open-loop path.
+- [src/blueberries_voi/sim/__init__.py:142] Open-loop `run_episode` still ceil-rounds orders inline (`np.ceil`) and does not call `case_round`. Out of T-042 AC (closed-loop / `sim.episode` / public export), but ADR 0104’s “nearest everywhere” wording leaves a residual dual semantic on the M1 open-loop path.
 
 ## Summary
 

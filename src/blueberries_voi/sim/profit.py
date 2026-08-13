@@ -26,7 +26,7 @@ class ProfitCosts:
 
 
 # Uncalibrated scaffold costs for VOI / M2 / alpha-tune when callers omit ``costs``.
-# These are not fitted blueberry store economics (ADR 0097).
+# These are not fitted blueberry store economics (ADR 0104).
 DEFAULT_PROFIT_COSTS = ProfitCosts(
     unit_margin=2.0,
     waste_cost=1.5,

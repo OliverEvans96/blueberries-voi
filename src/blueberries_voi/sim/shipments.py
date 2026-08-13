@@ -18,7 +18,7 @@ __all__ = [
 
 
 def default_shipments(root: Path | None = None) -> list[ShipmentTrace]:
-    """Production default: load Abdella parquet traces (ADR 0097)."""
+    """Production default: load Abdella parquet traces (ADR 0104)."""
     return load_abdella_shipments(root)
 
 
