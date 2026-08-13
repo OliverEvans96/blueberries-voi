@@ -122,10 +122,10 @@ def test_sim_episode_case_round_source_has_no_ceil_arithmetic() -> None:
         f"(found ceil in:\n{body_src})"
     )
     # Equivalent ceil-to-case: math.ceil / numpy.ceil attribute use
-    for node in ast.walk(case_round_fn):
-        if isinstance(node, ast.Attribute) and node.attr == "ceil":
+    for walk_node in ast.walk(case_round_fn):
+        if isinstance(walk_node, ast.Attribute) and walk_node.attr == "ceil":
             pytest.fail("sim.episode.case_round must not call *.ceil")
-        if isinstance(node, ast.Name) and node.id == "ceil":
+        if isinstance(walk_node, ast.Name) and walk_node.id == "ceil":
             pytest.fail("sim.episode.case_round must not reference ceil")
 
 
