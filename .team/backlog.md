@@ -2,6 +2,13 @@
 
 Escalations and items that need a human decision land here.
 
+- **Done — exact LL speedups (T-064–T-066):** Unique-particle MF dedup + NumPy
+  sequential-WOR DP on `team/T-064-065/integrate` (ADR
+  [0097](./adr/0097-exact-faster-p1-f2a-likelihood.md); report
+  [M3-exact-ll-speedup-bench.md](./reports/M3-exact-ll-speedup-bench.md)). Measured
+  closed-loop ~8–11× on P1/F2a; density unchanged. Pending human merge to parent.
+  Residual: full production VOI grid may still need stagewise design / budget cuts /
+  Numba if overnight citeable run is required.
 - **M1.5 / T-021 settled:** Production RBPF is mean-field (ADR
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
