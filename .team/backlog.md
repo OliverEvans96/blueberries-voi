@@ -11,11 +11,13 @@ Escalations and items that need a human decision land here.
   `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
   merge with M2 tip to `main`. Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
   **ENG-01 reopened** (see below).
-- **Next — ENG-01 dual-runtime (T-042–T-058):** Oliver reopened ENG-01. Plan
-  [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md). ADRs
-  [0097](./adr/0097-eng-01-dual-runtime-ap.md)–[0100](./adr/0100-eng-01-api-asgi-session.md)
-  (0073 superseded). Wave 0 = T-042; next implement wave **T-043 ∥ T-044**. Pyodide=prod,
-  API=dev; Slice order common+Pyodide → API → D3 mockup.
+- **Done — ENG-01 Slice 1 (T-042–T-048):** Common + browser-worker path tip-green
+  (T-043–T-047 verify PASS; T-048 close-out). Slice 1 complete pending human merge
+  to `main`; agents did not merge. Next implement wave is Slice 2 (**T-050 ∥ T-051**).
+  Plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
+- **Next — ENG-01 Slice 2 (T-049–T-052):** API / ASGI session path after Slice-1 tip.
+  ADRs [0097](./adr/0097-eng-01-dual-runtime-ap.md)–[0100](./adr/0100-eng-01-api-asgi-session.md)
+  (0073 superseded). Pyodide=prod, API=dev; then Slice 3 D3 mockup.
 - **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
   the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
   M2 tip without waiting for that merge.

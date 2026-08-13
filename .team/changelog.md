@@ -2,6 +2,13 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — Slice 1: interactive engine in the browser
+
+- **You can now run the interactive Python engine in a browser worker** under
+  dialed demo budgets (lightweight particle and horizon caps), so the store
+  simulator steps without a separate server for the demo path. Full production-scale
+  in-tab runs and the developer HTTP API remain later work (T-048).
+
 ## 2026-08-12 — M3 value-of-information sweep
 
 - **You can now compare store profit across knowledge levels and spoilage shapes:** the
