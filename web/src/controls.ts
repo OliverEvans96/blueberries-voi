@@ -7,7 +7,7 @@ import type {
 } from "./types";
 import type { SectionId } from "./sections";
 
-/** Locked chip copy (ADR 0109 / T-089). */
+/** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
   ScenarioId,
   { title: string; description: string }
