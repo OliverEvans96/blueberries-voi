@@ -7,7 +7,7 @@ Escalations and items that need a human decision land here.
 See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026-08-13.md).
 
 - **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
-- **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md)). In progress on ticket branches; do **not** reuse T-067–T-069 / 0105–0106 for readiness.
+- **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** — **Done / complete pending human merge** on `team/T-075/implement` (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md); smoke [T-075-smoke.md](./qa/T-075-smoke.md)). Agents did not merge to `main`. Do **not** reuse T-067–T-069 / 0105–0106 for readiness.
 - **Next free after both:** **T-076+**, ADR **0109+**.
 
 ## Needs human now

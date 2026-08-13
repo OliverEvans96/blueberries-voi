@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-13
+
+- **You can run the studio against a real local API and a real in-browser engine using a wheel built on your machine, with Advance and Reset working without fake data** (T-075).
+
 ## 2026-08-12 — ENG-01 dual-runtime / live simulator
 
 - **You can interact with the live ordering simulator in the browser under dialed demo budgets, and developers can iterate on the same engine through a local API** (T-058).

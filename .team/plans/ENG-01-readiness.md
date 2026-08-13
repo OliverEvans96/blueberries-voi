@@ -1,7 +1,7 @@
 # ENG-01 dual-mode API/Pyodide readiness
 
-**Status:** ACTIVE — Wave 0 architect lock (T-070); implement T-071–T-075  
-**Branch tip:** `team/T-070/architect`  
+**Status:** COMPLETE — dual-mode readiness T-070–T-075; pending human merge  
+**Branch tip:** `team/T-075/implement` (integrate via `team/ENG-01-readiness/wave2`)  
 **Do not use:** T-067–T-069 or ADR 0105–0106 (owned by arrival-only filter)
 
 ## Why renumber
