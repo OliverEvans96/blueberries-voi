@@ -11,7 +11,8 @@ from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.belief import (
     ShelfBelief,
-    shelf_belief_from_oracle,
+    empty_shelf_belief,
+    shelf_belief_from_cohorts_oracle,
     shelf_belief_from_rbpf,
 )
 from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
@@ -71,25 +72,11 @@ def _fixture_shipments() -> list[ShipmentTrace]:
 
 
 def _empty_shelf_belief() -> ShelfBelief:
-    return ShelfBelief(
-        lot_counts=[],
-        age_marginals=[],
-        tau_grid=list(_EMPTY_TAU_GRID),
-    )
+    return empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
 
 
 def _oracle_belief(cohorts: Sequence[Cohort]) -> ShelfBelief:
-    live = [c for c in cohorts if c.n > 0]
-    if not live:
-        return _empty_shelf_belief()
-    ages = [float(c.tau) for c in live]
-    hi = max([*ages, 6.0]) + 2.0
-    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
-    return shelf_belief_from_oracle(
-        lot_counts=[int(c.n) for c in live],
-        ages=ages,
-        tau_grid=grid,
-    )
+    return shelf_belief_from_cohorts_oracle(cohorts, empty_tau_grid=_EMPTY_TAU_GRID)
 
 
 def _belief_kind(scenario: str) -> BeliefKind:

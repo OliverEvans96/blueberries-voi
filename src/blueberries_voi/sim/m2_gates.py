@@ -13,12 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from scipy.stats import nbinom
-
 from blueberries_voi.controller.damped_sw import (
     PROTECTION_DEMAND_DAYS,
     DampedSurvivalWeightedPolicy,
 )
+from blueberries_voi.controller.protection import protection_demand_quantile
 from blueberries_voi.controller.rollout import detect_crn_desync
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.controller.toy_dp import gap_vs_rollout, solve_toy_dp
@@ -83,9 +82,7 @@ def _protection_demand_fractile(
     protection_days: int,
 ) -> float:
     """F^{-1} of protection-interval demand (matches DampedSurvivalWeightedPolicy)."""
-    r = float(params.nb_r()) * float(protection_days)
-    p = float(params.nb_p())
-    return float(nbinom.ppf(float(alpha), r, p))
+    return protection_demand_quantile(alpha, params, protection_days=protection_days)
 
 
 def _fixture_survival_weights(params: ModelParams) -> tuple[float, float]:

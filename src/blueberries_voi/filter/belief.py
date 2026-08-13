@@ -10,7 +10,7 @@ import numpy as np
 
 from blueberries_voi.filter.age_likelihood import survival_weighted_on_hand
 from blueberries_voi.filter.types import age_grid
-from blueberries_voi.model import ModelParams, weibull_survival
+from blueberries_voi.model import Cohort, ModelParams, weibull_survival
 
 if TYPE_CHECKING:
     from blueberries_voi.filter.rbpf import RBPF
@@ -125,6 +125,41 @@ def shelf_belief_from_oracle(
     return ShelfBelief(lot_counts=counts, age_marginals=margs, tau_grid=grid)
 
 
+def empty_shelf_belief(*, tau_grid: Sequence[float]) -> ShelfBelief:
+    """Empty shelf with an explicit τ grid (call sites keep their own lengths)."""
+    return ShelfBelief(
+        lot_counts=[],
+        age_marginals=[],
+        tau_grid=[float(t) for t in tau_grid],
+    )
+
+
+def shelf_belief_from_cohorts_oracle(
+    cohorts: Sequence[Cohort],
+    *,
+    empty_tau_grid: Sequence[float],
+) -> ShelfBelief:
+    """B-state ShelfBelief from live cohorts with dynamic even-τ pad (ADR 0092).
+
+    When no live units remain, returns ``empty_shelf_belief`` on
+    ``empty_tau_grid`` (site-specific; not a single canonical empty grid).
+    Otherwise builds an even grid covering ages with the voi/crn /
+    m2_multi_scenario pad: ``hi = max(ages, 6) + 2``, then
+    ``range(0, int(hi) + 3, 2)``.
+    """
+    live = [c for c in cohorts if c.n > 0]
+    if not live:
+        return empty_shelf_belief(tau_grid=empty_tau_grid)
+    ages = [float(c.tau) for c in live]
+    hi = max([*ages, 6.0]) + 2.0
+    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
+    return shelf_belief_from_oracle(
+        lot_counts=[int(c.n) for c in live],
+        ages=ages,
+        tau_grid=grid,
+    )
+
+
 def effective_inventory(
     belief: ShelfBelief,
     *,
@@ -155,6 +190,8 @@ def effective_inventory(
 __all__ = [
     "ShelfBelief",
     "effective_inventory",
+    "empty_shelf_belief",
+    "shelf_belief_from_cohorts_oracle",
     "shelf_belief_from_oracle",
     "shelf_belief_from_rbpf",
 ]

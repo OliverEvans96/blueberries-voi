@@ -23,14 +23,13 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scipy.stats import nbinom
-
 from blueberries_voi.controller import (
     ConstantOrderPolicy,
     CorrectedAgeBlindPolicy,
     DampedSurvivalWeightedPolicy,
 )
-from blueberries_voi.filter.belief import ShelfBelief
+from blueberries_voi.controller.protection import protection_demand_quantile
+from blueberries_voi.filter.belief import ShelfBelief, empty_shelf_belief
 from blueberries_voi.model import ModelParams
 from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
@@ -67,6 +66,7 @@ DEFAULT_DESKTOP_ALPHAS: tuple[float, ...] = (
 )
 
 _PROTECTION_DEMAND_DAYS: int = 2
+_EMPTY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0, 8.0)
 
 __all__ = [
     "DEFAULT_CI_ALPHAS",
@@ -100,21 +100,15 @@ def _protection_demand_quantile(
     protection_days: int | None = None,
 ) -> float:
     """Alpha-quantile of n-day homogeneous-μ NB demand (day-indexed length OK)."""
-    if not 0.0 < float(alpha) < 1.0:
-        msg = f"alpha must be in (0, 1), got {alpha}"
-        raise ValueError(msg)
     n_days = (
         _PROTECTION_DEMAND_DAYS if protection_days is None else int(protection_days)
     )
-    r = float(params.nb_r()) * float(n_days)
-    p = float(params.nb_p())
-    return float(nbinom.ppf(alpha, r, p))
+    return protection_demand_quantile(alpha, params, protection_days=n_days)
 
 
 def _empty_shelf_belief(_params: ModelParams) -> ShelfBelief:
     """Empty-shelf fallback when order() receives a non-ShelfBelief belief."""
-    grid = [0.0, 2.0, 4.0, 6.0, 8.0]
-    return ShelfBelief(lot_counts=[], age_marginals=[], tau_grid=grid)
+    return empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
 
 
 class _ClosedLoopPolicyAdapter:
