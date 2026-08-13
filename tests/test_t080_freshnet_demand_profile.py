@@ -1,14 +1,14 @@
-"""T-080 CAL-B2 — Fit demand_profile.json (RED).
+"""T-080 CAL-B2 - Fit demand_profile.json (RED).
 
 Locks ADR 0112 / ``.team/specs/T-080.md`` before the fit script and committed
 derived product land:
 
-* committed ``data/freshnet/demand_profile.json`` (versioned schema, DOW×week,
-  ``scale_target_mu`` ≈ 30, ``demand_vm``)
-* fit report beside the profile (SKU IDs, censoring, V/M, Mar–Jun honesty)
+* committed ``data/freshnet/demand_profile.json`` (versioned schema, DOWxweek,
+  ``scale_target_mu`` ~ 30, ``demand_vm``)
+* fit report beside the profile (SKU IDs, censoring, V/M, Mar-Jun honesty)
 * ``PROVENANCE.md`` updated with final SKU list + pointers to profile + report
 * ``scripts/fit_freshnet_demand.py`` (or equivalent) requiring ``[freshnet]``
-* pytest asserts the committed JSON only — no live Hugging Face download
+* pytest asserts the committed JSON only - no live Hugging Face download
 * no HF import from installable package runtime modules
 
 Offline assertions only. Do not run the fit or pull HF in these tests.
@@ -32,7 +32,7 @@ _SCRIPTS = _REPO_ROOT / "scripts"
 _SRC = _REPO_ROOT / "src" / "blueberries_voi"
 _FRESHNET_DIR = _REPO_ROOT / "data" / "freshnet"
 
-# Spec illustrative target; AC: pick one tol and test it — absolute ±1.
+# Spec illustrative target; AC: pick one tol and test it - absolute +/-1.
 _SCALE_TARGET_MU = 30.0
 _SCALE_ABS_TOL = 1.0
 
@@ -166,7 +166,7 @@ def _find_fit_report() -> Path:
 def _load_profile() -> dict[str, Any]:
     assert _DEMAND_PROFILE.is_file(), (
         "data/freshnet/demand_profile.json must exist and be committed "
-        "(ADR 0112 / T-080); pytest reads this artifact — no HF download"
+        "(ADR 0112 / T-080); pytest reads this artifact - no HF download"
     )
     raw = _DEMAND_PROFILE.read_bytes()
     assert len(raw) <= _MAX_PROFILE_BYTES, (
@@ -236,7 +236,7 @@ def _extract_sku_ids(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# AC: committed demand_profile.json — versioned schema, DOW×week, μ≈30, V/M
+# AC: committed demand_profile.json - versioned schema, DOWxweek, μ~30, V/M
 # ---------------------------------------------------------------------------
 
 
@@ -279,8 +279,8 @@ def test_demand_profile_encodes_dow_by_week_structure() -> None:
     has_week = _has_marker_key(keys, _WEEK_KEY_MARKERS)
     has_table = _has_marker_key(keys, _TABLE_KEY_MARKERS)
     assert has_table or (has_dow and has_week), (
-        "demand_profile.json must encode day-of-week × week-index (or month) "
-        "structure via dow_factors/week_factors (or equivalent) or a DOW×week "
+        "demand_profile.json must encode day-of-week x week-index (or month) "
+        "structure via dow_factors/week_factors (or equivalent) or a DOWxweek "
         f"table; keys present: {sorted(keys)}"
     )
 
@@ -289,30 +289,30 @@ def test_demand_profile_encodes_dow_by_week_structure() -> None:
     structural_values = [
         v
         for k, v in lowered.items()
-        if _has_marker_key({k}, _DOW_KEY_MARKERS + _WEEK_KEY_MARKERS + _TABLE_KEY_MARKERS)
+        if _has_marker_key(
+            {k}, _DOW_KEY_MARKERS + _WEEK_KEY_MARKERS + _TABLE_KEY_MARKERS
+        )
     ]
     assert structural_values, "DOW/week keys present but no structural values"
     nonempty = False
     for value in structural_values:
-        if isinstance(value, (list, tuple)) and len(value) > 0:
+        if (isinstance(value, (list, tuple)) and len(value) > 0) or (
+            isinstance(value, dict) and len(value) > 0
+        ):
             nonempty = True
-        elif isinstance(value, dict) and len(value) > 0:
-            nonempty = True
-    assert nonempty, (
-        "DOW×week factors / table must be non-empty sequences or mappings"
-    )
+    assert nonempty, "DOWxweek factors / table must be non-empty sequences or mappings"
 
 
 def test_demand_profile_scale_target_mu_near_30() -> None:
-    """Operational scale target ≈ 30; absolute ±1 (documented in fit report)."""
+    """Operational scale target ~ 30; absolute +/-1 (documented in fit report)."""
     profile = _load_profile()
     keys = _profile_keys_lower(profile)
     assert "scale_target_mu" in keys, (
-        "demand_profile.json must record scale_target_mu (operational μ≈30)"
+        "demand_profile.json must record scale_target_mu (operational μ~30)"
     )
     mu = float(keys["scale_target_mu"])
     assert abs(mu - _SCALE_TARGET_MU) <= _SCALE_ABS_TOL, (
-        f"scale_target_mu={mu} must be within ±{_SCALE_ABS_TOL} of "
+        f"scale_target_mu={mu} must be within +/-{_SCALE_ABS_TOL} of "
         f"{_SCALE_TARGET_MU} (T-080 / ADR 0112)"
     )
 
@@ -333,22 +333,22 @@ def test_demand_profile_records_demand_vm() -> None:
 
 
 def test_fit_report_documents_scale_tolerance_matching_tests() -> None:
-    """AC: pick one tol (±1 or ±5%) and document it — we lock absolute ±1."""
+    """AC: pick one tol (+/-1 or +/-5%) and document it - we lock absolute +/-1."""
     report = _find_fit_report()
     text = report.read_text(encoding="utf-8")
     assert re.search(
-        r"(±\s*1|within\s*1|abs(?:olute)?\s*tol(?:erance)?\s*[:=]?\s*1|"
-        r"tolerance[^\n]{0,40}±?\s*1)",
+        r"(+/-\s*1|within\s*1|abs(?:olute)?\s*tol(?:erance)?\s*[:=]?\s*1|"
+        r"tolerance[^\n]{0,40}+/-?\s*1)",
         text,
         re.I,
     ), (
         f"{report.name} must document the operational-μ tolerance used for "
-        f"scale_target_mu≈30 (tests lock absolute ±{_SCALE_ABS_TOL})"
+        f"scale_target_mu~30 (tests lock absolute +/-{_SCALE_ABS_TOL})"
     )
 
 
 # ---------------------------------------------------------------------------
-# AC: fit report — SKUs, censoring, V/M, Mar–Jun honesty
+# AC: fit report - SKUs, censoring, V/M, Mar-Jun honesty
 # ---------------------------------------------------------------------------
 
 
@@ -388,11 +388,11 @@ def test_fit_report_records_sku_ids_censoring_vm_and_mar_jun_honesty() -> None:
     ), f"{report.name} must record V/M choice (refit or keep 2.0)"
 
     assert re.search(
-        r"Mar\s*[-–—/]\s*Jun|March\s*[-–—/]\s*June|Mar.?Jun",
+        r"Mar\s*[---/]\s*Jun|March\s*[---/]\s*June|Mar.?Jun",
         text,
         re.I,
     ), (
-        f"{report.name} must record Mar–Jun seasonality honesty "
+        f"{report.name} must record Mar-Jun seasonality honesty "
         "(window-only; not full annual)"
     )
 
@@ -458,7 +458,7 @@ def test_fit_script_documents_freshnet_extra_requirement() -> None:
 def test_fit_script_exits_nonzero_when_freshnet_deps_missing(
     tmp_path: Path,
 ) -> None:
-    """Subprocess with blocked HF modules — no network download."""
+    """Subprocess with blocked HF modules - no network download."""
     path = _find_fit_script()
     blocker = tmp_path / "sitecustomize.py"
     blocker.write_text(
@@ -507,7 +507,7 @@ sys.meta_path.insert(0, _Blocker())
 
 
 def test_this_module_does_not_import_huggingface_or_datasets() -> None:
-    """CI pytest path must not pull HF — only assert committed artifacts."""
+    """CI pytest path must not pull HF - only assert committed artifacts."""
     this_file = Path(__file__).resolve()
     roots = _imported_roots(this_file)
     forbidden = roots & _FORBIDDEN_RUNTIME_IMPORT_ROOTS
@@ -518,7 +518,7 @@ def test_this_module_does_not_import_huggingface_or_datasets() -> None:
 
 
 def test_demand_profile_loads_without_network_or_freshnet_extra() -> None:
-    """Committed JSON is the source of truth — no hub I/O to exercise it."""
+    """Committed JSON is the source of truth - no hub I/O to exercise it."""
     profile = _load_profile()
     keys = _profile_keys_lower(profile)
     assert "schema_version" in keys or "schema" in keys or "version" in keys
