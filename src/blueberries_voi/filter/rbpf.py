@@ -22,7 +22,7 @@ from blueberries_voi.filter.types import (
     RichObs,
     age_grid,
 )
-from blueberries_voi.model import ModelParams, day_step
+from blueberries_voi.model import ModelParams  # noqa: TC001  # get_type_hints(RBPF)
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
 
 # Production numerics after ADR 0105 settle: counts-only arrival-age clock.
@@ -123,5 +123,4 @@ __all__ = [
     "RichObs",
     "age_grid",
     "choose_backend",
-    "day_step",
 ]

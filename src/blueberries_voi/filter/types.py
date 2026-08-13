@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING, Any, Final, Literal, TypeAlias
 
 import numpy as np
 
-from blueberries_voi.model import ModelParams, day_step
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import date
@@ -214,33 +212,6 @@ def rich_obs_from_day_log(day: Any, mask: ObsMask) -> RichObs:
     return mask.apply(full)
 
 
-def _int_or_zero(value: int | Unobserved) -> int:
-    if isinstance(value, Unobserved):
-        return 0
-    return value
-
-
-def p1_obs_from_rich(obs: RichObs) -> P1Obs:
-    """Temporary RichObs → P1Obs adapter for soft LL until T-011.
-
-    Fields that are ``UNOBSERVED`` are coerced to ``0`` so the existing soft
-    likelihood can run. Callers must not treat that zero as observed data —
-    honest MC scoring of masked fields lands in T-011.
-    """
-    return P1Obs(
-        sales_total=_int_or_zero(obs.sales_total),
-        waste_total=_int_or_zero(obs.waste_total),
-        arrivals=_int_or_zero(obs.arrivals),
-    )
-
-
-def coerce_p1_obs(obs: RichObs | P1Obs) -> P1Obs:
-    """Accept RichObs or legacy P1Obs; return P1Obs for soft-LL backends."""
-    if isinstance(obs, P1Obs):
-        return obs
-    return p1_obs_from_rich(obs)
-
-
 @dataclass
 class FilterSummary:
     ess: float
@@ -276,7 +247,6 @@ __all__ = [
     "MAX_JOINT_FLOATS",
     "UNOBSERVED",
     "FilterSummary",
-    "ModelParams",
     "ObsMask",
     "P1Obs",
     "RichObs",
@@ -284,12 +254,9 @@ __all__ = [
     "Unobserved",
     "UnobservedT",
     "age_grid",
-    "coerce_p1_obs",
-    "day_step",
     "guard_joint_memory",
     "is_unobserved",
     "joint_state_count",
     "mask_for",
-    "p1_obs_from_rich",
     "rich_obs_from_day_log",
 ]
