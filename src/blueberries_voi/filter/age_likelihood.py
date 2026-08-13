@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 # Re-exported for import-identity AC (T-020).
 __all__ = [
+    "MF_MAX_SWEEPS",
     "death_prob_survival_ratio",
     "exact_joint_update",
     "induced_joint_from_marginals",
@@ -43,7 +44,8 @@ __all__ = [
     "survival_weighted_on_hand",
 ]
 
-_MF_MAX_SWEEPS = 5
+# Shared production mean-field sweep budget (ADR 0097 / T-044).
+MF_MAX_SWEEPS = 5
 _MF_TV_STOP = 1e-6
 
 
@@ -318,7 +320,7 @@ def mean_field_update(
     params: ModelParams,
     *,
     tau_grid: Sequence[float] | NDArray[np.floating] | None = None,
-    max_sweeps: int = _MF_MAX_SWEEPS,
+    max_sweeps: int = MF_MAX_SWEEPS,
     tv_stop: float = _MF_TV_STOP,
 ) -> NDArray[np.floating]:
     """Coordinate-ascent mean-field with mean age plug-ins (≤ ``max_sweeps``)."""

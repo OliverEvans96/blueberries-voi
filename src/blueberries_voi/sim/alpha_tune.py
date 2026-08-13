@@ -84,7 +84,7 @@ def _protection_demand_quantile(alpha: float, params: ModelParams) -> float:
 
 
 def _empty_shelf_belief(_params: ModelParams) -> ShelfBelief:
-    """Belief with no lots (closed-loop currently passes belief=None)."""
+    """Empty-shelf fallback when order() receives a non-ShelfBelief belief."""
     grid = [0.0, 2.0, 4.0, 6.0, 8.0]
     return ShelfBelief(lot_counts=[], age_marginals=[], tau_grid=grid)
 

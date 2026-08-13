@@ -6,12 +6,10 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Done — M3 (T-035–T-041):** VOI sweep library + smoke gates on
-  `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
-  merge with M2 tip to `main`. Do not reopen ENG-01 / VOI-02 ⚑ / X-06 axes without Oliver.
-- **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
-  the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
-  M2 tip without waiting for that merge.
+- **Done — M2+M3 library work is on `main` (at/after `f4a467f`):** M2 (T-022–T-034) and M3
+  (T-035–T-041; plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)) library surfaces landed.
+  Audit remediation (T-042+) is in progress; science VOI is not yet citeable. Do not reopen
+  ENG-01 / VOI-02 ⚑ / X-06 axes without Oliver.
 - **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
   non-goal locks) gate-green on `team/T-022/verify` (verifier PASS).
 - **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
