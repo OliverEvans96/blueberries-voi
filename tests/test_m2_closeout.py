@@ -30,7 +30,7 @@ _VOI = _SRC / "voi"
 # Implementation tickets that must be closed for M2 DoD (T-034 AC).
 _M2_TICKETS: tuple[str, ...] = tuple(f"T-{n:03d}" for n in range(23, 34))
 
-_LOCKED_RUNTIME_DEPS = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
+_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
 _FORBIDDEN_CONTROLLER_IMPORTS = frozenset(
     {"matplotlib", "pyplot", "pyarrow", "PIL", "plotly"}
 )
@@ -375,17 +375,29 @@ def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
             )
 
 
+# Relative to ``src/blueberries_voi/``. T-044 slim interactive entry (ADR 0097);
+# Pyodide worker / wheel packaging modules remain T-046 / T-047.
+_ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
+
+
 def test_no_browser_or_pyodide_packaging_modules_in_src() -> None:
-    """No browser / pyodide / eng01 packaging modules under src/."""
+    """No premature Pyodide/WASM/ENG-01 host modules; T-044 browser.py allowed."""
     hits = (
         list(_SRC.rglob("*browser*"))
         + list(_SRC.rglob("*pyodide*"))
         + list(_SRC.rglob("*eng01*"))
         + list(_SRC.rglob("*wasm*"))
     )
-    hits = [p for p in hits if p.is_file()]
+    hits = [
+        p
+        for p in hits
+        if p.is_file()
+        and p.suffix == ".py"
+        and str(p.relative_to(_SRC)) not in _ALLOWED_BROWSER_MODULES
+    ]
     assert not hits, (
-        "M2 non-goal: no browser/Pyodide packaging modules; found "
+        "M2 non-goal: no Pyodide/WASM packaging or premature ENG-01 host "
+        f"modules (allowed: {sorted(_ALLOWED_BROWSER_MODULES)}); found "
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in hits)
     )
 
@@ -406,7 +418,7 @@ def test_production_backend_remains_mean_field() -> None:
 
 
 def test_no_new_runtime_dependencies_for_m2_closeout() -> None:
-    """Runtime deps remain the pre-M2 locked set (ADRs 0084/0085)."""
+    """Core runtime deps stay slim (ADR 0099); viz/data stay optional extras."""
     data = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     raw = data["project"]["dependencies"]
     names: set[str] = set()

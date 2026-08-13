@@ -41,3 +41,12 @@ uv run python -m blueberries_voi --version
 
 This repo follows the agent-dev-team protocol. Project state lives in `.team/`
 (intake, specs, ADRs, reviews, QA reports, changelog). See `AGENTS.md`.
+
+## Browser / Pyodide packaging
+
+The slim interactive wheel is distributed via **GitHub Release** (not PyPI).
+See [`packaging/README.md`](packaging/README.md) for the `micropip.install`
+Release URL pattern, Pyodide **314.0.4** / CPython **3.14.2** pins, and the
+note about copying canonical workflows from `packaging/github-workflows/` into
+the live GitHub Actions workflows directory.
+
