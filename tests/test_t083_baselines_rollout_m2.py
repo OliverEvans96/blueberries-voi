@@ -87,7 +87,10 @@ def test_default_rollout_h_is_member_of_horizons_presets() -> None:
     assert h_default is not None
     assert int(h_default) % 7 == 0
     assert int(h_default) in {int(h) for h in horizons}, (
-        f"DEFAULT_ROLLOUT_H={h_default} must appear in DEFAULT_ROLLOUT_HORIZONS={horizons}"
+
+            f"DEFAULT_ROLLOUT_H={h_default} must appear in "
+            f"DEFAULT_ROLLOUT_HORIZONS={horizons}"
+
     )
 
 
@@ -316,7 +319,8 @@ def test_assert_beta1_degeneracy_passes_under_default_schedule() -> None:
     result = gate()
     ok = bool(getattr(result, "ok", result))
     assert ok, (
-        f"assert_beta1_degeneracy must pass under default OrderSchedule; got {result!r}. "
+        "assert_beta1_degeneracy must pass under default OrderSchedule; "
+        f"got {result!r}. "
         "Implementer may retune matched demand fractiles / day-indexed weights "
         "and record new thresholds in m2_gates."
     )
