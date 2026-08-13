@@ -178,7 +178,8 @@ def test_toy_dp_default_certificate_uses_order_day_epochs() -> None:
     assert callable(solve)
     sig = inspect.signature(solve)
     accepts_schedule = any(
-        name in sig.parameters for name in ("schedule", "order_schedule", "order_weekdays")
+        name in sig.parameters
+        for name in ("schedule", "order_schedule", "order_weekdays")
     )
 
     assert order_days is not None or schedule is not None or accepts_schedule, (
@@ -188,7 +189,9 @@ def test_toy_dp_default_certificate_uses_order_day_epochs() -> None:
 
     if schedule is not None:
         assert isinstance(schedule, OrderSchedule)
-        assert set(schedule.order_weekdays) == set(DEFAULT_ORDER_SCHEDULE.order_weekdays)
+        assert set(schedule.order_weekdays) == set(
+            DEFAULT_ORDER_SCHEDULE.order_weekdays
+        )
 
     if order_days is not None:
         days = frozenset(int(d) for d in order_days)
@@ -208,7 +211,9 @@ def test_toy_dp_base_policy_protection_is_not_silent_daily_two() -> None:
     # certificate path must consult schedule / day-indexed coverage.
     tree = ast.parse(source)
     has_schedule_use = any(
-        isinstance(node, ast.Name) and node.id in {
+        isinstance(node, ast.Name)
+        and node.id
+        in {
             "OrderSchedule",
             "DEFAULT_ORDER_SCHEDULE",
             "ORDER_WEEKDAYS",
@@ -217,7 +222,7 @@ def test_toy_dp_base_policy_protection_is_not_silent_daily_two() -> None:
         }
         for node in ast.walk(tree)
     )
-    solve = getattr(mod, "solve_toy_dp")
+    solve = mod.solve_toy_dp
     sig = inspect.signature(solve)
     has_schedule_param = any(
         p in sig.parameters for p in ("schedule", "order_schedule", "order_weekdays")
@@ -398,7 +403,7 @@ def test_production_burn_in_default_is_multiple_of_seven() -> None:
 def test_episode_default_n_burn_documents_or_uses_weekly_alignment() -> None:
     """Closed-loop default burn-in is weekly-aligned or explicitly documented."""
     mod = _import(_EPISODE_MOD)
-    fn = getattr(mod, "run_closed_loop_episode")
+    fn = mod.run_closed_loop_episode
     sig = inspect.signature(fn)
     assert "n_burn" in sig.parameters
     default = sig.parameters["n_burn"].default
@@ -406,9 +411,7 @@ def test_episode_default_n_burn_documents_or_uses_weekly_alignment() -> None:
     doc = _combined_docs(mod, fn) + "\n" + _module_source(mod).lower()
     if int(default) % 7 == 0:
         return
-    assert "periodic" in doc and (
-        "burn" in doc or "n_burn" in doc
-    ), (
+    assert "periodic" in doc and ("burn" in doc or "n_burn" in doc), (
         f"run_closed_loop_episode n_burn default={default} is not ×7; "
         "module must document periodic-age burn-in under MWF if kept"
     )

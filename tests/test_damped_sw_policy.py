@@ -389,9 +389,7 @@ def test_damped_sw_protection_interval_lt1_legacy_scalar_not_immutable_base() ->
     )
 
     # Base-case path: schedule-aware policy resolves 3/3/4 on order days.
-    scheduled = cls(
-        rho=1.0, alpha=0.9, params=params, schedule=DEFAULT_ORDER_SCHEDULE
-    )
+    scheduled = cls(rho=1.0, alpha=0.9, params=params, schedule=DEFAULT_ORDER_SCHEDULE)
     resolve = getattr(scheduled, "_resolve_protection_days", None)
     assert callable(resolve), (
         "schedule-aware SW must expose day-indexed protection resolution (T-081)"
