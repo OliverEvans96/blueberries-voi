@@ -87,10 +87,8 @@ def test_default_rollout_h_is_member_of_horizons_presets() -> None:
     assert h_default is not None
     assert int(h_default) % 7 == 0
     assert int(h_default) in {int(h) for h in horizons}, (
-
-            f"DEFAULT_ROLLOUT_H={h_default} must appear in "
-            f"DEFAULT_ROLLOUT_HORIZONS={horizons}"
-
+        f"DEFAULT_ROLLOUT_H={h_default} must appear in "
+        f"DEFAULT_ROLLOUT_HORIZONS={horizons}"
     )
 
 
