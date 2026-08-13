@@ -41,3 +41,4 @@ result-*
 .data/
 data/raw/
 outputs/
+.worktrees/

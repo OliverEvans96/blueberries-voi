@@ -17,6 +17,11 @@ Escalations and items that need a human decision land here.
   `full_joint` is no longer the production default (bakeoff arm E retained). Do not reopen joint
   production without a **new** ADR; T-021 wires the settle.
 - **M1.5 non-goals (binding):** no CTL, no VOI sweep, no browser, no new runtime deps without ADR.
+- **M2 / Pyodide-shaped CTL notes:** when implementing the controller, keep it
+  browser-handoff-ready — see
+  [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md)
+  (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in
+  `controller/`). Not ENG-01 reopen; packaging stays parked below.
 - **Parked — browser A′ (Pyodide) deployment (needs Oliver to reopen ENG-01 / ADR 0073):**
   Intent: run sim/filter/(later) controller live in-browser via Pyodide on the
   Astro site (separate repo). Locked preferences (2026-08-12 chat), not ticketed:
