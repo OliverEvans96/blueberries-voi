@@ -10,7 +10,6 @@ backend remains ``counts_only`` (ADR 0105); no silent joint / age-MF revert.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -42,13 +41,23 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
-from blueberries_voi.sim import DayLog, EpisodeLog, LotState, generate_arrival_age
+from blueberries_voi.sim import DayLog, EpisodeLog, generate_arrival_age
+from blueberries_voi.sim.calendar import _EPISODE_CALENDAR_EPOCH
+from blueberries_voi.sim.day_tick import (
+    enqueue_pending_order,
+    lot_states_from_cohorts,
+    nonzero_lot_maps,
+    pack_date_from_epoch,
+    pop_arrival_units,
+    pre_live_lot_ids,
+)
 from blueberries_voi.sim.episode import case_round
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
 from blueberries_voi.sim.shipments import default_shipments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from datetime import date
 
     from blueberries_voi.model.abdella import ShipmentTrace
 
@@ -61,7 +70,6 @@ OTHER_MASKS: tuple[str, ...] = ("P0", "F1", "F1s", "F2a", "F2")
 MULTI_SCENARIO_PRODUCTION_BACKEND: str = "counts_only"
 DEFAULT_MULTI_SCENARIO_REPORT_PATH: str = "experiments/m2_multi_scenario_result.md"
 
-_EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
 _DEFAULT_ALPHA: float = 0.9
 _CI_N_BURN: int = 1
 _CI_N_SCORE: int = 2
@@ -200,9 +208,10 @@ def _run_closed_loop(
         raw_qty = invoke_order(policy, day, belief_for_order, pending_view)
 
         order_units = case_round(raw_qty, params.case_size)
-        pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
+        # No OrderSchedule gate here (behavior freeze vs episode/day_driver).
+        enqueue_pending_order(pending, day, lead_time, order_units)
 
-        arrival_units = int(pending.pop(day, 0))
+        arrival_units = pop_arrival_units(pending, day)
         delivery: Cohort | None = None
         age_at_receipt: float | None = None
         pack_date: date | None = None
@@ -217,14 +226,15 @@ def _run_closed_loop(
             delivery = Cohort(n=arrival_units, tau=tau_in, lot_id=next_lot_id)
             next_lot_id += 1
             age_at_receipt = float(tau_in)
-            receipt_day = _EPISODE_CALENDAR_EPOCH + timedelta(days=day)
-            transit_days = max(round(age_at_receipt), 0)
-            pack_date = receipt_day - timedelta(days=transit_days)
+            pack_date = pack_date_from_epoch(
+                day, age_at_receipt, epoch=_EPISODE_CALENDAR_EPOCH
+            )
 
-        pre_live_ids = [c.lot_id for c in cohorts if c.n > 0]
+        pre_live_ids = pre_live_lot_ids(cohorts)
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
+        # Intentionally omit day= (behavior freeze vs episode/voi).
         result = day_step(
             cohorts,
             params=params,
@@ -234,26 +244,18 @@ def _run_closed_loop(
             rng_spoil=rng_s,
         )
         cohorts = result.cohorts
-        lots = [LotState(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts]
-        sales_by_lot = {
-            int(pre_live_ids[i]): int(result.sales_by_cohort[i])
-            for i in range(len(pre_live_ids))
-            if int(result.sales_by_cohort[i]) != 0
-        }
-        waste_by_lot = {
-            int(pre_live_ids[i]): int(result.waste_by_cohort[i])
-            for i in range(len(pre_live_ids))
-            if int(result.waste_by_cohort[i]) != 0
-        }
+        sales_by_lot, waste_by_lot = nonzero_lot_maps(
+            pre_live_ids, result.sales_by_cohort, result.waste_by_cohort
+        )
         day_log = DayLog(
             day=day,
-            lots=lots,
+            lots=lot_states_from_cohorts(cohorts),
             sales_total=result.sales_total,
             waste_total=result.waste_total,
             arrivals=arrival_units,
             order_qty=order_units,
             demand=result.demand,
-            L=len(lots),
+            L=len(cohorts),
             sales_by_lot=sales_by_lot,
             waste_by_lot=waste_by_lot,
             age_at_receipt=age_at_receipt,

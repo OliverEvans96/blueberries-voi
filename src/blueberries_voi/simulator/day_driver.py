@@ -14,7 +14,6 @@ No matplotlib / pyarrow imports on this path. Shipments must be injected.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -23,7 +22,6 @@ import numpy as np
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
 from blueberries_voi.model import Cohort, ModelParams, day_step
-from blueberries_voi.model.abdella import shipment_arrival_age
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -33,7 +31,14 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
-from blueberries_voi.sim.calendar import _EPISODE_CALENDAR_EPOCH
+from blueberries_voi.sim.day_tick import (
+    enqueue_pending_order,
+    nonzero_lot_maps,
+    pack_date_from_epoch,
+    pop_arrival_units,
+    pre_live_lot_ids,
+)
+from blueberries_voi.sim.open_loop import generate_arrival_age
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.simulator.belief import (
     flatten_shelf_belief,
@@ -43,6 +48,7 @@ from blueberries_voi.simulator.belief import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, MutableMapping, Sequence
+    from datetime import date
 
     from blueberries_voi.filter.rbpf import RBPF
     from blueberries_voi.filter.types import ScenarioId
@@ -57,35 +63,6 @@ def _case_round_ceil(order_qty: int, case_size: int) -> int:
         return 0
     cases = int(np.ceil(qty / case_size))
     return cases * case_size
-
-
-def _arrival_age(
-    *,
-    shipments: Sequence[ShipmentTrace],
-    params: ModelParams,
-    root_seed: int,
-    run_id: str | int,
-    day: int,
-    spread_scale: float,
-) -> float:
-    """Bootstrap a shipment age without going through ``sim`` (avoids FS default)."""
-    if not shipments:
-        msg = "shipments must be non-empty"
-        raise ValueError(msg)
-    rng_ship = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ARRIVAL_SHIP)
-    rng_sensor = spawn_rng(
-        root_seed, run_id=run_id, day=day, stream=STREAM_ARRIVAL_SENSOR
-    )
-    idx = int(rng_ship.integers(0, len(shipments)))
-    _ = float(rng_sensor.random())
-    ship = shipments[idx]
-    age = shipment_arrival_age(ship, q10=params.q10, t_ref_c=params.t_ref_c)
-    ages = [
-        shipment_arrival_age(s, q10=params.q10, t_ref_c=params.t_ref_c)
-        for s in shipments
-    ]
-    mean_age = float(np.mean(ages))
-    return float(mean_age + spread_scale * (age - mean_age))
 
 
 @dataclass
@@ -143,32 +120,41 @@ def advance_day(
     rbpf = state.rbpf
     sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
 
+    # Ceil (not nearest): intentional fork vs closed-loop episode ``case_round``.
     order_units = _case_round_ceil(int(order_qty), params.case_size)
     if not sched.can_order(day):
         order_units = 0
-    pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
+    enqueue_pending_order(pending, day, lead_time, order_units)
 
-    arrival_units = int(pending.pop(day, 0))
+    arrival_units = pop_arrival_units(pending, day)
     delivery: Cohort | None = None
     age_at_receipt: float | None = None
     pack_date: date | None = None
     if arrival_units > 0:
-        tau_in = _arrival_age(
-            shipments=shipments,
-            params=params,
-            root_seed=root_seed,
-            run_id=run_id,
-            day=day,
+        if not shipments:
+            msg = "shipments must be non-empty"
+            raise ValueError(msg)
+        # Bit-identical to former local ``_arrival_age``: same streams + args as
+        # ``generate_arrival_age`` (SHIP/SENSOR spawn then bootstrap + spread).
+        rng_ship = spawn_rng(
+            root_seed, run_id=run_id, day=day, stream=STREAM_ARRIVAL_SHIP
+        )
+        rng_sensor = spawn_rng(
+            root_seed, run_id=run_id, day=day, stream=STREAM_ARRIVAL_SENSOR
+        )
+        tau_in = generate_arrival_age(
+            rng_ship,
+            rng_sensor,
+            list(shipments),
+            params,
             spread_scale=spread_scale,
         )
         delivery = Cohort(n=arrival_units, tau=tau_in, lot_id=next_lot_id)
         next_lot_id += 1
         age_at_receipt = float(tau_in)
-        receipt_day = _EPISODE_CALENDAR_EPOCH + timedelta(days=day)
-        transit_days = max(round(age_at_receipt), 0)
-        pack_date = receipt_day - timedelta(days=transit_days)
+        pack_date = pack_date_from_epoch(day, age_at_receipt)
 
-    pre_live_ids = [c.lot_id for c in cohorts if c.n > 0]
+    pre_live_ids = pre_live_lot_ids(cohorts)
     rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
     rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
     rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
@@ -183,16 +169,9 @@ def advance_day(
     )
     cohorts = result.cohorts
 
-    sales_by_lot = {
-        int(pre_live_ids[i]): int(result.sales_by_cohort[i])
-        for i in range(len(pre_live_ids))
-        if int(result.sales_by_cohort[i]) != 0
-    }
-    waste_by_lot = {
-        int(pre_live_ids[i]): int(result.waste_by_cohort[i])
-        for i in range(len(pre_live_ids))
-        if int(result.waste_by_cohort[i]) != 0
-    }
+    sales_by_lot, waste_by_lot = nonzero_lot_maps(
+        pre_live_ids, result.sales_by_cohort, result.waste_by_cohort
+    )
 
     belief_flat: FlatBelief | None = None
     if enable_filter and rbpf is not None:

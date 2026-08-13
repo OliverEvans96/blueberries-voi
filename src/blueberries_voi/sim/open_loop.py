@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-
 import numpy as np
 
 from blueberries_voi.model import Cohort, ModelParams, day_step
@@ -20,9 +18,16 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
-from blueberries_voi.sim.calendar import _EPISODE_CALENDAR_EPOCH
+from blueberries_voi.sim.day_tick import (
+    enqueue_pending_order,
+    lot_states_from_cohorts,
+    nonzero_lot_maps,
+    pack_date_from_epoch,
+    pop_arrival_units,
+    pre_live_lot_ids,
+)
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
-from blueberries_voi.sim.types_log import DayLog, EpisodeLog, LotState
+from blueberries_voi.sim.types_log import DayLog, EpisodeLog
 
 __all__ = [
     "generate_arrival_age",
@@ -98,16 +103,17 @@ def run_episode(
         on_hand = sum(c.n for c in cohorts)
         order_qty = open_loop_order(on_hand, S=S)
         # Round to whole cases for physical delivery; M1 still uses unit counts.
+        # Ceil (not nearest): intentional fork vs closed-loop ``case_round``.
         cases = int(np.ceil(order_qty / p.case_size)) if order_qty > 0 else 0
         order_units = cases * p.case_size
         if not sched.can_order(day):
             order_units = 0
-        pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
+        enqueue_pending_order(pending, day, lead_time, order_units)
 
-        arrival_units = int(pending.pop(day, 0))
+        arrival_units = pop_arrival_units(pending, day)
         delivery: Cohort | None = None
         age_at_receipt: float | None = None
-        pack_date: date | None = None
+        pack_date = None
         if arrival_units > 0:
             rng_ship = spawn_rng(
                 root_seed, run_id=run_id, day=day, stream=STREAM_ARRIVAL_SHIP
@@ -121,14 +127,9 @@ def run_episode(
             delivery = Cohort(n=arrival_units, tau=tau_in, lot_id=next_lot_id)
             next_lot_id += 1
             age_at_receipt = float(tau_in)
-            # Synthetic ASN calendar: receipt on epoch+day, pack back by transit age.
-            receipt_day = _EPISODE_CALENDAR_EPOCH + timedelta(days=day)
-            transit_days = max(round(age_at_receipt), 0)
-            pack_date = receipt_day - timedelta(days=transit_days)
+            pack_date = pack_date_from_epoch(day, age_at_receipt)
 
-        # Lot ids aligned with day_step sales_by_cohort / waste_by_cohort indices
-        # (live start-of-day cohorts only; delivery is post-spoil).
-        pre_live_ids = [c.lot_id for c in cohorts if c.n > 0]
+        pre_live_ids = pre_live_lot_ids(cohorts)
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
@@ -142,27 +143,19 @@ def run_episode(
             rng_spoil=rng_s,
         )
         cohorts = result.cohorts
-        lots = [LotState(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts]
-        sales_by_lot = {
-            int(pre_live_ids[i]): int(result.sales_by_cohort[i])
-            for i in range(len(pre_live_ids))
-            if int(result.sales_by_cohort[i]) != 0
-        }
-        waste_by_lot = {
-            int(pre_live_ids[i]): int(result.waste_by_cohort[i])
-            for i in range(len(pre_live_ids))
-            if int(result.waste_by_cohort[i]) != 0
-        }
+        sales_by_lot, waste_by_lot = nonzero_lot_maps(
+            pre_live_ids, result.sales_by_cohort, result.waste_by_cohort
+        )
         log.days.append(
             DayLog(
                 day=day,
-                lots=lots,
+                lots=lot_states_from_cohorts(cohorts),
                 sales_total=result.sales_total,
                 waste_total=result.waste_total,
                 arrivals=arrival_units,
                 order_qty=order_units,
                 demand=result.demand,
-                L=len(lots),
+                L=len(cohorts),
                 sales_by_lot=sales_by_lot,
                 waste_by_lot=waste_by_lot,
                 age_at_receipt=age_at_receipt,
