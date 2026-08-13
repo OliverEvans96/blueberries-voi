@@ -32,7 +32,7 @@
   → `tests/test_t051_api_contract.py::test_http_step_wrong_type_order_qty_returns_4xx`
   — currently **green** on T-050 tip
 
-- OpenAPI describes the same schemas as golden fixtures (ADR 0100 §3; T-050
+- OpenAPI describes the same schemas as golden fixtures (ADR 0102 §3; T-050
   deferred “OpenAPI schema field parity vs goldens” to T-051)
   → `tests/test_t051_api_contract.py::test_openapi_declares_snapshot_schema_matching_golden_keys`
   — currently failing: init 200 schema is `additionalProperties: true` with no

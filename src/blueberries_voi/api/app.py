@@ -1,6 +1,6 @@
 """FastAPI ASGI app: HTTP sessions over EngineSession (Snapshot / DayDelta).
 
-Routes match T-049 Interfaces. Responses are ADR 0098 wire dicts only — no
+Routes match T-049 Interfaces. Responses are ADR 0100 wire dicts only — no
 ViewModel, PnL, economics, ghost, or heatmap. Matplotlib is never imported.
 """
 
@@ -22,7 +22,7 @@ _SESSIONS: dict[str, EngineSession] = {}
 app = FastAPI(
     title="blueberries-voi interactive API",
     description=(
-        "Development host for EngineSession (ADR 0100). "
+        "Development host for EngineSession (ADR 0102). "
         "In-process sessions; not production multi-tenant."
     ),
     version="0.1.0",
@@ -63,7 +63,7 @@ class ActRequest(BaseModel):
 
 
 class FlatBelief(BaseModel):
-    """Flat L / L*K / K belief buffers on the wire (ADR 0098)."""
+    """Flat L / L*K / K belief buffers on the wire (ADR 0100)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -103,7 +103,7 @@ class DayDelta(BaseModel):
 
 
 class StepNResponse(BaseModel):
-    """Framed ``{deltas: DayDelta[]}`` for step_n (ADR 0098 / 0100)."""
+    """Framed ``{deltas: DayDelta[]}`` for step_n (ADR 0100 / 0102)."""
 
     model_config = ConfigDict(extra="forbid")
 

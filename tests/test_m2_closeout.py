@@ -30,7 +30,7 @@ _VOI = _SRC / "voi"
 # Implementation tickets that must be closed for M2 DoD (T-034 AC).
 _M2_TICKETS: tuple[str, ...] = tuple(f"T-{n:03d}" for n in range(23, 34))
 
-_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
+_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
 _FORBIDDEN_CONTROLLER_IMPORTS = frozenset(
     {"matplotlib", "pyplot", "pyarrow", "PIL", "plotly"}
 )
@@ -375,7 +375,7 @@ def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
             )
 
 
-# Relative to ``src/blueberries_voi/``. T-044 slim interactive entry (ADR 0097);
+# Relative to ``src/blueberries_voi/``. T-044 slim interactive entry (ADR 0099);
 # Pyodide worker / wheel packaging modules remain T-046 / T-047.
 _ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
 
@@ -418,7 +418,7 @@ def test_production_backend_remains_mean_field() -> None:
 
 
 def test_no_new_runtime_dependencies_for_m2_closeout() -> None:
-    """Core runtime deps stay slim (ADR 0099); viz/data stay optional extras."""
+    """Core runtime deps stay slim (ADR 0101); viz/data stay optional extras."""
     data = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     raw = data["project"]["dependencies"]
     names: set[str] = set()

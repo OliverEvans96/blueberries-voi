@@ -1,7 +1,7 @@
 """T-050 ASGI app wrapping EngineSession — RED contracts.
 
-Locks ``.team/specs/T-050.md``, ADR 0100 (ASGI sessions), T-049 route table,
-and ADR 0098 Snapshot / DayDelta wire (validators from T-045).
+Locks ``.team/specs/T-050.md``, ADR 0102 (ASGI sessions), T-049 route table,
+and ADR 0100 Snapshot / DayDelta wire (validators from T-045).
 
 No production ``api/`` module in this worktree — tests must fail for missing
 behaviour / packaging, not import typos in this file.
@@ -117,7 +117,7 @@ def _assert_no_forbidden(payload: Any, *, label: str) -> None:
     forbidden = _collect_keys(payload) & _FORBIDDEN_PAYLOAD_KEYS
     assert not forbidden, (
         f"{label} must not contain forbidden presentation keys "
-        f"{sorted(forbidden)} (ADR 0098 / T-050)"
+        f"{sorted(forbidden)} (ADR 0100 / T-050)"
     )
 
 
@@ -126,7 +126,7 @@ def _resolve_app() -> Any:
         mod = importlib.import_module(_API_PKG)
     except ImportError as exc:
         pytest.fail(
-            f"{_API_PKG} must be importable (T-050 / ADR 0100 entry "
+            f"{_API_PKG} must be importable (T-050 / ADR 0102 entry "
             f"`blueberries_voi.api:app`); got {exc!r}",
             pytrace=False,
         )
@@ -242,7 +242,7 @@ def test_api_optional_extra_declares_asgi_stack() -> None:
     assert isinstance(extras, Mapping)
     assert "api" in extras, (
         "pyproject.toml must declare optional-dependencies.api "
-        "(FastAPI or Starlette + JSON; ADR 0100 / T-050)"
+        "(FastAPI or Starlette + JSON; ADR 0102 / T-050)"
     )
     reqs = [str(x).lower() for x in extras["api"]]
     joined = " ".join(reqs)

@@ -9,7 +9,7 @@
   → `tests/test_simulator_schema.py::test_step_n_framed_golden_file_exists`
   — currently **passing** (framed `{deltas: [...]}` golden for step_n)
 
-- Schema tests load fixtures and assert required keys per ADR 0098 / T-043
+- Schema tests load fixtures and assert required keys per ADR 0100 / T-043
   (`seq`, `episode_day`, flat `belief` on Snapshot; DayDelta `day` +
   `drop_oldest`)
   → `tests/test_simulator_schema.py::test_schema_module_exports_validators` —

@@ -15,7 +15,7 @@ import type {
   Snapshot,
 } from "./types";
 
-/** Dialed browser demo budgets (ADR 0097 / DEMO_BUDGETS). */
+/** Dialed browser demo budgets (ADR 0099 / DEMO_BUDGETS). */
 export type DemoBudgets = {
   n_particles: number;
   H: number;
@@ -23,7 +23,7 @@ export type DemoBudgets = {
   candidate_case_radius: number;
 };
 
-/** ADR 0097 caps — default when `budgets` is omitted from constructor opts. */
+/** ADR 0099 caps — default when `budgets` is omitted from constructor opts. */
 export const DEFAULT_DEMO_BUDGETS: DemoBudgets = {
   n_particles: 200,
   H: 7,

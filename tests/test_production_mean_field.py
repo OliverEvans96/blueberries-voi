@@ -32,7 +32,7 @@ _TV_TOL = 1e-9
 _SIMPLEX_TOL = 1e-6
 
 # Runtime deps locked at T-021 kickoff — ticket must not add packages.
-_RUNTIME_DEPS_LOCKED = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
+_RUNTIME_DEPS_LOCKED = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
 
 
 def _backends_source() -> str:

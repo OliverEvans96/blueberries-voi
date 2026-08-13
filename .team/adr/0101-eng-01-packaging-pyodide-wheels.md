@@ -1,4 +1,4 @@
-# 0099. ENG-01 packaging: derived Abdella, extras, GH Release, Pyodide 314
+# 0101. ENG-01 packaging: derived Abdella, extras, GH Release, Pyodide 314
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
@@ -70,4 +70,4 @@ path; Pyodide 314.0.4 / 3.14.2; CI 3.11+3.12+3.14.
 Oliver, not a silent downgrade.
 
 **Depends on:** ADR [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md),
-[0085](./0085-pyarrow-abdella-parquet.md), [0097](./0097-eng-01-dual-runtime-ap.md)
+[0085](./0085-pyarrow-abdella-parquet.md), [0099](./0099-eng-01-dual-runtime-ap.md)

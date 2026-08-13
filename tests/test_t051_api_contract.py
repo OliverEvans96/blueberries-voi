@@ -3,7 +3,7 @@
 Locks ``.team/specs/T-051.md``: ASGI TestClient calls to ``init`` / ``step`` /
 ``step_n`` / ``reset`` / ``act`` validate with T-045 schema helpers, match
 golden key sets + flat belief lengths, omit presentation keys, and publish
-OpenAPI response schemas describing the same wire shapes (ADR 0098 / 0100).
+OpenAPI response schemas describing the same wire shapes (ADR 0100 / 0102).
 """
 
 from __future__ import annotations
@@ -111,7 +111,7 @@ def _assert_no_forbidden(payload: Any, *, label: str) -> None:
     forbidden = _collect_keys(payload) & _FORBIDDEN_PAYLOAD_KEYS
     assert not forbidden, (
         f"{label} must not contain forbidden presentation keys "
-        f"{sorted(forbidden)} (ADR 0098 / T-051)"
+        f"{sorted(forbidden)} (ADR 0100 / T-051)"
     )
 
 
@@ -256,7 +256,7 @@ def _resolve_schema_ref(doc: Mapping[str, Any], node: Any) -> Mapping[str, Any]:
         name = ref.rsplit("/", maxsplit=1)[-1]
         schemas = doc.get("components", {}).get("schemas", {})
         assert isinstance(schemas, Mapping) and name in schemas, (
-            f"OpenAPI missing components.schemas.{name} (T-051 / ADR 0100)"
+            f"OpenAPI missing components.schemas.{name} (T-051 / ADR 0102)"
         )
         resolved = schemas[name]
         assert isinstance(resolved, Mapping)
@@ -309,7 +309,7 @@ def _assert_openapi_object_keys(
     assert isinstance(props, Mapping), (
         f"{label}: OpenAPI must declare properties matching golden keys "
         f"(got type={schema.get('type')!r} additionalProperties="
-        f"{schema.get('additionalProperties')!r}); ADR 0100 requires schemas "
+        f"{schema.get('additionalProperties')!r}); ADR 0102 requires schemas "
         f"used by golden fixtures"
     )
     prop_keys = {str(k) for k in props}
@@ -537,7 +537,7 @@ def test_http_step_wrong_type_order_qty_returns_4xx() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC / ADR 0100: OpenAPI describes the same schemas as golden fixtures
+# AC / ADR 0102: OpenAPI describes the same schemas as golden fixtures
 # ---------------------------------------------------------------------------
 
 

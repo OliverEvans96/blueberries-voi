@@ -18,7 +18,7 @@
   → `web/src/engine/pyodideAdapter.test.ts::PyodideAdapter integration smoke … > ships a clear pass/fail smoke that drives PyodideAdapter init+step` — currently failing: no adapter smoke script/export
 
 - Demo budget preset is the default for this adapter  
-  → `web/src/engine/pyodideAdapter.test.ts::PyodideAdapter demo budget defaults > DEFAULT_DEMO_BUDGETS matches ADR 0097 dialed caps` — currently passing  
+  → `web/src/engine/pyodideAdapter.test.ts::PyodideAdapter demo budget defaults > DEFAULT_DEMO_BUDGETS matches ADR 0099 dialed caps` — currently passing  
   → `web/src/engine/pyodideAdapter.test.ts::PyodideAdapter demo budget defaults > init uses DEMO_BUDGETS by default when budgets opts are omitted` — currently failing: dialed config not posted on init RPC
 
 ## Not covered by tests

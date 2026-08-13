@@ -1,5 +1,5 @@
 /**
- * Pyodide worker host for EngineSession (T-047 / ADR 0097–0099).
+ * Pyodide worker host for EngineSession (T-047 / ADR 0099–0101).
  *
  * Loads Pyodide 314.0.4, installs the Release/slim wheel via micropip,
  * binds one EngineSession, and answers RPC methods:

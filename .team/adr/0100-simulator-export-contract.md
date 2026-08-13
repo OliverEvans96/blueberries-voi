@@ -1,4 +1,4 @@
-# 0098. Simulator export contract: Snapshot / DayDelta / step_n
+# 0100. Simulator export contract: Snapshot / DayDelta / step_n
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
@@ -78,4 +78,4 @@ ViewModel/PnL on Python returns.
 **Revisit if:** measured payload size or FFI cost still dominates under dialed budgets — then
 consider Transferable buffers as an additive transport, not a schema replacement.
 
-**Depends on:** ADR [0097](./0097-eng-01-dual-runtime-ap.md), [0092](./0092-controller-belief-api.md)
+**Depends on:** ADR [0099](./0099-eng-01-dual-runtime-ap.md), [0092](./0092-controller-belief-api.md)

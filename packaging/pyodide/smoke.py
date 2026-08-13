@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demo-budget RPC smoke for the Pyodide worker edge (T-047 / ADR 0097).
+"""Demo-budget RPC smoke for the Pyodide worker edge (T-047 / ADR 0099).
 
 Exercises ``init`` + one ``step`` + ``step_n`` (≥2 orders) through
 ``session_rpc.handle_rpc`` under dialed ``DEMO_BUDGETS`` (n_particles ≤ 200;

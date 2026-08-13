@@ -36,7 +36,7 @@ def prepare_demo_config(
     out = dict(config)
     if shipments is not None:
         out["shipments"] = list(shipments)
-    # Dial demo budgets (≤ ADR 0097 caps); never silently use full production N.
+    # Dial demo budgets (≤ ADR 0099 caps); never silently use full production N.
     for key, cap in DEMO_BUDGETS.items():
         if key not in out:
             out[key] = int(cap)

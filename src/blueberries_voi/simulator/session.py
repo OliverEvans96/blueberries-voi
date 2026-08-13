@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, Snapshot
 
-# ADR 0097 dialed browser demo preset (≤ production / desktop defaults).
+# ADR 0099 dialed browser demo preset (≤ production / desktop defaults).
 DEMO_BUDGETS: dict[str, int] = {
     "n_particles": 200,
     "H": 7,
@@ -45,7 +45,7 @@ _HISTORY_WINDOW = 14
 class EngineSession:
     """Host-agnostic interactive session: init / step / step_n / reset / act.
 
-    Returns ADR 0098 Snapshot and DayDelta dicts only (no ViewModel, economics,
+    Returns ADR 0100 Snapshot and DayDelta dicts only (no ViewModel, economics,
     PnL, ghost, or heatmap). Belief crosses the wire as flat buffers.
     """
 

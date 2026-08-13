@@ -3,7 +3,7 @@
 **Status:** COMPLETE — ENG-01 slices complete (Slice 1–3 / T-042–T-058); pending human merge  
 **Date:** 2026-08-12  
 **Board:** ENG-01  
-**Supersedes:** ADR 0073 option C (static only) → ADR **0097** A′ dual runtime
+**Supersedes:** ADR 0073 option C (static only) → ADR **0099** A′ dual runtime
 
 ## Decisions locked (Oliver)
 
@@ -17,7 +17,7 @@
 | D3 | Slice 3; worktree / branch `web/d3-simulator-mockup` |
 | Prefs | Derived Abdella; CI→GH Release wheels; no matplotlib in-browser; worker-only Pyodide; Snapshot/DayDelta + JS presentation; flat belief; `step_n`; avoid deep `toJs` |
 
-ADRs: [0097](../adr/0097-eng-01-dual-runtime-ap.md) reopen · [0098](../adr/0098-simulator-export-contract.md) export · [0099](../adr/0099-eng-01-packaging-pyodide-wheels.md) packaging · [0100](../adr/0100-eng-01-api-asgi-session.md) API.
+ADRs: [0099](../adr/0099-eng-01-dual-runtime-ap.md) reopen · [0100](../adr/0100-simulator-export-contract.md) export · [0101](../adr/0101-eng-01-packaging-pyodide-wheels.md) packaging · [0102](../adr/0102-eng-01-api-asgi-session.md) API.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ UI → Projector  ──►  EngineSession ← slim wheel ← worker
 
 | Wave | Tickets | Parallelism |
 |------|---------|-------------|
-| 0 | **T-049** API ADR/spec already in Wave 0 (ADR 0100); implement gated | Spec done in T-042 |
+| 0 | **T-049** API ADR/spec already in Wave 0 (ADR 0102); implement gated | Spec done in T-042 |
 | 1 | **T-050** ASGI app ∥ **T-051** Http vs golden contract tests | After Slice-1 green tip |
 | 2 | **T-052** Slice-2 close-out | Serial |
 

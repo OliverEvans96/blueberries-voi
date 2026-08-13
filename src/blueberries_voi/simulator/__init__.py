@@ -1,4 +1,4 @@
-"""Interactive simulator façade for dual-runtime hosts (ADR 0097 / 0098).
+"""Interactive simulator façade for dual-runtime hosts (ADR 0099 / 0100).
 
 ``EngineSession`` exposes ``init`` / ``step`` / ``step_n`` / ``reset`` / ``act``
 returning Snapshot and DayDelta JSON dicts with flat belief buffers. Presentation

@@ -1,6 +1,6 @@
 """T-046 slim browser wheel + GitHub Release + micropip smoke (RED).
 
-Locks ADR 0099 / ``.team/specs/T-046.md`` packaging deliverables:
+Locks ADR 0101 / ``.team/specs/T-046.md`` packaging deliverables:
 
 * Slim / browser-oriented wheel install story without hard ``pyarrow`` /
   ``matplotlib`` requirements
@@ -209,7 +209,7 @@ def _slim_dependency_surface() -> set[str]:
     """Names that a slim / browser wheel would hard-require.
 
     Prefer an explicit slim overlay when present; otherwise the core
-    ``project.dependencies`` (ADR 0099: those must shed pyarrow/matplotlib for
+    ``project.dependencies`` (ADR 0101: those must shed pyarrow/matplotlib for
     the browser install story).
     """
     for overlay in _SLIM_OVERLAY_CANDIDATES:
@@ -247,7 +247,7 @@ def test_ci_matrix_includes_python_314_alongside_311_and_312() -> None:
     missing = {"3.11", "3.12", "3.14"} - versions
     assert not missing, (
         "T-046 requires GitHub Actions CI to cover Python 3.11, 3.12, and 3.14 "
-        f"(ADR 0099 / checklist T-044-ci-314-deferred); missing {sorted(missing)}; "
+        f"(ADR 0101 / checklist T-044-ci-314-deferred); missing {sorted(missing)}; "
         f"found {sorted(versions)}. "
         "If agents cannot edit live workflows, land the matrix under "
         "packaging/github-workflows/ci.yml for a human to copy/symlink."
@@ -285,7 +285,7 @@ def test_browser_extra_still_omits_pyarrow_and_matplotlib() -> None:
 
 
 def test_slim_browser_install_story_omits_pyarrow_and_matplotlib_hard_deps() -> None:
-    """Core or slim overlay must not hard-require pyarrow/matplotlib (ADR 0099)."""
+    """Core or slim overlay must not hard-require pyarrow/matplotlib (ADR 0101)."""
     names = _slim_dependency_surface()
     leaking = names & _HEAVY_DEPS
     assert not leaking, (
@@ -386,7 +386,7 @@ def test_packaging_docs_state_micropip_github_release_url_pattern() -> None:
 
 
 def test_pyodide_314_and_cpython_3142_pin_in_packaging_docs_or_workflow() -> None:
-    """ADR 0099 already records the pin; T-046 requires packaging/workflow echo."""
+    """ADR 0101 already records the pin; T-046 requires packaging/workflow echo."""
     non_adr: list[str] = []
     for path in list(_packaging_doc_texts()) + list(_release_workflow_paths()):
         if path.is_file():
@@ -395,7 +395,7 @@ def test_pyodide_314_and_cpython_3142_pin_in_packaging_docs_or_workflow() -> Non
     surface = "\n".join(non_adr)
     assert _PYODIDE_PIN in surface, (
         f"packaging docs or workflow comments/env must pin Pyodide {_PYODIDE_PIN} "
-        "(ADR 0099 already has it; T-046 needs a packaging/workflow echo)"
+        "(ADR 0101 already has it; T-046 needs a packaging/workflow echo)"
     )
     assert _CPYTHON_PIN in surface, (
         f"packaging docs or workflow comments/env must pin CPython {_CPYTHON_PIN}"
@@ -450,7 +450,7 @@ def test_slim_wheel_metadata_omits_pyarrow_and_matplotlib_when_wheel_present() -
     leaking = reqs & _HEAVY_DEPS
     assert not leaking, (
         f"{target.name} METADATA hard-requires {sorted(leaking)}; "
-        "browser/slim wheel must omit them (ADR 0099)"
+        "browser/slim wheel must omit them (ADR 0101)"
     )
 
 

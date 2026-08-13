@@ -351,7 +351,7 @@ def test_no_new_runtime_dependencies_for_t029() -> None:
     for spec in raw:
         name = re.split(r"[<>=!\[]", spec, maxsplit=1)[0].strip().lower()
         names.add(name)
-    locked = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
+    locked = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
     assert names == locked, (
         f"runtime dependencies changed for T-029: {sorted(names)} "
         f"(locked {sorted(locked)})"

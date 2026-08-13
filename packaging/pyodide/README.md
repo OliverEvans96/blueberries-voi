@@ -33,7 +33,7 @@ await micropip.install(
 );
 ```
 
-See `../README.md` and ADR 0099.
+See `../README.md` and ADR 0101.
 
 ## Demo budgets
 

@@ -52,8 +52,8 @@ _CHECKLIST_THEMES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "same",
             "share",
             "parity",
-            "adr 0098",
-            "0098",
+            "adr 0100",
+            "0100",
         ),
     ),
     (
@@ -435,7 +435,7 @@ def test_slice2_closeout_contract_checklist() -> None:
     has_day_delta = "daydelta" in lowered or "day delta" in lowered
     has_pyodide_or_share = any(
         tok in lowered
-        for tok in ("pyodide", "share", "same", "parity", "both runtimes", "0098")
+        for tok in ("pyodide", "share", "same", "parity", "both runtimes", "0100")
     )
     assert has_snapshot and has_day_delta and has_pyodide_or_share, (
         f"{best} must assert API responses share Snapshot/DayDelta with Pyodide "

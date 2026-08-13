@@ -1,4 +1,4 @@
-# 0100. ENG-01 API host: ASGI sessions wrapping EngineSession
+# 0102. ENG-01 API host: ASGI sessions wrapping EngineSession
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
@@ -11,7 +11,7 @@ MILESTONE: ENG-01 — interactive dual-runtime simulator
 ## Context
 
 Oliver locked **API = development host** and **Pyodide = production host**, sharing one export
-schema (ADR [0098](./0098-simulator-export-contract.md)). Developers need keep-alive sessions so
+schema (ADR [0100](./0100-simulator-export-contract.md)). Developers need keep-alive sessions so
 each Advance is not a cold start, OpenAPI for contract tests, and the same Snapshot / DayDelta /
 step_n shapes the worker uses — without inventing a second façade.
 
@@ -25,7 +25,7 @@ We will:
 1. Implement a thin **ASGI** app (Starlette or FastAPI under an optional **`[api]`** extra) that
    wraps **`EngineSession`** with a server-side **session store** (session id → session instance).
 2. Expose HTTP routes aligned 1:1 with the interactive protocol: `init`, `step`, `step_n`, `reset`,
-   `act` (and documented error envelope). Request/response JSON **must** match ADR 0098 schemas —
+   `act` (and documented error envelope). Request/response JSON **must** match ADR 0100 schemas —
    no ViewModel, PnL, economics, ghost, or heatmap in API responses.
 3. Publish **OpenAPI** (FastAPI auto or equivalent) describing the same schemas used by golden
    fixtures / HttpAdapter contract tests.
@@ -62,4 +62,4 @@ in ENG-01.
 **Revisit if:** FastAPI/Starlette cannot target the same Python matrix as the library — then pick
 the thinner ASGI option without changing the JSON contract.
 
-**Depends on:** ADR [0097](./0097-eng-01-dual-runtime-ap.md), [0098](./0098-simulator-export-contract.md)
+**Depends on:** ADR [0099](./0099-eng-01-dual-runtime-ap.md), [0100](./0100-simulator-export-contract.md)

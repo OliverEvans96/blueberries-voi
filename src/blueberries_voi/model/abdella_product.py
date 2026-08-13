@@ -1,4 +1,4 @@
-"""Derived Abdella arrival-age product (ADR 0099 / T-044).
+"""Derived Abdella arrival-age product (ADR 0101 / T-044).
 
 Offline / desktop builds convert vendored Parquet into a numpy ``.npz`` artifact.
 Browser and slim interactive paths load that product (or inject age arrays) and

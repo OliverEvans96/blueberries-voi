@@ -1,6 +1,6 @@
 # Packaging (slim / browser wheel)
 
-ADR [0099](../.team/adr/0099-eng-01-packaging-pyodide-wheels.md) locks the
+ADR [0101](../.team/adr/0101-eng-01-packaging-pyodide-wheels.md) locks the
 browser install story: a **slim wheel** without hard `pyarrow` / `matplotlib`,
 distributed via **GitHub Release** for `micropip.install` (**not PyPI**).
 

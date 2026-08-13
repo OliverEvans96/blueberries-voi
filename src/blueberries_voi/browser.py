@@ -1,4 +1,4 @@
-"""Browser / slim interactive entry (ADR 0099 / T-044).
+"""Browser / slim interactive entry (ADR 0101 / T-044).
 
 Import graph for Pyodide and ``[browser]`` installs: derived Abdella arrays only.
 Does not import pyarrow or matplotlib.

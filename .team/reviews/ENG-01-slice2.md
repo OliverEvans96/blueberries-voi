@@ -23,5 +23,5 @@ decision — agents did not merge.
 
 ## Contract / non-goals (binding — still hold)
 
-- [x] API responses share Snapshot/DayDelta with Pyodide (same wire schemas as ADR 0098 / Slice 1)
+- [x] API responses share Snapshot/DayDelta with Pyodide (same wire schemas as ADR 0100 / Slice 1)
 - [x] Do not claim production multi-tenant hosting — API is a local / non-production development host

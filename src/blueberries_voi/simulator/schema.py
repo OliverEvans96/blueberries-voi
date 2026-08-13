@@ -1,4 +1,4 @@
-"""Wire-contract validators for Snapshot / DayDelta (ADR 0098 / T-045).
+"""Wire-contract validators for Snapshot / DayDelta (ADR 0100 / T-045).
 
 Hosts and OpenAPI (T-051) reuse these helpers against golden fixtures and live
 ``EngineSession`` payloads. Presentation fields (economics, PnL, ghost, heatmap,
@@ -53,7 +53,7 @@ def _reject_forbidden(obj: Mapping[str, Any], *, label: str) -> None:
     if forbidden:
         msg = (
             f"{label} contains forbidden presentation keys "
-            f"{sorted(forbidden)} (ADR 0098)"
+            f"{sorted(forbidden)} (ADR 0100)"
         )
         raise ValueError(msg)
 

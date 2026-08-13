@@ -1,7 +1,7 @@
 """T-047 Pyodide worker RPC + browser demo budget smoke (RED).
 
-Locks ``.team/specs/T-047.md``, ADR 0098 (JSON wire / no deep toJs), ADR 0097
-(dialed demo budgets), and ADR 0099 (Pyodide 314.0.4, worker-only).
+Locks ``.team/specs/T-047.md``, ADR 0100 (JSON wire / no deep toJs), ADR 0099
+(dialed demo budgets), and ADR 0101 (Pyodide 314.0.4, worker-only).
 
 Worker / smoke artifacts live **outside** ``src/blueberries_voi/`` (M2 closeout
 still forbids ``*pyodide*`` / ``*wasm*`` modules under ``src/``). Tests fail for
@@ -142,7 +142,7 @@ def _fixture_shipments() -> list[ShipmentTrace]:
 
 
 def _demo_config(**overrides: Any) -> dict[str, Any]:
-    """Dialed demo budgets (≤ ADR 0097 caps); never production N=2000."""
+    """Dialed demo budgets (≤ ADR 0099 caps); never production N=2000."""
     cfg: dict[str, Any] = {
         "shipments": _fixture_shipments(),
         "n_particles": int(DEMO_BUDGETS["n_particles"]),
@@ -320,7 +320,7 @@ def test_worker_pins_pyodide_314_and_binds_engine_session() -> None:
     worker = _require_file(_WORKER_CANDIDATES, what="Pyodide worker script")
     text = worker.read_text(encoding="utf-8")
     assert _PYODIDE_PIN in text, (
-        f"worker {_rel(worker)} must load/pin Pyodide {_PYODIDE_PIN} (ADR 0099)"
+        f"worker {_rel(worker)} must load/pin Pyodide {_PYODIDE_PIN} (ADR 0101)"
     )
     assert re.search(r"micropip|loadPyodide|pyodide", text, re.I), (
         f"worker {_rel(worker)} must load Pyodide / micropip install path"
@@ -347,7 +347,7 @@ def test_worker_or_docs_mention_slim_release_wheel_install() -> None:
         re.I,
     ), (
         "worker or packaging/pyodide docs must describe Release/slim wheel install "
-        "via micropip (T-046 / ADR 0099)"
+        "via micropip (T-046 / ADR 0101)"
     )
 
 
@@ -529,7 +529,7 @@ def test_rpc_payloads_are_json_strings_or_cloneable_not_deep_tojs() -> None:
         )
         assert re.search(r"json\.dumps|JSON\.stringify|structuredClone", blob), (
             "worker/RPC edge must serialise via json.dumps / JSON.stringify / "
-            "structured clone (ADR 0098)"
+            "structured clone (ADR 0100)"
         )
 
 
@@ -552,7 +552,7 @@ def test_main_thread_harness_postmessage_only_no_runpython() -> None:
     stripped = re.sub(r"//.*?$", "", stripped, flags=re.M)
     assert not re.search(r"\brunPython\s*\(", stripped), (
         f"{_rel(harness)} must not call pyodide.runPython for per-click physics "
-        "(worker-only Pyodide; ADR 0099)"
+        "(worker-only Pyodide; ADR 0101)"
     )
     assert not re.search(r"\brunPythonAsync\s*\(", stripped), (
         f"{_rel(harness)} must not call runPythonAsync on the main thread"

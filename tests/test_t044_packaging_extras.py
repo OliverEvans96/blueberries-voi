@@ -1,6 +1,6 @@
 """T-044 packaging extras + CI 3.14 deferral (RED).
 
-Locks ADR 0099 optional-dependency split and the T-044 CI checklist item:
+Locks ADR 0101 optional-dependency split and the T-044 CI checklist item:
 
 * ``[browser]`` (or equivalent) free of pyarrow / matplotlib
 * ``[data]`` (or equivalent) retains pyarrow for desktop Gate 0 / Parquet
@@ -41,7 +41,7 @@ def _find_extra(*candidates: str) -> tuple[str, list[str]]:
         if name in extras:
             return name, extras[name]
     # Allow rename aliases documented in the extra's own list comments — still
-    # require one of the ADR 0099 / T-044 names to exist as a table key.
+    # require one of the ADR 0101 / T-044 names to exist as a table key.
     msg = (
         f"pyproject optional-dependencies missing one of {candidates}; "
         f"have {sorted(extras)}"
@@ -52,15 +52,15 @@ def _find_extra(*candidates: str) -> tuple[str, list[str]]:
 def test_browser_extra_exists_and_omits_pyarrow_and_matplotlib() -> None:
     name, specs = _find_extra("browser", "slim", "pyodide")
     names = _dep_names(specs)
-    assert "pyarrow" not in names, f"[{name}] must omit pyarrow (ADR 0099)"
-    assert "matplotlib" not in names, f"[{name}] must omit matplotlib (ADR 0099)"
+    assert "pyarrow" not in names, f"[{name}] must omit pyarrow (ADR 0101)"
+    assert "matplotlib" not in names, f"[{name}] must omit matplotlib (ADR 0101)"
 
 
 def test_data_extra_retains_pyarrow_for_desktop_parquet() -> None:
     name, specs = _find_extra("data", "parquet", "abdella")
     names = _dep_names(specs)
     assert "pyarrow" in names, (
-        f"[{name}] must retain pyarrow for desktop Gate 0 / Parquet (ADR 0085/0099)"
+        f"[{name}] must retain pyarrow for desktop Gate 0 / Parquet (ADR 0085/0101)"
     )
 
 

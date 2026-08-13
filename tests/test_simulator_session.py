@@ -1,6 +1,6 @@
 """T-043 EngineSession façade + closed-loop day driver — RED contracts.
 
-Locks `.team/specs/T-043.md`, ADR 0097 (dialed demo budgets), and ADR 0098
+Locks `.team/specs/T-043.md`, ADR 0099 (dialed demo budgets), and ADR 0100
 (Snapshot / DayDelta / flat belief wire; no ViewModel / economics / PnL /
 ghost / heatmap on the Python return path).
 
@@ -49,7 +49,7 @@ _FORBIDDEN_PAYLOAD_KEYS = frozenset(
 )
 _FORBIDDEN_IMPORT_ROOTS = frozenset({"matplotlib", "pyplot", "pyarrow"})
 
-# ADR 0097 / T-043 dialed browser demo caps (must be ≤ production defaults).
+# ADR 0099 / T-043 dialed browser demo caps (must be ≤ production defaults).
 _DEMO_N_PARTICLES_CAP = 200
 _DEMO_H_CAP = 7
 _DEMO_N_ROLLOUT_PATHS_CAP = 2
@@ -114,7 +114,7 @@ def _resolve_engine_session_cls() -> type[Any]:
     if cls is None or not inspect.isclass(cls):
         pytest.fail(
             f"{_ENGINE_SESSION} must be exported from {_SIMULATOR_PKG} "
-            "(T-043 / ADR 0098)",
+            "(T-043 / ADR 0100)",
             pytrace=False,
         )
     return cls
@@ -150,12 +150,12 @@ def _assert_json_round_trip(payload: Mapping[str, Any], *, label: str) -> Any:
         encoded = json.dumps(payload)
         decoded = json.loads(encoded)
     except (TypeError, ValueError) as exc:
-        pytest.fail(f"{label} must JSON round-trip (ADR 0098); got {exc!r}")
+        pytest.fail(f"{label} must JSON round-trip (ADR 0100); got {exc!r}")
     assert isinstance(decoded, dict), f"{label} json.loads must yield a dict"
     forbidden = _collect_keys(decoded) & _FORBIDDEN_PAYLOAD_KEYS
     assert not forbidden, (
         f"{label} must not contain forbidden presentation keys {sorted(forbidden)} "
-        "(ADR 0098: no economics / PnL / ghost / heatmap / density / ViewModel)"
+        "(ADR 0100: no economics / PnL / ghost / heatmap / density / ViewModel)"
     )
     return decoded
 
@@ -164,7 +164,7 @@ def _assert_flat_belief(belief: Any, *, label: str) -> Mapping[str, Any]:
     bel = _as_mapping(belief, label=f"{label}.belief")
     missing = _FLAT_BELIEF_KEYS - set(bel)
     assert not missing, (
-        f"{label}.belief missing flat fields {sorted(missing)} (ADR 0098)"
+        f"{label}.belief missing flat fields {sorted(missing)} (ADR 0100)"
     )
     lot_counts = list(bel["lot_counts"])
     age_marginals = list(bel["age_marginals"])
@@ -186,7 +186,7 @@ def _assert_flat_belief(belief: Any, *, label: str) -> Mapping[str, Any]:
     for i, x in enumerate(age_marginals):
         assert not isinstance(x, (list, tuple)), (
             f"{label}.belief.age_marginals[{i}] is nested; wire requires flat L*K "
-            "(ADR 0098)"
+            "(ADR 0100)"
         )
         float(x)
     for x in lot_counts:
@@ -292,7 +292,7 @@ def _resolve_demo_budget_preset(mod: Any) -> Mapping[str, Any]:
     pytest.fail(
         "simulator must document a browser demo budget preset "
         f"(tried {candidates}) with n_particles/H/n_rollout_paths/"
-        "candidate radius ≤ ADR 0097 caps",
+        "candidate radius ≤ ADR 0099 caps",
         pytrace=False,
     )
 
@@ -561,7 +561,7 @@ def test_browser_demo_budget_preset_within_dialed_caps() -> None:
     assert n_paths <= _DEMO_N_ROLLOUT_PATHS_CAP
     assert radius <= _DEMO_CANDIDATE_RADIUS_CAP
 
-    # Must be dialed relative to production / desktop defaults (ADR 0097).
+    # Must be dialed relative to production / desktop defaults (ADR 0099).
     assert n_particles <= int(PRODUCTION_N)
     assert horizon <= int(DEFAULT_ROLLOUT_H)
     assert n_paths <= int(DEFAULT_N_ROLLOUT_PATHS)

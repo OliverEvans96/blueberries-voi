@@ -1,6 +1,6 @@
 """T-044 derived Abdella arrival-age product + browser-safe loaders (RED).
 
-Locks ADR 0099 / ``.team/specs/T-044.md`` before production loaders exist:
+Locks ADR 0101 / ``.team/specs/T-044.md`` before production loaders exist:
 
 * offline ``build_derived_abdella_product`` from vendored Parquet
 * ``load_derived_abdella_arrival_ages`` without importing pyarrow
@@ -415,7 +415,7 @@ def test_browser_entry_source_has_no_eager_pyarrow_or_matplotlib() -> None:
     forbidden = _imported_roots(path) & _FORBIDDEN_BROWSER_IMPORT_ROOTS
     assert not forbidden, (
         f"{path.name} must not eagerly import {sorted(forbidden)} "
-        "(ADR 0099 / T-044 browser path)"
+        "(ADR 0101 / T-044 browser path)"
     )
 
 

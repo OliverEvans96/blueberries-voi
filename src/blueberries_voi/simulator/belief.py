@@ -1,4 +1,4 @@
-"""Flat belief wire buffers at the EngineSession boundary (ADR 0098)."""
+"""Flat belief wire buffers at the EngineSession boundary (ADR 0100)."""
 
 from __future__ import annotations
 

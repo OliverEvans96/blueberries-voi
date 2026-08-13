@@ -420,7 +420,7 @@ describe("PyodideAdapter demo budget defaults", () => {
     vi.unstubAllGlobals();
   });
 
-  it("DEFAULT_DEMO_BUDGETS matches ADR 0097 dialed caps", () => {
+  it("DEFAULT_DEMO_BUDGETS matches ADR 0099 dialed caps", () => {
     expect(DEFAULT_DEMO_BUDGETS.n_particles).toBeLessThanOrEqual(200);
     expect(DEFAULT_DEMO_BUDGETS.H).toBeLessThanOrEqual(7);
     expect(DEFAULT_DEMO_BUDGETS.n_rollout_paths).toBeLessThanOrEqual(2);

@@ -211,7 +211,7 @@ def build_day_delta(
     result: DayAdvanceResult,
     drop_oldest: bool = False,
 ) -> DayDelta:
-    """Frame a DayAdvanceResult as an ADR 0098 DayDelta dict."""
+    """Frame a DayAdvanceResult as an ADR 0100 DayDelta dict."""
     delta: DayDelta = {
         "seq": int(seq),
         "episode_day": int(episode_day),

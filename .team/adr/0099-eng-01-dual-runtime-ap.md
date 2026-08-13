@@ -1,4 +1,4 @@
-# 0097. ENG-01 reopen: dual runtime A′ (Pyodide prod + API dev)
+# 0099. ENG-01 reopen: dual runtime A′ (Pyodide prod + API dev)
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
@@ -37,8 +37,8 @@ We will:
 5. **Scope:** ADR/export contract, façade, packaging, hosts, and UI adapters are all in ENG-01
    (ticketed T-042–T-058). Honesty / cadence ⚑ cards stay out.
 
-Related contracts: export ADR [0098](./0098-simulator-export-contract.md), packaging
-[0099](./0099-eng-01-packaging-pyodide-wheels.md), API [0100](./0100-eng-01-api-asgi-session.md).
+Related contracts: export ADR [0100](./0100-simulator-export-contract.md), packaging
+[0101](./0101-eng-01-packaging-pyodide-wheels.md), API [0102](./0102-eng-01-api-asgi-session.md).
 
 ## Alternatives considered
 

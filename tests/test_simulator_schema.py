@@ -1,6 +1,6 @@
 """T-045 golden Snapshot / DayDelta fixtures + schema validators — RED.
 
-Locks `.team/specs/T-045.md` and ADR 0098: committed goldens under
+Locks `.team/specs/T-045.md` and ADR 0100: committed goldens under
 ``tests/fixtures/simulator/``, public ``validate_snapshot`` /
 ``validate_day_delta``, forbidden presentation keys absent, flat belief
 ``L`` / ``L*K`` / ``K`` lengths, and live ``EngineSession`` payloads sharing
@@ -139,7 +139,7 @@ def _assert_no_forbidden_keys(obj: Any, *, label: str) -> None:
     forbidden = _collect_keys(obj) & _FORBIDDEN_PAYLOAD_KEYS
     assert not forbidden, (
         f"{label} must not contain forbidden presentation keys "
-        f"{sorted(forbidden)} (ADR 0098 / T-045)"
+        f"{sorted(forbidden)} (ADR 0100 / T-045)"
     )
 
 
@@ -398,7 +398,7 @@ def test_live_step_n_deltas_validate_with_same_helpers() -> None:
     session.init(_golden_config(), seed=_FIXED_SEED)
     orders = [0, 16, 0]
     # EngineSession.step_n is typed list[DayDelta]; framed {deltas: [...]}
-    # remains allowed by ADR 0098 — accept either shape at runtime.
+    # remains allowed by ADR 0100 — accept either shape at runtime.
     result: Any = session.step_n(orders)
     if isinstance(result, Mapping) and "deltas" in result:
         deltas = list(result["deltas"])

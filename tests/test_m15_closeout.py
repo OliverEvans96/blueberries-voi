@@ -399,7 +399,7 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 # ---------------------------------------------------------------------------
 # AC: VOI stay parked through M1.5; controller may grow under M2 (Wave 1+)
-# Browser: M1.5 parked ENG-01; ADR 0097 reopen allows T-044 slim façade only
+# Browser: M1.5 parked ENG-01; ADR 0099 reopen allows T-044 slim façade only
 # ---------------------------------------------------------------------------
 
 # Relative to ``src/blueberries_voi/``. Intentional ENG-01 slim entry (T-044).
@@ -453,7 +453,7 @@ def test_no_production_ctl_voi_browser_under_m15() -> None:
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
     )
 
-    # ADR 0097 reopened ENG-01: allow T-044 ``browser.py`` only; still forbid
+    # ADR 0099 reopened ENG-01: allow T-044 ``browser.py`` only; still forbid
     # other *browser* / *eng01* modules that M1.5 closed out as non-goals.
     browser_hits = [
         p
