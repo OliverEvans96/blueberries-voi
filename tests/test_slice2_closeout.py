@@ -1,6 +1,6 @@
 """T-052 Slice 2 close-out — RED / Definition-of-Done contract checks.
 
-Asserts ENG-01 Slice-2 (T-049–T-051) process artifacts and non-goals from
+Asserts ENG-01 Slice-2 (T-049-T-051) process artifacts and non-goals from
 ``.team/specs/T-052.md`` / ``.team/plans/ENG-01-dual-runtime.md``.
 Does not implement product features; fails until close-out documentation lands.
 """
@@ -22,7 +22,7 @@ _BACKLOG = _TEAM / "backlog.md"
 _PLAN = _TEAM / "plans" / "ENG-01-dual-runtime.md"
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 
-# Slice-2 tickets that must be closed for T-052 DoD (spec AC: T-049–T-051).
+# Slice-2 tickets that must be closed for T-052 DoD (spec AC: T-049-T-051).
 _SLICE2_QA_TICKETS: tuple[str, ...] = ("T-049", "T-050", "T-051")
 # Implement tickets with APPROVED review + verify PASS (parent brief).
 _SLICE2_IMPLEMENT_TICKETS: tuple[str, ...] = ("T-050", "T-051")
@@ -278,7 +278,7 @@ def _negated_claim_window(text: str, start: int, end: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# AC: QA notes mark T-049–T-051 DONE / green
+# AC: QA notes mark T-049-T-051 DONE / green
 # ---------------------------------------------------------------------------
 
 
@@ -308,13 +308,13 @@ def test_slice2_ticket_verify_pass_artifact_present(ticket: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DoD / parent: .team/reviews/ APPROVED for T-050–T-051
+# DoD / parent: .team/reviews/ APPROVED for T-050-T-051
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("ticket", _SLICE2_IMPLEMENT_TICKETS)
 def test_slice2_ticket_review_approved(ticket: str) -> None:
-    """Each implement ticket has an APPROVED review (per-ticket or Slice-2 close-out)."""
+    """Each implement ticket has an APPROVED review (ticket or Slice-2 close-out)."""
     paths = _review_paths_covering(ticket)
     assert paths, (
         f"no .team/reviews/ artifact covering {ticket} "
@@ -405,7 +405,7 @@ def test_changelog_has_slice2_client_voice_entry() -> None:
 
 
 def test_slice2_closeout_contract_checklist() -> None:
-    """Close-out checklist: shared Snapshot/DayDelta; no production multi-tenant claim."""
+    """Close-out checklist: Snapshot/DayDelta shared; no multi-tenant hosting claim."""
     candidates = _closeout_checklist_candidates()
     assert candidates, (
         "Add a Slice-2 close-out checklist under .team/reviews/ "
@@ -550,7 +550,7 @@ def test_slice2_pending_human_merge_not_merged_by_agents() -> None:
                 blobs.append((path.name, path.read_text(encoding="utf-8")))
     assert blobs, "need backlog and/or Slice-2 reviews close-out note for merge lock"
 
-    # Ignore historical M2/M3/Slice-1 "pending human merge" lines unless they bind Slice-2.
+    # Ignore historical M2/M3/Slice-1 pending-merge lines unless they bind Slice-2.
     slice2_pending = False
     for label, text in blobs:
         if re.search(

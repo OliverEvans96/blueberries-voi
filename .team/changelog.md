@@ -2,6 +2,12 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — Slice 2: local HTTP API for developers
+
+- **Developers can now drive the same simulator engine over a local HTTP API** for
+  iteration, without changing the browser demo path. This is a development host only —
+  not a production multi-tenant service (T-052).
+
 ## 2026-08-12 — Slice 1: interactive engine in the browser
 
 - **You can now run the interactive Python engine in a browser worker** under
