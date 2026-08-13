@@ -380,7 +380,9 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
       }),
     );
     expect(delta.seq).toBe(seqBefore + 1);
-    expect(delta.episode_day).toBeGreaterThan(dayBefore);
+    // Snapshot.episode_day is the next day to act (EngineSession parity after
+    // CAL-01); DayDelta.episode_day is the day just completed — equal here.
+    expect(delta.episode_day).toBe(dayBefore);
     const day = delta.day as { order_qty?: number };
     expect(day.order_qty).toBe(16);
   });

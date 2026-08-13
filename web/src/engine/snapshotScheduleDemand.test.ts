@@ -95,7 +95,9 @@ function assertDemandSummary(
 }
 
 describe("T-085 Snapshot wire types (schedule + demand_summary)", () => {
-  it("typespec + tsc require ScheduleWire / DemandSummary on Snapshot", async () => {
+  it(
+    "typespec + tsc require ScheduleWire / DemandSummary on Snapshot",
+    async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const { fileURLToPath } = await import("node:url");
@@ -108,17 +110,20 @@ describe("T-085 Snapshot wire types (schedule + demand_summary)", () => {
     expect(src).toMatch(/ScheduleWire/);
     expect(src).toMatch(/DemandSummary/);
 
-    const result = spawnSync(
-      "pnpm",
-      ["exec", "tsc", "--noEmit", "-p", webRoot],
-      { cwd: webRoot, encoding: "utf8" },
-    );
+    // Prefer local typescript binary (web/ is npm-managed; avoid pnpm bootstrap).
+    const tscBin = path.join(webRoot, "node_modules", "typescript", "bin", "tsc");
+    const result = spawnSync(tscBin, ["--noEmit", "-p", webRoot], {
+      cwd: webRoot,
+      encoding: "utf8",
+    });
     expect(
       result.status,
       `tsc must accept snapshotScheduleDemand.typespec.ts once ScheduleWire / ` +
         `DemandSummary exist on Snapshot.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     ).toBe(0);
-  });
+    },
+    30_000,
+  );
 });
 
 describe("T-085 MockAdapter schedule + demand_summary stubs", () => {
