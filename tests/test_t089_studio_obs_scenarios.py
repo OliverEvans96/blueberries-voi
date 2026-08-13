@@ -127,9 +127,7 @@ def test_engine_session_applied_config_echoes_obs_scenario() -> None:
     session = EngineSession()
     snap = session.init(_minimal_config(obs_scenario="F1"), seed=11)
     applied = snap["applied_config"]
-    assert "obs_scenario" in applied, (
-        "Snapshot applied_config must echo obs_scenario"
-    )
+    assert "obs_scenario" in applied, "Snapshot applied_config must echo obs_scenario"
     assert applied["obs_scenario"] == "F1"
 
 
@@ -282,7 +280,6 @@ def test_interactive_f1_presents_sales_by_lot(
     sales = getattr(obs, "sales_by_lot", UNOBSERVED)
     assert not is_unobserved(sales)
     assert isinstance(sales, dict)
-    assert sales is not UNOBSERVED
 
 
 def test_interactive_f1s_presents_waste_by_lot(
@@ -320,8 +317,7 @@ def test_interactive_f2a_presents_pack_date_when_delivery(
             obs = captured[-1]
             pack = getattr(obs, "pack_date", UNOBSERVED)
             assert not is_unobserved(pack), (
-                "F2a must present pack_date when a delivery exists "
-                f"(got {pack!r})"
+                f"F2a must present pack_date when a delivery exists (got {pack!r})"
             )
             assert isinstance(pack, date)
             return
@@ -370,7 +366,7 @@ def test_hidden_fields_never_invented_as_zero_or_empty_dict(
     waste = getattr(obs, "waste_total", None)
     sales = getattr(obs, "sales_by_lot", UNOBSERVED)
     waste_lots = getattr(obs, "waste_by_lot", UNOBSERVED)
-    assert waste is not 0
+    assert waste != 0
     assert sales != {}
     assert waste_lots != {}
     assert is_unobserved(waste)
@@ -383,9 +379,10 @@ def test_engine_session_forwards_obs_scenario_into_advance_day(
 ) -> None:
     """Session must pass stored obs_scenario into advance_day (not hardcode P1)."""
     seen: list[str] = []
+    import blueberries_voi.simulator.day_driver as day_driver_mod
     import blueberries_voi.simulator.session as session_mod
 
-    real = session_mod.advance_day
+    real = day_driver_mod.advance_day
 
     def _spy(*args: Any, **kwargs: Any) -> Any:
         seen.append(

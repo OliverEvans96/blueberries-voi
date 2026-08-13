@@ -145,6 +145,59 @@ def _get_session(session_id: str) -> EngineSession:
     return session
 
 
+def _as_shipment_trace(item: Any, *, index: int) -> ShipmentTrace:
+    """Normalize dict / ShipmentTrace / duck-typed traces to local ShipmentTrace.
+
+    Duck-typing avoids intermittent 422s under xdist when the same dataclass is
+    loaded via distinct module objects (``isinstance`` fails across identities).
+    """
+    if isinstance(item, ShipmentTrace):
+        return item
+    # Attribute-shaped traces (demo fixture under dual class identity).
+    if not isinstance(item, dict) and all(
+        hasattr(item, name)
+        for name in ("shipment_id", "times_d", "temps_c", "duration_d")
+    ):
+        try:
+            return ShipmentTrace(
+                shipment_id=str(item.shipment_id),
+                times_d=np.asarray(item.times_d, dtype=float),
+                temps_c=np.asarray(item.temps_c, dtype=float),
+                duration_d=float(item.duration_d),
+            )
+        except (TypeError, ValueError) as exc:
+            msg = f"shipments[{index}] invalid: {exc}"
+            raise HTTPException(
+                status_code=422,
+                detail=_error_body(error_type="validation_error", message=msg),
+            ) from exc
+    if not isinstance(item, dict):
+        msg = f"shipments[{index}] must be an object or ShipmentTrace"
+        raise HTTPException(
+            status_code=422,
+            detail=_error_body(error_type="validation_error", message=msg),
+        )
+    try:
+        return ShipmentTrace(
+            shipment_id=str(item["shipment_id"]),
+            times_d=np.asarray(item["times_d"], dtype=float),
+            temps_c=np.asarray(item["temps_c"], dtype=float),
+            duration_d=float(item["duration_d"]),
+        )
+    except KeyError as exc:
+        msg = f"shipments[{index}] missing field {exc.args[0]!r}"
+        raise HTTPException(
+            status_code=422,
+            detail=_error_body(error_type="validation_error", message=msg),
+        ) from exc
+    except (TypeError, ValueError) as exc:
+        msg = f"shipments[{index}] invalid: {exc}"
+        raise HTTPException(
+            status_code=422,
+            detail=_error_body(error_type="validation_error", message=msg),
+        ) from exc
+
+
 def _hydrate_shipments(raw: Any) -> list[ShipmentTrace]:
     if not isinstance(raw, list) or not raw:
         msg = "config['shipments'] must be a non-empty list"
@@ -152,50 +205,14 @@ def _hydrate_shipments(raw: Any) -> list[ShipmentTrace]:
             status_code=422,
             detail=_error_body(error_type="validation_error", message=msg),
         )
-    out: list[ShipmentTrace] = []
-    for i, item in enumerate(raw):
-        if isinstance(item, ShipmentTrace):
-            out.append(item)
-            continue
-        if not isinstance(item, dict):
-            msg = f"shipments[{i}] must be an object or ShipmentTrace"
-            raise HTTPException(
-                status_code=422,
-                detail=_error_body(error_type="validation_error", message=msg),
-            )
-        try:
-            out.append(
-                ShipmentTrace(
-                    shipment_id=str(item["shipment_id"]),
-                    times_d=np.asarray(item["times_d"], dtype=float),
-                    temps_c=np.asarray(item["temps_c"], dtype=float),
-                    duration_d=float(item["duration_d"]),
-                )
-            )
-        except KeyError as exc:
-            msg = f"shipments[{i}] missing field {exc.args[0]!r}"
-            raise HTTPException(
-                status_code=422,
-                detail=_error_body(error_type="validation_error", message=msg),
-            ) from exc
-        except (TypeError, ValueError) as exc:
-            msg = f"shipments[{i}] invalid: {exc}"
-            raise HTTPException(
-                status_code=422,
-                detail=_error_body(error_type="validation_error", message=msg),
-            ) from exc
-    return out
+    return [_as_shipment_trace(item, index=i) for i, item in enumerate(raw)]
 
 
 def _config_with_shipments(config: dict[str, Any]) -> dict[str, Any]:
     """Demo-hydrate missing/empty shipments at the API edge (ADR 0107)."""
     cfg = ensure_demo_shipments(dict(config))
-    raw = cfg.get("shipments")
-    if raw and isinstance(raw[0], ShipmentTrace):
-        # Demo fixture already returns ShipmentTrace objects.
-        cfg["shipments"] = list(raw)
-        return cfg
-    cfg["shipments"] = _hydrate_shipments(raw)
+    # Always normalize so demo fixtures survive dual ShipmentTrace identities.
+    cfg["shipments"] = _hydrate_shipments(cfg.get("shipments"))
     return cfg
 
 

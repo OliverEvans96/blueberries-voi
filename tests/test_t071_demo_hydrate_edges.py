@@ -121,10 +121,13 @@ def _shipment_ids(ships: Any) -> list[str]:
         return []
     out: list[str] = []
     for item in ships:
-        if isinstance(item, ShipmentTrace):
-            out.append(str(item.shipment_id))
-        elif isinstance(item, Mapping):
+        # Duck-type: under xdist+coverage, ShipmentTrace may have dual class
+        # identities so ``isinstance(item, ShipmentTrace)`` can be False even
+        # for genuine traces from the API hydrate path.
+        if isinstance(item, Mapping):
             out.append(str(item.get("shipment_id", "")))
+        elif hasattr(item, "shipment_id"):
+            out.append(str(item.shipment_id))
     return out
 
 
@@ -605,6 +608,41 @@ def test_engine_session_init_with_empty_shipments_still_raises_value_error() -> 
 # ---------------------------------------------------------------------------
 # AC: hydrate is parquet-free (no data/abdella required)
 # ---------------------------------------------------------------------------
+
+
+def test_api_hydrate_accepts_duck_typed_shipment_traces() -> None:
+    """Regression: dual ShipmentTrace class identity must not 422 demo hydrate.
+
+    Under xdist+coverage, ``isinstance(trace, ShipmentTrace)`` can fail when the
+    dataclass is loaded via distinct module objects. Host edge must still accept
+    attribute-shaped traces (same fields as ``ShipmentTrace``).
+    """
+    from types import SimpleNamespace
+
+    api_mod = importlib.import_module("blueberries_voi.api.app")
+    hydrate = getattr(api_mod, "_hydrate_shipments", None)
+    assert callable(hydrate), "api.app must expose _hydrate_shipments"
+
+    duck = SimpleNamespace(
+        shipment_id="T071-DUCK",
+        times_d=np.asarray([0.0, 1.0, 2.0], dtype=float),
+        temps_c=np.asarray([1.0, 1.0, 1.0], dtype=float),
+        duration_d=2.0,
+    )
+    assert not isinstance(duck, ShipmentTrace)
+
+    out = hydrate([duck])
+    assert len(out) == 1
+    # Compare by shape, not isinstance — dual class identity under xdist+cov.
+    assert out[0].shipment_id == "T071-DUCK"
+    assert type(out[0]).__name__ == "ShipmentTrace"
+
+    cfg_fn = getattr(api_mod, "_config_with_shipments", None)
+    assert callable(cfg_fn)
+    # Force duck into the post-ensure_demo path (non-empty client list).
+    cfg = cfg_fn({"shipments": [duck], "n_particles": 32})
+    assert _shipment_ids(cfg["shipments"]) == ["T071-DUCK"]
+    assert all(type(s).__name__ == "ShipmentTrace" for s in cfg["shipments"])
 
 
 def test_demo_hydrate_edges_do_not_require_data_abdella(
