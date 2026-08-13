@@ -85,3 +85,19 @@ Non-goals: no honesty/misspecification arms (VOI-02=A); no ENG-01 / Pyodide; no 
 | [T-041](./T-041.md) | M3 close-out | T-040 |
 
 Wave order: T-035 → (T-036 ∥ T-037 ∥ T-038) → T-039 → T-040 → T-041.
+
+## Audit remediation (2026-08-12)
+
+ADR: [0097](../adr/0097-audit-remediation-defaults.md).  
+Base: `main` @ M2+M3 merge tip. Integration branch deferred to Phase 3 as
+`team/audit-remediation` (git cannot nest role branches under a bare branch of
+the same name).  
+Non-goals: M3 compute reduction; RBPF count physics; Stage A honesty; ENG-01.
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-042](./T-042.md) | Unify `case_round` (nearest) | ADR 0097 |
+| [T-043](./T-043.md) | `DEFAULT_PROFIT_COSTS` + Abdella defaults + VOI α gate | ADR 0097; CTL-03 |
+| [T-044](./T-044.md) | MF sweeps=5, bakeoff stubs, backlog/doc hygiene | ADR 0097 |
+
+Wave order: architect (this tip) → qa (all ACs) → (T-042 ∥ T-043 ∥ T-044 implement).

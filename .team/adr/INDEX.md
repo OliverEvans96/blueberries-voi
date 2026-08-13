@@ -12,6 +12,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Production mean-field settle (2026-08-12): **[0091](./0091-fil13-production-mean-field.md)** (FIL-13=B / FIL-04→C; supersedes 0082/0089 production defaults; 0049→C; 0057 historical)
 - M2 controller lock (2026-08-12): **[0092](./0092-controller-belief-api.md)–[0093](./0093-day-profit-helper.md)** (`ShelfBelief` / MF marginals; `sim/profit.py` SIM-01 extract)
 - M3 VOI lock (2026-08-12): **[0094](./0094-voi-package-layout.md)–[0096](./0096-voi-scenario-columns.md)** (`voi/` modules; CI smoke budgets; scenario columns)
+- Audit remediation lock (2026-08-12): **[0097](./0097-audit-remediation-defaults.md)** (nearest `case_round`; Abdella shipment defaults; uncalibrated `DEFAULT_PROFIT_COSTS`; VOI α-table gate; MF sweeps=5; bakeoff stubs non-citeable)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -115,3 +116,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0094](./0094-voi-package-layout.md) | `VOI` / M3 | VOI package layout and public API under `voi/` | ACCEPTED |
 | [0095](./0095-voi-ci-smoke-budgets.md) | `VOI-04` / ENG-04 | M3 CI smoke budgets vs production VOI defaults | ACCEPTED |
 | [0096](./0096-voi-scenario-columns.md) | `X-05` / `X-06` | M3 knowledge-scenario columns for the VOI sweep | ACCEPTED |
+| [0097](./0097-audit-remediation-defaults.md) | *(repo audit)* | Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs | ACCEPTED |
