@@ -23,20 +23,11 @@ function stripTrailingSlash(url: string): string {
 }
 
 function readEnvBaseUrl(): string | undefined {
-  const metaEnv = (
-    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-  ).env;
   const fromMeta =
-    metaEnv?.VITE_ENGINE_API_BASE_URL ?? metaEnv?.VITE_API_BASE_URL;
-  if (fromMeta && fromMeta.length > 0) {
+    import.meta.env.VITE_ENGINE_API_BASE_URL
+    ?? import.meta.env.VITE_API_BASE_URL;
+  if (typeof fromMeta === "string" && fromMeta.length > 0) {
     return fromMeta;
-  }
-  if (typeof process !== "undefined" && process.env) {
-    const fromProcess =
-      process.env.VITE_ENGINE_API_BASE_URL ?? process.env.VITE_API_BASE_URL;
-    if (fromProcess && fromProcess.length > 0) {
-      return fromProcess;
-    }
   }
   return undefined;
 }
