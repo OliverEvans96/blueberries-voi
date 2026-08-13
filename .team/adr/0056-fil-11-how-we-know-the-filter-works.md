@@ -68,3 +68,7 @@ We will adopt **D — All three, as a staged gate**.
 ## Consequences
 
 **Milestone:** M1 — filter recovers truth from synthetic P1 data
+
+## Note (2026-08-13, ADR 0105)
+
+Production FIL-11 Stage A framing shifts with ADR 0105: the live gate is **count calibration + arrival-prior injection**, not in-store age-posterior contraction under P0/P1/F1 sales. F2a/F2 age information remains via birth priors. See ADR 0105.

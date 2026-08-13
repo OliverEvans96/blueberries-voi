@@ -1,6 +1,6 @@
 # 0091. Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: FIL-13 / FIL-04 (production settle)
 GROUP: FIL

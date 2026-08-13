@@ -1,6 +1,6 @@
 # 0092. Controller belief API is ShelfBelief over MF marginals and oracle
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0106
 DATE: 2026-08-12
 BOARD-ID: CTL / M2 belief surface
 GROUP: CTL

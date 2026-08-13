@@ -1,5 +1,5 @@
 # 0051. FIL-06: Handling static-parameter degeneracy
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: FIL-06
 GROUP: FIL

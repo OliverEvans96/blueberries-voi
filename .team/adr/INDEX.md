@@ -18,6 +18,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M3 exact LL speedup (2026-08-12): **[0103](./0103-exact-faster-p1-f2a-likelihood.md)** (unique-particle MF dedup + NumPy sequential-WOR DP; no surrogate; no new runtime deps)
 - Audit remediation lock (2026-08-12): **[0104](./0104-audit-remediation-defaults.md)** (nearest `case_round`; Abdella shipment defaults; uncalibrated `DEFAULT_PROFIT_COSTS`; VOI α-table gate; MF sweeps=5; bakeoff stubs non-citeable)
 - ⚑ marks decisions made against the card recommendation
+- Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
 ## Index
 
@@ -68,12 +69,12 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0043](./0043-mod-21-abdella-transit-sampling-frame.md) | `MOD-21` | Abdella transit sampling frame | ACCEPTED |
 | [0044](./0044-mod-22-weibull-shape-under-x-08-revisit.md) | `MOD-22` | Weibull shape under X-08 revisit | ACCEPTED |
 | [0045](./0045-mod-23-strawberry-logger-to-blueberry-substitution.md) | `MOD-23` | Strawberry-logger to blueberry substitution | ACCEPTED |
-| [0046](./0046-fil-01-filter-family.md) | `FIL-01` | Filter family ⚑ | ACCEPTED |
-| [0047](./0047-fil-02-what-is-sampled-versus-marginalised.md) | `FIL-02` | What is sampled versus marginalised | ACCEPTED |
+| [0046](./0046-fil-01-filter-family.md) | `FIL-01` | Filter family ⚑ | SUPERSEDED BY 0105 |
+| [0047](./0047-fil-02-what-is-sampled-versus-marginalised.md) | `FIL-02` | What is sampled versus marginalised | SUPERSEDED BY 0105 |
 | [0048](./0048-fil-03-arrival-age-discretisation.md) | `FIL-03` | Arrival-age discretisation ⚑ | ACCEPTED |
 | [0049](./0049-fil-04-factorisation-of-age-across-cohorts.md) | `FIL-04` | Factorisation of age across cohorts (→ C via 0091) | SUPERSEDED BY 0091 |
 | [0050](./0050-fil-05-particle-count-and-resampling.md) | `FIL-05` | Particle count and resampling | ACCEPTED |
-| [0051](./0051-fil-06-handling-static-parameter-degeneracy.md) | `FIL-06` | Handling static-parameter degeneracy ⚑ | ACCEPTED |
+| [0051](./0051-fil-06-handling-static-parameter-degeneracy.md) | `FIL-06` | Handling static-parameter degeneracy ⚑ | SUPERSEDED BY 0105 |
 | [0052](./0052-fil-07-where-parameter-inference-lives.md) | `FIL-07` | Where parameter inference lives | ACCEPTED |
 | [0053](./0053-fil-08-observation-model-structure.md) | `FIL-08` | Observation model structure ⚑ | ACCEPTED |
 | [0054](./0054-fil-09-reporting-lag-on-waste.md) | `FIL-09` | Reporting lag on waste | ACCEPTED |
@@ -110,12 +111,12 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0084](./0084-runtime-deps-numpy-scipy-matplotlib.md) | *(repo)* | Runtime deps: numpy, scipy, matplotlib | ACCEPTED |
 | [0085](./0085-pyarrow-abdella-parquet.md) | *(repo)* | pyarrow for Abdella parquet I/O | ACCEPTED |
 | [0086](./0086-m15-richobs-unobserved-masks.md) | `FIL-08` (M1.5) | RichObs + UNOBSERVED + scenario masks | ACCEPTED |
-| [0087](./0087-m15-mc-observation-likelihood.md) | `FIL-10` (M1.5) | MC observation likelihood from shared day_step | ACCEPTED |
+| [0087](./0087-m15-mc-observation-likelihood.md) | `FIL-10` (M1.5) | MC observation likelihood from shared day_step | SUPERSEDED BY 0105 |
 | [0088](./0088-m15-stage-c-generative-check.md) | `FIL-11` (M1.5) | Stage C generative check vs day_step | ACCEPTED |
 | [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | SUPERSEDED BY 0091 |
-| [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
-| [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | ACCEPTED |
-| [0092](./0092-controller-belief-api.md) | `CTL` / M2 | Controller belief API is ShelfBelief over MF marginals and oracle | ACCEPTED |
+| [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | SUPERSEDED BY 0105 |
+| [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | SUPERSEDED BY 0105 |
+| [0092](./0092-controller-belief-api.md) | `CTL` / M2 | Controller belief API is ShelfBelief over MF marginals and oracle | SUPERSEDED BY 0106 |
 | [0093](./0093-day-profit-helper.md) | `SIM-01` (M2 extract) | Day profit helper lives in sim/profit.py (SIM-01 extract for CTL) | ACCEPTED |
 | [0094](./0094-voi-package-layout.md) | `VOI` / M3 | VOI package layout and public API under `voi/` | ACCEPTED |
 | [0095](./0095-voi-ci-smoke-budgets.md) | `VOI-04` / ENG-04 | M3 CI smoke budgets vs production VOI defaults | ACCEPTED |
@@ -123,8 +124,10 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0097](./0097-pytest-xdist-for-verify-ci.md) | *(repo)* | pytest-xdist for verify/CI full-suite runs | ACCEPTED |
 | [0098](./0098-pytest-testmon-lfs-cache.md) | *(repo)* | pytest-testmon + Git LFS `.testmondata` seed | ACCEPTED |
 | [0099](./0099-eng-01-dual-runtime-ap.md) | `ENG-01` | Reopen: dual runtime A′ (Pyodide prod + API dev) | ACCEPTED |
-| [0100](./0100-simulator-export-contract.md) | `ENG-01` | Simulator export: Snapshot / DayDelta / step_n | ACCEPTED |
+| [0100](./0100-simulator-export-contract.md) | `ENG-01` | Simulator export: Snapshot / DayDelta / step_n | SUPERSEDED BY 0106 |
 | [0101](./0101-eng-01-packaging-pyodide-wheels.md) | `ENG-01` | Packaging: derived Abdella, extras, GH Release, Pyodide 314 | ACCEPTED |
 | [0102](./0102-eng-01-api-asgi-session.md) | `ENG-01` | API host: ASGI sessions wrapping EngineSession | ACCEPTED |
-| [0103](./0103-exact-faster-p1-f2a-likelihood.md) | *(repo)* / M3 compute | Exact-faster P1/F2a likelihood (unique-MF + NumPy DP) | ACCEPTED |
-| [0104](./0104-audit-remediation-defaults.md) | *(repo audit)* | Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs | ACCEPTED |
+| [0103](./0103-exact-faster-p1-f2a-likelihood.md) | *(repo)* / M3 compute | Exact-faster P1/F2a likelihood (unique-MF + NumPy DP) | SUPERSEDED BY 0105 |
+| [0104](./0104-audit-remediation-defaults.md) | *(repo audit)* | Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs | ACCEPTED (MF sweeps → 0105) |
+| [0105](./0105-arrival-only-age-counts-only-exact-wor.md) | `FIL-*` settle | Arrival-only age; counts-only PF; exact sequential-WOR weights | ACCEPTED |
+| [0106](./0106-shelfbelief-arrival-prior-age-exports.md) | `CTL` / ENG-01 | ShelfBelief ages are arrival-prior exports | ACCEPTED |

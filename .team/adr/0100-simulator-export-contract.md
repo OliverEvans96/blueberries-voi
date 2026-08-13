@@ -1,6 +1,6 @@
 # 0100. Simulator export contract: Snapshot / DayDelta / step_n
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0106
 DATE: 2026-08-12
 BOARD-ID: ENG-01
 GROUP: ENG

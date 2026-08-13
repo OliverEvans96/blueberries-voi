@@ -1,6 +1,6 @@
 # 0103. Exact-faster P1/F2a likelihood via unique-particle MF dedup + NumPy sequential-WOR DP
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: *(repo)* / M3 compute
 GROUP: FIL / VOI

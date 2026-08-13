@@ -1,6 +1,6 @@
 # 0104. Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs
 
-STATUS: ACCEPTED
+STATUS: ACCEPTED — MF-sweep production clause SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: *(repo audit)*
 GROUP: ENG / SIM / VOI / FIL

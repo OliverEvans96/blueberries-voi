@@ -1,6 +1,6 @@
 # 0087. Monte Carlo observation likelihood from shared day_step kernels
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: FIL-10 (M1.5 elaboration) / ENG-02
 MILESTONE: M1.5 — filter complete across data-availability rungs

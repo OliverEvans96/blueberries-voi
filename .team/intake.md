@@ -108,3 +108,51 @@ view-model every tick).
 - **Repo split:** this repo owns library façade + wheel; Astro/D3 stays in the web
   mockup / site checkout and consumes the release artifact
 - Prior packaging prefs remain **binding** unless Oliver revises them in the answers above
+
+---
+
+# Intake 2026-08-13 — Arrival-only age + counts-only filter (exact WOR)
+
+## Request (their words)
+
+> # Handoff: arrival-only age + count filter (exact WOR)
+>
+> **Status:** Oliver decided. Implement and lock in ADRs here.
+>
+> 1. **Age:** set at arrival only; then propagate deterministically. **Do not** update arrival-age posteriors from in-store sales/waste.
+> 2. **Counts:** filter lot counts from observations with a particle filter (or exact methods where the rung factorises).
+> 3. **Observation likelihood for count weights:** **exact sequential WOR** (without-replacement composition PMF matching `allocate_sales`) — **one** evaluation per particle per day, with ages held fixed.
+> 4. **Optional:** multinomial (with-replacement) sales likelihood behind filter config for ablation only.
+> 5. ShelfBelief age exports stay the same wire shape but are **arrival-prior** beliefs, not MF posteriors.
+> 6. Why RB dropped: in-store age learning was dropped (FIL-11 Stage A), not “bootstrap is simpler.”
+
+## What they want
+
+Production inference that stops pretending the filter learns lot ages from storewide sales and waste. Ages are birth priors plus the shared clock; the particle filter tracks counts with physics-consistent transitions and exact sequential-WOR weights (multinomial optional for ablations). Controllers and the ENG-01 export keep the same belief wire shape, with age rows meaning arrival belief. Stage A / FIL-11 framing shifts to count calibration and arrival-prior injection. Changelog must say RB age was removed because age learning was dropped.
+
+## In scope
+
+- ADR settle for arrival-only age + counts-only PF + exact WOR default (multinomial optional)
+- ADR for ShelfBelief age_marginals = arrival-prior exports
+- Production filter rewrite (kill ±1 RW, kill production `mean_field_update`, WOR weights)
+- Guard-test supersessions named in-ticket
+- Belief/export + Stage A docs/harness re-gate + plain-English changelog
+
+## Out of scope
+
+- CTL-08 / changing the sim MOD-08 allocation law
+- Dropping F2a/F2 knowledge columns
+- Claiming Stage A in-store age contraction is fixed for P0/P1/F1
+- Merging ticket branches to `main` (human)
+- Surrogate / approximate likelihoods for production VOI
+
+## Open questions
+
+- [x] Ages updated from in-store observations? **No** — arrival only + clock (Oliver lock).
+- [x] Default particle weight law? **Exact sequential WOR**; multinomial optional via config.
+- [x] Count transitions? **Match `day_step` physics**, not ±1 RW.
+- [x] Why drop Rao–Blackwellised age? **In-store age learning dropped**, not bootstrap simplicity.
+
+## Assumptions if unanswered
+
+*(Superseded by checked answers above.)*
