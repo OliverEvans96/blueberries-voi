@@ -66,3 +66,22 @@ Non-goals: no VOI sweep; no Pyodide packaging / ENG-01; no joint production reop
 | [T-034](./T-034.md) | M2 close-out | T-033 |
 
 Wave order: T-022 → (T-023 ∥ T-024 ∥ T-025 ∥ T-026) → (T-027 ∥ T-028) → T-029 → (T-030 ∥ T-031) → T-032 → T-033 → T-034.
+
+## M3 VOI sweep (2026-08-12)
+
+Plan: [`.team/plans/M3-voi-sweep.md`](../plans/M3-voi-sweep.md).  
+ADRs: [0094](../adr/0094-voi-package-layout.md)–[0096](../adr/0096-voi-scenario-columns.md) (plus VOI-01–04 / SIM-02–03 already ACCEPTED).  
+Prerequisite: M2 verify tip (`T-022`–`T-034` DONE).  
+Non-goals: no honesty/misspecification arms (VOI-02=A); no ENG-01 / Pyodide; no cadence/stagger axes (X-06=A).
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-035](./T-035.md) | M3 ADR/spec lock (docs only) | M2 tip; ADRs 0094–0096 |
+| [T-036](./T-036.md) | VOI metric (%, $ vs P0) | T-035; ADR 0069 |
+| [T-037](./T-037.md) | Outer-loop CRN cell | T-035; ADR 0065/0066 |
+| [T-038](./T-038.md) | Paired bootstrap CI | T-035; ADR 0071 |
+| [T-039](./T-039.md) | Sweep orchestrator (scenario × β) | T-036, T-037, T-038 |
+| [T-040](./T-040.md) | Smoke artifact + β=1 gate + figure hook | T-039 |
+| [T-041](./T-041.md) | M3 close-out | T-040 |
+
+Wave order: T-035 → (T-036 ∥ T-037 ∥ T-038) → T-039 → T-040 → T-041.
