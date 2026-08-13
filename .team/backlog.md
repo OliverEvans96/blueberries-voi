@@ -8,7 +8,13 @@ Escalations and items that need a human decision land here.
   ADR.
 - **Done — M3 (T-035–T-041):** VOI sweep library + smoke gates on
   `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
-  merge with M2 tip to `main`. Do not reopen ENG-01 / VOI-02 ⚑ / X-06 axes without Oliver.
+  merge with M2 tip to `main`. Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
+  **ENG-01 reopened** (see below).
+- **Next — ENG-01 dual-runtime (T-042–T-058):** Oliver reopened ENG-01. Plan
+  [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md). ADRs
+  [0097](./adr/0097-eng-01-dual-runtime-ap.md)–[0100](./adr/0100-eng-01-api-asgi-session.md)
+  (0073 superseded). Wave 0 = T-042; next implement wave **T-043 ∥ T-044**. Pyodide=prod,
+  API=dev; Slice order common+Pyodide → API → D3 mockup.
 - **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
   the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
   M2 tip without waiting for that merge.
@@ -38,25 +44,17 @@ Escalations and items that need a human decision land here.
   FIL-13 = **B (`mean_field`)**; FIL-04 → **C**; FIL-12 (ADR 0057) is **historical** — joint /
   `full_joint` is no longer the production default (bakeoff arm E retained). Do not reopen joint
   production without a **new** ADR; T-021 wires the settle.
-- **M2 non-goals (binding):** no browser packaging in M2; no new runtime deps without
-  ADR; do not reopen T-021 / joint production.
-- **Eventual — Pyodide / browser A′ (compat notes only):** when implementing the controller, keep
-  library shape handoff-ready — see
-  [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md)
+- **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without
+  ADR; do not reopen T-021 / joint production. ENG-01 packaging is a **separate** milestone
+  (T-042+), not an M2 deliverable.
+- **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md)
   (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
-  **Not** an M2 deliverable; packaging stays parked below.
-- **Parked — browser A′ (Pyodide) deployment (needs Oliver to reopen ENG-01 / ADR 0073):**
-  Intent: run sim/filter/(later) controller live in-browser via Pyodide on the
-  Astro site (separate repo). Locked preferences (2026-08-12 chat), not ticketed:
-  (1) ship **derived Abdella product** (e.g. arrival-age mix / arrays), not
-  parquet/pyarrow in the browser path; (2) distribute wheel + assets via
-  **CI → GitHub Release** (not PyPI); Astro `micropip.install` from release URL;
-  (3) **no matplotlib in-browser** — static preloaded images and/or JS interactive
-  figures from Python summaries; (4) slim import graph / browser façade;
-  (5) thin JSON-friendly JS↔Python API, Pyodide in a worker; (6) demo numerics /
-  perf deferred; (7) design CTL/VOI for dual runtime when built; (8) process:
-  reopen ENG-01, write ADR + export contract, Pyodide smoke later. Do not start
-  packaging under M2; park until explicit reopen.
+- **Active — ENG-01 A′ (unparked 2026-08-12):** Dual runtime per ADR
+  [0097](./adr/0097-eng-01-dual-runtime-ap.md). Binding prefs in ADR
+  [0098](./adr/0098-simulator-export-contract.md)–[0099](./adr/0099-eng-01-packaging-pyodide-wheels.md)
+  and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md): derived Abdella; CI→GH
+  Release wheels; no matplotlib in-browser; worker-only Pyodide; Snapshot/DayDelta; flat belief;
+  sim+filter+controller under dialed budgets; Pyodide 314.0.4 / CPython 3.14.2; CI 3.11+3.12+3.14.
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim now emits synthetic ASN
   `pack_date` on delivery `DayLog` rows (non-delivery stays `None`). Stage A F2a
   contracts under smoke defaults; needs-human from T-016 is cleared.
