@@ -121,8 +121,7 @@ def _resolve_validator(name: str) -> Any:
     fn = getattr(mod, name, None)
     if not callable(fn):
         pytest.fail(
-            f"{_SCHEMA_MOD}.{name} must be a callable validator (T-045); "
-            f"got {fn!r}",
+            f"{_SCHEMA_MOD}.{name} must be a callable validator (T-045); got {fn!r}",
             pytrace=False,
         )
     return fn
@@ -264,9 +263,7 @@ def test_golden_step_n_framed_deltas_validate() -> None:
         (_STEP_N_GOLDEN, "step_n golden"),
     ],
 )
-def test_goldens_exclude_forbidden_presentation_keys(
-    path: Path, label: str
-) -> None:
+def test_goldens_exclude_forbidden_presentation_keys(path: Path, label: str) -> None:
     payload = _load_json(path)
     _assert_no_forbidden_keys(payload, label=label)
     # Validators must also reject if those keys were present (contract surface).
@@ -400,7 +397,9 @@ def test_live_step_n_deltas_validate_with_same_helpers() -> None:
     session = EngineSession()
     session.init(_golden_config(), seed=_FIXED_SEED)
     orders = [0, 16, 0]
-    result = session.step_n(orders)
+    # EngineSession.step_n is typed list[DayDelta]; framed {deltas: [...]}
+    # remains allowed by ADR 0098 — accept either shape at runtime.
+    result: Any = session.step_n(orders)
     if isinstance(result, Mapping) and "deltas" in result:
         deltas = list(result["deltas"])
     else:
