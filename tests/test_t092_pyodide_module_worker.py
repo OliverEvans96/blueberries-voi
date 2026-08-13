@@ -64,9 +64,7 @@ def test_worker_esm_imports_pyodide_mjs_under_pin() -> None:
         "worker.js must import loadPyodide from "
         f"…/pyodide/v{_PYODIDE_PIN}/full/pyodide.mjs"
     )
-    assert re.search(r"\bloadPyodide\b", src), (
-        "worker.js must call/import loadPyodide"
-    )
+    assert re.search(r"\bloadPyodide\b", src), "worker.js must call/import loadPyodide"
 
 
 def test_worker_retains_wheelurl_rpc_and_demo_budgets_hooks() -> None:
@@ -100,10 +98,7 @@ def test_pyodide_adapter_spawns_module_worker() -> None:
     assert re.search(
         r"""new\s+Worker\s*\([^)]*\{\s*type\s*:\s*["']module["']""",
         src,
-    ), (
-        'pyodideAdapter.ts must construct new Worker(url, { type: "module" }) '
-        "(ADR 0111)"
-    )
+    ), 'pyodideAdapter.ts must construct new Worker(url, { type: "module" }) (ADR 0111)'
     assert not re.search(
         r"""type\s*:\s*["']classic["']""",
         src,
@@ -120,9 +115,7 @@ def test_no_new_playwright_dependency() -> None:
         **(pkg.get("optionalDependencies") or {}),
     }
     playwrightish = [
-        name
-        for name in deps
-        if re.search(r"playwright|puppeteer", name, re.IGNORECASE)
+        name for name in deps if re.search(r"playwright|puppeteer", name, re.IGNORECASE)
     ]
     assert not playwrightish, (
         "T-092 must not add Playwright/Puppeteer; found: "
