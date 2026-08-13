@@ -195,9 +195,9 @@ def _review_paths_covering(ticket: str) -> list[Path]:
 def _closeout_nongoal_candidates() -> list[Path]:
     """Close-out notes expected to carry Slice-1 non-goal locks.
 
-    Prefers ``.team/reviews/`` DoD notes. ``.team/qa/T-048.md`` counts only when
-    it is no longer RED (implement/verify close-out), so the qa RED map itself
-    cannot satisfy the non-goal checklist.
+    Only named Slice-1 / T-048 / ENG-01 close-out files. ``.team/qa/T-048.md``
+    counts only when it is no longer RED (so the qa RED map cannot satisfy the
+    checklist). Historical M1.5/M2/M3 DoD notes are intentionally excluded.
     """
     names = (
         "ENG-01-slice1.md",
@@ -218,18 +218,6 @@ def _closeout_nongoal_candidates() -> list[Path]:
                 if _RED_STATUS.search(text):
                     continue
             out.append(path)
-    # Any review that looks like a Slice-1 DoD checklist.
-    if _REVIEWS.is_dir():
-        for path in sorted(_REVIEWS.glob("*.md")):
-            if path in out or path.name == "README.md":
-                continue
-            text = path.read_text(encoding="utf-8")
-            if re.search(r"-\s*\[[xX ]\]", text) and re.search(
-                r"slice\s*1|non-?goal|definition of done|DoD",
-                text,
-                re.I,
-            ):
-                out.append(path)
     return list(dict.fromkeys(out))
 
 
@@ -436,15 +424,15 @@ def test_slice1_closeout_nongoals_checklist() -> None:
                     break
             if theme_ok:
                 break
-            if not theme_ok and re.search(
-                # Checked checklist item naming the non-goal also counts.
-                rf"-\s*\[[xX]\].{{0,120}}{re.escape(tokens[0])}",
-                best_text,
-                re.I | re.S,
-            ):
-                theme_ok = True
-            if not theme_ok:
-                missing.append(f"{label} (mentioned but not asserted as non-goal)")
+        if not theme_ok and re.search(
+            # Checked checklist item naming the non-goal also counts.
+            rf"-\s*\[[xX]\].{{0,120}}{re.escape(tokens[0])}",
+            best_text,
+            re.I | re.S,
+        ):
+            theme_ok = True
+        if not theme_ok:
+            missing.append(f"{label} (mentioned but not asserted as non-goal)")
 
     assert not missing, (
         f"{best} Slice-1 close-out missing non-goal locks: {', '.join(missing)}"
