@@ -596,7 +596,7 @@ def test_ci_quality_gates_not_weakened() -> None:
     """
     text = _read(_PYPROJECT)
     agents = _read(_REPO_ROOT / "AGENTS.md")
-has_cov = bool(re.search(r"--cov-fail-under\s*=\s*80\b", text)) or bool(
+    has_cov = bool(re.search(r"--cov-fail-under\s*=\s*80\b", text)) or bool(
         re.search(r"--cov-fail-under=80", agents)
     )
     assert has_cov, (

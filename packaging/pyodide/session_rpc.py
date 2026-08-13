@@ -75,9 +75,7 @@ def _dispatch(method: str, params: dict[str, Any]) -> Any:
         raw_config = params.get("config")
         seed = params.get("seed")
         return _SESSION.reset(
-            None
-            if raw_config is None
-            else ensure_demo_shipments(dict(raw_config)),
+            None if raw_config is None else ensure_demo_shipments(dict(raw_config)),
             seed=None if seed is None else int(seed),
         )
     if method == "act":
