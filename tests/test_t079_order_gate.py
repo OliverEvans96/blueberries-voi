@@ -18,7 +18,7 @@ from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
-import pytest
+import pytest  # noqa: TC002
 
 from blueberries_voi.controller.ordering import case_round
 from blueberries_voi.model import ModelParams, draw_demand
@@ -400,7 +400,10 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
         run_id="t079-day-fwd",
     )
     assert recorded == list(range(n_score)), (
-        f"closed-loop must pass day=0..{n_score - 1} into day_step when supported; got {recorded}"
+        (
+            f"closed-loop must pass day=0..{n_score - 1} into day_step "
+            f"when supported; got {recorded}"
+        )
     )
 
 
