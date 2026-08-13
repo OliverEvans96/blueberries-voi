@@ -1,12 +1,16 @@
 /**
  * T-057: studio EngineAdapter selection (dev=HttpAdapter, prod=PyodideAdapter).
  *
- * RED stub — returns the wrong kind / always MockAdapter until implement wires
- * defaults. Env flag names are documented by implementer in the mockup README.
+ * Env flags (also documented in `.team/qa/T-057-smoke.md`):
+ * - `VITE_ENGINE_ADAPTER` — explicit override: `http` | `pyodide` | `mock`
+ * - `VITE_ENGINE_API_BASE_URL` / `VITE_API_BASE_URL` — ASGI base for HttpAdapter
+ * - `VITE_PYODIDE_WORKER_URL` / `VITE_PYODIDE_WHEEL_URL` — PyodideAdapter URLs
  */
 
 import type { EngineAdapter } from "./adapter";
+import { HttpAdapter } from "./httpAdapter";
 import { MockAdapter } from "../mock/adapter";
+import { PyodideAdapter } from "./pyodideAdapter";
 
 /** Selected studio engine backend. */
 export type StudioAdapterKind = "http" | "pyodide" | "mock";
@@ -37,6 +41,23 @@ export type CreateStudioAdapterOpts = {
   fetch?: typeof fetch;
 };
 
+const DEFAULT_PYODIDE_WORKER_URL = "/packaging/pyodide/worker.js";
+const DEFAULT_PYODIDE_WHEEL_URL =
+  "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
+  "blueberries_voi-0.1.0-py3-none-any.whl";
+
+function apiBaseUrl(env: StudioEnv): string | undefined {
+  const raw = env.VITE_ENGINE_API_BASE_URL ?? env.VITE_API_BASE_URL;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim();
+  }
+  return undefined;
+}
+
+function isProd(env: StudioEnv): boolean {
+  return env.PROD === true || env.MODE === "production";
+}
+
 /**
  * Resolve which adapter the studio should use.
  *
@@ -47,13 +68,18 @@ export type CreateStudioAdapterOpts = {
  * - mock only when explicitly selected (debug)
  */
 export function resolveStudioAdapterKind(env: StudioEnv = {}): StudioAdapterKind {
-  // RED: invert the contract so selection assertions fail until implement.
   const override = env.VITE_ENGINE_ADAPTER?.trim().toLowerCase();
-  if (override === "mock") return "http";
-  if (override === "http") return "mock";
-  if (override === "pyodide") return "mock";
-  if (env.PROD === true || env.MODE === "production") return "http";
-  return "mock";
+  if (override === "http" || override === "pyodide" || override === "mock") {
+    return override;
+  }
+  if (isProd(env)) {
+    return "pyodide";
+  }
+  if (apiBaseUrl(env) !== undefined) {
+    return "http";
+  }
+  // Never silent-mock: unconfigured non-prod still prefers the demo backend.
+  return "pyodide";
 }
 
 /**
@@ -62,7 +88,27 @@ export function resolveStudioAdapterKind(env: StudioEnv = {}): StudioAdapterKind
 export function createStudioAdapter(
   opts: CreateStudioAdapterOpts = {},
 ): EngineAdapter {
-  // RED: always MockAdapter so prod/dev defaults fail until implement.
-  void opts;
-  return new MockAdapter() as unknown as EngineAdapter;
+  const env = opts.env ?? {};
+  const kind = opts.kind ?? resolveStudioAdapterKind(env);
+
+  if (kind === "http") {
+    return new HttpAdapter({
+      baseUrl: opts.baseUrl ?? apiBaseUrl(env),
+      fetch: opts.fetch,
+    });
+  }
+
+  if (kind === "pyodide") {
+    const workerUrl =
+      opts.workerUrl
+      ?? env.VITE_PYODIDE_WORKER_URL
+      ?? DEFAULT_PYODIDE_WORKER_URL;
+    const wheelUrl =
+      opts.wheelUrl
+      ?? env.VITE_PYODIDE_WHEEL_URL
+      ?? DEFAULT_PYODIDE_WHEEL_URL;
+    return new PyodideAdapter({ workerUrl, wheelUrl });
+  }
+
+  return new MockAdapter();
 }

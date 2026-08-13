@@ -1,6 +1,9 @@
 import "./styles.css";
 import { ViewModelProjector } from "./engine/projector";
-import { MockAdapter } from "./mock/adapter";
+import {
+  createStudioAdapter,
+  type StudioEnv,
+} from "./engine/studioAdapter";
 import { renderHistory, setHistoryHover } from "./charts/history";
 import { renderMarginal, setMarginalHover } from "./charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
@@ -158,14 +161,24 @@ app.innerHTML = `
   </div>
 `;
 
-const adapter = new MockAdapter();
-const projector = new ViewModelProjector({
-  economics: adapter.getEconomics(),
-  config: adapter.getConfig(),
-  window_days: adapter.getConfig().window_days,
+const studioEnv = import.meta.env as ImportMetaEnv & StudioEnv;
+const adapter = createStudioAdapter({
+  env: studioEnv,
+  baseUrl: studioEnv.VITE_ENGINE_API_BASE_URL ?? studioEnv.VITE_API_BASE_URL,
+  workerUrl: studioEnv.VITE_PYODIDE_WORKER_URL,
+  wheelUrl: studioEnv.VITE_PYODIDE_WHEEL_URL,
 });
+const projector = new ViewModelProjector();
 let vm: ViewModel = projector.getViewModel();
-let orderQty = adapter.snapOrder(24);
+
+/** Snap order qty to case multiples using the projector's local config. */
+function snapOrder(qty: number): number {
+  const cs = Math.max(1, Math.round(vm.config.case_size));
+  if (qty <= 0) return 0;
+  return Math.round(qty / cs) * cs;
+}
+
+let orderQty = snapOrder(24);
 let hoveredDay: HoverDay = null;
 let activeSection: SectionId = loadSection();
 let bootstrapped = false;
@@ -302,7 +315,7 @@ function renderAll(): void {
   renderStore();
   renderChrome();
   renderActiveFocusPlots();
-  orderQty = adapter.snapOrder(orderQty);
+  orderQty = snapOrder(orderQty);
   const state = controlsFromVm(vm, orderQty);
   playChromeApi.update(state);
   sectionControlsApi.update(state);
@@ -328,7 +341,7 @@ const playChromeApi = mountPlayChrome(
         const snap = await adapter.reset();
         vm = projector.applySnapshot(snap);
         projector.markConfigApplied();
-        orderQty = adapter.snapOrder(orderQty);
+        orderQty = snapOrder(orderQty);
         onHoverDay(null);
         renderAll();
       })();
@@ -351,11 +364,10 @@ const sectionControlsApi = mountSectionControls(
       sectionControlsApi.update(controlsFromVm(vm, orderQty));
     },
     onConfigChange(partial: Partial<SimConfig>) {
-      const snap = adapter.setConfig(partial);
+      // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
       vm = projector.setConfig(partial);
-      vm = projector.patchEngineState(snap);
       if (partial.case_size != null) {
-        orderQty = adapter.snapOrder(orderQty);
+        orderQty = snapOrder(orderQty);
         playChromeApi.update(controlsFromVm(vm, orderQty));
       }
       playChromeApi.update(controlsFromVm(vm, orderQty));
@@ -364,7 +376,7 @@ const sectionControlsApi = mountSectionControls(
     },
   },
   (caseSize) => {
-    orderQty = adapter.snapOrder(orderQty);
+    orderQty = snapOrder(orderQty);
     playChromeApi.setOrderFromCaseChange(orderQty, caseSize);
   },
 );
