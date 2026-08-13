@@ -14,7 +14,7 @@
 | T-065 implement | `a79a9b1` | `team/T-065/implement` |
 | Integration + report tip | `5666089` | `team/T-064-065/integrate` |
 
-ADR: [0097](../adr/0097-exact-faster-p1-f2a-likelihood.md). Specs: T-064 / T-065 / T-066.
+ADR: [0103](../adr/0103-exact-faster-p1-f2a-likelihood.md). Specs: T-064 / T-065 / T-066.
 
 ## How to reproduce
 
@@ -85,7 +85,7 @@ Using closed-loop factors (~**8–11×** on the hot columns) as the primary mult
 | Hot P1+F2a CPU-h | hundreds–thousands | **tens–low hundreds** | Still multi-machine-day on a laptop for full β×rep grid |
 | Blog “overnight on one box” | no | **still tight** | Stagewise design / budget cuts / Numba still on the table if needed |
 
-**Do not claim headline VOI $.** Density remains exact sequential-WOR (ADR 0090 / 0097).
+**Do not claim headline VOI $.** Density remains exact sequential-WOR (ADR 0090 / 0103).
 
 ## 5. Math-unchanged attestation
 

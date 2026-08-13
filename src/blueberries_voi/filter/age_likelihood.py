@@ -64,7 +64,7 @@ def sequential_wor_composition_probs(
     Among nonempty cohorts, pick proportional to fixed ``weights`` (not
     ``remaining * weights``) - matching ``model.allocate_sales``.
 
-    NumPy-vectorized active-state DP (ADR 0097 / T-065); same recurrence as the
+    NumPy-vectorized active-state DP (ADR 0103 / T-065); same recurrence as the
     prior pure-Python enumerate/unpack loop.
     """
     counts_arr = np.asarray([int(c) for c in counts], dtype=np.int64)

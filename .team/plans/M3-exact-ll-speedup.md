@@ -1,6 +1,6 @@
 # M3 exact LL speedup (T-064 / T-065 / T-066)
 
-**Status:** architect lock via ADR 0097 (2026-08-12)  
+**Status:** architect lock via ADR 0103 (2026-08-12)  
 **Audience:** qa → implement → review → verify  
 
 ## Why
@@ -26,4 +26,4 @@ mean-field age updates. Evidence and ranked shortlist:
 
 ## ADR
 
-[0097](../adr/0097-exact-faster-p1-f2a-likelihood.md) — no new runtime deps (0084).
+[0103](../adr/0103-exact-faster-p1-f2a-likelihood.md) — no new runtime deps (0084).

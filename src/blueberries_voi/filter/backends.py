@@ -507,7 +507,7 @@ def _rbpf_update(
         backend_name == "mean_field" and sales_tot is not None and waste_tot is not None
     ):
         # P1 path: real MF age factorisation (ADR 0091 / T-021).
-        # Unique-particle dedup (ADR 0097 / T-064): after resample many particles
+        # Unique-particle dedup (ADR 0103 / T-064): after resample many particles
         # share (counts, age_post); run mean_field_update once per fingerprint.
         y_p1 = P1Obs(sales_total=sales_tot, waste_total=waste_tot, arrivals=0)
         # physiological ages for likelihood (bins are arrival-age identity)

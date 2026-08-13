@@ -81,9 +81,9 @@ def _fingerprint(counts_i: np.ndarray, age_post_i: np.ndarray) -> tuple[Any, byt
     return (tuple(counts_i.tolist()), age_post_i.tobytes())
 
 
-def test_adr_0097_accepted() -> None:
+def test_adr_0103_accepted() -> None:
     root = Path(__file__).resolve().parents[1]
-    adr = root / ".team/adr/0097-exact-faster-p1-f2a-likelihood.md"
+    adr = root / ".team/adr/0103-exact-faster-p1-f2a-likelihood.md"
     text = adr.read_text(encoding="utf-8")
     assert "STATUS: ACCEPTED" in text
     assert "2026-08-12" in text

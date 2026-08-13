@@ -1,4 +1,4 @@
-# 0097. Exact-faster P1/F2a likelihood via unique-particle MF dedup + NumPy sequential-WOR DP
+# 0103. Exact-faster P1/F2a likelihood via unique-particle MF dedup + NumPy sequential-WOR DP
 
 STATUS: ACCEPTED
 DATE: 2026-08-12
