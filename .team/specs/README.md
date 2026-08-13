@@ -85,3 +85,36 @@ Non-goals: no honesty/misspecification arms (VOI-02=A); no ENG-01 / Pyodide; no 
 | [T-041](./T-041.md) | M3 close-out | T-040 |
 
 Wave order: T-035 → (T-036 ∥ T-037 ∥ T-038) → T-039 → T-040 → T-041.
+
+## ENG-01 dual-runtime simulator (2026-08-12)
+
+Plan: [`.team/plans/ENG-01-dual-runtime.md`](../plans/ENG-01-dual-runtime.md).  
+ADRs: [0099](../adr/0099-eng-01-dual-runtime-ap.md)–[0102](../adr/0102-eng-01-api-asgi-session.md)
+([0073](../adr/0073-eng-01-browser-simulator-scope.md) superseded).  
+Locks: Pyodide=**prod**, API=**dev**; order common+Pyodide → API → D3; browser v1 =
+sim+filter+controller (dialed budgets); Pyodide **314.0.4** / CPython **3.14.2**; CI 3.11+3.12+3.14.  
+Non-goals: not full WASM A; not JS-only B as prod; no matplotlib/pyarrow in-browser; no
+production-N-in-tab without budget dials; honesty/cadence ⚑ out.
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-042](./T-042.md) | Wave 0 ADR/spec lock (docs only) | ADRs 0099–0102; plan |
+| [T-043](./T-043.md) | EngineSession + day driver + act / step_n | T-042; ADR 0100 (**∥ T-044**) |
+| [T-044](./T-044.md) | Derived Abdella + browser extras | T-042; ADR 0101 (**∥ T-043**) |
+| [T-045](./T-045.md) | Golden Snapshot/DayDelta fixtures | T-043 (after Wave 1 merge; **∥ T-046**) |
+| [T-046](./T-046.md) | Slim wheel + GH Release + CI 3.14 | T-044 (**∥ T-045**) |
+| [T-047](./T-047.md) | Pyodide worker RPC + budget smoke | T-045, T-046 |
+| [T-048](./T-048.md) | Slice 1 close-out | T-047 |
+| [T-049](./T-049.md) | API ADR/OpenAPI lock (docs; implement gated) | T-042 / ADR 0102 |
+| [T-050](./T-050.md) | ASGI app wrapping EngineSession | Slice-1 green; T-049 (**∥ T-051**) |
+| [T-051](./T-051.md) | API contract tests vs goldens | T-045, T-050 |
+| [T-052](./T-052.md) | Slice 2 close-out | T-050, T-051 |
+| [T-053](./T-053.md) | UI ADR: EngineAdapter + projector | Slice-2 or export ADR; mockup worktree |
+| [T-054](./T-054.md) | ViewModelProjector + MockAdapter deltas | T-053 (**∥ T-055 ∥ T-056**) |
+| [T-055](./T-055.md) | PyodideAdapter → Release wheel | T-047, T-053 |
+| [T-056](./T-056.md) | HttpAdapter → local API | T-050, T-053 |
+| [T-057](./T-057.md) | Wire studio (dev=HTTP, prod=Pyodide) | T-054, T-055, T-056 |
+| [T-058](./T-058.md) | ENG-01 / Slice 3 close-out | T-057 |
+
+Wave order: T-042 → (T-043 ∥ T-044) → (T-045 ∥ T-046) → T-047 → T-048 → (T-050 ∥ T-051) →
+T-052 → T-053 → (T-054 ∥ T-055 ∥ T-056) → T-057 → T-058.

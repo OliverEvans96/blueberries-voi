@@ -42,7 +42,7 @@ _PRIMARY_ALIASES: dict[str, frozenset[str]] = {
 _OTHER_MASKS: tuple[str, ...] = ("P0", "F1", "F1s", "F2a", "F2")
 
 _FORBIDDEN_CONTROLLER_IMPORTS = frozenset({"matplotlib", "pyplot", "pyarrow"})
-_LOCKED_RUNTIME_DEPS = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
+_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
 
 _MEAN_FIELD_RE = re.compile(r"mean[_\s-]?field", re.IGNORECASE)
 _EMPIRICAL_L_RE = re.compile(

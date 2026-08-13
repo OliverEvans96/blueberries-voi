@@ -398,12 +398,16 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: VOI / browser stay parked; controller may grow under M2 (Wave 1+)
+# AC: VOI stay parked through M1.5; controller may grow under M2 (Wave 1+)
+# Browser: M1.5 parked ENG-01; ADR 0099 reopen allows T-044 slim façade only
 # ---------------------------------------------------------------------------
+
+# Relative to ``src/blueberries_voi/``. Intentional ENG-01 slim entry (T-044).
+_ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """VOI + browser stay stubs through M1.5; M3 may fill voi/ when COMPLETE."""
+    """VOI stays stub through M1.5; only allowlisted ENG-01 browser façade ok."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
     assert controller.is_file(), "expected pre-existing controller package"
@@ -449,9 +453,22 @@ def test_no_production_ctl_voi_browser_under_m15() -> None:
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
     )
 
-    browser_hits = list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
-    assert not browser_hits, "non-goal: no browser modules; found " + ", ".join(
-        str(p.relative_to(_REPO_ROOT)) for p in browser_hits
+    # ADR 0099 reopened ENG-01: allow T-044 ``browser.py`` only; still forbid
+    # other *browser* / *eng01* modules that M1.5 closed out as non-goals.
+    browser_hits = [
+        p
+        for p in list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
+        if p.is_file() and p.suffix == ".py"
+    ]
+    unexpected_browser = [
+        p
+        for p in browser_hits
+        if str(p.relative_to(_SRC)) not in _ALLOWED_BROWSER_MODULES
+    ]
+    assert not unexpected_browser, (
+        "non-goal: no browser/ENG-01 modules beyond T-044 slim façade "
+        f"(allowed: {sorted(_ALLOWED_BROWSER_MODULES)}); found "
+        + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected_browser)
     )
 
 

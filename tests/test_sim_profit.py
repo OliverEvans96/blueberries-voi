@@ -14,7 +14,7 @@ from blueberries_voi.sim import DayLog, EpisodeLog, LotState
 from blueberries_voi.sim.profit import ProfitCosts
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_RUNTIME_DEPS_LOCKED = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
+_RUNTIME_DEPS_LOCKED = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
 
 
 def _day(

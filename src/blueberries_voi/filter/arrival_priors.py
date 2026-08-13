@@ -12,11 +12,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from blueberries_voi.filter.types import is_unobserved
-from blueberries_voi.model.abdella import (
-    default_abdella_root,
-    load_abdella_shipments,
-    shipment_arrival_age,
-)
 
 if TYPE_CHECKING:
     from blueberries_voi.filter.types import RichObs
@@ -50,6 +45,13 @@ def _gaussian_on_grid(grid: np.ndarray, mean: float, sd: float) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _abdella_arrival_ages(q10: float, t_ref_c: float) -> tuple[float, ...]:
+    # Lazy: keep interactive filter import free of eager Abdella parquet I/O.
+    from blueberries_voi.model.abdella import (
+        default_abdella_root,
+        load_abdella_shipments,
+        shipment_arrival_age,
+    )
+
     ships = load_abdella_shipments(default_abdella_root())
     return tuple(
         float(shipment_arrival_age(s, q10=q10, t_ref_c=t_ref_c)) for s in ships

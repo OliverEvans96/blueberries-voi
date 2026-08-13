@@ -2,6 +2,23 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — ENG-01 dual-runtime / live simulator
+
+- **You can interact with the live ordering simulator in the browser under dialed demo budgets, and developers can iterate on the same engine through a local API** (T-058).
+
+## 2026-08-12 — Slice 2: local HTTP API for developers
+
+- **Developers can now drive the same simulator engine over a local HTTP API** for
+  iteration, without changing the browser demo path. This is a development host only —
+  not a production multi-tenant service (T-052).
+
+## 2026-08-12 — Slice 1: interactive engine in the browser
+
+- **You can now run the interactive Python engine in a browser worker** under
+  dialed demo budgets (lightweight particle and horizon caps), so the store
+  simulator steps without a separate server for the demo path. Full production-scale
+  in-tab runs and the developer HTTP API remain later work (T-048).
+
 ## 2026-08-12 — M3 value-of-information sweep
 
 - **You can now compare store profit across knowledge levels and spoilage shapes:** the
