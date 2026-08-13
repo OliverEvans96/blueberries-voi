@@ -506,21 +506,29 @@ def _rbpf_update(
     elif (
         backend_name == "mean_field" and sales_tot is not None and waste_tot is not None
     ):
-        # P1 path: real MF age factorisation (ADR 0091 / T-021)
+        # P1 path: real MF age factorisation (ADR 0091 / T-021).
+        # Unique-particle dedup (ADR 0097 / T-064): after resample many particles
+        # share (counts, age_post); run mean_field_update once per fingerprint.
         y_p1 = P1Obs(sales_total=sales_tot, waste_total=waste_tot, arrivals=0)
         # physiological ages for likelihood (bins are arrival-age identity)
         tau_grid = grid + float(np.mean(days)) * float(dtau)
+        unique_post: dict[tuple[tuple[int, ...], bytes], np.ndarray] = {}
         for i in range(n):
-            new_post[i] = mean_field_update(
-                state.counts[i],
-                new_post[i],
-                y_p1,
-                params,
-                tau_grid=tau_grid,
-                # Stage C used ≤5; 2 sweeps + TV early-stop keeps CI tractable
-                # while still moving mass under non-flat P1 LL (T-021).
-                max_sweeps=2,
-            )
+            key = (tuple(state.counts[i].tolist()), new_post[i].tobytes())
+            cached = unique_post.get(key)
+            if cached is None:
+                cached = mean_field_update(
+                    state.counts[i],
+                    new_post[i],
+                    y_p1,
+                    params,
+                    tau_grid=tau_grid,
+                    # Stage C used ≤5; 2 sweeps + TV early-stop keeps CI tractable
+                    # while still moving mass under non-flat P1 LL (T-021).
+                    max_sweeps=2,
+                )
+                unique_post[key] = cached
+            new_post[i] = cached
     # else: leave new_post as prior copy
     counts = np.maximum(0, state.counts + rng.integers(-1, 2, size=state.counts.shape))
 
