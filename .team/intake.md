@@ -156,3 +156,43 @@ Production inference that stops pretending the filter learns lot ages from store
 ## Assumptions if unanswered
 
 *(Superseded by checked answers above.)*
+
+---
+
+# Intake 2026-08-13 — Studio Autopilot Mode
+
+## Request (their words)
+
+> Autopilot mode on the Vite+D3 studio that loops `adapter.act` at about 1–2
+> sim days per second wall-clock, drives the same Snapshot/DayDelta → ViewModel
+> UI as manual Advance, plus a Controller section for policy/budget knobs and
+> order charts.
+
+## What they want
+
+Hands-off play of the live simulator under controller policies, with visible
+knobs for damping / service level and rollout budgets, without inventing a
+second UI path or wiring every physics slider into model parameters on each day.
+
+## Locked defaults
+
+- Decision = order quantity for one sim day (ADR 0004).
+- Cadence ≈ 1–2 wall-clock `act` calls per second; single-flight (never overlap).
+- Default policy: `damped_sw`. Also expose `rollout` (DEMO_BUDGETS) and `constant`.
+- Default intervals: 500 ms for SW/constant, 1000 ms for rollout; next tick after
+  `max(0, intervalMs − elapsed)`.
+- Path: `adapter.act` → DayDelta → existing projector (not the old mock
+  `generate.ts` autopilot heuristic as product).
+
+## Out of scope
+
+- Mapping ModelParams from studio sliders on each act
+- Decide-only peek RPC
+- Rung-0 on act
+- Merging to `main`
+
+## Ticket / ADR remap
+
+Plan ids T-076–T-081 / ADR 0109 were taken (CAL-01; ADR 0109–0110 on main).
+Autopilot uses **T-091–T-096** / ADR **0111**. See
+[studio-autopilot.md](./plans/studio-autopilot.md).
