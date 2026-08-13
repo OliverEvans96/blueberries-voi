@@ -1,7 +1,7 @@
 # ENG-01 dual-mode API/Pyodide readiness
 
-**Status:** numbering locked (2026-08-13) — Wave 0 architect not yet re-run  
-**Branch tip for this lock:** `team/T-070/architect`  
+**Status:** ACTIVE — Wave 0 architect lock (T-070); implement T-071–T-075  
+**Branch tip:** `team/T-070/architect`  
 **Do not use:** T-067–T-069 or ADR 0105–0106 (owned by arrival-only filter)
 
 ## Why renumber
@@ -33,22 +33,49 @@ Readiness yields. Next free contiguous block after arrival-only is **T-070–T-0
 | 0105 | **0107** | Demo hydrate shipments at API + Pyodide worker edges |
 | 0106 | **0108** | Local dual-mode: Vite-served wheel + worker, `wheelUrl`, CORS |
 
-## Sequencing (unchanged; IDs only)
+## Binding technical decisions
+
+| Topic | Lock |
+|-------|------|
+| Demo shipments | Hydrate at **API + Pyodide worker/RPC** edges when `shipments` missing on init/reset |
+| EngineSession | Still requires non-empty injectable shipments (no Abdella FS default) |
+| Local wheel | `python scripts/build_slim_wheel.py`; Vite serves it; worker honors `?wheelUrl=` |
+| CORS | `CORSMiddleware` for localhost / 127.0.0.1 Vite → API |
+| Out of scope | Live GH workflow edits; production deploy; citeable science VOI; arrival-only filter |
+
+ADRs: [0107](../adr/0107-demo-hydrate-at-host-edges.md) · [0108](../adr/0108-local-dual-mode-vite-wheel-cors.md).
+
+## Sequencing
 
 T-070 (architect) → **T-071 ∥ T-072 ∥ T-073** → T-074 → T-075.
 
-## Orchestrator instructions
+## Orchestrator concurrency
 
 1. Worktrees/branches: `team/T-070/architect`, then `team/T-071/*` … `team/T-075/*` — **never** reuse `team/T-067/*` / `team/T-068/*` / `team/T-069/*`.
-2. Do **not** create ADR files `0105-*` / `0106-*` for readiness.
-3. Do **not** touch arrival-only artifacts under `.worktrees/T-067-architect` or `.worktrees/T-068-qa`.
-4. After this numbering lock, re-run Wave 0 architect on **T-070** writing ADR 0107–0108 + specs T-071–T-075.
+2. After T-070 commit: fan out **qa T-071 ∥ T-072 ∥ T-073**; then implement from each qa tip.
+3. review ∥ verify each implement tip; eager cleanup of superseded role worktrees.
+4. T-074 after T-071–T-073 green tips; T-075 last with **live** smoke evidence.
+5. Do **not** create ADR files `0105-*` / `0106-*` for readiness.
+6. Do **not** merge to `main` / force-push (human).
+
+## T-075 mandatory live commands
+
+```bash
+uv sync --extra api
+uv run python scripts/build_slim_wheel.py && uv run python scripts/smoke_slim_wheel.py
+# real API + Vite http mode smoke
+# real Pyodide + local wheel URL smoke
+```
+
+Evidence: `.team/qa/T-075-smoke.md`. FakeWorker alone does **not** count.
 
 ## Non-goals
 
 Filter physics, arrival-only ages, counts-only PF, ShelfBelief age-semantics (those are T-067–T-069 / ADR 0105–0106).
+Live `.github/workflows/` edits; production deploy; citeable science VOI; merge to parent.
 
 ## Note on cancelled alternate range
 
 `team/ENG-01-readiness/architect` briefly reserved **T-073–T-078** by mistaking T-070–T-072
 as arrival-only. That range is **cancelled**. Canonical remains **T-070–T-075** / **0107–0108**.
+T-073 inside readiness is the **CORS** ticket only.
