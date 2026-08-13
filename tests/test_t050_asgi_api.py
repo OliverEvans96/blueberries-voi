@@ -157,7 +157,11 @@ def _asgi_client(app: Any) -> Any:
         import httpx
 
         transport = httpx.ASGITransport(app=app)
-        return httpx.Client(transport=transport, base_url="http://testserver")
+        # httpx stubs lag ASGITransport; runtime accepts it for TestClient fallback.
+        return httpx.Client(
+            transport=transport,  # type: ignore[arg-type]
+            base_url="http://testserver",
+        )
     except ImportError:
         pytest.fail(
             "T-050 optional extra [api] must install Starlette or FastAPI "
@@ -173,7 +177,9 @@ def _response_json(resp: Any) -> Any:
     body = getattr(resp, "content", None) or getattr(resp, "text", b"")
     if isinstance(body, bytes):
         return json.loads(body.decode("utf-8"))
-    return json.loads(body)
+    if isinstance(body, (str, bytearray)):
+        return json.loads(body)
+    pytest.fail(f"response body is not JSON-decodable: {type(body)!r}")
 
 
 def _status(resp: Any) -> int:
@@ -241,8 +247,7 @@ def test_api_optional_extra_declares_asgi_stack() -> None:
     reqs = [str(x).lower() for x in extras["api"]]
     joined = " ".join(reqs)
     assert "fastapi" in joined or "starlette" in joined, (
-        "[api] extra must install FastAPI or Starlette; got "
-        f"{extras['api']!r}"
+        f"[api] extra must install FastAPI or Starlette; got {extras['api']!r}"
     )
 
 
@@ -346,9 +351,7 @@ def test_delete_session_returns_204_then_unknown_is_404() -> None:
     client = _asgi_client(_resolve_app())
     sid = _create_session(client)
     resp = client.delete(_path(_SESSION_PATH, sid))
-    assert _status(resp) == 204, (
-        f"DELETE session must return 204; got {_status(resp)}"
-    )
+    assert _status(resp) == 204, f"DELETE session must return 204; got {_status(resp)}"
     missing = client.post(_path(_INIT, sid), json=_init_body())
     assert _status(missing) == 404
 
@@ -424,7 +427,7 @@ def test_unknown_session_id_returns_404_json_error() -> None:
     has_detail = "detail" in body or "error" in body or "message" in body
     assert has_envelope or has_detail, (
         "404 must include a JSON error body "
-        '(envelope {ok:false,error:{type,message}} or field list / detail); '
+        "(envelope {ok:false,error:{type,message}} or field list / detail); "
         f"got {body!r}"
     )
 
