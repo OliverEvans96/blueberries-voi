@@ -101,6 +101,8 @@ module = [
     "pyarrow.*",
     "scipy",
     "scipy.*",
+    "pandas",
+    "pandas.*",
     "datasets",
     "datasets.*",
     "huggingface_hub",
