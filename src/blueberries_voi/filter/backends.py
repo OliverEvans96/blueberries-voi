@@ -505,19 +505,24 @@ def _rbpf_update(
 
     log_like = np.zeros(n, dtype=float)
     for i in range(n):
-        if sales_tot is None or waste_tot is None:
+        n_i = [int(x) for x in state.counts[i]]
+        tau_i = [float(t) for t in ages_now[i]]
+        if sales_tot is None and waste_tot is None:
             log_like[i] = 0.0
             continue
-        ll = float(
-            score_fn(
-                [int(x) for x in state.counts[i]],
-                [float(t) for t in ages_now[i]],
-                sales_tot,
-                waste_tot,
-                params,
-            )
-        )
-        log_like[i] = ll if np.isfinite(ll) else -1e300
+        if sales_tot is not None and waste_tot is not None:
+            ll = float(score_fn(n_i, tau_i, sales_tot, waste_tot, params))
+            log_like[i] = ll if np.isfinite(ll) else -1e300
+            continue
+        if sales_tot is not None:
+            # P0 / waste UNOBSERVED: do not coerce waste=0. Under the
+            # sales-total model (D = sales_tot), feasibility is age-free;
+            # observed waste=0 still uses the full score_fn above.
+            on_hand = int(sum(n_i))
+            log_like[i] = 0.0 if 0 <= sales_tot <= on_hand else -1e300
+            continue
+        # waste observed, sales UNOBSERVED — leave flat (rare rung)
+        log_like[i] = 0.0
 
     log_w = np.log(state.weights + 1e-300) + log_like
     log_w -= float(log_w.max())

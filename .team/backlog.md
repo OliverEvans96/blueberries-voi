@@ -10,13 +10,16 @@ Escalations and items that need a human decision land here.
 - **Optional — push `main`:** Local `main` is ahead of `origin/main` after integrate landings; push when ready (human).
 - **Optional later — ADR / ticket-id collision:** Audit remediation used ticket ids T-042–T-044 under `*-audit-remediation*` paths while ENG-01 also used T-042–T-058; ADR [0104](./adr/0104-audit-remediation-defaults.md) landed. Rename/clarify artifacts only if it confuses readers — not blocking.
 
-## Landed on `main` (tip `d376852`)
+## Landed on `main`
+
+- **Done — ENG-01** dual-runtime / live simulator: complete pending human merge to `main` for any tip still off the integration branch (library path already landed).
+ (tip `d376852`)
 
 - **testmon LFS cache** and **chore/agent-gate-ladder** merged.
 - **ENG-01 dual-runtime (T-042–T-058)** on `main` via `team/ENG-01/integrate` — ADRs [0099](./adr/0099-eng-01-dual-runtime-ap.md)–[0102](./adr/0102-eng-01-api-asgi-session.md) (0073 superseded). DoD: [ENG-01.md](./reviews/ENG-01.md). Binding prefs remain in ADRs 0100–0101 and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
 - **Exact LL speedups (T-064–T-065)** on `main` via `team/T-064-065/integrate` — ADR [0103](./adr/0103-exact-faster-p1-f2a-likelihood.md); report [M3-exact-ll-speedup-bench.md](./reports/M3-exact-ll-speedup-bench.md). Measured closed-loop ~8–11× on P1/F2a; density unchanged. Residual: full production VOI grid may still need stagewise design / budget cuts / Numba if overnight citeable run requires more.
 - **Audit remediation** on `main` via `team/audit-remediation-integ` — ADR [0104](./adr/0104-audit-remediation-defaults.md); artifacts under `*-audit-remediation*` paths. **Science VOI is not citeable** until production regen. Remainder pointers: [audit-remediation-remainder.md](./reports/audit-remediation-remainder.md).
-- **M2 (T-022–T-034) and M3 library (T-035–T-041)** already on `main` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
+- **M2+M3 library work is on `main`** (M2 T-022–T-034; M3 T-035–T-041; at/after `f4a467f`) (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
 
 ## Settled / historical (do not reopen lightly)
 

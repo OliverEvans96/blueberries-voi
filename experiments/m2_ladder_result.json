@@ -1,0 +1,25 @@
+{
+  "points": [
+    "constant",
+    "rung0",
+    "sw",
+    "rollout",
+    "dp"
+  ],
+  "profits": {
+    "constant": 199.0,
+    "rung0": 246.0,
+    "sw": 245.0,
+    "rollout": 262.5,
+    "dp": -9.099999999999998
+  },
+  "alphas": {
+    "constant": 0.8,
+    "rung0": 0.8,
+    "sw": 0.8,
+    "rollout": 0.8,
+    "dp": 0.8
+  },
+  "root_seed": 11,
+  "production_backend": "counts_only"
+}
