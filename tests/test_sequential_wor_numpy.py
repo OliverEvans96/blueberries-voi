@@ -168,7 +168,7 @@ def test_composition_probs_align_with_allocate_sales_monte_carlo() -> None:
     counts = np.asarray([2, 2], dtype=int)
     ages = np.asarray([1.0, 5.0])
     params = ModelParams()
-    w = picking_weights(ages, sigma=params.sigma_pick)
+    w = picking_weights(ages, sigma=params.sigma)
     sales_tot = 2
     table = al.sequential_wor_composition_probs(counts.tolist(), sales_tot, w)
 

@@ -63,64 +63,74 @@ def sequential_wor_composition_probs(
 
     Among nonempty cohorts, pick proportional to fixed ``weights`` (not
     ``remaining * weights``) - matching ``model.allocate_sales``.
+
+    NumPy-vectorized active-state DP (ADR 0097 / T-065); same recurrence as the
+    prior pure-Python enumerate/unpack loop.
     """
-    counts_l = [int(c) for c in counts]
-    L = len(counts_l)
+    counts_arr = np.asarray([int(c) for c in counts], dtype=np.int64)
+    L = int(counts_arr.size)
     if L == 0:
         return {(): 1.0} if sales_tot == 0 else {}
-    if sales_tot < 0 or sales_tot > int(sum(counts_l)):
+    if sales_tot < 0 or sales_tot > int(counts_arr.sum()):
         return {}
     if sales_tot == 0:
         return {tuple(0 for _ in range(L)): 1.0}
 
     # Flat index for composition c: mix-radix with digit bounds (n_i+1).
-    dims = [c + 1 for c in counts_l]
-    size = 1
-    for d in dims:
-        size *= d
-    strides = [1] * L
+    dims = counts_arr + np.int64(1)
+    strides = np.ones(L, dtype=np.int64)
     for i in range(L - 2, -1, -1):
         strides[i] = strides[i + 1] * dims[i + 1]
+    size = int(np.prod(dims))
 
-    def pack(c: Sequence[int]) -> int:
-        return sum(int(c[i]) * strides[i] for i in range(L))
-
-    def unpack(idx: int) -> tuple[int, ...]:
-        out: list[int] = []
-        rem = idx
-        for i in range(L):
-            out.append(rem // strides[i])
-            rem %= strides[i]
-        return tuple(out)
-
-    cur = np.zeros(size, dtype=float)
-    cur[pack([0] * L)] = 1.0
-    w = np.asarray(weights, dtype=float)
+    cur = np.zeros(size, dtype=np.float64)
+    cur[0] = 1.0  # zero composition
+    w = np.asarray(weights, dtype=np.float64)
 
     for _ in range(sales_tot):
-        nxt = np.zeros(size, dtype=float)
-        for idx, p in enumerate(cur):
-            if p <= 0.0:
+        active = np.flatnonzero(cur > 0.0)
+        if active.size == 0:
+            break
+        p = cur[active]
+        rem = active.copy()
+        comps = np.empty((active.size, L), dtype=np.int64)
+        for i in range(L):
+            comps[:, i] = rem // strides[i]
+            rem %= strides[i]
+        room = comps < counts_arr[None, :]
+        avail = np.where(room, w[None, :], 0.0)
+        tot = avail.sum(axis=1)
+        valid = tot > 0.0
+        if not np.any(valid):
+            cur = np.zeros(size, dtype=np.float64)
+            break
+        active = active[valid]
+        p = p[valid]
+        avail = avail[valid]
+        tot = tot[valid]
+        probs = avail / tot[:, None]
+
+        nxt = np.zeros(size, dtype=np.float64)
+        for j in range(L):
+            mask_j = avail[:, j] > 0.0
+            if not np.any(mask_j):
                 continue
-            c = unpack(idx)
-            avail = [float(w[j]) if c[j] < counts_l[j] else 0.0 for j in range(L)]
-            tot = float(sum(avail))
-            if tot <= 0.0:
-                continue
-            for j in range(L):
-                if avail[j] <= 0.0:
-                    continue
-                c2 = list(c)
-                c2[j] += 1
-                nxt[pack(c2)] += p * (avail[j] / tot)
+            dest = active[mask_j] + int(strides[j])
+            np.add.at(nxt, dest, p[mask_j] * probs[mask_j, j])
         cur = nxt
 
     out: dict[tuple[int, ...], float] = {}
-    for idx, p in enumerate(cur):
-        if p > 0.0:
-            out[unpack(idx)] = float(p)
+    active = np.flatnonzero(cur > 0.0)
+    if active.size == 0:
+        return out
+    rem = active.copy()
+    comps = np.empty((active.size, L), dtype=np.int64)
+    for i in range(L):
+        comps[:, i] = rem // strides[i]
+        rem %= strides[i]
+    for k in range(active.size):
+        out[tuple(int(x) for x in comps[k])] = float(cur[active[k]])
     return out
-
 
 def sequential_wor_composition_prob(
     counts: Sequence[int],
