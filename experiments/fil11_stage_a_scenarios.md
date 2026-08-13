@@ -2,6 +2,12 @@
 
 Oliver request: re-run Stage A metric under dwell / picking / spoilage knobs. **No production filter likelihood changes.**
 
+## Honesty (production settle)
+
+F2a/F2 age information comes from **priors** (arrival prior / birth prior at receipt).
+P0/P1/F1 do **not** claim in-store age learning as a production gate; residual
+contraction grids below are historical diagnostics, not a reopen of in-store age learning.
+
 Settings (shared unless noted): K=8, N=500, L_filter=3, n_burn=20, n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd × 0.95 and tight-spread control check.
 
 **Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), same as baseline Stage A. No single-cohort-from-birth API in the production RBPF; longer_score only lengthens the observation window.

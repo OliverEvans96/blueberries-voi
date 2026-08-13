@@ -1,4 +1,9 @@
-"""FIL-11 Stage A (then B/C if A passes)."""
+"""FIL-11 Stage A (then B/C if A passes).
+
+Honesty: F2a/F2 age information comes from priors; P0/P1/F1 do not claim
+in-store age learning as a production gate (count calibration +
+arrival-prior injection).
+"""
 
 from __future__ import annotations
 

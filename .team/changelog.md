@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-13
+
+- **Shelf age reports now carry what we knew at receipt, and we removed Rao–Blackwellised in-store age marginalisation because in-store age learning was dropped — not because a simpler bootstrap was preferred** (T-068, T-069).
+
 ## 2026-08-12 — ENG-01 dual-runtime / live simulator
 
 - **You can interact with the live ordering simulator in the browser under dialed demo budgets, and developers can iterate on the same engine through a local API** (T-058).

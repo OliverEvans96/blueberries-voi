@@ -3,6 +3,9 @@
 Scenario-only experiment (does not change production filter likelihood).
 Same metric as ``run_fil11_stage_a``: full-mix prior_spread vs posterior; fail if
 no ≥5% contraction (also keeps the tight-spread control check).
+
+Honesty: F2a/F2 age information comes from priors; P0/P1/F1 do not claim
+in-store age learning as a production gate.
 """
 
 from __future__ import annotations
