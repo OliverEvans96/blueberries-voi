@@ -64,8 +64,9 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   {
     id: "belief",
     label: "Belief",
-    blurb: "Observation richness tightens or loosens the age×count posterior vs truth.",
-    plotIds: ["plot-belief-lg"],
+    blurb:
+      "Age×count belief vs truth, with a top age marginal on the shared age axis.",
+    plotIds: ["plot-belief-age-marginal", "plot-belief-lg"],
     controlSection: "belief",
   },
 ];

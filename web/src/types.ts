@@ -85,7 +85,10 @@ export type DayPnL = {
 export type BeliefGrid = {
   tau_edges: number[];
   count_edges: number[];
+  /** Age bins × count bins (K × C) after lot-mass rebin (ADR 0109). */
   density: number[][];
+  /** Merged age mass length K; optional presentation field. */
+  age_marginal?: number[];
 };
 
 export type PipelineOrder = {

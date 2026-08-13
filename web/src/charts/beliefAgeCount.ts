@@ -47,19 +47,18 @@ export function renderBeliefAgeCount(
     .scaleSequential(d3.interpolateRgbBasis(["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"]))
     .domain([0, maxD]);
 
-  const cellW = innerW / nTau;
-  const cellH = innerH / nCount;
-
   for (let ti = 0; ti < nTau; ti++) {
     for (let ci = 0; ci < nCount; ci++) {
       const v = belief.density[ti]![ci]!;
       const x0 = x(belief.tau_edges[ti]!);
+      const x1 = x(belief.tau_edges[ti + 1]!);
+      const y0 = y(belief.count_edges[ci]!);
       const y1 = y(belief.count_edges[ci + 1]!);
       g.append("rect")
         .attr("x", x0)
         .attr("y", y1)
-        .attr("width", cellW + 0.5)
-        .attr("height", cellH + 0.5)
+        .attr("width", Math.max(0, x1 - x0) + 0.5)
+        .attr("height", Math.max(0, y0 - y1) + 0.5)
         .attr("fill", color(v))
         .append("title")
         .text(
