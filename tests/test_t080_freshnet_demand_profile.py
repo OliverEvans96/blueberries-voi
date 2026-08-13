@@ -337,12 +337,12 @@ def test_fit_report_documents_scale_tolerance_matching_tests() -> None:
     report = _find_fit_report()
     text = report.read_text(encoding="utf-8")
     assert re.search(
-        r"(+/-\s*1|within\s*1|abs(?:olute)?\s*tol(?:erance)?\s*[:=]?\s*1|"
-        r"tolerance[^\n]{0,40}+/-?\s*1)",
+        r"(\+/-\s*1|within\s*1|abs(?:olute)?\s*tol(?:erance)?\s*[:=]?\s*1|"
+        r"tolerance[^\n]{0,40}\+/-?\s*1)",
         text,
         re.I,
     ), (
-        f"{report.name} must document the operational-μ tolerance used for "
+        f"{report.name} must document the operational-mu tolerance used for "
         f"scale_target_mu~=30 (tests lock absolute +/-{_SCALE_ABS_TOL})"
     )
 
