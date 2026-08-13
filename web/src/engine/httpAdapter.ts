@@ -3,6 +3,7 @@
  */
 
 import type { EngineAdapter } from "./adapter";
+import { toHttpActBody } from "./actOpts";
 import type { ActOpts, DayDelta, EngineConfig, Snapshot } from "./types";
 
 export type HttpAdapterOptions = {
@@ -116,19 +117,10 @@ export class HttpAdapter implements EngineAdapter {
   /** Optional EngineAdapter.act → POST /sessions/{id}/act */
   async act(opts?: ActOpts): Promise<DayDelta> {
     await this.ensureSession();
-    const policy =
-      opts && typeof opts.policy === "string" ? opts.policy : undefined;
-    const budgets =
-      opts && typeof opts.budgets === "object" && opts.budgets !== null
-        ? (opts.budgets as Record<string, unknown>)
-        : {};
-    const body: { policy?: string; budgets: Record<string, unknown> } = {
-      budgets,
-    };
-    if (policy !== undefined) {
-      body.policy = policy;
-    }
-    return this.postJson<DayDelta>(`/sessions/${this.sessionId}/act`, body);
+    return this.postJson<DayDelta>(
+      `/sessions/${this.sessionId}/act`,
+      toHttpActBody(opts),
+    );
   }
 
   /** Destroy the server session (`DELETE /sessions/{id}` → 204). */

@@ -1,5 +1,6 @@
 import type { EngineAdapter } from "../engine/adapter";
 import type {
+  ActOpts,
   DayDelta,
   EngineConfig,
   FlatBelief,
@@ -17,6 +18,7 @@ import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
   createInitialState,
+  onHandInventory,
   snapCases,
   stepSimulation,
   type SimState,
@@ -132,6 +134,16 @@ export class MockAdapter implements EngineAdapter {
     return out;
   }
 
+  /**
+   * Autopilot act: advance one mock day with a chosen order.
+   *
+   * Heuristic for `damped_sw` / `rollout` is UI-only — not numeric-parity with
+   * Python `rollout_order` / `DampedSurvivalWeightedPolicy` (≠ Python).
+   */
+  async act(opts?: ActOpts): Promise<DayDelta> {
+    return this.stepOnce(this.chooseActOrder(opts));
+  }
+
   async reset(config?: EngineConfig): Promise<Snapshot> {
     if (config) {
       this.applyConfigPartial(config);
@@ -199,6 +211,28 @@ export class MockAdapter implements EngineAdapter {
     if (typeof next.seed === "number") {
       this.config.seed = Math.round(next.seed);
     }
+  }
+
+  /** Resolve order qty from ActOpts (constant vs UI heuristic). */
+  private chooseActOrder(opts?: ActOpts): number {
+    const policy = String(opts?.policy ?? "damped_sw");
+    const constantQty =
+      opts?.order_qty ?? opts?.q ?? opts?.budgets?.order_qty ?? opts?.budgets?.q;
+
+    if (
+      policy === "constant" ||
+      policy === "const" ||
+      policy === "fixed"
+    ) {
+      return this.snapOrder(typeof constantQty === "number" ? constantQty : 0);
+    }
+
+    // UI heuristic for damped_sw / rollout (and aliases): alpha-damped base-stock.
+    const alpha = opts?.alpha ?? opts?.budgets?.alpha ?? 0.9;
+    const inv = onHandInventory(this.state.lots);
+    const pending = this.state.pendingOrders.reduce((s, o) => s + o.qty, 0);
+    const gap = Math.max(0, this.config.base_stock - inv - pending);
+    return this.snapOrder(gap * alpha);
   }
 
   private stepOnce(orderQty: number): DayDelta {

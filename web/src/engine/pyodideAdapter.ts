@@ -8,6 +8,7 @@
  */
 
 import type { EngineAdapter } from "./adapter";
+import { toFlatActParams } from "./actOpts";
 import type {
   ActOpts,
   DayDelta,
@@ -177,7 +178,7 @@ export class PyodideAdapter implements EngineAdapter {
   }
 
   async act(opts?: ActOpts): Promise<DayDelta> {
-    return (await this.call("act", { ...(opts ?? {}) })) as DayDelta;
+    return (await this.call("act", toFlatActParams(opts))) as DayDelta;
   }
 
   /** Tear down the worker (optional for hosts / smoke). */
