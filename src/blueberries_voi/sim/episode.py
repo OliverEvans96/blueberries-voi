@@ -9,8 +9,7 @@ import inspect
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-import numpy as np
-
+from blueberries_voi.controller.ordering import case_round
 from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
@@ -50,15 +49,6 @@ class Policy(Protocol):
         *,
         pending_orders: Mapping[int, int] | None = None,
     ) -> int: ...
-
-
-def case_round(order_qty: int, case_size: int) -> int:
-    """Ceil order quantity to whole cases; zero stays zero."""
-    qty = max(0, int(order_qty))
-    if qty <= 0:
-        return 0
-    cases = int(np.ceil(qty / case_size))
-    return cases * case_size
 
 
 def _empty_shelf_belief() -> object:

@@ -6,8 +6,6 @@ from dataclasses import replace
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
-import numpy as np
-
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.filter import RBPF
@@ -18,7 +16,6 @@ from blueberries_voi.filter.belief import (
 )
 from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
 from blueberries_voi.model import Cohort, ModelParams, day_step
-from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -29,11 +26,16 @@ from blueberries_voi.rng import (
     spawn_rng,
 )
 from blueberries_voi.sim import DayLog, EpisodeLog, LotState, generate_arrival_age
+from blueberries_voi.sim.alpha_tune import require_tuned_alpha_table
 from blueberries_voi.sim.episode import case_round
-from blueberries_voi.sim.profit import ProfitCosts, episode_profit
+from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
+from blueberries_voi.sim.shipments import default_shipments, smoke_cool_shipments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from pathlib import Path
+
+    from blueberries_voi.model.abdella import ShipmentTrace
 
 # Shared physics run_id across scenarios (SIM-02=C); filter streams are scenario-keyed.
 PHYSICS_RUN_ID: str = "voi-physics"
@@ -48,30 +50,24 @@ VOI_SCENARIOS: tuple[str, ...] = (
     "B-state",
 )
 
-_DEFAULT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)
 _EMPTY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0)
 _EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
+_SMOKE_ALPHA: float = 0.9
 
 BeliefKind = Literal["filter", "oracle"]
 
 __all__ = [
     "PHYSICS_RUN_ID",
     "VOI_SCENARIOS",
+    "default_shipments",
     "run_voi_crn_cell",
+    "smoke_cool_shipments",
 ]
 
 
 def _fixture_shipments() -> list[ShipmentTrace]:
-    times = np.asarray([0.0, 1.0, 2.0], dtype=float)
-    cool = np.asarray([1.0, 1.0, 1.0], dtype=float)
-    return [
-        ShipmentTrace(
-            shipment_id="VOI-COOL",
-            times_d=times,
-            temps_c=cool,
-            duration_d=2.0,
-        )
-    ]
+    """Deprecated alias for smoke/tests; prefer ``smoke_cool_shipments``."""
+    return smoke_cool_shipments()
 
 
 def _empty_shelf_belief() -> ShelfBelief:
@@ -248,7 +244,8 @@ def run_voi_crn_cell(
     params: ModelParams | None = None,
     lead_time: int = 1,
     filter_n: int = 32,
-    alpha: float = 0.9,
+    alpha: float = _SMOKE_ALPHA,
+    alpha_table_path: str | Path | None = None,
     H: int = 2,
     n_rollout_paths: int = 1,
     policy: Any | None = None,
@@ -257,6 +254,9 @@ def run_voi_crn_cell(
 
     Physics streams use ``PHYSICS_RUN_ID``. Filter resample streams are keyed by
     scenario. Scorable profit uses ``EpisodeLog.scored`` (after burn-in).
+
+    Production callers pass ``alpha_table_path`` (CTL-03); smoke may omit it and
+    keep fixed ``alpha`` (default 0.9). ``shipments=None`` loads Abdella.
     """
     names = list(scenarios) if scenarios is not None else list(VOI_SCENARIOS)
     for name in names:
@@ -266,12 +266,24 @@ def run_voi_crn_cell(
 
     base = params or ModelParams()
     p = replace(base, beta=float(beta))
-    cost = costs or _DEFAULT_COSTS
-    ships = list(shipments) if shipments is not None else _fixture_shipments()
+    cost = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    ships = list(shipments) if shipments is not None else default_shipments()
+
+    if alpha_table_path is not None:
+        alphas = require_tuned_alpha_table(alpha_table_path)
+        if "sw" not in alphas:
+            msg = (
+                "tuned alpha table incomplete for VOI: missing arm 'sw' "
+                f"(path={alpha_table_path!s})"
+            )
+            raise ValueError(msg)
+        policy_alpha = float(alphas["sw"])
+    else:
+        policy_alpha = float(alpha)
 
     if policy is None:
         sw = DampedSurvivalWeightedPolicy(
-            alpha=float(alpha),
+            alpha=float(policy_alpha),
             params=p,
         )
         pol: Any = RolloutPolicy(

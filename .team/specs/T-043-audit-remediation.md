@@ -1,0 +1,73 @@
+# T-043 DEFAULT_PROFIT_COSTS, Abdella shipment defaults, VOI α-table gate
+
+## Context
+
+Production-facing VOI / M2 / α-tune paths silently default to a synthetic **1°C cool** shipment
+fixture and duplicated `_DEFAULT_COSTS` literals, and production VOI still uses fixed **α=0.9**.
+ADR 0104 locks Abdella as the shipment default, one documented (uncalibrated) profit-cost constant,
+and CTL-03 α-table gating for production VOI (smoke may keep α=0.9).
+
+## Acceptance criteria
+
+- [ ] `sim/profit.py` exports
+      `DEFAULT_PROFIT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)` and
+      documents in the constant’s docstring (or module docstring adjacent to it) that these values
+      are **uncalibrated scaffold** costs, not fitted blueberry store economics.
+- [ ] Production modules that previously used private `_DEFAULT_COSTS` with those three numbers
+      (`voi/crn.py`, `sim/m2_ladder.py`, `sim/m2_multi_scenario.py`, `sim/alpha_tune.py`) resolve
+      `costs is None` to `DEFAULT_PROFIT_COSTS` (identity: `is` or equality with the shared object /
+      same field values from that single definition).
+- [ ] When `shipments is None`, production-facing entry points
+      `run_voi_crn_cell`, `run_m2_ladder`, the multi-scenario harness default path, and
+      `evaluate_alpha_episode_profit` / `tune_alpha_grid` load Abdella via
+      `load_abdella_shipments()` (or public `default_shipments()` that calls it) — they do **not**
+      construct the 1°C cool fixture as the default.
+- [ ] A public smoke/test helper (name `smoke_cool_shipments` or documented alias) returns the
+      synthetic 1°C cool `ShipmentTrace` list; calling it does not require Abdella parquet on disk.
+- [ ] No production-facing default path names or invokes the cool fixture unless the caller passes
+      `shipments=smoke_cool_shipments()` (or an explicit equivalent sequence).
+- [ ] Production VOI path (`run_voi_crn_cell` and/or `run_voi_sweep(..., smoke=False)`) requires a
+      tuned α table (via `require_tuned_alpha_table` / `alpha_table_path` or equivalent): missing or
+      incomplete table raises a clear error; with a complete table, policies use the table’s α rather
+      than a silent hardcoded 0.9.
+- [ ] Smoke VOI (`run_voi_smoke` / `run_voi_sweep(..., smoke=True)`) may keep fixed α=0.9 without an
+      α-table artifact.
+- [ ] `uv run pytest` for this ticket’s tests passes.
+
+## Out of scope
+
+- Unifying `case_round` / removing episode ceil (T-042)
+- MF sweeps, bakeoff stub markers, backlog/docstring hygiene (T-044)
+- Implementing rollout/DP α search (`tune_alpha_grid` NotImplemented for those arms stays)
+- Calibrating dollar costs or fitting a new α table from scratch (artifact format already exists)
+- Editing `sim/episode.py` `case_round` (T-042 ownership); closed-loop already requires explicit
+  `shipments` today — do not reintroduce a cool default there
+
+## Interfaces
+
+```text
+# sim/profit.py
+DEFAULT_PROFIT_COSTS: ProfitCosts  # unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0
+
+# public shipment helpers (module location implementer’s choice; must be importable)
+def default_shipments(root: Path | None = None) -> list[ShipmentTrace]:
+    """Production default: load_abdella_shipments(root)."""
+    ...
+
+def smoke_cool_shipments() -> list[ShipmentTrace]:
+    """Smoke/test-only synthetic 1°C cool traces; not a production default."""
+    ...
+
+# Production VOI (shape illustrative; keyword names may match m2_ladder style)
+def run_voi_crn_cell(..., alpha_table_path: str | Path | None = None, ...): ...
+def run_voi_sweep(..., smoke: bool = False, alpha_table_path: str | Path | None = None, ...): ...
+# smoke=False / production: require tuned table; smoke=True: α=0.9 allowed
+```
+
+## Open questions
+
+- [x] Shipment default — Oliver lock: Abdella (`load_abdella_shipments`); cool only via explicit
+      smoke helper (ADR 0104).
+- [x] Costs — keep numeric triple 2.0 / 1.5 / 3.0 but document uncalibrated (ADR 0104).
+- [x] File ownership — implement owns `sim/profit.py`, `voi/*`, `sim/m2_*.py`, `sim/alpha_tune.py`
+      (+ related tests); does not edit episode `case_round`.

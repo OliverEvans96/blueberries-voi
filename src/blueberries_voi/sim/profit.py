@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from blueberries_voi.sim import DayLog, EpisodeLog
 
 __all__ = [
+    "DEFAULT_PROFIT_COSTS",
     "ProfitCosts",
     "day_profit",
     "episode_profit",
@@ -22,6 +23,15 @@ class ProfitCosts:
     unit_margin: float
     waste_cost: float
     stockout_penalty: float
+
+
+# Uncalibrated scaffold costs for VOI / M2 / alpha-tune when callers omit ``costs``.
+# These are not fitted blueberry store economics (ADR 0104).
+DEFAULT_PROFIT_COSTS = ProfitCosts(
+    unit_margin=2.0,
+    waste_cost=1.5,
+    stockout_penalty=3.0,
+)
 
 
 def day_profit(day: DayLog, costs: ProfitCosts) -> float:

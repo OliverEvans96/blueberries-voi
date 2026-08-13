@@ -16,7 +16,6 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 from scipy.stats import nbinom
 
 from blueberries_voi.controller import (
@@ -26,12 +25,14 @@ from blueberries_voi.controller import (
 )
 from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import ModelParams
-from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.sim.episode import run_closed_loop_episode
-from blueberries_voi.sim.profit import ProfitCosts, episode_profit
+from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
+from blueberries_voi.sim.shipments import default_shipments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from blueberries_voi.model.abdella import ShipmentTrace
 
 LADDER_ALPHA_ARMS: tuple[str, ...] = (
     "constant",
@@ -58,7 +59,6 @@ DEFAULT_DESKTOP_ALPHAS: tuple[float, ...] = (
 )
 
 _PROTECTION_DEMAND_DAYS: int = 2
-_DEFAULT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)
 
 __all__ = [
     "DEFAULT_CI_ALPHAS",
@@ -74,20 +74,6 @@ __all__ = [
 ]
 
 
-def _fixture_shipments() -> list[ShipmentTrace]:
-    """Minimal in-memory Abdella-shaped traces (no parquet / FS)."""
-    times = np.asarray([0.0, 1.0, 2.0], dtype=float)
-    cool = np.asarray([1.0, 1.0, 1.0], dtype=float)
-    return [
-        ShipmentTrace(
-            shipment_id="T029-COOL",
-            times_d=times,
-            temps_c=cool,
-            duration_d=2.0,
-        )
-    ]
-
-
 def _protection_demand_quantile(alpha: float, params: ModelParams) -> float:
     if not 0.0 < float(alpha) < 1.0:
         msg = f"alpha must be in (0, 1), got {alpha}"
@@ -98,7 +84,7 @@ def _protection_demand_quantile(alpha: float, params: ModelParams) -> float:
 
 
 def _empty_shelf_belief(_params: ModelParams) -> ShelfBelief:
-    """Belief with no lots (closed-loop currently passes belief=None)."""
+    """Empty-shelf fallback when order() receives a non-ShelfBelief belief."""
     grid = [0.0, 2.0, 4.0, 6.0, 8.0]
     return ShelfBelief(lot_counts=[], age_marginals=[], tau_grid=grid)
 
@@ -168,7 +154,7 @@ def evaluate_alpha_episode_profit(
     """Score one (arm, alpha) pair via closed-loop ``episode_profit`` (SIM-01=B)."""
     p = params or ModelParams()
     policy = _ClosedLoopPolicyAdapter(arm_id, alpha, p)
-    ships = list(shipments) if shipments is not None else _fixture_shipments()
+    ships = list(shipments) if shipments is not None else default_shipments()
     episode = run_closed_loop_episode(
         policy,
         shipments=ships,
@@ -179,7 +165,9 @@ def evaluate_alpha_episode_profit(
         n_score=n_score,
         lead_time=lead_time,
     )
-    return float(episode_profit(episode, costs or _DEFAULT_COSTS))
+    return float(
+        episode_profit(episode, costs if costs is not None else DEFAULT_PROFIT_COSTS)
+    )
 
 
 def tune_alpha_grid(

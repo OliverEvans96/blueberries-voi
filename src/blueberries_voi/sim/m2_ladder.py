@@ -18,19 +18,19 @@ from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.controller.toy_dp import solve_toy_dp
 from blueberries_voi.filter import PRODUCTION_BACKEND
 from blueberries_voi.model import ModelParams
-from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.sim.alpha_tune import (
     assert_ladder_profit_claim_allowed,
     evaluate_alpha_episode_profit,
     require_tuned_alpha_table,
 )
 from blueberries_voi.sim.episode import run_closed_loop_episode
-from blueberries_voi.sim.profit import ProfitCosts, episode_profit
+from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
+from blueberries_voi.sim.shipments import default_shipments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-import numpy as np
+    from blueberries_voi.model.abdella import ShipmentTrace
 
 LADDER_POINTS: tuple[str, ...] = (
     "constant",
@@ -44,7 +44,6 @@ LADDER_POINTS: tuple[str, ...] = (
 LADDER_PRODUCTION_BACKEND: str = "mean_field"
 DEFAULT_LADDER_RESULT_PATH: str = "experiments/m2_ladder_result.json"
 
-_DEFAULT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)
 _CI_N_BURN: int = 2
 _CI_N_SCORE: int = 5
 _CI_ROLLOUT_H: int = 2
@@ -69,19 +68,6 @@ class LadderResult:
     artifact_paths: tuple[Path, ...] = field(default_factory=tuple)
     alphas: Mapping[str, float] = field(default_factory=dict)
     root_seed: int = 0
-
-
-def _fixture_shipments() -> list[ShipmentTrace]:
-    times = np.asarray([0.0, 1.0, 2.0], dtype=float)
-    cool = np.asarray([1.0, 1.0, 1.0], dtype=float)
-    return [
-        ShipmentTrace(
-            shipment_id="T032-COOL",
-            times_d=times,
-            temps_c=cool,
-            duration_d=2.0,
-        )
-    ]
 
 
 def _evaluate_rollout_profit(
@@ -175,8 +161,8 @@ def run_m2_ladder(
     backend = LADDER_PRODUCTION_BACKEND
 
     p = params or ModelParams()
-    cost = costs or _DEFAULT_COSTS
-    ships = list(shipments) if shipments is not None else _fixture_shipments()
+    cost = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    ships = list(shipments) if shipments is not None else default_shipments()
 
     profits: dict[str, float] = {}
     for arm in ("constant", "rung0", "sw"):

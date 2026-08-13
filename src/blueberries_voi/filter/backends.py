@@ -11,7 +11,7 @@ import numpy as np
 from scipy.special import logsumexp
 from scipy.stats import poisson
 
-from blueberries_voi.filter.age_likelihood import mean_field_update
+from blueberries_voi.filter.age_likelihood import MF_MAX_SWEEPS, mean_field_update
 from blueberries_voi.filter.arrival_priors import delivery_birth_age_prior
 from blueberries_voi.filter.types import (
     AGE_GRID_HI,
@@ -523,9 +523,7 @@ def _rbpf_update(
                     y_p1,
                     params,
                     tau_grid=tau_grid,
-                    # Stage C used ≤5; 2 sweeps + TV early-stop keeps CI tractable
-                    # while still moving mass under non-flat P1 LL (T-021).
-                    max_sweeps=2,
+                    max_sweeps=MF_MAX_SWEEPS,
                 )
                 unique_post[key] = cached
             new_post[i] = cached
@@ -566,6 +564,9 @@ def _rbpf_update(
 
 @dataclass
 class SlidingWindowBackend:
+    """Non-production bakeoff stub — must not be cited as a production filter."""
+
+    is_stub: bool = True
     name: str = "sliding_window"
     window: int = 3
 
@@ -592,6 +593,9 @@ class SlidingWindowBackend:
 
 @dataclass
 class MeanFieldBackend:
+    """Production RBPF / mean-field backend (FIL-13=B); not a bakeoff stub."""
+
+    is_stub: bool = False
     name: str = "mean_field"
 
     def initialize(
@@ -721,6 +725,9 @@ class BootstrapPFBackend:
 
 @dataclass
 class FullJointBackend:
+    """Non-production bakeoff stub — must not be cited as a production filter."""
+
+    is_stub: bool = True
     name: str = "full_joint"
 
     def initialize(

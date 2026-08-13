@@ -19,6 +19,7 @@ import pytest
 
 from blueberries_voi import model as model_pkg
 from blueberries_voi import sim as sim_pkg
+from blueberries_voi.controller.ordering import case_round
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import (
@@ -58,12 +59,9 @@ def _fixture_shipments() -> list[ShipmentTrace]:
     ]
 
 
-def _case_ceil_units(order_qty: int, case_size: int) -> int:
-    """Match open-loop sim case rounding (ceil to whole cases; 0 stays 0)."""
-    if order_qty <= 0:
-        return 0
-    cases = int(np.ceil(order_qty / case_size))
-    return cases * case_size
+def _case_nearest_units(order_qty: int, case_size: int) -> int:
+    """Match closed-loop / controller nearest case rounding (T-042)."""
+    return int(case_round(float(order_qty), case_size))
 
 
 def _resolve_policy_type() -> type[Any]:
@@ -379,7 +377,7 @@ def test_closed_loop_empty_shipments_raises(
     [
         (0, 8),
         (8, 8),
-        (10, 8),  # ceil → 16 under open-loop sim rule
+        (10, 8),  # nearest → 8 (was ceil → 16 before T-042)
         (16, 8),
         (1, 8),
     ],
@@ -392,7 +390,7 @@ def test_constant_order_policy_scored_order_qty_case_rounded(
     _patch_abdella_fs_forbidden(monkeypatch)
     ships = _fixture_shipments()
     params = ModelParams(case_size=case_size)
-    expected = _case_ceil_units(raw_q, case_size)
+    expected = _case_nearest_units(raw_q, case_size)
     policy = _ConstantOrderPolicy(raw_q)
     ep = _run_closed_loop(
         policy,

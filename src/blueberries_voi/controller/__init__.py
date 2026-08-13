@@ -1,4 +1,4 @@
-"""Controller stubs (M2)."""
+"""Controller policies and ordering helpers (M2 library surface)."""
 
 from __future__ import annotations
 

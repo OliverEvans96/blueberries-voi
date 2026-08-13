@@ -25,6 +25,14 @@ Plain-English notes of what shipped, for non-technical readers.
   duplicate particles and uses a faster internal table, so the expensive knowledge
   columns finish in a fraction of the previous time without changing the numeric
   model (T-064–T-066).
+## 2026-08-12 — Audit remediation (silent defaults)
+
+- **Production comparison runs no longer quietly use conflicting order-rounding or a toy cold
+  chain:** whole-case rounding follows one nearest-case rule, missing shipment inputs load the
+  real cold-chain traces, dollar cost defaults sit in one documented place, full value-of-
+  information runs refuse untuned service levels, and age-belief updates use the agreed
+  iteration count — while bakeoff-only filter arms are clearly marked not for citation.
+  Calibrated blueberry economics and citeable science VOI are still out of scope (T-042–T-044).
 
 ## 2026-08-12 — M3 value-of-information sweep
 

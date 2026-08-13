@@ -16,6 +16,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Repo tooling (2026-08-13): **[0098](./0098-pytest-testmon-lfs-cache.md)** (pytest-testmon + Git LFS `.testmondata` seed)
 - ENG-01 reopen dual-runtime (2026-08-12): **[0099](./0099-eng-01-dual-runtime-ap.md)–[0102](./0102-eng-01-api-asgi-session.md)** (A′ Pyodide prod + API dev; export; packaging; ASGI); **[0073](./0073-eng-01-browser-simulator-scope.md)** superseded
 - M3 exact LL speedup (2026-08-12): **[0103](./0103-exact-faster-p1-f2a-likelihood.md)** (unique-particle MF dedup + NumPy sequential-WOR DP; no surrogate; no new runtime deps)
+- Audit remediation lock (2026-08-12): **[0104](./0104-audit-remediation-defaults.md)** (nearest `case_round`; Abdella shipment defaults; uncalibrated `DEFAULT_PROFIT_COSTS`; VOI α-table gate; MF sweeps=5; bakeoff stubs non-citeable)
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -126,3 +127,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0101](./0101-eng-01-packaging-pyodide-wheels.md) | `ENG-01` | Packaging: derived Abdella, extras, GH Release, Pyodide 314 | ACCEPTED |
 | [0102](./0102-eng-01-api-asgi-session.md) | `ENG-01` | API host: ASGI sessions wrapping EngineSession | ACCEPTED |
 | [0103](./0103-exact-faster-p1-f2a-likelihood.md) | *(repo)* / M3 compute | Exact-faster P1/F2a likelihood (unique-MF + NumPy DP) | ACCEPTED |
+| [0104](./0104-audit-remediation-defaults.md) | *(repo audit)* | Audit remediation: case_round, Abdella defaults, costs, α gate, MF sweeps, bakeoff stubs | ACCEPTED |

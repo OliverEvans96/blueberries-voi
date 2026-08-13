@@ -118,3 +118,18 @@ production-N-in-tab without budget dials; honesty/cadence ⚑ out.
 
 Wave order: T-042 → (T-043 ∥ T-044) → (T-045 ∥ T-046) → T-047 → T-048 → (T-050 ∥ T-051) →
 T-052 → T-053 → (T-054 ∥ T-055 ∥ T-056) → T-057 → T-058.
+## Audit remediation (2026-08-12)
+
+ADR: [0104](../adr/0104-audit-remediation-defaults.md).  
+Base: `main` @ M2+M3 merge tip. Integration branch deferred to Phase 3 as
+`team/audit-remediation` (git cannot nest role branches under a bare branch of
+the same name).  
+Non-goals: M3 compute reduction; RBPF count physics; Stage A honesty; ENG-01.
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-042](./T-042-audit-remediation.md) | Unify `case_round` (nearest) | ADR 0104 |
+| [T-043](./T-043-audit-remediation.md) | `DEFAULT_PROFIT_COSTS` + Abdella defaults + VOI α gate | ADR 0104; CTL-03 |
+| [T-044](./T-044-audit-remediation.md) | MF sweeps=5, bakeoff stubs, backlog/doc hygiene | ADR 0104 |
+
+Wave order: architect (this tip) → qa (all ACs) → (T-042 ∥ T-043 ∥ T-044 implement).
