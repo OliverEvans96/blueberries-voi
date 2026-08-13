@@ -6,6 +6,13 @@ gap between the DP optimum and a base (myopic protection) policy value on the
 **same identical** toy instance. When one-step rollout (T-030) is not yet
 available, the base policy stands in for the comparison arm — the gap still
 adjudicates distance from optimal on this certificate instance.
+
+CAL-A4 / T-083 (ADR 0112): the default certificate is **schedule-aware**.
+Decision epochs are order days under ``OrderSchedule`` (MWF / Sun/Tue/Thu),
+not a silent daily-order assumption. Protection length for the base arm
+follows ``schedule.protection_days`` on those order days (3/3/4), not the
+legacy daily R+L=2 scalar alone. Pass ``protection_demand_days=`` to force
+the legacy scalar path.
 """
 
 from __future__ import annotations
@@ -15,6 +22,7 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 from blueberries_voi.model import ModelParams, q10_age_increment
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -26,7 +34,11 @@ MAX_LOTS: int = 2
 MAX_INVENTORY: int = 4
 HORIZON: int = 3
 LEAD_TIME_DAYS: int = 1
+# Legacy daily R+L; default certificate uses OrderSchedule protection (T-083).
 PROTECTION_DEMAND_DAYS: int = 2
+# Order-day decision epochs under default MWF schedule (Sun / Tue / Thu).
+ORDER_WEEKDAYS: frozenset[int] = frozenset(DEFAULT_ORDER_SCHEDULE.order_weekdays)
+DEFAULT_SCHEDULE: OrderSchedule = DEFAULT_ORDER_SCHEDULE
 
 _HOLDING_COST: float = 0.1
 _WASTE_COST: float = 1.0
@@ -164,6 +176,21 @@ def _transition(
     return (next_inv, next_pipe), reward
 
 
+def _order_epoch_calendar_day(schedule: OrderSchedule, epoch: int) -> int:
+    """Calendar day of the ``epoch``-th order opportunity from day 0."""
+    if epoch < 0:
+        msg = f"epoch must be non-negative, got {epoch}"
+        raise ValueError(msg)
+    day = 0
+    seen = 0
+    while True:
+        if schedule.can_order(day):
+            if seen == epoch:
+                return day
+            seen += 1
+        day += 1
+
+
 def _base_order(
     inv: InvState,
     pipeline: int,
@@ -189,14 +216,19 @@ def solve_toy_dp(
     max_inventory: int = MAX_INVENTORY,
     horizon: int = HORIZON,
     lead_time_days: int = LEAD_TIME_DAYS,
-    protection_demand_days: int = PROTECTION_DEMAND_DAYS,
+    protection_demand_days: int | None = None,
+    schedule: OrderSchedule | None = None,
 ) -> ToyDpResult:
     """Run backward induction on the locked toy state space.
 
-    ``lead_time_days`` is fixed at 1 for this certificate (pipeline lag);
-    ``protection_demand_days`` documents the shared R+L window with SW / Rung 0.
+    ``lead_time_days`` is fixed at 1 for this certificate (pipeline lag).
+    Decision epochs are **order days** under ``schedule`` (default MWF
+    ``DEFAULT_ORDER_SCHEDULE``). When ``protection_demand_days`` is omitted,
+    the base arm uses ``schedule.protection_days`` on each order-day epoch
+    (3/3/4); pass an int to force the legacy scalar window.
     """
     del lead_time_days  # LT=1 is baked into the one-period pipeline lag
+    sched = DEFAULT_SCHEDULE if schedule is None else schedule
     support = tuple(int(d) for d in demand_support)
     bins = tuple(float(t) for t in tau_bins)
     n_bins = len(bins)
@@ -206,7 +238,11 @@ def solve_toy_dp(
     h = int(horizon)
     m_inv = int(max_inventory)
     m_lots = int(max_lots)
-    prot = int(protection_demand_days)
+    use_schedule_prot = protection_demand_days is None
+    if protection_demand_days is None:
+        prot_scalar = int(PROTECTION_DEMAND_DAYS)
+    else:
+        prot_scalar = int(protection_demand_days)
 
     inventories = _enumerate_inventories(
         n_bins=n_bins, max_inventory=m_inv, max_lots=m_lots
@@ -228,6 +264,11 @@ def solve_toy_dp(
         policy[(h, (inv, pipe))] = 0
 
     for t in range(h - 1, -1, -1):
+        if use_schedule_prot:
+            cal_day = _order_epoch_calendar_day(sched, t)
+            prot = int(sched.protection_days(cal_day))
+        else:
+            prot = prot_scalar
         for inv, pipe in product(inventories, pipelines):
             state: DpState = (inv, pipe)
             best_q = 0
@@ -315,12 +356,14 @@ def gap_vs_rollout(result: ToyDpResult) -> float:
 
 
 __all__ = [
+    "DEFAULT_SCHEDULE",
     "DELTA_TAU_L",
     "DEMAND_SUPPORT",
     "HORIZON",
     "LEAD_TIME_DAYS",
     "MAX_INVENTORY",
     "MAX_LOTS",
+    "ORDER_WEEKDAYS",
     "PROTECTION_DEMAND_DAYS",
     "TAU_BINS",
     "TOY_DELTA_TAU_L",

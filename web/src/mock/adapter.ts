@@ -2,8 +2,10 @@ import type { EngineAdapter } from "../engine/adapter";
 import type {
   ActOpts,
   DayDelta,
+  DemandSummary,
   EngineConfig,
   FlatBelief,
+  ScheduleWire,
   Snapshot,
 } from "../engine/types";
 import type {
@@ -23,6 +25,20 @@ import {
   stepSimulation,
   type SimState,
 } from "./generate";
+
+/** Coherent OrderSchedule stubs when live engine is absent (T-085 / ADR 0114). */
+const MOCK_SCHEDULE: ScheduleWire = {
+  delivery_weekdays: [0, 2, 4],
+  order_weekdays: [6, 1, 3],
+  lead_time_days: 1,
+  epoch: "2024-01-01",
+};
+
+/** Chart-ready demand summary stub (~FreshNet scale 30 × DOW factors). */
+const MOCK_DEMAND_SUMMARY: DemandSummary = {
+  scale_mu: 30,
+  dow_means: [29.1228, 30.2511, 27.86433, 25.81527, 27.76173, 33.8766, 35.30814],
+};
 
 function configsEqual(a: SimConfig, b: SimConfig): boolean {
   return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
@@ -237,7 +253,7 @@ export class MockAdapter implements EngineAdapter {
 
   private stepOnce(orderQty: number): DayDelta {
     const drop_oldest = this.state.history.length >= this.config.window_days;
-    const { state, dayRecord } = stepSimulation(
+    const { state, dayRecord, completedDay } = stepSimulation(
       this.state,
       orderQty,
       this.config,
@@ -251,7 +267,7 @@ export class MockAdapter implements EngineAdapter {
     this.seq += 1;
     return {
       seq: this.seq,
-      episode_day: this.state.day,
+      episode_day: completedDay,
       day: {
         ...dayRecord,
         lots: dayRecord.lots.map((l) => ({ ...l })),
@@ -296,6 +312,15 @@ export class MockAdapter implements EngineAdapter {
       live_lots: this.state.lots.map((l) => ({ ...l })),
       pipeline: this.pipeline(),
       applied_config: { ...this.appliedConfig },
+      schedule: {
+        ...MOCK_SCHEDULE,
+        delivery_weekdays: [...MOCK_SCHEDULE.delivery_weekdays],
+        order_weekdays: [...MOCK_SCHEDULE.order_weekdays],
+      },
+      demand_summary: {
+        ...MOCK_DEMAND_SUMMARY,
+        dow_means: [...MOCK_DEMAND_SUMMARY.dow_means],
+      },
     };
   }
 }

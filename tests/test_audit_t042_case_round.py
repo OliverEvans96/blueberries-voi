@@ -20,12 +20,19 @@ import pytest
 from blueberries_voi.controller.ordering import case_round as controller_case_round
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EPISODE_PATH = _REPO_ROOT / "src" / "blueberries_voi" / "sim" / "episode.py"
+
+
+def _is_order_day(day: int) -> bool:
+    """T-079: nearest case_round applies on schedule order days only."""
+    return bool(DEFAULT_ORDER_SCHEDULE.can_order(day))
+
 
 # Midpoints / nearest fixtures from T-026 / T-042 (case_size=8).
 _NEAREST_MIDPOINTS: tuple[tuple[float, int], ...] = (
@@ -170,18 +177,28 @@ def test_closed_loop_orders_use_nearest_not_ceil_on_disagree_band() -> None:
         run_id="t042-nearest",
     )
     assert ep.scored, "expected scored days"
+    order_days = [d for d in ep.scored if _is_order_day(d.day)]
+    assert order_days, "horizon must include at least one OrderSchedule order day"
     for day in ep.scored:
-        assert day.order_qty == _DISAGREE_NEAREST, (
-            f"closed-loop order_qty={day.order_qty} for raw={raw}; "
-            f"expected nearest {_DISAGREE_NEAREST} (ceil would be 16)"
-        )
-        assert day.order_qty % _DISAGREE_CASE == 0
+        if _is_order_day(day.day):
+            assert day.order_qty == _DISAGREE_NEAREST, (
+                f"closed-loop order_qty={day.order_qty} for raw={raw} on "
+                f"order day={day.day}; expected nearest {_DISAGREE_NEAREST} "
+                "(ceil would be 16)"
+            )
+            assert day.order_qty % _DISAGREE_CASE == 0
+        else:
+            assert day.order_qty == 0, (
+                f"T-079 non-order day={day.day} must force order_qty=0 "
+                f"(got {day.order_qty})"
+            )
 
 
 def test_closed_loop_midpoint_matches_controller_half_away() -> None:
     from blueberries_voi.sim.episode import run_closed_loop_episode
 
     # raw 4 → nearest 8 (half-away); ceil would also be 8 — still locks wiring.
+    # T-079: assert nearest on schedule order days; non-order days stay 0.
     policy = _RawQtyPolicy(4)
     ep = run_closed_loop_episode(
         policy,
@@ -193,7 +210,10 @@ def test_closed_loop_midpoint_matches_controller_half_away() -> None:
         run_id="t042-mid",
     )
     for day in ep.scored:
-        assert day.order_qty == 8
+        if _is_order_day(day.day):
+            assert day.order_qty == 8
+        else:
+            assert day.order_qty == 0
 
 
 def test_t026_controller_fixtures_still_exported() -> None:

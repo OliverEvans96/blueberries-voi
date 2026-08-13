@@ -223,6 +223,20 @@ def test_golden_snapshot_validates_required_keys_and_flat_belief() -> None:
     _assert_flat_belief_lengths(belief, label="Snapshot golden.belief")
     assert isinstance(snap["seq"], int)
     assert isinstance(snap["episode_day"], int)
+    # T-085 / CAL-C1: schedule + demand_summary documented on Snapshot golden.
+    assert "schedule" in snap, "Snapshot golden must document schedule (T-085)"
+    assert "demand_summary" in snap, (
+        "Snapshot golden must document demand_summary (T-085)"
+    )
+    schedule = snap["schedule"]
+    assert isinstance(schedule, Mapping)
+    for key in ("delivery_weekdays", "order_weekdays", "lead_time_days", "epoch"):
+        assert key in schedule, f"Snapshot golden.schedule missing {key}"
+    summary = snap["demand_summary"]
+    assert isinstance(summary, Mapping)
+    assert "scale_mu" in summary or "scale_target_mu" in summary
+    dow = summary.get("dow_means", summary.get("dow_factors"))
+    assert isinstance(dow, Sequence) and len(dow) == 7
 
 
 def test_golden_day_delta_validates_day_and_drop_oldest() -> None:

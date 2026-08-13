@@ -26,5 +26,15 @@ Payloads must **not** include presentation keys owned by JS: `economics`,
 `pnl_series`, `pnl_totals`, `ghost`, `ghost_deltas`, `heatmap`, nested `density`,
 or `ViewModel` / `view_model`.
 
+### CAL-C1 schedule + demand summary (T-085)
+
+Cold **Snapshot** also documents:
+
+| Key | Role |
+|-----|------|
+| `schedule` | `delivery_weekdays`, `order_weekdays`, `lead_time_days`, `epoch` (`2024-01-01`) so Studio can label weekdays without redefining OrderSchedule math |
+| `demand_summary` | Chart-ready `scale_mu` + length-7 `dow_means` (not the full FreshNet `demand_profile.json` blob) |
+
 Schema helpers: `blueberries_voi.simulator.schema.validate_snapshot` /
-`validate_day_delta` (T-045; reused by T-051).
+`validate_day_delta` (T-045; reused by T-051). Must still reject forbidden
+presentation keys after these fields land.

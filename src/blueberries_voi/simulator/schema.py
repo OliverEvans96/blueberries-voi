@@ -3,6 +3,9 @@
 Hosts and OpenAPI (T-051) reuse these helpers against golden fixtures and live
 ``EngineSession`` payloads. Presentation fields (economics, PnL, ghost, heatmap,
 nested density / ViewModel) are forbidden on the Python return path.
+
+CAL-C1 (T-085) documents ``schedule`` + ``demand_summary`` on cold Snapshot;
+shape is validated when present (required on live/golden payloads).
 """
 
 from __future__ import annotations
@@ -25,8 +28,11 @@ _FORBIDDEN_KEYS = frozenset(
 )
 
 _FLAT_BELIEF_KEYS = frozenset({"lot_counts", "age_marginals", "tau_grid", "L", "K"})
-_SNAPSHOT_REQUIRED = frozenset({"seq", "episode_day", "belief"})
+_SNAPSHOT_REQUIRED = frozenset(
+    {"seq", "episode_day", "belief", "schedule", "demand_summary"}
+)
 _DAY_DELTA_REQUIRED = frozenset({"seq", "episode_day", "day", "drop_oldest"})
+_SCHEDULE_WEEKDAY_KEYS = ("delivery_weekdays", "order_weekdays")
 
 
 def _collect_keys(obj: Any, *, found: set[str] | None = None) -> set[str]:
@@ -109,6 +115,80 @@ def validate_flat_belief(obj: Mapping[str, Any], *, label: str = "belief") -> No
             raise TypeError(msg)
 
 
+def _validate_weekday_list(value: Any, *, label: str) -> None:
+    if not _is_nested_sequence(value):
+        msg = f"{label} must be a sequence of weekday ints (monday0 0..6)"
+        raise TypeError(msg)
+    if len(value) == 0:
+        msg = f"{label} must be non-empty"
+        raise ValueError(msg)
+    for i, day in enumerate(value):
+        try:
+            d = int(day)
+        except (TypeError, ValueError) as exc:
+            msg = f"{label}[{i}] must be an int weekday"
+            raise TypeError(msg) from exc
+        if d < 0 or d > 6:
+            msg = f"{label}[{i}]={d} out of monday0 range 0..6"
+            raise ValueError(msg)
+
+
+def _validate_schedule(obj: Any, *, label: str = "Snapshot.schedule") -> None:
+    schedule = _require_mapping(obj, label=label)
+    for key in _SCHEDULE_WEEKDAY_KEYS:
+        if key not in schedule:
+            msg = f"{label} missing {key}"
+            raise KeyError(msg)
+        _validate_weekday_list(schedule[key], label=f"{label}.{key}")
+    lead = schedule.get("lead_time_days", schedule.get("lead_time"))
+    if lead is None:
+        msg = f"{label} must expose lead_time_days (or lead_time)"
+        raise KeyError(msg)
+    try:
+        int(lead)
+    except (TypeError, ValueError) as exc:
+        msg = f"{label}.lead_time_days must be an int"
+        raise TypeError(msg) from exc
+    epoch = schedule.get("epoch")
+    if not isinstance(epoch, str) or not epoch.strip():
+        msg = f"{label}.epoch must be a non-empty date string"
+        raise TypeError(msg)
+
+
+def _validate_demand_summary(
+    obj: Any, *, label: str = "Snapshot.demand_summary"
+) -> None:
+    summary = _require_mapping(obj, label=label)
+    scale = summary.get("scale_mu", summary.get("scale_target_mu"))
+    if scale is None:
+        msg = f"{label} must expose scale_mu (or scale_target_mu)"
+        raise KeyError(msg)
+    try:
+        scale_f = float(scale)
+    except (TypeError, ValueError) as exc:
+        msg = f"{label}.scale_mu must be a number"
+        raise TypeError(msg) from exc
+    if scale_f <= 0.0:
+        msg = f"{label}.scale_mu must be positive"
+        raise ValueError(msg)
+    dow = summary.get("dow_means", summary.get("dow_factors"))
+    if not _is_nested_sequence(dow):
+        msg = f"{label} must expose dow_means or dow_factors sequence"
+        raise TypeError(msg)
+    if len(dow) != 7:
+        msg = f"{label} DOW series must have length 7, got {len(dow)}"
+        raise ValueError(msg)
+    for i, x in enumerate(dow):
+        try:
+            xf = float(x)
+        except (TypeError, ValueError) as exc:
+            msg = f"{label} DOW[{i}] must be a number"
+            raise TypeError(msg) from exc
+        if xf <= 0.0:
+            msg = f"{label} DOW[{i}] must be positive"
+            raise ValueError(msg)
+
+
 def validate_snapshot(obj: Mapping[str, Any]) -> None:
     """Validate a cold Snapshot payload; raise on contract violation."""
     snap = _require_mapping(obj, label="Snapshot")
@@ -119,6 +199,8 @@ def validate_snapshot(obj: Mapping[str, Any]) -> None:
     _reject_forbidden(snap, label="Snapshot")
     belief = _require_mapping(snap["belief"], label="Snapshot.belief")
     validate_flat_belief(belief, label="Snapshot.belief")
+    _validate_schedule(snap["schedule"], label="Snapshot.schedule")
+    _validate_demand_summary(snap["demand_summary"], label="Snapshot.demand_summary")
 
 
 def validate_day_delta(obj: Mapping[str, Any]) -> None:

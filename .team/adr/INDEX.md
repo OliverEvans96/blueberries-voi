@@ -20,7 +20,9 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - ENG-01 dual-mode readiness (2026-08-13): **[0107](./0107-demo-hydrate-at-host-edges.md)–[0108](./0108-local-dual-mode-vite-wheel-cors.md)** (host-edge demo hydrate; Vite wheel/`wheelUrl`/CORS). Do **not** confuse with in-flight arrival-only ADR **0105–0106** on `team/T-067/architect`.
 - ENG-01 belief charts (2026-08-13): **[0109](./0109-js-belief-age-count-rebin.md)** (JS-only FlatBelief → age×count BeliefGrid rebin + merged age marginal; wire stays `L×K`).
 - Studio observation ladder (2026-08-13): **[0110](./0110-studio-obs-scenario-ladder.md)** (`obs_scenario` ≡ `ScenarioId`; mask_for + rich DayLog on interactive path; SCN-P2 stays Out; Ticket A owns charts). Was provisional 0109; renumbered at integrate after T-090 kept 0109.
-- Studio Autopilot Mode (2026-08-13): **[0112](./0112-studio-autopilot-mode.md)** (`adapter.act` play loop; `damped_sw` default; SW-based rollout base; Controller section; cadence 1–2 act/s). User plan T-076–T-081 → **T-091 + T-097–T-101** (CAL-01 owns T-076–T-088; Pyodide owns T-092 / ADR 0111 on that stream — numbering gap for 0111 on this branch).
+- Pyodide module-worker host (2026-08-13): **[0111](./0111-pyodide-module-worker-host.md)** (ESM `pyodide.mjs` + `{ type: "module" }` under pin 314.0.4; no classic `importScripts`).
+- CAL-01 calendar realism Wave 0 (2026-08-13): **[0112](./0112-x-11-mwf-delivery-base-case.md)–[0116](./0116-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. Renumbered past ENG-01 **0109–0111** at T-088 integrate.
+- Studio Autopilot Mode (2026-08-13): **[0117](./0117-studio-autopilot-mode.md)** (`adapter.act` play loop; `damped_sw` default; SW-based rollout base; Controller section; cadence 1–2 act/s). User plan T-076–T-081 → **T-091 + T-097–T-101**; Autopilot ADR renumbered **0112→0117** at merge with CAL-01 (CAL-01 keeps 0112–0116).
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -38,7 +40,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0008](./0008-x-08-data-provenance.md) | `X-08` | Data provenance | ACCEPTED |
 | [0009](./0009-x-09-language-and-stack.md) | `X-09` | Language and stack ⚑ | ACCEPTED |
 | [0010](./0010-x-10-reproducibility-standard.md) | `X-10` | Reproducibility standard | ACCEPTED |
-| [0011](./0011-x-11-delivery-cadence-for-the-base-case.md) | `X-11` | Delivery cadence for the base case ⚑ | ACCEPTED |
+| [0011](./0011-x-11-delivery-cadence-for-the-base-case.md) | `X-11` | Delivery cadence for the base case ⚑ (daily) | SUPERSEDED BY 0112 |
 | [0012](./0012-x-12-tripwire-if-the-headline-number-is-flat.md) | `X-12` | Tripwire if the headline number is flat ⚑ | ACCEPTED |
 | [0013](./0013-scn-b-clair-perfect-foresight-oracle.md) | `SCN-B-clair` | Perfect foresight oracle ⚑ | ACCEPTED |
 | [0014](./0014-scn-b-state-perfect-state-oracle.md) | `SCN-B-state` | Perfect state oracle | ACCEPTED |
@@ -58,7 +60,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0028](./0028-mod-06-clock-origin-and-left-truncation.md) | `MOD-06` | Clock origin and left-truncation | ACCEPTED |
 | [0029](./0029-mod-07-picking-kernel-form.md) | `MOD-07` | Picking kernel form | ACCEPTED |
 | [0030](./0030-mod-08-allocation-law.md) | `MOD-08` | Allocation law | ACCEPTED |
-| [0031](./0031-mod-09-demand-model.md) | `MOD-09` | Demand model | ACCEPTED |
+| [0031](./0031-mod-09-demand-model.md) | `MOD-09` | Demand model (i.i.d.) | SUPERSEDED BY 0113 |
 | [0032](./0032-mod-10-unmet-demand.md) | `MOD-10` | Unmet demand | ACCEPTED |
 | [0033](./0033-mod-11-arrival-age-distribution.md) | `MOD-11` | Arrival age distribution ⚑ | ACCEPTED |
 | [0034](./0034-mod-12-within-day-order-of-operations.md) | `MOD-12` | Within-day order of operations | ACCEPTED |
@@ -139,5 +141,10 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0108](./0108-local-dual-mode-vite-wheel-cors.md) | `ENG-01` | Local dual-mode: Vite wheel + worker, wheelUrl, CORS | ACCEPTED |
 | [0109](./0109-js-belief-age-count-rebin.md) | `ENG-01` | JS-only FlatBelief → age×count BeliefGrid rebin + age marginal | ACCEPTED |
 | [0110](./0110-studio-obs-scenario-ladder.md) | `SCN-*` / ENG-01 | Studio obs_scenario ≡ filter ScenarioId ladder | ACCEPTED |
-| 0111 | *(Pyodide stream)* | Module-worker host (`0111-pyodide-module-worker-host.md` on `team/T-092/*`) — **not** Autopilot; gap on this tip | *(other tip)* |
-| [0112](./0112-studio-autopilot-mode.md) | *(studio)* / ENG | Studio Autopilot Mode: act loop + Controller | ACCEPTED |
+| [0111](./0111-pyodide-module-worker-host.md) | `ENG-01` | Pyodide module worker + pyodide.mjs under 314.0.4 | ACCEPTED |
+| [0112](./0112-x-11-mwf-delivery-base-case.md) | `X-11` / CAL-01 | MWF delivery base case (LT=1; order Sun/Tue/Thu) | ACCEPTED |
+| [0113](./0113-mod-09-calendar-demand.md) | `MOD-09` / CAL-01 | Known NB with calendar DOW×week structure | ACCEPTED |
+| [0114](./0114-order-schedule-api.md) | `CAL-A1` | OrderSchedule type/API (can_order / protection_days) | ACCEPTED |
+| [0115](./0115-freshnet-derived-demand-product.md) | `CAL-B1` | FreshNet derived demand product + transferability | ACCEPTED |
+| [0116](./0116-cal-01-track-ownership.md) | `CAL-01` | Track ownership + draw_demand(day=) shim | ACCEPTED |
+| [0117](./0117-studio-autopilot-mode.md) | *(studio)* / ENG | Studio Autopilot Mode: act loop + Controller | ACCEPTED |

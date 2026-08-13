@@ -1,5 +1,7 @@
 /** Shared domain types for the mock grocery-inventory simulator. */
 
+import type { DemandSummary, ScheduleWire } from "./engine/types";
+
 export type Lot = {
   lot_id: number;
   n: number;
@@ -148,6 +150,10 @@ export type ViewModel = {
   ghost_deltas: GhostDeltas | null;
   case_size: number;
   pending_order: number;
+  /** Chart-ready DOW demand profile from Snapshot (T-085 / T-087). */
+  demand_summary: DemandSummary | null;
+  /** Order calendar wire for protection chrome (T-085 / T-087). */
+  schedule: ScheduleWire | null;
 };
 
 export type StepInput = {

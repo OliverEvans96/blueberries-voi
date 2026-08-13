@@ -12,6 +12,22 @@ export type FlatBelief = {
   tau_grid: number[];
 };
 
+/** OrderSchedule export for Studio calendar chrome (T-085 / CAL-C1). */
+export type ScheduleWire = {
+  delivery_weekdays: number[];
+  order_weekdays: number[];
+  lead_time_days: number;
+  /** ISO date for day-index → weekday labels (monday0 epoch). */
+  epoch: string;
+};
+
+/** Chart-ready demand profile summary (not the full FreshNet JSON blob). */
+export type DemandSummary = {
+  scale_mu: number;
+  /** Length-7 monday0 means (scale × DOW factors). */
+  dow_means: number[];
+};
+
 /** Cold payload from init / reset. */
 export type Snapshot = {
   seq: number;
@@ -21,6 +37,8 @@ export type Snapshot = {
   live_lots?: Lot[];
   pipeline?: PipelineOrder[];
   applied_config?: Partial<SimConfig> & Record<string, unknown>;
+  schedule?: ScheduleWire;
+  demand_summary?: DemandSummary;
 };
 
 /** Hot payload from step / step_n / act. */
@@ -51,7 +69,7 @@ export type ForbiddenEngineKey = (typeof FORBIDDEN_ENGINE_KEYS)[number];
 
 export type EngineConfig = Partial<SimConfig> & Record<string, unknown>;
 
-/** Policy aliases locked in ADR 0112. */
+/** Policy aliases locked in ADR 0117. */
 export type ActPolicyName =
   | "damped_sw"
   | "sw"
@@ -62,7 +80,7 @@ export type ActPolicyName =
   | "const"
   | "fixed";
 
-/** Budget / knob fields passed through act (ADR 0112). */
+/** Budget / knob fields passed through act (ADR 0117). */
 export type ActBudgets = {
   alpha?: number;
   rho?: number;

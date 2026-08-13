@@ -1,6 +1,6 @@
 """T-097 EngineSession.act — damped_sw + SW-based rollout (RED).
 
-Locks ``.team/specs/T-097.md`` and ADR 0112: ``damped_sw`` / ``sw`` aliases,
+Locks ``.team/specs/T-097.md`` and ADR 0117: ``damped_sw`` / ``sw`` aliases,
 alpha/rho budget defaults and overrides, rollout base =
 ``DampedSurvivalWeightedPolicy`` (not ``ConstantOrderPolicy(0)``), constant
 regression, unknown-policy error text, and ASGI ``POST .../act`` forwarding.
@@ -253,7 +253,7 @@ def test_act_rollout_base_policy_is_damped_sw_not_constant_zero(
         f"rollout base must be DampedSurvivalWeightedPolicy, got {type(base)!r}"
     )
     assert type(base).__name__ != "ConstantOrderPolicy", (
-        "rollout must not wrap ConstantOrderPolicy(0) (ADR 0112 / T-097)"
+        "rollout must not wrap ConstantOrderPolicy(0) (ADR 0117 / T-097)"
     )
 
 
@@ -491,5 +491,5 @@ def test_worker_smoke_policy_surfaces_accept_damped_sw_when_listing_act_policies
         stale_hits.append("src/blueberries_voi/simulator/session.py")
     assert not stale_hits, (
         "stale act policy allowlist / error copy must accept damped_sw "
-        f"(T-097 / ADR 0112); offenders: {stale_hits}"
+        f"(T-097 / ADR 0117); offenders: {stale_hits}"
     )

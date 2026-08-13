@@ -1,5 +1,5 @@
 /**
- * Shared ActOpts normalizer (T-098 / ADR 0112).
+ * Shared ActOpts normalizer (T-098 / ADR 0117).
  *
  * Callers may pass nested `{ policy, budgets }` and/or flat budget knobs.
  * Adapters fold once here: HTTP nests under `budgets`; Pyodide flattens.

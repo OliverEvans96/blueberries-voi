@@ -1,5 +1,5 @@
 /**
- * Single-flight Autopilot wall-clock loop (T-100 / ADR 0112).
+ * Single-flight Autopilot wall-clock loop (T-100 / ADR 0117).
  *
  * await act → applyDelta → schedule next with max(0, intervalMs - elapsed).
  * Never overlaps act calls. Does not use generate.ts runDay(..., autopilot).

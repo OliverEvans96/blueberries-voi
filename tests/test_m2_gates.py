@@ -177,6 +177,9 @@ def test_beta1_degeneracy_orders_match_on_same_age_fixture() -> None:
             params=params,
         )
     )
+    # Matched legacy scalar window for flat-w unit equality. MWF schedule /
+    # day-indexed gate path is locked in tests/test_t083_baselines_rollout_m2.py
+    # (T-083 supersedes immutable daily-2 as the scientific base case).
     d_star = float(nbinom.ppf(alpha, params.nb_r() * 2.0, params.nb_p()))
 
     q_blind = CorrectedAgeBlindPolicy(

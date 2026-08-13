@@ -34,9 +34,27 @@
       8.0
     ]
   },
+  "demand_summary": {
+    "dow_means": [
+      29.1228,
+      30.2511,
+      27.86433,
+      25.81527,
+      27.76173,
+      33.8766,
+      35.30814
+    ],
+    "scale_mu": 30.0
+  },
   "episode_day": 0,
   "history": [],
   "live_lots": [],
   "pipeline": [],
+  "schedule": {
+    "delivery_weekdays": [0, 2, 4],
+    "epoch": "2024-01-01",
+    "lead_time_days": 1,
+    "order_weekdays": [6, 1, 3]
+  },
   "seq": 0
 }

@@ -2,7 +2,7 @@
 
 **Status:** Wave 0 architect (T-091) — ADR + plan + specs  
 **Branch tip:** `team/T-091/architect`  
-**ADR:** [0112](../adr/0112-studio-autopilot-mode.md)  
+**ADR:** [0117](../adr/0117-studio-autopilot-mode.md)  
 **Do not use for Autopilot:** T-076–T-081 (CAL-01); T-092–T-096 (other streams — **Pyodide owns T-092** / ADR 0111); provisional Autopilot draft that briefly claimed those ids is void.
 
 ## Why remapping (two collisions)
@@ -14,19 +14,19 @@
    `0111-pyodide-module-worker-host.md` on that tip; not on this branch).
 
 Autopilot keeps Wave 0 as **T-091** and renumbers children to **T-097–T-101**
-with **ADR 0112**.
+with **ADR 0117**.
 
 ## ID remap (binding)
 
 | User plan id | First draft (void) | **Use instead** | Title |
 |--------------|--------------------|-----------------|--------|
-| T-076 | T-091 | **T-091** | ADR 0112 + this plan + specs T-097–T-101 |
+| T-076 | T-091 | **T-091** | ADR 0117 + this plan + specs T-097–T-101 |
 | T-077 | T-092 | **T-097** | EngineSession.act damped_sw + SW-based rollout |
 | T-078 | T-093 | **T-098** | ActOpts + adapters + MockAdapter.act |
 | T-079 | T-094 | **T-099** | Controller section + chart |
 | T-080 | T-095 | **T-100** | Autopilot play/pause loop |
 | T-081 | T-096 | **T-101** | Smoke / verify / changelog |
-| ADR 0109 (plan) | ADR 0111 (void for Autopilot) | **ADR 0112** | studio-autopilot-mode |
+| ADR 0109 (plan) | ADR 0111 (void for Autopilot) | **ADR 0117** | studio-autopilot-mode |
 
 **Note:** ADR **0111** remains reserved for Pyodide module-worker host (other
 stream). This branch intentionally has a numbering gap at 0111.
@@ -35,7 +35,7 @@ stream). This branch intentionally has a numbering gap at 0111.
 
 | Ticket | Role | Deliverable |
 |--------|------|-------------|
-| **T-091** | architect (this tip) | ADR 0112, plan, specs T-091 + T-097–T-101, backlog/intake reservation |
+| **T-091** | architect (this tip) | ADR 0117, plan, specs T-091 + T-097–T-101, backlog/intake reservation |
 | **T-097** | qa → implement → … | Python `_select_order`: `damped_sw`/`sw`; alpha/rho budgets; rollout base = `DampedSurvivalWeightedPolicy` |
 | **T-098** | qa → implement → … | Typed `ActOpts`; HTTP nest / Pyodide flat normalize; `MockAdapter.act` |
 | **T-099** | qa → implement → … | Section `controller` + controls + `controllerOrders` chart |
@@ -64,7 +64,7 @@ T-091 (architect, docs only)
    `.github/workflows/`.
 6. Do **not** claim T-092–T-096 for Autopilot.
 
-## Locked product defaults (ADR 0112)
+## Locked product defaults (ADR 0117)
 
 | Topic | Lock |
 |-------|------|

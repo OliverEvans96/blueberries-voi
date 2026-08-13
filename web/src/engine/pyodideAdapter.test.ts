@@ -87,11 +87,14 @@ function collectKeys(value: unknown, found = new Set<string>()): Set<string> {
 class FakeWorker {
   static instances: FakeWorker[] = [];
   readonly url: string | URL;
+  /** WorkerOptions passed to `new Worker` (T-092 module-worker contract). */
+  readonly options: WorkerOptions | undefined;
   readonly posted: unknown[] = [];
   private readonly listeners = new Map<string, Set<(ev: MessageEvent) => void>>();
 
-  constructor(url: string | URL, _opts?: WorkerOptions) {
+  constructor(url: string | URL, opts?: WorkerOptions) {
     this.url = url;
+    this.options = opts;
     FakeWorker.instances.push(this);
   }
 
@@ -238,6 +241,19 @@ describe("PyodideAdapter implements EngineAdapter", () => {
     const urlBlob = urlStr + postedBlob;
     expect(urlBlob).toContain("blueberries_voi");
     expect(urlBlob).toMatch(/\.whl|wheelUrl|wheel_url|micropip/i);
+  });
+
+  it("spawns a module Worker ({ type: \"module\" }) for Pyodide 314 (T-092)", () => {
+    new PyodideAdapter(defaultOpts());
+    expect(
+      FakeWorker.instances.length,
+      "PyodideAdapter must construct a Worker(workerUrl)",
+    ).toBeGreaterThanOrEqual(1);
+    const worker = FakeWorker.instances[0]!;
+    expect(
+      worker.options,
+      'PyodideAdapter must pass Worker options including { type: "module" }',
+    ).toEqual(expect.objectContaining({ type: "module" }));
   });
 
   it("forwards init / step / step_n / reset / act as worker RPC and returns Snapshot/DayDelta", async () => {
@@ -464,6 +480,18 @@ describe("PyodideAdapter integration smoke (Release wheel / Pyodide 314)", () =>
     expect(workerSrc).toMatch(/micropip|\.whl/);
     expect(workerSrc).toMatch(/\binit\b/);
     expect(workerSrc).toMatch(/\bstep\b/);
+  });
+
+  it("packaging worker uses ESM pyodide.mjs and bans importScripts (T-092)", () => {
+    const workerSrc = readFileSync(WORKER_PATH, "utf8");
+    const code = workerSrc
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toMatch(/\bimportScripts\b/);
+    expect(code).not.toMatch(/\bpyodide\.js\b/);
+    expect(code).toMatch(/\bpyodide\.mjs\b/);
+    expect(code).toMatch(/314\.0\.4/);
+    expect(code).toMatch(/\bloadPyodide\b/);
   });
 
   it("ships a clear pass/fail smoke that drives PyodideAdapter init+step", () => {

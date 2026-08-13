@@ -1,4 +1,4 @@
-# 0112. Studio Autopilot Mode: act-driven play loop + Controller section
+# 0117. Studio Autopilot Mode: act-driven play loop + Controller section
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -30,7 +30,7 @@ Mode.
 T-092–T-096 / ADR 0111, but **T-092** and **ADR 0111** belong to the concurrent
 Pyodide module-worker stream (`0111-pyodide-module-worker-host.md` on that tip —
 not present on this branch; leave numbering gap awareness). This milestone
-therefore uses **T-091 + T-097–T-101** and **ADR 0112**.
+therefore uses **T-091 + T-097–T-101** and **ADR 0117**.
 
 ## Decision
 

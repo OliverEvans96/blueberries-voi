@@ -8,8 +8,8 @@ Formula under test (ADR 0058 / T-028):
     q_t = case_round(rho · [F^{-1}_{D_{t:t+L}}(alpha) - Ĩ_t]⁺)
 
 with default rho=0.8, Ĩ_t from T-023 ``effective_inventory`` (MF marginals /
-``from_marginals=True``), and protection demand over R+L=2 calendar days under
-daily delivery LT=1 (X-11 / ADR 0006: daily protection interval = 2).
+``from_marginals=True``). Legacy no-schedule path uses R+L=2 under daily LT=1;
+CAL-01 / ADR 0112 base case is MWF day-indexed protection (T-081 / T-083).
 """
 
 from __future__ import annotations
@@ -41,10 +41,11 @@ _POLICY_MODULE_CANDIDATES = (
     "blueberries_voi.controller",
 )
 
-# X-11 daily delivery LT=1 → review R=1 + lead time L=1 → protection demand days = 2
-# (ADR 0006: daily protection interval is 2, not 4).
+# LT=1 stays; legacy no-schedule R+L=2 (ADR 0006). MWF base case is day-indexed
+# 3/3/4 (ADR 0112 / T-081); T-083 supersedes immutable-daily locks.
 _LEAD_TIME_DAYS = 1
 _PROTECTION_DEMAND_DAYS = 2
+_LEGACY_NO_SCHEDULE_PROTECTION_DAYS = 2
 
 # Shared oracle belief / pending fixture for the hand-computed order table.
 _TABLE_GRID = (0.0, 2.0, 4.0, 6.0)
@@ -355,12 +356,18 @@ def test_controller_package_exports_damped_sw_policy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: protection interval = daily LT=1 / same Δτ_L convention as Rung 0
+# AC: LT=1 locked; legacy scalar 2 only without schedule (T-083 supersession)
 # ---------------------------------------------------------------------------
 
 
-def test_damped_sw_protection_interval_is_daily_lt1_r_plus_l() -> None:
-    """Lock X-11 LT=1 and ADR 0006 daily protection demand days = 2 (R+L)."""
+def test_damped_sw_protection_interval_lt1_legacy_scalar_not_immutable_base() -> None:
+    """LT=1 stays locked; PROTECTION_DEMAND_DAYS=2 is legacy no-schedule only.
+
+    ADR 0112 / T-083: daily R+L=2 is no longer the immutable scientific base
+    case — MWF day-indexed protection (3/3/4) is (see T-081).
+    """
+    from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
+
     cls = _resolve_policy_class()
     params = ModelParams()
     policy = cls(rho=0.8, alpha=0.9, params=params)
@@ -370,18 +377,28 @@ def test_damped_sw_protection_interval_is_daily_lt1_r_plus_l() -> None:
     if lead is None:
         lead = getattr(cls, "lead_time", None)
     assert lead == _LEAD_TIME_DAYS, (
-        "policy must expose lead_time / LEAD_TIME_DAYS == 1 (X-11 daily delivery)"
+        "policy must expose lead_time / LEAD_TIME_DAYS == 1 (LT=1)"
     )
 
-    prot = getattr(policy, "protection_demand_days", None)
-    if prot is None:
-        prot = getattr(cls, "PROTECTION_DEMAND_DAYS", None)
-    if prot is None:
-        prot = getattr(cls, "protection_demand_days", None)
-    assert prot == _PROTECTION_DEMAND_DAYS, (
-        "protection demand days must be R+L=2 under daily LT=1 "
-        "(same convention Rung 0 / CTL-06 trap)"
+    # Legacy constant may remain for no-schedule callers.
+    legacy = getattr(cls, "PROTECTION_DEMAND_DAYS", None)
+    if legacy is None:
+        legacy = getattr(policy, "protection_demand_days", None)
+    assert legacy == _LEGACY_NO_SCHEDULE_PROTECTION_DAYS, (
+        "legacy PROTECTION_DEMAND_DAYS constant remains 2 for no-schedule path"
     )
+
+    # Base-case path: schedule-aware policy resolves 3/3/4 on order days.
+    scheduled = cls(rho=1.0, alpha=0.9, params=params, schedule=DEFAULT_ORDER_SCHEDULE)
+    resolve = getattr(scheduled, "_resolve_protection_days", None)
+    assert callable(resolve), (
+        "schedule-aware SW must expose day-indexed protection resolution (T-081)"
+    )
+    for day, expected in ((6, 3), (1, 3), (3, 4)):
+        assert int(resolve(day)) == expected, (
+            f"MWF base case protection on day={day} must be {expected}, "
+            f"got {resolve(day)} (not immutable daily 2)"
+        )
 
 
 def test_damped_sw_delta_tau_l_matches_q10_lead_time_increment() -> None:
@@ -421,7 +438,10 @@ def test_damped_sw_module_documents_protection_interval_and_rung0_parity() -> No
 
 
 def test_damped_sw_demand_quantile_uses_protection_demand_days() -> None:
-    """Internal F^{-1} must use 2-day NB sum, not a single day (ADR 0006)."""
+    """No-schedule legacy path: F^{-1} uses 2-day NB sum, not a single day.
+
+    MWF base-case day-indexed lengths are locked in T-081 / T-083 tests.
+    """
     cls = _resolve_policy_class()
     params = ModelParams()
     belief = shelf_belief_from_oracle(
@@ -429,6 +449,7 @@ def test_damped_sw_demand_quantile_uses_protection_demand_days() -> None:
         ages=[0.0],
         tau_grid=list(_TABLE_GRID),
     )
+    # Explicitly no schedule → legacy scalar protection window.
     policy = cls(rho=1.0, alpha=0.9, params=params)
     got = _invoke_order(policy, belief, pending_orders={})
     two_day = int(

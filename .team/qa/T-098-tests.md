@@ -11,8 +11,8 @@ Result: **8 failed | 1 passed** (9 total). Failures are assertion misses on miss
 
 ## Coverage of acceptance criteria
 
-- `web/src/engine/types.ts` exports typed `ActOpts` (not only `Record<string, unknown>`) with optional `policy` and ADR 0112 budget fields (`alpha`, `rho`, `H`, `n_rollout_paths`, `candidate_case_radius`, `n_particles`, `order_qty` / `q`)
-  → `web/src/engine/actOpts.test.ts::Typed ActOpts (T-098 / ADR 0112) > exports ActPolicyName, ActBudgets, and typed ActOpts (not only Record)`
+- `web/src/engine/types.ts` exports typed `ActOpts` (not only `Record<string, unknown>`) with optional `policy` and ADR 0117 budget fields (`alpha`, `rho`, `H`, `n_rollout_paths`, `candidate_case_radius`, `n_particles`, `order_qty` / `q`)
+  → `web/src/engine/actOpts.test.ts::Typed ActOpts (T-098 / ADR 0117) > exports ActPolicyName, ActBudgets, and typed ActOpts (not only Record)`
   — currently failing: no `ActPolicyName` / `ActBudgets`; `ActOpts` is still `Record<string, unknown>`
   → `… > caller-facing ActOpts compiles at use sites (policy + nested/flat budgets)`
   — currently passing (runtime smoke with today’s `Record` alias; typed export gated by the source-scan test above)
@@ -47,4 +47,4 @@ Result: **8 failed | 1 passed** (9 total). Failures are assertion misses on miss
 
 - Exact mock heuristic formula for `damped_sw` / `rollout` (beyond “returns DayDelta / advances day / uses constant `order_qty`”) — because AC allows any documented UI heuristic; verify by reading the implementer comment + smoke Play.
 - End-to-end Autopilot Play chrome / Controller section — T-099 / T-100 (out of scope).
-- Python `_select_order` / numeric parity with mock — explicitly non-goal (T-097 / ADR 0112).
+- Python `_select_order` / numeric parity with mock — explicitly non-goal (T-097 / ADR 0117).

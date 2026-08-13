@@ -27,6 +27,7 @@ from blueberries_voi.filter.types import (
 )
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.order_schedule import OrderSchedule
 from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 from blueberries_voi.simulator.session import EngineSession
 
@@ -86,6 +87,10 @@ def _fresh_state(*, seed: int = 7) -> DayDriverState:
     )
 
 
+# Daily order weekdays so T-089 isolates obs_scenario (not CAL-01 MWF gating).
+_DAILY_ORDER_SCHEDULE = OrderSchedule(order_weekdays=frozenset(range(7)))
+
+
 def _advance(
     state: DayDriverState,
     order_qty: int,
@@ -96,6 +101,8 @@ def _advance(
     """Call advance_day; fail clearly if obs_scenario kw is not supported yet."""
     sig = inspect.signature(advance_day)
     call_kw = dict(kwargs)
+    if "schedule" in sig.parameters and "schedule" not in call_kw:
+        call_kw["schedule"] = _DAILY_ORDER_SCHEDULE
     if "obs_scenario" in sig.parameters:
         call_kw["obs_scenario"] = obs_scenario
     elif obs_scenario != "P1":

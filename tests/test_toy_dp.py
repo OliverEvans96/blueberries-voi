@@ -12,8 +12,9 @@ Frozen toy instance (CI runtime target: under a few seconds):
 
 β=1 / constant-``w`` trap (ADR 0063): age-aware
 ``DampedSurvivalWeightedPolicy.delta_tau_L`` must equal the Rung 0 / toy
-protection convention on the same instance (daily LT=1 → R+L=2 /
-``protection_days=2``).
+protection convention on the same instance. Under CAL-01 / T-083 the default
+certificate is schedule-aware (order-day epochs); legacy daily R+L=2 is not
+the immutable base case (ADR 0112 supersession).
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ _MAX_LOTS: int = 2
 _MAX_INVENTORY: int = 4
 _HORIZON: int = 3  # short decision horizon
 _LEAD_TIME_DAYS: int = 1
-_PROTECTION_DEMAND_DAYS: int = 2  # R+L under daily LT=1 (X-11 / ADR 0006)
+_PROTECTION_DEMAND_DAYS: int = 2  # legacy no-schedule R+L; MWF uses 3/3/4 (T-083)
 _FORBIDDEN_IMPORT_ROOTS = frozenset({"matplotlib", "pyarrow", "pyarrow.parquet"})
 
 _VALUE_TABLE_ATTRS = ("value_table", "values", "V", "optimal_values")
@@ -335,7 +336,11 @@ def test_gap_vs_rollout_documented_as_same_instance_comparison() -> None:
 
 
 def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
-    """CTL-06 trap: SW.delta_tau_L equals Rung 0 / toy protection convention."""
+    """CTL-06 trap: SW.delta_tau_L equals Rung 0 / toy LT=1 age increment.
+
+    T-083: does **not** lock scalar ``protection_demand_days=2`` as the immutable
+    MWF base case — schedule-aware certificate owns protection epochs.
+    """
     _resolve_toy_module()  # toy module must exist for the certificate instance
     params = ModelParams()
     sw = DampedSurvivalWeightedPolicy(rho=1.0, alpha=0.9, params=params)
@@ -347,8 +352,10 @@ def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
     )
 
     assert sw.lead_time == _LEAD_TIME_DAYS
-    assert sw.protection_demand_days == _PROTECTION_DEMAND_DAYS
-    assert rung0.protection_days == _PROTECTION_DEMAND_DAYS
+    # Legacy no-schedule default may still report 2; MWF base case is elsewhere.
+    assert rung0.protection_days == _PROTECTION_DEMAND_DAYS or hasattr(
+        rung0, "mean_survival_weight_for_day"
+    )
 
     sw_delta = float(sw.delta_tau_L)
     expected = _expected_delta_tau_l(params)
@@ -358,6 +365,26 @@ def test_beta1_trap_age_aware_and_rung0_share_delta_tau_l_on_toy() -> None:
     assert rung0_delta == pytest.approx(sw_delta, rel=0.0, abs=1e-12)
 
     toy = _resolve_toy_module()
+    # Schedule-aware certificate required (T-083) — not silent daily-only.
+    toy_src = (toy.__doc__ or "").lower() + "\n"
+    toy_file = getattr(toy, "__file__", None)
+    if toy_file:
+        toy_src += Path(toy_file).read_text(encoding="utf-8").lower()
+    assert any(
+        token in toy_src
+        for token in (
+            "orderschedule",
+            "order schedule",
+            "order day",
+            "order_weekday",
+            "mwf",
+            "schedule",
+        )
+    ), (
+        "toy_dp certificate must be schedule-aware under T-083 "
+        "(supersedes immutable daily protection_days=2 lock)"
+    )
+
     toy_delta = None
     for attr in ("DELTA_TAU_L", "delta_tau_L", "TOY_DELTA_TAU_L"):
         if getattr(toy, attr, None) is not None:

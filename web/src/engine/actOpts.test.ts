@@ -228,7 +228,7 @@ function pyodideOpts(overrides: Partial<PyodideAdapterOpts> = {}): PyodideAdapte
   };
 }
 
-describe("Typed ActOpts (T-098 / ADR 0112)", () => {
+describe("Typed ActOpts (T-098 / ADR 0117)", () => {
   it("exports ActPolicyName, ActBudgets, and typed ActOpts (not only Record)", () => {
     const src = readFileSync(TYPES_SRC, "utf8");
     expect(src).toMatch(/export\s+type\s+ActPolicyName\b/);

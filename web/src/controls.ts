@@ -7,6 +7,11 @@ import type {
 } from "./types";
 import type { SectionId } from "./sections";
 import { defaultIntervalMsForPolicy } from "./autopilotLoop";
+import type { ScheduleWire } from "./engine/types";
+import {
+  pipelineDeliveryHint,
+  weekdayLabel,
+} from "./calendar/nextOrderAdvance";
 
 /** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
@@ -57,6 +62,8 @@ export type ControlsState = {
   configDirty: boolean;
   episodeDay: number;
   pendingOrder: number;
+  /** Snapshot schedule for weekday / pipeline chrome (T-086). */
+  schedule: ScheduleWire | null;
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
@@ -195,7 +202,7 @@ export function mountPlayChrome(
         </div>
       </label>
       <div class="btn-row btn-row-play">
-        <button type="button" class="btn-advance" id="btn-advance">Advance day</button>
+        <button type="button" class="btn-advance" id="btn-advance">Advance to next order day</button>
         <button type="button" class="btn-autopilot" id="btn-autopilot-play" aria-label="Autopilot Play">Autopilot Play</button>
         <button type="button" class="btn-autopilot" id="btn-autopilot-pause" aria-label="Autopilot Pause" disabled>Autopilot Pause</button>
         <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
@@ -204,6 +211,8 @@ export function mountPlayChrome(
         While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
       </p>
       <div class="meta-line" id="order-meta"></div>
+      <div class="day-label" id="day-label"></div>
+      <div class="delivery-hint" id="delivery-hint"></div>
       <div class="dirty-banner" id="dirty-banner" hidden>
         Config edited — new days use it; <strong>Reset</strong> regenerates history from seed.
       </div>
@@ -214,6 +223,8 @@ export function mountPlayChrome(
   const orderNum = root.querySelector("#order-num") as HTMLInputElement;
   const caseEm = root.querySelector("#case-em") as HTMLElement;
   const meta = root.querySelector("#order-meta") as HTMLElement;
+  const dayLabelEl = root.querySelector("#day-label") as HTMLElement;
+  const deliveryHintEl = root.querySelector("#delivery-hint") as HTMLElement;
   const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
   const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
   const btnAutopilotPlay = root.querySelector(
@@ -224,6 +235,20 @@ export function mountPlayChrome(
   ) as HTMLButtonElement;
   let caseSize = initial.config.case_size;
   let autopilotRunning = false;
+
+  function syncCalendarChrome(s: ControlsState): void {
+    if (s.schedule) {
+      // Weekday from schedule.epoch (2024-01-01 monday0) + episode day.
+      dayLabelEl.textContent = `Weekday ${weekdayLabel(s.episodeDay, s.schedule)}`;
+      deliveryHintEl.textContent = pipelineDeliveryHint(
+        s.episodeDay,
+        s.schedule,
+      );
+    } else {
+      dayLabelEl.textContent = "";
+      deliveryHintEl.textContent = "";
+    }
+  }
 
   function syncOrderInputs(qty: number, cs: number): void {
     caseSize = cs;
@@ -269,6 +294,7 @@ export function mountPlayChrome(
 
   syncOrderInputs(initial.orderQty, initial.config.case_size);
   meta.textContent = `Episode day ${initial.episodeDay} · pending inbound ${initial.pendingOrder} units`;
+  syncCalendarChrome(initial);
   dirtyBanner.hidden = !initial.configDirty;
   setAutopilotRunning(false);
 
@@ -276,6 +302,7 @@ export function mountPlayChrome(
     update(s) {
       syncOrderInputs(s.orderQty, s.config.case_size);
       meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
+      syncCalendarChrome(s);
       dirtyBanner.hidden = !s.configDirty;
     },
     setOrderFromCaseChange(qty, cs) {
@@ -562,6 +589,7 @@ export function mountSectionControls(
 export function controlsFromVm(
   vm: ViewModel,
   orderQty: number,
+  schedule: ScheduleWire | null = null,
 ): ControlsState {
   return {
     orderQty,
@@ -570,5 +598,6 @@ export function controlsFromVm(
     configDirty: vm.config_dirty,
     episodeDay: vm.episode_day,
     pendingOrder: vm.pending_order,
+    schedule,
   };
 }

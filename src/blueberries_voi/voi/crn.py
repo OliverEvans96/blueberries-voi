@@ -189,6 +189,7 @@ def _run_scenario_episode(
             rng_demand=rng_d,
             rng_alloc=rng_a,
             rng_spoil=rng_s,
+            day=day,
         )
         cohorts = result.cohorts
         lots = [LotState(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts]
