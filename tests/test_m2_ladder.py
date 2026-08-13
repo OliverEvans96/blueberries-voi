@@ -36,7 +36,7 @@ _FIVE_POINTS: tuple[str, ...] = (
 )
 
 _FORBIDDEN_CONTROLLER_IMPORTS = frozenset({"matplotlib", "pyplot", "pyarrow"})
-_LOCKED_RUNTIME_DEPS = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
+_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
 
 
 def _resolve_ladder_module() -> Any:

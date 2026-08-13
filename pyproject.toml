@@ -8,10 +8,9 @@ version = "0.1.0"
 description = "Simulation, analysis, and visualization for blueberry value-of-information work"
 readme = "README.md"
 requires-python = ">=3.11"
+# Slim / browser install story (ADR 0099 / T-046): no hard pyarrow or matplotlib.
 dependencies = [
-    "matplotlib>=3.11.1",
     "numpy>=2.4.6",
-    "pyarrow>=25.0.1",
     "scipy>=1.17.1",
 ]
 
@@ -31,6 +30,9 @@ dev = [
     "pytest-cov>=5.0.0",
     "mypy>=1.8.0",
     "ruff>=0.4.0",
+    # Native/CI tests exercise desktop Gate 0 + viz (not on the browser wheel).
+    "pyarrow>=25.0.1",
+    "matplotlib>=3.11.1",
 ]
 notebooks = [
     "jupyter>=1.0.0",

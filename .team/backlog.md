@@ -2,6 +2,7 @@
 
 Escalations and items that need a human decision land here.
 
+- **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there).
 - **M1.5 / T-021 settled:** Production RBPF is mean-field (ADR
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**

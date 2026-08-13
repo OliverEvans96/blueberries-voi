@@ -30,7 +30,7 @@ _VOI = _SRC / "voi"
 # Implementation tickets that must be closed for M2 DoD (T-034 AC).
 _M2_TICKETS: tuple[str, ...] = tuple(f"T-{n:03d}" for n in range(23, 34))
 
-_LOCKED_RUNTIME_DEPS = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
+_LOCKED_RUNTIME_DEPS = frozenset({"numpy", "scipy"})  # ADR 0099 / T-046 slim core
 _FORBIDDEN_CONTROLLER_IMPORTS = frozenset(
     {"matplotlib", "pyplot", "pyarrow", "PIL", "plotly"}
 )
@@ -418,7 +418,7 @@ def test_production_backend_remains_mean_field() -> None:
 
 
 def test_no_new_runtime_dependencies_for_m2_closeout() -> None:
-    """Runtime deps remain the pre-M2 locked set (ADRs 0084/0085)."""
+    """Core runtime deps stay slim (ADR 0099); viz/data stay optional extras."""
     data = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     raw = data["project"]["dependencies"]
     names: set[str] = set()
