@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.ordering import ConstantOrderPolicy
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
@@ -267,6 +268,8 @@ class EngineSession:
         day = int(self._state.episode_day)
         pending = dict(self._state.pending)
         belief = self._belief_for_policy()
+        alpha = float(budget_overrides.get("alpha", 0.9))
+        rho = float(budget_overrides.get("rho", 0.8))
 
         if name in {"constant", "const", "fixed"}:
             q = budget_overrides.get("order_qty", budget_overrides.get("q", 0))
@@ -279,13 +282,29 @@ class EngineSession:
                 )
             )
 
+        if name in {"damped_sw", "sw"}:
+            sw_policy = DampedSurvivalWeightedPolicy(
+                alpha=alpha,
+                rho=rho,
+                params=self._params,
+            )
+            return int(
+                sw_policy.order(
+                    belief,
+                    day=day,
+                    pending_orders=pending,
+                )
+            )
+
         if name in {"rollout", "ctl", "rollout_order"}:
-            base = ConstantOrderPolicy(0, case_size=self._params.case_size)
+            base = DampedSurvivalWeightedPolicy(
+                alpha=alpha,
+                rho=rho,
+                params=self._params,
+            )
             return int(
                 rollout_order(
                     belief,
-                    # ConstantOrderPolicy.order pending_orders typing is tuple;
-                    # runtime accepts Mapping (unused). Match CTL protocol via cast.
                     base_policy=cast("Any", base),
                     day=day,
                     pending_orders=pending,
@@ -301,7 +320,7 @@ class EngineSession:
                 )
             )
 
-        msg = f"unknown policy {policy!r}; use 'constant' or 'rollout'"
+        msg = f"unknown policy {policy!r}; use 'damped_sw', 'constant', or 'rollout'"
         raise ValueError(msg)
 
     def _belief_for_policy(self) -> ShelfBelief:
