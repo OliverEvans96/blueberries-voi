@@ -17,8 +17,11 @@ uv sync --all-extras
 uv run ruff check .
 uv run ruff format .
 uv run mypy src tests
-uv run pytest
+uv run pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
+
+Everyday loops can use plain `uv run pytest` (no coverage). See `AGENTS.md` for
+the role gate ladder.
 
 ## Notebooks
 

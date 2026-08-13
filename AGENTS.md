@@ -30,7 +30,7 @@ import the package.
 | Layout | **src/** package `blueberries_voi` |
 | Lint / format | **Ruff** |
 | Types | **Mypy** strict |
-| Tests | **pytest** + branch coverage (≥80%) |
+| Tests | **pytest** (+ **pytest-xdist** / branch coverage on verify·CI) |
 | Notebooks | optional extra `[notebooks]` (Jupyter + ipykernel) |
 | Team process | **agent-dev-team** → `.team/` |
 
@@ -51,14 +51,26 @@ import the package.
 - New modules, dependencies, or public interfaces → **architect** (ADR + spec)
   before implementation; **qa** writes failing tests before production code.
 
-## Toolchain (run locally before every push)
+## Role gate ladder
+
+Everyday `pytest` is **fast**: no coverage plugin in default `addopts`. Coverage
+≥80% and xdist apply only on the **verify / CI** rung.
+
+| Role | Gates |
+|------|--------|
+| **qa** | `uv sync` once → `uv run pytest <new tests> --no-cov` (prove RED) |
+| **implement** | Ticket tests with `--no-cov` in the red/green loop; `ruff` / `mypy` on touched paths (or full tree if cheap); optional one full verify-style `pytest` with coverage before handoff |
+| **review** | No pytest |
+| **verify / CI** | `ruff` + `mypy` + **full** pytest **with** coverage ≥80% and xdist (command below) |
+
+## Toolchain (verify / before push)
 
 ```bash
 uv sync --all-extras
 uv run ruff check .
 uv run ruff format .
 uv run mypy src tests
-uv run pytest
+uv run pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
 
 Pip-equivalent (matches CI):
@@ -68,7 +80,14 @@ pip install -e ".[dev]"
 ruff check .
 ruff format .
 mypy src tests
-pytest
+pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+```
+
+Fast day-to-day (no coverage):
+
+```bash
+uv run pytest                    # full suite, no cov
+uv run pytest tests/test_foo.py --no-cov   # ticket slice / RED proof
 ```
 
 Notebooks:
@@ -85,8 +104,8 @@ uv run jupyter lab
 |-------------|----------|
 | Formatter / linter | **Ruff** — must pass |
 | Types | **Mypy** strict on `src` and `tests` |
-| Tests | **pytest** with branch coverage |
-| Coverage | **≥80%** on `blueberries_voi` (`--cov-fail-under=80`) |
+| Tests | **pytest**; verify/CI also use **pytest-xdist** (`-n auto`) |
+| Coverage | **≥80%** on `blueberries_voi` on verify/CI only (`--cov-fail-under=80`) |
 
 ## Project layout
 
@@ -115,11 +134,12 @@ done. Definition of done: acceptance criteria pass · `.team/reviews/` APPROVED 
 
 ## CI
 
-GitHub Actions runs Ruff, Mypy, and pytest with coverage on Python 3.11 and 3.12.
-A pull request is not complete until CI is green.
+GitHub Actions runs Ruff, Mypy, and pytest with xdist + coverage on Python 3.11
+and 3.12. A pull request is not complete until CI is green.
 
 ## Summary for agents
 
-**Write tests first. Keep mypy strict and ruff clean. Keep coverage ≥80%. Prefer
-library code over notebook-only logic. Never "fix" failures by weakening
-configuration.**
+**Write tests first. Keep mypy strict and ruff clean. Keep coverage ≥80% on
+verify/CI. Prefer library code over notebook-only logic. Never "fix" failures
+by weakening configuration. Use the role gate ladder — do not run full coverage
+on every qa/implement loop.**
