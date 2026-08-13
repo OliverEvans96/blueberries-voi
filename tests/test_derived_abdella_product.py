@@ -14,13 +14,15 @@ from __future__ import annotations
 import ast
 import importlib
 import sys
-from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ABDELLA_PARQUET = _REPO_ROOT / "data" / "abdella"
@@ -44,7 +46,9 @@ _BROWSER_ENTRY_CANDIDATES = (
 )
 
 _PRODUCT_KEYS = ("abdella_all", "long_haul", "short_haul")
-_FORBIDDEN_BROWSER_IMPORT_ROOTS = frozenset({"matplotlib", "pyarrow", "pyarrow.parquet"})
+_FORBIDDEN_BROWSER_IMPORT_ROOTS = frozenset(
+    {"matplotlib", "pyarrow", "pyarrow.parquet"}
+)
 
 
 def _resolve_product_module() -> Any:
@@ -125,13 +129,15 @@ def _imported_roots(path: Path) -> set[str]:
 @contextmanager
 def _block_modules(*names: str) -> Iterator[None]:
     """Prevent importing heavy deps; purge already-loaded copies."""
-    doomed = [key for key in list(sys.modules) if any(
-        key == name or key.startswith(f"{name}.") for name in names
-    )]
+    doomed = [
+        key
+        for key in list(sys.modules)
+        if any(key == name or key.startswith(f"{name}.") for name in names)
+    ]
     saved = {key: sys.modules.pop(key) for key in doomed}
 
     class _Blocker:
-        def find_spec(  # noqa: ANN001
+        def find_spec(
             self,
             fullname: str,
             path: object = None,
@@ -144,12 +150,12 @@ def _block_modules(*names: str) -> Iterator[None]:
             return None
 
     blocker = _Blocker()
-    sys.meta_path.insert(0, blocker)  # type: ignore[arg-type]
+    sys.meta_path.insert(0, blocker)
     try:
         yield
     finally:
-        if blocker in sys.meta_path:  # type: ignore[comparison-overlap]
-            sys.meta_path.remove(blocker)  # type: ignore[arg-type]
+        if blocker in sys.meta_path:
+            sys.meta_path.remove(blocker)
         sys.modules.update(saved)
 
 
@@ -183,9 +189,13 @@ def test_build_derived_abdella_product_writes_numpy_or_json_friendly_artifact(
     out_path = Path(result)
     assert out_path.is_file(), f"builder must write an on-disk product at {out_path}"
     # Numpy- or JSON-friendly — not parquet.
-    assert out_path.suffix.lower() in {".npz", ".json", ".npz.npz", ".npzz", ".npz.gz"}, (
-        f"derived product must be numpy-/JSON-friendly, got {out_path.suffix!r}"
-    )
+    assert out_path.suffix.lower() in {
+        ".npz",
+        ".json",
+        ".npz.npz",
+        ".npzz",
+        ".npz.gz",
+    }, f"derived product must be numpy-/JSON-friendly, got {out_path.suffix!r}"
 
 
 def test_build_derived_abdella_product_missing_parquet_dir_raises(
@@ -214,7 +224,7 @@ def test_load_derived_abdella_arrival_ages_is_exportable() -> None:
 
 def test_load_derived_roundtrip_without_pyarrow(tmp_path: Path) -> None:
     build = _resolve_attr("build_derived_abdella_product", "build_derived_abdella")
-    load = _resolve_attr(
+    _resolve_attr(
         "load_derived_abdella_arrival_ages",
         "load_derived_abdella",
         "load_arrival_age_product",
@@ -264,9 +274,9 @@ def test_arrival_age_loader_accepts_injectable_age_array() -> None:
     if isinstance(load_or_wrap, type):
         # Dataclass / NamedTuple constructor
         try:
-            product = load_or_wrap(ages)  # type: ignore[misc]
+            product = load_or_wrap(ages)
         except TypeError:
-            product = load_or_wrap(arrival_ages=ages)  # type: ignore[call-arg]
+            product = load_or_wrap(arrival_ages=ages)
     else:
         try:
             product = load_or_wrap(ages)
@@ -287,9 +297,9 @@ def test_arrival_age_loader_rejects_empty_injectable_ages() -> None:
     with pytest.raises((ValueError, TypeError)):
         if isinstance(load_or_wrap, type):
             try:
-                load_or_wrap(empty)  # type: ignore[misc]
+                load_or_wrap(empty)
             except TypeError:
-                load_or_wrap(arrival_ages=empty)  # type: ignore[call-arg]
+                load_or_wrap(arrival_ages=empty)
         else:
             try:
                 load_or_wrap(empty)
@@ -305,7 +315,9 @@ def _load_with_key(load: Callable[..., Any], artifact: Path, product_key: str) -
 
 
 @pytest.mark.parametrize("product_key", _PRODUCT_KEYS)
-def test_product_key_selects_named_abdella_mix(product_key: str, tmp_path: Path) -> None:
+def test_product_key_selects_named_abdella_mix(
+    product_key: str, tmp_path: Path
+) -> None:
     build = _resolve_attr("build_derived_abdella_product", "build_derived_abdella")
     load = _resolve_attr(
         "load_derived_abdella_arrival_ages",
@@ -354,7 +366,7 @@ def test_product_keys_constant_documents_three_named_mixes() -> None:
         "ARRIVAL_AGE_PRODUCT_KEYS",
         "ABDELLA_PRODUCT_KEYS",
     )
-    key_set = set(keys) if not isinstance(keys, dict) else set(keys)
+    key_set = set(keys)
     for expected in _PRODUCT_KEYS:
         assert expected in key_set, f"missing documented product key {expected!r}"
 
@@ -450,13 +462,17 @@ def test_filter_arrival_priors_lazy_or_free_of_eager_parquet_import() -> None:
 
     def _top_level_abdella_parquet_import(module_ast: ast.AST) -> bool:
         for node in module_ast.body:  # type: ignore[attr-defined]
-            if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module.endswith("model.abdella") or node.module.endswith(
-                    ".abdella"
-                ):
-                    names = {a.name for a in node.names}
-                    if "load_abdella_shipments" in names:
-                        return True
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and (
+                    node.module.endswith("model.abdella")
+                    or node.module.endswith(".abdella")
+                )
+            ):
+                names = {a.name for a in node.names}
+                if "load_abdella_shipments" in names:
+                    return True
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 continue
         return False

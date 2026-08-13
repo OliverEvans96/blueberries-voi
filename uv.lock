@@ -230,6 +230,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+data = [
+    { name = "pyarrow" },
+]
 dev = [
     { name = "mypy" },
     { name = "pytest" },
@@ -240,21 +243,26 @@ notebooks = [
     { name = "ipykernel" },
     { name = "jupyter" },
 ]
+viz = [
+    { name = "matplotlib" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29.0" },
     { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.0.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.11.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "pyarrow", marker = "extra == 'data'", specifier = ">=25.0.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "scipy", specifier = ">=1.17.1" },
 ]
-provides-extras = ["dev", "notebooks"]
+provides-extras = ["browser", "data", "viz", "dev", "notebooks"]
 
 [[package]]
 name = "certifi"

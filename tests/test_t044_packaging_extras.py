@@ -104,9 +104,16 @@ def test_core_runtime_dependencies_document_split_or_shed_heavy_deps() -> None:
         "T-044 requires ENG-01 extras (browser/data/viz or equivalents) in "
         "pyproject optional-dependencies"
     )
-    assert eng_keys & {"browser", "slim", "pyodide", "data", "parquet", "abdella", "viz", "plot"}, (
-        f"ENG-01 extras missing expected names; have {sorted(eng_keys)}"
-    )
+    assert eng_keys & {
+        "browser",
+        "slim",
+        "pyodide",
+        "data",
+        "parquet",
+        "abdella",
+        "viz",
+        "plot",
+    }, f"ENG-01 extras missing expected names; have {sorted(eng_keys)}"
 
 
 def test_python_314_ci_matrix_or_explicit_deferral_to_t046() -> None:
