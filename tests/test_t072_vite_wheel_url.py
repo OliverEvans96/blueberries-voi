@@ -126,10 +126,9 @@ def test_vite_config_exposes_local_slim_wheel_path() -> None:
     )
     # Also accept a Vite-visible public/wheels (or web/wheels) directory contract
     # once implementer lands it — but config or path must exist.
-    public_wheels = (
-        (_REPO_ROOT / "web" / "public" / "wheels").is_dir()
-        or (_REPO_ROOT / "web" / "wheels").is_dir()
-    )
+    public_wheels = (_REPO_ROOT / "web" / "public" / "wheels").is_dir() or (
+        _REPO_ROOT / "web" / "wheels"
+    ).is_dir()
     assert wheel_path_wired or public_wheels, (
         "Vite must expose a documented local slim-wheel URL (e.g. /wheels/*.whl "
         "or path from scripts/build_slim_wheel.py into a Vite-visible directory); "
@@ -163,7 +162,7 @@ def test_vite_config_mentions_documented_local_urls_contract() -> None:
     ),
 )
 def test_studio_env_keys_remain_wheel_worker_contract(needle: str) -> None:
-    """Studio contract keys stay VITE_PYODIDE_* (spec Interfaces); adapter must keep them."""
+    """Studio contract keys stay VITE_PYODIDE_* (spec Interfaces)."""
     studio = (_REPO_ROOT / "web" / "src" / "engine" / "studioAdapter.ts").read_text(
         encoding="utf-8"
     )

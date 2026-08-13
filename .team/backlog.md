@@ -7,7 +7,7 @@ Escalations and items that need a human decision land here.
 See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026-08-13.md).
 
 - **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
-- **ENG-01 dual-mode readiness:** **T-070–T-075**, ADR **0107–0108** — **Active** Wave 0 lock on `team/T-070/architect` (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md)). Next: qa/implement **T-071 ∥ T-072 ∥ T-073**, then T-074, T-075. Do **not** reuse T-067–T-069 / 0105–0106 for readiness.
+- **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md)). In progress on ticket branches; do **not** reuse T-067–T-069 / 0105–0106 for readiness.
 - **Next free after both:** **T-076+**, ADR **0109+**.
 
 ## Needs human now
@@ -21,10 +21,10 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 ## Landed on `main` (tip `d376852`)
 
 - **testmon LFS cache** and **chore/agent-gate-ladder** merged.
-- **ENG-01 dual-runtime (T-042–T-058)** on `main` via `team/ENG-01/integrate` — ADRs [0099](./adr/0099-eng-01-dual-runtime-ap.md)–[0102](./adr/0102-eng-01-api-asgi-session.md) (0073 superseded). DoD: [ENG-01.md](./reviews/ENG-01.md). Binding prefs remain in ADRs 0100–0101 and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
+- **ENG-01 dual-runtime (T-042–T-058)** Done — complete pending human merge of any remaining tip notes; landed on `main` via `team/ENG-01/integrate`. ADRs [0099](./adr/0099-eng-01-dual-runtime-ap.md)–[0102](./adr/0102-eng-01-api-asgi-session.md) (0073 superseded). DoD: [ENG-01.md](./reviews/ENG-01.md). Binding prefs remain in ADRs 0100–0101 and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
 - **Exact LL speedups (T-064–T-065)** on `main` via `team/T-064-065/integrate` — ADR [0103](./adr/0103-exact-faster-p1-f2a-likelihood.md); report [M3-exact-ll-speedup-bench.md](./reports/M3-exact-ll-speedup-bench.md). Measured closed-loop ~8–11× on P1/F2a; density unchanged. Residual: full production VOI grid may still need stagewise design / budget cuts / Numba if overnight citeable run requires more.
 - **Audit remediation** on `main` via `team/audit-remediation-integ` — ADR [0104](./adr/0104-audit-remediation-defaults.md); artifacts under `*-audit-remediation*` paths. **Science VOI is not citeable** until production regen. Remainder pointers: [audit-remediation-remainder.md](./reports/audit-remediation-remainder.md).
-- **M2 (T-022–T-034) and M3 library (T-035–T-041)** already on `main` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
+- **M2+M3 library work is on `main`** (M2 T-022–T-034 and M3 T-035–T-041; plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
 
 ## Settled / historical (do not reopen lightly)
 

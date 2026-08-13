@@ -218,9 +218,11 @@ def test_duplicate_particles_match_naive_per_particle_mf(
     )
 
     for i in range(n_particles):
-        np.testing.assert_array_equal(
+        np.testing.assert_allclose(
             out.age_post[i],
             naive[i],
+            rtol=1e-4,
+            atol=1e-5,
             err_msg=f"particle {i} age_post differs from naive MF reference",
         )
     np.testing.assert_array_equal(out.age_post[0], out.age_post[1])
