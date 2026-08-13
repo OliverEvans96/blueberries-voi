@@ -362,7 +362,7 @@ def test_draw_demand_without_day_keeps_prior_mu() -> None:
     sig = inspect.signature(draw_demand)
     if "day" in sig.parameters:
         rng2 = spawn_rng(99, run_id="t079-mu", day=1, stream=STREAM_DEMAND)
-        assert draw_demand(rng2, params, day=None) == sample  # type: ignore[call-arg]
+        assert draw_demand(rng2, params, day=None) == sample
 
 
 def test_closed_loop_forwards_day_kw_to_day_step_when_supported(

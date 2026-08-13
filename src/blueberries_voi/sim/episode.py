@@ -78,7 +78,7 @@ def _invoke_policy_order(
     kwargs: dict[str, object] = {"pending_orders": pending_orders}
     if "day" in sig.parameters:
         kwargs["day"] = day
-    return int(policy.order(shelf, **kwargs))  # type: ignore[arg-type]
+    return int(policy.order(shelf, **kwargs))
 
 
 def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
@@ -111,7 +111,7 @@ def _call_day_step(
 ) -> DayStepResult:
     """ADR 0113 shim: forward ``day=`` only when ``day_step`` accepts it."""
     if "day" in inspect.signature(day_step).parameters:
-        return day_step(cohorts, day=day, **kwargs)  # type: ignore[call-arg]
+        return day_step(cohorts, day=day, **kwargs)
     return day_step(cohorts, **kwargs)
 
 
