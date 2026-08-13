@@ -2,6 +2,10 @@
 
 Routes match T-049 Interfaces. Responses are ADR 0100 wire dicts only — no
 ViewModel, PnL, economics, ghost, or heatmap. Matplotlib is never imported.
+
+CORS (ADR 0108 / T-073): local-dev Vite origins only —
+``http://localhost:5173`` and ``http://127.0.0.1:5173``. Production CDN /
+auth CORS is out of scope.
 """
 
 from __future__ import annotations
@@ -11,6 +15,7 @@ from typing import Any
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
 from blueberries_voi.model.abdella import ShipmentTrace
@@ -20,6 +25,12 @@ from blueberries_voi.simulator.session import EngineSession
 # In-process session store (local dev only; no TTL / multi-tenant isolation).
 _SESSIONS: dict[str, EngineSession] = {}
 
+# Local Vite → API (ADR 0108); production origins are out of scope for T-073.
+_LOCAL_VITE_ORIGINS: tuple[str, ...] = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+
 app = FastAPI(
     title="blueberries-voi interactive API",
     description=(
@@ -27,6 +38,12 @@ app = FastAPI(
         "In-process sessions; not production multi-tenant."
     ),
     version="0.1.0",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(_LOCAL_VITE_ORIGINS),
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
