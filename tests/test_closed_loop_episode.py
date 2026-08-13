@@ -46,6 +46,7 @@ def _is_order_day(day: int) -> bool:
 def _weekday(day: int) -> int:
     return (_EPISODE_EPOCH + timedelta(days=day)).weekday()
 
+
 # ---------------------------------------------------------------------------
 # Fixtures / helpers (no Abdella FS)
 # ---------------------------------------------------------------------------

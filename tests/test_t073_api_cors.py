@@ -130,8 +130,7 @@ def test_options_preflight_sessions_returns_cors_success_headers(
     )
     status = _status(resp)
     assert status in {200, 204}, (
-        f"OPTIONS {_SESSION_CREATE} preflight from {origin} must succeed; "
-        f"got {status}"
+        f"OPTIONS {_SESSION_CREATE} preflight from {origin} must succeed; got {status}"
     )
     hdrs = _headers(resp)
     allow_origin = hdrs.get("access-control-allow-origin")
@@ -142,8 +141,7 @@ def test_options_preflight_sessions_returns_cors_success_headers(
     allow_methods = hdrs.get("access-control-allow-methods", "")
     methods_upper = allow_methods.upper()
     assert "POST" in methods_upper, (
-        "Access-Control-Allow-Methods must include POST "
-        f"(got {allow_methods!r})"
+        f"Access-Control-Allow-Methods must include POST (got {allow_methods!r})"
     )
 
 

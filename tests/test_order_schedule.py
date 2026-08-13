@@ -67,8 +67,7 @@ def _resolve_module() -> Any:
             continue
     detail = f" ({last_err})" if last_err is not None else ""
     pytest.fail(
-        "T-077 OrderSchedule module missing; tried "
-        f"{_MODULE_CANDIDATES}{detail}",
+        f"T-077 OrderSchedule module missing; tried {_MODULE_CANDIDATES}{detail}",
         pytrace=False,
     )
 

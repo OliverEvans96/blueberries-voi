@@ -33,6 +33,7 @@ def _is_order_day(day: int) -> bool:
     """T-079: nearest case_round applies on schedule order days only."""
     return bool(DEFAULT_ORDER_SCHEDULE.can_order(day))
 
+
 # Midpoints / nearest fixtures from T-026 / T-042 (case_size=8).
 _NEAREST_MIDPOINTS: tuple[tuple[float, int], ...] = (
     (4.0, 8),
