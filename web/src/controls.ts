@@ -44,6 +44,7 @@ export type ControlsCallbacks = {
   onReset: () => void;
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
+  onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
 };
 
 export type ControlsState = {
@@ -54,6 +55,36 @@ export type ControlsState = {
   episodeDay: number;
   pendingOrder: number;
 };
+
+/** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
+export type ControllerPolicy = "damped_sw" | "rollout" | "constant";
+
+export type ControllerControlsState = {
+  policy: ControllerPolicy;
+  alpha: number;
+  rho: number;
+  H: number;
+  n_rollout_paths: number;
+  candidate_case_radius: number;
+  n_particles: number;
+  intervalMs: number;
+};
+
+/** ADR 0099 dialed browser budgets + CTL-01 defaults. */
+export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
+  policy: "damped_sw",
+  alpha: 0.9,
+  rho: 0.8,
+  H: 7,
+  n_rollout_paths: 2,
+  candidate_case_radius: 1,
+  n_particles: 200,
+  intervalMs: 500,
+};
+
+function defaultIntervalForPolicy(policy: ControllerPolicy): number {
+  return policy === "rollout" ? 1000 : 500;
+}
 
 function snap(qty: number, caseSize: number): number {
   if (qty <= 0) return 0;
@@ -223,9 +254,17 @@ export function mountPlayChrome(
 export function mountSectionControls(
   root: HTMLElement,
   initial: ControlsState,
-  cb: Pick<ControlsCallbacks, "onEconomicsChange" | "onConfigChange">,
+  cb: Pick<
+    ControlsCallbacks,
+    "onEconomicsChange" | "onConfigChange" | "onControllerChange"
+  >,
   onCaseSizeChange?: (caseSize: number) => void,
-): { update: (s: ControlsState) => void; showSection: (id: SectionId) => void } {
+  initialController: ControllerControlsState = DEFAULT_CONTROLLER_CONTROLS,
+): {
+  update: (s: ControlsState) => void;
+  showSection: (id: SectionId) => void;
+  updateController: (s: ControllerControlsState) => void;
+} {
   root.innerHTML = `
     <div class="section-controls">
       <div class="controls-block" data-section="play">
@@ -281,8 +320,51 @@ export function mountSectionControls(
           </div>
         </div>
       </div>
+      <div class="controls-block" data-section="controller" hidden>
+        <p class="hint">
+          Policy and rollout budgets feed Autopilot / act — physics still needs Reset.
+        </p>
+        <div class="field">
+          <span class="field-label">Policy</span>
+          <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
+            <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
+            <button type="button" class="obs-chip policy-chip" data-policy="rollout" title="One-step rollout">rollout</button>
+            <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
+          </div>
+        </div>
+        <label class="field">
+          <span class="field-label">α <span id="val-alpha"></span></span>
+          <input type="range" id="alpha" min="0.5" max="0.99" step="0.01" />
+        </label>
+        <label class="field">
+          <span class="field-label">ρ <span id="val-rho"></span></span>
+          <input type="range" id="rho" min="0.1" max="1" step="0.05" />
+        </label>
+        <label class="field">
+          <span class="field-label">H (horizon) <span id="val-H"></span></span>
+          <input type="number" id="H" min="1" max="56" step="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">n_rollout_paths <span id="val-n_rollout_paths"></span></span>
+          <input type="number" id="n_rollout_paths" min="1" max="64" step="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">candidate_case_radius <span id="val-candidate_case_radius"></span></span>
+          <input type="number" id="candidate_case_radius" min="0" max="8" step="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">n_particles <span id="val-n_particles"></span></span>
+          <input type="number" id="n_particles" min="16" max="2000" step="16" />
+        </label>
+        <label class="field">
+          <span class="field-label">Autopilot interval (ms) <span id="val-intervalMs"></span></span>
+          <input type="number" id="intervalMs" min="50" max="10000" step="50" />
+        </label>
+      </div>
     </div>
   `;
+
+  let controllerState: ControllerControlsState = { ...initialController };
 
   function syncSlider(spec: SliderSpec, value: number): void {
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
@@ -312,6 +394,32 @@ export function mountSectionControls(
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
+  }
+
+  function syncController(s: ControllerControlsState): void {
+    controllerState = { ...s };
+    root.querySelectorAll<HTMLButtonElement>(".policy-chip").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.policy === s.policy);
+    });
+    const alphaEl = root.querySelector("#alpha") as HTMLInputElement;
+    const rhoEl = root.querySelector("#rho") as HTMLInputElement;
+    alphaEl.value = String(s.alpha);
+    rhoEl.value = String(s.rho);
+    (root.querySelector("#val-alpha") as HTMLElement).textContent =
+      s.alpha.toFixed(2);
+    (root.querySelector("#val-rho") as HTMLElement).textContent = s.rho.toFixed(2);
+    for (const id of [
+      "H",
+      "n_rollout_paths",
+      "candidate_case_radius",
+      "n_particles",
+      "intervalMs",
+    ] as const) {
+      const el = root.querySelector(`#${id}`) as HTMLInputElement;
+      el.value = String(s[id]);
+      const label = root.querySelector(`#val-${id}`) as HTMLElement | null;
+      if (label) label.textContent = String(s[id]);
+    }
   }
 
   for (const spec of PRICE_SLIDERS) {
@@ -350,13 +458,62 @@ export function mountSectionControls(
     });
   });
 
+  root.querySelectorAll<HTMLButtonElement>(".policy-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const policy = btn.dataset.policy as ControllerPolicy;
+      const partial: Partial<ControllerControlsState> = {
+        policy,
+        intervalMs: defaultIntervalForPolicy(policy),
+      };
+      syncController({ ...controllerState, ...partial });
+      cb.onControllerChange?.(partial);
+    });
+  });
+
+  const alphaInput = root.querySelector("#alpha") as HTMLInputElement;
+  alphaInput.addEventListener("input", () => {
+    const alpha = Number(alphaInput.value);
+    (root.querySelector("#val-alpha") as HTMLElement).textContent =
+      alpha.toFixed(2);
+    controllerState = { ...controllerState, alpha };
+    cb.onControllerChange?.({ alpha });
+  });
+  const rhoInput = root.querySelector("#rho") as HTMLInputElement;
+  rhoInput.addEventListener("input", () => {
+    const rho = Number(rhoInput.value);
+    (root.querySelector("#val-rho") as HTMLElement).textContent = rho.toFixed(2);
+    controllerState = { ...controllerState, rho };
+    cb.onControllerChange?.({ rho });
+  });
+
+  for (const id of [
+    "H",
+    "n_rollout_paths",
+    "candidate_case_radius",
+    "n_particles",
+    "intervalMs",
+  ] as const) {
+    const el = root.querySelector(`#${id}`) as HTMLInputElement;
+    el.addEventListener("change", () => {
+      const value = Number(el.value);
+      const label = root.querySelector(`#val-${id}`) as HTMLElement | null;
+      if (label) label.textContent = String(value);
+      controllerState = { ...controllerState, [id]: value };
+      cb.onControllerChange?.({ [id]: value });
+    });
+  }
+
   syncEconomics(initial.economics);
   syncConfig(initial.config);
+  syncController(initialController);
 
   return {
     update(s) {
       syncEconomics(s.economics);
       syncConfig(s.config);
+    },
+    updateController(s) {
+      syncController(s);
     },
     showSection(id) {
       root.querySelectorAll<HTMLElement>(".controls-block").forEach((block) => {
