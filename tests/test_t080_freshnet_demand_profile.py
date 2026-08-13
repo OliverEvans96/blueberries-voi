@@ -4,7 +4,7 @@ Locks ADR 0112 / ``.team/specs/T-080.md`` before the fit script and committed
 derived product land:
 
 * committed ``data/freshnet/demand_profile.json`` (versioned schema, DOWxweek,
-  ``scale_target_mu`` ~ 30, ``demand_vm``)
+  ``scale_target_mu`` ~= 30, ``demand_vm``)
 * fit report beside the profile (SKU IDs, censoring, V/M, Mar-Jun honesty)
 * ``PROVENANCE.md`` updated with final SKU list + pointers to profile + report
 * ``scripts/fit_freshnet_demand.py`` (or equivalent) requiring ``[freshnet]``
@@ -209,7 +209,7 @@ def _extract_sku_ids(text: str) -> list[str]:
     ids: list[str] = []
     # Bullet / comma lists of numeric or alphanumeric opaque IDs.
     for match in re.finditer(
-        r"(?:SKU|product|item)[_\s-]*(?:ID|id)?s?\s*[:：]\s*([^\n]+)",
+        r"(?:SKU|product|item)[_\s-]*(?:ID|id)?s?\s*[::]\s*([^\n]+)",
         text,
         re.I,
     ):
@@ -236,7 +236,7 @@ def _extract_sku_ids(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# AC: committed demand_profile.json - versioned schema, DOWxweek, μ~30, V/M
+# AC: committed demand_profile.json - versioned schema, DOWxweek, μ~=30, V/M
 # ---------------------------------------------------------------------------
 
 
@@ -304,11 +304,11 @@ def test_demand_profile_encodes_dow_by_week_structure() -> None:
 
 
 def test_demand_profile_scale_target_mu_near_30() -> None:
-    """Operational scale target ~ 30; absolute +/-1 (documented in fit report)."""
+    """Operational scale target ~= 30; absolute +/-1 (documented in fit report)."""
     profile = _load_profile()
     keys = _profile_keys_lower(profile)
     assert "scale_target_mu" in keys, (
-        "demand_profile.json must record scale_target_mu (operational μ~30)"
+        "demand_profile.json must record scale_target_mu (operational μ~=30)"
     )
     mu = float(keys["scale_target_mu"])
     assert abs(mu - _SCALE_TARGET_MU) <= _SCALE_ABS_TOL, (
@@ -343,7 +343,7 @@ def test_fit_report_documents_scale_tolerance_matching_tests() -> None:
         re.I,
     ), (
         f"{report.name} must document the operational-μ tolerance used for "
-        f"scale_target_mu~30 (tests lock absolute +/-{_SCALE_ABS_TOL})"
+        f"scale_target_mu~=30 (tests lock absolute +/-{_SCALE_ABS_TOL})"
     )
 
 
