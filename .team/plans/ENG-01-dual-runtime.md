@@ -1,6 +1,6 @@
 # ENG-01 dual-runtime simulator (T-042–T-058)
 
-**Status:** Slice 1 + Slice 2 complete (T-042–T-052); Slice 3 next  
+**Status:** COMPLETE — ENG-01 slices complete (Slice 1–3 / T-042–T-058); pending human merge  
 **Date:** 2026-08-12  
 **Board:** ENG-01  
 **Supersedes:** ADR 0073 option C (static only) → ADR **0097** A′ dual runtime

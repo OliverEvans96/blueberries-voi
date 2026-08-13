@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — ENG-01 dual-runtime / live simulator
+
+- **You can interact with the live ordering simulator in the browser under dialed demo budgets, and developers can iterate on the same engine through a local API** (T-058).
+
 ## 2026-08-12 — Slice 2: local HTTP API for developers
 
 - **Developers can now drive the same simulator engine over a local HTTP API** for

@@ -10,16 +10,12 @@ Escalations and items that need a human decision land here.
 - **Done — M3 (T-035–T-041):** VOI sweep library + smoke gates on
   `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
   merge with M2 tip to `main`. Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
-  **ENG-01 reopened** (see below).
-- **Done — ENG-01 Slice 2 (T-049–T-052):** Local HTTP / API session path tip-green
-  (T-050–T-051 verify PASS; T-049 docs DONE; T-052 close-out). Slice 2 complete pending
-  human merge to `main`; agents did not merge. Next is Slice 3 D3 mockup (T-053–T-058).
-  Plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
-- **Done — ENG-01 Slice 1 (T-042–T-048):** Common + browser-worker path tip-green
-  (T-043–T-047 verify PASS; T-048 close-out). Slice 1 complete pending human merge
-  with Slice 2; agents did not merge. ADRs
+- **Done — ENG-01 dual-runtime (T-042–T-058):** Slice 1–3 complete on integrate tip
+  `team/ENG-01/integrate` (plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md)).
+  Pending human merge to `main` — agents did not merge to `main`. ADRs
   [0097](./adr/0097-eng-01-dual-runtime-ap.md)–[0100](./adr/0100-eng-01-api-asgi-session.md)
-  (0073 superseded). Pyodide=prod, API=dev.
+  (0073 superseded). DoD / non-goals: [ENG-01.md](./reviews/ENG-01.md).
+  Slice tips: T-048 / T-052 / T-058 implement.
 - **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
   the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
   M2 tip without waiting for that merge.
@@ -54,12 +50,13 @@ Escalations and items that need a human decision land here.
   (T-042+), not an M2 deliverable.
 - **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md)
   (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
-- **Active — ENG-01 A′ (unparked 2026-08-12):** Dual runtime per ADR
-  [0097](./adr/0097-eng-01-dual-runtime-ap.md). Binding prefs in ADR
+- **Historical — ENG-01 A′ prefs (closed with T-058):** Dual runtime per ADR
+  [0097](./adr/0097-eng-01-dual-runtime-ap.md). Binding prefs remain in ADR
   [0098](./adr/0098-simulator-export-contract.md)–[0099](./adr/0099-eng-01-packaging-pyodide-wheels.md)
   and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md): derived Abdella; CI→GH
   Release wheels; no matplotlib in-browser; worker-only Pyodide; Snapshot/DayDelta; flat belief;
   sim+filter+controller under dialed budgets; Pyodide 314.0.4 / CPython 3.14.2; CI 3.11+3.12+3.14.
+  Board item is Done pending human merge (see above), not Active.
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim now emits synthetic ASN
   `pack_date` on delivery `DayLog` rows (non-delivery stays `None`). Stage A F2a
   contracts under smoke defaults; needs-human from T-016 is cleared.
