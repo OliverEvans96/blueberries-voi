@@ -2,6 +2,14 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M3 value-of-information sweep
+
+- **You can now compare store profit across knowledge levels and spoilage shapes:** the
+  study reports both a percentage lift versus the least-informed books-only view and the
+  matching dollar gap, with paired confidence intervals, including a check that age
+  information adds essentially nothing when spoilage is memoryless. Browser packaging and
+  “what if the model is wrong” honesty arms are still out of scope.
+
 ## 2026-08-12 — M2 close-out: controller and multi-scenario
 
 - **The ordering controller milestone is complete:** you can run the full ladder of

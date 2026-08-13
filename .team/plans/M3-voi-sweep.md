@@ -1,6 +1,6 @@
 # M3 — VOI sweep (scenario × β)
 
-**Status:** PLAN (Wave 0 architecture lock)  
+**Status:** COMPLETE (Waves 0–4 done; T-041 close-out)  
 **Date:** 2026-08-12  
 **Authority:** Board milestone `M3 — VOI sweep, oracles, misspecification arms` (VOI-01–04 / SIM-01–05 ACCEPTED); team-owned execution plan after M2 close-out  
 **Does not edit:** M1 / M1.5 / M2 plan files beyond backlog pointer
@@ -138,4 +138,7 @@ Wave order: `T-035 → (T-036 ∥ T-037 ∥ T-038) → T-039 → T-040 → T-041
 
 ## 7. Immediate next step
 
-Wave 0: land ADRs 0094–0096 + specs T-036–T-041 (this ticket T-035). Then qa RED for Wave 1.
+**M3 complete** through Wave 4 / T-041 close-out on the ticket tip. Human merges the
+integrated tip (and M2 tip if not yet on `main`) to `main`. Do **not** reopen ENG-01,
+VOI-02 honesty arms, or X-06 cadence/stagger axes without Oliver.
+

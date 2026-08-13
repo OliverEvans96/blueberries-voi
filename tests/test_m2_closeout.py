@@ -302,12 +302,21 @@ def test_changelog_has_m2_client_voice_summary() -> None:
 
 
 def test_voi_package_remains_stub() -> None:
-    """voi/ stays an empty stub — no VOI sweep API shipped in M2."""
+    """voi/ stays empty through M2; M3 may fill it when plan status is COMPLETE."""
     init = _VOI / "__init__.py"
-    assert init.is_file(), "expected pre-existing voi stub"
+    assert init.is_file(), "expected pre-existing voi package"
+    m3_plan = _REPO_ROOT / ".team" / "plans" / "M3-voi-sweep.md"
+    m3_complete = m3_plan.is_file() and "Status:** COMPLETE" in m3_plan.read_text(
+        encoding="utf-8"
+    )
+    if m3_complete:
+        from blueberries_voi import voi as voi_pkg
+
+        assert voi_pkg.__all__, "M3 COMPLETE expects non-empty voi exports"
+        return
     text = init.read_text(encoding="utf-8")
     assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", text), (
-        "voi package must remain an empty stub (__all__ == [])"
+        "voi package must remain an empty stub (__all__ == []) until M3"
     )
     extras = [p for p in _VOI.rglob("*.py") if p.name != "__init__.py" and p.is_file()]
     assert not extras, "M2 non-goal: no VOI production modules; found " + ", ".join(

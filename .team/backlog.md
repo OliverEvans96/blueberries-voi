@@ -6,12 +6,11 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
-- **Next — M3 Wave 0 / T-035:** Plan [`.team/plans/M3-voi-sweep.md`](./plans/M3-voi-sweep.md);
-  ADRs [0094](./adr/0094-voi-package-layout.md)–[0096](./adr/0096-voi-scenario-columns.md);
-  specs [T-035](./specs/T-035.md)–[T-041](./specs/T-041.md). Branch from M2 verify tip
-  (`d7ee7c4`); do not reopen ENG-01 or VOI-02 ⚑ without Oliver.
+- **Done — M3 (T-035–T-041):** VOI sweep library + smoke gates on
+  `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
+  merge with M2 tip to `main`. Do not reopen ENG-01 / VOI-02 ⚑ / X-06 axes without Oliver.
 - **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
-  the M2 verify/implement line; landing on `main` is a human decision. M3 proceeds from the
+  the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
   M2 tip without waiting for that merge.
 - **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
   non-goal locks) gate-green on `team/T-022/verify` (verifier PASS).

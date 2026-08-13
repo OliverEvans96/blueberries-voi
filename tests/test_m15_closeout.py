@@ -403,32 +403,38 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """VOI + browser stay stubs; controller may grow under M2 Waves 1-4."""
+    """VOI + browser stay stubs through M1.5; M3 may fill voi/ when COMPLETE."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
     assert controller.is_file(), "expected pre-existing controller package"
-    assert voi.is_file(), "expected pre-existing voi stub"
+    assert voi.is_file(), "expected pre-existing voi package"
 
-    voi_text = voi.read_text(encoding="utf-8")
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
-        "voi package must remain an empty stub (no VOI sweep API in M1.5/M2)"
+    m3_plan = _REPO_ROOT / ".team" / "plans" / "M3-voi-sweep.md"
+    m3_complete = m3_plan.is_file() and "Status:** COMPLETE" in m3_plan.read_text(
+        encoding="utf-8"
     )
+    if not m3_complete:
+        voi_text = voi.read_text(encoding="utf-8")
+        assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
+            "voi package must remain an empty stub until M3"
+        )
+        voi_extras = [
+            p
+            for p in (_SRC / "voi").rglob("*.py")
+            if p.name != "__init__.py" and p.is_file()
+        ]
+        assert not voi_extras, (
+            "non-goal: no VOI production modules; found "
+            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in voi_extras)
+        )
 
-    # M2 Waves 1-4 may land ordering / policies / rollout / toy DP; nothing under voi/.
-    voi_extras = [
-        p
-        for p in (_SRC / "voi").rglob("*.py")
-        if p.name != "__init__.py" and p.is_file()
-    ]
-    assert not voi_extras, "non-goal: no VOI production modules; found " + ", ".join(
-        str(p.relative_to(_REPO_ROOT)) for p in voi_extras
-    )
-
+    # M2 Waves 1-4 may land ordering / policies / rollout / toy DP under controller/.
     ctrl_extras = [
         p
         for p in (_SRC / "controller").rglob("*.py")
         if p.name != "__init__.py" and p.is_file()
     ]
+
     allowed_ctrl = {
         "ordering.py",
         "rung0.py",
