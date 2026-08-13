@@ -1,4 +1,4 @@
-# T-080 RED map — Fit demand_profile.json (ADR 0112)
+# T-080 RED map — Fit demand_profile.json (ADR 0115)
 
 ## Coverage of acceptance criteria
 

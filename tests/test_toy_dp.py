@@ -14,7 +14,7 @@ Frozen toy instance (CI runtime target: under a few seconds):
 ``DampedSurvivalWeightedPolicy.delta_tau_L`` must equal the Rung 0 / toy
 protection convention on the same instance. Under CAL-01 / T-083 the default
 certificate is schedule-aware (order-day epochs); legacy daily R+L=2 is not
-the immutable base case (ADR 0109 supersession).
+the immutable base case (ADR 0112 supersession).
 """
 
 from __future__ import annotations

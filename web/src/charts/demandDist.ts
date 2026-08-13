@@ -25,7 +25,7 @@ export function dowSeriesFromDemandSummary(summary: DemandSummary): number[] {
 }
 
 /**
- * Protection demand-day spans per order weekday (ADR 0111):
+ * Protection demand-day spans per order weekday (ADR 0114):
  * days until next order day + lead_time_days → 3 / 3 / 4 on Sun / Tue / Thu.
  */
 export function protectionCoverageFromSchedule(

@@ -37,7 +37,7 @@
   → scripted coerce also covered by
   `test_engine_session_step_n_gates_mixed_scripted_orders` (above)
 
-- `draw_demand` / `day_step` `day=` compatibility shim (ADR 0113)
+- `draw_demand` / `day_step` `day=` compatibility shim (ADR 0116)
   → `tests/test_t079_order_gate.py::test_draw_demand_without_day_keeps_prior_mu`
   — **passing** (pre-T-082 signature / i.i.d. μ still works)
   → `tests/test_t079_order_gate.py::test_closed_loop_forwards_day_kw_to_day_step_when_supported`

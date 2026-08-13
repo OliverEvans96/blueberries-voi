@@ -125,7 +125,7 @@ def _assert_schedule_block(schedule: Any, *, label: str) -> Mapping[str, Any]:
         f"{label} must expose lead_time_days (or lead_time) for UI cadence"
     )
     assert int(lead) == _DEFAULT_LEAD, (
-        f"{label} lead_time_days must default to {_DEFAULT_LEAD} (ADR 0111), got {lead!r}"  # noqa: E501
+        f"{label} lead_time_days must default to {_DEFAULT_LEAD} (ADR 0114), got {lead!r}"  # noqa: E501
     )
     epoch = schedule.get("epoch")
     assert isinstance(epoch, str) and epoch.strip(), (
@@ -202,7 +202,7 @@ def test_live_snapshot_exposes_schedule_fields() -> None:
     assert schedule is not None, (
         "Snapshot must expose schedule "
         "(top-level or under applied_config) with delivery_weekdays, "
-        "order_weekdays, lead_time_days, and epoch (T-085 / ADR 0111)"
+        "order_weekdays, lead_time_days, and epoch (T-085 / ADR 0114)"
     )
     _assert_schedule_block(schedule, label="live Snapshot.schedule")
     _assert_no_forbidden(snap, label="live Snapshot")

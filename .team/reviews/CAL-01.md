@@ -3,7 +3,7 @@
 STATUS: APPROVED  
 DATE: 2026-08-13  
 TICKETS: T-077–T-087 (close-out **T-088**; Wave 0 architect **T-076**)  
-ADRS: 0109–0113 (ACCEPTED)
+ADRS: 0112–0116 (ACCEPTED)
 
 CAL-01 calendar realism is **complete pending human merge** to `main`. Agents did
 **not** merge to `main`; landing on the parent branch is a human decision.
@@ -13,7 +13,7 @@ CAL-01 calendar realism is **complete pending human merge** to `main`. Agents di
 - [x] Track A–C implement tips complete for **T-077–T-087** (OrderSchedule, FreshNet
       demand product, episode/controllers, CRN day demand, Snapshot/web next-order and
       demand UI).
-- [x] ADRs **0109–0113** ACCEPTED (MWF base case, calendar demand, OrderSchedule API,
+- [x] ADRs **0112–0116** ACCEPTED (MWF base case, calendar demand, OrderSchedule API,
       FreshNet derived product, track ownership).
 - [x] Client-voice changelog: new Mon/Wed/Fri delivery + calendar demand base case;
       prior daily / i.i.d. citeable VOI numbers require regeneration.

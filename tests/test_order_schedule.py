@@ -1,6 +1,6 @@
 """T-077: OrderSchedule API (CAL-A1) — failing tests before implementation.
 
-Locks ADR 0111 / 0109 / ``.team/specs/T-077.md``:
+Locks ADR 0114 / 0109 / ``.team/specs/T-077.md``:
 
 * frozen ``OrderSchedule`` with MWF delivery, LT=1, Sun/Tue/Thu order defaults
 * ``can_order`` / ``next_order_day`` / ``protection_days`` (3/3/4)
@@ -24,7 +24,7 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC = _REPO_ROOT / "src" / "blueberries_voi"
 
-# ADR 0111: under sim/ (preferred) or controller/ (Track A).
+# ADR 0114: under sim/ (preferred) or controller/ (Track A).
 _MODULE_CANDIDATES = (
     "blueberries_voi.sim.order_schedule",
     "blueberries_voi.controller.order_schedule",
@@ -88,7 +88,7 @@ def _resolve_attr(name: str) -> Any:
     pytest.fail(
         f"{name} must be exported from {_MODULE_CANDIDATES} "
         f"(or package __all__ on {_PACKAGE_EXPORT_CANDIDATES}) "
-        "per .team/specs/T-077.md / ADR 0111",
+        "per .team/specs/T-077.md / ADR 0114",
         pytrace=False,
     )
 
@@ -213,7 +213,7 @@ def test_protection_days_sun_tue_thu(day: int, expected: int, label: str) -> Non
     schedule = _default_schedule()
     assert schedule.can_order(day) is True, f"{label} day={day} must be an order day"
     assert schedule.protection_days(day) == expected, (
-        f"protection_days({day}) on {label} must be {expected} (ADR 0111 3/3/4)"
+        f"protection_days({day}) on {label} must be {expected} (ADR 0114 3/3/4)"
     )
 
 

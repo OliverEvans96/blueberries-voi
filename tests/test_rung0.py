@@ -45,7 +45,7 @@ _POLICY_NAMES = (
 # CTL-05 / X-12 fixture lock (outdating-correction estimator parameters)
 # ---------------------------------------------------------------------------
 # Legacy no-schedule default protection days (daily R+L=2). MWF base case is
-# day-indexed (ADR 0109 / T-081); T-083 supersedes immutable-daily locks.
+# day-indexed (ADR 0112 / T-081); T-083 supersedes immutable-daily locks.
 _PROTECTION_DAYS: int = 2
 _LEGACY_NO_SCHEDULE_PROTECTION_DAYS: int = 2
 # Mean survival weight under the stationary age distribution (outdating
@@ -346,7 +346,7 @@ def test_rung0_documents_protection_interval_not_immutable_daily_two() -> None:
     assert "protection" in doc or "delta" in doc, (
         "module docstring must document the protection-interval convention"
     )
-    # ADR 0109 / T-081: base case is periodic / day-indexed under MWF.
+    # ADR 0112 / T-081: base case is periodic / day-indexed under MWF.
     assert any(
         token in doc
         for token in ("periodic", "day-indexed", "day indexed", "mwf", "schedule")

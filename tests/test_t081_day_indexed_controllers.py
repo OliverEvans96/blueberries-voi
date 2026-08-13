@@ -1,7 +1,7 @@
 """T-081: day-indexed controllers under CAL-01 MWF schedule (CAL-A3) - RED.
 
-Locks ``.team/specs/T-081.md``, ADR 0109 (re-derive #1-2), ADR 0111
-(``protection_days`` 3/3/4), ADR 0113 (homogeneous μ + varying length OK
+Locks ``.team/specs/T-081.md``, ADR 0112 (re-derive #1-2), ADR 0114
+(``protection_days`` 3/3/4), ADR 0116 (homogeneous μ + varying length OK
 before T-082 / B4):
 
 * ``damped_sw`` uses ``OrderSchedule.protection_days(day)`` (or injected
@@ -36,7 +36,7 @@ _ALPHA = 0.9
 _RHO = 1.0
 _TAU_GRID = (0.0, 2.0, 4.0, 6.0)
 
-# Epoch-aligned order days (ADR 0111): Sun=6, Tue=1, Thu=3 → protection 3/3/4
+# Epoch-aligned order days (ADR 0114): Sun=6, Tue=1, Thu=3 → protection 3/3/4
 _ORDER_DAY_PROTECTION: tuple[tuple[int, int, str], ...] = (
     (6, 3, "Sunday"),
     (1, 3, "Tuesday"),
@@ -73,7 +73,7 @@ def _belief_with_total(n: float) -> Any:
 def _homogeneous_protection_quantile(
     alpha: float, params: ModelParams, protection_days: int
 ) -> float:
-    """F^{-1} of ``protection_days`` i.i.d. daily NB (homogeneous μ; ADR 0113)."""
+    """F^{-1} of ``protection_days`` i.i.d. daily NB (homogeneous μ; ADR 0116)."""
     if not 0.0 < float(alpha) < 1.0:
         msg = f"alpha must be in (0, 1), got {alpha}"
         raise ValueError(msg)
@@ -216,7 +216,7 @@ def test_damped_sw_empty_shelf_order_matches_day_indexed_protection(
     assert got == expected, (
         f"damped_sw on {label} (day={day}) must use protection_days={expected_days} "
         f"(order {expected}); got {got} — scalar PROTECTION_DEMAND_DAYS=2 yields "
-        f"{scalar_two} (ADR 0109 / T-081)"
+        f"{scalar_two} (ADR 0112 / T-081)"
     )
     assert got != scalar_two, (
         f"damped_sw still uses scalar 2-day protection on {label} "
@@ -402,7 +402,7 @@ def test_rung0_accepts_day_indexed_survival_weight_and_uses_day() -> None:
     assert policy is not None and resolver is not None, (
         "CorrectedAgeBlindPolicy must accept day-indexed survival weights "
         "(Mapping/Callable or weekday table) — scalar-only bar_w remains "
-        f"(ADR 0109 re-derive #2 / T-081); attempts: {errors}"
+        f"(ADR 0112 re-derive #2 / T-081); attempts: {errors}"
     )
 
     q_sun = _invoke_order(policy, belief, day=6, pending_orders={})
@@ -590,7 +590,7 @@ def test_rung0_returns_zero_on_non_order_days(day: int, label: str) -> None:
 
 
 def test_day_indexed_controllers_document_homogeneous_mu_path_for_b4() -> None:
-    """Varying protection length + homogeneous μ is allowed until B4 (ADR 0113)."""
+    """Varying protection length + homogeneous μ is allowed until B4 (ADR 0116)."""
     blobs: list[str] = []
     for mod_name in (
         "blueberries_voi.controller.damped_sw",
@@ -625,7 +625,7 @@ def test_day_indexed_controllers_document_homogeneous_mu_path_for_b4() -> None:
     )
     assert mentions_homogeneous, (
         "controller / alpha_tune path must document homogeneous-μ protection "
-        "(day-varying length only) per ADR 0113 / T-081"
+        "(day-varying length only) per ADR 0116 / T-081"
     )
     assert mentions_upgrade, (
         "same docs must point at T-084 / B4 (or heterogeneous / μ(day)) upgrade"

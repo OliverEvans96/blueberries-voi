@@ -3,7 +3,7 @@
 These are library helpers under ``sim/`` (outside ``controller/``). Named
 pytest node ids in ``tests/test_m2_gates.py`` are the CI contract.
 
-T-083 / ADR 0109: β=1 and DP gates run under default ``OrderSchedule``
+T-083 / ADR 0112: β=1 and DP gates run under default ``OrderSchedule``
 (orders Sun/Tue/Thu). Age-blind Rung 0 uses day-indexed survival weights
 (T-081). Protection lengths on order days are 3/3/4 (not legacy daily 2).
 """

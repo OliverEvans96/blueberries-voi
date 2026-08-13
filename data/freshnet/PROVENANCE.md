@@ -1,7 +1,7 @@
 # FreshRetailNet-50K — provenance
 
 Track B ingest + derived demand product for CAL-01 calendar demand
-(ADR 0112 / T-078 ingest, T-080 fit). Runtime and the slim / browser wheel
+(ADR 0115 / T-078 ingest, T-080 fit). Runtime and the slim / browser wheel
 never import Hugging Face; only this offline path does.
 
 ## Source
@@ -45,7 +45,7 @@ huggingface-hub to core or `[browser]`.
 ## SKU selection rule
 
 Categories in FreshRetailNet-50K are opaque IDs (no blueberry name match).
-Selection is **rule-based** (ADR 0112):
+Selection is **rule-based** (ADR 0115):
 
 1. Prefer fruit / high-velocity perishable `management_group` subset when IDs
    allow inspection of group labels or related columns.

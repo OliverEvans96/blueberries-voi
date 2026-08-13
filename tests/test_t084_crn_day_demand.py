@@ -1,6 +1,6 @@
 """T-084 CAL-B4 - CRN / VOI day-indexed demand wire (RED).
 
-Locks ``.team/specs/T-084.md`` + ADR 0113 CRN identity:
+Locks ``.team/specs/T-084.md`` + ADR 0116 CRN identity:
 
 * VOI CRN physics path passes calendar ``day`` into ``draw_demand`` / ``day_step``
 * Demand RNG addressing stays ``(root_seed, PHYSICS_RUN_ID, day, :demand)``

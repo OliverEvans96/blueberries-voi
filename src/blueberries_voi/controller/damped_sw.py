@@ -2,7 +2,7 @@
 
 Protection interval under daily delivery LT=1 (X-11 / ADR 0006) used R=1 plus
 L=1 → demand over R+L=2 calendar days. Under CAL-01 MWF cadence (CAL-A3 /
-T-081 / ADR 0109), protection length is **day-indexed** via
+T-081 / ADR 0112), protection length is **day-indexed** via
 ``OrderSchedule.protection_days(day)`` (3 / 3 / 4 on Sun / Tue / Thu).
 
 Until T-084 / CAL-B4, protection treats demand as **homogeneous μ** (i.i.d.
@@ -49,7 +49,7 @@ def _protection_demand_quantile(
 ) -> float:
     """Alpha-quantile of protection-interval demand (n i.i.d. daily NB).
 
-    Homogeneous μ: scale NB ``r`` by ``protection_days`` (ADR 0113 / T-081).
+    Homogeneous μ: scale NB ``r`` by ``protection_days`` (ADR 0116 / T-081).
     """
     if not 0.0 < alpha < 1.0:
         msg = f"alpha must be in (0, 1), got {alpha}"

@@ -13,7 +13,7 @@ Requires the optional ``[freshnet]`` extra::
     uv run python scripts/fit_freshnet_demand.py \\
         --parquet .data/freshnet/data/train.parquet
 
-See ``data/freshnet/PROVENANCE.md`` and ADR 0112.
+See ``data/freshnet/PROVENANCE.md`` and ADR 0115.
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def _fit_profile(
     )
     pooled_vm = float(sub["sale_amount"].var(ddof=1) / sub["sale_amount"].mean())
 
-    # ADR 0110: retain V/M~2.0 unless a stable refit is preferred; empirical
+    # ADR 0113: retain V/M~2.0 unless a stable refit is preferred; empirical
     # within-cell V/M is near-Poisson (~1.1) and would understate MOD-26 jumpy
     # demand - keep 2.0 and document.
     demand_vm = _DEMAND_VM_KEEP
@@ -252,7 +252,7 @@ def _write_report(
         f"Censoring rule: keep only store-days with "
         f"`stock_hour6_22_cnt <= {_CENSOR_MAX_STOCK_HOURS}`"
     )
-    text = f"""# FreshNet demand profile fit report (T-080 / ADR 0112)
+    text = f"""# FreshNet demand profile fit report (T-080 / ADR 0115)
 
 Generated: {today}
 
@@ -280,7 +280,7 @@ Selection rule (reproducible):
 
 {censor_line}
 (prefer low/zero stockout hours for mean estimation). Full two-stage latent
-demand recovery is out of scope for CAL-01 (ADR 0112).
+demand recovery is out of scope for CAL-01 (ADR 0115).
 
 Fit rows after filter: **{meta["n_rows_fit"]}** across
 **{meta["n_unique_dates"]}** unique dates.

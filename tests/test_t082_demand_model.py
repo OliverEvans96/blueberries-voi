@@ -1,6 +1,6 @@
 """T-082 CAL-B3 — DemandModel + draw_demand(day=) (RED).
 
-Locks ADR 0110 / 0112 / 0113 and ``.team/specs/T-082.md``:
+Locks ADR 0113 / 0112 / 0113 and ``.team/specs/T-082.md``:
 
 * ``draw_demand(rng, params, *, day=None)`` — day+profile → μ(day); day None →
   prior ``demand_mu`` compat (A2 shim)
@@ -60,7 +60,7 @@ def _load_raw_profile() -> dict[str, Any]:
 
 
 def _expected_mu(day: int, raw: dict[str, Any] | None = None) -> float:
-    """Reference μ(day) from committed JSON (notes / ADR 0112 scale x DOW x week)."""
+    """Reference μ(day) from committed JSON (notes / ADR 0115 scale x DOW x week)."""
     data = raw if raw is not None else _load_raw_profile()
     scale = float(data["scale_target_mu"])
     dow_factors = [float(x) for x in data["dow_factors"]]
@@ -104,14 +104,14 @@ def _demand_api_module() -> Any:
             return mod
     pytest.fail(
         "load_demand_profile must be importable from blueberries_voi.model "
-        "or model.demand* (ADR 0113 Track B); tried: " + ", ".join(seen)
+        "or model.demand* (ADR 0116 Track B); tried: " + ", ".join(seen)
     )
 
 
 def _require_attr(obj: Any, name: str) -> Any:
     assert hasattr(obj, name), (
         f"{getattr(obj, '__name__', type(obj).__name__)} must expose {name!r} "
-        "(T-082 / ADR 0113)"
+        "(T-082 / ADR 0116)"
     )
     return getattr(obj, name)
 
@@ -206,12 +206,12 @@ def test_draw_demand_signature_is_keyword_only_day_optional() -> None:
     """Public signature: draw_demand(rng, params, *, day: int | None = None)."""
     sig = inspect.signature(draw_demand)
     assert "day" in sig.parameters, (
-        "draw_demand must accept keyword-only day= (ADR 0113 / T-082); "
+        "draw_demand must accept keyword-only day= (ADR 0116 / T-082); "
         f"parameters={list(sig.parameters)}"
     )
     param = sig.parameters["day"]
     assert param.kind is inspect.Parameter.KEYWORD_ONLY, (
-        "day must be keyword-only (*, day=...) per ADR 0113"
+        "day must be keyword-only (*, day=...) per ADR 0116"
     )
     assert param.default is None, "day default must be None for A2 compat shim"
 
@@ -360,7 +360,7 @@ def test_day_step_uses_day_indexed_demand_when_day_and_profile_supplied() -> Non
             # Equivalent wiring: CRN draws with day=, passes demand into day_step.
             assert "day" in inspect.signature(draw_demand).parameters, (
                 "without day_step(day=), draw_demand must accept day= so CRN "
-                "can pass episode day (T-082 / ADR 0113)"
+                "can pass episode day (T-082 / ADR 0116)"
             )
             demand = draw_demand(rng_d, params, day=day)
             result = day_step(
@@ -418,7 +418,7 @@ def test_package_import_graph_excludes_datasets_and_hf() -> None:
             offenders.append(f"{path.relative_to(_REPO_ROOT)}:{sorted(hit)}")
     assert not offenders, (
         "installable blueberries_voi sources must not import HF/datasets "
-        f"(ADR 0112 / T-082); found {offenders}"
+        f"(ADR 0115 / T-082); found {offenders}"
     )
 
 

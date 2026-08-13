@@ -1,6 +1,6 @@
 """T-079: episode / session OrderSchedule gate (CAL-A2) — RED before implement.
 
-Locks ``.team/specs/T-079.md``, ADR 0111 (schedule), ADR 0113 (``day=`` shim):
+Locks ``.team/specs/T-079.md``, ADR 0114 (schedule), ADR 0116 (``day=`` shim):
 
 * Closed-loop / day_driver / EngineSession force ``order_qty=0`` on non-order days
 * Policy / scripted qty passes through on Sun/Tue/Thu (subject to case rounding)
@@ -348,7 +348,7 @@ def test_open_loop_may_order_on_sun_tue_thu() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: draw_demand / day_step day= compatibility shim (ADR 0113)
+# AC: draw_demand / day_step day= compatibility shim (ADR 0116)
 # ---------------------------------------------------------------------------
 
 
@@ -371,7 +371,7 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
     """When ``day_step`` accepts ``day=``, episode must pass the episode day.
 
     Pre-T-082 production ``day_step`` may lack the kwarg; the test installs a
-    compatible wrapper so the ADR 0113 shim obligation is observable now.
+    compatible wrapper so the ADR 0116 shim obligation is observable now.
     """
     import blueberries_voi.sim.episode as episode_mod
     from blueberries_voi.model import day_step as real_day_step

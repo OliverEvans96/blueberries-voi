@@ -1,6 +1,6 @@
 """T-078 CAL-B1 — FreshNet ingest + PROVENANCE (RED).
 
-Locks ADR 0112 / ``.team/specs/T-078.md`` before the ingest script and
+Locks ADR 0115 / ``.team/specs/T-078.md`` before the ingest script and
 ``[freshnet]`` extra land:
 
 * optional ``[freshnet]`` extra (HF / ``datasets``) — not core or ``[browser]``
@@ -169,7 +169,7 @@ def test_pyproject_declares_freshnet_optional_extra_with_hf_deps() -> None:
     extras = _optional_extras()
     assert "freshnet" in extras, (
         "pyproject.toml must declare optional-dependencies.freshnet "
-        f"(ADR 0112 / T-078); have {sorted(extras)}"
+        f"(ADR 0115 / T-078); have {sorted(extras)}"
     )
     names = _dep_names(extras["freshnet"])
     assert names & _HF_DEP_MARKERS, (
@@ -282,7 +282,7 @@ sys.meta_path.insert(0, _Blocker())
 
 def test_freshnet_provenance_md_exists() -> None:
     assert _PROVENANCE.is_file(), (
-        "data/freshnet/PROVENANCE.md must exist (ADR 0112 / T-078)"
+        "data/freshnet/PROVENANCE.md must exist (ADR 0115 / T-078)"
     )
 
 
@@ -324,7 +324,7 @@ def test_package_init_source_has_no_datasets_or_huggingface_imports() -> None:
     forbidden = _imported_roots(init) & _FORBIDDEN_RUNTIME_IMPORT_ROOTS
     assert not forbidden, (
         f"blueberries_voi/__init__.py must not import {sorted(forbidden)} "
-        "(ADR 0112 / T-078)"
+        "(ADR 0115 / T-078)"
     )
 
 

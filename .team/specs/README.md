@@ -143,9 +143,9 @@ streams may live only on their ticket branches until integrate.
 | --- | --- | --- | --- |
 | Arrival-only filter | **T-067–T-069** | **0105–0106** | on `team/T-067/architect` |
 | ENG-01 dual-mode readiness | **T-070–T-075** | **0107–0108** | [ENG-01-readiness.md](../plans/ENG-01-readiness.md) |
-| CAL-01 calendar realism | **T-076–T-088** | **0109–0113** | [CAL-01-calendar-realism.md](../plans/CAL-01-calendar-realism.md) |
+| CAL-01 calendar realism | **T-076–T-088** | **0112–0116** | [CAL-01-calendar-realism.md](../plans/CAL-01-calendar-realism.md) |
 
-Next free after CAL-01 claim: **T-089+**, ADR **0114+**. Do not assign overlapping IDs.
+Next free after CAL-01 claim: **T-089+**, ADR **0117+**. Do not assign overlapping IDs.
 
 ## ENG-01 dual-mode readiness (2026-08-13)
 
@@ -170,7 +170,7 @@ Wave order: T-070 → (T-071 ∥ T-072 ∥ T-073) → T-074 → T-075.
 ## CAL-01 calendar realism (2026-08-13)
 
 Plan: [`.team/plans/CAL-01-calendar-realism.md`](../plans/CAL-01-calendar-realism.md).  
-ADRs: [0109](../adr/0109-x-11-mwf-delivery-base-case.md)–[0113](../adr/0113-cal-01-track-ownership.md)
+ADRs: [0112](../adr/0112-x-11-mwf-delivery-base-case.md)–[0116](../adr/0116-cal-01-track-ownership.md)
 ([0011](../adr/0011-x-11-delivery-cadence-for-the-base-case.md) and
 [0031](../adr/0031-mod-09-demand-model.md) superseded).  
 Locks: MWF delivery LT=1 → order Sun/Tue/Thu; known NB with DOW×week FreshNet shape; μ≈30;
@@ -180,9 +180,9 @@ merge to `main`.
 
 | Ticket | Title | Depends on / notes |
 | --- | --- | --- |
-| [T-076](./T-076.md) | Wave 0 ADR/plan/spec lock (docs only) | ADRs 0109–0113; plan |
-| [T-077](./T-077.md) | OrderSchedule API (CAL-A1) | T-076; ADR 0111 (**∥ T-078**) |
-| [T-078](./T-078.md) | FreshNet ingest + PROVENANCE (CAL-B1) | T-076; ADR 0112 (**∥ T-077**) |
+| [T-076](./T-076.md) | Wave 0 ADR/plan/spec lock (docs only) | ADRs 0112–0116; plan |
+| [T-077](./T-077.md) | OrderSchedule API (CAL-A1) | T-076; ADR 0114 (**∥ T-078**) |
+| [T-078](./T-078.md) | FreshNet ingest + PROVENANCE (CAL-B1) | T-076; ADR 0115 (**∥ T-077**) |
 | [T-079](./T-079.md) | Episode/session order gate (CAL-A2) | T-077 (**∥ T-080**) |
 | [T-080](./T-080.md) | Fit demand_profile.json (CAL-B2) | T-078 (**∥ T-079**) |
 | [T-081](./T-081.md) | Day-indexed controllers (CAL-A3) | T-079 (**∥ T-082**) |

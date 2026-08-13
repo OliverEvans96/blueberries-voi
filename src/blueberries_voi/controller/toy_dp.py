@@ -7,7 +7,7 @@ gap between the DP optimum and a base (myopic protection) policy value on the
 available, the base policy stands in for the comparison arm — the gap still
 adjudicates distance from optimal on this certificate instance.
 
-CAL-A4 / T-083 (ADR 0109): the default certificate is **schedule-aware**.
+CAL-A4 / T-083 (ADR 0112): the default certificate is **schedule-aware**.
 Decision epochs are order days under ``OrderSchedule`` (MWF / Sun/Tue/Thu),
 not a silent daily-order assumption. Protection length for the base arm
 follows ``schedule.protection_days`` on those order days (3/3/4), not the

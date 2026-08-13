@@ -1,4 +1,4 @@
-# FreshNet demand profile fit report (T-080 / ADR 0112)
+# FreshNet demand profile fit report (T-080 / ADR 0115)
 
 Generated: 2026-08-13
 
@@ -26,7 +26,7 @@ Selection rule (reproducible):
 
 Censoring rule: keep only store-days with `stock_hour6_22_cnt <= 0`
 (prefer low/zero stockout hours for mean estimation). Full two-stage latent
-demand recovery is out of scope for CAL-01 (ADR 0112).
+demand recovery is out of scope for CAL-01 (ADR 0115).
 
 Fit rows after filter: **143681** across
 **90** unique dates.

@@ -1,4 +1,4 @@
-# 0109. X-11 reopen: Mon/Wed/Fri delivery base case (LT=1)
+# 0112. X-11 reopen: Mon/Wed/Fri delivery base case (LT=1)
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -38,7 +38,7 @@ for simulation, VOI, and the web studio.
 - Prior citeable VOI numbers under daily cadence are **not** transferable; regeneration is required
   (changelog must say so at closeout).
 
-Schedule API ownership and protection-day formulas live in ADR [0111](./0111-order-schedule-api.md).
+Schedule API ownership and protection-day formulas live in ADR [0114](./0114-order-schedule-api.md).
 
 ## Alternatives considered
 

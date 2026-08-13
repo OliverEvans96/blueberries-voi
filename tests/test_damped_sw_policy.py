@@ -9,7 +9,7 @@ Formula under test (ADR 0058 / T-028):
 
 with default rho=0.8, Ĩ_t from T-023 ``effective_inventory`` (MF marginals /
 ``from_marginals=True``). Legacy no-schedule path uses R+L=2 under daily LT=1;
-CAL-01 / ADR 0109 base case is MWF day-indexed protection (T-081 / T-083).
+CAL-01 / ADR 0112 base case is MWF day-indexed protection (T-081 / T-083).
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ _POLICY_MODULE_CANDIDATES = (
 )
 
 # LT=1 stays; legacy no-schedule R+L=2 (ADR 0006). MWF base case is day-indexed
-# 3/3/4 (ADR 0109 / T-081); T-083 supersedes immutable-daily locks.
+# 3/3/4 (ADR 0112 / T-081); T-083 supersedes immutable-daily locks.
 _LEAD_TIME_DAYS = 1
 _PROTECTION_DEMAND_DAYS = 2
 _LEGACY_NO_SCHEDULE_PROTECTION_DAYS = 2
@@ -363,7 +363,7 @@ def test_controller_package_exports_damped_sw_policy() -> None:
 def test_damped_sw_protection_interval_lt1_legacy_scalar_not_immutable_base() -> None:
     """LT=1 stays locked; PROTECTION_DEMAND_DAYS=2 is legacy no-schedule only.
 
-    ADR 0109 / T-083: daily R+L=2 is no longer the immutable scientific base
+    ADR 0112 / T-083: daily R+L=2 is no longer the immutable scientific base
     case — MWF day-indexed protection (3/3/4) is (see T-081).
     """
     from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE

@@ -1,6 +1,6 @@
 """T-083 CAL-A4: baselines, rollout Hx7, M2 gates under OrderSchedule - RED.
 
-Locks ``.team/specs/T-083.md`` and ADR 0109 mandatory re-derive #3:
+Locks ``.team/specs/T-083.md`` and ADR 0112 mandatory re-derive #3:
 
 * production rollout horizon presets step in multiples of 7
 * ``toy_dp`` certificate is schedule-aware (order-day epochs, not silent daily)
@@ -30,7 +30,7 @@ _ALPHA_MOD = "blueberries_voi.sim.alpha_tune"
 _EPISODE_MOD = "blueberries_voi.sim.episode"
 _VOI_SWEEP_MOD = "blueberries_voi.voi.sweep"
 
-# ADR 0109 / T-083: production presets must be weekly-aligned.
+# ADR 0112 / T-083: production presets must be weekly-aligned.
 _EXPECTED_HORIZON_PRESETS: frozenset[int] = frozenset({7, 14, 21, 28})
 
 
@@ -57,7 +57,7 @@ def _combined_docs(*objs: Any) -> str:
 
 
 def test_default_rollout_horizons_export_multiples_of_seven() -> None:
-    """Production preset tuple locks H ∈ {7, 14, …} (ADR 0109 re-derive #3)."""
+    """Production preset tuple locks H ∈ {7, 14, …} (ADR 0112 re-derive #3)."""
     mod = _import(_ROLLOUT_MOD)
     horizons = getattr(mod, "DEFAULT_ROLLOUT_HORIZONS", None)
     assert horizons is not None, (
@@ -128,7 +128,7 @@ def test_rollout_module_documents_weekly_horizon_presets() -> None:
     source = _module_source(mod).lower()
     blob = doc + "\n" + source
     assert "multiple" in blob or "multiples" in blob or "x7" in blob or "x7" in blob, (
-        "rollout module must document Hx7 / multiples-of-7 presets (ADR 0109 #3)"
+        "rollout module must document Hx7 / multiples-of-7 presets (ADR 0112 #3)"
     )
     assert "7" in blob and ("week" in blob or "periodic" in blob or "mwf" in blob), (
         "rollout docs must tie horizon presets to weekly / MWF periodicity"
@@ -379,7 +379,7 @@ def test_burn_in_docs_acknowledge_periodic_age_under_mwf() -> None:
     text = "\n".join(blobs)
     assert "periodic" in text, (
         "burn-in / episode docs must acknowledge periodic age under MWF "
-        "(ADR 0109), not only daily stationary burn-in"
+        "(ADR 0112), not only daily stationary burn-in"
     )
     assert any(
         token in text for token in ("mwf", "order schedule", "orderschedule", "weekly")

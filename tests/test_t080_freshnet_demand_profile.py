@@ -1,6 +1,6 @@
 """T-080 CAL-B2 - Fit demand_profile.json (RED).
 
-Locks ADR 0112 / ``.team/specs/T-080.md`` before the fit script and committed
+Locks ADR 0115 / ``.team/specs/T-080.md`` before the fit script and committed
 derived product land:
 
 * committed ``data/freshnet/demand_profile.json`` (versioned schema, DOWxweek,
@@ -166,7 +166,7 @@ def _find_fit_report() -> Path:
 def _load_profile() -> dict[str, Any]:
     assert _DEMAND_PROFILE.is_file(), (
         "data/freshnet/demand_profile.json must exist and be committed "
-        "(ADR 0112 / T-080); pytest reads this artifact - no HF download"
+        "(ADR 0115 / T-080); pytest reads this artifact - no HF download"
     )
     raw = _DEMAND_PROFILE.read_bytes()
     assert len(raw) <= _MAX_PROFILE_BYTES, (
@@ -313,7 +313,7 @@ def test_demand_profile_scale_target_mu_near_30() -> None:
     mu = float(keys["scale_target_mu"])
     assert abs(mu - _SCALE_TARGET_MU) <= _SCALE_ABS_TOL, (
         f"scale_target_mu={mu} must be within +/-{_SCALE_ABS_TOL} of "
-        f"{_SCALE_TARGET_MU} (T-080 / ADR 0112)"
+        f"{_SCALE_TARGET_MU} (T-080 / ADR 0115)"
     )
 
 

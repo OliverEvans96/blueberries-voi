@@ -1,4 +1,4 @@
-"""FreshNet-derived calendar demand profile (ADR 0110 / 0112 / T-082).
+"""FreshNet-derived calendar demand profile (ADR 0113 / 0112 / T-082).
 
 Runtime loads committed ``data/freshnet/demand_profile.json`` via stdlib JSON only.
 No Hugging Face / ``datasets`` imports.

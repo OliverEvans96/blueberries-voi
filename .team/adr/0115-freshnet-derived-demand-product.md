@@ -1,4 +1,4 @@
-# 0112. FreshNet derived demand product (Track B)
+# 0115. FreshNet derived demand product (Track B)
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -10,7 +10,7 @@ MILESTONE: CAL-01 — calendar realism
 
 ## Context
 
-CAL-01 needs calendar DOW×week demand structure ([0110](./0110-mod-09-calendar-demand.md)) without
+CAL-01 needs calendar DOW×week demand structure ([0113](./0113-mod-09-calendar-demand.md)) without
 pulling Hugging Face / `datasets` / raw parquet into runtime or Pyodide. The Abdella pattern
 (derived product + PROVENANCE + optional desktop extra) already works for arrivals.
 

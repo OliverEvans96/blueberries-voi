@@ -1,4 +1,4 @@
-# 0111. OrderSchedule type and API (Track A)
+# 0114. OrderSchedule type and API (Track A)
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -10,7 +10,7 @@ MILESTONE: CAL-01 — calendar realism
 
 ## Context
 
-With MWF delivery and LT=1 ([0109](./0109-x-11-mwf-delivery-base-case.md)), every episode loop,
+With MWF delivery and LT=1 ([0112](./0112-x-11-mwf-delivery-base-case.md)), every episode loop,
 controller, and UI advance needs a single definition of “may I order today?”, “when is the next
 order day?”, and “how many demand days does this order protect?”. Scattering weekday arithmetic
 across controllers invites silent 3-vs-4 bugs.
@@ -45,7 +45,7 @@ v1 keeps `lead_time_days = 1` fixed in the base case even if the type can repres
 ## Alternatives considered
 
 - **Inline weekday checks per call site** — rejected: duplicates the 3/3/4 rule and drifts.
-- **Weekly physics tick replacing daily days** — rejected: ADR 0109 keeps daily `day_step`.
+- **Weekly physics tick replacing daily days** — rejected: ADR 0112 keeps daily `day_step`.
 - **Protection = lead_time only (always 2)** — rejected: that is the daily-cadence formula and
   understates Fri→Mon coverage.
 - **`next_order_day` inclusive of today when `can_order`** — rejected: UI “advance to next order

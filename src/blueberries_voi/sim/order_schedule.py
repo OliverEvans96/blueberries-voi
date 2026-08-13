@@ -18,7 +18,7 @@ _EPOCH: date = date(2024, 1, 1)
 
 @dataclass(frozen=True)
 class OrderSchedule:
-    """MWF delivery / LT=1 / Sun-Tue-Thu order schedule (ADR 0111)."""
+    """MWF delivery / LT=1 / Sun-Tue-Thu order schedule (ADR 0114)."""
 
     delivery_weekdays: frozenset[int] = frozenset({0, 2, 4})
     lead_time_days: int = 1

@@ -3,7 +3,7 @@
 **Status:** COMPLETE — pending human merge to `main` (T-088 close-out)  
 **Date:** 2026-08-13  
 **Board / milestone:** CAL-01  
-**Supersedes:** ADR [0011](../adr/0011-x-11-delivery-cadence-for-the-base-case.md) (daily) → [0109](../adr/0109-x-11-mwf-delivery-base-case.md); ADR [0031](../adr/0031-mod-09-demand-model.md) (i.i.d.) → [0110](../adr/0110-mod-09-calendar-demand.md)
+**Supersedes:** ADR [0011](../adr/0011-x-11-delivery-cadence-for-the-base-case.md) (daily) → [0112](../adr/0112-x-11-mwf-delivery-base-case.md); ADR [0031](../adr/0031-mod-09-demand-model.md) (i.i.d.) → [0113](../adr/0113-mod-09-calendar-demand.md)
 
 ## Decisions locked (Oliver)
 
@@ -17,7 +17,7 @@
 | Scale | FreshNet supplies **shape**; operational μ≈30; no yuan economics transfer |
 | X-06 | Cadence-as-VOI-axis stays **parked** |
 
-ADRs: [0109](../adr/0109-x-11-mwf-delivery-base-case.md) MWF · [0110](../adr/0110-mod-09-calendar-demand.md) calendar NB · [0111](../adr/0111-order-schedule-api.md) OrderSchedule · [0112](../adr/0112-freshnet-derived-demand-product.md) FreshNet product · [0113](../adr/0113-cal-01-track-ownership.md) ownership / `day=` shim.
+ADRs: [0112](../adr/0112-x-11-mwf-delivery-base-case.md) MWF · [0113](../adr/0113-mod-09-calendar-demand.md) calendar NB · [0114](../adr/0114-order-schedule-api.md) OrderSchedule · [0115](../adr/0115-freshnet-derived-demand-product.md) FreshNet product · [0116](../adr/0116-cal-01-track-ownership.md) ownership / `day=` shim.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ T-076 ADRs/specs →  T-077 OrderSchedule ∥  T-078 FreshNet ingest
 | 4 | **T-083** ∥ **T-084** ∥ **T-085** | CAL-A4 ∥ CAL-B4 ∥ CAL-C1 | After A3 / B3; C1 needs A2+B3 shapes |
 | 5 | **T-086** ∥ **T-087** → **T-088** | CAL-C2 ∥ CAL-C3 → CAL-D1 | C2∥C3 after C1; D1 last |
 
-### Ownership (ADR 0113)
+### Ownership (ADR 0116)
 
 | Track | Tickets | Owns |
 |-------|---------|------|
@@ -96,10 +96,10 @@ Wave5:  [T-086 …]  ∥  [T-087 …]  →  [T-088 closeout]
 ## Risks
 
 - FreshNet normalized sales + opaque SKUs → document selection + scale; cite **shape**, not absolute units.
-- Mar–Jun window ≠ full annual seasonality (ADR 0112 honesty).
+- Mar–Jun window ≠ full annual seasonality (ADR 0115 honesty).
 - Periodic age + day-indexed baselines easy to forget — specs require tests for 3/3/4, H×7, day-indexed weights.
 - Superseding X-11/MOD-09 invalidates prior citeable VOI under daily i.i.d. — changelog must say regen required.
-- Channel mismatch (Dingdong instant-delivery vs Western MWF trucks) — transferability paragraph in ADR 0112.
+- Channel mismatch (Dingdong instant-delivery vs Western MWF trucks) — transferability paragraph in ADR 0115.
 
 ## Key library touchpoints
 

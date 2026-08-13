@@ -87,7 +87,7 @@ def protection_coverage_days(day: int, *, schedule: OrderSchedule | None = None)
     """Day-indexed protection length for alpha retune (T-083 / CAL-A3).
 
     Under the default MWF ``OrderSchedule``, Sun/Tue/Thu order days cover
-    3 / 3 / 4 homogeneous-μ demand days (ADR 0111).
+    3 / 3 / 4 homogeneous-μ demand days (ADR 0114).
     """
     sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
     return int(sched.protection_days(day))

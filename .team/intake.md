@@ -202,9 +202,9 @@ milestone (CAL-01) with parallel schedule / demand / web tracks, not a single ti
 - [x] **CRN:** keep `(root_seed, PHYSICS_RUN_ID, day, :demand)` shared across scenarios.
 - [x] **Physics / UI:** daily `day_step`; UI advances via `step_n` to next order day.
 - [x] **Scale / economics:** shape from FreshNet; μ≈30; no yuan transfer.
-- [x] **X-11 / MOD-09:** Oliver reopened both; Wave 0 supersedes ADR 0011 → 0109 and 0031 → 0110.
+- [x] **X-11 / MOD-09:** Oliver reopened both; Wave 0 supersedes ADR 0011 → 0112 and 0031 → 0113.
 - [x] **X-06:** remains parked (fixed base case change only).
-- [x] **Ticket / ADR block:** T-076–T-088; ADRs 0109–0113.
+- [x] **Ticket / ADR block:** T-076–T-088; ADRs 0112–0116.
 
 ## Assumptions if unanswered
 

@@ -1,4 +1,4 @@
-# 0110. MOD-09 reopen: known NB with calendar DOW×week structure
+# 0113. MOD-09 reopen: known NB with calendar DOW×week structure
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -18,7 +18,7 @@ differ only in age knowledge.
 Oliver reopened MOD-09 for **CAL-01** so the base case carries **calendar structure** (day-of-week ×
 within-year week factors) fitted from FreshRetailNet-50K, while keeping the known-distribution thesis.
 i.i.d. + daily delivery previously bought a stationary age distribution; with MWF cadence
-([0109](./0109-x-11-mwf-delivery-base-case.md)) age is already only periodic — DOW demand is the
+([0112](./0112-x-11-mwf-delivery-base-case.md)) age is already only periodic — DOW demand is the
 same class of re-derive, not a new kind of cost.
 
 ## Decision
@@ -26,13 +26,13 @@ same class of re-derive, not a new kind of cost.
 We will keep **negative binomial demand known to every policy** (including every baseline), and
 replace i.i.d. draws with a **day-indexed** mean profile:
 
-- μ(day) comes from a committed FreshNet-derived product (ADR [0112](./0112-freshnet-derived-demand-product.md)).
+- μ(day) comes from a committed FreshNet-derived product (ADR [0115](./0115-freshnet-derived-demand-product.md)).
 - Dispersion: retain V/M ≈ 2.0 (MOD-26) unless the fit ticket reports an unstable refit; if
   unstable, keep `demand_vm = 2.0` and document in the fit report.
 - Every policy — oracles, age-blind, SW, rollout — sees the **same** calendar NB parameters for a
   given day; no policy estimates demand.
 - Runtime draws via `draw_demand(rng, params, *, day: int)` (ownership in ADR
-  [0113](./0113-cal-01-track-ownership.md)); CRN still addresses `(root_seed, PHYSICS_RUN_ID, day,
+  [0116](./0116-cal-01-track-ownership.md)); CRN still addresses `(root_seed, PHYSICS_RUN_ID, day,
   :demand)` once per day across scenarios.
 - Operational scale stays near `demand_mu ≈ 30` (shape from FreshNet; absolute Chinese sales units
   are not transferred).

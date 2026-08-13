@@ -186,7 +186,7 @@ describe("T-086 smoke: advance skips non-order days", () => {
     }
     expect(
       files.length,
-      "UI sources must exist for ADR 0111 no-redefine scan",
+      "UI sources must exist for ADR 0114 no-redefine scan",
     ).toBeGreaterThan(0);
 
     const blob = files.map((f) => readFileSync(f, "utf8")).join("\n");

@@ -1,7 +1,7 @@
 """VOI-04 / X-06 sweep orchestrator (scenario x beta) with smoke budgets.
 
 Production burn-in / rollout H follow weekly multiples of 7 under periodic
-MWF age (ADR 0109 / T-083); CI smoke budgets stay tiny by design.
+MWF age (ADR 0112 / T-083); CI smoke budgets stay tiny by design.
 """
 
 from __future__ import annotations

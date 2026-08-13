@@ -9,7 +9,7 @@ where ``w_long`` is computed from queue position under oldest-first allocation
 (exported as ``w_long_oldest_first``). Forward sims call shared ``model.day_step``
 (no shadow dynamics). Rollouts are sequential only (single-threaded paths).
 
-ADR 0109 / T-083: production rollout horizon presets step in **multiples of 7**
+ADR 0112 / T-083: production rollout horizon presets step in **multiples of 7**
 calendar days so weekly / MWF periodicity is preserved (H ∈ {7, 14, 21, 28, …}).
 """
 
@@ -25,7 +25,7 @@ from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import Cohort, ModelParams, day_step, weibull_survival
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 
-# Production presets: multiples of 7 (weekly MWF cadence; ADR 0109 re-derive #3).
+# Production presets: multiples of 7 (weekly MWF cadence; ADR 0112 re-derive #3).
 DEFAULT_ROLLOUT_HORIZONS: tuple[int, ...] = (7, 14, 21, 28)
 # CTL-04=B desktop default: H = 2 * eta_ref (ModelParams.eta_ref=14 → 28).
 DEFAULT_ROLLOUT_H: int = 28

@@ -24,7 +24,7 @@ import {
   type SimState,
 } from "./generate";
 
-/** Coherent OrderSchedule stubs when live engine is absent (T-085 / ADR 0111). */
+/** Coherent OrderSchedule stubs when live engine is absent (T-085 / ADR 0114). */
 const MOCK_SCHEDULE: ScheduleWire = {
   delivery_weekdays: [0, 2, 4],
   order_weekdays: [6, 1, 3],

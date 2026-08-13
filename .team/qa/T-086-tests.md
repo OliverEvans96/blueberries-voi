@@ -52,7 +52,7 @@
   helper lands
 
 - Does not redefine OrderSchedule math in JS beyond consuming Snapshot schedule
-  fields (ADR 0111)  
+  fields (ADR 0114)  
   → `…/nextOrderAdvance.test.ts` › helpers consume schedule.order_weekdays /
   epoch — currently failing: helper source missing (will assert no
   `protection_days` once present)  

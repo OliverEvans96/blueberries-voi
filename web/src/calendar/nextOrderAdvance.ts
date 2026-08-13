@@ -1,7 +1,7 @@
 /**
  * Next-order-day advance helpers for studio chrome (T-086 / CAL-C2).
  * Consumes Snapshot ScheduleWire fields only — no OrderSchedule redefinition
- * (ADR 0111).
+ * (ADR 0114).
  */
 import type { ScheduleWire } from "../engine/types";
 

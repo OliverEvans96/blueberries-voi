@@ -335,7 +335,7 @@ def observation_loglik_mc(
     keyed by ``lot_id``. Empty observed maps are scored (≠ masked-away).
 
     Optional ``day`` forwards into ``day_step`` / ``draw_demand`` for calendar μ(day)
-    without scenario-keyed demand streams (T-084 / ADR 0113 CRN identity).
+    without scenario-keyed demand streams (T-084 / ADR 0116 CRN identity).
     """
     _ = _SHARED_MC_KERNELS  # keep bindings live for ENG-02 / ruff
     counts_arr = np.asarray(counts, dtype=int)

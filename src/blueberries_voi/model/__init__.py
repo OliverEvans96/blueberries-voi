@@ -1,6 +1,6 @@
 """Shared model kernels (MOD-12 day_step and constitutive physics).
 
-Calendar demand (ADR 0110 / 0113 / T-082)
+Calendar demand (ADR 0113 / 0113 / T-082)
 ----------------------------------------
 * ``ModelParams.demand_profile`` — optional loaded ``DemandProfile`` (JSON product).
 * ``draw_demand(rng, params, *, day=None)`` — when ``day`` is set and a profile is

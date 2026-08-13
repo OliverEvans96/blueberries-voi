@@ -1,6 +1,6 @@
 /**
  * T-086 RED: next-order-day advance helpers consume Snapshot schedule fields
- * (ADR 0111) — build step_n orders, weekday labels, LT=1 pipeline hint.
+ * (ADR 0114) — build step_n orders, weekday labels, LT=1 pipeline hint.
  *
  * Implement owns `web/src/calendar/nextOrderAdvance.ts` (or equivalent export
  * path). Dynamic import keeps missing-module RED as an assertion failure.
@@ -142,7 +142,7 @@ describe("T-086 next-order-day advance helpers (schedule fields only)", () => {
     const hit = CANDIDATE_MODULES.find((p) => existsSync(p));
     expect(
       hit,
-      "calendar helper source must exist so ADR 0111 consumption can be reviewed",
+      "calendar helper source must exist so ADR 0114 consumption can be reviewed",
     ).toBeTruthy();
     const src = readFileSync(hit!, "utf8");
     // May read order_weekdays from the wire; must not invent protection_days math.
