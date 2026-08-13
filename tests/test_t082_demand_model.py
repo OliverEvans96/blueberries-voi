@@ -20,7 +20,7 @@ import importlib
 import inspect
 import json
 import sys
-import types
+import types  # noqa: TC003
 from pathlib import Path
 from typing import Any
 
