@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from blueberries_voi.viz import fil11, gate0, m15
+from blueberries_voi.viz import fil11, gate0, m15, voi
 
-__all__ = ["fil11", "gate0", "m15"]
+__all__ = ["fil11", "gate0", "m15", "voi"]

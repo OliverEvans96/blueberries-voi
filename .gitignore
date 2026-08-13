@@ -41,6 +41,7 @@ result-*
 .data/
 data/raw/
 outputs/
+.worktrees/
 
 # Web mockup (Vite)
 web/node_modules/

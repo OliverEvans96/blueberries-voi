@@ -1,0 +1,303 @@
+"""SIM-02 outer-loop CRN cell: shared physics across knowledge scenarios."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any, Literal
+
+import numpy as np
+
+from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+from blueberries_voi.controller.rollout import RolloutPolicy
+from blueberries_voi.filter import RBPF
+from blueberries_voi.filter.belief import (
+    ShelfBelief,
+    shelf_belief_from_oracle,
+    shelf_belief_from_rbpf,
+)
+from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
+from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.rng import (
+    STREAM_ALLOC,
+    STREAM_ARRIVAL_SENSOR,
+    STREAM_ARRIVAL_SHIP,
+    STREAM_DEMAND,
+    STREAM_FILTER_RESAMPLE,
+    STREAM_SPOIL,
+    spawn_rng,
+)
+from blueberries_voi.sim import DayLog, EpisodeLog, LotState, generate_arrival_age
+from blueberries_voi.sim.episode import case_round
+from blueberries_voi.sim.profit import ProfitCosts, episode_profit
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+# Shared physics run_id across scenarios (SIM-02=C); filter streams are scenario-keyed.
+PHYSICS_RUN_ID: str = "voi-physics"
+
+VOI_SCENARIOS: tuple[str, ...] = (
+    "P0",
+    "P1",
+    "F1",
+    "F1s",
+    "F2a",
+    "F2",
+    "B-state",
+)
+
+_DEFAULT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)
+_EMPTY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0)
+_EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
+
+BeliefKind = Literal["filter", "oracle"]
+
+__all__ = [
+    "PHYSICS_RUN_ID",
+    "VOI_SCENARIOS",
+    "run_voi_crn_cell",
+]
+
+
+def _fixture_shipments() -> list[ShipmentTrace]:
+    times = np.asarray([0.0, 1.0, 2.0], dtype=float)
+    cool = np.asarray([1.0, 1.0, 1.0], dtype=float)
+    return [
+        ShipmentTrace(
+            shipment_id="VOI-COOL",
+            times_d=times,
+            temps_c=cool,
+            duration_d=2.0,
+        )
+    ]
+
+
+def _empty_shelf_belief() -> ShelfBelief:
+    return ShelfBelief(
+        lot_counts=[],
+        age_marginals=[],
+        tau_grid=list(_EMPTY_TAU_GRID),
+    )
+
+
+def _oracle_belief(cohorts: Sequence[Cohort]) -> ShelfBelief:
+    live = [c for c in cohorts if c.n > 0]
+    if not live:
+        return _empty_shelf_belief()
+    ages = [float(c.tau) for c in live]
+    hi = max([*ages, 6.0]) + 2.0
+    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
+    return shelf_belief_from_oracle(
+        lot_counts=[int(c.n) for c in live],
+        ages=ages,
+        tau_grid=grid,
+    )
+
+
+def _belief_kind(scenario: str) -> BeliefKind:
+    if scenario == "B-state":
+        return "oracle"
+    return "filter"
+
+
+def _run_scenario_episode(
+    *,
+    scenario: str,
+    policy: Any,
+    shipments: Sequence[ShipmentTrace],
+    params: ModelParams,
+    root_seed: int,
+    n_burn: int,
+    n_score: int,
+    lead_time: int,
+    filter_n: int,
+) -> EpisodeLog:
+    """One scenario trajectory sharing physics streams under ``PHYSICS_RUN_ID``."""
+    ships = list(shipments)
+    cohorts: list[Cohort] = []
+    next_lot_id = 1
+    pending: dict[int, int] = {}
+    log = EpisodeLog(n_burn=n_burn, n_score=n_score)
+    horizon = n_burn + n_score
+    kind = _belief_kind(scenario)
+    filter_run = f"voi-filter-{scenario}"
+
+    rbpf: RBPF | None = None
+    if kind == "filter":
+        rbpf = RBPF(params=params, N=int(filter_n))
+        rbpf._root_seed = int(root_seed)
+        rbpf._run_id = filter_run
+        init_rng = spawn_rng(
+            int(root_seed), run_id=filter_run, day=0, stream=STREAM_FILTER_RESAMPLE
+        )
+        rbpf.initialize(init_rng)
+
+    for day in range(horizon):
+        pending_view: Mapping[int, int] = dict(pending)
+        if kind == "oracle":
+            belief: ShelfBelief = _oracle_belief(cohorts)
+        else:
+            assert rbpf is not None
+            belief = (
+                shelf_belief_from_rbpf(rbpf)
+                if rbpf._state is not None
+                else _empty_shelf_belief()
+            )
+
+        if isinstance(policy, RolloutPolicy):
+            raw_qty = int(policy.order(day, belief, pending_orders=pending_view))
+        else:
+            raw_qty = int(policy.order(belief, day=day, pending_orders=pending_view))
+
+        order_units = case_round(raw_qty, params.case_size)
+        pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
+
+        arrival_units = int(pending.pop(day, 0))
+        delivery: Cohort | None = None
+        age_at_receipt: float | None = None
+        pack_date: date | None = None
+        if arrival_units > 0:
+            rng_ship = spawn_rng(
+                root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_ARRIVAL_SHIP
+            )
+            rng_sensor = spawn_rng(
+                root_seed,
+                run_id=PHYSICS_RUN_ID,
+                day=day,
+                stream=STREAM_ARRIVAL_SENSOR,
+            )
+            tau_in = generate_arrival_age(rng_ship, rng_sensor, ships, params)
+            delivery = Cohort(n=arrival_units, tau=tau_in, lot_id=next_lot_id)
+            next_lot_id += 1
+            age_at_receipt = float(tau_in)
+            receipt_day = _EPISODE_CALENDAR_EPOCH + timedelta(days=day)
+            transit_days = max(round(age_at_receipt), 0)
+            pack_date = receipt_day - timedelta(days=transit_days)
+
+        pre_live_ids = [c.lot_id for c in cohorts if c.n > 0]
+        rng_d = spawn_rng(
+            root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_DEMAND
+        )
+        rng_a = spawn_rng(
+            root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_ALLOC
+        )
+        rng_s = spawn_rng(
+            root_seed, run_id=PHYSICS_RUN_ID, day=day, stream=STREAM_SPOIL
+        )
+        result = day_step(
+            cohorts,
+            params=params,
+            delivery=delivery,
+            rng_demand=rng_d,
+            rng_alloc=rng_a,
+            rng_spoil=rng_s,
+        )
+        cohorts = result.cohorts
+        lots = [LotState(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts]
+        sales_by_lot = {
+            int(pre_live_ids[i]): int(result.sales_by_cohort[i])
+            for i in range(len(pre_live_ids))
+            if int(result.sales_by_cohort[i]) != 0
+        }
+        waste_by_lot = {
+            int(pre_live_ids[i]): int(result.waste_by_cohort[i])
+            for i in range(len(pre_live_ids))
+            if int(result.waste_by_cohort[i]) != 0
+        }
+        day_log = DayLog(
+            day=day,
+            lots=lots,
+            sales_total=result.sales_total,
+            waste_total=result.waste_total,
+            arrivals=arrival_units,
+            order_qty=order_units,
+            demand=result.demand,
+            L=len(lots),
+            sales_by_lot=sales_by_lot,
+            waste_by_lot=waste_by_lot,
+            age_at_receipt=age_at_receipt,
+            pack_date=pack_date,
+        )
+        log.days.append(day_log)
+
+        if kind == "filter" and rbpf is not None:
+            mask = mask_for(scenario)
+            obs = rich_obs_from_day_log(day_log, mask)
+            step_rng = spawn_rng(
+                int(root_seed),
+                run_id=filter_run,
+                day=day,
+                stream=STREAM_FILTER_RESAMPLE,
+            )
+            rbpf.step(obs, step_rng)
+
+    return log
+
+
+def run_voi_crn_cell(
+    *,
+    beta: float,
+    root_seed: int,
+    scenarios: Sequence[str] | None = None,
+    n_burn: int = 1,
+    n_score: int = 2,
+    costs: ProfitCosts | None = None,
+    shipments: Sequence[ShipmentTrace] | None = None,
+    params: ModelParams | None = None,
+    lead_time: int = 1,
+    filter_n: int = 32,
+    alpha: float = 0.9,
+    H: int = 2,
+    n_rollout_paths: int = 1,
+    policy: Any | None = None,
+) -> dict[str, float]:
+    """Per-scenario scored episode profit under shared physics CRN (SIM-02=C).
+
+    Physics streams use ``PHYSICS_RUN_ID``. Filter resample streams are keyed by
+    scenario. Scorable profit uses ``EpisodeLog.scored`` (after burn-in).
+    """
+    names = list(scenarios) if scenarios is not None else list(VOI_SCENARIOS)
+    for name in names:
+        if name not in VOI_SCENARIOS:
+            msg = f"unknown VOI scenario {name!r}; expected one of {VOI_SCENARIOS}"
+            raise ValueError(msg)
+
+    base = params or ModelParams()
+    p = replace(base, beta=float(beta))
+    cost = costs or _DEFAULT_COSTS
+    ships = list(shipments) if shipments is not None else _fixture_shipments()
+
+    if policy is None:
+        sw = DampedSurvivalWeightedPolicy(
+            alpha=float(alpha),
+            params=p,
+        )
+        pol: Any = RolloutPolicy(
+            base_policy=sw,
+            params=p,
+            root_seed=int(root_seed),
+            run_id="voi-rollout",
+            H=int(H),
+            n_rollout_paths=int(n_rollout_paths),
+            lead_time=int(lead_time),
+        )
+    else:
+        pol = policy
+
+    out: dict[str, float] = {}
+    for name in names:
+        ep = _run_scenario_episode(
+            scenario=name,
+            policy=pol,
+            shipments=ships,
+            params=p,
+            root_seed=int(root_seed),
+            n_burn=int(n_burn),
+            n_score=int(n_score),
+            lead_time=int(lead_time),
+            filter_n=int(filter_n),
+        )
+        out[name] = float(episode_profit(ep, cost))
+    return out

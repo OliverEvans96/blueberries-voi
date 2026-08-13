@@ -10,6 +10,9 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - M1.5 architecture lock (2026-08-12): **[0086](./0086-m15-richobs-unobserved-masks.md)–[0089](./0089-m15-dynamic-l-sliding-window-fallback.md)** (RichObs/masks, MC LL, generative Stage C, L fallback)
 - FIL-11 Stage C / FIL-04 evidence (additive): **[0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md)** (`sequential_wor_pmf`; exact joint vs mean-field; does not replace M1.5 Stage C)
 - Production mean-field settle (2026-08-12): **[0091](./0091-fil13-production-mean-field.md)** (FIL-13=B / FIL-04→C; supersedes 0082/0089 production defaults; 0049→C; 0057 historical)
+- M2 controller lock (2026-08-12): **[0092](./0092-controller-belief-api.md)–[0093](./0093-day-profit-helper.md)** (`ShelfBelief` / MF marginals; `sim/profit.py` SIM-01 extract)
+- M3 VOI lock (2026-08-12): **[0094](./0094-voi-package-layout.md)–[0096](./0096-voi-scenario-columns.md)** (`voi/` modules; CI smoke budgets; scenario columns)
+- ENG-01 reopen dual-runtime (2026-08-12): **[0097](./0097-eng-01-dual-runtime-ap.md)–[0100](./0100-eng-01-api-asgi-session.md)** (A′ Pyodide prod + API dev; export; packaging; ASGI); **[0073](./0073-eng-01-browser-simulator-scope.md)** superseded
 - ⚑ marks decisions made against the card recommendation
 
 ## Index
@@ -88,7 +91,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0070](./0070-voi-02-misspecification-and-honesty-arms.md) | `VOI-02` | Misspecification and honesty arms ⚑ | ACCEPTED |
 | [0071](./0071-voi-03-statistical-reporting-standard.md) | `VOI-03` | Statistical reporting standard | ACCEPTED |
 | [0072](./0072-voi-04-sweep-resolution.md) | `VOI-04` | Sweep resolution ⚑ | ACCEPTED |
-| [0073](./0073-eng-01-browser-simulator-scope.md) | `ENG-01` | Browser simulator scope ⚑ | ACCEPTED |
+| [0073](./0073-eng-01-browser-simulator-scope.md) | `ENG-01` | Browser simulator scope ⚑ (static only) | SUPERSEDED BY 0097 |
 | [0074](./0074-eng-02-repo-and-module-layout.md) | `ENG-02` | Repo and module layout | ACCEPTED |
 | [0075](./0075-eng-03-figure-and-plot-pipeline.md) | `ENG-03` | Figure and plot pipeline ⚑ | ACCEPTED |
 | [0076](./0076-eng-04-test-and-validation-harness-scope.md) | `ENG-04` | Test and validation harness scope ⚑ | ACCEPTED |
@@ -108,3 +111,12 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | SUPERSEDED BY 0091 |
 | [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | ACCEPTED |
 | [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | ACCEPTED |
+| [0092](./0092-controller-belief-api.md) | `CTL` / M2 | Controller belief API is ShelfBelief over MF marginals and oracle | ACCEPTED |
+| [0093](./0093-day-profit-helper.md) | `SIM-01` (M2 extract) | Day profit helper lives in sim/profit.py (SIM-01 extract for CTL) | ACCEPTED |
+| [0094](./0094-voi-package-layout.md) | `VOI` / M3 | VOI package layout and public API under `voi/` | ACCEPTED |
+| [0095](./0095-voi-ci-smoke-budgets.md) | `VOI-04` / ENG-04 | M3 CI smoke budgets vs production VOI defaults | ACCEPTED |
+| [0096](./0096-voi-scenario-columns.md) | `X-05` / `X-06` | M3 knowledge-scenario columns for the VOI sweep | ACCEPTED |
+| [0097](./0097-eng-01-dual-runtime-ap.md) | `ENG-01` | Reopen: dual runtime A′ (Pyodide prod + API dev) | ACCEPTED |
+| [0098](./0098-simulator-export-contract.md) | `ENG-01` | Simulator export: Snapshot / DayDelta / step_n | ACCEPTED |
+| [0099](./0099-eng-01-packaging-pyodide-wheels.md) | `ENG-01` | Packaging: derived Abdella, extras, GH Release, Pyodide 314 | ACCEPTED |
+| [0100](./0100-eng-01-api-asgi-session.md) | `ENG-01` | API host: ASGI sessions wrapping EngineSession | ACCEPTED |
