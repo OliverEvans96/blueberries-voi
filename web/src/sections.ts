@@ -5,7 +5,8 @@ export type SectionId =
   | "demand"
   | "logistics"
   | "arrival"
-  | "belief";
+  | "belief"
+  | "controller";
 
 export type StudioSection = {
   id: SectionId;
@@ -68,6 +69,14 @@ export const STUDIO_SECTIONS: StudioSection[] = [
       "Age×count belief vs truth, with a top age marginal on the shared age axis.",
     plotIds: ["plot-belief-age-marginal", "plot-belief-lg"],
     controlSection: "belief",
+  },
+  {
+    id: "controller",
+    label: "Controller",
+    blurb:
+      "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
+    plotIds: ["plot-controller-orders", "plot-inventory"],
+    controlSection: "controller",
   },
 ];
 

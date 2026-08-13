@@ -19,6 +19,7 @@ import {
   renderAgeComposition,
   renderInventoryTarget,
 } from "./charts/inventoryTarget";
+import { renderControllerOrders } from "./charts/controllerOrders";
 import { renderSalesDemand } from "./charts/salesDemand";
 import { renderGhostDeltas } from "./charts/ghostDeltas";
 import {
@@ -27,8 +28,10 @@ import {
 } from "./charts/arrivalPrior";
 import {
   controlsFromVm,
+  DEFAULT_CONTROLLER_CONTROLS,
   mountPlayChrome,
   mountSectionControls,
+  type ControllerControlsState,
 } from "./controls";
 import { attachLinkedHover } from "./hoverLink";
 import {
@@ -61,7 +64,8 @@ app.innerHTML = `
       <h1>Blueberry inventory studio</h1>
       <p class="lede">
         Walk one idea at a time — order the store, then open Pricing, Physics,
-        Demand, Logistics, Arrival, or Belief to see how each knob teaches through its plots.
+        Demand, Logistics, Arrival, Belief, or Controller to see how each knob
+        teaches through its plots.
       </p>
     </header>
 
@@ -103,7 +107,7 @@ app.innerHTML = `
         <div class="focus-row">
           <nav class="section-nav panel" aria-label="Studio sections">
             ${navHtml}
-            <p class="section-nav-hint">Keys 1–7 or ← →</p>
+            <p class="section-nav-hint">Keys 1–8 or ← →</p>
           </nav>
 
           <section class="panel focus-pane" id="focus-pane">
@@ -157,6 +161,10 @@ app.innerHTML = `
                 <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
                 <div id="chart-belief-lg" class="chart"></div>
               </div>
+              <div class="focus-plot" data-plot="plot-controller-orders" hidden>
+                <div class="chart-caption impact-caption">Order quantity</div>
+                <div id="chart-controller-orders" class="chart"></div>
+              </div>
             </div>
           </section>
         </div>
@@ -198,6 +206,9 @@ function snapOrder(qty: number): number {
 let orderQty = snapOrder(24);
 let hoveredDay: HoverDay = null;
 let activeSection: SectionId = loadSection();
+let controllerState: ControllerControlsState = {
+  ...DEFAULT_CONTROLLER_CONTROLS,
+};
 let bootstrapped = false;
 
 const els = {
@@ -223,6 +234,9 @@ const els = {
   ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
   arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
   arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
+  controllerOrders: document.querySelector(
+    "#chart-controller-orders",
+  ) as HTMLElement,
   ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
   focusTitle: document.querySelector("#focus-title") as HTMLElement,
   focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
@@ -306,6 +320,9 @@ function renderActiveFocusPlots(): void {
   }
   if (plotVisible("plot-arrival-shift")) {
     renderArrivalShift(els.arrivalShift, vm.config, 150);
+  }
+  if (plotVisible("plot-controller-orders")) {
+    renderControllerOrders(els.controllerOrders, vm.history, 160);
   }
 }
 
@@ -405,11 +422,16 @@ const sectionControlsApi = mountSectionControls(
       sectionControlsApi.update(controlsFromVm(vm, orderQty));
       renderActiveFocusPlots();
     },
+    onControllerChange(partial: Partial<ControllerControlsState>) {
+      controllerState = { ...controllerState, ...partial };
+      sectionControlsApi.updateController(controllerState);
+    },
   },
   (caseSize) => {
     orderQty = snapOrder(orderQty);
     playChromeApi.setOrderFromCaseChange(orderQty, caseSize);
   },
+  controllerState,
 );
 
 document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {

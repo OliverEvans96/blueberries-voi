@@ -827,6 +827,16 @@ input[type="number"] {
   stroke: var(--sales);
 }
 
+.order-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.order-dot {
+  fill: var(--accent);
+}
+
 .sales-demand-gap {
   fill: rgba(196, 106, 58, 0.2);
 }
