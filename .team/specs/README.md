@@ -133,3 +133,15 @@ Non-goals: M3 compute reduction; RBPF count physics; Stage A honesty; ENG-01.
 | [T-044](./T-044-audit-remediation.md) | MF sweeps=5, bakeoff stubs, backlog/doc hygiene | ADR 0104 |
 
 Wave order: architect (this tip) → qa (all ACs) → (T-042 ∥ T-043 ∥ T-044 implement).
+
+## In-flight reservations (2026-08-13)
+
+See [ticket-adr-reservations-2026-08-13.md](../plans/ticket-adr-reservations-2026-08-13.md). Specs for these
+streams may live only on their ticket branches until integrate.
+
+| Stream | Tickets | ADRs | Plan |
+| --- | --- | --- | --- |
+| Arrival-only filter | **T-067–T-069** | **0105–0106** | on `team/T-067/architect` |
+| ENG-01 dual-mode readiness | **T-070–T-075** | **0107–0108** | [ENG-01-readiness.md](../plans/ENG-01-readiness.md) |
+
+Next free after both: **T-076+**, ADR **0109+**. Do not assign overlapping IDs.

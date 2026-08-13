@@ -2,6 +2,14 @@
 
 Escalations and items that need a human decision land here.
 
+## In-flight ID reservations (do not collide)
+
+See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026-08-13.md).
+
+- **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
+- **ENG-01 dual-mode readiness:** **T-070–T-075**, ADR **0107–0108** (`team/T-070/architect`; plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md)). Do **not** reuse T-067–T-072 / 0105–0106 for readiness.
+- **Next free after both:** **T-076+**, ADR **0109+**.
+
 ## Needs human now
 
 - **Intake open questions → [GitHub issue #1](https://github.com/OliverEvans96/blueberries-voi/issues/1):** Confirm production β grid upper bound / knot placement, default `ProfitCosts` for headline VOI, and whether F1/F1s closed-loop must fully score lot-resolved masks in M3v1 (see `.team/intake.md`).
