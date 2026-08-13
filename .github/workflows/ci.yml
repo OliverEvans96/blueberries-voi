@@ -1,3 +1,12 @@
+# Canonical CI workflow source (T-046 / ADR 0099).
+#
+# Agent protocol forbids editing live `.github/workflows/`. A human must copy
+# (or symlink) this file to `.github/workflows/ci.yml` before CI picks up the
+# Python 3.14 matrix expansion.
+#
+# Pins (echo of ADR 0099):
+#   PYODIDE_VERSION=314.0.4
+#   CPYTHON_VERSION=3.14.2
 name: CI
 
 on:
@@ -9,13 +18,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYODIDE_VERSION: "314.0.4"
+  CPYTHON_VERSION: "3.14.2"
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.14"]
 
     steps:
       - name: Checkout
