@@ -19,7 +19,6 @@ import numpy as np
 import pytest
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.controller.ordering import ConstantOrderPolicy
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.simulator.schema import validate_day_delta
 
