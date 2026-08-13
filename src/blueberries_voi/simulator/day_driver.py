@@ -113,7 +113,6 @@ class DayAdvanceResult:
     state: DayDriverState
 
 
-
 def _call_day_step(
     cohorts: Sequence[Cohort],
     *,
