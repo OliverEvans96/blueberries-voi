@@ -21,3 +21,4 @@
 *.npz filter=lfs diff=lfs merge=lfs -text
 *.nc filter=lfs diff=lfs merge=lfs -text
 *.npz.gz filter=lfs diff=lfs merge=lfs -text
+.testmondata filter=lfs diff=lfs merge=lfs -text

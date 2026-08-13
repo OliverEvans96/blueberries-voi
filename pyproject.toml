@@ -19,6 +19,8 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.8.0",
+    "pytest-testmon>=2.1.0",
     "mypy>=1.8.0",
     "ruff>=0.4.0",
 ]
@@ -79,15 +81,13 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Coverage, xdist, and testmon stay off by default (fast qa/implement loops).
+# Verify/CI: see AGENTS.md for the full pytest -n auto --cov… command (no testmon selection).
+# Implement cache refresh: ./scripts/refresh-testmon.sh (pytest --testmon, no --cov).
 addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--cov=blueberries_voi",
-    "--cov-branch",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
-    "--cov-fail-under=80",
 ]
 
 [tool.coverage.run]
