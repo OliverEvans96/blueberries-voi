@@ -37,6 +37,8 @@ import {
   type SectionId,
 } from "./sections";
 import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
+import type { ScheduleWire } from "./engine/types";
+import { buildStepNOrders } from "./calendar/nextOrderAdvance";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
@@ -177,6 +179,8 @@ const adapter = createStudioAdapter({
 });
 const projector = new ViewModelProjector();
 let vm: ViewModel = projector.getViewModel();
+/** Snapshot schedule for next-order step_n + weekday chrome (T-086). */
+let schedule: ScheduleWire | null = null;
 
 function formatAdapterError(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -188,6 +192,20 @@ function snapOrder(qty: number): number {
   const cs = Math.max(1, Math.round(vm.config.case_size));
   if (qty <= 0) return 0;
   return Math.round(qty / cs) * cs;
+}
+
+function captureSchedule(snap: { schedule?: ScheduleWire }): void {
+  schedule = snap.schedule
+    ? {
+        ...snap.schedule,
+        delivery_weekdays: [...snap.schedule.delivery_weekdays],
+        order_weekdays: [...snap.schedule.order_weekdays],
+      }
+    : null;
+}
+
+function controlsState() {
+  return controlsFromVm(vm, orderQty, schedule);
 }
 
 let orderQty = snapOrder(24);
@@ -333,14 +351,14 @@ function renderAll(): void {
   renderChrome();
   renderActiveFocusPlots();
   orderQty = snapOrder(orderQty);
-  const state = controlsFromVm(vm, orderQty);
+  const state = controlsState();
   playChromeApi.update(state);
   sectionControlsApi.update(state);
 }
 
 const playChromeApi = mountPlayChrome(
   els.playChrome,
-  controlsFromVm(vm, orderQty),
+  controlsState(),
   {
     onOrderChange(qty) {
       orderQty = qty;
@@ -348,8 +366,24 @@ const playChromeApi = mountPlayChrome(
     onAdvance() {
       void (async () => {
         try {
-          const delta = await adapter.step(orderQty);
-          vm = projector.applyDelta(delta);
+          if (!schedule) {
+            throw new Error("schedule missing — init/reset before advance");
+          }
+          const orders = buildStepNOrders(
+            vm.episode_day,
+            orderQty,
+            schedule,
+          );
+          const deltas = await adapter.step_n(orders);
+          for (const delta of deltas) {
+            vm = projector.applyDelta(delta);
+          }
+          // DayDelta.episode_day is the completed day; next act cursor is +1
+          // (EngineSession state.episode_day after advance_day).
+          if (deltas.length > 0) {
+            const completed = deltas[deltas.length - 1]!.episode_day;
+            vm = { ...vm, episode_day: completed + 1 };
+          }
           onHoverDay(null);
           renderAll();
         } catch (err) {
@@ -361,6 +395,7 @@ const playChromeApi = mountPlayChrome(
       void (async () => {
         try {
           const snap = await adapter.reset();
+          captureSchedule(snap);
           vm = projector.applySnapshot(snap);
           projector.markConfigApplied();
           orderQty = snapOrder(orderQty);
@@ -376,7 +411,7 @@ const playChromeApi = mountPlayChrome(
 
 const sectionControlsApi = mountSectionControls(
   els.sectionControls,
-  controlsFromVm(vm, orderQty),
+  controlsState(),
   {
     onEconomicsChange(partial: Partial<Economics>) {
       // Local reproject only — never round-trip to the engine.
@@ -386,17 +421,17 @@ const sectionControlsApi = mountSectionControls(
         renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
         applyHoverStyles(hoveredDay);
       }
-      sectionControlsApi.update(controlsFromVm(vm, orderQty));
+      sectionControlsApi.update(controlsState());
     },
     onConfigChange(partial: Partial<SimConfig>) {
       // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
       vm = projector.setConfig(partial);
       if (partial.case_size != null) {
         orderQty = snapOrder(orderQty);
-        playChromeApi.update(controlsFromVm(vm, orderQty));
+        playChromeApi.update(controlsState());
       }
-      playChromeApi.update(controlsFromVm(vm, orderQty));
-      sectionControlsApi.update(controlsFromVm(vm, orderQty));
+      playChromeApi.update(controlsState());
+      sectionControlsApi.update(controlsState());
       renderActiveFocusPlots();
     },
   },
@@ -443,6 +478,7 @@ async function bootstrap(): Promise<void> {
   bootstrapped = true;
   try {
     const snap = await adapter.init();
+    captureSchedule(snap);
     vm = projector.applySnapshot(snap);
     projector.markConfigApplied();
     setSection(activeSection);

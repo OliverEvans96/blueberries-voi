@@ -584,7 +584,8 @@ export function createInitialState(cfg: SimConfig): SimState {
   }
 
   return {
-    day,
+    // Next day to act (EngineSession parity): last burn-in day was `day`.
+    day: day + 1,
     lots,
     nextLotId,
     pendingOrders,
@@ -598,11 +599,12 @@ export function stepSimulation(
   state: SimState,
   orderQtyRaw: number,
   cfg: SimConfig,
-): { state: SimState; dayRecord: Day } {
+): { state: SimState; dayRecord: Day; completedDay: number } {
   const config = { ...cfg };
-  const day = state.day + 1;
+  // `state.day` is the day about to be played (same as EngineSession.episode_day).
+  const completedDay = state.day;
   const stepped = runDay(
-    day,
+    completedDay,
     state.lots,
     state.pendingOrders,
     state.nextLotId,
@@ -616,7 +618,7 @@ export function stepSimulation(
 
   return {
     state: {
-      day,
+      day: completedDay + 1,
       lots: stepped.lots,
       nextLotId: stepped.nextLotId,
       pendingOrders: stepped.pendingOrders,
@@ -625,6 +627,7 @@ export function stepSimulation(
       config,
     },
     dayRecord: stepped.record,
+    completedDay,
   };
 }
 

@@ -174,9 +174,10 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     ).toBe(true);
   });
 
-  it("Advance / Reset / bootstrap go through adapter.step / reset / init + projector", () => {
+  it("Advance / Reset / bootstrap go through adapter.step_n (primary) / reset / init + projector", () => {
     const src = readFileSync(MAIN_TS, "utf8");
-    expect(src).toMatch(/adapter\.step\s*\(/);
+    // T-086 / CAL-C2: primary play advances via step_n to the next order day.
+    expect(src).toMatch(/adapter\.step_n\s*\(/);
     expect(src).toMatch(/adapter\.reset\s*\(/);
     expect(src).toMatch(/adapter\.init\s*\(/);
     expect(src).toMatch(/projector\.applyDelta/);
