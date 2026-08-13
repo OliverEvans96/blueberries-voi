@@ -134,7 +134,7 @@ def test_order_schedule_type_is_frozen_dataclass() -> None:
     # frozen=True → instances reject attribute assignment
     schedule = cls()
     with pytest.raises(dataclasses.FrozenInstanceError):
-        schedule.lead_time_days = 99  # type: ignore[misc]
+        object.__setattr__(schedule, "lead_time_days", 99)
 
 
 def test_default_order_schedule_mwf_lt1_order_days() -> None:
@@ -259,7 +259,7 @@ def test_next_order_day_is_smallest_strict_successor() -> None:
 
 
 def test_epoch_day_zero_is_monday_2024_01_01() -> None:
-    assert _EPOCH == date(2024, 1, 1)
+    assert date(2024, 1, 1) == _EPOCH
     assert _EPOCH.weekday() == 0  # Monday
     assert _weekday(0) == 0
     assert _weekday(1) == 1  # Tuesday
@@ -290,7 +290,9 @@ def test_order_schedule_exported_on_package_all_or_documented_module() -> None:
     exported = False
     if hasattr(mod, "__all__"):
         all_names = set(mod.__all__)
-        exported = "OrderSchedule" in all_names and "DEFAULT_ORDER_SCHEDULE" in all_names
+        exported = (
+            "OrderSchedule" in all_names and "DEFAULT_ORDER_SCHEDULE" in all_names
+        )
     for pkg_name in _PACKAGE_EXPORT_CANDIDATES:
         try:
             pkg = importlib.import_module(pkg_name)
