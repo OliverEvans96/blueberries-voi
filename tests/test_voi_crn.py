@@ -5,8 +5,9 @@ from __future__ import annotations
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.model import ModelParams
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng
+from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.voi import PHYSICS_RUN_ID, run_voi_crn_cell
-from blueberries_voi.voi.crn import _fixture_shipments, _run_scenario_episode
+from blueberries_voi.voi.crn import _run_scenario_episode
 
 
 def test_physics_run_id_constant() -> None:
@@ -23,6 +24,7 @@ def test_crn_cell_returns_p0_p1_bstate_profits() -> None:
         filter_n=16,
         H=2,
         n_rollout_paths=1,
+        shipments=smoke_cool_shipments(),
     )
     assert set(profits) == {"P0", "P1", "B-state"}
     assert all(isinstance(v, float) for v in profits.values())
@@ -38,6 +40,7 @@ def test_crn_cell_accepts_full_column_set() -> None:
         filter_n=8,
         H=1,
         n_rollout_paths=1,
+        shipments=smoke_cool_shipments(),
     )
     assert "F2a" in profits
     assert "F2" in profits
@@ -63,7 +66,7 @@ def test_scored_profit_ignores_burn_in_days() -> None:
     ep = _run_scenario_episode(
         scenario="B-state",
         policy=sw,
-        shipments=_fixture_shipments(),
+        shipments=smoke_cool_shipments(),
         params=params,
         root_seed=1,
         n_burn=2,

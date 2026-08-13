@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.voi.bootstrap import BootstrapCI, paired_bootstrap_ci
 from blueberries_voi.voi.crn import VOI_SCENARIOS, run_voi_crn_cell
 from blueberries_voi.voi.metric import VoIMetric, voi_vs_p0
@@ -97,9 +98,21 @@ def run_voi_sweep(
     H: int | None = None,
     n_rollout_paths: int | None = None,
     alpha_ci: float = 0.05,
+    alpha_table_path: str | Path | None = None,
 ) -> VoISweepResult:
-    """Run scenario x beta VOI surface with paired bootstrap CIs (VOI-03)."""
+    """Run scenario x beta VOI surface with paired bootstrap CIs (VOI-03).
+
+    Production (``smoke=False``) requires ``alpha_table_path`` (CTL-03). Smoke
+    may omit the table and keep fixed alpha=0.9 inside ``run_voi_crn_cell``.
+    """
     use_smoke = bool(smoke)
+    if not use_smoke and alpha_table_path is None:
+        msg = (
+            "production VOI sweep requires alpha_table_path "
+            "(tuned CTL-03 table); use smoke=True for fixed alpha=0.9"
+        )
+        raise ValueError(msg)
+
     beta_list = (
         list(betas)
         if betas is not None
@@ -151,6 +164,13 @@ def run_voi_sweep(
         s: {float(b): [] for b in beta_list} for s in scen_list
     }
 
+    cell_kwargs: dict[str, Any] = {}
+    if use_smoke:
+        # Explicit smoke fixture (not a silent None->cool default).
+        cell_kwargs["shipments"] = smoke_cool_shipments()
+    else:
+        cell_kwargs["alpha_table_path"] = alpha_table_path
+
     for rep in range(n_rep):
         cell_seed = int(root_seed) + 10007 * int(rep)
         for b in beta_list:
@@ -163,6 +183,7 @@ def run_voi_sweep(
                 filter_n=f_n,
                 H=h,
                 n_rollout_paths=paths,
+                **cell_kwargs,
             )
             for s in scen_list:
                 profit_book[s][float(b)].append(float(cell[s]))

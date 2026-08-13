@@ -31,7 +31,6 @@ from blueberries_voi.filter.belief import (
 )
 from blueberries_voi.filter.types import P1Obs, mask_for
 from blueberries_voi.model import Cohort, ModelParams, day_step
-from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -43,10 +42,13 @@ from blueberries_voi.rng import (
 )
 from blueberries_voi.sim import DayLog, EpisodeLog, LotState, generate_arrival_age
 from blueberries_voi.sim.episode import case_round
-from blueberries_voi.sim.profit import ProfitCosts, episode_profit
+from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
+from blueberries_voi.sim.shipments import default_shipments
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from blueberries_voi.model.abdella import ShipmentTrace
 
 BeliefMode = Literal["P1", "B-state", "Rung 0"]
 
@@ -58,7 +60,6 @@ MULTI_SCENARIO_PRODUCTION_BACKEND: str = "mean_field"
 DEFAULT_MULTI_SCENARIO_REPORT_PATH: str = "experiments/m2_multi_scenario_result.md"
 
 _EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
-_DEFAULT_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)
 _DEFAULT_ALPHA: float = 0.9
 _CI_N_BURN: int = 1
 _CI_N_SCORE: int = 2
@@ -104,19 +105,6 @@ def smoke_other_masks(
         mask_for(name)
         out[str(name)] = True
     return out
-
-
-def _fixture_shipments() -> list[ShipmentTrace]:
-    times = np.asarray([0.0, 1.0, 2.0], dtype=float)
-    cool = np.asarray([1.0, 1.0, 1.0], dtype=float)
-    return [
-        ShipmentTrace(
-            shipment_id="T033-COOL",
-            times_d=times,
-            temps_c=cool,
-            duration_d=2.0,
-        )
-    ]
 
 
 def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
@@ -392,8 +380,8 @@ def run_m2_multi_scenario(
     backend = MULTI_SCENARIO_PRODUCTION_BACKEND
 
     p = params or ModelParams()
-    cost = costs or _DEFAULT_COSTS
-    ships = list(shipments) if shipments is not None else _fixture_shipments()
+    cost = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    ships = list(shipments) if shipments is not None else default_shipments()
 
     sw = DampedSurvivalWeightedPolicy(alpha=float(alpha), params=p)
     d_star = _protection_demand_fractile(float(alpha), p)
