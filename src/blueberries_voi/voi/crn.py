@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+from blueberries_voi.controller.protocol import invoke_order
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.belief import (
@@ -142,10 +143,7 @@ def _run_scenario_episode(
                 else _empty_shelf_belief()
             )
 
-        if isinstance(policy, RolloutPolicy):
-            raw_qty = int(policy.order(day, belief, pending_orders=pending_view))
-        else:
-            raw_qty = int(policy.order(belief, day=day, pending_orders=pending_view))
+        raw_qty = invoke_order(policy, day, belief, pending_view)
 
         order_units = case_round(raw_qty, params.case_size)
         pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units

@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.controller.protocol import invoke_order
 from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
@@ -57,17 +58,6 @@ class Policy(Protocol):
     ) -> int: ...
 
 
-def _empty_shelf_belief() -> object:
-    """Minimal ShelfBelief when closed-loop has not yet wired filter beliefs."""
-    from blueberries_voi.filter.belief import ShelfBelief
-
-    return ShelfBelief(
-        lot_counts=[],
-        age_marginals=[],
-        tau_grid=[0.0, 2.0, 4.0, 6.0],
-    )
-
-
 def _invoke_policy_order(
     policy: Policy,
     day: int,
@@ -75,15 +65,7 @@ def _invoke_policy_order(
     pending_orders: Mapping[int, int],
 ) -> int:
     """Dispatch day-first (T-024) or belief-first (T-028) policy surfaces."""
-    sig = inspect.signature(policy.order)
-    names = list(sig.parameters)
-    if names and names[0] == "day":
-        return int(policy.order(day, belief, pending_orders=pending_orders))
-    shelf = belief if belief is not None else _empty_shelf_belief()
-    kwargs: dict[str, object] = {"pending_orders": pending_orders}
-    if "day" in sig.parameters:
-        kwargs["day"] = day
-    return int(policy.order(shelf, **kwargs))  # type: ignore[arg-type]
+    return invoke_order(policy, day, belief, pending_orders)
 
 
 def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:

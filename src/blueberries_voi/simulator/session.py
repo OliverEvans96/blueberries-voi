@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.ordering import ConstantOrderPolicy
+from blueberries_voi.controller.protocol import invoke_order
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF
@@ -313,13 +314,7 @@ class EngineSession:
         if name in {"constant", "const", "fixed"}:
             q = budget_overrides.get("order_qty", budget_overrides.get("q", 0))
             policy_obj = ConstantOrderPolicy(int(q), case_size=self._params.case_size)
-            return int(
-                policy_obj.order(
-                    belief,
-                    day=day,
-                    pending_orders=pending,  # type: ignore[arg-type]
-                )
-            )
+            return invoke_order(policy_obj, day, belief, pending)
 
         if name in {"damped_sw", "sw"}:
             sw_policy = DampedSurvivalWeightedPolicy(
@@ -327,13 +322,7 @@ class EngineSession:
                 rho=rho,
                 params=self._params,
             )
-            return int(
-                sw_policy.order(
-                    belief,
-                    day=day,
-                    pending_orders=pending,
-                )
-            )
+            return invoke_order(sw_policy, day, belief, pending)
 
         if name in {"rollout", "ctl", "rollout_order"}:
             base = DampedSurvivalWeightedPolicy(
