@@ -31,9 +31,12 @@ __all__ = [
     "DayLog",
     "EpisodeLog",
     "LotState",
+    "Policy",
+    "case_round",
     "day_step",
     "generate_arrival_age",
     "open_loop_order",
+    "run_closed_loop_episode",
     "run_episode",
 ]
 
@@ -205,3 +208,11 @@ def run_episode(
             )
         )
     return log
+
+
+# T-024 closed-loop driver; import after open-loop symbols (cycle-safe).
+from blueberries_voi.sim.episode import (  # noqa: E402
+    Policy,
+    case_round,
+    run_closed_loop_episode,
+)

@@ -41,3 +41,80 @@ Non-goals: no CTL, no VOI, no browser; do not reopen ⚑ cards.
 | [T-019](./T-019.md) | Sim emits ASN `pack_date` on DayLog (F2a Stage A unblock) | T-009, T-013, T-016; Oliver pack-date approval |
 
 Wave order: T-008 → (T-009 ∥ T-010) → T-011 → T-012 → (T-013 ∥ T-014) → T-015 → T-016 → T-017 → T-018 → T-019.
+
+## M2 controller and multi-scenario (2026-08-12)
+
+Plan: [`.team/plans/M2-controller.md`](../plans/M2-controller.md).  
+ADRs: [0092](../adr/0092-controller-belief-api.md)–[0093](../adr/0093-day-profit-helper.md) (plus CTL-01–06 / SIM-01 already ACCEPTED).  
+Prerequisite: T-021 DONE (`PRODUCTION_BACKEND=mean_field`).  
+Non-goals: no VOI sweep; no Pyodide packaging / ENG-01; no joint production reopen; see also parked [M2-controller-agent-brief.md](../plans/M2-controller-agent-brief.md) (eventual compat only).
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-022](./T-022.md) | M2 ADR/spec lock (docs only) | T-021; ADRs 0092–0093 |
+| [T-023](./T-023.md) | Belief API (`ShelfBelief`) | T-022; ADR 0092 |
+| [T-024](./T-024.md) | Closed-loop driver + `Policy` | T-022 |
+| [T-025](./T-025.md) | Day profit helper (`sim/profit.py`) | T-022; ADR 0093 |
+| [T-026](./T-026.md) | `case_round` + constant order | T-022 |
+| [T-027](./T-027.md) | Rung 0 corrected age-blind | T-025, T-026 |
+| [T-028](./T-028.md) | CTL-01 damped SW | T-023, T-025, T-026 |
+| [T-029](./T-029.md) | CTL-03 α tuning | T-024, T-027, T-028 |
+| [T-030](./T-030.md) | Rollout + salvage (+ optional budgets) | T-024, T-025, T-028 |
+| [T-031](./T-031.md) | Toy exact DP | T-028 |
+| [T-032](./T-032.md) | Ladder + ENG-04 gates | T-029, T-030, T-031 |
+| [T-033](./T-033.md) | Multi-scenario + L remeasure | T-032 |
+| [T-034](./T-034.md) | M2 close-out | T-033 |
+
+Wave order: T-022 → (T-023 ∥ T-024 ∥ T-025 ∥ T-026) → (T-027 ∥ T-028) → T-029 → (T-030 ∥ T-031) → T-032 → T-033 → T-034.
+
+## M3 VOI sweep (2026-08-12)
+
+Plan: [`.team/plans/M3-voi-sweep.md`](../plans/M3-voi-sweep.md).  
+ADRs: [0094](../adr/0094-voi-package-layout.md)–[0096](../adr/0096-voi-scenario-columns.md) (plus VOI-01–04 / SIM-02–03 already ACCEPTED).  
+Prerequisite: M2 verify tip (`T-022`–`T-034` DONE).  
+Non-goals: no honesty/misspecification arms (VOI-02=A); no ENG-01 / Pyodide; no cadence/stagger axes (X-06=A).
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-035](./T-035.md) | M3 ADR/spec lock (docs only) | M2 tip; ADRs 0094–0096 |
+| [T-036](./T-036.md) | VOI metric (%, $ vs P0) | T-035; ADR 0069 |
+| [T-037](./T-037.md) | Outer-loop CRN cell | T-035; ADR 0065/0066 |
+| [T-038](./T-038.md) | Paired bootstrap CI | T-035; ADR 0071 |
+| [T-039](./T-039.md) | Sweep orchestrator (scenario × β) | T-036, T-037, T-038 |
+| [T-040](./T-040.md) | Smoke artifact + β=1 gate + figure hook | T-039 |
+| [T-041](./T-041.md) | M3 close-out | T-040 |
+
+Wave order: T-035 → (T-036 ∥ T-037 ∥ T-038) → T-039 → T-040 → T-041.
+
+## ENG-01 dual-runtime simulator (2026-08-12)
+
+Plan: [`.team/plans/ENG-01-dual-runtime.md`](../plans/ENG-01-dual-runtime.md).  
+ADRs: [0097](../adr/0097-eng-01-dual-runtime-ap.md)–[0100](../adr/0100-eng-01-api-asgi-session.md)
+([0073](../adr/0073-eng-01-browser-simulator-scope.md) superseded).  
+Locks: Pyodide=**prod**, API=**dev**; order common+Pyodide → API → D3; browser v1 =
+sim+filter+controller (dialed budgets); Pyodide **314.0.4** / CPython **3.14.2**; CI 3.11+3.12+3.14.  
+Non-goals: not full WASM A; not JS-only B as prod; no matplotlib/pyarrow in-browser; no
+production-N-in-tab without budget dials; honesty/cadence ⚑ out.
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-042](./T-042.md) | Wave 0 ADR/spec lock (docs only) | ADRs 0097–0100; plan |
+| [T-043](./T-043.md) | EngineSession + day driver + act / step_n | T-042; ADR 0098 (**∥ T-044**) |
+| [T-044](./T-044.md) | Derived Abdella + browser extras | T-042; ADR 0099 (**∥ T-043**) |
+| [T-045](./T-045.md) | Golden Snapshot/DayDelta fixtures | T-043 (after Wave 1 merge; **∥ T-046**) |
+| [T-046](./T-046.md) | Slim wheel + GH Release + CI 3.14 | T-044 (**∥ T-045**) |
+| [T-047](./T-047.md) | Pyodide worker RPC + budget smoke | T-045, T-046 |
+| [T-048](./T-048.md) | Slice 1 close-out | T-047 |
+| [T-049](./T-049.md) | API ADR/OpenAPI lock (docs; implement gated) | T-042 / ADR 0100 |
+| [T-050](./T-050.md) | ASGI app wrapping EngineSession | Slice-1 green; T-049 (**∥ T-051**) |
+| [T-051](./T-051.md) | API contract tests vs goldens | T-045, T-050 |
+| [T-052](./T-052.md) | Slice 2 close-out | T-050, T-051 |
+| [T-053](./T-053.md) | UI ADR: EngineAdapter + projector | Slice-2 or export ADR; mockup worktree |
+| [T-054](./T-054.md) | ViewModelProjector + MockAdapter deltas | T-053 (**∥ T-055 ∥ T-056**) |
+| [T-055](./T-055.md) | PyodideAdapter → Release wheel | T-047, T-053 |
+| [T-056](./T-056.md) | HttpAdapter → local API | T-050, T-053 |
+| [T-057](./T-057.md) | Wire studio (dev=HTTP, prod=Pyodide) | T-054, T-055, T-056 |
+| [T-058](./T-058.md) | ENG-01 / Slice 3 close-out | T-057 |
+
+Wave order: T-042 → (T-043 ∥ T-044) → (T-045 ∥ T-046) → T-047 → T-048 → (T-050 ∥ T-051) →
+T-052 → T-053 → (T-054 ∥ T-055 ∥ T-056) → T-057 → T-058.

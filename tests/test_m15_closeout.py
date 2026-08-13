@@ -398,42 +398,77 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: no production CTL / VOI / browser beyond pre-existing stubs
+# AC: VOI stay parked through M1.5; controller may grow under M2 (Wave 1+)
+# Browser: M1.5 parked ENG-01; ADR 0097 reopen allows T-044 slim façade only
 # ---------------------------------------------------------------------------
+
+# Relative to ``src/blueberries_voi/``. Intentional ENG-01 slim entry (T-044).
+_ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """Controller/VOI remain stubs; no browser package landed under this milestone."""
+    """VOI stays stub through M1.5; only allowlisted ENG-01 browser façade ok."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
-    assert controller.is_file(), "expected pre-existing controller stub"
-    assert voi.is_file(), "expected pre-existing voi stub"
+    assert controller.is_file(), "expected pre-existing controller package"
+    assert voi.is_file(), "expected pre-existing voi package"
 
-    ctrl_text = controller.read_text(encoding="utf-8")
-    voi_text = voi.read_text(encoding="utf-8")
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", ctrl_text), (
-        "controller package must remain an empty stub for M1.5 (no CTL production API)"
+    m3_plan = _REPO_ROOT / ".team" / "plans" / "M3-voi-sweep.md"
+    m3_complete = m3_plan.is_file() and "Status:** COMPLETE" in m3_plan.read_text(
+        encoding="utf-8"
     )
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
-        "voi package must remain an empty stub for M1.5 (no VOI sweep API)"
-    )
-
-    # No extra production modules under controller/ or voi/
-    for pkg, label in (
-        (_SRC / "controller", "CTL"),
-        (_SRC / "voi", "VOI"),
-    ):
-        extras = [
-            p for p in pkg.rglob("*.py") if p.name != "__init__.py" and p.is_file()
+    if not m3_complete:
+        voi_text = voi.read_text(encoding="utf-8")
+        assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
+            "voi package must remain an empty stub until M3"
+        )
+        voi_extras = [
+            p
+            for p in (_SRC / "voi").rglob("*.py")
+            if p.name != "__init__.py" and p.is_file()
         ]
-        assert not extras, (
-            f"M1.5 non-goal: no {label} production modules; found "
-            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in extras)
+        assert not voi_extras, (
+            "non-goal: no VOI production modules; found "
+            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in voi_extras)
         )
 
-    browser_hits = list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
-    assert not browser_hits, "M1.5 non-goal: no browser modules; found " + ", ".join(
-        str(p.relative_to(_REPO_ROOT)) for p in browser_hits
+    # M2 Waves 1-4 may land ordering / policies / rollout / toy DP under controller/.
+    ctrl_extras = [
+        p
+        for p in (_SRC / "controller").rglob("*.py")
+        if p.name != "__init__.py" and p.is_file()
+    ]
+
+    allowed_ctrl = {
+        "ordering.py",
+        "rung0.py",
+        "damped_sw.py",
+        "rollout.py",
+        "toy_dp.py",
+    }
+    unexpected = [p for p in ctrl_extras if p.name not in allowed_ctrl]
+    assert not unexpected, (
+        "unexpected controller modules (M2 Waves 1-4 allow "
+        "ordering/rung0/damped_sw/rollout/toy_dp): "
+        + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
+    )
+
+    # ADR 0097 reopened ENG-01: allow T-044 ``browser.py`` only; still forbid
+    # other *browser* / *eng01* modules that M1.5 closed out as non-goals.
+    browser_hits = [
+        p
+        for p in list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
+        if p.is_file() and p.suffix == ".py"
+    ]
+    unexpected_browser = [
+        p
+        for p in browser_hits
+        if str(p.relative_to(_SRC)) not in _ALLOWED_BROWSER_MODULES
+    ]
+    assert not unexpected_browser, (
+        "non-goal: no browser/ENG-01 modules beyond T-044 slim façade "
+        f"(allowed: {sorted(_ALLOWED_BROWSER_MODULES)}); found "
+        + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected_browser)
     )
 
 

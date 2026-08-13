@@ -2,12 +2,41 @@
 
 Escalations and items that need a human decision land here.
 
-- **M1.5 Wave 0 done:** Architecture locked in ADRs
-  [0086](./adr/0086-m15-richobs-unobserved-masks.md)–[0089](./adr/0089-m15-dynamic-l-sliding-window-fallback.md)
-  and specs [T-008](./specs/T-008.md)–[T-018](./specs/T-018.md). Plan:
-  [`.team/plans/M1.5-filter-complete.md`](./plans/M1.5-filter-complete.md).
-  **Next:** Wave 2 / T-011 (honest MC LL) — Wave 1 behaviour verified; full-repo
-  gates may still be red on T-011 RED until that ticket lands.
+- **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there).
+- **M1.5 / T-021 settled:** Production RBPF is mean-field (ADR
+  [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
+  production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
+  ADR.
+- **Done — M3 (T-035–T-041):** VOI sweep library + smoke gates on
+  `team/T-036/implement` (plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Pending human
+  merge with M2 tip to `main`. Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
+  **ENG-01 reopened** (see below).
+- **Next — ENG-01 dual-runtime (T-042–T-058):** Oliver reopened ENG-01. Plan
+  [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md). ADRs
+  [0097](./adr/0097-eng-01-dual-runtime-ap.md)–[0100](./adr/0100-eng-01-api-asgi-session.md)
+  (0073 superseded). Wave 0 = T-042; next implement wave **T-043 ∥ T-044**. Pyodide=prod,
+  API=dev; Slice order common+Pyodide → API → D3 mockup.
+- **M2 complete pending human merge to main:** Waves 0–7 (T-022–T-034) are tip-green on
+  the M2 verify/implement line; landing on `main` is a human decision. M3 branched from the
+  M2 tip without waiting for that merge.
+- **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
+  non-goal locks) gate-green on `team/T-022/verify` (verifier PASS).
+- **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
+  and gate-green on `team/T-022/verify`.
+- **Done — M2 Wave 5:** **T-032** (CTL-05 five-point ladder + ENG-04 M2 gates: β=1,
+  CRN desync, DP certificate) integrated and gate-green on `team/T-022/verify`.
+- **Done — M2 Wave 4:** Parallel **T-030 ∥ T-031** (one-step rollout + salvage; toy exact DP
+  certificate) integrated and gate-green on `team/T-022/verify`.
+- **Done — M2 Wave 3:** **T-029** α fractile tuning (CTL-03=B) integrated and gate-green on
+  `team/T-022/verify`.
+- **Done — M2 Wave 2:** Parallel base policies **T-027 ∥ T-028** (age-blind Rung 0 and CTL-01
+  damped survival-weighted base-stock) integrated and gate-green on `team/T-022/verify`.
+- **Done — M2 Wave 0 / Wave 1:** ADRs
+  [0092](./adr/0092-controller-belief-api.md)–[0093](./adr/0093-day-profit-helper.md) and specs
+  [T-022](./specs/T-022.md)–[T-034](./specs/T-034.md); Wave 1 implement tips integrated and
+  gate-green (T-023–T-026).
+- **Historical — M1.5 Wave 0 / T-011:** Architecture lock and honest MC LL are done; do not treat
+  “Next: Wave 2 / T-011” as current work.
 - **Resolved — experiments lint:** `experiments/fil11_a_scenarios.py` RUF001
   (`sigma`/`x` ASCII) + E501/format wrap fixed; `uv run ruff check experiments/`
   and `uv run ruff format experiments/` pass.
@@ -16,19 +45,17 @@ Escalations and items that need a human decision land here.
   FIL-13 = **B (`mean_field`)**; FIL-04 → **C**; FIL-12 (ADR 0057) is **historical** — joint /
   `full_joint` is no longer the production default (bakeoff arm E retained). Do not reopen joint
   production without a **new** ADR; T-021 wires the settle.
-- **M1.5 non-goals (binding):** no CTL, no VOI sweep, no browser, no new runtime deps without ADR.
-- **Parked — browser A′ (Pyodide) deployment (needs Oliver to reopen ENG-01 / ADR 0073):**
-  Intent: run sim/filter/(later) controller live in-browser via Pyodide on the
-  Astro site (separate repo). Locked preferences (2026-08-12 chat), not ticketed:
-  (1) ship **derived Abdella product** (e.g. arrival-age mix / arrays), not
-  parquet/pyarrow in the browser path; (2) distribute wheel + assets via
-  **CI → GitHub Release** (not PyPI); Astro `micropip.install` from release URL;
-  (3) **no matplotlib in-browser** — static preloaded images and/or JS interactive
-  figures from Python summaries; (4) slim import graph / browser façade;
-  (5) thin JSON-friendly JS↔Python API, Pyodide in a worker; (6) demo numerics /
-  perf deferred; (7) design CTL/VOI for dual runtime when built; (8) process:
-  reopen ENG-01, write ADR + export contract, Pyodide smoke later. Do not start
-  implementation under M1.5; park until post–M1.5 / explicit reopen.
+- **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without
+  ADR; do not reopen T-021 / joint production. ENG-01 packaging is a **separate** milestone
+  (T-042+), not an M2 deliverable.
+- **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md)
+  (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
+- **Active — ENG-01 A′ (unparked 2026-08-12):** Dual runtime per ADR
+  [0097](./adr/0097-eng-01-dual-runtime-ap.md). Binding prefs in ADR
+  [0098](./adr/0098-simulator-export-contract.md)–[0099](./adr/0099-eng-01-packaging-pyodide-wheels.md)
+  and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md): derived Abdella; CI→GH
+  Release wheels; no matplotlib in-browser; worker-only Pyodide; Snapshot/DayDelta; flat belief;
+  sim+filter+controller under dialed budgets; Pyodide 314.0.4 / CPython 3.14.2; CI 3.11+3.12+3.14.
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim now emits synthetic ASN
   `pack_date` on delivery `DayLog` rows (non-delivery stays `None`). Stage A F2a
   contracts under smoke defaults; needs-human from T-016 is cleared.
