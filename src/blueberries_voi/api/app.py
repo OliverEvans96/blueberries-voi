@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator.session import EngineSession
 
 # In-process session store (local dev only; no TTL / multi-tenant isolation).
@@ -170,8 +171,14 @@ def _hydrate_shipments(raw: Any) -> list[ShipmentTrace]:
 
 
 def _config_with_shipments(config: dict[str, Any]) -> dict[str, Any]:
-    cfg = dict(config)
-    cfg["shipments"] = _hydrate_shipments(cfg.get("shipments"))
+    """Demo-hydrate missing/empty shipments at the API edge (ADR 0107)."""
+    cfg = ensure_demo_shipments(dict(config))
+    raw = cfg.get("shipments")
+    if raw and isinstance(raw[0], ShipmentTrace):
+        # Demo fixture already returns ShipmentTrace objects.
+        cfg["shipments"] = list(raw)
+        return cfg
+    cfg["shipments"] = _hydrate_shipments(raw)
     return cfg
 
 

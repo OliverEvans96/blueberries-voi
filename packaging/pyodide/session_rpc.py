@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 if TYPE_CHECKING:
@@ -36,6 +37,7 @@ def prepare_demo_config(
     out = dict(config)
     if shipments is not None:
         out["shipments"] = list(shipments)
+    out = ensure_demo_shipments(out)
     # Dial demo budgets (≤ ADR 0099 caps); never silently use full production N.
     for key, cap in DEMO_BUDGETS.items():
         if key not in out:
@@ -61,7 +63,7 @@ def _err(req_id: str, err_type: str, message: str) -> str:
 
 def _dispatch(method: str, params: dict[str, Any]) -> Any:
     if method == "init":
-        config = dict(params.get("config") or {})
+        config = ensure_demo_shipments(dict(params.get("config") or {}))
         seed = params.get("seed")
         return _SESSION.init(config, seed=None if seed is None else int(seed))
     if method == "step":
@@ -70,10 +72,12 @@ def _dispatch(method: str, params: dict[str, Any]) -> Any:
         orders = list(params.get("orders") or [])
         return _SESSION.step_n([int(q) for q in orders])
     if method == "reset":
-        config = params.get("config")
+        raw_config = params.get("config")
         seed = params.get("seed")
         return _SESSION.reset(
-            None if config is None else dict(config),
+            None
+            if raw_config is None
+            else ensure_demo_shipments(dict(raw_config)),
             seed=None if seed is None else int(seed),
         )
     if method == "act":

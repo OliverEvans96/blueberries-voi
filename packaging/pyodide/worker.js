@@ -43,6 +43,7 @@ async function ensureReady() {
 
     await pyodide.runPythonAsync(`
 import json
+from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _SESSION = EngineSession()
@@ -63,7 +64,7 @@ def _err(req_id, err_type, message):
 
 def _dispatch(method, params):
     if method == "init":
-        config = dict(params.get("config") or {})
+        config = ensure_demo_shipments(dict(params.get("config") or {}))
         seed = params.get("seed")
         return _SESSION.init(config, seed=None if seed is None else int(seed))
     if method == "step":
@@ -75,7 +76,7 @@ def _dispatch(method, params):
         config = params.get("config")
         seed = params.get("seed")
         return _SESSION.reset(
-            None if config is None else dict(config),
+            None if config is None else ensure_demo_shipments(dict(config)),
             seed=None if seed is None else int(seed),
         )
     if method == "act":
