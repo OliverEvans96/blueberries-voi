@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pytest
 
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.age_likelihood import mean_field_update
 from blueberries_voi.filter.types import UNOBSERVED, P1Obs, RichObs, mask_for
 from blueberries_voi.model import ModelParams
 
-_SIMPLEX_TOL = 1e-6
+if TYPE_CHECKING:
+    import pytest
+
 _RUNTIME_DEPS_LOCKED = frozenset({"matplotlib", "numpy", "pyarrow", "scipy"})
 
 
@@ -81,7 +82,8 @@ def _fingerprint(counts_i: np.ndarray, age_post_i: np.ndarray) -> tuple[Any, byt
 
 
 def test_adr_0097_accepted() -> None:
-    adr = Path(__file__).resolve().parents[1] / ".team/adr/0097-exact-faster-p1-f2a-likelihood.md"
+    root = Path(__file__).resolve().parents[1]
+    adr = root / ".team/adr/0097-exact-faster-p1-f2a-likelihood.md"
     text = adr.read_text(encoding="utf-8")
     assert "STATUS: ACCEPTED" in text
     assert "2026-08-12" in text
@@ -93,7 +95,9 @@ def test_no_new_runtime_deps() -> None:
     root = Path(__file__).resolve().parents[1]
     data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     deps = data.get("project", {}).get("dependencies", [])
-    names = {d.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for d in deps}
+    names = {
+        d.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for d in deps
+    }
     assert names <= _RUNTIME_DEPS_LOCKED
 
 
@@ -115,8 +119,8 @@ def test_duplicate_particles_invoke_mf_once_per_unique_key(
     if hasattr(backends, "mean_field_update"):
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
-    n, k, l = 6, 4, 2
-    rbpf = RBPF(params=ModelParams(), N=n, K=k, L=l)
+    n_particles, k, n_lots = 6, 4, 2
+    rbpf = RBPF(params=ModelParams(), N=n_particles, K=k, L=n_lots)
     rng = np.random.default_rng(42)
     rbpf.initialize(rng)
     assert rbpf._state is not None
@@ -125,7 +129,7 @@ def test_duplicate_particles_invoke_mf_once_per_unique_key(
     counts_a = np.asarray([5, 5], dtype=int)
     counts_b = np.asarray([4, 6], dtype=int)
     counts_c = np.asarray([3, 7], dtype=int)
-    post_a = np.ones((l, k), dtype=float) / k
+    post_a = np.ones((n_lots, k), dtype=float) / k
     post_b = np.asarray([[0.7, 0.1, 0.1, 0.1], [0.1, 0.7, 0.1, 0.1]], dtype=float)
     post_c = np.asarray([[0.25, 0.25, 0.25, 0.25], [0.4, 0.2, 0.2, 0.2]], dtype=float)
 
@@ -137,18 +141,19 @@ def test_duplicate_particles_invoke_mf_once_per_unique_key(
     )
 
     keys = [
-        _fingerprint(rbpf._state.counts[i], rbpf._state.age_post[i]) for i in range(n)
+        _fingerprint(rbpf._state.counts[i], rbpf._state.age_post[i])
+        for i in range(n_particles)
     ]
     n_unique = len(set(keys))
     assert n_unique == 3
-    assert n_unique < n
+    assert n_unique < n_particles
 
     obs = _p1_unobserved_maps(sales_total=4, waste_total=1, arrivals=0)
     rbpf.step(obs, rng)
 
     assert len(calls) == n_unique, (
         f"expected mean_field_update call count == {n_unique} unique keys, "
-        f"got {len(calls)} (N={n}); unique-particle MF dedup missing"
+        f"got {len(calls)} (N={n_particles}); unique-particle MF dedup missing"
     )
 
 
@@ -160,16 +165,16 @@ def test_duplicate_particles_match_naive_per_particle_mf(
     from blueberries_voi.filter.types import age_grid
     from blueberries_voi.model import q10_age_increment
 
-    n, k, l = 4, 4, 2
+    n_particles, k, n_lots = 4, 4, 2
     params = ModelParams()
-    rbpf = RBPF(params=params, N=n, K=k, L=l)
+    rbpf = RBPF(params=params, N=n_particles, K=k, L=n_lots)
     rng = np.random.default_rng(7)
     rbpf.initialize(rng)
     assert rbpf._state is not None
 
     counts_a = np.asarray([5, 5], dtype=int)
     counts_b = np.asarray([4, 6], dtype=int)
-    post_a = np.ones((l, k), dtype=float) / k
+    post_a = np.ones((n_lots, k), dtype=float) / k
     post_b = np.asarray([[0.6, 0.2, 0.1, 0.1], [0.2, 0.6, 0.1, 0.1]], dtype=float)
     rbpf._state.counts[:] = np.vstack([counts_a, counts_a, counts_b, counts_b])
     rbpf._state.age_post[:] = np.stack([post_a, post_a, post_b, post_b], axis=0)
@@ -190,7 +195,7 @@ def test_duplicate_particles_match_naive_per_particle_mf(
     days = days0.astype(float) + 1.0
     tau_grid = grid + float(np.mean(days)) * float(dtau)
     naive = np.empty_like(post0)
-    for i in range(n):
+    for i in range(n_particles):
         naive[i] = mean_field_update(
             counts0[i],
             post0[i],
@@ -201,7 +206,7 @@ def test_duplicate_particles_match_naive_per_particle_mf(
         )
 
     # Keep particle order so index-wise identity vs naive is meaningful.
-    monkeypatch.setattr(backends, "_ess", lambda _w: float(n))
+    monkeypatch.setattr(backends, "_ess", lambda _w: float(n_particles))
 
     obs = _p1_unobserved_maps(sales_total=sales_tot, waste_total=waste_tot, arrivals=0)
     out = backends._rbpf_update(
@@ -212,7 +217,7 @@ def test_duplicate_particles_match_naive_per_particle_mf(
         backend_name="mean_field",
     )
 
-    for i in range(n):
+    for i in range(n_particles):
         np.testing.assert_array_equal(
             out.age_post[i],
             naive[i],
@@ -239,26 +244,27 @@ def test_all_distinct_fingerprints_call_once_per_particle(
     if hasattr(backends, "mean_field_update"):
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
-    n, k, l = 4, 4, 2
-    rbpf = RBPF(params=ModelParams(), N=n, K=k, L=l)
+    n_particles, k, n_lots = 4, 4, 2
+    rbpf = RBPF(params=ModelParams(), N=n_particles, K=k, L=n_lots)
     rng = np.random.default_rng(99)
     rbpf.initialize(rng)
     assert rbpf._state is not None
 
-    for i in range(n):
+    for i in range(n_particles):
         rbpf._state.counts[i] = np.asarray([3 + i, 5], dtype=int)
-        post = np.ones((l, k), dtype=float) / k
+        post = np.ones((n_lots, k), dtype=float) / k
         post[0, i % k] += 0.2
         post[0] /= post[0].sum()
         rbpf._state.age_post[i] = post
 
     keys = [
-        _fingerprint(rbpf._state.counts[i], rbpf._state.age_post[i]) for i in range(n)
+        _fingerprint(rbpf._state.counts[i], rbpf._state.age_post[i])
+        for i in range(n_particles)
     ]
-    assert len(set(keys)) == n
+    assert len(set(keys)) == n_particles
 
     rbpf.step(_p1_unobserved_maps(sales_total=3, waste_total=1), rng)
-    assert len(calls) == n
+    assert len(calls) == n_particles
 
 
 def test_lot_map_path_skips_mf_dedup(monkeypatch: pytest.MonkeyPatch) -> None:
