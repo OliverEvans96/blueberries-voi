@@ -60,7 +60,7 @@ opt-in for implement loops (see below).
 | Role | Gates |
 |------|--------|
 | **qa** | `uv sync` once → `uv run pytest <new tests> --no-cov` (prove RED; **no** `--testmon`) |
-| **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff` / `mypy` on touched paths; optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style `pytest` with coverage before handoff |
+| **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff` / `mypy` on touched paths (or full tree if cheap); optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style `pytest` with coverage before handoff |
 | **review** | No pytest |
 | **verify / CI** | `ruff` + `mypy` + **full** pytest **with** coverage ≥80% and xdist (command below). **No testmon selection** (`--no-testmon` if `addopts` ever gains `--testmon`). Does **not** refresh `.testmondata` in MVP |
 
