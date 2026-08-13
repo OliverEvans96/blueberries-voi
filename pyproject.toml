@@ -38,6 +38,10 @@ notebooks = [
     "jupyter>=1.0.0",
     "ipykernel>=6.29.0",
 ]
+api = [
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+]
 
 [project.scripts]
 blueberries-voi = "blueberries_voi.__main__:main"
