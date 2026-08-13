@@ -2,7 +2,7 @@
 
 **Branch:** `team/ENG-01/integrate`  
 **Worktree:** `.worktrees/ENG-01-integrate`  
-**Tip:** `a939bc43e2e1ac30f19aa7a30e3e11ca821098d6`  
+**Tip:** branch HEAD of `team/ENG-01/integrate` (see `git rev-parse`)  
 **Date:** 2026-08-12
 
 Integrated implement tips:
