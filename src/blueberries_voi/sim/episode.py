@@ -78,7 +78,7 @@ def _invoke_policy_order(
     kwargs: dict[str, object] = {"pending_orders": pending_orders}
     if "day" in sig.parameters:
         kwargs["day"] = day
-    return int(policy.order(shelf, **kwargs))
+    return int(policy.order(shelf, **kwargs))  # type: ignore[arg-type]
 
 
 def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
