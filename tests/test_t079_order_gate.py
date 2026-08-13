@@ -400,9 +400,7 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
         run_id="t079-day-fwd",
     )
     assert recorded == list(range(n_score)), (
-        "closed-loop must pass day=0..{0} into day_step when supported; got {1}".format(
-            n_score - 1, recorded
-        )
+        f"closed-loop must pass day=0..{n_score - 1} into day_step when supported; got {recorded}"
     )
 
 
