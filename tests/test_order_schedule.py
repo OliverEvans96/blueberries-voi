@@ -128,7 +128,7 @@ def test_order_schedule_module_is_importable() -> None:
 
 
 def test_order_schedule_type_is_frozen_dataclass() -> None:
-    cls = _resolve_attr("OrderSchedule")
+    cls: Any = _resolve_attr("OrderSchedule")
     assert dataclasses.is_dataclass(cls), "OrderSchedule must be a dataclass"
     assert dataclasses.fields(cls), "OrderSchedule must declare fields"
     # frozen=True → instances reject attribute assignment
