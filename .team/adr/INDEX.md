@@ -20,7 +20,8 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - ENG-01 dual-mode readiness (2026-08-13): **[0107](./0107-demo-hydrate-at-host-edges.md)–[0108](./0108-local-dual-mode-vite-wheel-cors.md)** (host-edge demo hydrate; Vite wheel/`wheelUrl`/CORS). Do **not** confuse with in-flight arrival-only ADR **0105–0106** on `team/T-067/architect`.
 - ENG-01 belief charts (2026-08-13): **[0109](./0109-js-belief-age-count-rebin.md)** (JS-only FlatBelief → age×count BeliefGrid rebin + merged age marginal; wire stays `L×K`).
 - Studio observation ladder (2026-08-13): **[0110](./0110-studio-obs-scenario-ladder.md)** (`obs_scenario` ≡ `ScenarioId`; mask_for + rich DayLog on interactive path; SCN-P2 stays Out; Ticket A owns charts). Was provisional 0109; renumbered at integrate after T-090 kept 0109.
-- CAL-01 calendar realism Wave 0 (2026-08-13): **[0109](./0109-x-11-mwf-delivery-base-case.md)–[0113](./0113-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. **Number collision with ENG-01 0109–0110 above — renumber CAL-01 ADRs at human integrate** (provisional keep both filenames until renumber).
+- Pyodide module-worker host (2026-08-13): **[0111](./0111-pyodide-module-worker-host.md)** (ESM `pyodide.mjs` + `{ type: "module" }` under pin 314.0.4; no classic `importScripts`).
+- CAL-01 calendar realism Wave 0 (2026-08-13): **[0109](./0109-x-11-mwf-delivery-base-case.md)–[0113](./0113-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. **Number collision with ENG-01 0109–0110/0111 above — renumber CAL-01 ADRs in Part B** (provisional keep both filenames until renumber).
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -139,6 +140,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0108](./0108-local-dual-mode-vite-wheel-cors.md) | `ENG-01` | Local dual-mode: Vite wheel + worker, wheelUrl, CORS | ACCEPTED |
 | [0109](./0109-js-belief-age-count-rebin.md) | `ENG-01` | JS-only FlatBelief → age×count BeliefGrid rebin + age marginal | ACCEPTED |
 | [0110](./0110-studio-obs-scenario-ladder.md) | `SCN-*` / ENG-01 | Studio obs_scenario ≡ filter ScenarioId ladder | ACCEPTED |
+| [0111](./0111-pyodide-module-worker-host.md) | `ENG-01` | Pyodide module worker + pyodide.mjs under 314.0.4 | ACCEPTED |
 | [0109](./0109-x-11-mwf-delivery-base-case.md) | `X-11` / CAL-01 | MWF delivery base case (LT=1; order Sun/Tue/Thu) | ACCEPTED (renumber at integrate) |
 | [0110](./0110-mod-09-calendar-demand.md) | `MOD-09` / CAL-01 | Known NB with calendar DOW×week structure | ACCEPTED (renumber at integrate) |
 | [0111](./0111-order-schedule-api.md) | `CAL-A1` | OrderSchedule type/API (can_order / protection_days) | ACCEPTED (renumber at integrate) |

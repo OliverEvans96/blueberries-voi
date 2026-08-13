@@ -44,7 +44,7 @@ function rpc(worker, request) {
  * @returns {Promise<void>}
  */
 export async function runDemoBudgetSmoke() {
-  const worker = new Worker(WORKER_URL, { type: "classic" });
+  const worker = new Worker(WORKER_URL, { type: "module" });
   try {
     // DEMO_BUDGETS: n_particles ≤ 200 (not full production particle count). Shipments are
     // injected by the worker/session_rpc prepare path in full hosts; smoke

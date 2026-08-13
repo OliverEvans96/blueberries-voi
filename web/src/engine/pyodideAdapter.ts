@@ -76,7 +76,7 @@ export class PyodideAdapter implements EngineAdapter {
     this.budgets = opts.budgets ?? { ...DEFAULT_DEMO_BUDGETS };
     this.wheelUrl = opts.wheelUrl;
     const url = withWheelQuery(opts.workerUrl, opts.wheelUrl);
-    this.worker = new Worker(url);
+    this.worker = new Worker(url, { type: "module" });
 
     this.onMessage = (ev: MessageEvent) => {
       let resp: RpcResponse;
