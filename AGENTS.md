@@ -26,9 +26,9 @@ import the package.
 | Piece | Choice |
 |-------|--------|
 | Env / lockfile | **uv** (`uv.lock` committed) |
-| Python | **3.11+** (CI: 3.11, 3.12) |
+| Python | **3.11** (pin: `.python-version`; `requires-python >=3.11`) |
 | Layout | **src/** package `blueberries_voi` |
-| Lint / format | **Ruff** |
+| Lint / format | **Ruff** (`check` + **`format --check`**) |
 | Types | **Mypy** strict |
 | Tests | **pytest** (+ **pytest-xdist** / branch coverage on verify·CI; optional **pytest-testmon**) |
 | Notebooks | optional extra `[notebooks]` (Jupyter + ipykernel) |
@@ -60,29 +60,46 @@ opt-in for implement loops (see below).
 | Role | Gates |
 |------|--------|
 | **qa** | `uv sync` once → `uv run pytest <new tests> --no-cov` (prove RED; **no** `--testmon`) |
-| **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff` / `mypy` on touched paths (or full tree if cheap); optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style `pytest` with coverage before handoff |
-| **review** | No pytest |
-| **verify / CI** | `ruff` + `mypy` + **full** pytest **with** coverage ≥80% and xdist (command below). **No testmon selection** (`--no-testmon` if `addopts` ever gains `--testmon`). Does **not** refresh `.testmondata` in MVP |
+| **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff check` / `mypy` on touched paths (or full tree if cheap); fix format with `ruff format .` then confirm with `ruff format --check .`; optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style gate before handoff |
+| **review** | Diff + AC (+ ADR) only. **No pytest / ruff / mypy** — verify owns CI parity |
+| **verify / CI** | **Identical to live GitHub Actions** (see Toolchain). `ruff check` + **`ruff format --check`** (never mutating `ruff format .` as the gate) + `mypy` + **full** pytest **with** coverage ≥80% and xdist on the **pinned Python 3.11**. **No testmon selection**. Does **not** refresh `.testmondata` in MVP |
 
 ## Toolchain (verify / before push)
 
-```bash
-uv sync --all-extras
-uv run ruff check .
-uv run ruff format .
-uv run mypy src tests
-uv run pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
-```
+**Source of truth for commands:** live `.github/workflows/ci.yml` (inspect with
+`git show HEAD:.github/workflows/ci.yml` or `gh api` — agents must **not** edit
+workflow files). Canonical draft under `packaging/github-workflows/` may lag;
+**live CI wins** when they differ.
 
-Pip-equivalent (matches the intended CI gate):
+CI installs with **pip** (unlocked `.[dev]`), not `uv sync`. Prefer the
+pip-equivalent block below for verify when available; if using `uv`, still run
+the **same argv** on **Python 3.11** (`.python-version`).
 
 ```bash
+# Prefer: mirror CI install + gates on Python 3.11
+python -m pip install --upgrade pip
 pip install -e ".[dev]"
 ruff check .
-ruff format .
+ruff format --check .
 mypy src tests
 pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
+
+Uv form (same gate argv on the pinned interpreter):
+
+```bash
+uv sync --all-extras --python 3.11
+uv run --python 3.11 ruff check .
+uv run --python 3.11 ruff format --check .
+uv run --python 3.11 mypy src tests
+uv run --python 3.11 pytest -n auto --cov=blueberries_voi --cov-branch \
+  --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+```
+
+**Note:** `[tool.mypy] python_version = "3.11"` matches the pin. If you
+temporarily check on Python ≥ 3.12 (e.g. Pyodide / packaging), **numpy ≥ 2.5**
+stubs can trip mypy (`Type statement is only supported in Python 3.12 and
+greater` in `numpy/__init__.pyi`). That is outside the single-version CI gate.
 
 Fast day-to-day (no coverage):
 
@@ -119,10 +136,11 @@ uv run jupyter lab
 
 | Requirement | Standard |
 |-------------|----------|
-| Formatter / linter | **Ruff** — must pass |
-| Types | **Mypy** strict on `src` and `tests` |
+| Formatter / linter | **Ruff** — `ruff check .` and **`ruff format --check .`** must pass (CI does not auto-format) |
+| Types | **Mypy** strict on `src` and `tests` on the pinned Python (**3.11**) |
 | Tests | **pytest**; verify/CI also use **pytest-xdist** (`-n auto`) |
 | Coverage | **≥80%** on `blueberries_voi` on verify/CI only (`--cov-fail-under=80`) |
+| Python | **3.11** only for verify/CI (`.python-version`); if missing locally, install it or escalate `needs-human` (do **not** PASS on another version) |
 | Testmon | Optional implement speedup; never shrinks the verify/CI gate |
 
 ## Project layout
@@ -155,17 +173,25 @@ done. Definition of done: acceptance criteria pass · `.team/reviews/` APPROVED 
 
 ## CI
 
-GitHub Actions should run Ruff, Mypy, and pytest with xdist + coverage on Python
-3.11 and 3.12 (same full command as the verify toolchain above — **no**
-`--testmon`). A pull request is not complete until CI is green. If the workflow
-file still invokes bare `pytest`, update it to the explicit cov+xdist command
-(workflow edits are a human / privileged step when agents are blocked from
-`.github/workflows/`).
+Live GitHub Actions (`quality` job) runs on **Python 3.11** (repo pin):
+`pip install -e ".[dev]"` → `ruff check .` → `ruff format --check .` →
+`mypy src tests` → `pytest -n auto` with branch coverage `--cov-fail-under=80`
+(**no** `--testmon`). A pull request / push is not complete until CI is green.
+
+**Verifier contract:** `.team/qa/T-XXX.md` may say PASS only when those gates
+were run with CI-identical argv on **Python 3.11**.
+
+Workflow edits are a human / privileged step (agents must not write
+`.github/workflows/`). Prefer updating `packaging/github-workflows/` then asking
+a human to copy/symlink into live workflows — and keep packaging drafts from
+regressing behind live (e.g. bare `pytest` without cov/xdist).
 
 ## Summary for agents
 
-**Write tests first. Keep mypy strict and ruff clean. Keep coverage ≥80% on
-verify/CI. Prefer library code over notebook-only logic. Never "fix" failures
-by weakening configuration. Use the role gate ladder — do not run full coverage
-on every qa/implement loop. Use `--testmon` for implement speed; refresh the LFS
-seed without `--cov`; never let testmon shrink the verify/CI gate.**
+**Write tests first. Keep mypy strict and ruff clean (`format --check`). Keep
+coverage ≥80% on verify/CI. Verify on the pinned Python 3.11 (same as live CI),
+not a different local default. Prefer library code over notebook-only logic. Never
+"fix" failures by weakening configuration. Use the role gate ladder — do not
+run full coverage on every qa/implement loop. Use `--testmon` for implement
+speed; refresh the LFS seed without `--cov`; never let testmon shrink the
+verify/CI gate.**

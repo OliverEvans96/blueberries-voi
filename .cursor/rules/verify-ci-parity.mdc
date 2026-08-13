@@ -1,0 +1,43 @@
+---
+description: Verifier must mirror live GitHub Actions gates on the pinned Python
+alwaysApply: true
+---
+
+# Verify ↔ CI parity (mandatory)
+
+Live CI is the gate. Verify must use the **same argv** as live CI on the
+**pinned Python** (see `.python-version` — currently **3.11**).
+
+## Live CI commands (do not invent softer variants)
+
+Inspect (read-only): `git show HEAD:.github/workflows/ci.yml`
+
+On Python **3.11** (the repo pin):
+
+```bash
+pip install -e ".[dev]"
+ruff check .
+ruff format --check .
+mypy src tests
+pytest -n auto --cov=blueberries_voi --cov-branch \
+  --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+```
+
+## Hard rules for **verify**
+
+- Use **`ruff format --check .`**, never treat mutating `ruff format .` as the gate.
+- Run the full gate block above on **Python 3.11** before writing
+  `.team/qa/T-XXX.md` PASS. A different local interpreter is not PASS.
+- Prefer the **pip** install path CI uses; `uv sync` alone can hide unlocked-pip
+  drift.
+- Reviewers do **not** run these tools; they cannot catch format/mypy misses.
+- Agents must **not** edit `.github/workflows/`; if live CI YAML must change,
+  give the human one copy-paste command only.
+
+## Note (numpy / mypy)
+
+`[tool.mypy] python_version = "3.11"` matches the pin. If you temporarily use
+Python ≥ 3.12 (e.g. packaging / Pyodide checks), **numpy ≥ 2.5** stubs can fail
+mypy with `Type statement is only supported in Python 3.12 and greater` inside
+`numpy/__init__.pyi`. That is outside the single-version CI gate; fix in-repo if
+you need those interpreters, do not weaken CI.
