@@ -87,3 +87,20 @@ Still agent-/convention-assumed (keep + sensitivity; do not claim blueberry fit)
 
 - This tip is a **decision-analysis scaffold** with cleaner production defaults — **not** a calibrated blueberry retail VOI study.
 - Do **not** cite quantitative store-profit VOI from current defaults as science about blueberries until calibration, filter honesty, and production compute artifacts are separately settled.
+
+---
+
+## Note (2026-08-13) — arrival-only count filter stream
+
+Oliver locked ADRs **0105** / **0106** (tickets **T-067**–**T-069**) to address the
+filter-physics remainder above:
+
+- ±1 count RW → `day_step`-consistent count PF (T-068)
+- MF age learning + MC weight mismatch → arrival-only ages + exact sequential-WOR weights
+- Stage A honesty → re-gate on count calibration + arrival-prior injection (T-069); P0/P1/F1
+  no longer claim in-store age contraction
+
+Until T-068/T-069 verify PASS on their tips, the remainder bullets above still describe
+`main`. After those tips integrate, strike or rewrite the filter-physics and
+MF-vs-MC honesty bullets accordingly.
+

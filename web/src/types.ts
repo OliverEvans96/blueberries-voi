@@ -28,8 +28,8 @@ export type Economics = {
   c_stockout: number;
 };
 
-/** Fake physics / logistics knobs (aligned with ModelParams defaults). */
-export type ObsScenario = "P0" | "P1" | "P2";
+/** Filter observation ladder (≡ Python ``filter.types.ScenarioId``). */
+export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2";
 
 /**
  * MOD-21 Abdella sampling frame (mock): all six vs corridor subsets.
@@ -51,7 +51,7 @@ export type SimConfig = {
   base_stock: number;
   starting_inv: number;
   seed: number;
-  obs_scenario: ObsScenario;
+  obs_scenario: ScenarioId;
   window_days: number;
   /** MOD-21: which Abdella corridor mix seeds the arrival prior. */
   arrival_product: ArrivalProduct;
@@ -87,7 +87,10 @@ export type DayPnL = {
 export type BeliefGrid = {
   tau_edges: number[];
   count_edges: number[];
+  /** Age bins × count bins (K × C) after lot-mass rebin (ADR 0109). */
   density: number[][];
+  /** Merged age mass length K; optional presentation field. */
+  age_marginal?: number[];
 };
 
 export type PipelineOrder = {

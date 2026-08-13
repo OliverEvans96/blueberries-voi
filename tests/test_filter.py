@@ -74,9 +74,14 @@ def test_rbpf_requires_initialize() -> None:
         rbpf.age_posterior()
 
 
-def test_production_backend_is_mean_field() -> None:
-    """T-021 / ADR 0091: production FIL-13 = B (mean_field)."""
-    assert filter_pkg.PRODUCTION_BACKEND == "mean_field"
+def test_production_backend_is_not_age_mean_field() -> None:
+    """T-068 / ADR 0105: production identity is not the age mean-field settle."""
+    assert filter_pkg.PRODUCTION_BACKEND != "mean_field"
     rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
-    assert rbpf.backend_choice.backend == "mean_field"
-    assert getattr(rbpf._backend, "name", None) == "mean_field"
+    assert rbpf.backend_choice.backend == filter_pkg.PRODUCTION_BACKEND
+    assert rbpf.backend_choice.backend not in {
+        "mean_field",
+        "sliding_window",
+        "full_joint",
+    }
+    assert getattr(rbpf._backend, "name", None) == filter_pkg.PRODUCTION_BACKEND

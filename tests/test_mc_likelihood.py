@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytest  # noqa: TC002
 
 from blueberries_voi import filter as filter_pkg
 from blueberries_voi import model
@@ -110,14 +111,21 @@ def test_production_rbpf_update_has_no_soft_pow_or_gaussian_ll_symbols() -> None
     )
 
 
-def test_production_rbpf_update_calls_observation_loglik_mc() -> None:
-    """AC: particle weights come from observation_loglik_mc on the RBPF path."""
+def test_production_rbpf_update_does_not_default_to_observation_loglik_mc() -> None:
+    """ADR 0105: MC LL remains for diagnostics; production weights are exact WOR."""
     src = _backends_source()
     fn = _ast_function(src, "_rbpf_update")
     names = _names_in_function(fn)
-    assert "observation_loglik_mc" in names, (
-        "_rbpf_update must call observation_loglik_mc for present RichObs fields"
+    assert "observation_loglik_mc" not in names, (
+        "production _rbpf_update must not default to observation_loglik_mc (ADR 0105)"
     )
+    wor = names & {
+        "log_p_sales_waste_given_ages",
+        "sequential_wor_pmf",
+        "sequential_wor_composition_prob",
+        "sequential_wor_composition_probs",
+    }
+    assert wor, "production particle weights must use exact sequential WOR"
 
 
 def test_observation_loglik_mc_exists_with_n_mc_default_one() -> None:
@@ -171,42 +179,118 @@ def test_observation_loglik_mc_returns_per_particle_loglik() -> None:
     assert out.shape == (n_particles,)
 
 
-def test_unobserved_waste_not_scored_like_observed_zero() -> None:
-    """AC: UNOBSERVED fields skipped — soft coerce-to-0 must not survive.
+def test_unobserved_waste_not_scored_like_observed_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC: UNOBSERVED waste is not coerced to waste=0 in the WOR scorer (ADR 0105).
 
-    Soft LL treated UNOBSERVED waste as 0, so UNOBSERVED and waste=0 produced
-    identical weights. Honest MC must skip UNOBSERVED and score observed zero.
+    Post-resample particle weights can be uniform even when scoring differs, so
+    lock the contract by spying on ``log_p_sales_waste_given_ages`` call args.
     """
-    obs_unobs = _full_rich(waste_total=UNOBSERVED, sales_total=12, arrivals=0)
-    obs_zero = _full_rich(waste_total=0, sales_total=12, arrivals=0)
-    w_unobs = _weights_after_one_step(obs_unobs, seed=11)
-    w_zero = _weights_after_one_step(obs_zero, seed=11)
-    assert not np.allclose(w_unobs, w_zero), (
-        "weights identical for waste=UNOBSERVED vs waste=0 — still soft-coerce "
-        "conditioning; honest MC must skip UNOBSERVED waste"
+    import blueberries_voi.filter.age_likelihood as age_likelihood
+    import blueberries_voi.filter.backends as backends
+
+    calls: list[int] = []
+    real = age_likelihood.log_p_sales_waste_given_ages
+
+    def _spy(
+        n: Any,
+        tau: Any,
+        sales_tot: int,
+        waste_tot: int,
+        params: Any,
+    ) -> float:
+        calls.append(int(waste_tot))
+        return real(n, tau, sales_tot, waste_tot, params)
+
+    monkeypatch.setattr(age_likelihood, "log_p_sales_waste_given_ages", _spy)
+    if hasattr(backends, "log_p_sales_waste_given_ages"):
+        monkeypatch.setattr(backends, "log_p_sales_waste_given_ages", _spy)
+
+    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    rng = np.random.default_rng(11)
+    rbpf.initialize(rng)
+    assert rbpf._state is not None
+    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
+
+    calls.clear()
+    rbpf.step(_full_rich(waste_total=UNOBSERVED, sales_total=4, arrivals=0), rng)
+    assert 0 not in calls, (
+        "UNOBSERVED waste must not invoke WOR scorer with waste_tot=0 (no soft coerce)"
+    )
+
+    calls.clear()
+    rbpf2 = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    rng2 = np.random.default_rng(11)
+    rbpf2.initialize(rng2)
+    assert rbpf2._state is not None
+    rbpf2._state.counts[:] = np.asarray([[8, 8]] * rbpf2.N, dtype=int)
+    rbpf2.step(_full_rich(waste_total=0, sales_total=4, arrivals=0), rng2)
+    assert calls and all(w == 0 for w in calls), (
+        "observed waste=0 must score via WOR scorer with waste_tot=0"
     )
 
 
-def test_p0_vs_p1_weight_divergence_when_waste_differs() -> None:
-    """AC: P0 (waste masked) vs P1 (waste present) diverge when waste differs."""
-    # Soft LL already diverges via coerce-to-0 vs waste=4; require soft gone first
-    # so this locks honest masked scoring rather than the toy Gaussian path.
+def test_p0_vs_p1_weight_divergence_when_waste_differs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC: P0 (waste masked) vs P1 (waste present) use different WOR conditioning."""
+    import blueberries_voi.filter.age_likelihood as age_likelihood
+    import blueberries_voi.filter.backends as backends
+
     update = _ast_function(_backends_source(), "_rbpf_update")
     soft_present = sorted(_names_in_function(update) & _SOFT_LL_SYMBOLS)
     assert soft_present == [], (
         "P0/P1 divergence under soft LL is not the acceptance gate; "
         f"remove soft symbols first: {soft_present}"
     )
-    full = _full_rich(waste_total=4, sales_total=10, arrivals=2)
+
+    calls: list[int | None] = []
+    real = age_likelihood.log_p_sales_waste_given_ages
+
+    def _spy(
+        n: Any,
+        tau: Any,
+        sales_tot: int,
+        waste_tot: int,
+        params: Any,
+    ) -> float:
+        calls.append(int(waste_tot))
+        return real(n, tau, sales_tot, waste_tot, params)
+
+    monkeypatch.setattr(age_likelihood, "log_p_sales_waste_given_ages", _spy)
+    if hasattr(backends, "log_p_sales_waste_given_ages"):
+        monkeypatch.setattr(backends, "log_p_sales_waste_given_ages", _spy)
+
+    full = _full_rich(waste_total=4, sales_total=4, arrivals=0)
     obs_p0 = mask_for("P0").apply(full)
     obs_p1 = mask_for("P1").apply(full)
     assert obs_p0.waste_total is UNOBSERVED
     assert obs_p1.waste_total == 4
-    w_p0 = _weights_after_one_step(obs_p0, seed=21)
-    w_p1 = _weights_after_one_step(obs_p1, seed=21)
-    assert not np.allclose(w_p0, w_p1), (
-        "P0 and P1 weights identical despite differing waste presence — "
-        "masked waste must not be coerced into the likelihood"
+
+    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    rng = np.random.default_rng(21)
+    rbpf.initialize(rng)
+    assert rbpf._state is not None
+    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
+    calls.clear()
+    rbpf.step(obs_p0, rng)
+    p0_wastes = list(calls)
+
+    rbpf2 = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    rng2 = np.random.default_rng(21)
+    rbpf2.initialize(rng2)
+    assert rbpf2._state is not None
+    rbpf2._state.counts[:] = np.asarray([[8, 8]] * rbpf2.N, dtype=int)
+    calls.clear()
+    rbpf2.step(obs_p1, rng2)
+    p1_wastes = list(calls)
+
+    assert not p0_wastes, (
+        "P0 must not call full sales+waste WOR scorer (waste UNOBSERVED)"
+    )
+    assert p1_wastes and all(w == 4 for w in p1_wastes), (
+        "P1 must score with observed waste_tot=4 via WOR scorer"
     )
 
 

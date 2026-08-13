@@ -1,4 +1,4 @@
-"""Controller-facing shelf belief over MF marginals and B-state oracle (ADR 0092)."""
+"""Controller-facing shelf belief: arrival-prior ages and B-state oracle (ADR 0106)."""
 
 from __future__ import annotations
 
@@ -78,7 +78,11 @@ def _weight_averaged_counts(rbpf: RBPF) -> list[float]:
 
 
 def shelf_belief_from_rbpf(rbpf: RBPF) -> ShelfBelief:
-    """Build ShelfBelief from MF RBPF public posteriors + weighted counts."""
+    """Build ShelfBelief from arrival-prior age rows and weighted counts (ADR 0106).
+
+    ``age_marginals`` are arrival-derived / birth-prior exports as carried by the
+    filter (Dirac, F2a prior, cold Abdella), not sales-updated posteriors.
+    """
     if rbpf._state is None:
         msg = "RBPF.initialize must be called before shelf_belief_from_rbpf"
         raise RuntimeError(msg)

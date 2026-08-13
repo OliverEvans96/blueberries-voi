@@ -5,6 +5,9 @@ Plain-English notes of what shipped, for non-technical readers.
 ## 2026-08-13
 
 - **The default store now orders for Monday / Wednesday / Friday deliveries with a calendar-shaped weekly demand pattern instead of every-day i.i.d. sales; prior citeable value-of-information numbers from the daily base case need to be regenerated** (T-076–T-088 / CAL-01).
+- **The Belief heatmap now plots true age against count (no more two-day lot-index glitch), with a merged age chart above it so belief lines up with truth markers** (T-090).
+- **In the studio you can choose among six observation levels—from books-only through age at receipt—each with a clear title and description, and Reset applies that choice so the live simulator only sees what that level is allowed to know** (T-089).
+- **Shelf age reports now carry what we knew at receipt, and we removed Rao–Blackwellised in-store age marginalisation because in-store age learning was dropped — not because a simpler bootstrap was preferred** (T-068, T-069).
 - **You can run the studio against a real local API and a real in-browser engine using a wheel built on your machine, with Advance and Reset working without fake data** (T-075).
 
 ## 2026-08-12 — ENG-01 dual-runtime / live simulator

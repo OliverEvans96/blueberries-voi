@@ -1,4 +1,8 @@
-"""FIL-11 staged validation helpers and Stage A/B/C runners."""
+"""FIL-11 staged validation helpers and Stage A/B/C runners.
+
+Honesty: F2a/F2 age information comes from priors; P0/P1/F1 do not claim
+in-store age learning / contraction as a production gate.
+"""
 
 from __future__ import annotations
 

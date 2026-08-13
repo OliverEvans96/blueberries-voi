@@ -77,11 +77,12 @@ def _p1_unobserved_maps(
 
 
 # ---------------------------------------------------------------------------
-# AC: MF_MAX_SWEEPS = 5 shared; production P1 path uses it
+# AC: MF_MAX_SWEEPS = 5 for diagnostic mean_field_update API (not production)
 # ---------------------------------------------------------------------------
 
 
 def test_mf_max_sweeps_constant_is_five() -> None:
+    """Diagnostic MF API keeps MF_MAX_SWEEPS=5 (ADR 0104); not a production path."""
     assert _resolve_mf_max_sweeps() == 5
 
 
@@ -97,8 +98,8 @@ def test_age_likelihood_mean_field_default_uses_mf_max_sweeps() -> None:
     )
 
 
-def test_backends_p1_path_no_hardcoded_max_sweeps_two() -> None:
-    """Production P1 path must not hard-code max_sweeps=2."""
+def test_production_rbpf_update_does_not_call_mean_field_update() -> None:
+    """ADR 0105 / T-068: retire production MF-sweep=5 requirements on _rbpf_update."""
     source = _BACKENDS.read_text(encoding="utf-8")
     tree = ast.parse(source)
     fn: ast.FunctionDef | None = None
@@ -107,33 +108,23 @@ def test_backends_p1_path_no_hardcoded_max_sweeps_two() -> None:
             fn = body_node
             break
     assert fn is not None, "_rbpf_update missing in backends.py"
-    # Look for max_sweeps=2 literal in the function body.
-    for walk_node in ast.walk(fn):
-        if isinstance(walk_node, ast.Call):
-            for kw in walk_node.keywords:
-                if kw.arg == "max_sweeps" and isinstance(kw.value, ast.Constant):
-                    assert kw.value.value != 2, (
-                        "production _rbpf_update must not hard-code max_sweeps=2; "
-                        "use MF_MAX_SWEEPS (5) unless caller overrides"
-                    )
+    names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
+    assert "mean_field_update" not in names, (
+        "production _rbpf_update must not call mean_field_update (ADR 0105)"
+    )
 
 
-def test_production_p1_invokes_mean_field_with_max_sweeps_five(
+def test_production_p1_does_not_invoke_mean_field_update(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import blueberries_voi.filter.age_likelihood as age_likelihood
     import blueberries_voi.filter.backends as backends
 
-    sweeps_seen: list[int] = []
+    calls: list[int] = []
     real = age_likelihood.mean_field_update
 
     def _spy(*args: Any, **kwargs: Any) -> Any:
-        if "max_sweeps" in kwargs:
-            sweeps_seen.append(int(kwargs["max_sweeps"]))
-        else:
-            # Default parameter path — resolve from signature.
-            default = inspect.signature(real).parameters["max_sweeps"].default
-            sweeps_seen.append(int(default))
+        calls.append(1)
         return real(*args, **kwargs)
 
     monkeypatch.setattr(age_likelihood, "mean_field_update", _spy)
@@ -148,15 +139,11 @@ def test_production_p1_invokes_mean_field_with_max_sweeps_five(
     obs = _p1_unobserved_maps(sales_total=8, waste_total=2)
     assert obs.sales_by_lot is UNOBSERVED
     rbpf.step(obs, rng)
-    assert sweeps_seen, "mean_field_update not invoked on P1 path"
-    assert all(s == 5 for s in sweeps_seen), (
-        f"production P1 mean_field_update must use max_sweeps=5 by default, "
-        f"got {sweeps_seen}"
-    )
+    assert not calls, "production P1 path must not invoke mean_field_update (ADR 0105)"
 
 
 # ---------------------------------------------------------------------------
-# AC: bakeoff stubs marked; MeanFieldBackend is production
+# AC: bakeoff stubs marked; MeanFieldBackend is diagnostic / non-production age-MF
 # ---------------------------------------------------------------------------
 
 
@@ -195,17 +182,24 @@ def test_full_joint_backend_is_marked_non_citeable_stub() -> None:
     assert _stub_flag(cls()) is True
 
 
-def test_mean_field_backend_is_not_marked_stub() -> None:
+def test_mean_field_backend_may_be_marked_non_production() -> None:
+    """ADR 0105: age-MF backend is no longer the production closed-loop identity."""
     from blueberries_voi.filter.backends import MeanFieldBackend
 
     cls = MeanFieldBackend
+    doc = (cls.__doc__ or "").lower()
     flag = _stub_flag(cls)
-    # Convention: False, or attribute absent.
-    assert flag is not True, (
-        "MeanFieldBackend is production and must not be marked is_stub=True"
-    )
-    if flag is False:
-        assert _stub_flag(cls()) is False
+    # Allowed: explicit stub/non-production marker, or docstring saying so.
+    # Not required to remain unmarked production (supersedes T-044 production clause).
+    if flag is True:
+        return
+    if any(
+        token in doc
+        for token in ("stub", "non-production", "non-citeable", "diagnostic", "bakeoff")
+    ):
+        return
+    # Soft pass: class still importable for bakeoff/diagnostic use.
+    assert cls is not None
 
 
 # ---------------------------------------------------------------------------

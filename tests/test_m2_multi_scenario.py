@@ -2,9 +2,9 @@
 
 Locks M2 eval scenarios: closed-loop under **P1** vs **B-state** vs **Rung 0**,
 empirical L under SW+rollout recorded in MD outside ``controller/``, production
-``mean_field`` (no silent joint revert), other masks interface-smoke only, and
-``day_step`` + ``ShelfBelief`` factories on the primary path.
-See ``.team/specs/T-033.md``.
+filter identity (ADR 0105: not age mean-field; no silent joint revert), other
+masks interface-smoke only, and ``day_step`` + ``ShelfBelief`` factories on the
+primary path. See ``.team/specs/T-033.md`` / ``T-068.md``.
 """
 
 from __future__ import annotations
@@ -417,11 +417,11 @@ def test_empirical_l_under_sw_rollout_recorded_in_md(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: production remains mean_field; no silent joint revert
+# AC: production is not age mean-field (ADR 0105); no silent joint revert
 # ---------------------------------------------------------------------------
 
 
-def test_multi_scenario_config_production_backend_is_mean_field(
+def test_multi_scenario_config_production_backend_is_not_age_mean_field(
     tmp_path: Path,
 ) -> None:
     fn = _resolve("run_m2_multi_scenario")
@@ -437,29 +437,37 @@ def test_multi_scenario_config_production_backend_is_mean_field(
         backend = getattr(mod, "PRODUCTION_BACKEND", None)
     if backend is None and isinstance(result, Mapping):
         backend = result.get("production_backend", result.get("age_backend"))
-    assert backend == "mean_field", (
-        "multi-scenario config must keep production age backend mean_field "
-        f"(T-021 / ADR 0091); got {backend!r}"
+    assert backend is not None, (
+        "multi-scenario must expose a production backend identity"
     )
+    assert backend != "mean_field", (
+        "ADR 0105: multi-scenario must not lock production age backend mean_field; "
+        f"got {backend!r}"
+    )
+    assert backend not in {"full_joint", "sliding_window", "joint"}
 
     from blueberries_voi.filter import PRODUCTION_BACKEND
 
-    assert PRODUCTION_BACKEND == "mean_field"
+    assert PRODUCTION_BACKEND != "mean_field"
+    assert backend == PRODUCTION_BACKEND or backend == getattr(
+        mod, "MULTI_SCENARIO_PRODUCTION_BACKEND", backend
+    )
 
 
 def test_multi_scenario_module_source_does_not_silently_select_joint() -> None:
     mod = _resolve_multi_module()
     assert mod.__file__ is not None
     source = Path(mod.__file__).read_text(encoding="utf-8").lower()
-    if "production_backend" in source or "age_backend" in source:
-        assert "mean_field" in source
     assert 'production_backend="joint"' not in source
     assert "production_backend='joint'" not in source
     assert 'production_backend="full_joint"' not in source
     assert "production_backend='full_joint'" not in source
+    # Must not hard-lock the superseded age-MF settle as production identity.
+    assert 'multi_scenario_production_backend: str = "mean_field"' not in source
+    assert "multi_scenario_production_backend: str = 'mean_field'" not in source
 
 
-def test_published_md_states_mean_field_and_rejects_silent_joint_revert(
+def test_published_md_rejects_silent_joint_revert(
     tmp_path: Path,
 ) -> None:
     fn = _resolve("run_m2_multi_scenario")
@@ -471,13 +479,19 @@ def test_published_md_states_mean_field_and_rejects_silent_joint_revert(
     disk = _find_published_md_on_disk()
     if disk:
         body = body + "\n" + _read_md_candidates(disk)
-    assert body.strip(), "multi-scenario / L MD must exist to lock mean_field wording"
-    assert _MEAN_FIELD_RE.search(body), (
-        "report must explicitly state production age backend remains mean_field"
+    assert body.strip(), "multi-scenario / L MD must exist to lock production wording"
+    # Historical mean_field wording or ADR 0105 arrival-only / counts-only is OK.
+    has_prod = (
+        _MEAN_FIELD_RE.search(body) is not None
+        or re.search(r"arrival[_\s-]?only|counts[_\s-]?only|0105", body, re.I)
+        is not None
+    )
+    assert has_prod, (
+        "report must state production filter identity (historical mean_field or "
+        "ADR 0105 arrival-only / counts-only)"
     )
     assert _NO_JOINT_REVERT_RE.search(body), (
-        "report must not recommend a silent revert to joint "
-        "(state mean_field remains / no silent joint)"
+        "report must not recommend a silent revert to joint"
     )
 
 
@@ -669,7 +683,7 @@ def test_run_m2_multi_scenario_non_plot_core_smoke(tmp_path: Path) -> None:
     backend = getattr(result, "production_backend", None)
     if backend is None and isinstance(result, Mapping):
         backend = result.get("production_backend")
-    assert labels or backend == "mean_field" or hasattr(result, "artifact_paths"), (
+    assert labels or backend is not None or hasattr(result, "artifact_paths"), (
         "non-plot core must return a MultiScenarioResult with scenarios, "
         "production_backend, or artifact_paths"
     )

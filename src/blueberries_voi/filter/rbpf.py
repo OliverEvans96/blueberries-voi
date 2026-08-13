@@ -1,4 +1,4 @@
-"""Production RBPF (FIL-01 / T-006) after ADR 0091 mean_field settle."""
+"""Production counts-only PF (ADR 0105): arrival-only ages + exact WOR weights."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import cast
 import numpy as np  # needed for get_type_hints(RBPF.step)
 
 from blueberries_voi.filter.backends import (
+    CountsOnlyBackend,
     FilterBackend,
-    MeanFieldBackend,
     ParticleState,
 )
 from blueberries_voi.filter.backends import (
@@ -25,8 +25,8 @@ from blueberries_voi.filter.types import (
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
 
-# Production numerics after FIL-13/15 settle; backend locked by ADR 0091.
-PRODUCTION_BACKEND: str = "mean_field"
+# Production numerics after ADR 0105 settle: counts-only arrival-age clock.
+PRODUCTION_BACKEND: str = "counts_only"
 PRODUCTION_K: int = 8
 PRODUCTION_N: int = 2000
 PRODUCTION_ESS_FRACTION: float = 0.5
@@ -37,14 +37,15 @@ PRODUCTION_L: int = 3
 
 @dataclass
 class RBPF:
-    """Rao-Blackwellised PF: sample counts, marginalise age via mean_field."""
+    """Counts-only PF: sample counts; ages are arrival priors + MOD-02 clock."""
 
     params: ModelParams
     N: int = PRODUCTION_N
     K: int = PRODUCTION_K
     ess_fraction: float = PRODUCTION_ESS_FRACTION
     L: int = PRODUCTION_L
-    _backend: FilterBackend = field(default_factory=MeanFieldBackend)
+    sales_likelihood: str = "exact_sequential_wor"
+    _backend: FilterBackend = field(default_factory=CountsOnlyBackend)
     _state: ParticleState | None = None
     _day: int = 0
     _root_seed: int = 0
@@ -55,16 +56,16 @@ class RBPF:
         self._apply_backend_choice()
 
     def _apply_backend_choice(self) -> None:
-        """Always select mean_field; never truncate L (ADR 0091)."""
+        """Always select counts_only; never truncate L (ADR 0105)."""
         choice = choose_backend(self.K, self.L, self.N)
         self.backend_choice = choice
-        if choice.backend == "mean_field":
-            self._backend = MeanFieldBackend()
+        if choice.backend == "counts_only":
+            self._backend = CountsOnlyBackend(sales_likelihood=self.sales_likelihood)
 
     def initialize(self, rng: np.random.Generator, *, L: int | None = None) -> None:
         if L is not None:
             self.L = L
-        # Re-evaluate when L changes (or on first init); stays mean_field.
+        # Re-evaluate when L changes (or on first init); stays counts_only.
         self._apply_backend_choice()
         self._state = self._backend.initialize(
             N=self.N, K=self.K, L=self.L, params=self.params, rng=rng
@@ -78,8 +79,8 @@ class RBPF:
     ) -> FilterSummary:
         """Advance one day given a masked ``RichObs`` (or legacy ``P1Obs``).
 
-        Production path scores present fields via MC ``observation_loglik_mc``
-        (ADR 0087); ``UNOBSERVED`` fields are never coerced to zero.
+        Production path scores present totals via exact sequential WOR
+        (``log_p_sales_waste_given_ages``); ages advance by clock/birth only.
         """
         if self._state is None:
             msg = "RBPF.initialize must be called before step"

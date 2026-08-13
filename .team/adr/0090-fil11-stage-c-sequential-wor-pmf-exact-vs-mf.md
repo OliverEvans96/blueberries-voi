@@ -1,6 +1,6 @@
 # 0090. Filter age likelihood for FIL-11 Stage C (`sequential_wor_pmf`) — exact joint vs mean-field check
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
 BOARD-ID: FIL-11 / FIL-04 evidence
 GROUP: FIL

@@ -3,7 +3,7 @@
 Locks the M2 ladder harness: constant -> Rung 0 -> SW -> SW+rollout -> toy DP,
 T-029 tuned-alpha gate before profit claims, numeric artifacts under
 ``experiments/`` and/or ``figures/m2/`` (never inside ``controller/``), and
-production ``mean_field`` backend. See ``.team/specs/T-032.md``.
+production ``counts_only`` backend (ADR 0105). See ``.team/specs/T-032.md``.
 """
 
 from __future__ import annotations
@@ -318,11 +318,11 @@ def test_controller_package_has_no_matplotlib_or_parquet_after_ladder() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: production backend remains mean_field in ladder config
+# AC: production backend is counts_only in ladder config (ADR 0105)
 # ---------------------------------------------------------------------------
 
 
-def test_ladder_config_production_backend_is_mean_field(tmp_path: Path) -> None:
+def test_ladder_config_production_backend_is_not_age_mean_field(tmp_path: Path) -> None:
     fn = _resolve("run_m2_ladder")
     mod = _resolve_ladder_module()
     alpha_path = _write_minimal_alpha_table(tmp_path / "tuned_alpha.json")
@@ -335,9 +335,9 @@ def test_ladder_config_production_backend_is_mean_field(tmp_path: Path) -> None:
         backend = getattr(mod, "LADDER_PRODUCTION_BACKEND", None)
     if backend is None and isinstance(result, Mapping):
         backend = result.get("production_backend", result.get("age_backend"))
-    assert backend == "mean_field", (
-        "ladder config must keep production age backend mean_field "
-        f"(T-021 / ADR 0091); got {backend!r}"
+    assert backend == "counts_only", (
+        f"ladder config must use counts_only production backend "
+        f"(ADR 0105); got {backend!r}"
     )
 
 
@@ -347,7 +347,7 @@ def test_ladder_module_source_does_not_silently_select_joint() -> None:
     source = Path(mod.__file__).read_text(encoding="utf-8").lower()
     # Allow documenting joint as forbidden; reject wiring it as the default.
     if "production_backend" in source or "age_backend" in source:
-        assert "mean_field" in source
+        assert "counts_only" in source
     assert 'production_backend="joint"' not in source
     assert "production_backend='joint'" not in source
 

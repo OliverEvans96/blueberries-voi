@@ -1,4 +1,4 @@
-"""Filter package - shared ``day_step`` + production RBPF (mean_field)."""
+"""Filter package - shared ``day_step`` + production counts-only RBPF (ADR 0105)."""
 
 from __future__ import annotations
 

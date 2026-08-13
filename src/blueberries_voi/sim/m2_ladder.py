@@ -2,8 +2,8 @@
 
 Evaluates constant -> Rung 0 -> SW -> SW+rollout -> toy DP under a shared CRN
 ``root_seed``, gated on the T-029 tuned-alpha artifact. Numeric results land under
-``experiments/`` (never inside ``controller/``). Production age backend remains
-``mean_field`` (T-021 / ADR 0091).
+``experiments/`` (never inside ``controller/``). Production backend remains
+``counts_only`` (ADR 0105).
 
 T-083: profit arms attach ``DEFAULT_ORDER_SCHEDULE`` (orders Sun/Tue/Thu) and
 burn-in is interpreted under **periodic** MWF age, not daily-stationary only.
@@ -44,8 +44,8 @@ LADDER_POINTS: tuple[str, ...] = (
     "dp",
 )
 
-# Production age backend for ladder config (ADR 0091); never silently select joint.
-LADDER_PRODUCTION_BACKEND: str = "mean_field"
+# Production counts-only backend (ADR 0105); never silently select joint / age-MF.
+LADDER_PRODUCTION_BACKEND: str = "counts_only"
 DEFAULT_LADDER_RESULT_PATH: str = "experiments/m2_ladder_result.json"
 
 _CI_N_BURN: int = 2
@@ -161,9 +161,9 @@ def run_m2_ladder(
     assert_ladder_profit_claim_allowed(alpha_table_path)
     alphas = require_tuned_alpha_table(alpha_table_path)
 
-    if PRODUCTION_BACKEND != "mean_field":
+    if PRODUCTION_BACKEND != "counts_only":
         msg = (
-            "ladder requires production age backend mean_field "
+            "ladder requires production backend counts_only "
             f"(got {PRODUCTION_BACKEND!r})"
         )
         raise RuntimeError(msg)

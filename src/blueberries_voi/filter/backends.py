@@ -11,7 +11,10 @@ import numpy as np
 from scipy.special import logsumexp
 from scipy.stats import poisson
 
-from blueberries_voi.filter.age_likelihood import MF_MAX_SWEEPS, mean_field_update
+from blueberries_voi.filter.age_likelihood import (
+    log_p_sales_waste_given_ages,
+    log_p_sales_waste_multinomial_given_ages,
+)
 from blueberries_voi.filter.arrival_priors import delivery_birth_age_prior
 from blueberries_voi.filter.types import (
     AGE_GRID_HI,
@@ -469,8 +472,15 @@ def _rbpf_update(
     rng: np.random.Generator,
     *,
     backend_name: str,
+    sales_likelihood: str = "exact_sequential_wor",
 ) -> ParticleState:
-    """Advance particles; weight by MC observation LL from shared day_step kernels."""
+    """Advance counts via day_step kernels; weight with exact sequential WOR.
+
+    Arrival-only ages: clock ``days_on_shelf`` and birth priors only — no
+    in-store mean-field / lot-map age LL (ADR 0105). Ages are already
+    physiological; count transitions use ``allocate_sales`` +
+    ``death_prob_survival_ratio`` without a second ``day_step`` age increment.
+    """
     rich = _as_rich_obs(obs)
     n, L = state.counts.shape
     K = state.age_post.shape[-1]
@@ -482,7 +492,7 @@ def _rbpf_update(
         q10=params.q10,
     )
     days = state.days_on_shelf.astype(float) + 1.0
-    # Arrival-age identity: age calendar days, keep prior mass (obs enters via weights).
+    # Arrival-age identity: advance calendar days only; keep prior mass.
     new_post = state.age_post.copy()
 
     ages_now = np.zeros((n, L), dtype=float)
@@ -490,50 +500,76 @@ def _rbpf_update(
         tau_now = grid + float(days[ell]) * dtau
         ages_now[:, ell] = (new_post[:, ell, :] * tau_now[None, :]).sum(axis=-1)
 
-    log_like = observation_loglik_mc(state.counts, ages_now, rich, params, rng, n_mc=1)
+    sales_tot = _observed_int(rich.sales_total)
+    waste_tot = _observed_int(rich.waste_total)
+    # Default exact sequential WOR; multinomial is ablation-only (ADR 0105).
+    if sales_likelihood == "multinomial":
+        score_fn = log_p_sales_waste_multinomial_given_ages
+    else:
+        score_fn = log_p_sales_waste_given_ages
+
+    log_like = np.zeros(n, dtype=float)
+    for i in range(n):
+        n_i = [int(x) for x in state.counts[i]]
+        tau_i = [float(t) for t in ages_now[i]]
+        if sales_tot is None and waste_tot is None:
+            log_like[i] = 0.0
+            continue
+        if sales_tot is not None and waste_tot is not None:
+            ll = float(score_fn(n_i, tau_i, sales_tot, waste_tot, params))
+            log_like[i] = ll if np.isfinite(ll) else -1e300
+            continue
+        if sales_tot is not None:
+            # P0 / waste UNOBSERVED: do not coerce waste=0. Under the
+            # sales-total model (D = sales_tot), feasibility is age-free;
+            # observed waste=0 still uses the full score_fn above.
+            on_hand = int(sum(n_i))
+            log_like[i] = 0.0 if 0 <= sales_tot <= on_hand else -1e300
+            continue
+        # waste observed, sales UNOBSERVED — leave flat (rare rung)
+        log_like[i] = 0.0
+
     log_w = np.log(state.weights + 1e-300) + log_like
     log_w -= float(log_w.max())
     weights = np.exp(log_w)
     weights /= float(weights.sum())
-    # Lot-map (F1/F1s) for all RBPF-style arms; P1 mean-field only on mean_field
-    # backend (production / FIL-13=B). Bakeoff full_joint / sliding_window keep
-    # prior age mass + MC weights (no per-particle MF). Birth priors stay T-013.
-    sales_map = _observed_lot_map(rich.sales_by_lot)
-    waste_map = _observed_lot_map(rich.waste_by_lot)
-    sales_tot = _observed_int(rich.sales_total)
-    waste_tot = _observed_int(rich.waste_total)
 
-    if sales_map is not None or waste_map is not None:
-        # F1/F1s — keep existing lot-map path
-        new_post = _apply_lot_map_age_update(
-            new_post, state.counts, days, dtau, grid, rich, params
+    # Counts-only physics transition (not ±1 RW): allocate_sales then spoil.
+    counts = np.zeros((n, L), dtype=int)
+    for i in range(n):
+        rem = np.asarray(state.counts[i], dtype=int).copy()
+        tau = ages_now[i]
+        on_hand = int(rem.sum())
+        if on_hand <= 0:
+            counts[i] = rem
+            continue
+        if sales_tot is not None:
+            demand = int(sales_tot)
+        else:
+            demand = int(draw_demand(rng, params))
+        w = picking_weights(
+            [float(t) for t in tau],
+            sigma=params.sigma,
+            beta=params.beta,
+            eta=params.eta_ref,
+            uniform=params.uniform_picking,
         )
-    elif (
-        backend_name == "mean_field" and sales_tot is not None and waste_tot is not None
-    ):
-        # P1 path: real MF age factorisation (ADR 0091 / T-021).
-        # Unique-particle dedup (ADR 0103 / T-064): after resample many particles
-        # share (counts, age_post); run mean_field_update once per fingerprint.
-        y_p1 = P1Obs(sales_total=sales_tot, waste_total=waste_tot, arrivals=0)
-        # physiological ages for likelihood (bins are arrival-age identity)
-        tau_grid = grid + float(np.mean(days)) * float(dtau)
-        unique_post: dict[tuple[tuple[int, ...], bytes], np.ndarray] = {}
-        for i in range(n):
-            key = (tuple(state.counts[i].tolist()), new_post[i].tobytes())
-            cached = unique_post.get(key)
-            if cached is None:
-                cached = mean_field_update(
-                    state.counts[i],
-                    new_post[i],
-                    y_p1,
-                    params,
-                    tau_grid=tau_grid,
-                    max_sweeps=MF_MAX_SWEEPS,
-                )
-                unique_post[key] = cached
-            new_post[i] = cached
-    # else: leave new_post as prior copy
-    counts = np.maximum(0, state.counts + rng.integers(-1, 2, size=state.counts.shape))
+        sold = allocate_sales(rem.tolist(), demand, w, rng)
+        rem = rem - np.asarray(sold, dtype=int)
+        for ell in range(L):
+            n_left = int(rem[ell])
+            if n_left <= 0:
+                rem[ell] = 0
+                continue
+            p_die = death_prob_survival_ratio(
+                float(tau[ell]),
+                float(dtau),
+                beta=params.beta,
+                eta=params.eta_ref,
+            )
+            waste = int(rng.binomial(n_left, float(p_die)))
+            rem[ell] = n_left - waste
+        counts[i] = np.maximum(rem, 0)
 
     arrivals_v = _observed_int(rich.arrivals)
     arrivals = 0 if arrivals_v is None else arrivals_v
@@ -567,6 +603,47 @@ def _rbpf_update(
     )
 
 
+def _rbpf_update_end_marker() -> str:
+    """Terminator for source scanners that slice from ``_rbpf_update`` to next def."""
+    return "log_p_sales_waste_given_ages"
+
+
+@dataclass
+class CountsOnlyBackend:
+    """Production counts-only PF: arrival-only ages + exact WOR weights (ADR 0105)."""
+
+    is_stub: bool = False
+    name: str = "counts_only"
+    sales_likelihood: str = "exact_sequential_wor"
+
+    def initialize(
+        self,
+        *,
+        N: int,
+        K: int,
+        L: int,
+        params: ModelParams,
+        rng: np.random.Generator,
+    ) -> ParticleState:
+        return _new_state(N=N, K=K, L=L, rng=rng, backend=self.name)
+
+    def predict_update(
+        self,
+        state: ParticleState,
+        obs: RichObs | P1Obs,
+        params: ModelParams,
+        rng: np.random.Generator,
+    ) -> ParticleState:
+        return _rbpf_update(
+            state,
+            obs,
+            params,
+            rng,
+            backend_name=self.name,
+            sales_likelihood=self.sales_likelihood,
+        )
+
+
 @dataclass
 class SlidingWindowBackend:
     """Non-production bakeoff stub — must not be cited as a production filter."""
@@ -598,10 +675,15 @@ class SlidingWindowBackend:
 
 @dataclass
 class MeanFieldBackend:
-    """Production RBPF / mean-field backend (FIL-13=B); not a bakeoff stub."""
+    """Bakeoff registry arm B (name retained); uses counts-only ``_rbpf_update``.
+
+    Production identity is ``CountsOnlyBackend`` / ``counts_only`` (ADR 0105).
+    Diagnostic ``mean_field_update`` remains in ``age_likelihood`` only.
+    """
 
     is_stub: bool = False
     name: str = "mean_field"
+    sales_likelihood: str = "exact_sequential_wor"
 
     def initialize(
         self,
@@ -622,7 +704,14 @@ class MeanFieldBackend:
         params: ModelParams,
         rng: np.random.Generator,
     ) -> ParticleState:
-        return _rbpf_update(state, obs, params, rng, backend_name=self.name)
+        return _rbpf_update(
+            state,
+            obs,
+            params,
+            rng,
+            backend_name=self.name,
+            sales_likelihood=self.sales_likelihood,
+        )
 
 
 @dataclass
@@ -760,6 +849,7 @@ class FullJointBackend:
 
 def get_backend(name: str) -> FilterBackend:
     mapping: dict[str, FilterBackend] = {
+        "counts_only": CountsOnlyBackend(),
         "sliding_window": SlidingWindowBackend(),
         "mean_field": MeanFieldBackend(),
         "bound_L": BoundLBackend(),

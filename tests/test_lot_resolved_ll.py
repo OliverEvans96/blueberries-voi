@@ -152,17 +152,14 @@ def test_sales_by_lot_update_targets_lot_a_more_than_lot_b_leakage_bound() -> No
     post_a1, post_b1 = _age_posts_after_step(perturbed, seed=17)
     delta_a = _l1(post_a0, post_a1)
     delta_b = _l1(post_b0, post_b1)
-    assert delta_a > _MIN_TARGET_DELTA, (
-        "lot-A age posterior unchanged after sales_by_lot[{1}] update — "
-        "per-lot sales not wired into the filter update"
+    # ADR 0105 / T-068: arrival-only ages — lot maps must not rewrite age_post.
+    assert delta_a <= 1e-9, (
+        f"lot-A age posterior moved Δ={delta_a:.4g} under sales_by_lot — "
+        "in-store lot-map age LL must not run (ADR 0105)"
     )
-    assert delta_a > delta_b, (
-        f"lot-A Δ={delta_a:.4g} not greater than lot-B Δ={delta_b:.4g} "
-        "(cross-lot leakage / coupling)"
-    )
-    assert delta_b <= CROSS_LOT_LEAKAGE_BOUND * delta_a, (
-        f"cross-lot leakage {delta_b / max(delta_a, 1e-300):.3f} exceeds bound "
-        f"{CROSS_LOT_LEAKAGE_BOUND} (Δ_B={delta_b:.4g}, Δ_A={delta_a:.4g})"
+    assert delta_b <= 1e-9, (
+        f"lot-B age posterior moved Δ={delta_b:.4g} under sales_by_lot — "
+        "in-store lot-map age LL must not run (ADR 0105)"
     )
 
 
@@ -276,17 +273,14 @@ def test_waste_by_lot_update_targets_lot_a_more_than_lot_b_leakage_bound() -> No
     post_a1, post_b1 = _age_posts_after_step(perturbed, seed=19)
     delta_a = _l1(post_a0, post_a1)
     delta_b = _l1(post_b0, post_b1)
-    assert delta_a > _MIN_TARGET_DELTA, (
-        "lot-A age posterior unchanged after waste_by_lot[{1}] update — "
-        "per-lot waste not wired into the filter update"
+    # ADR 0105 / T-068: arrival-only ages — lot maps must not rewrite age_post.
+    assert delta_a <= 1e-9, (
+        f"lot-A age posterior moved Δ={delta_a:.4g} under waste_by_lot — "
+        "in-store lot-map age LL must not run (ADR 0105)"
     )
-    assert delta_a > delta_b, (
-        f"lot-A Δ={delta_a:.4g} not greater than lot-B Δ={delta_b:.4g} "
-        "(cross-lot leakage / coupling)"
-    )
-    assert delta_b <= CROSS_LOT_LEAKAGE_BOUND * delta_a, (
-        f"cross-lot leakage {delta_b / max(delta_a, 1e-300):.3f} exceeds bound "
-        f"{CROSS_LOT_LEAKAGE_BOUND} (Δ_B={delta_b:.4g}, Δ_A={delta_a:.4g})"
+    assert delta_b <= 1e-9, (
+        f"lot-B age posterior moved Δ={delta_b:.4g} under waste_by_lot — "
+        "in-store lot-map age LL must not run (ADR 0105)"
     )
 
 

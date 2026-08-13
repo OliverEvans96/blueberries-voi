@@ -13,8 +13,11 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 ## Needs human now
 
-- **needs-human — CAL-01 merge:** Human merge of `team/T-088/implement` (CAL-01 close-out) into parent when ready (agents must not merge to `main`). Citeable VOI regen after land; remotesure FIL-13 L before citing L-dependent filter claims.
+- **needs-human — CAL-01 merge:** Human merge of `team/T-088/integrate-main` (CAL-01 close-out + main) into parent when ready (agents must not merge to `main`). Citeable VOI regen after land; remotesure FIL-13 L before citing L-dependent filter claims. **Also renumber CAL-01 ADRs 0109–0113** (collide with main ENG-01 0109–0110).
 - **needs-human — T-071 xdist flake:** `tests/test_t071_demo_hydrate_edges.py` intermittently returns 422 `shipments[0] must be an object` under full `pytest -n auto` (reproduces on `main`; file-alone xdist passes). Related residual: VOI/CRN `isinstance` dual-import flakes under xdist (see T-087 verify). Blocks clean verify retries occasionally; not a CAL-01 product defect.
+- **Frontend controls/plots audit:** Review UI controls and plots so that (1) no controls are redundant, (2) every control affects a plot, (3) every plot is relevant, (4) all relevant concepts are illustrated, and (5) no plots are redundant.
+- **Frontend truth vs belief audit:** Audit the UI so default views show what a produce manager would see (beliefs / estimates about hidden state), not god-mode sim truth. Add a global toggle to show/hide true sim values throughout; when on, true values use one clear, consistent visual style so they are easy to tell apart from belief state.
+- **Frontend knowledge-scenario UI audit:** Review whether the UI should differ across knowledge scenarios. Prefer one consistent layout throughout; if some charts only make sense in certain scenarios, keep the shell the same and show or hide those charts (or mark them unavailable) rather than forking the whole UI.
 - **needs-human — ENG-01 readiness merge:** Human merge of `team/ENG-01-readiness/wave2` / `team/T-075/implement` (verify tip `a75fc10`; tip includes post-handoff chore) into parent when ready (agents must not merge to `main`).
 - **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there). Still open.
 - **Optional — lazy-import pyarrow:** Consider deferring `pyarrow` import so dual-mode / slim paths avoid a hard runtime dependency unless parquet paths are used (non-blocking polish).
@@ -23,7 +26,10 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **Optional — push `main`:** Local `main` is ahead of `origin/main` after integrate landings; push when ready (human).
 - **Optional later — ADR / ticket-id collision:** Audit remediation used ticket ids T-042–T-044 under `*-audit-remediation*` paths while ENG-01 also used T-042–T-058; ADR [0104](./adr/0104-audit-remediation-defaults.md) landed. Rename/clarify artifacts only if it confuses readers — not blocking.
 
-## Landed on `main` (tip `d376852`)
+## Landed on `main`
+
+- **Done — ENG-01** dual-runtime / live simulator: complete pending human merge to `main` for any tip still off the integration branch (library path already landed).
+ (tip `d376852`)
 
 - **testmon LFS cache** and **chore/agent-gate-ladder** merged.
 - **ENG-01 dual-runtime (T-042–T-058)** Done — complete pending human merge of any remaining tip notes; landed on `main` via `team/ENG-01/integrate`. ADRs [0099](./adr/0099-eng-01-dual-runtime-ap.md)–[0102](./adr/0102-eng-01-api-asgi-session.md) (0073 superseded). DoD: [ENG-01.md](./reviews/ENG-01.md). Binding prefs remain in ADRs 0100–0101 and plan [ENG-01-dual-runtime.md](./plans/ENG-01-dual-runtime.md).
@@ -33,9 +39,9 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 ## Settled / historical (do not reopen lightly)
 
-- **M1.5 / T-021 settled:** Production RBPF is mean-field (ADR [0091](./adr/0091-fil13-production-mean-field.md)). FIL-04=C; FIL-13 production=B; joint / `K^L` production parked. Do not reopen joint production without a **new** ADR.
-- **X-11 / MOD-09:** Previously “do not reopen without Oliver.” **Oliver reopened both for CAL-01** (2026-08-13). Daily cadence (0011) and i.i.d. demand (0031) are **SUPERSEDED** by [0109](./adr/0109-x-11-mwf-delivery-base-case.md) and [0110](./adr/0110-mod-09-calendar-demand.md). Further cadence/demand changes still need Oliver; X-06 remains parked.
-- **Do not reopen without Oliver:** other ⚑ cards (FIL-01, FIL-08, MOD-14/15/17, SCN-P2/F3/B-clair, X-06 cadence-as-axis, VOI-02, …). Exception / settle as ADR 0091 above; X-11/MOD-09 exception is CAL-01.
+- **M1.5 / T-021 historical; superseded for production by ADR [0105](./adr/0105-arrival-only-age-counts-only-exact-wor.md):** Production filter is arrival-only age + counts-only PF (exact WOR). ADR [0091](./adr/0091-fil13-production-mean-field.md) mean-field age path is no longer the live settle. Do not reopen joint / MF age production without a **new** ADR.
+- **X-11 / MOD-09:** Previously “do not reopen without Oliver.” **Oliver reopened both for CAL-01** (2026-08-13). Daily cadence (0011) and i.i.d. demand (0031) are **SUPERSEDED** by [0109](./adr/0109-x-11-mwf-delivery-base-case.md) and [0110](./adr/0110-mod-09-calendar-demand.md) (CAL-01 filenames; renumber at integrate — collide with ENG-01 0109–0110). Further cadence/demand changes still need Oliver; X-06 remains parked.
+- **Do not reopen without Oliver:** other ⚑ cards (FIL-01, FIL-08, MOD-14/15/17, SCN-P2/F3/B-clair, X-06 cadence-as-axis, VOI-02, …). Exception / settle as ADR 0105 above; X-11/MOD-09 exception is CAL-01.
 - **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without ADR; do not reopen T-021 / joint production. ENG-01 packaging was a **separate** milestone and is now landed on `main` (see above); T-046 workflow install remains needs-human.
 - **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md) (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim emits synthetic ASN `pack_date` on delivery `DayLog` rows; Stage A F2a contracts under smoke defaults.

@@ -4,7 +4,7 @@ import type {
   Day,
   Economics,
   Lot,
-  ObsScenario,
+  ScenarioId,
   SimConfig,
 } from "../types";
 
@@ -396,16 +396,19 @@ function sampleDemand(
   return samplePoisson(rng, lam);
 }
 
-function beliefBlur(scenario: ObsScenario): number {
+function beliefBlur(scenario: ScenarioId): number {
   if (scenario === "P0") return 1.6;
-  if (scenario === "P2") return 0.55;
-  return 1;
+  if (scenario === "F2") return 0.55;
+  if (scenario === "F2a") return 0.7;
+  if (scenario === "F1s") return 0.85;
+  if (scenario === "F1") return 0.95;
+  return 1; // P1
 }
 
 export function generateBelief(
   lots: Lot[],
   rng: () => number,
-  scenario: ObsScenario = "P1",
+  scenario: ScenarioId = "P1",
 ): BeliefGrid {
   const tauBins = 12;
   const countBins = 10;

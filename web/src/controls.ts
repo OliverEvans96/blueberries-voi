@@ -1,7 +1,7 @@
 import type {
   ArrivalProduct,
   Economics,
-  ObsScenario,
+  ScenarioId,
   SimConfig,
   ViewModel,
 } from "./types";
@@ -11,6 +11,37 @@ import {
   pipelineDeliveryHint,
   weekdayLabel,
 } from "./calendar/nextOrderAdvance";
+
+/** Locked chip copy (ADR 0110 / T-089). */
+const SCENARIO_COPY: Record<
+  ScenarioId,
+  { title: string; description: string }
+> = {
+  P0: {
+    title: "Books only",
+    description: "Receipts and POS totals only — no daily waste.",
+  },
+  P1: {
+    title: "Shrink gun",
+    description: "Adds storewide daily waste totals.",
+  },
+  F1: {
+    title: "Lot ID at POS",
+    description: "Sales broken out by lot.",
+  },
+  F1s: {
+    title: "Lot ID on shrink",
+    description: "Waste broken out by lot.",
+  },
+  F2a: {
+    title: "Pack date on ASN",
+    description: "Narrows the arrival-age prior only.",
+  },
+  F2: {
+    title: "Age at receipt",
+    description: "Measured age at receipt plus rich lot maps.",
+  },
+};
 
 export type ControlsCallbacks = {
   onOrderChange: (qty: number) => void;
@@ -264,9 +295,16 @@ export function mountSectionControls(
         <div class="field">
           <span class="field-label">Observation scenario</span>
           <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
-            <button type="button" class="obs-chip" data-obs="P0" title="Noisy / weak obs">P0</button>
-            <button type="button" class="obs-chip" data-obs="P1" title="Standard obs">P1</button>
-            <button type="button" class="obs-chip" data-obs="P2" title="Sharp / informative obs">P2</button>
+            <button type="button" class="obs-chip" data-obs="P0" title="Books only">P0</button>
+            <button type="button" class="obs-chip" data-obs="P1" title="Shrink gun">P1</button>
+            <button type="button" class="obs-chip" data-obs="F1" title="Lot ID at POS">F1</button>
+            <button type="button" class="obs-chip" data-obs="F1s" title="Lot ID on shrink">F1s</button>
+            <button type="button" class="obs-chip" data-obs="F2a" title="Pack date on ASN">F2a</button>
+            <button type="button" class="obs-chip" data-obs="F2" title="Age at receipt">F2</button>
+          </div>
+          <div class="obs-scenario-copy" id="obs-scenario-copy">
+            <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
+            <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
           </div>
         </div>
       </div>
@@ -293,6 +331,11 @@ export function mountSectionControls(
     root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.obs === c.obs_scenario);
     });
+    const copy = SCENARIO_COPY[c.obs_scenario];
+    const titleEl = root.querySelector("#obs-scenario-title") as HTMLElement | null;
+    const descEl = root.querySelector("#obs-scenario-desc") as HTMLElement | null;
+    if (titleEl && copy) titleEl.textContent = copy.title;
+    if (descEl && copy) descEl.textContent = copy.description;
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
@@ -322,7 +365,7 @@ export function mountSectionControls(
 
   root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      cb.onConfigChange({ obs_scenario: btn.dataset.obs as ObsScenario });
+      cb.onConfigChange({ obs_scenario: btn.dataset.obs as ScenarioId });
     });
   });
 

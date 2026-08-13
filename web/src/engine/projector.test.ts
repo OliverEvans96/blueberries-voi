@@ -1,6 +1,6 @@
 /**
- * T-054 RED: ViewModelProjector applies Snapshot/DayDelta; setEconomics is local;
- * heatmap density from flat belief × lot counts.
+ * T-090 / T-054: ViewModelProjector applies Snapshot/DayDelta; setEconomics is local;
+ * BeliefGrid is age×count rebin (K×C) + merged age marginal (ADR 0109).
  */
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, computePnL } from "../mock/generate";
@@ -8,9 +8,42 @@ import type { Day, Economics } from "../types";
 import type { EngineAdapter } from "./adapter";
 import {
   ViewModelProjector,
-  densityFromFlatBelief,
+  beliefGridFromFlat,
 } from "./projector";
+import * as projectorMod from "./projector";
 import type { DayDelta, FlatBelief, Snapshot } from "./types";
+
+/** Mirror of centersToEdges for expected tau_edges (implementer may export the real one). */
+function expectedCentersToEdges(centers: number[]): number[] {
+  if (centers.length === 0) return [];
+  if (centers.length === 1) {
+    const c = centers[0]!;
+    return [c, c + 1];
+  }
+  const edges: number[] = [centers[0]! - (centers[1]! - centers[0]!) / 2];
+  for (let i = 0; i < centers.length - 1; i++) {
+    edges.push((centers[i]! + centers[i + 1]!) / 2);
+  }
+  const last = centers[centers.length - 1]!;
+  const prev = centers[centers.length - 2]!;
+  edges.push(last + (last - prev) / 2);
+  return edges;
+}
+
+function ageMarginalFromFlat(flat: FlatBelief): number[] {
+  const fn = (
+    projectorMod as { ageMarginalFromFlat?: (f: FlatBelief) => number[] }
+  ).ageMarginalFromFlat;
+  expect(typeof fn).toBe("function");
+  return fn!(flat);
+}
+
+type BeliefGridFromFlatFn = (
+  flat: FlatBelief,
+  truthLots?: ReadonlyArray<{ n: number }>,
+) => ReturnType<typeof beliefGridFromFlat>;
+
+const beliefGridFromFlatWithTruth = beliefGridFromFlat as BeliefGridFromFlatFn;
 
 const FLAT_BELIEF: FlatBelief = {
   L: 2,
@@ -131,6 +164,34 @@ describe("ViewModelProjector.applyDelta", () => {
     expect(vm.belief.density.length).toBeGreaterThan(0);
   });
 
+  it("fills history[].lots from live_lots when wire day omits lots (HTTP)", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+      window_days: 14,
+    });
+    projector.applySnapshot(sampleSnapshot());
+    const live = [{ lot_id: 2, n: 16, tau: 2.23 }];
+    const vm = projector.applyDelta(
+      sampleDelta({
+        day: {
+          day: 1,
+          L: 1,
+          arrivals: 16,
+          demand: 10,
+          order_qty: 16,
+          sales_total: 8,
+          waste_total: 0,
+          // no lots — matches EngineSession / golden DayDelta.day
+        },
+        live_lots: live,
+      }),
+    );
+
+    expect(vm.history).toHaveLength(1);
+    expect(vm.history[0]!.lots).toEqual(live);
+    expect(vm.live_lots).toEqual(live);
+  });
+
   it("honours drop_oldest when the rolling window is full", () => {
     const windowDays = 2;
     const projector = new ViewModelProjector({
@@ -231,35 +292,167 @@ describe("ViewModelProjector.setEconomics (local reproject)", () => {
   });
 });
 
-describe("densityFromFlatBelief", () => {
-  it("computes nested heatmap density as lot_counts × age_marginals (L×K)", () => {
-    const belief: FlatBelief = {
+describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
+  it("tau_edges domain follows tau_grid age span (~0..8), not lot-index [0, L]", () => {
+    const grid = beliefGridFromFlat(FLAT_BELIEF);
+    const expected = expectedCentersToEdges(FLAT_BELIEF.tau_grid);
+    expect(grid.tau_edges).toEqual(expected);
+    expect(grid.tau_edges).toHaveLength(FLAT_BELIEF.K + 1);
+    // Age domain ≈ 0..8 — not lot-index 0..L (=2).
+    expect(grid.tau_edges[0]!).toBeLessThan(1);
+    expect(grid.tau_edges[grid.tau_edges.length - 1]!).toBeGreaterThan(7);
+    expect(grid.tau_edges).not.toEqual([0, 1, 2]);
+    expect(grid.tau_edges[grid.tau_edges.length - 1]!).not.toBe(FLAT_BELIEF.L);
+  });
+
+  it("density is shaped K×C (age bins × count bins), not L×K", () => {
+    const grid = beliefGridFromFlat(FLAT_BELIEF);
+    const K = FLAT_BELIEF.K;
+    expect(grid.density).toHaveLength(K);
+    const C = grid.density[0]?.length ?? 0;
+    expect(C).toBeGreaterThan(0);
+    for (const row of grid.density) {
+      expect(row).toHaveLength(C);
+    }
+    // Supersedes T-054 L×K lot-index presentation.
+    expect(grid.density).not.toHaveLength(FLAT_BELIEF.L);
+    expect(grid.count_edges).toHaveLength(C + 1);
+    expect(grid.tau_edges).toHaveLength(K + 1);
+  });
+
+  it("count_edges are integer-friendly from 0 through max(n_l, truth n, 1)", () => {
+    const flat: FlatBelief = {
       L: 2,
       K: 3,
-      lot_counts: [4, 10],
-      age_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
-      tau_grid: [0, 1, 2],
+      lot_counts: [4, 2],
+      age_marginals: [1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3],
+      tau_grid: [0, 4, 8],
     };
-    const density = densityFromFlatBelief(belief);
+    const withTruth = beliefGridFromFlatWithTruth(flat, [{ n: 10 }]);
+    expect(withTruth.count_edges[0]).toBe(0);
+    expect(withTruth.count_edges[withTruth.count_edges.length - 1]!).toBeGreaterThanOrEqual(
+      10,
+    );
+    for (let i = 0; i < withTruth.count_edges.length; i++) {
+      expect(Number.isInteger(withTruth.count_edges[i]!)).toBe(true);
+    }
 
-    expect(density).toHaveLength(2);
-    expect(density[0]).toHaveLength(3);
-    expect(density[1]).toHaveLength(3);
-    expect(density[0]![0]).toBeCloseTo(4 * 0.5);
-    expect(density[0]![1]).toBeCloseTo(4 * 0.3);
-    expect(density[0]![2]).toBeCloseTo(4 * 0.2);
-    expect(density[1]![0]).toBeCloseTo(10 * 0.1);
-    expect(density[1]![1]).toBeCloseTo(10 * 0.6);
-    expect(density[1]![2]).toBeCloseTo(10 * 0.3);
+    const noTruth = beliefGridFromFlat(flat);
+    expect(noTruth.count_edges[0]).toBe(0);
+    expect(noTruth.count_edges[noTruth.count_edges.length - 1]!).toBeGreaterThanOrEqual(4);
+
+    const emptyLots: FlatBelief = {
+      L: 0,
+      K: 2,
+      lot_counts: [],
+      age_marginals: [],
+      tau_grid: [0, 1],
+    };
+    const emptyGrid = beliefGridFromFlatWithTruth(emptyLots, []);
+    // Floor of max(..., 1) when no lots / truth.
+    if (emptyGrid.count_edges.length > 0) {
+      expect(emptyGrid.count_edges[emptyGrid.count_edges.length - 1]!).toBeGreaterThanOrEqual(
+        1,
+      );
+    }
+  });
+
+  it("deposits each lot’s mass into the nearest-integer count bin for n_l", () => {
+    const binFor = (edges: number[], n: number): number => {
+      const rounded = Math.round(n);
+      for (let c = 0; c < edges.length - 1; c++) {
+        if (rounded >= edges[c]! && rounded < edges[c + 1]!) return c;
+      }
+      return Math.max(0, edges.length - 2);
+    };
+
+    const flat: FlatBelief = {
+      L: 2,
+      K: 3,
+      lot_counts: [4, 2],
+      // Lot 0: all age mass in bin 0; lot 1: all in bin 2.
+      age_marginals: [1, 0, 0, 0, 0, 1],
+      tau_grid: [0, 4, 8],
+    };
+    const grid = beliefGridFromFlat(flat);
+    expect(grid.density).toHaveLength(flat.K);
+    const bin4 = binFor(grid.count_edges, 4);
+    const bin2 = binFor(grid.count_edges, 2);
+
+    expect(grid.density[0]![bin4]!).toBeCloseTo(4);
+    expect(grid.density[2]![bin2]!).toBeCloseTo(2);
+    // No cross-deposit into the other lot’s count bin at those ages.
+    expect(grid.density[0]![bin2]!).toBeCloseTo(0);
+    expect(grid.density[2]![bin4]!).toBeCloseTo(0);
+
+    // Non-integer n_l → nearest-integer bin (3.6 → 4).
+    const nonInt: FlatBelief = {
+      L: 1,
+      K: 2,
+      lot_counts: [3.6],
+      age_marginals: [0.5, 0.5],
+      tau_grid: [0, 8],
+    };
+    const g2 = beliefGridFromFlat(nonInt);
+    expect(g2.density).toHaveLength(nonInt.K);
+    const bin36 = binFor(g2.count_edges, 3.6);
+    expect(g2.density[0]![bin36]!).toBeCloseTo(3.6 * 0.5);
+    expect(g2.density[1]![bin36]!).toBeCloseTo(3.6 * 0.5);
   });
 
   it("returns empty density for L=0 boundary", () => {
-    const density = densityFromFlatBelief({
+    const grid = beliefGridFromFlat({
       L: 0,
       K: 4,
       lot_counts: [],
       age_marginals: [],
+      tau_grid: [],
     });
-    expect(density).toEqual([]);
+    expect(grid.density).toEqual([]);
+  });
+
+  it("truth (tau, n) land on the same age×count scales as rebinned cells", () => {
+    const truth = [{ n: 8, tau: 2 }];
+    const grid = beliefGridFromFlatWithTruth(FLAT_BELIEF, truth);
+    const tau0 = grid.tau_edges[0]!;
+    const tau1 = grid.tau_edges[grid.tau_edges.length - 1]!;
+    const n0 = grid.count_edges[0]!;
+    const n1 = grid.count_edges[grid.count_edges.length - 1]!;
+    expect(truth[0]!.tau).toBeGreaterThanOrEqual(tau0);
+    expect(truth[0]!.tau).toBeLessThanOrEqual(tau1);
+    expect(truth[0]!.n).toBeGreaterThanOrEqual(n0);
+    expect(truth[0]!.n).toBeLessThanOrEqual(n1);
+    // Scales are age×count — not lot-index x (0..L).
+    expect(tau1).toBeGreaterThan(FLAT_BELIEF.L);
+  });
+});
+
+describe("ageMarginalFromFlat (T-090)", () => {
+  it("returns length-K merged age mass; sum equals Σ lot_counts when rows normalize", () => {
+    const flat: FlatBelief = {
+      L: 2,
+      K: 3,
+      lot_counts: [4, 10],
+      age_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
+      tau_grid: [0, 4, 8],
+    };
+    const m = ageMarginalFromFlat(flat);
+    expect(m).toHaveLength(flat.K);
+    expect(m[0]!).toBeCloseTo(4 * 0.5 + 10 * 0.1);
+    expect(m[1]!).toBeCloseTo(4 * 0.3 + 10 * 0.6);
+    expect(m[2]!).toBeCloseTo(4 * 0.2 + 10 * 0.3);
+    const sumM = m.reduce((a, b) => a + b, 0);
+    const sumCounts = flat.lot_counts.reduce((a, b) => a + b, 0);
+    expect(sumM).toBeCloseTo(sumCounts);
+
+    const grid = beliefGridFromFlat(flat);
+    expect(m).toHaveLength(grid.tau_edges.length - 1);
+    // Optional: same vector may also live on BeliefGrid.
+    const optionalMarginal = (
+      grid as { age_marginal?: number[] }
+    ).age_marginal;
+    if (optionalMarginal !== undefined) {
+      expect(optionalMarginal).toEqual(m);
+    }
   });
 });

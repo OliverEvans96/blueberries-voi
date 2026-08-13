@@ -12,6 +12,7 @@ import { renderMarginal, setMarginalHover } from "./charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
 import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
+import { renderBeliefAgeMarginal } from "./charts/beliefAgeMarginal";
 import { renderSurvival } from "./charts/survival";
 import { renderDemandDist } from "./charts/demandDist";
 import {
@@ -150,6 +151,10 @@ app.innerHTML = `
                 <div class="chart-caption impact-caption">Transit ΔT shift vs baseline</div>
                 <div id="chart-arrival-shift" class="chart"></div>
               </div>
+              <div class="focus-plot" data-plot="plot-belief-age-marginal" hidden>
+                <div class="chart-caption impact-caption">Age marginal</div>
+                <div id="chart-belief-age-marginal" class="chart"></div>
+              </div>
               <div class="focus-plot" data-plot="plot-belief-lg" hidden>
                 <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
                 <div id="chart-belief-lg" class="chart"></div>
@@ -222,6 +227,9 @@ const els = {
   pnlSpark: document.querySelector("#chart-pnl-spark") as HTMLElement,
   pnlTotals: document.querySelector("#chart-pnl-totals") as HTMLElement,
   belief: document.querySelector("#chart-belief") as HTMLElement,
+  beliefAgeMarginal: document.querySelector(
+    "#chart-belief-age-marginal",
+  ) as HTMLElement,
   beliefLg: document.querySelector("#chart-belief-lg") as HTMLElement,
   hoverNote: document.querySelector("#hover-note") as HTMLElement,
   playChrome: document.querySelector("#play-chrome") as HTMLElement,
@@ -285,6 +293,9 @@ function renderChrome(): void {
 function renderActiveFocusPlots(): void {
   if (plotVisible("plot-belief")) {
     renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 200);
+  }
+  if (plotVisible("plot-belief-age-marginal")) {
+    renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 72);
   }
   if (plotVisible("plot-belief-lg")) {
     renderBeliefAgeCount(els.beliefLg, vm.belief, vm.live_lots, 280);
@@ -394,7 +405,7 @@ const playChromeApi = mountPlayChrome(
     onReset() {
       void (async () => {
         try {
-          const snap = await adapter.reset();
+          const snap = await adapter.reset({ ...vm.config });
           captureSchedule(snap);
           vm = projector.applySnapshot(snap);
           projector.markConfigApplied();
@@ -477,7 +488,7 @@ async function bootstrap(): Promise<void> {
   if (bootstrapped) return;
   bootstrapped = true;
   try {
-    const snap = await adapter.init();
+    const snap = await adapter.init({ ...vm.config });
     captureSchedule(snap);
     vm = projector.applySnapshot(snap);
     projector.markConfigApplied();

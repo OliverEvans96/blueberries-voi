@@ -36,8 +36,8 @@ export type ProjectorOptions = {
 };
 
 /**
- * Nested heatmap density from flat belief: density[l][k] = lot_counts[l] *
- * age_marginals[l*K + k] (ADR 0098 — JS-only).
+ * Lot×age mass matrix: density[l][k] = lot_counts[l] * age_marginals[l*K+k]
+ * (ADR 0098 intermediate; presentation rebin is beliefGridFromFlat).
  */
 export function densityFromFlatBelief(belief: {
   L: number;
@@ -59,7 +59,8 @@ export function densityFromFlatBelief(belief: {
   return density;
 }
 
-function centersToEdges(centers: number[]): number[] {
+/** Midpoint edges from bin centers (tau_grid → tau_edges). */
+export function centersToEdges(centers: number[]): number[] {
   if (centers.length === 0) return [];
   if (centers.length === 1) {
     const c = centers[0]!;
@@ -77,19 +78,79 @@ function centersToEdges(centers: number[]): number[] {
   return edges;
 }
 
-/** Map flat wire belief → BeliefGrid used by D3 charts. */
-export function beliefGridFromFlat(flat: FlatBelief): BeliefGrid {
-  const density = densityFromFlatBelief(flat);
-  if (flat.L <= 0) {
-    return { density: [], tau_edges: [], count_edges: [] };
+/**
+ * Merged age mass m[k] = Σ_l lot_counts[l] * age_marginals[l*K+k] (ADR 0109).
+ */
+export function ageMarginalFromFlat(flat: FlatBelief): number[] {
+  const { L, K, lot_counts, age_marginals } = flat;
+  const m = Array.from({ length: K }, () => 0);
+  for (let l = 0; l < L; l++) {
+    const count = lot_counts[l] ?? 0;
+    for (let k = 0; k < K; k++) {
+      m[k]! += count * (age_marginals[l * K + k] ?? 0);
+    }
   }
-  // density is L×K (lot × age). Charts treat first axis as "tau" and second as "count".
-  const tau_edges = Array.from({ length: flat.L + 1 }, (_, i) => i);
-  const count_edges =
-    flat.tau_grid.length > 0
-      ? centersToEdges(flat.tau_grid)
-      : Array.from({ length: flat.K + 1 }, (_, i) => i);
-  return { density, tau_edges, count_edges };
+  return m;
+}
+
+function integerCountEdges(maxN: number): number[] {
+  const top = Math.max(1, Math.ceil(maxN));
+  return Array.from({ length: top + 1 }, (_, i) => i);
+}
+
+function countBinFor(edges: number[], n: number): number {
+  const rounded = Math.round(n);
+  for (let c = 0; c < edges.length - 1; c++) {
+    if (rounded >= edges[c]! && rounded < edges[c + 1]!) return c;
+  }
+  return Math.max(0, edges.length - 2);
+}
+
+/**
+ * Map flat wire belief → age×count BeliefGrid (K×C density; ADR 0109).
+ * Optional truthLots extend the count axis to cover truth n.
+ */
+export function beliefGridFromFlat(
+  flat: FlatBelief,
+  truthLots?: ReadonlyArray<{ n: number }>,
+): BeliefGrid {
+  if (flat.L <= 0 || flat.K <= 0) {
+    return { density: [], tau_edges: [], count_edges: [], age_marginal: [] };
+  }
+
+  const { L, K, lot_counts, age_marginals, tau_grid } = flat;
+  const tau_edges = centersToEdges(tau_grid);
+
+  let maxN = 1;
+  for (const n of lot_counts) {
+    maxN = Math.max(maxN, n);
+  }
+  if (truthLots) {
+    for (const lot of truthLots) {
+      maxN = Math.max(maxN, lot.n);
+    }
+  }
+  const count_edges = integerCountEdges(maxN);
+  const C = count_edges.length - 1;
+
+  const density: number[][] = Array.from({ length: K }, () =>
+    Array.from({ length: C }, () => 0),
+  );
+
+  for (let l = 0; l < L; l++) {
+    const n_l = lot_counts[l] ?? 0;
+    const c = countBinFor(count_edges, n_l);
+    for (let k = 0; k < K; k++) {
+      density[k]![c]! += n_l * (age_marginals[l * K + k] ?? 0);
+    }
+  }
+
+  return {
+    density,
+    tau_edges,
+    count_edges,
+    age_marginal: ageMarginalFromFlat(flat),
+  };
 }
 
 function snapshotGhost(history: Day[], economics: Economics): EpisodeGhost {
@@ -135,11 +196,28 @@ function ghostDeltas(
   };
 }
 
-function asDay(day: DayDelta["day"]): Day {
+/**
+ * Normalize a wire day into the chart Day shape.
+ *
+ * Python EngineSession (ADR 0100) emits end-of-day cohorts on DayDelta.live_lots
+ * and intentionally omits day.lots (minimal chart fields in day_driver). The
+ * history / effective-age chart reads history[].lots, so fall back to live_lots
+ * when the day payload has no lot snapshot (HTTP / Pyodide). Mock still sends
+ * day.lots explicitly and that wins.
+ */
+function asDay(
+  day: DayDelta["day"],
+  liveLotsFallback?: readonly Lot[] | undefined,
+): Day {
   const d = day as Day;
+  const fromDay = d.lots;
+  const lotsSrc =
+    fromDay != null && fromDay.length > 0
+      ? fromDay
+      : (liveLotsFallback ?? []);
   return {
     day: d.day,
-    lots: (d.lots ?? []).map((l) => ({ ...l })),
+    lots: lotsSrc.map((l) => ({ ...l })),
     sales_total: d.sales_total ?? 0,
     waste_total: d.waste_total ?? 0,
     demand: d.demand ?? 0,
@@ -265,7 +343,7 @@ export class ViewModelProjector {
       this.history = this.history.slice(1);
     }
 
-    this.history = [...this.history, asDay(delta.day)];
+    this.history = [...this.history, asDay(delta.day, delta.live_lots)];
     // Enforce rolling window even if drop_oldest was omitted.
     if (this.history.length > this.windowDays) {
       this.history = this.history.slice(-this.windowDays);
@@ -369,7 +447,7 @@ export class ViewModelProjector {
       config_dirty: !this.configsEqual(this.config, this.appliedConfig),
       pnl_series: series,
       pnl_totals: totals,
-      belief: beliefGridFromFlat(this.flatBelief),
+      belief: beliefGridFromFlat(this.flatBelief, this.liveLots),
       live_lots: this.liveLots.map((l) => ({ ...l })),
       on_hand: onHandInventory(this.liveLots),
       effective_inv: survivalWeightedInventory(this.liveLots, this.config),

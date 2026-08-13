@@ -403,13 +403,14 @@ def test_no_browser_or_pyodide_packaging_modules_in_src() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: PRODUCTION_BACKEND == mean_field
+# AC: PRODUCTION_BACKEND is not age mean-field (ADR 0105 / T-068)
 # ---------------------------------------------------------------------------
 
 
-def test_production_backend_remains_mean_field() -> None:
-    """Production age backend lock from T-021 still holds."""
-    assert filter_pkg.PRODUCTION_BACKEND == "mean_field"
+def test_production_backend_is_not_age_mean_field() -> None:
+    """ADR 0105 supersedes the T-021 age mean-field production lock."""
+    assert filter_pkg.PRODUCTION_BACKEND != "mean_field"
+    assert filter_pkg.PRODUCTION_BACKEND not in {"sliding_window", "full_joint"}
 
 
 # ---------------------------------------------------------------------------
@@ -565,8 +566,15 @@ def test_m2_dod_checklist_copied_and_checked() -> None:
         missing_themes.append("toy DP")
     if not any(tok in lowered for tok in ("multi-scenario", "multi scenario", "p1")):
         missing_themes.append("multi-scenario")
-    if "mean_field" not in lowered and "mean-field" not in lowered:
-        missing_themes.append("mean_field production")
+    has_prod_filter = (
+        "mean_field" in lowered
+        or "mean-field" in lowered
+        or "arrival-only" in lowered
+        or "counts-only" in lowered
+        or "0105" in lowered
+    )
+    if not has_prod_filter:
+        missing_themes.append("production filter (mean_field or ADR 0105 arrival-only)")
     if not any(
         tok in lowered for tok in ("voi", "browser", "pyodide", "non-goal", "stub")
     ):

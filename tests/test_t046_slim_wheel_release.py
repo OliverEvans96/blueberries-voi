@@ -6,7 +6,8 @@ Locks ADR 0101 / ``.team/specs/T-046.md`` packaging deliverables:
   ``matplotlib`` requirements
 * CI (or release workflow) + GitHub Release assets for ``micropip.install``
 * Pyodide **314.0.4** / CPython **3.14.2** pin outside ADR-only prose
-* Native CI matrix includes Python **3.14** alongside 3.11 and 3.12
+* Quality CI pins to repo Python **3.11** only (verify ↔ CI parity; multi-version
+  matrix retired)
 * Smoke hook proves wheel METADATA / install graph is clean for ``[browser]``
 * Derived Abdella artifact ships in package data and/or Release assets
 """
@@ -96,7 +97,7 @@ def _workflow_texts() -> dict[Path, str]:
 
 
 def _ci_workflow_text() -> str:
-    """Union live + canonical ci.yml so the 3.14 matrix can land in packaging/."""
+    """Union live + canonical ci.yml so packaging drafts stay parity-checked."""
     parts: list[str] = []
     for path in _CI_WORKFLOW_CANDIDATES:
         if path.is_file():
@@ -236,21 +237,20 @@ def _slim_dependency_surface() -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# AC: CI matrix includes Python 3.14 alongside 3.11 and 3.12
-# (T-044 deferral checklist is no longer an escape hatch)
+# AC: quality CI pins to repo Python 3.11 only (verify ↔ CI parity)
+# Multi-version native matrix (3.11/3.12/3.14) was retired; Pyodide ABI pins
+# stay in workflow env / packaging docs (see pin tests below).
 # ---------------------------------------------------------------------------
 
 
-def test_ci_matrix_includes_python_314_alongside_311_and_312() -> None:
+def test_quality_ci_pins_python_311_only() -> None:
     ci = _ci_workflow_text()
     versions = _matrix_python_versions(ci)
-    missing = {"3.11", "3.12", "3.14"} - versions
-    assert not missing, (
-        "T-046 requires GitHub Actions CI to cover Python 3.11, 3.12, and 3.14 "
-        f"(ADR 0101 / checklist T-044-ci-314-deferred); missing {sorted(missing)}; "
-        f"found {sorted(versions)}. "
-        "If agents cannot edit live workflows, land the matrix under "
-        "packaging/github-workflows/ci.yml for a human to copy/symlink."
+    assert versions == {"3.11"}, (
+        "Quality CI must pin to repo Python 3.11 only "
+        "(AGENTS.md / .python-version / verify↔CI parity); "
+        f"found {sorted(versions)}. Update live and packaging/github-workflows/ "
+        "ci.yml together so drafts do not reintroduce a matrix."
     )
 
 
