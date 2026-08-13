@@ -25,6 +25,8 @@ verified locally, with clarifying questions deferred to the end rather than bloc
 
 ## Open questions
 
+Tracked in [GitHub issue #1](https://github.com/OliverEvans96/blueberries-voi/issues/1).
+
 - [ ] Confirm production β grid upper bound and exact 10+ knot placement beyond “includes 1.0”
 - [ ] Confirm default `ProfitCosts` for headline VOI vs M2 multi-scenario defaults
 - [ ] Whether F1/F1s closed-loop must fully score lot-resolved masks in M3v1 or may smoke-wire
