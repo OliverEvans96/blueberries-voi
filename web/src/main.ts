@@ -373,6 +373,12 @@ const playChromeApi = mountPlayChrome(
           for (const delta of deltas) {
             vm = projector.applyDelta(delta);
           }
+          // DayDelta.episode_day is the completed day; next act cursor is +1
+          // (EngineSession state.episode_day after advance_day).
+          if (deltas.length > 0) {
+            const completed = deltas[deltas.length - 1]!.episode_day;
+            vm = { ...vm, episode_day: completed + 1 };
+          }
           onHoverDay(null);
           renderAll();
         } catch (err) {

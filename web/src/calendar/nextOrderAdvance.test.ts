@@ -72,12 +72,12 @@ describe("T-086 next-order-day advance helpers (schedule fields only)", () => {
     expect(typeof mod!.buildStepNOrders).toBe("function");
   });
 
-  it("buildStepNOrders from Monday (day 0) jumps to Tuesday with a single real order", async () => {
+  it("buildStepNOrders from Monday (day 0) jumps to Tuesday with zero on Mon then order on Tue", async () => {
     const mod = await loadAdvanceModule();
     expect(mod?.buildStepNOrders).toBeTypeOf("function");
     // Day 0 = Mon 2024-01-01; next order day = Tue (1). Length = 1 − 0 = 1.
     const orders = mod!.buildStepNOrders!(0, 16, DEFAULT_SCHEDULE);
-    expect(orders).toEqual([16]);
+    expect(orders).toEqual([0, 16]);
   });
 
   it("buildStepNOrders zeros intervening non-order days then places qty on target", async () => {
@@ -85,18 +85,18 @@ describe("T-086 next-order-day advance helpers (schedule fields only)", () => {
     expect(mod?.buildStepNOrders).toBeTypeOf("function");
     // Day 6 = Sun (order day); next order = Tue day 8 → [0 (Mon), 16 (Tue)].
     const orders = mod!.buildStepNOrders!(6, 16, DEFAULT_SCHEDULE);
-    expect(orders).toEqual([0, 16]);
+    expect(orders).toEqual([0, 0, 16]);
     expect(orders.every((q, i) => (i < orders.length - 1 ? q === 0 : q === 16))).toBe(
       true,
     );
   });
 
-  it("buildStepNOrders from Friday lands on Sunday with two skip zeros", async () => {
+  it("buildStepNOrders from Friday lands on Sunday with Fri/Sat zeros then order", async () => {
     const mod = await loadAdvanceModule();
     expect(mod?.buildStepNOrders).toBeTypeOf("function");
     // Day 4 = Fri; next order = Sun day 6 → [0 (Sat), 24 (Sun)].
     const orders = mod!.buildStepNOrders!(4, 24, DEFAULT_SCHEDULE);
-    expect(orders).toEqual([0, 24]);
+    expect(orders).toEqual([0, 0, 24]);
   });
 
   it("next order day is strictly after current day (never includes today)", async () => {
@@ -112,7 +112,7 @@ describe("T-086 next-order-day advance helpers (schedule fields only)", () => {
     }
     if (build) {
       const orders = build(1, 8, DEFAULT_SCHEDULE);
-      expect(orders.length).toBe(3 - 1); // days 2..3
+      expect(orders.length).toBe(3 - 1 + 1); // days 1..3 inclusive
       expect(orders[orders.length - 1]).toBe(8);
       expect(orders.slice(0, -1).every((q) => q === 0)).toBe(true);
     }

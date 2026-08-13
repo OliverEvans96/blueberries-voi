@@ -35,3 +35,6 @@ needed later.
       orders (zeros then qty).
 
 **Pass / fail:** unit RED→GREEN on implement tip (vitest calendar + nextOrderDayUi).
+
+## EngineSession indexing (review round 1 fix)
+`buildStepNOrders` length = `next − current + 1` (inclusive through target). After `step_n`, UI cursor = last completed `episode_day + 1`.

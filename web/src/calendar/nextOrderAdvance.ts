@@ -44,8 +44,10 @@ export function nextOrderDayFromSchedule(
 }
 
 /**
- * Build step_n orders: zeros on intervening non-order days, qty on the
- * target next order day. Length = next_order_day − current_day.
+ * Build step_n orders for EngineSession indexing: orders[i] applies to
+ * episode_day + i (current day first). Include every day from current
+ * through target inclusive → length = next_order_day − current_day + 1,
+ * with zeros then qty on the last (target order day).
  */
 export function buildStepNOrders(
   currentDay: number,
@@ -53,7 +55,10 @@ export function buildStepNOrders(
   schedule: ScheduleWire,
 ): number[] {
   const target = nextOrderDayFromSchedule(currentDay, schedule);
-  const len = target - currentDay;
+  const len = target - currentDay + 1;
+  if (len < 1) {
+    throw new Error(`invalid step_n length ${len} (current=${currentDay}, target=${target})`);
+  }
   const orders = Array.from({ length: len }, () => 0);
   orders[len - 1] = orderQty;
   return orders;
