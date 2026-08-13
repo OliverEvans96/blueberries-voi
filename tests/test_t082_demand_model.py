@@ -20,6 +20,7 @@ import importlib
 import inspect
 import json
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -138,7 +139,7 @@ def _params_with_profile(profile: Any, **kwargs: Any) -> ModelParams:
         "blueberries_voi.model.demand_profile",
         "blueberries_voi.model.demand_model",
     ):
-        mod = sys.modules.get(name)
+        mod: types.ModuleType | None = sys.modules.get(name)
         if mod is None:
             continue
         attach = getattr(mod, "with_demand_profile", None)
