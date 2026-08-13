@@ -21,7 +21,9 @@ from blueberries_voi.model import ModelParams
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _BACKENDS = _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "backends.py"
-_AGE_LIKELIHOOD = _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "age_likelihood.py"
+_AGE_LIKELIHOOD = (
+    _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "age_likelihood.py"
+)
 _CONTROLLER_INIT = _REPO_ROOT / "src" / "blueberries_voi" / "controller" / "__init__.py"
 _ALPHA_TUNE = _REPO_ROOT / "src" / "blueberries_voi" / "sim" / "alpha_tune.py"
 _BACKLOG = _REPO_ROOT / ".team" / "backlog.md"
@@ -39,7 +41,7 @@ def _resolve_mf_max_sweeps() -> int:
         except ImportError:
             continue
         if hasattr(mod, "MF_MAX_SWEEPS"):
-            return int(getattr(mod, "MF_MAX_SWEEPS"))
+            return int(mod.MF_MAX_SWEEPS)
     pytest.fail(
         "shared library constant MF_MAX_SWEEPS=5 must be exported "
         "(filter.age_likelihood and/or filter.backends) — T-044",
@@ -99,16 +101,16 @@ def test_backends_p1_path_no_hardcoded_max_sweeps_two() -> None:
     """Production P1 path must not hard-code max_sweeps=2."""
     source = _BACKENDS.read_text(encoding="utf-8")
     tree = ast.parse(source)
-    fn = None
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == "_rbpf_update":
-            fn = node
+    fn: ast.FunctionDef | None = None
+    for body_node in tree.body:
+        if isinstance(body_node, ast.FunctionDef) and body_node.name == "_rbpf_update":
+            fn = body_node
             break
     assert fn is not None, "_rbpf_update missing in backends.py"
     # Look for max_sweeps=2 literal in the function body.
-    for node in ast.walk(fn):
-        if isinstance(node, ast.Call):
-            for kw in node.keywords:
+    for walk_node in ast.walk(fn):
+        if isinstance(walk_node, ast.Call):
+            for kw in walk_node.keywords:
                 if kw.arg == "max_sweeps" and isinstance(kw.value, ast.Constant):
                     assert kw.value.value != 2, (
                         "production _rbpf_update must not hard-code max_sweeps=2; "
@@ -167,9 +169,7 @@ def test_sliding_window_backend_is_marked_non_citeable_stub() -> None:
     assert any(
         token in doc
         for token in ("stub", "non-production", "non-citeable", "not cite", "bakeoff")
-    ), (
-        "SlidingWindowBackend docstring must state non-production / non-citeable stub"
-    )
+    ), "SlidingWindowBackend docstring must state non-production / non-citeable stub"
     flag = _stub_flag(cls)
     assert flag is True, (
         "SlidingWindowBackend must expose machine-checkable is_stub/IS_STUB=True"

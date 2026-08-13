@@ -9,9 +9,8 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
@@ -19,6 +18,9 @@ import pytest
 from blueberries_voi.controller.ordering import case_round as controller_case_round
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EPISODE_PATH = _REPO_ROOT / "src" / "blueberries_voi" / "sim" / "episode.py"
@@ -109,11 +111,10 @@ def test_sim_episode_case_round_source_has_no_ceil_arithmetic() -> None:
             break
     # Thin re-export (no local def) is OK — then the body must not exist here.
     if case_round_fn is None:
-        assert "from blueberries_voi.controller.ordering import case_round" in source or (
-            "controller.ordering" in source and "case_round" in source
-        ), (
-            "sim.episode must re-export controller case_round or define a thin wrapper"
-        )
+        assert (
+            "from blueberries_voi.controller.ordering import case_round" in source
+            or ("controller.ordering" in source and "case_round" in source)
+        ), "sim.episode must re-export controller case_round or define a thin wrapper"
         return
 
     body_src = ast.get_source_segment(source, case_round_fn) or ""

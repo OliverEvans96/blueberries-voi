@@ -1,4 +1,4 @@
-"""T-043: DEFAULT_PROFIT_COSTS, Abdella shipment defaults, VOI α-table gate.
+"""T-043: DEFAULT_PROFIT_COSTS, Abdella shipment defaults, VOI alpha-table gate.
 
 See `.team/specs/T-043.md` and ADR 0097. Abdella defaults may use ``data/abdella/``
 or monkeypatch; cool fixtures must be explicitly named ``smoke_cool_shipments``.
@@ -134,6 +134,7 @@ def test_default_profit_costs_documented_as_uncalibrated() -> None:
     mod = importlib.import_module(_PROFIT_MOD)
     _resolve_attr(_PROFIT_MOD, "DEFAULT_PROFIT_COSTS")
     # Constant docstring, or module docstring adjacent to the constant.
+    assert mod.__file__ is not None
     source = Path(mod.__file__).read_text(encoding="utf-8")
     blob = f"{mod.__doc__ or ''}\n{source}".lower()
     assert "uncalibrated" in blob, (
@@ -151,6 +152,7 @@ def test_default_profit_costs_documented_as_uncalibrated() -> None:
 @pytest.mark.parametrize("mod_name", _PRODUCTION_COST_MODULES)
 def test_production_modules_use_shared_default_profit_costs(mod_name: str) -> None:
     mod = importlib.import_module(mod_name)
+    assert mod.__file__ is not None
     source = Path(mod.__file__).read_text(encoding="utf-8")
     assert "DEFAULT_PROFIT_COSTS" in source, (
         f"{mod_name} must resolve costs is None via DEFAULT_PROFIT_COSTS (T-043)"
@@ -168,13 +170,16 @@ def test_voi_crn_none_costs_uses_default_profit_costs_object(
 ) -> None:
     """Observable: episode_profit receives DEFAULT_PROFIT_COSTS when costs is None."""
     default_costs = _resolve_attr(_PROFIT_MOD, "DEFAULT_PROFIT_COSTS")
+    from blueberries_voi.sim.profit import episode_profit as real_profit
     from blueberries_voi.voi import crn as crn_mod
 
+    assert crn_mod.__file__ is not None
     source = Path(crn_mod.__file__).read_text(encoding="utf-8")
-    assert "DEFAULT_PROFIT_COSTS" in source, "voi.crn must wire DEFAULT_PROFIT_COSTS (T-043)"
+    assert "DEFAULT_PROFIT_COSTS" in source, (
+        "voi.crn must wire DEFAULT_PROFIT_COSTS (T-043)"
+    )
 
     captured: list[Any] = []
-    real_profit = crn_mod.episode_profit
 
     def _spy(ep: Any, costs: Any) -> float:
         captured.append(costs)
@@ -212,6 +217,7 @@ def test_voi_crn_none_costs_uses_default_profit_costs_object(
     used = captured[0]
     assert used == default_costs or used is default_costs
 
+
 # ---------------------------------------------------------------------------
 # AC: shipments is None → Abdella (not cool fixture)
 # ---------------------------------------------------------------------------
@@ -231,7 +237,9 @@ def test_smoke_cool_shipments_returns_1c_cool_without_abdella(
     ships = smoke()
     assert isinstance(ships, list) and ships
     assert all(isinstance(s, ShipmentTrace) for s in ships)
-    assert _minimal_cool_like(ships), "smoke helper must return synthetic 1°C cool traces"
+    assert _minimal_cool_like(ships), (
+        "smoke helper must return synthetic 1°C cool traces"
+    )
 
 
 def test_production_voi_crn_default_shipments_load_abdella(
@@ -302,7 +310,9 @@ def test_production_voi_crn_default_shipments_load_abdella(
             monkeypatch.setattr(
                 crn_mod,
                 name,
-                _fake_load if name == "load_abdella_shipments" else (lambda **_k: _fake_load()),
+                _fake_load
+                if name == "load_abdella_shipments"
+                else (lambda **_k: _fake_load()),
             )
 
     crn_mod.run_voi_crn_cell(**kwargs)
@@ -330,11 +340,10 @@ def test_m2_and_alpha_default_shipments_not_cool_fixture(
     fn = getattr(mod, fn_name, None)
     assert callable(fn), f"{mod_name}.{fn_name} required for T-043"
 
+    assert mod.__file__ is not None
     source = Path(mod.__file__).read_text(encoding="utf-8")
-    # Default path must mention Abdella load or default_shipments, not only cool fixture.
-    uses_abdella = (
-        "load_abdella_shipments" in source or "default_shipments" in source
-    )
+    # Default path: Abdella load or default_shipments, not only cool fixture.
+    uses_abdella = "load_abdella_shipments" in source or "default_shipments" in source
     still_defaults_cool = (
         "shipments) if shipments is not None else _fixture_shipments()" in source
         or "else _fixture_shipments()" in source
@@ -381,7 +390,7 @@ def test_default_shipments_helper_calls_abdella(
 
 
 # ---------------------------------------------------------------------------
-# AC: production VOI α-table gate; smoke may keep α=0.9
+# AC: production VOI alpha-table gate; smoke may keep alpha=0.9
 # ---------------------------------------------------------------------------
 
 
@@ -463,13 +472,13 @@ def test_production_voi_crn_uses_table_alpha_not_hardcoded_0_9(
     )
     assert seen, "expected DampedSurvivalWeightedPolicy construction"
     assert table_alpha in seen, (
-        f"production VOI must use tuned table α={table_alpha}, got {seen} "
+        f"production VOI must use tuned table alpha={table_alpha}, got {seen} "
         "(must not silently hardcode 0.9)"
     )
 
 
 def test_smoke_voi_allows_fixed_alpha_without_table() -> None:
-    """Smoke path must not require an α-table artifact (fixed α=0.9 allowed)."""
+    """Smoke path must not require an alpha-table artifact (fixed alpha=0.9 allowed)."""
     from blueberries_voi.voi import sweep as sweep_mod
 
     smoke_sig = inspect.signature(sweep_mod.run_voi_smoke)
@@ -477,10 +486,11 @@ def test_smoke_voi_allows_fixed_alpha_without_table() -> None:
         smoke_sig.parameters["alpha_table_path"].default is None
     )
     # Source contract: smoke=True path does not call require_tuned_alpha_table.
+    assert sweep_mod.__file__ is not None
     source = Path(sweep_mod.__file__).read_text(encoding="utf-8")
     # Production (smoke=False) must gate; smoke helper itself stays ungated.
     assert "def run_voi_smoke" in source
-    # Calling smoke without a table must not raise for missing α artifact.
+    # Calling smoke without a table must not raise for missing alpha artifact.
     # Keep budgets tiny via run_voi_sweep(smoke=True) rather than full report I/O.
     try:
         result = sweep_mod.run_voi_sweep(
@@ -488,13 +498,13 @@ def test_smoke_voi_allows_fixed_alpha_without_table() -> None:
             root_seed=0,
             scenarios=["B-state"],
             betas=[1.0],
-            n_rep=1,
+            n_replications=1,
             n_burn=1,
             n_score=1,
             filter_n=8,
             H=1,
             n_rollout_paths=1,
-            n_boot=2,
+            n_bootstrap=2,
         )
     except TypeError:
         # If production gate added alpha_table_path only on non-smoke, call as today.

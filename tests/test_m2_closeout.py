@@ -433,7 +433,7 @@ def test_controller_remains_pure_library() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Process: plan status flipped; backlog says M2 complete pending human merge
+# Process: plan status flipped; backlog records M2 done (on main)
 # ---------------------------------------------------------------------------
 
 
@@ -463,21 +463,42 @@ def test_m2_plan_status_waves_complete() -> None:
 
 
 def test_backlog_m2_complete_pending_human_merge() -> None:
-    """Backlog records M2 complete pending human merge to main."""
+    """Backlog records M2 complete; library work on main (post-merge accurate)."""
     text = _read(_BACKLOG).lower()
     assert re.search(r"\bm2\b", text), "backlog must mention M2"
-    assert re.search(
-        r"m2.{0,120}(?:complete|done|closed).{0,120}"
-        r"(?:pending|awaiting|waiting).{0,80}(?:merge|main)",
-        text,
-        re.I | re.S,
-    ) or re.search(
-        r"(?:pending|awaiting|waiting).{0,40}(?:human\s+)?merge.{0,40}main.{0,80}m2",
-        text,
-        re.I | re.S,
-    ), (
-        ".team/backlog.md must say M2 is complete pending human merge to main "
-        "(not 'Next: T-034')"
+    on_main = (
+        "f4a467f" in text
+        or re.search(
+            r"m2\+?m3.{0,80}(library )?(work )?is on [`']?main[`']?",
+            text,
+            re.I | re.S,
+        )
+        is not None
+        or re.search(
+            r"m2.{0,120}(?:complete|done|closed|library).{0,120}on [`']?main[`']?",
+            text,
+            re.I | re.S,
+        )
+        is not None
+    )
+    pending_merge = (
+        re.search(
+            r"m2.{0,120}(?:complete|done|closed).{0,120}"
+            r"(?:pending|awaiting|waiting).{0,80}(?:merge|main)",
+            text,
+            re.I | re.S,
+        )
+        is not None
+        or re.search(
+            r"(?:pending|awaiting|waiting).{0,40}(?:human\s+)?merge.{0,40}main.{0,80}m2",
+            text,
+            re.I | re.S,
+        )
+        is not None
+    )
+    assert on_main or pending_merge, (
+        ".team/backlog.md must say M2 library work is on main "
+        "(or historically complete pending human merge to main)"
     )
     # Should not still advertise T-034 as the next open work.
     assert not re.search(
