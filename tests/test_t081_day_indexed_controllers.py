@@ -300,11 +300,19 @@ def _survival_weight_resolver(
     ):
         fn = getattr(policy, attr, None)
         if callable(fn):
-            return lambda day, _fn=fn: float(_fn(day))
+
+            def _from_attr(day: int, _fn: Any = fn) -> float:
+                return float(_fn(day))
+
+            return _from_attr
 
     w = getattr(policy, "mean_survival_weight", None)
     if callable(w):
-        return lambda day, _w=w: float(_w(day))
+
+        def _from_callable(day: int, _w: Any = w) -> float:
+            return float(_w(day))
+
+        return _from_callable
     if isinstance(w, Mapping):
 
         def _from_map(day: int, _m: Mapping[Any, Any] = w) -> float:
@@ -453,7 +461,7 @@ def test_alpha_tune_exposes_or_computes_day_indexed_protection_coverage() -> Non
     ):
         fn = getattr(mod, name, None)
         if callable(fn):
-            helper = fn  # type: ignore[assignment]
+            helper = fn
             break
 
     if helper is None:
