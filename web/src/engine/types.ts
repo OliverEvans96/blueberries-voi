@@ -12,6 +12,22 @@ export type FlatBelief = {
   tau_grid: number[];
 };
 
+/** OrderSchedule export for Studio calendar chrome (T-085 / CAL-C1). */
+export type ScheduleWire = {
+  delivery_weekdays: number[];
+  order_weekdays: number[];
+  lead_time_days: number;
+  /** ISO date for day-index → weekday labels (monday0 epoch). */
+  epoch: string;
+};
+
+/** Chart-ready demand profile summary (not the full FreshNet JSON blob). */
+export type DemandSummary = {
+  scale_mu: number;
+  /** Length-7 monday0 means (scale × DOW factors). */
+  dow_means: number[];
+};
+
 /** Cold payload from init / reset. */
 export type Snapshot = {
   seq: number;
@@ -21,6 +37,8 @@ export type Snapshot = {
   live_lots?: Lot[];
   pipeline?: PipelineOrder[];
   applied_config?: Partial<SimConfig> & Record<string, unknown>;
+  schedule?: ScheduleWire;
+  demand_summary?: DemandSummary;
 };
 
 /** Hot payload from step / step_n / act. */

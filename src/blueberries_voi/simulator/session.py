@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from blueberries_voi.controller.ordering import ConstantOrderPolicy
@@ -9,7 +11,9 @@ from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF
 from blueberries_voi.model import ModelParams
+from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.simulator.belief import (
     empty_flat_belief,
     live_lots_payload,
@@ -40,6 +44,39 @@ DEMO_BUDGETS: dict[str, int] = {
 BROWSER_DEMO_BUDGETS = DEMO_BUDGETS
 
 _HISTORY_WINDOW = 14
+# ASN / OrderSchedule epoch (monday0); keep as ISO date for Studio weekday labels.
+_SCHEDULE_EPOCH = "2024-01-01"
+
+
+def schedule_wire(schedule: OrderSchedule | None = None) -> dict[str, Any]:
+    """Export OrderSchedule fields for Snapshot / Studio calendar chrome (T-085)."""
+    sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
+    return {
+        "delivery_weekdays": sorted(int(d) for d in sched.delivery_weekdays),
+        "order_weekdays": sorted(int(d) for d in sched.order_weekdays),
+        "lead_time_days": int(sched.lead_time_days),
+        "epoch": _SCHEDULE_EPOCH,
+    }
+
+
+def _default_demand_profile_path() -> Path:
+    root = Path(__file__).resolve().parents[3]
+    return root / "data" / "freshnet" / "demand_profile.json"
+
+
+@lru_cache(maxsize=1)
+def _committed_demand_profile() -> DemandProfile:
+    return load_demand_profile(_default_demand_profile_path())
+
+
+def demand_summary_wire(profile: DemandProfile | None = None) -> dict[str, Any]:
+    """Chart-ready demand summary (scale + length-7 DOW means); not the full blob."""
+    prof = _committed_demand_profile() if profile is None else profile
+    scale = float(prof.scale_target_mu)
+    return {
+        "scale_mu": scale,
+        "dow_means": [scale * float(f) for f in prof.dow_factors],
+    }
 
 
 class EngineSession:
@@ -215,6 +252,8 @@ class EngineSession:
             "belief": self._belief_for_snapshot(),
             "live_lots": live_lots_payload(self._state.cohorts),
             "pipeline": pipeline_payload(self._state.pending),
+            "schedule": schedule_wire(),
+            "demand_summary": demand_summary_wire(),
         }
 
     def _advance(self, order_qty: int) -> DayDelta:
@@ -309,4 +348,6 @@ __all__ = [
     "BROWSER_DEMO_BUDGETS",
     "DEMO_BUDGETS",
     "EngineSession",
+    "demand_summary_wire",
+    "schedule_wire",
 ]
