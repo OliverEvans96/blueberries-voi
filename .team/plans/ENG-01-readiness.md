@@ -47,3 +47,8 @@ T-070 (architect) → **T-071 ∥ T-072 ∥ T-073** → T-074 → T-075.
 ## Non-goals
 
 Filter physics, arrival-only ages, counts-only PF, ShelfBelief age-semantics (those are T-067–T-069 / ADR 0105–0106).
+
+## Note on cancelled alternate range
+
+`team/ENG-01-readiness/architect` briefly reserved **T-073–T-078** by mistaking T-070–T-072
+as arrival-only. That range is **cancelled**. Canonical remains **T-070–T-075** / **0107–0108**.

@@ -9,3 +9,5 @@ Prevents ID collisions between concurrent agents. Update or delete when both str
 | Landed on `main` (context) | …–T-066 | …–0104 | `main` | T-066 = LL re-bench; highest ADR on `main` = 0104. |
 
 **Next free after both reservations:** tickets **T-076+**, ADRs **0109+**.
+
+**Cancelled:** `team/ENG-01-readiness/architect` briefly claimed **T-073–T-078** (wrongly treating T-070–T-072 as arrival-only). That range is void; use **T-070–T-075**.
