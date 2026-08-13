@@ -133,3 +133,35 @@ Non-goals: M3 compute reduction; RBPF count physics; Stage A honesty; ENG-01.
 | [T-044](./T-044-audit-remediation.md) | MF sweeps=5, bakeoff stubs, backlog/doc hygiene | ADR 0104 |
 
 Wave order: architect (this tip) → qa (all ACs) → (T-042 ∥ T-043 ∥ T-044 implement).
+
+## In-flight reservations (2026-08-13)
+
+See [ticket-adr-reservations-2026-08-13.md](../plans/ticket-adr-reservations-2026-08-13.md). Specs for these
+streams may live only on their ticket branches until integrate.
+
+| Stream | Tickets | ADRs | Plan |
+| --- | --- | --- | --- |
+| Arrival-only filter | **T-067–T-069** | **0105–0106** | on `team/T-067/architect` |
+| ENG-01 dual-mode readiness | **T-070–T-075** | **0107–0108** | [ENG-01-readiness.md](../plans/ENG-01-readiness.md) |
+
+Next free after both: **T-076+**, ADR **0109+**. Do not assign overlapping IDs.
+
+## ENG-01 dual-mode readiness (2026-08-13)
+
+Plan: [`.team/plans/ENG-01-readiness.md`](../plans/ENG-01-readiness.md).  
+ADRs: [0107](../adr/0107-demo-hydrate-at-host-edges.md)–[0108](../adr/0108-local-dual-mode-vite-wheel-cors.md).  
+Locks: demo hydrate at API+worker edges; EngineSession stays strict; Vite serves
+worker+local wheel; worker honors `wheelUrl`; CORS for localhost Vite→API.  
+**Do not use** T-067–T-069 / ADR 0105–0106 (arrival-only filter).  
+Non-goals: live workflow edits; production deploy; citeable science VOI; merge to `main`.
+
+| Ticket | Title | Depends on / notes |
+| --- | --- | --- |
+| [T-070](./T-070.md) | Wave 0 ADR/plan/spec lock | ADRs 0107–0108; plan |
+| [T-071](./T-071.md) | Demo hydrate API + worker/RPC | T-070; ADR 0107 (**∥ T-072 ∥ T-073**) |
+| [T-072](./T-072.md) | Vite serve worker+wheel; wheelUrl | T-070; ADR 0108 (**∥ T-071 ∥ T-073**) |
+| [T-073](./T-073.md) | API CORS for local Vite | T-070; ADR 0108 (**∥ T-071 ∥ T-072**) |
+| [T-074](./T-074.md) | Studio footer / env / errors | T-071, T-072, T-073 |
+| [T-075](./T-075.md) | Dual-mode live smoke + close-out | T-071–T-074 |
+
+Wave order: T-070 → (T-071 ∥ T-072 ∥ T-073) → T-074 → T-075.

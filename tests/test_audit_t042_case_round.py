@@ -2,6 +2,7 @@
 
 Locks controller.ordering.case_round as the sole semantic; sim.episode must not
 keep ceil-to-case; closed-loop orders use nearest.
+
 See `.team/specs/T-042-audit-remediation.md`.
 """
 

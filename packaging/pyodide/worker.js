@@ -24,6 +24,21 @@ const SLIM_WHEEL_URL =
   "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
   "blueberries_voi-0.1.0-py3-none-any.whl";
 
+/**
+ * Resolve wheel URL for micropip (ADR 0108 / T-072).
+ * Prefer ``?wheelUrl=`` on the worker script URL; Release URL is fallback only.
+ */
+function resolveWheelUrl() {
+  try {
+    const params = new URLSearchParams(self.location.search);
+    const fromQuery = params.get("wheelUrl");
+    if (fromQuery) return fromQuery;
+  } catch (_err) {
+    /* ignore malformed location */
+  }
+  return SLIM_WHEEL_URL;
+}
+
 let pyodide = null;
 let ready = null;
 
@@ -38,11 +53,13 @@ async function ensureReady() {
     pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX });
     await pyodide.loadPackage(["micropip", "numpy", "scipy"]);
     const micropip = pyodide.pyimport("micropip");
-    // Release/slim wheel install via micropip (ADR 0099) — not PyPI.
-    await micropip.install(SLIM_WHEEL_URL);
+    // Local override via ?wheelUrl=; Release/slim URL is fallback only (ADR 0108).
+    const wheelUrl = resolveWheelUrl();
+    await micropip.install(wheelUrl);
 
     await pyodide.runPythonAsync(`
 import json
+from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _SESSION = EngineSession()
@@ -63,7 +80,7 @@ def _err(req_id, err_type, message):
 
 def _dispatch(method, params):
     if method == "init":
-        config = dict(params.get("config") or {})
+        config = ensure_demo_shipments(dict(params.get("config") or {}))
         seed = params.get("seed")
         return _SESSION.init(config, seed=None if seed is None else int(seed))
     if method == "step":
@@ -75,7 +92,7 @@ def _dispatch(method, params):
         config = params.get("config")
         seed = params.get("seed")
         return _SESSION.reset(
-            None if config is None else dict(config),
+            None if config is None else ensure_demo_shipments(dict(config)),
             seed=None if seed is None else int(seed),
         )
     if method == "act":

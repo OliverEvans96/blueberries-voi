@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "default_shipments",
+    "ensure_demo_shipments",
     "smoke_cool_shipments",
 ]
 
@@ -37,3 +38,17 @@ def smoke_cool_shipments() -> list[ShipmentTrace]:
             duration_d=2.0,
         )
     ]
+
+
+def ensure_demo_shipments(config: dict[str, Any]) -> dict[str, Any]:
+    """Fill missing/empty ``shipments`` with parquet-free smoke fixtures (ADR 0107).
+
+    Host edges (FastAPI / Pyodide RPC) call this before ``EngineSession``;
+    non-empty client shipments are left untouched. Does not alter
+    ``EngineSession`` itself.
+    """
+    out = dict(config)
+    ships = out.get("shipments")
+    if not ships:
+        out["shipments"] = smoke_cool_shipments()
+    return out
