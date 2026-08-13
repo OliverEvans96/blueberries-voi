@@ -132,6 +132,7 @@ def sequential_wor_composition_probs(
         out[tuple(int(x) for x in comps[k])] = float(cur[active[k]])
     return out
 
+
 def sequential_wor_composition_prob(
     counts: Sequence[int],
     sales: Sequence[int],

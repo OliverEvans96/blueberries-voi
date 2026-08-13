@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import ast
 import inspect
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
-from numpy.typing import NDArray
 
 from blueberries_voi.filter import age_likelihood as al
-from blueberries_voi.model import ModelParams, allocate_sales, picking_weights
+from blueberries_voi.model import allocate_sales
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from numpy.typing import NDArray
 
 _ATOL = 0.0
 _RTOL = 0.0
@@ -26,35 +29,35 @@ def _sequential_wor_composition_probs_ref(
 ) -> dict[tuple[int, ...], float]:
     """Frozen pure-Python DP (pre-T-065 loop) for numeric identity."""
     counts_l = [int(c) for c in counts]
-    L = len(counts_l)
-    if L == 0:
+    n_lots = len(counts_l)
+    if n_lots == 0:
         return {(): 1.0} if sales_tot == 0 else {}
     if sales_tot < 0 or sales_tot > int(sum(counts_l)):
         return {}
     if sales_tot == 0:
-        return {tuple(0 for _ in range(L)): 1.0}
+        return {tuple(0 for _ in range(n_lots)): 1.0}
 
     dims = [c + 1 for c in counts_l]
     size = 1
     for d in dims:
         size *= d
-    strides = [1] * L
-    for i in range(L - 2, -1, -1):
+    strides = [1] * n_lots
+    for i in range(n_lots - 2, -1, -1):
         strides[i] = strides[i + 1] * dims[i + 1]
 
     def pack(c: Sequence[int]) -> int:
-        return sum(int(c[i]) * strides[i] for i in range(L))
+        return sum(int(c[i]) * strides[i] for i in range(n_lots))
 
     def unpack(idx: int) -> tuple[int, ...]:
         out: list[int] = []
         rem = idx
-        for i in range(L):
+        for i in range(n_lots):
             out.append(rem // strides[i])
             rem %= strides[i]
         return tuple(out)
 
     cur = np.zeros(size, dtype=float)
-    cur[pack([0] * L)] = 1.0
+    cur[pack([0] * n_lots)] = 1.0
     w = np.asarray(weights, dtype=float)
 
     for _ in range(sales_tot):
@@ -63,11 +66,11 @@ def _sequential_wor_composition_probs_ref(
             if p <= 0.0:
                 continue
             c = unpack(idx)
-            avail = [float(w[j]) if c[j] < counts_l[j] else 0.0 for j in range(L)]
+            avail = [float(w[j]) if c[j] < counts_l[j] else 0.0 for j in range(n_lots)]
             tot = float(sum(avail))
             if tot <= 0.0:
                 continue
-            for j in range(L):
+            for j in range(n_lots):
                 if avail[j] <= 0.0:
                     continue
                 c2 = list(c)
@@ -87,8 +90,8 @@ def _assert_tables_equal(
     ref: dict[tuple[int, ...], float],
 ) -> None:
     assert set(got) == set(ref), f"key mismatch got={set(got)} ref={set(ref)}"
-    for k in ref:
-        np.testing.assert_allclose(got[k], ref[k], rtol=_RTOL, atol=_ATOL)
+    for key in ref:
+        np.testing.assert_allclose(got[key], ref[key], rtol=_RTOL, atol=_ATOL)
 
 
 def test_public_signature_unchanged() -> None:
@@ -134,10 +137,9 @@ def test_boundary_cases_match_ref() -> None:
         ([3, 3], 6),  # full stockout demand
     ]
     for counts, sales_tot in cases:
-        ref = _sequential_wor_composition_probs_ref(counts, sales_tot, w[: len(counts)])
-        got = al.sequential_wor_composition_probs(
-            counts, sales_tot, w[: len(counts)] if counts else w[:0]
-        )
+        w_use = w[: len(counts)] if counts else w[:0]
+        ref = _sequential_wor_composition_probs_ref(counts, sales_tot, w_use)
+        got = al.sequential_wor_composition_probs(counts, sales_tot, w_use)
         _assert_tables_equal(got, ref)
 
 
@@ -146,15 +148,11 @@ def test_fixed_weights_not_remaining_times_weights() -> None:
     counts = [2, 2]
     weights = np.asarray([1.0, 3.0])
     table = al.sequential_wor_composition_probs(counts, 1, weights)
-    # First pick: P(lot0)=1/4, P(lot1)=3/4 — not remaining-scaled (same at start).
+    # First pick: P(lot0)=1/4, P(lot1)=3/4.
     assert table[(1, 0)] == pytest.approx(0.25, abs=1e-15)
     assert table[(0, 1)] == pytest.approx(0.75, abs=1e-15)
 
-    # After one unit from lot1, remaining=[2,1] but weights stay fixed → next pick
-    # still 1:(1+3) vs 3:(1+3) among nonempty.
     table2 = al.sequential_wor_composition_probs(counts, 2, weights)
-    # Path (0,2): first lot1 (0.75), then lot1 again (3/4) → 0.75*0.75
-    # Path (1,1): first lot0 (0.25) then lot1 (3/4) OR first lot1 (0.75) then lot0 (1/4)
     p_02 = 0.75 * 0.75
     p_11 = 0.25 * 0.75 + 0.75 * 0.25
     p_20 = 0.25 * 0.25
@@ -165,18 +163,16 @@ def test_fixed_weights_not_remaining_times_weights() -> None:
 
 def test_composition_probs_align_with_allocate_sales_monte_carlo() -> None:
     """Tiny shelf: DP table close to empirical allocate_sales frequencies."""
-    counts = np.asarray([2, 2], dtype=int)
-    ages = np.asarray([1.0, 5.0])
-    params = ModelParams()
-    w = picking_weights(ages, sigma=params.sigma)
+    counts_list = [2, 2]
+    w = np.asarray([1.0, 3.0], dtype=float)
     sales_tot = 2
-    table = al.sequential_wor_composition_probs(counts.tolist(), sales_tot, w)
+    table = al.sequential_wor_composition_probs(counts_list, sales_tot, w)
 
     rng = np.random.default_rng(0)
     n_mc = 20_000
     freq: dict[tuple[int, ...], int] = {}
     for _ in range(n_mc):
-        sold = allocate_sales(counts.copy(), sales_tot, w, rng)
+        sold = allocate_sales(counts_list, sales_tot, w, rng)
         key = tuple(int(x) for x in sold)
         freq[key] = freq.get(key, 0) + 1
     for key, p in table.items():
@@ -195,9 +191,9 @@ def _function_source(name: str) -> str:
 
 
 def test_implementation_is_numpy_vectorized_not_python_unpack_loop() -> None:
-    """Structural RED gate: production DP must not use nested unpack/enumerate loops."""
+    """Structural gate: production DP must not use nested unpack/enumerate loops."""
     body = _function_source("sequential_wor_composition_probs")
-    # Pre-rewrite uses nested ``def unpack`` / ``def pack`` and ``for idx, p in enumerate(cur)``.
+    # Pre-rewrite: nested unpack/pack + enumerate(cur).
     assert "def unpack" not in body, (
         "sequential_wor_composition_probs still defines nested unpack — "
         "NumPy rewrite required (T-065)"
@@ -206,14 +202,14 @@ def test_implementation_is_numpy_vectorized_not_python_unpack_loop() -> None:
         "sequential_wor_composition_probs still uses Python enumerate over state — "
         "NumPy rewrite required (T-065)"
     )
-    # Positive marker: vectorized rewrite should index with boolean masks / np.flatnonzero.
+    # Vectorized rewrite should index with boolean masks / flatnonzero.
     assert (
         "flatnonzero" in body
         or "np.nonzero" in body
         or "astype(bool)" in body
         or "cur > 0" in body
         or "np.where" in body
-    ), "expected NumPy vectorized active-state indexing in sequential_wor_composition_probs"
+    ), "expected NumPy vectorized active-state indexing in composition DP"
 
 
 def test_no_new_runtime_deps() -> None:
@@ -222,6 +218,8 @@ def test_no_new_runtime_deps() -> None:
     root = Path(__file__).resolve().parents[1]
     data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     deps = data.get("project", {}).get("dependencies", [])
-    names = {d.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for d in deps}
+    names = {
+        d.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for d in deps
+    }
     assert "numba" not in names
     assert "cython" not in names
