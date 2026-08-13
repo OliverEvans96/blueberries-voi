@@ -11,11 +11,11 @@ boundary.
 from __future__ import annotations
 
 import inspect
-from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from datetime import timedelta
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from blueberries_voi.controller.ordering import case_round
-from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
+from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -24,17 +24,16 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.calendar import _EPISODE_CALENDAR_EPOCH
+from blueberries_voi.sim.open_loop import generate_arrival_age
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
-
-from . import DayLog, EpisodeLog, LotState, generate_arrival_age
+from blueberries_voi.sim.types_log import DayLog, EpisodeLog, LotState
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from datetime import date
 
     from blueberries_voi.model.abdella import ShipmentTrace
-
-# Match open-loop calendar epoch (sim/__init__.py).
-_EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
 
 __all__ = [
     "Policy",
@@ -106,18 +105,6 @@ def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
         ages=ages,
         tau_grid=grid,
     )
-
-
-def _call_day_step(
-    cohorts: Sequence[Cohort],
-    *,
-    day: int,
-    **kwargs: Any,
-) -> DayStepResult:
-    """ADR 0116 shim: forward ``day=`` only when ``day_step`` accepts it."""
-    if "day" in inspect.signature(day_step).parameters:
-        return day_step(cohorts, day=day, **kwargs)
-    return day_step(cohorts, **kwargs)
 
 
 def run_closed_loop_episode(
@@ -193,7 +180,7 @@ def run_closed_loop_episode(
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
-        result = _call_day_step(
+        result = day_step(
             cohorts,
             day=day,
             params=p,

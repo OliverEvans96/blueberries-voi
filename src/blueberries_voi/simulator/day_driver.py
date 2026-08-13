@@ -13,7 +13,6 @@ No matplotlib / pyarrow imports on this path. Shipments must be injected.
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass
 from datetime import date, timedelta
 from types import SimpleNamespace
@@ -23,7 +22,7 @@ import numpy as np
 
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
-from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
+from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.model.abdella import shipment_arrival_age
 from blueberries_voi.rng import (
     STREAM_ALLOC,
@@ -34,6 +33,7 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.calendar import _EPISODE_CALENDAR_EPOCH
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.simulator.belief import (
     flatten_shelf_belief,
@@ -48,9 +48,6 @@ if TYPE_CHECKING:
     from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, FlatBelief
-
-# Same synthetic ASN epoch as ``sim.episode`` / ``sim.m2_multi_scenario`` (T-019).
-_EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
 
 
 def _case_round_ceil(order_qty: int, case_size: int) -> int:
@@ -111,18 +108,6 @@ class DayAdvanceResult:
     live_lots: list[dict[str, Any]]
     pipeline: list[dict[str, int]]
     state: DayDriverState
-
-
-def _call_day_step(
-    cohorts: Sequence[Cohort],
-    *,
-    day: int,
-    **kwargs: Any,
-) -> DayStepResult:
-    """ADR 0116 shim: forward ``day=`` only when ``day_step`` accepts it."""
-    if "day" in inspect.signature(day_step).parameters:
-        return day_step(cohorts, day=day, **kwargs)
-    return day_step(cohorts, **kwargs)
 
 
 def advance_day(
@@ -187,7 +172,7 @@ def advance_day(
     rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
     rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
     rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
-    result = _call_day_step(
+    result = day_step(
         cohorts,
         day=day,
         params=params,
