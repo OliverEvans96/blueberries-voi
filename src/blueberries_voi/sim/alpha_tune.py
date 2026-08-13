@@ -8,6 +8,13 @@ module is the thin sim helper for alpha tuning; policies stay in ``controller/``
 
 CI uses a reduced alpha grid (e.g. ``(0.7, 0.8, 0.9)``); desktop defaults are
 recorded in the artifact ``header`` when saving (open question lock).
+
+CAL-A3 / T-081: protection coverage is **day-indexed** under
+``OrderSchedule`` (3/3/4 on Sun/Tue/Thu order days). Use
+``protection_coverage_days`` / ``_protection_demand_quantile(..., protection_days=)``
+so T-083 can retune alpha gates. Until T-084 / CAL-B4, coverage uses
+**homogeneous μ** (i.i.d. daily NB) with day-varying length only;
+heterogeneous / μ(day) is the B4 upgrade path.
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ from blueberries_voi.controller import (
 from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import ModelParams
 from blueberries_voi.sim.episode import run_closed_loop_episode
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
 from blueberries_voi.sim.shipments import default_shipments
 
@@ -68,17 +76,37 @@ __all__ = [
     "assert_ladder_profit_claim_allowed",
     "evaluate_alpha_episode_profit",
     "load_tuned_alpha_table",
+    "protection_coverage_days",
     "require_tuned_alpha_table",
     "save_tuned_alpha_table",
     "tune_alpha_grid",
 ]
 
 
-def _protection_demand_quantile(alpha: float, params: ModelParams) -> float:
+def protection_coverage_days(day: int, *, schedule: OrderSchedule | None = None) -> int:
+    """Day-indexed protection length for alpha retune (T-083 / CAL-A3).
+
+    Under the default MWF ``OrderSchedule``, Sun/Tue/Thu order days cover
+    3 / 3 / 4 homogeneous-μ demand days (ADR 0111).
+    """
+    sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
+    return int(sched.protection_days(day))
+
+
+def _protection_demand_quantile(
+    alpha: float,
+    params: ModelParams,
+    *,
+    protection_days: int | None = None,
+) -> float:
+    """Alpha-quantile of n-day homogeneous-μ NB demand (day-indexed length OK)."""
     if not 0.0 < float(alpha) < 1.0:
         msg = f"alpha must be in (0, 1), got {alpha}"
         raise ValueError(msg)
-    r = float(params.nb_r()) * float(_PROTECTION_DEMAND_DAYS)
+    n_days = (
+        _PROTECTION_DEMAND_DAYS if protection_days is None else int(protection_days)
+    )
+    r = float(params.nb_r()) * float(n_days)
     p = float(params.nb_p())
     return float(nbinom.ppf(alpha, r, p))
 
