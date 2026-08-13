@@ -1,7 +1,8 @@
 /**
  * Pyodide worker host for EngineSession (T-047 / ADR 0099–0101).
  *
- * Loads Pyodide 314.0.4, installs the Release/slim wheel via micropip,
+ * Loads Pyodide 314.0.4 via ESM ``pyodide.mjs`` in a **module** worker (ADR 0111),
+ * installs the Release/slim wheel via micropip,
  * binds one EngineSession, and answers RPC methods:
  *   init | step | step_n | reset | act
  *
@@ -14,7 +15,7 @@
  * (n_particles ≤ 200), not the full production particle count.
  */
 
-/* global importScripts, loadPyodide */
+import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.4/full/pyodide.mjs";
 
 const PYODIDE_VERSION = "314.0.4";
 const PYODIDE_INDEX = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
@@ -49,7 +50,7 @@ let ready = null;
 async function ensureReady() {
   if (ready) return ready;
   ready = (async () => {
-    importScripts(`${PYODIDE_INDEX}pyodide.js`);
+    // Module-worker ESM bootstrap (ADR 0111); classic worker loaders rejected on 314.0.4.
     pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX });
     await pyodide.loadPackage(["micropip", "numpy", "scipy"]);
     const micropip = pyodide.pyimport("micropip");
