@@ -62,6 +62,54 @@ class ActRequest(BaseModel):
     budgets: dict[str, Any] = Field(default_factory=dict)
 
 
+class FlatBelief(BaseModel):
+    """Flat L / L*K / K belief buffers on the wire (ADR 0098)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    L: int
+    K: int
+    lot_counts: list[float]
+    age_marginals: list[float]
+    tau_grid: list[float]
+
+
+class Snapshot(BaseModel):
+    """Cold Snapshot (init / reset) — same keys as golden fixtures."""
+
+    model_config = ConfigDict(extra="allow")
+
+    seq: int
+    episode_day: int
+    belief: FlatBelief
+    applied_config: dict[str, Any] = Field(default_factory=dict)
+    history: list[Any] = Field(default_factory=list)
+    live_lots: list[Any] = Field(default_factory=list)
+    pipeline: list[Any] = Field(default_factory=list)
+
+
+class DayDelta(BaseModel):
+    """Hot DayDelta (step / act / step_n element)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    seq: int
+    episode_day: int
+    day: dict[str, Any]
+    drop_oldest: bool
+    belief: FlatBelief | None = None
+    live_lots: list[Any] = Field(default_factory=list)
+    pipeline: list[Any] = Field(default_factory=list)
+
+
+class StepNResponse(BaseModel):
+    """Framed ``{deltas: DayDelta[]}`` for step_n (ADR 0098 / 0100)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    deltas: list[DayDelta]
+
+
 def _error_body(*, error_type: str, message: str) -> dict[str, Any]:
     return {"ok": False, "error": {"type": error_type, "message": message}}
 
@@ -148,34 +196,34 @@ def delete_session(session_id: str) -> Response:
     return Response(status_code=204)
 
 
-@app.post("/sessions/{session_id}/init")
+@app.post("/sessions/{session_id}/init", response_model=Snapshot)
 def init_session(session_id: str, body: InitRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     cfg = _config_with_shipments(body.config)
     return dict(session.init(cfg, seed=body.seed))
 
 
-@app.post("/sessions/{session_id}/step")
+@app.post("/sessions/{session_id}/step", response_model=DayDelta)
 def step_session(session_id: str, body: StepRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     return dict(session.step(body.order_qty))
 
 
-@app.post("/sessions/{session_id}/step_n")
+@app.post("/sessions/{session_id}/step_n", response_model=StepNResponse)
 def step_n_session(session_id: str, body: StepNRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     deltas = session.step_n(body.orders)
     return {"deltas": [dict(d) for d in deltas]}
 
 
-@app.post("/sessions/{session_id}/reset")
+@app.post("/sessions/{session_id}/reset", response_model=Snapshot)
 def reset_session(session_id: str, body: ResetRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     cfg = None if body.config is None else _config_with_shipments(body.config)
     return dict(session.reset(cfg, seed=body.seed))
 
 
-@app.post("/sessions/{session_id}/act")
+@app.post("/sessions/{session_id}/act", response_model=DayDelta)
 def act_session(session_id: str, body: ActRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     return dict(session.act(policy=body.policy, **dict(body.budgets)))
