@@ -11,6 +11,7 @@ import ast
 import importlib
 import inspect
 from collections.abc import Callable, Mapping, Sequence
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -32,6 +33,18 @@ from blueberries_voi.rng import (
     spawn_rng,
 )
 from blueberries_voi.sim import EpisodeLog
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
+
+# T-079: closed-loop orders only on schedule days (default Sun/Tue/Thu).
+_EPISODE_EPOCH = date(2024, 1, 1)
+
+
+def _is_order_day(day: int) -> bool:
+    return bool(DEFAULT_ORDER_SCHEDULE.can_order(day))
+
+
+def _weekday(day: int) -> int:
+    return (_EPISODE_EPOCH + timedelta(days=day)).weekday()
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers (no Abdella FS)
@@ -369,6 +382,7 @@ def test_closed_loop_empty_shipments_raises(
 
 # ---------------------------------------------------------------------------
 # AC: constant-order → scored DayLog.order_qty after case rounding
+# (T-079: qty applies on OrderSchedule order days only; else forced 0)
 # ---------------------------------------------------------------------------
 
 
@@ -403,15 +417,25 @@ def test_constant_order_policy_scored_order_qty_case_rounded(
     )
     assert ep.scored, "expected scored days"
     for day in ep.scored:
-        assert day.order_qty == expected
-        assert day.order_qty >= 0
-        if expected > 0:
-            assert day.order_qty % case_size == 0
+        if _is_order_day(day.day):
+            assert day.order_qty == expected, (
+                f"order day={day.day} weekday={_weekday(day.day)}: "
+                f"expected {expected}, got {day.order_qty}"
+            )
+            assert day.order_qty >= 0
+            if expected > 0:
+                assert day.order_qty % case_size == 0
+        else:
+            assert day.order_qty == 0, (
+                f"non-order day={day.day} weekday={_weekday(day.day)}: "
+                f"T-079 gate must force order_qty=0 (got {day.order_qty})"
+            )
 
 
-def test_constant_order_applies_on_burn_and_score_days(
+def test_constant_order_applies_on_burn_and_score_order_days(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """T-079 supersedes daily-ordering assumption: nonzero only on schedule days."""
     _patch_abdella_fs_forbidden(monkeypatch)
     ships = _fixture_shipments()
     policy = _ConstantOrderPolicy(8)
@@ -425,7 +449,14 @@ def test_constant_order_applies_on_burn_and_score_days(
     )
     assert len(policy.calls) == ep.n_burn + ep.n_score
     for day in ep.days:
-        assert day.order_qty == 8
+        if _is_order_day(day.day):
+            assert day.order_qty == 8, (
+                f"order day={day.day}: expected policy qty 8, got {day.order_qty}"
+            )
+        else:
+            assert day.order_qty == 0, (
+                f"non-order day={day.day}: T-079 gate must force 0, got {day.order_qty}"
+            )
 
 
 # ---------------------------------------------------------------------------
