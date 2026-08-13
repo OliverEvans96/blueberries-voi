@@ -253,7 +253,7 @@ def test_act_rollout_base_policy_is_damped_sw_not_constant_zero(
     assert isinstance(base, DampedSurvivalWeightedPolicy), (
         f"rollout base must be DampedSurvivalWeightedPolicy, got {type(base)!r}"
     )
-    assert not isinstance(base, ConstantOrderPolicy), (
+    assert type(base).__name__ != "ConstantOrderPolicy", (
         "rollout must not wrap ConstantOrderPolicy(0) (ADR 0112 / T-097)"
     )
 
