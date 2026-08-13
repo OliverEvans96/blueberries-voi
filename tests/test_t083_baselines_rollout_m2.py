@@ -1,4 +1,4 @@
-"""T-083 CAL-A4: baselines, rollout H×7, M2 gates under OrderSchedule — RED.
+"""T-083 CAL-A4: baselines, rollout Hx7, M2 gates under OrderSchedule - RED.
 
 Locks ``.team/specs/T-083.md`` and ADR 0109 mandatory re-derive #3:
 
@@ -107,7 +107,7 @@ def test_production_voi_sweep_rollout_h_is_multiple_of_seven() -> None:
             prod_h = int(match.group(1))
     assert prod_h is not None, (
         "voi.sweep must expose PRODUCTION_ROLLOUT_H / _PROD_H or "
-        "(_SMOKE_H if use_smoke else <H×7>)"
+        "(_SMOKE_H if use_smoke else <Hx7>)"
     )
     assert int(prod_h) % 7 == 0, (
         f"production VOI rollout H={prod_h} must be a multiple of 7"
@@ -126,8 +126,8 @@ def test_rollout_module_documents_weekly_horizon_presets() -> None:
     doc = _combined_docs(mod, getattr(mod, "DEFAULT_ROLLOUT_HORIZONS", None))
     source = _module_source(mod).lower()
     blob = doc + "\n" + source
-    assert "multiple" in blob or "multiples" in blob or "×7" in blob or "x7" in blob, (
-        "rollout module must document H×7 / multiples-of-7 presets (ADR 0109 #3)"
+    assert "multiple" in blob or "multiples" in blob or "x7" in blob or "x7" in blob, (
+        "rollout module must document Hx7 / multiples-of-7 presets (ADR 0109 #3)"
     )
     assert "7" in blob and ("week" in blob or "periodic" in blob or "mwf" in blob), (
         "rollout docs must tie horizon presets to weekly / MWF periodicity"
@@ -310,7 +310,7 @@ def test_assert_beta1_degeneracy_passes_under_default_schedule() -> None:
     source = _module_source(mod)
     if "DEFAULT_ORDER_SCHEDULE" not in source and "OrderSchedule" not in source:
         pytest.fail(
-            "m2_gates has not been updated for OrderSchedule yet — "
+            "m2_gates has not been updated for OrderSchedule yet - "
             "wire schedule before retuning thresholds (T-083)"
         )
     result = gate()
@@ -412,6 +412,6 @@ def test_episode_default_n_burn_documents_or_uses_weekly_alignment() -> None:
     if int(default) % 7 == 0:
         return
     assert "periodic" in doc and ("burn" in doc or "n_burn" in doc), (
-        f"run_closed_loop_episode n_burn default={default} is not ×7; "
+        f"run_closed_loop_episode n_burn default={default} is not x7; "
         "module must document periodic-age burn-in under MWF if kept"
     )
