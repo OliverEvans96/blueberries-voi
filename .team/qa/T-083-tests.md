@@ -72,6 +72,16 @@
 - CI smoke budgets that stay tiny (`_SMOKE_H=2`, `_CI_N_BURN=2`) — intentionally
   not forced to ×7; production presets are the lock
 
+## Implement retune record (T-083)
+
+β=1 gate remains an **equality** check (no numeric profit threshold). Under
+`DEFAULT_ORDER_SCHEDULE` the gate now exercises order days Sun/Tue/Thu with
+day-indexed protection lengths **3 / 3 / 4** (recorded as
+`_MWF_ORDER_PROTECTION_DAYS` in `sim/m2_gates.py`) and matched NB fractiles per
+day. DP certificate uses schedule-aware `solve_toy_dp(schedule=…)`. Production
+presets: `DEFAULT_ROLLOUT_HORIZONS=(7,14,21,28)`, `DEFAULT_ROLLOUT_H=28`,
+`PRODUCTION_N_BURN=28`, `PRODUCTION_ROLLOUT_H=28`.
+
 ## RED proof (qa)
 
 ```text

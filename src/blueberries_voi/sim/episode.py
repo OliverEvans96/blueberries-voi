@@ -1,6 +1,11 @@
 """Closed-loop Policy-driven episode driver (T-024).
 
 Requires injectable ``shipments=`` — no Abdella filesystem default on this path.
+
+Burn-in under CAL-01 acknowledges **periodic** age under the MWF
+``OrderSchedule`` (orders Sun/Tue/Thu), not a daily-stationary age mix alone.
+Default ``n_burn`` is a multiple of 7 so scored episodes start on a weekly
+boundary.
 """
 
 from __future__ import annotations
@@ -122,7 +127,7 @@ def run_closed_loop_episode(
     params: ModelParams | None = None,
     root_seed: int = 0,
     run_id: str | int = "ep0",
-    n_burn: int = 30,
+    n_burn: int = 28,
     n_score: int = 90,
     lead_time: int = 1,
     spread_scale: float = 1.0,
@@ -136,6 +141,9 @@ def run_closed_loop_episode(
     Orders are gated by ``schedule`` (default ``DEFAULT_ORDER_SCHEDULE``): on
     non-order days the applied ``order_qty`` is 0 even if the policy asks
     nonzero. ``day_step`` still runs every calendar day.
+
+    Default ``n_burn=28`` (four weeks) aligns burn-in with periodic MWF age
+    rather than a daily-stationary 30-day window.
     """
     if not shipments:
         msg = "shipments must be non-empty"

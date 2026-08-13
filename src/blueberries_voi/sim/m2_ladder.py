@@ -4,6 +4,9 @@ Evaluates constant -> Rung 0 -> SW -> SW+rollout -> toy DP under a shared CRN
 ``root_seed``, gated on the T-029 tuned-alpha artifact. Numeric results land under
 ``experiments/`` (never inside ``controller/``). Production age backend remains
 ``mean_field`` (T-021 / ADR 0091).
+
+T-083: profit arms attach ``DEFAULT_ORDER_SCHEDULE`` (orders Sun/Tue/Thu) and
+burn-in is interpreted under **periodic** MWF age, not daily-stationary only.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from blueberries_voi.sim.alpha_tune import (
     require_tuned_alpha_table,
 )
 from blueberries_voi.sim.episode import run_closed_loop_episode
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
 from blueberries_voi.sim.shipments import default_shipments
 
@@ -81,7 +85,11 @@ def _evaluate_rollout_profit(
     n_score: int,
     lead_time: int,
 ) -> float:
-    base = DampedSurvivalWeightedPolicy(alpha=float(alpha), params=params)
+    base = DampedSurvivalWeightedPolicy(
+        alpha=float(alpha),
+        params=params,
+        schedule=DEFAULT_ORDER_SCHEDULE,
+    )
     policy = RolloutPolicy(
         base_policy=base,
         params=params,
@@ -100,13 +108,14 @@ def _evaluate_rollout_profit(
         n_burn=n_burn,
         n_score=n_score,
         lead_time=lead_time,
+        schedule=DEFAULT_ORDER_SCHEDULE,
     )
     return float(episode_profit(episode, costs))
 
 
 def _evaluate_dp_profit() -> float:
     """Toy-DP optimum value on the CTL-06 certificate instance (numeric arm)."""
-    toy = solve_toy_dp()
+    toy = solve_toy_dp(schedule=DEFAULT_ORDER_SCHEDULE)
     key = (0, toy.initial_state)
     return float(toy.value_table[key])
 
