@@ -12,7 +12,7 @@
 | Baseline (pre-change) | `f4a467f` | `main` |
 | T-064 implement | `bf45fca` | `team/T-064/implement` |
 | T-065 implement | `a79a9b1` | `team/T-065/implement` |
-| Integration + report tip | `abd2ea7`+ (this commit) | `team/T-064-065/integrate` |
+| Integration + report tip | `5666089` | `team/T-064-065/integrate` |
 
 ADR: [0097](../adr/0097-exact-faster-p1-f2a-likelihood.md). Specs: T-064 / T-065 / T-066.
 
