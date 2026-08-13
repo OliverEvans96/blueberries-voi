@@ -33,6 +33,8 @@ dev = [
     # Native/CI tests exercise desktop Gate 0 + viz (not on the browser wheel).
     "pyarrow>=25.0.1",
     "matplotlib>=3.11.1",
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
 ]
 notebooks = [
     "jupyter>=1.0.0",
