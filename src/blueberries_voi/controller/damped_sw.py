@@ -26,9 +26,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from scipy.stats import nbinom
-
 from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.controller.protection import protection_demand_quantile
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams, q10_age_increment
 
@@ -47,16 +46,8 @@ def _protection_demand_quantile(
     *,
     protection_days: int = PROTECTION_DEMAND_DAYS,
 ) -> float:
-    """Alpha-quantile of protection-interval demand (n i.i.d. daily NB).
-
-    Homogeneous μ: scale NB ``r`` by ``protection_days`` (ADR 0116 / T-081).
-    """
-    if not 0.0 < alpha < 1.0:
-        msg = f"alpha must be in (0, 1), got {alpha}"
-        raise ValueError(msg)
-    r = float(params.nb_r()) * float(protection_days)
-    p = float(params.nb_p())
-    return float(nbinom.ppf(alpha, r, p))
+    """Alpha-quantile of protection-interval demand (n i.i.d. daily NB)."""
+    return protection_demand_quantile(alpha, params, protection_days=protection_days)
 
 
 class DampedSurvivalWeightedPolicy:

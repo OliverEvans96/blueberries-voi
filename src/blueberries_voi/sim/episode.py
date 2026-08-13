@@ -56,15 +56,24 @@ class Policy(Protocol):
     ) -> int: ...
 
 
+_EMPTY_POLICY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0)
+_EMPTY_ORACLE_TAU_GRID: tuple[float, ...] = (
+    0.0,
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+)
+
+
 def _empty_shelf_belief() -> object:
     """Minimal ShelfBelief when closed-loop has not yet wired filter beliefs."""
-    from blueberries_voi.filter.belief import ShelfBelief
+    from blueberries_voi.filter.belief import empty_shelf_belief
 
-    return ShelfBelief(
-        lot_counts=[],
-        age_marginals=[],
-        tau_grid=[0.0, 2.0, 4.0, 6.0],
-    )
+    return empty_shelf_belief(tau_grid=_EMPTY_POLICY_TAU_GRID)
 
 
 def _invoke_policy_order(
@@ -87,23 +96,10 @@ def _invoke_policy_order(
 
 def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
     """B-state ShelfBelief for CTL policies (ADR 0092 oracle path)."""
-    from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_oracle
+    from blueberries_voi.filter.belief import shelf_belief_from_cohorts_oracle
 
-    live = [c for c in cohorts if c.n > 0]
-    if not live:
-        return ShelfBelief(
-            lot_counts=[],
-            age_marginals=[],
-            tau_grid=[0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0],
-        )
-    ages = [float(c.tau) for c in live]
-    # Cover observed ages plus a small pad so Dirac knots stay on-grid.
-    hi = max([*ages, 6.0]) + 2.0
-    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
-    return shelf_belief_from_oracle(
-        lot_counts=[int(c.n) for c in live],
-        ages=ages,
-        tau_grid=grid,
+    return shelf_belief_from_cohorts_oracle(
+        cohorts, empty_tau_grid=_EMPTY_ORACLE_TAU_GRID
     )
 
 

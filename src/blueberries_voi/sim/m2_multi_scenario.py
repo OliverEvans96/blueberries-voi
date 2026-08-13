@@ -15,18 +15,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
-from scipy.stats import nbinom
 
 from blueberries_voi.controller.damped_sw import (
     PROTECTION_DEMAND_DAYS,
     DampedSurvivalWeightedPolicy,
 )
+from blueberries_voi.controller.protection import protection_demand_quantile
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.filter import PRODUCTION_BACKEND, RBPF
 from blueberries_voi.filter.belief import (
     ShelfBelief,
-    shelf_belief_from_oracle,
+    empty_shelf_belief,
+    shelf_belief_from_cohorts_oracle,
     shelf_belief_from_rbpf,
 )
 from blueberries_voi.filter.types import P1Obs, mask_for
@@ -109,35 +110,18 @@ def smoke_other_masks(
 
 def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
     """F^{-1} of protection-interval demand (matches alpha_tune / m2_gates / SW)."""
-    if not 0.0 < float(alpha) < 1.0:
-        msg = f"alpha must be in (0, 1), got {alpha}"
-        raise ValueError(msg)
-    r = float(params.nb_r()) * float(PROTECTION_DEMAND_DAYS)
-    p = float(params.nb_p())
-    return float(nbinom.ppf(float(alpha), r, p))
+    return protection_demand_quantile(
+        alpha, params, protection_days=PROTECTION_DEMAND_DAYS
+    )
 
 
 def _empty_shelf_belief() -> ShelfBelief:
-    return ShelfBelief(
-        lot_counts=[],
-        age_marginals=[],
-        tau_grid=list(_EMPTY_TAU_GRID),
-    )
+    return empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
 
 
 def _oracle_belief(cohorts: Sequence[Cohort]) -> ShelfBelief:
-    """B-state ShelfBelief via ``shelf_belief_from_oracle`` (ADR 0092)."""
-    live = [c for c in cohorts if c.n > 0]
-    if not live:
-        return _empty_shelf_belief()
-    ages = [float(c.tau) for c in live]
-    hi = max([*ages, 6.0]) + 2.0
-    grid = [float(x) for x in range(0, int(hi) + 3, 2)]
-    return shelf_belief_from_oracle(
-        lot_counts=[int(c.n) for c in live],
-        ages=ages,
-        tau_grid=grid,
-    )
+    """B-state ShelfBelief via ``shelf_belief_from_cohorts_oracle`` (ADR 0092)."""
+    return shelf_belief_from_cohorts_oracle(cohorts, empty_tau_grid=_EMPTY_TAU_GRID)
 
 
 def _p1_belief(rbpf: RBPF) -> ShelfBelief:

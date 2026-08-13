@@ -21,7 +21,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from blueberries_voi.filter.belief import ShelfBelief
+from blueberries_voi.filter.belief import ShelfBelief, empty_shelf_belief
 from blueberries_voi.model import Cohort, ModelParams, day_step, weibull_survival
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 
@@ -269,7 +269,11 @@ class RolloutPolicy:
         *,
         pending_orders: Mapping[int, int] | None = None,
     ) -> int:
-        shelf = belief if isinstance(belief, ShelfBelief) else _empty_shelf_belief()
+        shelf = (
+            belief
+            if isinstance(belief, ShelfBelief)
+            else empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
+        )
         pending = {} if pending_orders is None else pending_orders
         # Without on-hand lots, closed-loop currently has no shelf signal; matching
         # the base order preserves the CTL-02 improvement guarantee (tie).
@@ -293,14 +297,6 @@ class RolloutPolicy:
             day=int(day),
             lead_time=self.lead_time,
         )
-
-
-def _empty_shelf_belief() -> ShelfBelief:
-    return ShelfBelief(
-        lot_counts=[],
-        age_marginals=[],
-        tau_grid=list(_EMPTY_TAU_GRID),
-    )
 
 
 def _lot_n(lot: Any) -> float:
@@ -339,19 +335,17 @@ def _belief_from_cohorts(
     *,
     tau_grid: Sequence[float],
 ) -> ShelfBelief:
-    live = [c for c in cohorts if c.n > 0]
-    if not live:
-        return ShelfBelief(
-            lot_counts=[],
-            age_marginals=[],
-            tau_grid=list(tau_grid) if tau_grid else list(_EMPTY_TAU_GRID),
-        )
+    """Rebuild ShelfBelief after a rollout day_step using the parent τ grid."""
     from blueberries_voi.filter.belief import shelf_belief_from_oracle
 
+    grid = list(tau_grid) if tau_grid else list(_EMPTY_TAU_GRID)
+    live = [c for c in cohorts if c.n > 0]
+    if not live:
+        return empty_shelf_belief(tau_grid=grid)
     return shelf_belief_from_oracle(
         lot_counts=[c.n for c in live],
         ages=[c.tau for c in live],
-        tau_grid=list(tau_grid) if tau_grid else list(_EMPTY_TAU_GRID),
+        tau_grid=grid,
     )
 
 
