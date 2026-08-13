@@ -10,11 +10,11 @@ boundary.
 
 from __future__ import annotations
 
-import inspect
 from datetime import timedelta
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.controller.protocol import invoke_order
 from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
@@ -56,7 +56,6 @@ class Policy(Protocol):
     ) -> int: ...
 
 
-_EMPTY_POLICY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0)
 _EMPTY_ORACLE_TAU_GRID: tuple[float, ...] = (
     0.0,
     2.0,
@@ -67,31 +66,6 @@ _EMPTY_ORACLE_TAU_GRID: tuple[float, ...] = (
     12.0,
     14.0,
 )
-
-
-def _empty_shelf_belief() -> object:
-    """Minimal ShelfBelief when closed-loop has not yet wired filter beliefs."""
-    from blueberries_voi.filter.belief import empty_shelf_belief
-
-    return empty_shelf_belief(tau_grid=_EMPTY_POLICY_TAU_GRID)
-
-
-def _invoke_policy_order(
-    policy: Policy,
-    day: int,
-    belief: object | None,
-    pending_orders: Mapping[int, int],
-) -> int:
-    """Dispatch day-first (T-024) or belief-first (T-028) policy surfaces."""
-    sig = inspect.signature(policy.order)
-    names = list(sig.parameters)
-    if names and names[0] == "day":
-        return int(policy.order(day, belief, pending_orders=pending_orders))
-    shelf = belief if belief is not None else _empty_shelf_belief()
-    kwargs: dict[str, object] = {"pending_orders": pending_orders}
-    if "day" in sig.parameters:
-        kwargs["day"] = day
-    return int(policy.order(shelf, **kwargs))  # type: ignore[arg-type]
 
 
 def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
@@ -145,7 +119,7 @@ def run_closed_loop_episode(
         # Snapshot pipeline before placing today's order (ADR 0092).
         pending_view: Mapping[int, int] = dict(pending)
         belief = _shelf_belief_from_cohorts(cohorts)
-        raw_qty = _invoke_policy_order(policy, day, belief, pending_view)
+        raw_qty = invoke_order(policy, day, belief, pending_view)
         order_units = case_round(raw_qty, p.case_size)
         if not sched.can_order(day):
             order_units = 0

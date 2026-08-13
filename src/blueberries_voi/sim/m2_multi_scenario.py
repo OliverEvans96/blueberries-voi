@@ -21,6 +21,7 @@ from blueberries_voi.controller.damped_sw import (
     DampedSurvivalWeightedPolicy,
 )
 from blueberries_voi.controller.protection import protection_demand_quantile
+from blueberries_voi.controller.protocol import invoke_order
 from blueberries_voi.controller.rollout import RolloutPolicy
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.filter import PRODUCTION_BACKEND, RBPF
@@ -191,14 +192,12 @@ def _run_closed_loop(
             belief = _oracle_belief(cohorts)
 
         if mode == "Rung 0":
-            raw_qty = int(policy.order(day, belief, pending_orders=pending_view))
+            belief_for_order: object | None = belief
         else:
-            shelf = belief if isinstance(belief, ShelfBelief) else _empty_shelf_belief()
-            # RolloutPolicy is day-first; SW is belief-first.
-            if isinstance(policy, RolloutPolicy):
-                raw_qty = int(policy.order(day, shelf, pending_orders=pending_view))
-            else:
-                raw_qty = int(policy.order(shelf, day=day, pending_orders=pending_view))
+            belief_for_order = (
+                belief if isinstance(belief, ShelfBelief) else _empty_shelf_belief()
+            )
+        raw_qty = invoke_order(policy, day, belief_for_order, pending_view)
 
         order_units = case_round(raw_qty, params.case_size)
         pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
