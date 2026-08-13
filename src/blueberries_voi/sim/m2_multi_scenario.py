@@ -4,7 +4,7 @@ Primary eval beliefs: **P1** (RBPF → ``shelf_belief_from_rbpf``), **B-state**
 (oracle → ``shelf_belief_from_oracle``), and **Rung 0** (age-blind). Other M1.5
 masks get interface smoke only. Empirical live-cohort **L** is remeasured under
 SW+rollout and written under ``experiments/`` (never ``controller/``). Production
-age backend remains ``mean_field`` (T-021 / ADR 0091); no silent joint revert.
+backend remains ``counts_only`` (ADR 0105); no silent joint / age-MF revert.
 """
 
 from __future__ import annotations
@@ -55,8 +55,8 @@ BeliefMode = Literal["P1", "B-state", "Rung 0"]
 PRIMARY_SCENARIOS: tuple[str, ...] = ("P1", "B-state", "Rung 0")
 OTHER_MASKS: tuple[str, ...] = ("P0", "F1", "F1s", "F2a", "F2")
 
-# Production age backend (ADR 0091); never silently select joint.
-MULTI_SCENARIO_PRODUCTION_BACKEND: str = "mean_field"
+# Production counts-only backend (ADR 0105); never silently select joint / age-MF.
+MULTI_SCENARIO_PRODUCTION_BACKEND: str = "counts_only"
 DEFAULT_MULTI_SCENARIO_REPORT_PATH: str = "experiments/m2_multi_scenario_result.md"
 
 _EPISODE_CALENDAR_EPOCH: date = date(2024, 1, 1)
@@ -368,12 +368,12 @@ def run_m2_multi_scenario(
 ) -> MultiScenarioResult:
     """Compare P1 / B-state / Rung 0 closed-loop; record L under SW+rollout.
 
-    Writes a short MD under ``experiments/`` (or ``out_dir``). Production age
-    backend is locked to ``mean_field``.
+    Writes a short MD under ``experiments/`` (or ``out_dir``). Production
+    backend is locked to ``counts_only`` (ADR 0105).
     """
-    if PRODUCTION_BACKEND != "mean_field":
+    if PRODUCTION_BACKEND != "counts_only":
         msg = (
-            "multi-scenario requires production age backend mean_field "
+            "multi-scenario requires production backend counts_only "
             f"(got {PRODUCTION_BACKEND!r})"
         )
         raise RuntimeError(msg)

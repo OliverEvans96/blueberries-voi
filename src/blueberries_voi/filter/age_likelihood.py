@@ -1,9 +1,10 @@
-"""FIL-11 Stage C / FIL-04 evidence: ``sequential_wor_pmf`` joint vs mean-field.
+"""Exact sequential-WOR sales/waste likelihood + diagnostic mean-field tools.
 
 Shared filter density matching ``allocate_sales`` (sequential WOR product) plus
 independent Binomial waste via ``death_prob_survival_ratio``. Production particle
-weights stay on MC ``observation_loglik_mc`` (ADR 0087); age belief under P1 uses
-``mean_field_update`` on the mean_field backend (ADR 0091 / T-021).
+weights use ``log_p_sales_waste_given_ages`` (ADR 0105). ``mean_field_update`` /
+exact-joint helpers remain for diagnostic and legacy Stage C evidence only —
+not on the production closed-loop path.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ __all__ = [
     "joint_kl",
     "joint_total_variation",
     "log_p_sales_waste_given_ages",
+    "log_p_sales_waste_multinomial_given_ages",
     "marginal_kl",
     "marginal_total_variation",
     "max_pairwise_mutual_information",
@@ -219,6 +221,95 @@ def log_p_sales_waste_given_ages(
 
     like = 0.0
     for sales, p_sales in sales_probs_map.items():
+        if p_sales <= 0.0:
+            continue
+        remaining = [n_i - s_i for n_i, s_i in zip(n_l, sales, strict=True)]
+        p_waste = 0.0
+        for waste in _iter_compositions(remaining, waste_tot):
+            term = 1.0
+            for w_i, r_i, p_i in zip(waste, remaining, p_die, strict=True):
+                term *= _binom_pmf(int(w_i), int(r_i), float(p_i))
+            p_waste += term
+        like += p_sales * p_waste
+
+    if like <= 0.0:
+        return float("-inf")
+    return float(math.log(like))
+
+
+def _multinomial_pmf(counts: Sequence[int], n: int, probs: Sequence[float]) -> float:
+    """Multinomial PMF for a composition with ``sum(counts)==n``."""
+    if n < 0 or int(sum(counts)) != n:
+        return 0.0
+    p = [float(x) for x in probs]
+    if any(x < 0.0 for x in p):
+        return 0.0
+    total_p = float(sum(p))
+    if total_p <= 0.0:
+        return 0.0
+    p = [x / total_p for x in p]
+    # n! / (c0! c1! …) * ∏ p_i^{c_i}
+    coef = math.factorial(n)
+    term = 1.0
+    for c_i, p_i in zip(counts, p, strict=True):
+        c = int(c_i)
+        if c < 0:
+            return 0.0
+        coef //= math.factorial(c)
+        if c > 0 and p_i <= 0.0:
+            return 0.0
+        term *= p_i**c
+    return float(coef) * term
+
+
+def log_p_sales_waste_multinomial_given_ages(
+    n: Sequence[int] | NDArray[np.integer],
+    tau: Sequence[float] | NDArray[np.floating],
+    sales_tot: int,
+    waste_tot: int,
+    params: ModelParams,
+) -> float:
+    """Ablation log-likelihood: multinomial sales x Binomial waste.
+
+    Not the production default (ADR 0105); select via
+    ``sales_likelihood="multinomial"``. Enumerates inventory-feasible
+    compositions and scores sales with a with-replacement multinomial on
+    picking weights, then independent Binomial waste on remainders.
+    """
+    n_l = [int(x) for x in n]
+    tau_l = [float(t) for t in tau]
+    if len(n_l) != len(tau_l):
+        msg = "n and tau must have the same length"
+        raise ValueError(msg)
+    on_hand = int(sum(n_l))
+    if sales_tot < 0 or waste_tot < 0 or sales_tot > on_hand:
+        return float("-inf")
+    max_waste = on_hand - sales_tot
+    if waste_tot > max_waste:
+        return float("-inf")
+
+    dtau = q10_age_increment(
+        1.0,
+        t_store_c=params.t_store_c,
+        t_ref_c=params.t_ref_c,
+        q10=params.q10,
+    )
+    w = picking_weights(
+        tau_l,
+        sigma=params.sigma,
+        beta=params.beta,
+        eta=params.eta_ref,
+        uniform=params.uniform_picking,
+    )
+    p_die = [
+        death_prob_survival_ratio(t, dtau, beta=params.beta, eta=params.eta_ref)
+        for t in tau_l
+    ]
+
+    w_l = [float(x) for x in w]
+    like = 0.0
+    for sales in _iter_compositions(n_l, sales_tot):
+        p_sales = _multinomial_pmf(sales, sales_tot, w_l)
         if p_sales <= 0.0:
             continue
         remaining = [n_i - s_i for n_i, s_i in zip(n_l, sales, strict=True)]
