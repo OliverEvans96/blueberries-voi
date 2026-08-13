@@ -106,20 +106,35 @@ describe("T-086 mock mode shares next-order advance semantics", () => {
     const adapter = new MockAdapter(42);
     const snap = await adapter.init({});
     const start = snap.episode_day;
-    // From day 0 (Mon) → next order Tue: one step with a real order.
-    // From a non-adjacent gap, zeros pad intervening days (Sun→Tue = [0, qty]).
-    const orders =
-      start === 0 ? [16] : start === 6 ? [0, 16] : [0, 0, 16];
+    const schedule = snap.schedule ?? {
+      delivery_weekdays: [0, 2, 4],
+      order_weekdays: [6, 1, 3],
+      lead_time_days: 1,
+      epoch: "2024-01-01",
+    };
+    const helperPath = existsSync(join(WEB_ROOT, "src/calendar/nextOrderAdvance.ts"))
+      ? "../calendar/nextOrderAdvance.ts"
+      : null;
+    expect(helperPath).toBeTruthy();
+    const mod = (await import(helperPath!)) as {
+      buildStepNOrders: (
+        day: number,
+        qty: number,
+        schedule: typeof schedule,
+      ) => number[];
+    };
+    const orders = mod.buildStepNOrders(start, 16, schedule);
     const deltas = await adapter.step_n(orders);
     expect(deltas).toHaveLength(orders.length);
     const end = deltas[deltas.length - 1]!.episode_day;
-    expect(end).toBe(start + orders.length);
+    // DayDelta.episode_day is the completed day (EngineSession parity).
+    expect(end).toBe(start + orders.length - 1);
     // Last day must be an order weekday under the mock schedule.
-    const epoch = new Date(`${snap.schedule!.epoch}T00:00:00Z`);
+    const epoch = new Date(`${schedule.epoch}T00:00:00Z`);
     const endDate = new Date(epoch);
     endDate.setUTCDate(epoch.getUTCDate() + end);
     const weekday = (endDate.getUTCDay() + 6) % 7; // JS Sun=0 → monday0
-    expect(snap.schedule!.order_weekdays).toContain(weekday);
+    expect(schedule.order_weekdays).toContain(weekday);
   });
 
   it("studio mock path builds step_n orders (main wires helper or inline schedule math)", () => {
