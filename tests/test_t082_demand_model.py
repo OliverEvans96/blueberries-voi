@@ -134,15 +134,15 @@ def _params_with_profile(profile: Any, **kwargs: Any) -> ModelParams:
         attach = getattr(mod, "with_demand_profile", None)
         if callable(attach):
             return attach(base, profile)  # type: ignore[no-any-return]
-    for name in (
+    for mod_name in (
         "blueberries_voi.model.demand",
         "blueberries_voi.model.demand_profile",
         "blueberries_voi.model.demand_model",
     ):
-        mod: types.ModuleType | None = sys.modules.get(name)
-        if mod is None:
+        loaded: types.ModuleType | None = sys.modules.get(mod_name)
+        if loaded is None:
             continue
-        attach = getattr(mod, "with_demand_profile", None)
+        attach = getattr(loaded, "with_demand_profile", None)
         if callable(attach):
             return attach(base, profile)  # type: ignore[no-any-return]
     msg = (
