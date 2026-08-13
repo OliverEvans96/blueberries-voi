@@ -1,4 +1,4 @@
-"""T-084 CAL-B4 — CRN / VOI day-indexed demand wire (RED).
+"""T-084 CAL-B4 - CRN / VOI day-indexed demand wire (RED).
 
 Locks ``.team/specs/T-084.md`` + ADR 0113 CRN identity:
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest
+import pytest  # noqa: TC002
 
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.filter.backends import observation_loglik_mc
@@ -87,7 +87,7 @@ def test_crn_passes_calendar_day_into_draw_demand(
     import blueberries_voi.voi.crn as crn_mod
 
     days_seen: list[int | None] = []
-    real_day_step = crn_mod.day_step
+    real_day_step = getattr(crn_mod, "day_step")
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
@@ -231,7 +231,7 @@ def test_observation_loglik_mc_forwards_day_without_scenario_demand_key(
     assert "scenario" not in sig.parameters
 
     days_seen: list[int | None] = []
-    real_day_step = backends_mod.day_step
+    real_day_step = getattr(backends_mod, "day_step")
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
@@ -279,7 +279,7 @@ def test_observation_loglik_mc_forwards_day_without_scenario_demand_key(
 
 
 def test_voi_sweep_has_no_cadence_axis() -> None:
-    """X-06 stays parked: sweep is scenario × β only (no cadence dimension)."""
+    """X-06 stays parked: sweep is scenario x β only (no cadence dimension)."""
     forbidden = {
         "cadence",
         "delivery_cadence",
@@ -300,7 +300,7 @@ def test_voi_sweep_has_no_cadence_axis() -> None:
         f"{sorted(result_fields & forbidden)}"
     )
 
-    # Smoke shape lock: JSON surface stays scenario × beta.
+    # Smoke shape lock: JSON surface stays scenario x beta.
     result = run_voi_sweep(
         smoke=True,
         root_seed=2,
