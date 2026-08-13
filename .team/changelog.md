@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — ENG-01 dual-runtime / live simulator
+
+- **You can interact with the live ordering simulator in the browser under dialed demo budgets, and developers can iterate on the same engine through a local API** (T-058).
+
 ## 2026-08-12 — M3 value-of-information sweep
 
 - **You can now compare store profit across knowledge levels and spoilage shapes:** the
