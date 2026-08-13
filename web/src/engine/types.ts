@@ -51,6 +51,36 @@ export type ForbiddenEngineKey = (typeof FORBIDDEN_ENGINE_KEYS)[number];
 
 export type EngineConfig = Partial<SimConfig> & Record<string, unknown>;
 
-export type ActOpts = Record<string, unknown>;
+/** Policy aliases locked in ADR 0112. */
+export type ActPolicyName =
+  | "damped_sw"
+  | "sw"
+  | "rollout"
+  | "ctl"
+  | "rollout_order"
+  | "constant"
+  | "const"
+  | "fixed";
+
+/** Budget / knob fields passed through act (ADR 0112). */
+export type ActBudgets = {
+  alpha?: number;
+  rho?: number;
+  H?: number;
+  n_rollout_paths?: number;
+  candidate_case_radius?: number;
+  n_particles?: number;
+  order_qty?: number;
+  q?: number;
+};
+
+/**
+ * Caller-facing act opts. Nested `budgets` and/or flat top-level knobs are OK;
+ * adapters fold via the shared normalizer (HTTP nest / Pyodide flat).
+ */
+export type ActOpts = {
+  policy?: ActPolicyName | string;
+  budgets?: ActBudgets;
+} & ActBudgets;
 
 export type { Economics };
