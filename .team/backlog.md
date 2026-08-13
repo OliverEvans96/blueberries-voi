@@ -6,10 +6,17 @@ Escalations and items that need a human decision land here.
   [0091](./adr/0091-fil13-production-mean-field.md), commit `d240414`). FIL-04=C; FIL-13
   production=B; joint / `K^L` production parked. Do not reopen joint production without a **new**
   ADR.
+- **Ready for human merge — audit remediation tip:** `team/audit-remediation-integ`
+  (T-042–T-044 + ADR [0097](./adr/0097-audit-remediation-defaults.md)). Landing on `main` is a
+  human decision. **Science VOI is not citeable.** Open remainder pointers:
+  [audit-remediation-remainder.md](./reports/audit-remediation-remainder.md) (RBPF ±1 counts;
+  oracle closed-loop default; rollout/DP α NotImplemented; Stage A/B honesty + MF/MC mismatch;
+  uncalibrated β/η/Q₁₀/σ/demand/$ + strawberry transit ADR 0045; production VOI compute → other
+  agent / M3 reports; loose β=1 smoke; toy DP ladder arm; empty CLI; ENG-01 / VOI-02 / X-06
+  parked; rollout τ=0; Rung0 weight 0.75; ENG-03 figures; board ⚑ + Wave-0 personal locks;
+  open-loop ceil; CRN cell α omit). Do not reopen ENG-01 / VOI-02 ⚑ / X-06 without Oliver.
 - **Done — M2+M3 library work is on `main` (at/after `f4a467f`):** M2 (T-022–T-034) and M3
   (T-035–T-041; plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)) library surfaces landed.
-  Audit remediation (T-042+) is in progress; science VOI is not yet citeable. Do not reopen
-  ENG-01 / VOI-02 ⚑ / X-06 axes without Oliver.
 - **Done — M2 Wave 7:** **T-034** (M2 close-out: DoD checklist, client-voice summary,
   non-goal locks) gate-green on `team/T-022/verify` (verifier PASS).
 - **Done — M2 Wave 6:** **T-033** (multi-scenario closed-loop + L remeasure) integrated
