@@ -2,66 +2,69 @@
 
 **Status:** Wave 0 architect (T-091) — ADR + plan + specs  
 **Branch tip:** `team/T-091/architect`  
-**ADR:** [0111](../adr/0111-studio-autopilot-mode.md)  
-**Do not use:** T-076–T-081 for Autopilot (those IDs are **CAL-01** calendar realism)
+**ADR:** [0112](../adr/0112-studio-autopilot-mode.md)  
+**Do not use for Autopilot:** T-076–T-081 (CAL-01); T-092–T-096 (other streams — **Pyodide owns T-092** / ADR 0111); provisional Autopilot draft that briefly claimed those ids is void.
 
-## Why remapping
+## Why remapping (two collisions)
 
-The original Autopilot plan used **T-076–T-081** and **ADR 0109**. Those IDs
-are already taken:
+1. Original user plan used **T-076–T-081** / **ADR 0109** — taken by CAL-01 and
+   ADR 0109–0110 on `main`.
+2. First Autopilot architect draft then used **T-092–T-096** / **ADR 0111** —
+   taken by concurrent **Pyodide module-worker** (`team/T-092/*`,
+   `0111-pyodide-module-worker-host.md` on that tip; not on this branch).
 
-| Claimed elsewhere | Owner |
-|-------------------|--------|
-| **T-076–T-088** | CAL-01 calendar realism (in-flight worktrees) |
-| **ADR 0109–0110** | On `main` (JS belief rebin / Studio obs scenario ladder) |
-
-Autopilot yields and takes the next free contiguous block.
+Autopilot keeps Wave 0 as **T-091** and renumbers children to **T-097–T-101**
+with **ADR 0112**.
 
 ## ID remap (binding)
 
-| Plan id (abandoned) | **Use instead** | Title |
-|---------------------|-----------------|--------|
-| T-076 | **T-091** | ADR 0111 + this plan + specs T-092–T-096 |
-| T-077 | **T-092** | EngineSession.act damped_sw + SW-based rollout |
-| T-078 | **T-093** | ActOpts + adapters + MockAdapter.act |
-| T-079 | **T-094** | Controller section + chart |
-| T-080 | **T-095** | Autopilot play/pause loop |
-| T-081 | **T-096** | Smoke / verify / changelog |
-| ADR 0109 (plan) | **ADR 0111** | studio-autopilot-mode |
+| User plan id | First draft (void) | **Use instead** | Title |
+|--------------|--------------------|-----------------|--------|
+| T-076 | T-091 | **T-091** | ADR 0112 + this plan + specs T-097–T-101 |
+| T-077 | T-092 | **T-097** | EngineSession.act damped_sw + SW-based rollout |
+| T-078 | T-093 | **T-098** | ActOpts + adapters + MockAdapter.act |
+| T-079 | T-094 | **T-099** | Controller section + chart |
+| T-080 | T-095 | **T-100** | Autopilot play/pause loop |
+| T-081 | T-096 | **T-101** | Smoke / verify / changelog |
+| ADR 0109 (plan) | ADR 0111 (void for Autopilot) | **ADR 0112** | studio-autopilot-mode |
+
+**Note:** ADR **0111** remains reserved for Pyodide module-worker host (other
+stream). This branch intentionally has a numbering gap at 0111.
 
 ## Ticket map
 
 | Ticket | Role | Deliverable |
 |--------|------|-------------|
-| **T-091** | architect (this tip) | ADR 0111, plan, specs T-091–T-096, backlog/intake reservation |
-| **T-092** | qa → implement → … | Python `_select_order`: `damped_sw`/`sw`; alpha/rho budgets; rollout base = `DampedSurvivalWeightedPolicy` |
-| **T-093** | qa → implement → … | Typed `ActOpts`; HTTP nest / Pyodide flat normalize; `MockAdapter.act` |
-| **T-094** | qa → implement → … | Section `controller` + controls + `controllerOrders` chart |
-| **T-095** | qa → implement → … | `autopilotLoop.ts` + Play chrome Autopilot Play/Pause |
-| **T-096** | qa → implement → … | Smoke evidence, changelog, CI-identical verify close-out |
+| **T-091** | architect (this tip) | ADR 0112, plan, specs T-091 + T-097–T-101, backlog/intake reservation |
+| **T-097** | qa → implement → … | Python `_select_order`: `damped_sw`/`sw`; alpha/rho budgets; rollout base = `DampedSurvivalWeightedPolicy` |
+| **T-098** | qa → implement → … | Typed `ActOpts`; HTTP nest / Pyodide flat normalize; `MockAdapter.act` |
+| **T-099** | qa → implement → … | Section `controller` + controls + `controllerOrders` chart |
+| **T-100** | qa → implement → … | `autopilotLoop.ts` + Play chrome Autopilot Play/Pause |
+| **T-101** | qa → implement → … | Smoke evidence, changelog, CI-identical verify close-out |
 
 ## Wave concurrency
 
 ```
 T-091 (architect, docs only)
     │
-    ├─► T-092  ║  T-093  ║  T-094     (parallel after T-091 tip)
+    ├─► T-097  ║  T-098  ║  T-099     (parallel after T-091 tip)
     │
-    └─► T-095  (after T-092 + T-093 green; T-094 preferred in parallel or slightly ahead)
+    └─► T-100  (after T-097 + T-098 green; T-099 preferred in parallel or slightly ahead)
             │
-            └─► T-096  (after T-095)
+            └─► T-101  (after T-100)
 ```
 
-1. After T-091 commit: fan out **qa T-092 ∥ T-093 ∥ T-094**.
+1. After T-091 commit: fan out **qa T-097 ∥ T-098 ∥ T-099**.
 2. Implement from each qa tip; review ∥ verify each implement tip.
-3. **T-095** starts only when **T-092** and **T-093** have implement tips that
-   satisfy their AC (Controller UI from T-094 should be present before or with
-   T-095 wiring — prefer T-094 tip merged into T-095 base).
-4. **T-096** last: smoke + changelog + verify.
+3. **T-100** starts only when **T-097** and **T-098** have implement tips that
+   satisfy their AC (Controller UI from T-099 should be present before or with
+   T-100 wiring — prefer T-099 tip merged into T-100 base).
+4. **T-101** last: smoke + changelog + verify.
 5. Do **not** merge Autopilot to `main` (human). Do **not** edit
    `.github/workflows/`.
+6. Do **not** claim T-092–T-096 for Autopilot.
 
-## Locked product defaults (ADR 0111)
+## Locked product defaults (ADR 0112)
 
 | Topic | Lock |
 |-------|------|
@@ -77,10 +80,11 @@ T-091 (architect, docs only)
 ## Non-goals
 
 - CAL-01 calendar work (T-076–T-088)
+- Pyodide module-worker (T-092 / ADR 0111)
 - Live workflow YAML edits
 - Citeable science VOI / overnight grids
 - Merging to parent/integration branches
 
 ## Next free after Autopilot
 
-Tickets **T-097+**; ADRs **0112+** (unless parallel streams claim first).
+Tickets **T-102+**; ADRs **0113+** (unless parallel streams claim first).

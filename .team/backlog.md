@@ -9,9 +9,10 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **Arrival-only filter:** **T-067–T-069**, ADR **0105–0106** (`team/T-067/architect`). Leave alone.
 - **ENG-01 dual-mode readiness follow-on:** **T-070–T-075**, ADR **0107–0108** — **Done / complete pending human merge.** Tip ready: `team/ENG-01-readiness/wave2` (= `team/T-075/implement`); verified close-out @ `a75fc10` (plan [ENG-01-readiness.md](./plans/ENG-01-readiness.md); smoke [T-075-smoke.md](./qa/T-075-smoke.md); verify [T-075.md](./qa/T-075.md)). Agents did not merge to `main`. Do **not** reuse T-067–T-069 / 0105–0106 for readiness.
 - **CAL-01 calendar realism:** **T-076–T-088** (in-flight worktrees). **Not** Studio Autopilot — do not repurpose these ids for Autopilot.
-- **Studio Autopilot Mode:** **T-091–T-096**, ADR **0111** (plan [studio-autopilot.md](./plans/studio-autopilot.md)). Remap from abandoned plan ids T-076–T-081 / ADR 0109 → **T-091–T-096** / **0111** because T-076–T-088 and ADR 0109–0110 were already taken.
-- **ADR 0109–0110:** landed on `main` (belief rebin / obs scenario ladder) — do not reuse for Autopilot.
-- **Next free after Autopilot:** **T-097+**, ADR **0112+** (unless another stream claims first). Historical “next free T-076+ / 0109+” is obsolete.
+- **Pyodide module-worker:** **T-092** (+ ADR **0111** on that tip). **Not** Autopilot — do not claim T-092–T-096 for Autopilot (those ids may belong to other streams).
+- **Studio Autopilot Mode:** **T-091 + T-097–T-101**, ADR **0112** (plan [studio-autopilot.md](./plans/studio-autopilot.md)). User plan T-076–T-081 → **T-091, T-097–T-101**; void first Autopilot draft that used T-092–T-096 / ADR 0111.
+- **ADR 0109–0110:** landed on `main` (belief rebin / obs scenario ladder) — do not reuse for Autopilot. ADR **0111** = Pyodide stream (gap on Autopilot tips).
+- **Next free after Autopilot:** **T-102+**, ADR **0113+** (unless another stream claims first).
 
 ## Needs human now
 

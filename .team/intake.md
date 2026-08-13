@@ -194,5 +194,6 @@ second UI path or wiring every physics slider into model parameters on each day.
 ## Ticket / ADR remap
 
 Plan ids T-076–T-081 / ADR 0109 were taken (CAL-01; ADR 0109–0110 on main).
-Autopilot uses **T-091–T-096** / ADR **0111**. See
+A first Autopilot draft then collided with Pyodide **T-092** / ADR **0111**.
+Autopilot uses **T-091 + T-097–T-101** / ADR **0112**. See
 [studio-autopilot.md](./plans/studio-autopilot.md).

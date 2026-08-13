@@ -1,4 +1,4 @@
-# 0111. Studio Autopilot Mode: act-driven play loop + Controller section
+# 0112. Studio Autopilot Mode: act-driven play loop + Controller section
 
 STATUS: ACCEPTED
 DATE: 2026-08-13
@@ -25,8 +25,12 @@ real `act`. An old `autopilot` flag inside `web/src/mock/generate.ts` `runDay`
 implements a base-stock heuristic in-process; that path must not become Autopilot
 Mode.
 
-Plan IDs T-076–T-081 / ADR 0109 were already taken (CAL-01 calendar realism;
-ADR 0109–0110 on `main`). This milestone uses **T-091–T-096** and **ADR 0111**.
+**ID collisions (binding):** Plan IDs T-076–T-081 / ADR 0109 were already taken
+(CAL-01; ADR 0109–0110 on `main`). A first Autopilot draft briefly used
+T-092–T-096 / ADR 0111, but **T-092** and **ADR 0111** belong to the concurrent
+Pyodide module-worker stream (`0111-pyodide-module-worker-host.md` on that tip —
+not present on this branch; leave numbering gap awareness). This milestone
+therefore uses **T-091 + T-097–T-101** and **ADR 0112**.
 
 ## Decision
 
@@ -79,6 +83,8 @@ We will:
   session state and projector history; single-flight is mandatory.
 - **Reuse ticket ids T-076–T-081 / ADR 0109** — rejected: already claimed by
   CAL-01 and landed belief/scenario ADRs on `main`.
+- **Reuse T-092–T-096 / ADR 0111 for Autopilot** — rejected: T-092 and ADR 0111
+  are owned by the Pyodide module-worker stream.
 
 ## Consequences
 
@@ -89,10 +95,12 @@ becomes the interactive default base.
 **Hard / cost:** Mock `act` will not match Python rollout; operators must not
 treat mock Autopilot as citeable control performance. Interval defaults may feel
 slow under heavy rollout budgets — dial DEMO_BUDGETS, not overlapping RPCs.
+ADR **0111** on other tips is *not* this decision (gap on this branch until
+Pyodide lands).
 
 **Locked in:** policy alias set; cadence algorithm and default intervals;
 `ActOpts` nesting rules; Controller section ownership; Autopilot = `adapter.act`
-only; ticket/ADR remap T-091–T-096 / 0111.
+only; ticket/ADR remap **T-091 + T-097–T-101 / 0112**.
 
 **Non-goals (this milestone):** ModelParams-from-sliders mapping; decide-only
 peek; Rung-0 on `act`; merge to `main`; live `.github/workflows/` edits.
