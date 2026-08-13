@@ -1,7 +1,8 @@
 """T-042: unify case_round to nearest / half-away-from-zero (audit remediation).
 
 Locks controller.ordering.case_round as the sole semantic; sim.episode must not
-keep ceil-to-case; closed-loop orders use nearest. See `.team/specs/T-042-audit-remediation.md`.
+keep ceil-to-case; closed-loop orders use nearest.
+See `.team/specs/T-042-audit-remediation.md`.
 """
 
 from __future__ import annotations

@@ -1,6 +1,7 @@
 """T-043: DEFAULT_PROFIT_COSTS, Abdella shipment defaults, VOI alpha-table gate.
 
-See `.team/specs/T-043-audit-remediation.md` and ADR 0104. Abdella defaults may use ``data/abdella/``
+See `.team/specs/T-043-audit-remediation.md` and ADR 0104.
+Abdella defaults may use ``data/abdella/``
 or monkeypatch; cool fixtures must be explicitly named ``smoke_cool_shipments``.
 """
 

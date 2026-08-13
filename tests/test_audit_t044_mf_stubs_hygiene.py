@@ -139,9 +139,7 @@ def test_production_p1_does_not_invoke_mean_field_update(
     obs = _p1_unobserved_maps(sales_total=8, waste_total=2)
     assert obs.sales_by_lot is UNOBSERVED
     rbpf.step(obs, rng)
-    assert not calls, (
-        "production P1 path must not invoke mean_field_update (ADR 0105)"
-    )
+    assert not calls, "production P1 path must not invoke mean_field_update (ADR 0105)"
 
 
 # ---------------------------------------------------------------------------

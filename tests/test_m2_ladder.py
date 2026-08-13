@@ -340,6 +340,7 @@ def test_ladder_config_production_backend_is_not_age_mean_field(tmp_path: Path) 
         f"(ADR 0105); got {backend!r}"
     )
 
+
 def test_ladder_module_source_does_not_silently_select_joint() -> None:
     mod = _resolve_ladder_module()
     assert mod.__file__ is not None

@@ -437,7 +437,9 @@ def test_multi_scenario_config_production_backend_is_not_age_mean_field(
         backend = getattr(mod, "PRODUCTION_BACKEND", None)
     if backend is None and isinstance(result, Mapping):
         backend = result.get("production_backend", result.get("age_backend"))
-    assert backend is not None, "multi-scenario must expose a production backend identity"
+    assert backend is not None, (
+        "multi-scenario must expose a production backend identity"
+    )
     assert backend != "mean_field", (
         "ADR 0105: multi-scenario must not lock production age backend mean_field; "
         f"got {backend!r}"

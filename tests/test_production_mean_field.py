@@ -38,6 +38,7 @@ _SIMPLEX_TOL = 1e-6
 # Runtime deps locked — ticket must not add packages.
 _RUNTIME_DEPS_LOCKED = frozenset({"numpy", "scipy"})  # ADR 0101 / T-046 slim core
 
+
 def _backends_source() -> str:
     import blueberries_voi.filter.backends as backends
 
@@ -412,7 +413,9 @@ def test_adr_0105_accepted_and_supersedes_production_mf() -> None:
     status = [ln.strip() for ln in text_0105.splitlines() if ln.startswith("STATUS:")]
     assert status and status[0] == "STATUS: ACCEPTED"
     assert "mean_field_update" in text_0105
-    assert "exact sequential" in text_0105.lower() or "exact_sequential_wor" in text_0105
+    assert (
+        "exact sequential" in text_0105.lower() or "exact_sequential_wor" in text_0105
+    )
 
     text_0091 = (adr / "0091-fil13-production-mean-field.md").read_text(
         encoding="utf-8"

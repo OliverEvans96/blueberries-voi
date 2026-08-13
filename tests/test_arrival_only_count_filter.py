@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest
+import pytest  # noqa: TC002
 
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
@@ -230,7 +230,7 @@ def test_rbpf_sales_likelihood_field_defaults_to_exact_sequential_wor() -> None:
     field = next(f for f in dataclasses.fields(RBPF) if f.name == "sales_likelihood")
     assert field.default == "exact_sequential_wor"
     rbpf = RBPF(params=ModelParams(), N=8, K=4, L=2)
-    assert getattr(rbpf, "sales_likelihood") == "exact_sequential_wor"
+    assert rbpf.sales_likelihood == "exact_sequential_wor"
 
 
 def test_rbpf_sales_likelihood_multinomial_selectable() -> None:
