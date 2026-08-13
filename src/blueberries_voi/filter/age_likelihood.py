@@ -450,15 +450,19 @@ def max_pairwise_mutual_information(
 
 
 def survival_weighted_on_hand(
-    n: Sequence[int],
+    n: Sequence[int | float],
     joint_or_marginals: NDArray[np.floating],
     *,
     params: ModelParams,
     tau_grid: Sequence[float],
     from_marginals: bool = False,
 ) -> float:
-    """sum  n_l E[S(tau_l)] under joint or product marginals."""
-    n_l = [int(x) for x in n]
+    """sum  n_l E[S(tau_l)] under joint or product marginals.
+
+    ``n`` may be integer lot sizes or fractional expected counts (MF means);
+    values are kept continuous (not floored).
+    """
+    n_l = [float(x) for x in n]
     L = len(n_l)
     grid = [float(t) for t in tau_grid]
     K = len(grid)

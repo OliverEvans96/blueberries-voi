@@ -2,6 +2,53 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-12 — M3 value-of-information sweep
+
+- **You can now compare store profit across knowledge levels and spoilage shapes:** the
+  study reports both a percentage lift versus the least-informed books-only view and the
+  matching dollar gap, with paired confidence intervals, including a check that age
+  information adds essentially nothing when spoilage is memoryless. Browser packaging and
+  “what if the model is wrong” honesty arms are still out of scope.
+
+## 2026-08-12 — M2 close-out: controller and multi-scenario
+
+- **The ordering controller milestone is complete:** you can run the full ladder of
+  ordering rules under several information views (rich lot visibility, storewide sales
+  only, and an age-blind baseline), with tuned service levels and the agreed safety
+  checks, while age tracking stays on the simpler production model. No dollar
+  value-of-information headlines and no Pyodide packaging / ENG-01 browser demo /
+  WASM ship in this close-out (T-034).
+
+## 2026-08-12 — M2 Wave 6 multi-scenario closed-loop + L remeasure
+
+- **Ordering rules can now be compared under three different information views** — rich lot visibility, storewide sales only, and a simple age-blind baseline — with a short written report that also records how long product is lasting under the real controller, while age tracking stays on the simpler production model (T-033).
+
+## 2026-08-12 — M2 Wave 5 ladder + automated safety gates
+
+- **The five ordering baselines can now be scored end-to-end in one run** — constant order, age-blind baseline, survival-weighted rule, look-ahead improvement, and the tiny exact planner — with results saved under experiments, and profit claims refused unless the tuned service-level table is present (T-032).
+- **Three automatic checks now fail the test suite if broken:** age-aware and age-blind orders match when aging is turned off, paired random streams stay synchronized for fair comparisons, and the look-ahead rule’s gap to the tiny exact planner is reported (T-032).
+
+## 2026-08-12 — M2 Wave 4 rollout + toy DP certificate
+
+- **Ordering can try one short look-ahead improvement step** around the survival-weighted base rule, scoring candidate orders over a shelf-life-scale horizon with a documented end-of-horizon salvage value, and paired random streams keep the comparison fair (T-030).
+- **A tiny exact planner can compute the best possible value on a toy shelf** and report how far the look-ahead (or base) rule sits from that optimum, including a check that age-aware and age-blind rules share the same protection window when aging is turned off (T-031).
+
+## 2026-08-12 — M2 Wave 3 α tuning
+
+- **Each ladder ordering rule can now get a simulation-tuned service level (α)** from a shared-seed grid search that scores day/episode profit, with tuned values saved under experiments; profit claims that skip that tuned table are rejected (T-029).
+
+## 2026-08-12 — M2 Wave 2 base policies
+
+- **An honest age-blind baseline can place orders from total stock on hand** (plus what is already on order), with a documented expected-spoilage correction, so the ladder has a fair competitor that does not peek at lot ages (T-027).
+- **A damped survival-weighted ordering rule is available** that looks at age-aware effective inventory, applies a default 0.8 damping factor, and returns whole-case orders — the base stock policy the rest of the controller ladder builds on (T-028).
+
+## 2026-08-12 — M2 Wave 1 controller foundations
+
+- **Policies can read a shared shelf belief** built from the live age filter or from known true lot ages, including an effective on-hand figure that accounts for stock already on order (T-023).
+- **A closed-loop day driver can ask a policy for each day’s order**, keep the same store physics and random streams as the open-loop simulator, and take shipment traces as an input instead of reading cold-chain files by itself (T-024).
+- **Day and episode profit can be scored** from sales, waste, and lost sales only — holding cost is left out of that score, matching the agreed accounting rule (T-025).
+- **Orders can be rounded to whole cases** with a documented nearest-case rule, and a constant daily order policy is available as the ladder’s simple baseline (T-026).
+
 ## 2026-08-12 — M1.5 filter complete across data-availability rungs
 
 - **Production age tracking now uses the simpler mean-field per-lot belief** confirmed

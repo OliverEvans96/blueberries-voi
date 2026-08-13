@@ -398,41 +398,59 @@ def test_dod_checklist_copied_and_checked() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: no production CTL / VOI / browser beyond pre-existing stubs
+# AC: VOI / browser stay parked; controller may grow under M2 (Wave 1+)
 # ---------------------------------------------------------------------------
 
 
 def test_no_production_ctl_voi_browser_under_m15() -> None:
-    """Controller/VOI remain stubs; no browser package landed under this milestone."""
+    """VOI + browser stay stubs through M1.5; M3 may fill voi/ when COMPLETE."""
     controller = _SRC / "controller" / "__init__.py"
     voi = _SRC / "voi" / "__init__.py"
-    assert controller.is_file(), "expected pre-existing controller stub"
-    assert voi.is_file(), "expected pre-existing voi stub"
+    assert controller.is_file(), "expected pre-existing controller package"
+    assert voi.is_file(), "expected pre-existing voi package"
 
-    ctrl_text = controller.read_text(encoding="utf-8")
-    voi_text = voi.read_text(encoding="utf-8")
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", ctrl_text), (
-        "controller package must remain an empty stub for M1.5 (no CTL production API)"
+    m3_plan = _REPO_ROOT / ".team" / "plans" / "M3-voi-sweep.md"
+    m3_complete = m3_plan.is_file() and "Status:** COMPLETE" in m3_plan.read_text(
+        encoding="utf-8"
     )
-    assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
-        "voi package must remain an empty stub for M1.5 (no VOI sweep API)"
-    )
-
-    # No extra production modules under controller/ or voi/
-    for pkg, label in (
-        (_SRC / "controller", "CTL"),
-        (_SRC / "voi", "VOI"),
-    ):
-        extras = [
-            p for p in pkg.rglob("*.py") if p.name != "__init__.py" and p.is_file()
+    if not m3_complete:
+        voi_text = voi.read_text(encoding="utf-8")
+        assert re.search(r"__all__\s*:\s*list\[str\]\s*=\s*\[\s*\]", voi_text), (
+            "voi package must remain an empty stub until M3"
+        )
+        voi_extras = [
+            p
+            for p in (_SRC / "voi").rglob("*.py")
+            if p.name != "__init__.py" and p.is_file()
         ]
-        assert not extras, (
-            f"M1.5 non-goal: no {label} production modules; found "
-            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in extras)
+        assert not voi_extras, (
+            "non-goal: no VOI production modules; found "
+            + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in voi_extras)
         )
 
+    # M2 Waves 1-4 may land ordering / policies / rollout / toy DP under controller/.
+    ctrl_extras = [
+        p
+        for p in (_SRC / "controller").rglob("*.py")
+        if p.name != "__init__.py" and p.is_file()
+    ]
+
+    allowed_ctrl = {
+        "ordering.py",
+        "rung0.py",
+        "damped_sw.py",
+        "rollout.py",
+        "toy_dp.py",
+    }
+    unexpected = [p for p in ctrl_extras if p.name not in allowed_ctrl]
+    assert not unexpected, (
+        "unexpected controller modules (M2 Waves 1-4 allow "
+        "ordering/rung0/damped_sw/rollout/toy_dp): "
+        + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in unexpected)
+    )
+
     browser_hits = list(_SRC.rglob("*browser*")) + list(_SRC.rglob("*eng01*"))
-    assert not browser_hits, "M1.5 non-goal: no browser modules; found " + ", ".join(
+    assert not browser_hits, "non-goal: no browser modules; found " + ", ".join(
         str(p.relative_to(_REPO_ROOT)) for p in browser_hits
     )
 
