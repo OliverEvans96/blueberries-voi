@@ -8,7 +8,7 @@ Prevents ID collisions between concurrent agents. Update or delete when streams 
 | **ENG-01 dual-mode readiness** | **T-070**–**T-075** | **0107**–**0108** | `team/ENG-01-readiness/wave2` | Done pending human merge. Plan: [ENG-01-readiness.md](./ENG-01-readiness.md). |
 | **CAL-01 calendar realism** | **T-076**–**T-088** | **0112**–**0116** | `team/T-088/integrate-main` | Done pending human merge. Plan: [CAL-01-calendar-realism.md](./CAL-01-calendar-realism.md). Oliver reopened X-11 / MOD-09. |
 | **Pyodide module-worker** | **T-092** | **0111** | landed on local `main` | **Not** Autopilot. |
-| **Studio Autopilot Mode** | **T-091**, **T-097**–**T-101** | **0117** | `team/studio-autopilot/wave` (`team/studio-autopilot/wave`) | Done pending human merge. Plan: [studio-autopilot.md](./studio-autopilot.md). Provisional Autopilot ADR 0112 → **0117** at CAL-01 merge. |
+| **Studio Autopilot Mode** | **T-091**, **T-097**–**T-101** | **0117** | `team/studio-autopilot/wave` (merged with local `main`) | Done pending human merge. Plan: [studio-autopilot.md](./studio-autopilot.md). Provisional Autopilot ADR 0112 → **0117** at CAL-01 merge. |
 | Landed on `main` (context) | …–T-066; ADR **0109**–**0110** (+ CAL-01 / T-092 on local tip) | …–**0116** | `main` | Belief rebin / obs ladder; CAL-01 0112–0116; module-worker 0111. |
 
 **Next free after Autopilot + CAL-01:** tickets **T-102+**, ADRs **0118+**.
