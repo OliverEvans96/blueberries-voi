@@ -125,7 +125,7 @@ def _assert_schedule_block(schedule: Any, *, label: str) -> Mapping[str, Any]:
         f"{label} must expose lead_time_days (or lead_time) for UI cadence"
     )
     assert int(lead) == _DEFAULT_LEAD, (
-        f"{label} lead_time_days must default to {_DEFAULT_LEAD} (ADR 0111), got {lead!r}"
+        f"{label} lead_time_days must default to {_DEFAULT_LEAD} (ADR 0111), got {lead!r}"  # noqa: E501
     )
     epoch = schedule.get("epoch")
     assert isinstance(epoch, str) and epoch.strip(), (
@@ -258,7 +258,7 @@ def test_live_snapshot_exposes_demand_summary() -> None:
 
 
 def test_live_demand_summary_scale_near_committed_profile() -> None:
-    """Summary scale should track committed FreshNet profile (~30), not invent physics."""
+    """Summary scale should track committed FreshNet profile (~30), not invent physics."""  # noqa: E501
     assert _DEMAND_PROFILE.is_file(), "committed demand_profile.json required (T-080)"
     profile = json.loads(_DEMAND_PROFILE.read_text(encoding="utf-8"))
     expected_scale = float(profile["scale_target_mu"])
