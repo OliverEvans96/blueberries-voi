@@ -442,6 +442,11 @@ autopilot = createAutopilotLoop({
     return adapter.act(opts);
   },
   applyDelta(delta) {
+    // Sync order slider before renderAll so chrome matches day.order_qty (T-100 AC).
+    const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
+    if (typeof q === "number") {
+      orderQty = snapOrder(q);
+    }
     vm = projector.applyDelta(delta);
     onHoverDay(null);
     renderAll();
@@ -457,6 +462,7 @@ autopilot = createAutopilotLoop({
     const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
     if (typeof q === "number") {
       orderQty = snapOrder(q);
+      playChromeApi.update(controlsFromVm(vm, orderQty));
     }
     // Loop may pause for config_dirty after this callback returns.
     queueMicrotask(syncAutopilotChrome);
