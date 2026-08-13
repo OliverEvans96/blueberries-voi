@@ -132,7 +132,9 @@ def test_order_schedule_type_is_frozen_dataclass() -> None:
     assert dataclasses.is_dataclass(cls), "OrderSchedule must be a dataclass"
     assert dataclasses.fields(cls), "OrderSchedule must declare fields"
     # frozen=True → instances reject attribute assignment
-    schedule: Any = cls()
+    # Re-bind after is_dataclass narrowing (DataclassInstance is not callable).
+    factory: Any = cls
+    schedule: Any = factory()
     with pytest.raises(dataclasses.FrozenInstanceError):
         schedule.lead_time_days = 99
 
