@@ -553,6 +553,10 @@ body {
   gap: 8px;
 }
 
+.btn-row-play {
+  grid-template-columns: 1fr 1fr;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
@@ -569,7 +573,8 @@ input[type="number"] {
 }
 
 .btn-advance,
-.btn-reset {
+.btn-reset,
+.btn-autopilot {
   appearance: none;
   border: none;
   border-radius: 10px;
@@ -587,6 +592,12 @@ input[type="number"] {
   box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
 }
 
+.btn-autopilot {
+  background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
+  color: #f4f7f4;
+  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.22);
+}
+
 .btn-reset {
   background: #fffdf8;
   color: var(--ink);
@@ -594,14 +605,24 @@ input[type="number"] {
 }
 
 .btn-advance:hover,
-.btn-reset:hover {
+.btn-reset:hover,
+.btn-autopilot:hover {
   filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
 .btn-advance:active,
-.btn-reset:active {
+.btn-reset:active,
+.btn-autopilot:active {
   transform: translateY(0);
+}
+
+.btn-advance:disabled,
+.btn-autopilot:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
 }
 
 .dirty-banner {

@@ -33,6 +33,7 @@ import {
   mountSectionControls,
   type ControllerControlsState,
 } from "./controls";
+import { createAutopilotLoop } from "./autopilotLoop";
 import { attachLinkedHover } from "./hoverLink";
 import {
   STUDIO_SECTIONS,
@@ -41,6 +42,7 @@ import {
   type SectionId,
 } from "./sections";
 import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
+import type { ActOpts } from "./engine/types";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
@@ -211,6 +213,29 @@ let controllerState: ControllerControlsState = {
 };
 let bootstrapped = false;
 
+function controllerToActOpts(): ActOpts {
+  const s = controllerState;
+  const budgets: NonNullable<ActOpts["budgets"]> = {
+    alpha: s.alpha,
+    rho: s.rho,
+    H: s.H,
+    n_rollout_paths: s.n_rollout_paths,
+    candidate_case_radius: s.candidate_case_radius,
+    n_particles: s.n_particles,
+  };
+  if (s.policy === "constant") {
+    budgets.order_qty = orderQty;
+  }
+  return { policy: s.policy, budgets };
+}
+
+let playChromeApi!: ReturnType<typeof mountPlayChrome>;
+let autopilot!: ReturnType<typeof createAutopilotLoop>;
+
+function syncAutopilotChrome(): void {
+  playChromeApi.setAutopilotRunning(autopilot.isRunning());
+}
+
 const els = {
   linked: document.querySelector("#linked-charts") as HTMLElement,
   sales: document.querySelector("#chart-sales") as HTMLElement,
@@ -361,7 +386,7 @@ function renderAll(): void {
   sectionControlsApi.update(state);
 }
 
-const playChromeApi = mountPlayChrome(
+playChromeApi = mountPlayChrome(
   els.playChrome,
   controlsFromVm(vm, orderQty),
   {
@@ -383,6 +408,10 @@ const playChromeApi = mountPlayChrome(
     onReset() {
       void (async () => {
         try {
+          if (autopilot.isRunning()) {
+            autopilot.pause();
+            syncAutopilotChrome();
+          }
           const snap = await adapter.reset({ ...vm.config });
           vm = projector.applySnapshot(snap);
           projector.markConfigApplied();
@@ -394,8 +423,45 @@ const playChromeApi = mountPlayChrome(
         }
       })();
     },
+    onAutopilotPlay() {
+      autopilot.play();
+      syncAutopilotChrome();
+    },
+    onAutopilotPause() {
+      autopilot.pause();
+      syncAutopilotChrome();
+    },
   },
 );
+
+autopilot = createAutopilotLoop({
+  act: (opts) => {
+    if (typeof adapter.act !== "function") {
+      return Promise.reject(new Error("adapter.act unavailable"));
+    }
+    return adapter.act(opts);
+  },
+  applyDelta(delta) {
+    vm = projector.applyDelta(delta);
+    onHoverDay(null);
+    renderAll();
+  },
+  getOpts: controllerToActOpts,
+  getIntervalMs: () => controllerState.intervalMs,
+  isConfigDirty: () => vm.config_dirty,
+  onError(err) {
+    reportStudioAdapterError(`Autopilot failed: ${formatAdapterError(err)}`);
+    syncAutopilotChrome();
+  },
+  onTick(delta) {
+    const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
+    if (typeof q === "number") {
+      orderQty = snapOrder(q);
+    }
+    // Loop may pause for config_dirty after this callback returns.
+    queueMicrotask(syncAutopilotChrome);
+  },
+});
 
 const sectionControlsApi = mountSectionControls(
   els.sectionControls,
@@ -421,6 +487,11 @@ const sectionControlsApi = mountSectionControls(
       playChromeApi.update(controlsFromVm(vm, orderQty));
       sectionControlsApi.update(controlsFromVm(vm, orderQty));
       renderActiveFocusPlots();
+      // Autopilot pauses when staged config is dirty (AC).
+      if (vm.config_dirty && autopilot.isRunning()) {
+        autopilot.pause();
+        syncAutopilotChrome();
+      }
     },
     onControllerChange(partial: Partial<ControllerControlsState>) {
       controllerState = { ...controllerState, ...partial };

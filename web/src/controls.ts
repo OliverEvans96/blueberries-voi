@@ -6,6 +6,7 @@ import type {
   ViewModel,
 } from "./types";
 import type { SectionId } from "./sections";
+import { defaultIntervalMsForPolicy } from "./autopilotLoop";
 
 /** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
@@ -42,6 +43,8 @@ export type ControlsCallbacks = {
   onOrderChange: (qty: number) => void;
   onAdvance: () => void;
   onReset: () => void;
+  onAutopilotPlay?: () => void;
+  onAutopilotPause?: () => void;
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
   onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
@@ -81,10 +84,6 @@ export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
   n_particles: 200,
   intervalMs: 500,
 };
-
-function defaultIntervalForPolicy(policy: ControllerPolicy): number {
-  return policy === "rollout" ? 1000 : 500;
-}
 
 function snap(qty: number, caseSize: number): number {
   if (qty <= 0) return 0;
@@ -173,10 +172,18 @@ function sliderHtml(spec: SliderSpec): string {
 export function mountPlayChrome(
   root: HTMLElement,
   initial: ControlsState,
-  cb: Pick<ControlsCallbacks, "onOrderChange" | "onAdvance" | "onReset">,
+  cb: Pick<
+    ControlsCallbacks,
+    | "onOrderChange"
+    | "onAdvance"
+    | "onReset"
+    | "onAutopilotPlay"
+    | "onAutopilotPause"
+  >,
 ): {
   update: (s: ControlsState) => void;
   setOrderFromCaseChange: (qty: number, caseSize: number) => void;
+  setAutopilotRunning: (running: boolean) => void;
 } {
   root.innerHTML = `
     <div class="play-chrome">
@@ -187,10 +194,15 @@ export function mountPlayChrome(
           <input type="number" id="order-num" min="0" max="320" step="${initial.config.case_size}" value="${initial.orderQty}" />
         </div>
       </label>
-      <div class="btn-row">
+      <div class="btn-row btn-row-play">
         <button type="button" class="btn-advance" id="btn-advance">Advance day</button>
+        <button type="button" class="btn-autopilot" id="btn-autopilot-play" aria-label="Autopilot Play">Autopilot Play</button>
+        <button type="button" class="btn-autopilot" id="btn-autopilot-pause" aria-label="Autopilot Pause" disabled>Autopilot Pause</button>
         <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
       </div>
+      <p class="hint" id="autopilot-hint">
+        While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
+      </p>
       <div class="meta-line" id="order-meta"></div>
       <div class="dirty-banner" id="dirty-banner" hidden>
         Config edited — new days use it; <strong>Reset</strong> regenerates history from seed.
@@ -203,7 +215,15 @@ export function mountPlayChrome(
   const caseEm = root.querySelector("#case-em") as HTMLElement;
   const meta = root.querySelector("#order-meta") as HTMLElement;
   const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
+  const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
+  const btnAutopilotPlay = root.querySelector(
+    "#btn-autopilot-play",
+  ) as HTMLButtonElement;
+  const btnAutopilotPause = root.querySelector(
+    "#btn-autopilot-pause",
+  ) as HTMLButtonElement;
   let caseSize = initial.config.case_size;
+  let autopilotRunning = false;
 
   function syncOrderInputs(qty: number, cs: number): void {
     caseSize = cs;
@@ -222,12 +242,26 @@ export function mountPlayChrome(
     cb.onOrderChange(snapped);
   }
 
+  function setAutopilotRunning(running: boolean): void {
+    autopilotRunning = running;
+    // Advance disabled while Autopilot runs (T-100 open question pick).
+    btnAdvance.disabled = running;
+    btnAutopilotPlay.disabled = running;
+    btnAutopilotPause.disabled = !running;
+  }
+
   orderRange.addEventListener("input", () => setOrder(Number(orderRange.value)));
   orderNum.addEventListener("change", () => setOrder(Number(orderNum.value)));
-  (root.querySelector("#btn-advance") as HTMLButtonElement).addEventListener(
-    "click",
-    () => cb.onAdvance(),
-  );
+  btnAdvance.addEventListener("click", () => {
+    if (autopilotRunning) return;
+    cb.onAdvance();
+  });
+  btnAutopilotPlay.addEventListener("click", () => {
+    cb.onAutopilotPlay?.();
+  });
+  btnAutopilotPause.addEventListener("click", () => {
+    cb.onAutopilotPause?.();
+  });
   (root.querySelector("#btn-reset") as HTMLButtonElement).addEventListener(
     "click",
     () => cb.onReset(),
@@ -236,6 +270,7 @@ export function mountPlayChrome(
   syncOrderInputs(initial.orderQty, initial.config.case_size);
   meta.textContent = `Episode day ${initial.episodeDay} · pending inbound ${initial.pendingOrder} units`;
   dirtyBanner.hidden = !initial.configDirty;
+  setAutopilotRunning(false);
 
   return {
     update(s) {
@@ -247,6 +282,7 @@ export function mountPlayChrome(
       syncOrderInputs(qty, cs);
       cb.onOrderChange(snap(qty, cs));
     },
+    setAutopilotRunning,
   };
 }
 
@@ -463,7 +499,7 @@ export function mountSectionControls(
       const policy = btn.dataset.policy as ControllerPolicy;
       const partial: Partial<ControllerControlsState> = {
         policy,
-        intervalMs: defaultIntervalForPolicy(policy),
+        intervalMs: defaultIntervalMsForPolicy(policy),
       };
       syncController({ ...controllerState, ...partial });
       cb.onControllerChange?.(partial);
