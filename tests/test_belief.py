@@ -7,6 +7,7 @@ before production code exists. No CTL-01 policy math beyond `effective_inventory
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 from dataclasses import FrozenInstanceError, fields, is_dataclass
 from typing import Any
@@ -167,11 +168,13 @@ def test_shelf_belief_is_frozen_public_type() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: shelf_belief_from_rbpf → ShelfBelief with (L, K) MF age marginals
+# AC: shelf_belief_from_rbpf → ShelfBelief with (L, K) arrival-prior age rows
+# (ADR 0106 supersedes ADR 0092 MF-posterior reading; T-069)
 # ---------------------------------------------------------------------------
 
 
-def test_shelf_belief_from_rbpf_matches_mf_age_posterior_shape_and_values() -> None:
+def test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values() -> None:
+    """Nested (L, K) age_marginals match filter-carried arrival ages (not MF docs)."""
     from_rbpf = _resolve("shelf_belief_from_rbpf")
     rbpf = _stepped_production_rbpf()
     belief = from_rbpf(rbpf)
@@ -183,10 +186,23 @@ def test_shelf_belief_from_rbpf_matches_mf_age_posterior_shape_and_values() -> N
     assert all(len(row) == K for row in margs)
 
     for ell in range(L):
+        # age_posterior is the filter-carried arrival-age mass (ADR 0105/0106).
         post = np.asarray(rbpf.age_posterior(ell), dtype=float)
         assert post.shape == (K,)
         np.testing.assert_allclose(margs[ell], post, atol=1e-9, rtol=0.0)
         assert abs(sum(margs[ell]) - 1.0) < 1e-6
+
+    # Guard supersession: factory docs must not still claim MF posteriors.
+    import blueberries_voi.filter.belief as belief_mod
+
+    factory_doc = (inspect.getdoc(belief_mod.shelf_belief_from_rbpf) or "").lower()
+    assert "mf" not in factory_doc and "mean-field" not in factory_doc, (
+        "shelf_belief_from_rbpf docstring must not claim MF posteriors (ADR 0106)"
+    )
+    assert any(
+        tok in factory_doc
+        for tok in ("arrival", "birth prior", "prior")
+    ), "shelf_belief_from_rbpf docstring must describe arrival-prior age exports"
 
 
 def test_shelf_belief_from_rbpf_lot_counts_match_weight_averaged_particles() -> None:
