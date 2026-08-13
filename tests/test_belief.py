@@ -199,10 +199,9 @@ def test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values() -> N
     assert "mf" not in factory_doc and "mean-field" not in factory_doc, (
         "shelf_belief_from_rbpf docstring must not claim MF posteriors (ADR 0106)"
     )
-    assert any(
-        tok in factory_doc
-        for tok in ("arrival", "birth prior", "prior")
-    ), "shelf_belief_from_rbpf docstring must describe arrival-prior age exports"
+    assert any(tok in factory_doc for tok in ("arrival", "birth prior", "prior")), (
+        "shelf_belief_from_rbpf docstring must describe arrival-prior age exports"
+    )
 
 
 def test_shelf_belief_from_rbpf_lot_counts_match_weight_averaged_particles() -> None:

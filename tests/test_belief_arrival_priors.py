@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest
 
 from blueberries_voi.filter import RBPF, shelf_belief_from_rbpf
 from blueberries_voi.filter.age_likelihood import mean_field_update
@@ -28,9 +27,7 @@ from blueberries_voi.simulator.belief import flatten_shelf_belief
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CHANGELOG = _REPO_ROOT / ".team" / "changelog.md"
-_BELIEF_PY = (
-    _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "belief.py"
-)
+_BELIEF_PY = _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "belief.py"
 _STAGE_A_DOC_PATHS = (
     _REPO_ROOT / "experiments" / "fil11_stage_a_result.md",
     _REPO_ROOT / "experiments" / "fil11_stage_a_scenarios.md",
@@ -146,7 +143,9 @@ def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
         "belief export docs must state age_marginals are arrival-prior / birth-prior "
         "exports (ADR 0106)"
     )
-    assert "mf " not in factory_doc.lower() and "mean-field" not in factory_doc.lower(), (
+    assert (
+        "mf " not in factory_doc.lower() and "mean-field" not in factory_doc.lower()
+    ), (
         "shelf_belief_from_rbpf docstring must not claim MF / mean-field posteriors "
         "(superseded by ADR 0106)"
     )
@@ -154,7 +153,7 @@ def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
     # Module blurb still saying "MF marginals" as the production ShelfBelief story
     # is also banned once 0106 lands.
     assert "mf marginal" not in module_doc.lower(), (
-        "filter/belief.py module docstring must not describe ShelfBelief as MF marginals"
+        "belief.py module docstring must not describe ShelfBelief as MF marginals"
     )
 
 
@@ -175,7 +174,8 @@ def test_shelf_belief_from_rbpf_f2_dirac_matches_birth_prior_shape() -> None:
 
 
 def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
-    """AC: exported ages are not sales-updated MF posteriors (diagnostic MF ≠ export)."""
+    """AC: exported ages are not sales-updated MF posteriors (diagn
+    ostic MF ≠ export)."""
     rbpf, birth, _tau = _f2_delivery_rbpf(sales_total=12, waste_total=2)
     belief = shelf_belief_from_rbpf(rbpf)
     margs = _as_nested(belief.age_marginals)
@@ -184,7 +184,7 @@ def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
     # Diagnostic MF on the same birth prior + storewide totals would rewrite ages.
     from blueberries_voi.filter.types import P1Obs
 
-    counts = [max(int(round(c)), 1) for c in belief.lot_counts]
+    counts = [max(round(c), 1) for c in belief.lot_counts]
     prior_rows = np.asarray(margs, dtype=float)
     # Use the birth prior on every row so MF has a clean sales-update contrast.
     prior_rows = np.broadcast_to(birth, prior_rows.shape).copy()
@@ -214,7 +214,8 @@ def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
 
 
 def test_shelf_belief_from_rbpf_f2a_path_matches_delivery_birth_prior() -> None:
-    """AC: F2a pack-date birth path → newest-lot export matches delivery_birth_age_prior."""
+    """AC: F2a pack-date birth path → newest-lot export matches del
+    ivery_birth_age_prior."""
     from datetime import date, timedelta
 
     params = ModelParams()
@@ -291,12 +292,12 @@ def test_flatten_shelf_belief_row_major_matches_nested_arrival_rows() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: Stage A docs/harness honesty — F2a/F2 via priors; P0/P1/F1 not in-store gates
+# AC: Stage A docs/harness honesty - F2a/F2 via priors; P0/P1/F1 not in-store gates
 # ---------------------------------------------------------------------------
 
 
 def test_stage_a_docs_state_f2_age_information_comes_from_priors() -> None:
-    """AC: Stage A–style docs/harness state F2a/F2 age info comes from priors."""
+    """AC: Stage A-style docs/harness state F2a/F2 age info comes from priors."""
     text = _stage_a_doc_text().lower()
     assert "f2a" in text and "f2" in text
     prior_tokens = (
@@ -316,7 +317,8 @@ def test_stage_a_docs_state_f2_age_information_comes_from_priors() -> None:
 
 
 def test_stage_a_docs_p0_p1_f1_do_not_claim_instore_age_learning_gate() -> None:
-    """AC: P0/P1/F1 must not claim in-store age learning/contraction as a production gate."""
+    """AC: P0/P1/F1 must not claim in-store age learning/contractio
+    n as a production gate."""
     text = _stage_a_doc_text().lower()
     for rung in ("p0", "p1", "f1"):
         assert rung in text, f"Stage A docs must mention {rung.upper()}"
@@ -337,28 +339,31 @@ def test_stage_a_docs_p0_p1_f1_do_not_claim_instore_age_learning_gate() -> None:
         "Stage A docs/harness must state that P0/P1/F1 do not claim in-store age "
         "learning / contraction as a production gate (T-069)"
     )
-    # Ban leftover production-gate framing that treats P1 sales contraction as the settle.
+    # Ban leftover framing that treats P1 sales contraction as the settle.
     banned = (
         "p0/p1/f1 in-store age learning is the production gate",
         "production gate is age posterior contraction under p1",
         "gate on in-store age learning for p0",
     )
     for phrase in banned:
-        assert phrase not in text, f"Stage A docs still claim banned gate framing: {phrase}"
+        assert phrase not in text, (
+            f"Stage A docs still claim banned gate framing: {phrase}"
+        )
 
 
 # ---------------------------------------------------------------------------
-# AC: changelog plain-English — RB age removed because in-store learning dropped
+# AC: changelog plain-English - RB age removed because in-store learning dropped
 # ---------------------------------------------------------------------------
 
 
 def test_changelog_states_rb_age_removed_because_instore_learning_dropped() -> None:
-    """AC: changelog cites T-069 and the locked rationale (not 'bootstrap is simpler')."""
+    """AC: changelog cites T-069 and the locked rationale (not 'boo
+    tstrap is simpler')."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
     entry = _changelog_t069_entry()
     assert entry is not None, (
         ".team/changelog.md must include a plain-English T-069 entry explaining "
-        "that Rao–Blackwellised / in-store age marginalisation was removed because "
+        "that Rao-Blackwellised / in-store age marginalisation was removed because "
         "in-store age learning was dropped"
     )
     lowered = entry.lower()
@@ -366,7 +371,7 @@ def test_changelog_states_rb_age_removed_because_instore_learning_dropped() -> N
     assert any(
         tok in lowered
         for tok in (
-            "rao–blackwell",
+            "rao-blackwell",
             "rao-blackwell",
             "rao blackwell",
             "rb age",
@@ -403,13 +408,14 @@ def test_changelog_states_rb_age_removed_because_instore_learning_dropped() -> N
                 "rather than",
             )
         ), (
-            "If changelog mentions bootstrap/simpler, it must reject that as the reason "
+            "If changelog mentions bootstrap/simpler, reject that as the reason "
             "(ADR 0105 alternative)"
         )
 
 
 def test_shelf_belief_from_rbpf_still_exported_for_ctl_path() -> None:
-    """Sanity: factory remains the CTL/ENG-01 entry point (shape contract lives here)."""
+    """Sanity: factory remains the CTL/ENG-01 entry point (shape co
+    ntract lives here)."""
     assert callable(shelf_belief_from_rbpf)
     sig = inspect.signature(shelf_belief_from_rbpf)
     assert len(sig.parameters) >= 1
