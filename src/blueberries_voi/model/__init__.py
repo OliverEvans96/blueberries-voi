@@ -1,4 +1,14 @@
-"""Shared model kernels (MOD-12 day_step and constitutive physics)."""
+"""Shared model kernels (MOD-12 day_step and constitutive physics).
+
+Calendar demand (ADR 0110 / 0113 / T-082)
+----------------------------------------
+* ``ModelParams.demand_profile`` — optional loaded ``DemandProfile`` (JSON product).
+* ``draw_demand(rng, params, *, day=None)`` — when ``day`` is set and a profile is
+  configured, NB mean is ``profile.mu(day)``; when ``day`` is ``None`` (or no
+  profile), mean stays constant ``demand_mu`` (A2 / pre-CAL compat).
+* ``day_step(..., day=None)`` forwards episode day into ``draw_demand`` when
+  demand is not pre-drawn.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +17,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL
 
 if TYPE_CHECKING:
@@ -27,6 +38,7 @@ class ModelParams:
     demand_vm: float = 2.0  # V/M => NB r = mu / (vm - 1)
     case_size: int = 8
     uniform_picking: bool = False
+    demand_profile: DemandProfile | None = None
 
     def nb_r(self) -> float:
         """Negative-binomial dispersion ``r`` (scipy ``n``) from mean and V/M."""
@@ -39,6 +51,12 @@ class ModelParams:
         """Scipy nbinom success probability: mean = r * (1-p) / p."""
         r = self.nb_r()
         return r / (r + self.demand_mu)
+
+    def demand_mu_for_day(self, day: int | None) -> float:
+        """Resolve NB mean: profile μ(day) when configured, else ``demand_mu``."""
+        if day is not None and self.demand_profile is not None:
+            return float(self.demand_profile.mu(day))
+        return float(self.demand_mu)
 
 
 @dataclass
@@ -183,10 +201,19 @@ def allocate_sales(
     return sales
 
 
-def draw_demand(rng: np.random.Generator, params: ModelParams) -> int:
-    """Negative binomial demand under MOD-26 defaults (scipy nbinom)."""
-    r = params.nb_r()
-    p = params.nb_p()
+def draw_demand(
+    rng: np.random.Generator,
+    params: ModelParams,
+    *,
+    day: int | None = None,
+) -> int:
+    """Negative binomial demand; optional calendar μ(day) via demand_profile."""
+    mu = params.demand_mu_for_day(day)
+    if params.demand_vm <= 1.0:
+        msg = "demand_vm must be > 1 for overdispersed NB"
+        raise ValueError(msg)
+    r = mu / (params.demand_vm - 1.0)
+    p = r / (r + mu)
     return int(rng.negative_binomial(r, p))
 
 
@@ -200,6 +227,7 @@ def day_step(
     rng_alloc: np.random.Generator | None = None,
     rng_spoil: np.random.Generator | None = None,
     event_log: list[str] | None = None,
+    day: int | None = None,
 ) -> DayStepResult:
     """Apply MOD-12 events: age → demand → allocate → spoil → deliver."""
     live = [Cohort(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts if c.n > 0]
@@ -223,7 +251,7 @@ def day_step(
         if rng_demand is None:
             msg = "demand or rng_demand required"
             raise ValueError(msg)
-        demand_draw = draw_demand(rng_demand, params)
+        demand_draw = draw_demand(rng_demand, params, day=day)
     else:
         demand_draw = int(demand)
 
@@ -298,12 +326,14 @@ __all__ = [
     "STREAM_SPOIL",
     "Cohort",
     "DayStepResult",
+    "DemandProfile",
     "ModelParams",
     "allocate_sales",
     "day_step",
     "death_prob_hazard_product",
     "death_prob_survival_ratio",
     "draw_demand",
+    "load_demand_profile",
     "picking_weights",
     "q10_age_increment",
     "weibull_survival",

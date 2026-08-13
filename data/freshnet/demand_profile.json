@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "dataset_id": "Dingdong-Inc/FreshRetailNet-50K",
+  "scale_target_mu": 30.0,
+  "demand_vm": 2.0,
+  "dow_factors": [
+    0.97076,
+    1.00837,
+    0.928811,
+    0.860509,
+    0.925391,
+    1.12922,
+    1.176938
+  ],
+  "week_factors": [
+    0.835024,
+    0.813681,
+    0.844995,
+    0.948293,
+    0.882418,
+    0.960334,
+    1.001279,
+    0.981607,
+    1.040142,
+    1.049895,
+    1.112415,
+    1.169745,
+    1.403548
+  ],
+  "dow_index": "monday0",
+  "week_index_origin": "2024-03-28",
+  "window_start": "2024-03-28",
+  "window_end": "2024-06-25",
+  "sku_ids": [
+    300,
+    117,
+    215,
+    70,
+    691,
+    191,
+    104,
+    122
+  ],
+  "censoring": {
+    "rule": "stock_hour6_22_cnt <= 0",
+    "max_stock_hour6_22_cnt": 0
+  },
+  "notes": "mu(day) = scale_target_mu * dow_factors[dow] * week_factors[week]; factors mean-normalized over Mar-Jun window; sale_amount units are globally normalized Chinese retail - not punnets or yuan.",
+  "fit_utc": "2026-08-13T16:14:22Z",
+  "hf_revision": "08c1fab7f9257bc73679d415d65d644165d351d4"
+}
