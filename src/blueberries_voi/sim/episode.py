@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import inspect
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from blueberries_voi.controller.ordering import case_round
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -19,6 +19,7 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
 from . import DayLog, EpisodeLog, LotState, generate_arrival_age
 
@@ -102,6 +103,18 @@ def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
     )
 
 
+def _call_day_step(
+    cohorts: Sequence[Cohort],
+    *,
+    day: int,
+    **kwargs: Any,
+) -> DayStepResult:
+    """ADR 0113 shim: forward ``day=`` only when ``day_step`` accepts it."""
+    if "day" in inspect.signature(day_step).parameters:
+        return day_step(cohorts, day=day, **kwargs)  # type: ignore[call-arg]
+    return day_step(cohorts, **kwargs)
+
+
 def run_closed_loop_episode(
     policy: Policy,
     *,
@@ -113,17 +126,23 @@ def run_closed_loop_episode(
     n_score: int = 90,
     lead_time: int = 1,
     spread_scale: float = 1.0,
+    schedule: OrderSchedule | None = None,
 ) -> EpisodeLog:
     """Policy-driven forward sim sharing ``model.day_step`` and SIM-04 logs.
 
     ``shipments`` is required and must be non-empty. This path never loads
     Abdella parquet from the filesystem.
+
+    Orders are gated by ``schedule`` (default ``DEFAULT_ORDER_SCHEDULE``): on
+    non-order days the applied ``order_qty`` is 0 even if the policy asks
+    nonzero. ``day_step`` still runs every calendar day.
     """
     if not shipments:
         msg = "shipments must be non-empty"
         raise ValueError(msg)
 
     p = params or ModelParams()
+    sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
     ships = list(shipments)
     cohorts: list[Cohort] = []
     next_lot_id = 1
@@ -137,6 +156,8 @@ def run_closed_loop_episode(
         belief = _shelf_belief_from_cohorts(cohorts)
         raw_qty = _invoke_policy_order(policy, day, belief, pending_view)
         order_units = case_round(raw_qty, p.case_size)
+        if not sched.can_order(day):
+            order_units = 0
         pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
 
         arrival_units = int(pending.pop(day, 0))
@@ -164,8 +185,9 @@ def run_closed_loop_episode(
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
-        result = day_step(
+        result = _call_day_step(
             cohorts,
+            day=day,
             params=p,
             delivery=delivery,
             rng_demand=rng_d,

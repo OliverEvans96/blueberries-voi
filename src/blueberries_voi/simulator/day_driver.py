@@ -13,6 +13,7 @@ No matplotlib / pyarrow imports on this path. Shipments must be injected.
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +21,7 @@ import numpy as np
 
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.types import P1Obs
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
 from blueberries_voi.model.abdella import shipment_arrival_age
 from blueberries_voi.rng import (
     STREAM_ALLOC,
@@ -31,6 +32,7 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.simulator.belief import (
     flatten_shelf_belief,
     live_lots_payload,
@@ -105,6 +107,18 @@ class DayAdvanceResult:
     state: DayDriverState
 
 
+def _call_day_step(
+    cohorts: Sequence[Cohort],
+    *,
+    day: int,
+    **kwargs: Any,
+) -> DayStepResult:
+    """ADR 0113 shim: forward ``day=`` only when ``day_step`` accepts it."""
+    if "day" in inspect.signature(day_step).parameters:
+        return day_step(cohorts, day=day, **kwargs)  # type: ignore[call-arg]
+    return day_step(cohorts, **kwargs)
+
+
 def advance_day(
     state: DayDriverState,
     order_qty: int,
@@ -116,10 +130,14 @@ def advance_day(
     lead_time: int = 1,
     spread_scale: float = 1.0,
     enable_filter: bool = True,
+    schedule: OrderSchedule | None = None,
 ) -> DayAdvanceResult:
     """Run order → pending/arrival → ``day_step`` → obs → optional RBPF → belief.
 
     Shared by ``EngineSession.step`` / ``act`` so hosts share one physics path.
+
+    Orders are gated by ``schedule`` (default ``DEFAULT_ORDER_SCHEDULE``): on
+    non-order days applied ``order_qty`` is coerced to 0.
     """
     if not isinstance(order_qty, (int, np.integer)) or isinstance(order_qty, bool):
         msg = f"order_qty must be an int, got {type(order_qty)!r}"
@@ -130,8 +148,11 @@ def advance_day(
     cohorts = list(state.cohorts)
     next_lot_id = int(state.next_lot_id)
     rbpf = state.rbpf
+    sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
 
     order_units = _case_round_ceil(int(order_qty), params.case_size)
+    if not sched.can_order(day):
+        order_units = 0
     pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
 
     arrival_units = int(pending.pop(day, 0))
@@ -151,8 +172,9 @@ def advance_day(
     rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
     rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
     rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
-    result = day_step(
+    result = _call_day_step(
         cohorts,
+        day=day,
         params=params,
         delivery=delivery,
         rng_demand=rng_d,

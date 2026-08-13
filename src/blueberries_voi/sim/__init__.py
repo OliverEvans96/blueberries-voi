@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 import numpy as np
 
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model import Cohort, DayStepResult, ModelParams, day_step
 from blueberries_voi.model.abdella import (
     ShipmentTrace,
     load_abdella_shipments,
@@ -21,6 +23,7 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
 # Fixed episode calendar epoch for synthetic ASN pack dates (T-019).
 # Receipt day = epoch + episode day index; pack_date = receipt - round(tau_in).
@@ -113,6 +116,18 @@ def open_loop_order(on_hand: int, *, S: int = 60) -> int:
     return max(0, int(S) - int(on_hand))
 
 
+def _call_day_step(
+    cohorts: list[Cohort],
+    *,
+    day: int,
+    **kwargs: Any,
+) -> DayStepResult:
+    """ADR 0113 shim: forward ``day=`` only when ``day_step`` accepts it."""
+    if "day" in inspect.signature(day_step).parameters:
+        return day_step(cohorts, day=day, **kwargs)  # type: ignore[call-arg]
+    return day_step(cohorts, **kwargs)
+
+
 def run_episode(
     params: ModelParams | None = None,
     *,
@@ -124,9 +139,14 @@ def run_episode(
     lead_time: int = 1,
     spread_scale: float = 1.0,
     shipments: list[ShipmentTrace] | None = None,
+    schedule: OrderSchedule | None = None,
 ) -> EpisodeLog:
-    """Open-loop forward sim with shared ``model.day_step`` and SIM-04 logs."""
+    """Open-loop forward sim with shared ``model.day_step`` and SIM-04 logs.
+
+    Non-order days coerce base-stock qty to 0 (T-079; matches closed-loop gate).
+    """
     p = params or ModelParams()
+    sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
     ships = shipments if shipments is not None else load_abdella_shipments()
     cohorts: list[Cohort] = []
     next_lot_id = 1
@@ -141,6 +161,8 @@ def run_episode(
         # Round to whole cases for physical delivery; M1 still uses unit counts.
         cases = int(np.ceil(order_qty / p.case_size)) if order_qty > 0 else 0
         order_units = cases * p.case_size
+        if not sched.can_order(day):
+            order_units = 0
         pending[day + lead_time] = pending.get(day + lead_time, 0) + order_units
 
         arrival_units = int(pending.pop(day, 0))
@@ -171,8 +193,9 @@ def run_episode(
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
-        result = day_step(
+        result = _call_day_step(
             cohorts,
+            day=day,
             params=p,
             delivery=delivery,
             rng_demand=rng_d,
