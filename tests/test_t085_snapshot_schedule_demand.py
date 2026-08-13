@@ -154,9 +154,9 @@ def _assert_demand_summary(summary: Any, *, label: str) -> Mapping[str, Any]:
     assert float(scale) > 0.0, f"{label} scale must be positive, got {scale!r}"
 
     dow = summary.get("dow_means", summary.get("dow_factors"))
-    assert isinstance(dow, Sequence) and not isinstance(
-        dow, (str, bytes, bytearray)
-    ), f"{label} must expose dow_means or dow_factors sequence"
+    assert isinstance(dow, Sequence) and not isinstance(dow, (str, bytes, bytearray)), (
+        f"{label} must expose dow_means or dow_factors sequence"
+    )
     assert len(dow) == 7, (
         f"{label} DOW series must have length 7 (monday0), got len={len(dow)}"
     )
