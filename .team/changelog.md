@@ -18,6 +18,13 @@ Plain-English notes of what shipped, for non-technical readers.
   dialed demo budgets (lightweight particle and horizon caps), so the store
   simulator steps without a separate server for the demo path. Full production-scale
   in-tab runs and the developer HTTP API remain later work (T-048).
+## 2026-08-12 — Exact filter likelihood speedups (same answers)
+
+- **Age-learning from storewide sales and waste is much faster on the same math:** the
+  filter still uses the exact pick-and-spoil likelihood, but skips repeated work on
+  duplicate particles and uses a faster internal table, so the expensive knowledge
+  columns finish in a fraction of the previous time without changing the numeric
+  model (T-064–T-066).
 
 ## 2026-08-12 — M3 value-of-information sweep
 
