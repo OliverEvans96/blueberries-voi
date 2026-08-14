@@ -38,11 +38,19 @@ The studio (`web/`) is a Vite + D3 store simulator. You can step day by day,
 choose among six observation levels (books-only through age at receipt), and
 Autopilot-play with controller policy knobs.
 
-Two live engines share the Python library:
+Two live engines share the Python library. Pick one per session:
 
-- **HTTP (dev):** Vite talks to a local FastAPI `EngineSession`.
-- **Pyodide (prod / in-browser):** a Web Worker loads the slim wheel via
-  `micropip.install`.
+| Mode | When to use | Engine |
+|------|-------------|--------|
+| **HTTP / API** | Local development against FastAPI | Native Python `EngineSession` on port 8000 |
+| **Pyodide** | In-browser / prod-shaped path | Web Worker + `micropip.install` of the slim wheel |
+
+Open the UI at **http://127.0.0.1:5173** after Vite starts. The footer says
+“Live HTTP studio” or “Live Pyodide studio”; the header chip is Loading /
+Ready / Error. `mock` is debug-only (`VITE_ENGINE_ADAPTER=mock`) and is never
+selected silently.
+
+One-time frontend install (from the repo root):
 
 ```bash
 cd web
@@ -50,18 +58,40 @@ cp .env.example .env.local   # optional; see flags below
 npm install
 ```
 
-**Dev / HTTP** — start the API, then Vite:
+### HTTP / API mode
+
+Two processes: the FastAPI session host, then Vite. CORS allows only the Vite
+origins `http://127.0.0.1:5173` and `http://localhost:5173`.
+
+Terminal 1 — API:
 
 ```bash
 uv sync --extra api
-uv run --with uvicorn uvicorn blueberries_voi.api.app:app --host 127.0.0.1 --port 8000
+uv run --with uvicorn python -m uvicorn blueberries_voi.api.app:app \
+  --host 127.0.0.1 --port 8000
+```
 
-# another terminal
+Terminal 2 — studio:
+
+```bash
 cd web
 VITE_ENGINE_ADAPTER=http VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-**Pyodide** — build the slim wheel so Vite can serve it at `/wheels/`, then:
+If you copied `web/.env.example` to `.env.local` with those same keys set, you
+can run `npm run dev` without the inline env. Restart Vite after changing
+`VITE_*` values.
+
+The API is a **development host** (in-process sessions, localhost CORS). It is
+not a production multi-tenant service. If the chip stays on Connecting / Error,
+confirm port 8000 is up and that you opened the studio on port 5173 (not
+another origin).
+
+### Pyodide mode
+
+Vite serves the worker at `/packaging/pyodide/worker.js` and the slim wheel at
+`/wheels/*.whl` from repo `dist/`. Build the wheel first (first load downloads
+Pyodide **314.0.4** and can take a minute):
 
 ```bash
 uv run python scripts/build_slim_wheel.py
@@ -69,12 +99,26 @@ cd web
 VITE_ENGINE_ADAPTER=pyodide npm run dev
 ```
 
-`web/.env.example` documents `VITE_ENGINE_ADAPTER` (`http` | `pyodide` | `mock`),
-the API base URL, and the Vite-served worker / wheel URLs. `mock` is debug-only
-and is never selected silently.
+No FastAPI process is required. If the worker fails to install the package,
+check that `dist/blueberries_voi-*-py3-none-any.whl` exists and that
+http://127.0.0.1:5173/wheels/blueberries_voi-0.1.0-py3-none-any.whl returns
+200. Rebuild the wheel after Python package changes.
 
-The API is a **development host** (in-process sessions, localhost CORS for Vite
-on port 5173). It is not a production multi-tenant service.
+### Env flags
+
+`web/.env.example` documents:
+
+| Variable | Role |
+|----------|------|
+| `VITE_ENGINE_ADAPTER` | `http` \| `pyodide` \| `mock` (explicit wins) |
+| `VITE_ENGINE_API_BASE_URL` | FastAPI base (`http://127.0.0.1:8000`) |
+| `VITE_PYODIDE_WORKER_URL` | default `/packaging/pyodide/worker.js` |
+| `VITE_PYODIDE_WHEEL_URL` | default `/wheels/blueberries_voi-0.1.0-py3-none-any.whl` |
+
+Without `VITE_ENGINE_ADAPTER`, development with an API base URL selects HTTP;
+otherwise the studio prefers Pyodide (including production builds). For the
+GitHub Release wheel URL used in production, see
+[`packaging/README.md`](packaging/README.md).
 
 ## Quality gates
 
