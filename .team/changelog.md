@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-14
+
+- **The live store simulator can use the native engine when that option is switched on, with the original simulator still the default** (T-110).
+
 ## 2026-08-13
 
 - **Internal structure was cleaned up without changing scores or how the simulator, filter, or studio behave** (T-102).
