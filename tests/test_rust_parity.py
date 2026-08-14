@@ -6,10 +6,13 @@ import math
 
 import pytest
 
-pytest.importorskip("blueberries_voi._core")
+from blueberries_voi.backend import rust_core as _maybe_core
+from blueberries_voi.model.physics import weibull_survival
 
-from blueberries_voi import _core as rust_core  # noqa: E402
-from blueberries_voi.model.physics import weibull_survival  # noqa: E402
+if _maybe_core is None:
+    pytest.skip("blueberries_voi._core not built", allow_module_level=True)
+
+rust_core = _maybe_core
 
 
 def test_weibull_matches_python() -> None:

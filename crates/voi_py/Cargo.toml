@@ -10,6 +10,13 @@ description = "PyO3 bindings: blueberries_voi._core"
 name = "_core"
 crate-type = ["cdylib"]
 
+[package.metadata.maturin]
+name = "blueberries_voi._core"
+python-source = "../../src"
+
+
 [dependencies]
 voi_core = { path = "../voi_core" }
 pyo3 = { workspace = true, features = ["extension-module"] }
+rand = { workspace = true }
+rand_pcg = { workspace = true }

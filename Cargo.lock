@@ -334,6 +334,8 @@ name = "voi_py"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "rand",
+ "rand_pcg",
  "voi_core",
 ]
 
