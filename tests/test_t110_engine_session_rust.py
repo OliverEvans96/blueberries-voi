@@ -111,7 +111,7 @@ class _FakePyEngineSession:
         return int(self.crossings)
 
 
-def _install_fake(monkeypatch: pytest.MonkeyPatch) -> _FakePyEngineSession:
+def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSession]:
     holder: dict[str, _FakePyEngineSession] = {}
 
     def factory(seed: int = 0) -> _FakePyEngineSession:
@@ -120,12 +120,11 @@ def _install_fake(monkeypatch: pytest.MonkeyPatch) -> _FakePyEngineSession:
         return sess
 
     fake = SimpleNamespace(PyEngineSession=factory)
-    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
-    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
     monkeypatch.setattr(
-        "blueberries_voi.simulator.session.rust_core", fake, raising=False
+        "blueberries_voi.simulator.session.rust_available", lambda: True
     )
-    return holder  # type: ignore[return-value]
+    monkeypatch.setattr("blueberries_voi.simulator.session.rust_core", fake)
+    return holder
 
 
 def test_rust_init_step_reset_act(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -134,7 +133,7 @@ def test_rust_init_step_reset_act(monkeypatch: pytest.MonkeyPatch) -> None:
     snap = session.init(_cfg(), seed=3)
     assert snap["seq"] == 0
     assert "belief" in snap
-    inner = holder["s"]  # type: ignore[index]
+    inner = holder["s"]
     assert inner.inits == 1
     delta = session.step(8)
     assert delta["seq"] == 1
@@ -150,7 +149,7 @@ def test_rust_step_n_is_one_ffi_crossing(monkeypatch: pytest.MonkeyPatch) -> Non
     holder = _install_fake(monkeypatch)
     session = EngineSession()
     session.init(_cfg(), seed=1)
-    inner = holder["s"]  # type: ignore[index]
+    inner = holder["s"]
     before = inner.host_crossings()
     orders = [0, 8, 0, 8, 0, 8, 0]
     deltas = session.step_n(orders)
@@ -168,11 +167,10 @@ def test_python_skips_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
         return _FakePyEngineSession(seed)
 
     fake = SimpleNamespace(PyEngineSession=factory)
-    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "python")
-    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
     monkeypatch.setattr(
-        "blueberries_voi.simulator.session.rust_core", fake, raising=False
+        "blueberries_voi.simulator.session.rust_available", lambda: False
     )
+    monkeypatch.setattr("blueberries_voi.simulator.session.rust_core", fake)
     session = EngineSession()
     session.init(_cfg(), seed=1)
     session.step(0)
