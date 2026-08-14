@@ -120,10 +120,8 @@ def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSes
         return sess
 
     fake = SimpleNamespace(PyEngineSession=factory)
-    monkeypatch.setattr(
-        "blueberries_voi.simulator.session.rust_available", lambda: True
-    )
-    monkeypatch.setattr("blueberries_voi.simulator.session.rust_core", fake)
+    monkeypatch.setattr("blueberries_voi.backend.rust_available", lambda: True)
+    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
     return holder
 
 
@@ -167,10 +165,8 @@ def test_python_skips_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
         return _FakePyEngineSession(seed)
 
     fake = SimpleNamespace(PyEngineSession=factory)
-    monkeypatch.setattr(
-        "blueberries_voi.simulator.session.rust_available", lambda: False
-    )
-    monkeypatch.setattr("blueberries_voi.simulator.session.rust_core", fake)
+    monkeypatch.setattr("blueberries_voi.backend.rust_available", lambda: False)
+    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
     session = EngineSession()
     session.init(_cfg(), seed=1)
     session.step(0)

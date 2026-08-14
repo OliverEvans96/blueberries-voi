@@ -7,7 +7,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from blueberries_voi.backend import rust_available, rust_core, warn_fallback_once
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_order
 from blueberries_voi.controller.rollout import rollout_order
@@ -207,12 +206,15 @@ class EngineSession:
             raise RuntimeError(msg)
 
     def _rust_backend(self) -> bool:
+        from blueberries_voi.backend import rust_available, warn_fallback_once
+
         warn_fallback_once()
         return rust_available()
 
     def _init_rust(self) -> Snapshot:
+        from blueberries_voi.backend import rust_core
+
         if rust_core is None:
-            warn_fallback_once()
             self._boot_state()
             return self._snapshot()
         cls = getattr(rust_core, "PyEngineSession", None)
