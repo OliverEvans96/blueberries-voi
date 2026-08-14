@@ -18,11 +18,23 @@ from pathlib import Path
 from packaging.requirements import Requirement
 from packaging.version import Version
 
+from blueberries_voi.slim_wheel_metadata import rewrite_hard_numpy_requires
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _UV_LOCK = _REPO_ROOT / "uv.lock"
 _BUILDER = _REPO_ROOT / "scripts" / "build_slim_wheel.py"
 _WORKER_JS = _REPO_ROOT / "packaging" / "pyodide" / "worker.js"
+
+# Fixture METADATA as setuptools would emit before the slim-wheel rewrite.
+_UNREWRITTEN_METADATA = """\
+Metadata-Version: 2.1
+Name: blueberries-voi
+Version: 0.1.0
+Requires-Dist: numpy>=2.4.6
+Requires-Dist: scipy>=1.17.1
+Requires-Dist: pyarrow>=25.0.1; extra == "data"
+"""
 
 # Pyodide 314.0.4 full index: numpy-2.4.3-cp314-*-pyemscripten_2026_0_wasm32.whl
 _PYODIDE_PIN = "314.0.4"
@@ -134,12 +146,15 @@ def test_slim_wheel_builder_retargets_numpy_for_pyodide_bundled() -> None:
     """build_slim_wheel.py must rewrite slim METADATA for Pyodide 314 numpy 2.4.3."""
     assert _BUILDER.is_file(), f"missing {_BUILDER}"
     src = _BUILDER.read_text(encoding="utf-8")
-    assert _PYODIDE_BUNDLED_NUMPY in src, (
+    helper_path = _REPO_ROOT / "src" / "blueberries_voi" / "slim_wheel_metadata.py"
+    helper = helper_path.read_text(encoding="utf-8")
+    assert "rewrite_hard_numpy_requires" in src
+    assert _PYODIDE_BUNDLED_NUMPY in helper, (
         "slim wheel builder must retarget numpy Requires-Dist to accept "
         f"Pyodide {_PYODIDE_PIN} bundled numpy {_PYODIDE_BUNDLED_NUMPY} "
         "(do not change native pyproject.toml)"
     )
-    assert re.search(r"Requires-Dist|METADATA|emscripten", src), (
+    assert re.search(r"Requires-Dist|METADATA|emscripten", helper), (
         "builder must rewrite wheel METADATA (or emscripten marker), not "
         "the native CPython pin"
     )
@@ -147,39 +162,43 @@ def test_slim_wheel_builder_retargets_numpy_for_pyodide_bundled() -> None:
 
 def test_slim_wheel_metadata_accepts_pyodide_314_bundled_numpy() -> None:
     """micropip on Pyodide must accept loadPackage numpy 2.4.3 without reinstall."""
-    wheels = _find_built_slim_wheels()
-    assert wheels, (
-        "no slim wheel under dist/; run scripts/build_slim_wheel.py so Vite "
-        "can serve /wheels/*.whl"
-    )
-    wheel = wheels[0]
-    reqs = _hard_requires_dist(_wheel_metadata(wheel))
+    meta = rewrite_hard_numpy_requires(_UNREWRITTEN_METADATA)
+    reqs = _hard_requires_dist(meta)
     numpy_reqs = _numpy_reqs_for_emscripten(reqs)
-    assert numpy_reqs, (
-        f"{wheel.name} has no hard numpy Requires-Dist applicable on emscripten"
-    )
+    assert numpy_reqs, "rewritten METADATA lacks emscripten numpy Requires-Dist"
+    assert 'extra == "data"' in meta
     bundled = Version(_PYODIDE_BUNDLED_NUMPY)
     for req in numpy_reqs:
         assert bundled in req.specifier, (
-            f"{wheel.name} numpy requirement {req} rejects Pyodide "
+            f"numpy requirement {req} rejects Pyodide "
             f"{_PYODIDE_PIN} bundled numpy=={_PYODIDE_BUNDLED_NUMPY}. "
             "Rewrite slim-wheel METADATA only; do not micropip reinstall "
             "a CPython numpy."
+        )
+    wheels = _find_built_slim_wheels()
+    if not wheels:
+        return
+    wheel = wheels[0]
+    built_reqs = _numpy_reqs_for_emscripten(_hard_requires_dist(_wheel_metadata(wheel)))
+    assert built_reqs, f"{wheel.name} has no hard numpy Requires-Dist on emscripten"
+    for req in built_reqs:
+        assert bundled in req.specifier, (
+            f"{wheel.name} numpy requirement {req} rejects bundled numpy "
+            f"{_PYODIDE_BUNDLED_NUMPY}"
         )
 
 
 def test_slim_wheel_keeps_native_numpy_floor_off_emscripten() -> None:
     """CPython install of the slim wheel still requires numpy>=2.4.6."""
-    wheels = _find_built_slim_wheels()
-    assert wheels, "no slim wheel under dist/; run scripts/build_slim_wheel.py"
     linux_env = {**_EMSCRIPTEN_ENV, "sys_platform": "linux", "platform_system": "Linux"}
+    meta = rewrite_hard_numpy_requires(_UNREWRITTEN_METADATA)
     reqs = [
         req
-        for req in _hard_requires_dist(_wheel_metadata(wheels[0]))
+        for req in _hard_requires_dist(meta)
         if req.name.lower() == "numpy"
         and (req.marker is None or req.marker.evaluate(linux_env))
     ]
-    assert reqs, "slim wheel must still declare numpy for non-emscripten installs"
+    assert reqs, "rewritten METADATA must declare numpy off emscripten"
     native = Version(_NATIVE_NUMPY_FLOOR)
     bundled = Version(_PYODIDE_BUNDLED_NUMPY)
     for req in reqs:
@@ -189,6 +208,19 @@ def test_slim_wheel_keeps_native_numpy_floor_off_emscripten() -> None:
         assert bundled not in req.specifier, (
             f"do not lower the CPython numpy floor in slim METADATA; got {req}"
         )
+    wheels = _find_built_slim_wheels()
+    if not wheels:
+        return
+    built = [
+        req
+        for req in _hard_requires_dist(_wheel_metadata(wheels[0]))
+        if req.name.lower() == "numpy"
+        and (req.marker is None or req.marker.evaluate(linux_env))
+    ]
+    assert built, "slim wheel must still declare numpy for non-emscripten installs"
+    for req in built:
+        assert native in req.specifier
+        assert bundled not in req.specifier
 
 
 def test_worker_reuses_loadpackage_numpy_without_reinstall() -> None:

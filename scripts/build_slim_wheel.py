@@ -14,58 +14,25 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import re
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from blueberries_voi.slim_wheel_metadata import (
+    NATIVE_NUMPY_FLOOR,
+    PYODIDE_BUNDLED_NUMPY,
+    rewrite_hard_numpy_requires,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIST = _REPO_ROOT / "dist"
-
-# Pyodide 314.0.4 full index ships numpy 2.4.3 (pyemscripten wasm32).
-_PYODIDE_BUNDLED_NUMPY = "2.4.3"
-_NATIVE_NUMPY_FLOOR = "2.4.6"
-_NUMPY_EMSCRIPTEN = f'numpy>={_PYODIDE_BUNDLED_NUMPY}; sys_platform == "emscripten"'
-_NUMPY_NATIVE = f'numpy>={_NATIVE_NUMPY_FLOOR}; sys_platform != "emscripten"'
 
 
 def _record_sha256(data: bytes) -> str:
     digest = hashlib.sha256(data).digest()
     return "sha256=" + base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
-
-
-def _rewrite_hard_numpy_requires(meta: str) -> str:
-    """Split native vs emscripten numpy floors; extras are left untouched."""
-    lines = meta.splitlines(keepends=True)
-    out: list[str] = []
-    replaced = False
-    for line in lines:
-        if not line.startswith("Requires-Dist:"):
-            out.append(line)
-            continue
-        raw = line.split(":", 1)[1].strip()
-        nl = "\r\n" if line.endswith("\r\n") else ("\n" if line.endswith("\n") else "")
-        spec = raw
-        marker = ""
-        if ";" in raw:
-            spec, _, marker = raw.partition(";")
-            spec, marker = spec.strip(), marker.strip()
-        name = re.split(r"[<>=!~\s]", spec, maxsplit=1)[0].strip().lower()
-        if name == "numpy" and "extra ==" not in marker.lower():
-            if not replaced:
-                out.append(f"Requires-Dist: {_NUMPY_EMSCRIPTEN}{nl}")
-                out.append(f"Requires-Dist: {_NUMPY_NATIVE}{nl}")
-                replaced = True
-            continue
-        out.append(line)
-    if not replaced:
-        raise RuntimeError(
-            "slim wheel METADATA had no hard numpy Requires-Dist to retarget "
-            f"for Pyodide bundled numpy {_PYODIDE_BUNDLED_NUMPY}"
-        )
-    return "".join(out)
 
 
 def _rewrite_numpy_requires_for_pyodide(wheel: Path) -> None:
@@ -74,7 +41,7 @@ def _rewrite_numpy_requires_for_pyodide(wheel: Path) -> None:
         names = zf.namelist()
         meta_name = next(n for n in names if n.endswith(".dist-info/METADATA"))
         record_name = next(n for n in names if n.endswith(".dist-info/RECORD"))
-        meta = _rewrite_hard_numpy_requires(zf.read(meta_name).decode("utf-8"))
+        meta = rewrite_hard_numpy_requires(zf.read(meta_name).decode("utf-8"))
         meta_bytes = meta.encode("utf-8")
         record_lines: list[str] = []
         for line in zf.read(record_name).decode("utf-8").splitlines():
@@ -111,7 +78,7 @@ def _rewrite_numpy_requires_for_pyodide(wheel: Path) -> None:
         raise
     print(
         "Retargeted slim numpy Requires-Dist for Pyodide "
-        f"{_PYODIDE_BUNDLED_NUMPY} (native floor {_NATIVE_NUMPY_FLOOR} kept)",
+        f"{PYODIDE_BUNDLED_NUMPY} (native floor {NATIVE_NUMPY_FLOOR} kept)",
         flush=True,
     )
 
