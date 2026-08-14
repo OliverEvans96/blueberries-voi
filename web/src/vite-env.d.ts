@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_PYODIDE_WORKER_URL?: string;
   readonly VITE_PYODIDE_WHEEL_URL?: string;
+  readonly VITE_WASM_WORKER_URL?: string;
+  readonly VITE_WASM_PKG_URL?: string;
 }
 
 interface ImportMeta {

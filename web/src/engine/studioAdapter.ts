@@ -2,7 +2,7 @@
  * T-057 / T-074: studio EngineAdapter selection (dev=HttpAdapter, prod=PyodideAdapter).
  *
  * Env flags (also documented in `.team/qa/T-057-smoke.md` and `web/.env.example`):
- * - `VITE_ENGINE_ADAPTER` — explicit override: `http` | `pyodide` | `mock`
+ * - `VITE_ENGINE_ADAPTER` — explicit override: `http` | `pyodide` | `wasm` | `mock`
  * - `VITE_ENGINE_API_BASE_URL` / `VITE_API_BASE_URL` — ASGI base for HttpAdapter
  * - `VITE_PYODIDE_WORKER_URL` / `VITE_PYODIDE_WHEEL_URL` — PyodideAdapter URLs
  *
@@ -13,9 +13,10 @@ import type { EngineAdapter } from "./adapter";
 import { HttpAdapter } from "./httpAdapter";
 import { MockAdapter } from "../mock/adapter";
 import { PyodideAdapter } from "./pyodideAdapter";
+import { WasmAdapter } from "./wasmAdapter";
 
 /** Selected studio engine backend. */
-export type StudioAdapterKind = "http" | "pyodide" | "mock";
+export type StudioAdapterKind = "http" | "pyodide" | "wasm" | "mock";
 
 /**
  * Vite / process-like env surface used for adapter selection.
@@ -25,12 +26,14 @@ export type StudioEnv = {
   MODE?: string;
   DEV?: boolean;
   PROD?: boolean;
-  /** Explicit override: "http" | "pyodide" | "mock". */
+  /** Explicit override: "http" | "pyodide" | "wasm" | "mock". */
   VITE_ENGINE_ADAPTER?: string;
   VITE_ENGINE_API_BASE_URL?: string;
   VITE_API_BASE_URL?: string;
   VITE_PYODIDE_WORKER_URL?: string;
   VITE_PYODIDE_WHEEL_URL?: string;
+  VITE_WASM_WORKER_URL?: string;
+  VITE_WASM_PKG_URL?: string;
 };
 
 export type CreateStudioAdapterOpts = {
@@ -48,6 +51,8 @@ export const LOCAL_DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 const DEFAULT_PYODIDE_WORKER_URL = "/packaging/pyodide/worker.js";
 const DEFAULT_PYODIDE_WHEEL_URL =
   "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
+const DEFAULT_WASM_WORKER_URL = "/packaging/wasm/worker.js";
+const DEFAULT_WASM_PKG_URL = "/wasm/";
 
 export type LocalStudioDefaults = {
   apiBaseUrl: string;
@@ -74,6 +79,9 @@ export function studioFooterCopy(kind: StudioAdapterKind): string {
   }
   if (kind === "pyodide") {
     return "Live Pyodide studio · blueberries-voi · D3 + Vite";
+  }
+  if (kind === "wasm") {
+    return "Live WASM studio · blueberries-voi · D3 + Vite";
   }
   return "Mock debug studio · blueberries-voi · D3 + Vite";
 }
@@ -144,7 +152,12 @@ function isProd(env: StudioEnv): boolean {
  */
 export function resolveStudioAdapterKind(env: StudioEnv = {}): StudioAdapterKind {
   const override = env.VITE_ENGINE_ADAPTER?.trim().toLowerCase();
-  if (override === "http" || override === "pyodide" || override === "mock") {
+  if (
+    override === "http" ||
+    override === "pyodide" ||
+    override === "wasm" ||
+    override === "mock"
+  ) {
     return override;
   }
   if (isProd(env)) {
@@ -183,6 +196,15 @@ export function createStudioAdapter(
       ?? env.VITE_PYODIDE_WHEEL_URL
       ?? DEFAULT_PYODIDE_WHEEL_URL;
     return new PyodideAdapter({ workerUrl, wheelUrl });
+  }
+
+  if (kind === "wasm") {
+    const workerUrl =
+      opts.workerUrl
+      ?? env.VITE_WASM_WORKER_URL
+      ?? DEFAULT_WASM_WORKER_URL;
+    const pkgUrl = env.VITE_WASM_PKG_URL ?? DEFAULT_WASM_PKG_URL;
+    return new WasmAdapter({ workerUrl, pkgUrl });
   }
 
   return new MockAdapter();
