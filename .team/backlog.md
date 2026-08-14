@@ -23,7 +23,6 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **Frontend knowledge-scenario UI audit:** Review whether the UI should differ across knowledge scenarios. Prefer one consistent layout throughout; if some charts only make sense in certain scenarios, keep the shell the same and show or hide those charts (or mark them unavailable) rather than forking the whole UI.
 - **needs-human — ENG-01 readiness merge:** Human merge of `team/ENG-01-readiness/wave2` / `team/T-075/implement` (verify tip `a75fc10`; tip includes post-handoff chore) into parent when ready (agents must not merge to `main`).
 - **needs-human — Studio Autopilot merge:** Human merge of `team/studio-autopilot/wave` (T-091 / T-097–T-101, ADR 0117) into parent when ready (agents must not merge to `main`). Keep implement worktrees until then.
-- **needs-human — T-046 workflows:** Canonical CI (3.11/3.12/3.14) and slim-wheel Release YAML live under `packaging/github-workflows/`. A human must copy/symlink them into the live GitHub Actions workflows directory before CI/Release jobs run on GitHub (agents must not write there). Still open.
 - **Optional — lazy-import pyarrow:** Consider deferring `pyarrow` import so dual-mode / slim paths avoid a hard runtime dependency unless parquet paths are used (non-blocking polish).
 - **Intake open questions → [GitHub issue #1](https://github.com/OliverEvans96/blueberries-voi/issues/1):** Confirm production β grid upper bound / knot placement, default `ProfitCosts` for headline VOI, and whether F1/F1s closed-loop must fully score lot-resolved masks in M3v1 (see `.team/intake.md`).
 - **M3 overnight production regen:** Keep tip `team/T-060/implement` (worktree `.worktrees/T-060-implement`) for citeable overnight VOI grid regeneration. Library M3 is on `main`; this tip is still needed for the production run. **Note:** CAL-01 will invalidate daily/i.i.d. citeable numbers again once landed — regen after CAL-01 closeout.
@@ -32,6 +31,7 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 ## Landed on `main`
 
+- **T-046 workflows:** Live `.github/workflows/ci.yml` and `release-slim-wheel.yml` match `packaging/github-workflows/`. Quality CI is Python 3.11 only; Pyodide/CPython 3.14 remain documented env pins, not a CI matrix. No human copy/symlink remaining.
 - **Done — ENG-01** dual-runtime / live simulator: complete pending human merge to `main` for any tip still off the integration branch (library path already landed).
  (tip `d376852`)
 
@@ -46,7 +46,7 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **M1.5 / T-021 historical; superseded for production by ADR [0105](./adr/0105-arrival-only-age-counts-only-exact-wor.md):** Production filter is arrival-only age + counts-only PF (exact WOR). ADR [0091](./adr/0091-fil13-production-mean-field.md) mean-field age path is no longer the live settle. Do not reopen joint / MF age production without a **new** ADR.
 - **X-11 / MOD-09:** Previously “do not reopen without Oliver.” **Oliver reopened both for CAL-01** (2026-08-13). Daily cadence (0011) and i.i.d. demand (0031) are **SUPERSEDED** by [0112](./adr/0112-x-11-mwf-delivery-base-case.md) and [0113](./adr/0113-mod-09-calendar-demand.md). Further cadence/demand changes still need Oliver; X-06 remains parked.
 - **Do not reopen without Oliver:** other ⚑ cards (FIL-01, FIL-08, MOD-14/15/17, SCN-P2/F3/B-clair, X-06 cadence-as-axis, VOI-02, …). Exception / settle as ADR 0105 above; X-11/MOD-09 exception is CAL-01.
-- **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without ADR; do not reopen T-021 / joint production. ENG-01 packaging was a **separate** milestone and is now landed on `main` (see above); T-046 workflow install remains needs-human.
+- **M2 non-goals (binding):** no browser packaging **in M2**; no new runtime deps without ADR; do not reopen T-021 / joint production. ENG-01 packaging was a **separate** milestone and is now landed on `main`. T-046 live `.github/workflows/` already matches `packaging/github-workflows/` (no copy remaining).
 - **Handoff notes (still useful):** [`.team/plans/M2-controller-agent-brief.md`](./plans/M2-controller-agent-brief.md) (pure library, JSON-friendly belief, compute budgets, no FS/viz/pyarrow in `controller/`).
 - **Resolved — F2a Stage A pack_date emit (T-019):** Sim emits synthetic ASN `pack_date` on delivery `DayLog` rows; Stage A F2a contracts under smoke defaults.
 - **Resolved — experiments lint:** `experiments/fil11_a_scenarios.py` RUF001 + E501/format fixed.
