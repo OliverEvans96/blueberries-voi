@@ -20,6 +20,7 @@ import pytest
 
 from blueberries_voi import model as model_pkg
 from blueberries_voi import sim as sim_pkg
+from blueberries_voi._type_compat import is_same_package_type
 from blueberries_voi.controller.ordering import case_round
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.model.abdella import ShipmentTrace
@@ -360,7 +361,7 @@ def test_closed_loop_with_fixture_shipments_does_not_touch_abdella_fs(
         root_seed=3,
         run_id="t024-no-fs",
     )
-    assert isinstance(ep, EpisodeLog)
+    assert is_same_package_type(ep, EpisodeLog)
     assert len(ep.days) == ep.n_burn + ep.n_score
     assert calls == []
 

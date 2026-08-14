@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from blueberries_voi._type_compat import is_same_package_type
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
 _ROLLOUT_MOD = "blueberries_voi.controller.rollout"
@@ -189,7 +190,7 @@ def test_toy_dp_default_certificate_uses_order_day_epochs() -> None:
     )
 
     if schedule is not None:
-        assert isinstance(schedule, OrderSchedule)
+        assert is_same_package_type(schedule, OrderSchedule)
         assert set(schedule.order_weekdays) == set(
             DEFAULT_ORDER_SCHEDULE.order_weekdays
         )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from blueberries_voi._type_compat import is_same_package_type
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.model import ModelParams
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng
@@ -74,7 +75,7 @@ def test_scored_profit_ignores_burn_in_days() -> None:
         lead_time=1,
         filter_n=8,
     )
-    assert isinstance(ep, EpisodeLog)
+    assert is_same_package_type(ep, EpisodeLog)
     assert ep.n_burn == 2
     assert len(ep.days) == 5
     assert len(ep.scored) == 3
