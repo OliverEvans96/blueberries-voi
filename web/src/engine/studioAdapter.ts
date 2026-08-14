@@ -84,14 +84,33 @@ export type StudioErrorTarget = {
   hidden: boolean;
 };
 
+function studioErrorConsolePrefix(message: string): string {
+  if (/^Init failed/i.test(message)) return "Studio init failed";
+  if (/^Advance failed/i.test(message)) return "Studio advance failed";
+  if (/^Reset failed/i.test(message)) return "Studio reset failed";
+  if (/^Autopilot failed/i.test(message)) return "Studio autopilot failed";
+  return "Studio adapter error";
+}
+
 /**
- * Surface an adapter init/step failure to the user (non-silent).
+ * Surface an adapter init/step failure to the user (non-silent) and log it.
  * When `target` is omitted, looks up `#studio-error` in the document if present.
+ * `cause` (when an Error) is passed to console.error so Python tracebacks stay inspectable.
  */
 export function reportStudioAdapterError(
   message: string,
   target?: StudioErrorTarget | null,
+  cause?: unknown,
 ): void {
+  const prefix = studioErrorConsolePrefix(message);
+  if (cause instanceof Error) {
+    console.error(prefix, cause);
+  } else if (cause !== undefined) {
+    console.error(prefix, cause);
+  } else {
+    console.error(prefix, message);
+  }
+
   const el =
     target ??
     (typeof document !== "undefined"

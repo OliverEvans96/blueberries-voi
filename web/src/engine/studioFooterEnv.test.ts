@@ -150,12 +150,43 @@ describe("T-074 local env defaults (API + worker + wheel)", () => {
 });
 
 describe("T-074 adapter init/step errors surface to the user", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
   it("reportStudioAdapterError writes a non-empty visible message on a target", () => {
     // Node vitest harness: pass a minimal element-like target (no jsdom required).
     const target = { textContent: "", hidden: true };
     reportStudioAdapterError("init failed: connection refused", target);
     expect(target.textContent).toMatch(/init failed|connection refused/i);
     expect(target.hidden).toBe(false);
+  });
+
+  it("reportStudioAdapterError console.errors a prefix plus the original Error (traceback inspectable)", () => {
+    const target = { textContent: "", hidden: true };
+    const err = new Error(
+      "PythonError: Traceback (most recent call last):\n  File \"<exec>\", line 1",
+    );
+    reportStudioAdapterError(`Init failed: ${err.message}`, target, err);
+    expect(target.textContent).toMatch(/Init failed|Traceback/i);
+    expect(target.hidden).toBe(false);
+    expect(errorSpy).toHaveBeenCalled();
+    const args = errorSpy.mock.calls[0]!;
+    expect(String(args[0])).toMatch(/Studio init failed/i);
+    expect(args).toContain(err);
+  });
+
+  it("reportStudioAdapterError still console.errors when only a message is given", () => {
+    const target = { textContent: "", hidden: true };
+    reportStudioAdapterError("init failed: connection refused", target);
+    expect(errorSpy).toHaveBeenCalled();
+    const joined = errorSpy.mock.calls[0]!.map(String).join(" ");
+    expect(joined).toMatch(/Studio|init failed|connection refused/i);
   });
 
   it("main.ts catches adapter init/step failures and surfaces them (non-silent)", () => {
@@ -170,6 +201,16 @@ describe("T-074 adapter init/step errors surface to the user", () => {
     expect(src).toMatch(
       /onAdvance[\s\S]{0,1200}catch|adapter\.step(?:_n)?[\s\S]{0,400}catch/,
     );
+  });
+
+  it("main.ts passes the original err into reportStudioAdapterError (banner + console)", () => {
+    const src = readFileSync(MAIN_TS, "utf8");
+    const calls = [...src.matchAll(/reportStudioAdapterError\(([^;]+)\)/g)];
+    expect(calls.length).toBeGreaterThanOrEqual(4);
+    for (const call of calls) {
+      // Cause must be a separate argument (not only interpolated into the banner string).
+      expect(call[1]).toMatch(/,\s*err\s*,?\s*$/);
+    }
   });
 });
 

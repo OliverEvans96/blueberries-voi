@@ -52,7 +52,10 @@ async function ensureReady() {
   ready = (async () => {
     // Module-worker ESM bootstrap (ADR 0111); classic worker loaders rejected on 314.0.4.
     pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX });
-    await pyodide.loadPackage(["micropip", "numpy", "scipy"]);
+    // Reuse Pyodide 314.0.4 wasm builds (numpy 2.4.3, scipy, pyarrow). Do not
+    // micropip.install(..., reinstall=True) CPython wheels over these.
+    // pyarrow: sim.shipments → model.abdella imports it at module load.
+    await pyodide.loadPackage(["micropip", "numpy", "scipy", "pyarrow"]);
     const micropip = pyodide.pyimport("micropip");
     // Local override via ?wheelUrl=; Release/slim URL is fallback only (ADR 0108).
     const wheelUrl = resolveWheelUrl();

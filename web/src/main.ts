@@ -1,6 +1,10 @@
 import "./styles.css";
 import { ViewModelProjector } from "./engine/projector";
 import {
+  applyEngineStatusChip,
+  createEngineStatusTracker,
+} from "./engine/engineStatus";
+import {
   createStudioAdapter,
   reportStudioAdapterError,
   resolveStudioAdapterKind,
@@ -63,7 +67,19 @@ const navHtml = STUDIO_SECTIONS.map(
 app.innerHTML = `
   <div class="shell studio">
     <header class="hero">
-      <div class="brand">Cold Case Ledger</div>
+      <div class="hero-top">
+        <div class="brand">Cold Case Ledger</div>
+        <span
+          id="engine-status"
+          class="engine-status"
+          data-status="loading"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="engine-status-dot" aria-hidden="true"></span>
+          <span class="engine-status-label">Loading</span>
+        </span>
+      </div>
       <h1>Blueberry inventory studio</h1>
       <p class="lede">
         Walk one idea at a time — order the store, then open Pricing, Physics,
@@ -191,6 +207,13 @@ const adapter = createStudioAdapter({
   workerUrl: studioEnv.VITE_PYODIDE_WORKER_URL,
   wheelUrl: studioEnv.VITE_PYODIDE_WHEEL_URL,
 });
+const engineStatus = createEngineStatusTracker("loading");
+const engineStatusEl = document.querySelector<HTMLElement>("#engine-status");
+if (engineStatusEl) {
+  engineStatus.subscribe((kind) => {
+    applyEngineStatusChip(engineStatusEl, kind, adapterKind);
+  });
+}
 const projector = new ViewModelProjector();
 let vm: ViewModel = projector.getViewModel();
 /** Snapshot schedule for next-order step_n + weekday chrome (T-086). */
@@ -439,7 +462,11 @@ playChromeApi = mountPlayChrome(
           onHoverDay(null);
           renderAll();
         } catch (err) {
-          reportStudioAdapterError(`Advance failed: ${formatAdapterError(err)}`);
+          reportStudioAdapterError(
+            `Advance failed: ${formatAdapterError(err)}`,
+            undefined,
+            err,
+          );
         }
       })();
     },
@@ -458,7 +485,11 @@ playChromeApi = mountPlayChrome(
           onHoverDay(null);
           renderAll();
         } catch (err) {
-          reportStudioAdapterError(`Reset failed: ${formatAdapterError(err)}`);
+          reportStudioAdapterError(
+            `Reset failed: ${formatAdapterError(err)}`,
+            undefined,
+            err,
+          );
         }
       })();
     },
@@ -494,7 +525,11 @@ autopilot = createAutopilotLoop({
   getIntervalMs: () => controllerState.intervalMs,
   isConfigDirty: () => vm.config_dirty,
   onError(err) {
-    reportStudioAdapterError(`Autopilot failed: ${formatAdapterError(err)}`);
+    reportStudioAdapterError(
+      `Autopilot failed: ${formatAdapterError(err)}`,
+      undefined,
+      err,
+    );
     syncAutopilotChrome();
   },
   onTick(delta) {
@@ -586,14 +621,18 @@ async function bootstrap(): Promise<void> {
   if (bootstrapped) return;
   bootstrapped = true;
   try {
-    const snap = await adapter.init({ ...vm.config });
+    const snap = await engineStatus.follow(adapter.init({ ...vm.config }));
     captureSchedule(snap);
     vm = projector.applySnapshot(snap);
     projector.markConfigApplied();
     setSection(activeSection);
     renderAll();
   } catch (err) {
-    reportStudioAdapterError(`Init failed: ${formatAdapterError(err)}`);
+    reportStudioAdapterError(
+      `Init failed: ${formatAdapterError(err)}`,
+      undefined,
+      err,
+    );
   }
 }
 
