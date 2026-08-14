@@ -3,7 +3,9 @@
 use rand::Rng;
 use rand_distr::{Binomial, Distribution};
 
-use crate::physics::{allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment};
+use crate::physics::{
+    allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment,
+};
 
 #[derive(Clone, Debug)]
 pub struct ModelParams {

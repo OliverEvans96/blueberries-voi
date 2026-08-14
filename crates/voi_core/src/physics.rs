@@ -59,7 +59,11 @@ pub fn picking_weights(taus: &[f64], sigma: f64, beta: f64, eta: f64, uniform: b
     }
     let mut raw: Vec<f64> = taus
         .iter()
-        .map(|&t| weibull_survival(t, beta, eta).max(SURV_FLOOR).powf(1.0 / sigma))
+        .map(|&t| {
+            weibull_survival(t, beta, eta)
+                .max(SURV_FLOOR)
+                .powf(1.0 / sigma)
+        })
         .collect();
     let total: f64 = raw.iter().sum();
     if total <= 0.0 {

@@ -61,7 +61,13 @@ pub fn log_p_sales_waste_given_ages(
         return f64::NEG_INFINITY;
     }
     let dtau = q10_age_increment(1.0, params.t_store_c, params.t_ref_c, params.q10);
-    let w = picking_weights(tau, params.sigma, params.beta, params.eta_ref, params.uniform_picking);
+    let w = picking_weights(
+        tau,
+        params.sigma,
+        params.beta,
+        params.eta_ref,
+        params.uniform_picking,
+    );
     let p_die: Vec<f64> = tau
         .iter()
         .map(|&t| death_prob_survival_ratio(t, dtau, params.beta, params.eta_ref))

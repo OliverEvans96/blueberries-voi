@@ -205,10 +205,7 @@ mod tests {
         }
         for (key, p) in table {
             let emp = f64::from(*freq.get(&key).unwrap_or(&0)) / f64::from(n_mc);
-            assert!(
-                (emp - p).abs() < 0.03,
-                "{key:?}: emp={emp} dp={p}"
-            );
+            assert!((emp - p).abs() < 0.03, "{key:?}: emp={emp} dp={p}");
         }
     }
 }

@@ -4,7 +4,9 @@ use rand::Rng;
 use rand_distr::{Binomial, Distribution};
 
 use crate::exact_ll::log_p_sales_waste_given_ages;
-use crate::physics::{allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment};
+use crate::physics::{
+    allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment,
+};
 use crate::wor::sequential_wor_composition_prob;
 use crate::ModelParams;
 
@@ -117,7 +119,13 @@ pub fn filter_step<R: Rng + ?Sized>(
             continue;
         }
         let demand = obs.sales_tot.map(|s| s.max(0) as u32).unwrap_or(0);
-        let wts = picking_weights(tau, params.sigma, params.beta, params.eta_ref, params.uniform_picking);
+        let wts = picking_weights(
+            tau,
+            params.sigma,
+            params.beta,
+            params.eta_ref,
+            params.uniform_picking,
+        );
         let sold = allocate_sales(&rem, demand, &wts, rng);
         for (r, s) in rem.iter_mut().zip(sold.iter()) {
             *r = r.saturating_sub(*s);
@@ -149,9 +157,7 @@ pub fn filter_step<R: Rng + ?Sized>(
 
     let ess: f64 = 1.0 / weights.iter().map(|w| w * w).sum::<f64>();
     let (counts, taus, weights) = if ess < 0.5 * n as f64 {
-        let idx = systematic_resample(
-            &weights.iter().map(|w| w.ln()).collect::<Vec<_>>(),
-        );
+        let idx = systematic_resample(&weights.iter().map(|w| w.ln()).collect::<Vec<_>>());
         let counts: Vec<Vec<u32>> = idx.iter().map(|&j| counts[j].clone()).collect();
         let taus: Vec<Vec<f64>> = idx.iter().map(|&j| taus[j].clone()).collect();
         (counts, taus, vec![1.0 / n as f64; n])

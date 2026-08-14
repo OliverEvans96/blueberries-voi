@@ -3,8 +3,8 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::{
     crate_name, day_step, filter_step, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
-    sequential_wor_composition_probs, weibull_survival, DayStepIn, EngineSession, FilterObs,
-    ModelParams, ParticleBank,
+    sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayStepIn, EngineSession,
+    FilterObs, ModelParams, ParticleBank, ShipmentTrace,
 };
 
 #[pyfunction]
@@ -53,14 +53,50 @@ fn day_step_injected(
 }
 
 #[pyfunction]
-fn run_voi_crn_cell_py(beta: f64, root_seed: u64, n_burn: u32, n_score: u32) -> Vec<(String, f64)> {
-    run_voi_crn_cell(beta, root_seed, n_burn, n_score)
+fn run_voi_crn_cell_py(
+    beta: f64,
+    root_seed: u64,
+    n_burn: u32,
+    n_score: u32,
+    filter_n: u32,
+    h: u32,
+    n_rollout_paths: u32,
+    lead_time: u32,
+    times: Vec<Vec<f64>>,
+    temps: Vec<Vec<f64>>,
+) -> Vec<(String, f64)> {
+    let ships: Vec<ShipmentTrace> = times
+        .into_iter()
+        .zip(temps)
+        .map(|(times_d, temps_c)| ShipmentTrace { times_d, temps_c })
+        .collect();
+    let budgets = CrnBudgets {
+        n_burn,
+        n_score,
+        filter_n,
+        h,
+        n_rollout_paths,
+        lead_time,
+        alpha: 0.9,
+    };
+    run_voi_crn_cell(beta, root_seed, &ships, &budgets, &[])
 }
 
 #[pyfunction]
-fn run_episode_py(n_burn: u32, n_score: u32, constant_order: u32, seed: u64) -> (u32, u32, u32, u32) {
-    let ep = run_closed_loop_episode(n_burn, n_score, constant_order, &ModelParams::default(), seed)
-        .expect("episode");
+fn run_episode_py(
+    n_burn: u32,
+    n_score: u32,
+    constant_order: u32,
+    seed: u64,
+) -> (u32, u32, u32, u32) {
+    let ep = run_closed_loop_episode(
+        n_burn,
+        n_score,
+        constant_order,
+        &ModelParams::default(),
+        seed,
+    )
+    .expect("episode");
     (ep.n_days, ep.sales_total, ep.waste_total, ep.scored_sales)
 }
 
@@ -113,13 +149,25 @@ struct PyEngineSession {
 impl PyEngineSession {
     #[new]
     fn new(seed: u64) -> Self {
-        Self {
-            inner: EngineSession::new(seed),
-        }
+        let mut inner = EngineSession::new(seed);
+        inner.init(seed);
+        Self { inner }
     }
 
-    fn step_n(&mut self, orders: Vec<u32>, demand: u32) -> usize {
-        self.inner.step_n(&orders, demand).len()
+    fn step_n(&mut self, orders: Vec<u32>) -> usize {
+        self.inner.step_n(&orders).len()
+    }
+
+    fn step(&mut self, order: u32) -> u32 {
+        self.inner.step(order).episode_day
+    }
+
+    fn init(&mut self, seed: u64) {
+        self.inner.init(seed);
+    }
+
+    fn act_rollout(&mut self) -> u32 {
+        self.inner.act_rollout().episode_day
     }
 
     fn host_crossings(&self) -> u32 {

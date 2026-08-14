@@ -1,24 +1,26 @@
-# Rust vs Python / WASM compute matrix (T-108)
+# Rust vs Python / WASM compute matrix (T-109)
 
-Informational; not a CI gate. Machine knobs: `OMP_NUM_THREADS=1`, Python 3.11.13, x86_64.
-Git SHA at run: see `outputs/bench_compute_matrix.json` (gitignored).
+Informational. RNG is independent PCG (**not** NumPy-identical). Citeable VOI stays Python.
 
-**Rust `run_voi_crn_cell` is a simplified closed-loop (constant order, no Abdella / full filter ladder).** Do not treat rust-pyo3 smoke VOI ~0.1 ms as a like-for-like speedup of the Python 7-scenario CRN (~0.48 s). `day_step` with injected demand **is** the same kernel shape.
+T-109 ports CRN **structure**: Q10 shipment ages, SW+rollout, scenario masks (P0 waste unobserved), shared physics seed, SIM-01 scored profit. A short smoke cell (burn=1, score=2) can land near −6 on Rust because delivery is applied **after** sales on the arrival day—the same MOD-12 order as Python—not because the kernel is a no-op stub.
 
-| Use case | py-native | rust-pyo3 | pyodide | wasm |
+| Use case | py-native | rust-pyo3 | pyodide | wasm (Node harness) |
 | --- | --- | --- | --- | --- |
-| Single day, physics (`day_step`, injected demand, 50 reps) | mean **0.273 ms** | mean **0.108 ms** (~2.5×) | n/a (browser) | n/a (build `./scripts/build-wasm.sh`) |
-| Smoke CRN cell (Python: 7 scenarios, burn=1 score=2 N=16) | mean **0.48 s** | simplified kernel **~0.1 ms** (not equivalent work) | n/a | n/a |
-| Cold start / `act(rollout)` / `step_n` | see T-106 baseline | not yet timed at EngineSession parity | n/a | worker RPC exists; pkg is local-build |
+| Smoke CRN, `smoke_cool` shipments, burn=1 score=2, N=16, H=2, paths=1 | ~0.85 s (this machine) | ~8 ms **debug** PyO3; **not** a citeable speedup; profits ≠ Python | n/a | n/a (session RPC only) |
+| Cold start | T-106 | maturin import | n/a in Node (`loadPyodide` not embedded) | ~0.044 s |
+| `step` | T-106 Python `EngineSession` | `PyEngineSession` exists; Python `EngineSession` class still Python | n/a | mean ~0.7 ms (5 reps; first slower) |
+| `step_n(7)` one crossing | T-106 | same caveat | n/a | mean ~1.1 ms |
+| `act(rollout)` | T-106 | same caveat | n/a | mean ~0.08 ms |
 
-Host crossings: `day_step` and `run_voi_crn_cell` are **one FFI** when `BLUEBERRIES_VOI_BACKEND=rust`.
+**Still n/a:** Node Pyodide column; wasm VOI cell; Abdella parquet on the Rust path (`shipments=None` stays Python); FastAPI / viz / pyodide packaging tests (not ported).
 
 ## How to re-run
 
 ```bash
-maturin develop --manifest-path crates/voi_py/pyproject.toml
-PYTHONPATH=src python experiments/bench_compute_matrix.py
-./scripts/build-wasm.sh   # then Vite VITE_ENGINE_ADAPTER=wasm
+cargo test -p voi_core
+maturin develop --manifest-path crates/voi_py/Cargo.toml
+BLUEBERRIES_VOI_BACKEND=python PYTHONPATH=src python experiments/bench_compute_matrix.py
+BLUEBERRIES_VOI_BACKEND=rust PYTHONPATH=src python experiments/bench_compute_matrix.py
+./scripts/build-wasm.sh
+node experiments/bench_compute_browser.mjs
 ```
-
-Pre-port Python baseline: `.team/reports/python-compute-baseline-T-106.md` (smoke VOI 1.44 s including parquet parse; this matrix smoke is 0.48 s with `smoke_cool_shipments`).

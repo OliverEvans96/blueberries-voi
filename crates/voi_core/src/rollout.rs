@@ -22,7 +22,13 @@ pub fn candidate_orders(base_q: u32, case_size: u32, radius: i32) -> Vec<u32> {
     out
 }
 
-pub fn terminal_salvage_value(counts: &[u32], taus: &[f64], margin: f64, beta: f64, eta: f64) -> f64 {
+pub fn terminal_salvage_value(
+    counts: &[u32],
+    taus: &[f64],
+    margin: f64,
+    beta: f64,
+    eta: f64,
+) -> f64 {
     if counts.is_empty() {
         return 0.0;
     }
@@ -35,7 +41,14 @@ pub fn terminal_salvage_value(counts: &[u32], taus: &[f64], margin: f64, beta: f
     margin * total
 }
 
-pub fn day_profit(sales: u32, waste: u32, demand: u32, margin: f64, waste_cost: f64, stockout: f64) -> f64 {
+pub fn day_profit(
+    sales: u32,
+    waste: u32,
+    demand: u32,
+    margin: f64,
+    waste_cost: f64,
+    stockout: f64,
+) -> f64 {
     let lost = demand.saturating_sub(sales);
     margin * f64::from(sales) - waste_cost * f64::from(waste) - stockout * f64::from(lost)
 }
@@ -114,28 +127,14 @@ fn path_value(
         }
         let mut rng_s = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(path * 17 + d)));
         let out = day_step(&state, params, Some(&mut rng), Some(&mut rng_s));
-        profit += day_profit(
-            out.sales_total,
-            out.waste_total,
-            out.demand,
-            2.0,
-            1.5,
-            3.0,
-        );
+        profit += day_profit(out.sales_total, out.waste_total, out.demand, 2.0, 1.5, 3.0);
         state.counts = out.counts;
         state.taus = out.taus;
         state.lot_ids = out.lot_ids;
         state.spoil_by = None;
         state.demand = Some(params.demand_mu.max(0.0) as u32);
     }
-    profit
-        + terminal_salvage_value(
-            &state.counts,
-            &state.taus,
-            2.0,
-            params.beta,
-            params.eta_ref,
-        )
+    profit + terminal_salvage_value(&state.counts, &state.taus, 2.0, params.beta, params.eta_ref)
 }
 
 #[cfg(test)]
