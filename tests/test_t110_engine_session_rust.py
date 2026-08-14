@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pytest
 
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.simulator.belief import empty_flat_belief
 from blueberries_voi.simulator.session import EngineSession
+
+if TYPE_CHECKING:
+    import pytest
 
 _FLAT = empty_flat_belief(L=2, K=4)
 
@@ -126,7 +128,7 @@ def _install_fake(monkeypatch: pytest.MonkeyPatch) -> _FakePyEngineSession:
     return holder  # type: ignore[return-value]
 
 
-def test_rust_backend_init_step_reset_act_hit_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rust_init_step_reset_act(monkeypatch: pytest.MonkeyPatch) -> None:
     holder = _install_fake(monkeypatch)
     session = EngineSession()
     snap = session.init(_cfg(), seed=3)
@@ -158,7 +160,7 @@ def test_rust_step_n_is_one_ffi_crossing(monkeypatch: pytest.MonkeyPatch) -> Non
     assert session.host_crossings() == inner.host_crossings()
 
 
-def test_python_backend_does_not_construct_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_python_skips_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
     holder: dict[str, int] = {"n": 0}
 
     def factory(seed: int = 0) -> _FakePyEngineSession:

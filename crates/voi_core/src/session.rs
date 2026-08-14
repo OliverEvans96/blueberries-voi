@@ -89,6 +89,29 @@ impl EngineSession {
         self.crossings += 1;
     }
 
+    pub fn configure(
+        &mut self,
+        lead_time: u32,
+        enable_filter: bool,
+        h: u32,
+        n_paths: u32,
+        radius: i32,
+        shipments: Vec<ShipmentTrace>,
+    ) {
+        self.lead_time = lead_time.max(1);
+        self.enable_filter = enable_filter;
+        self.h = h.max(1);
+        self.n_paths = n_paths.max(1);
+        self.radius = radius;
+        if !shipments.is_empty() {
+            self.shipments = shipments;
+        }
+    }
+
+    pub fn episode_day(&self) -> u32 {
+        self.day
+    }
+
     fn require_init(&self) {
         if !self.initialized {
             panic!("EngineSession.init() must be called before step/act");

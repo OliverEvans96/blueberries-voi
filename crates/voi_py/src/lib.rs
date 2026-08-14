@@ -1,10 +1,11 @@
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::{
     crate_name, day_step, filter_step, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
-    sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayStepIn, EngineSession,
-    FilterObs, ModelParams, ParticleBank, ShipmentTrace,
+    sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayDelta, DayStepIn,
+    EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
 };
 
 #[pyfunction]
@@ -140,6 +141,55 @@ fn filter_step_py(
     filter_step(&bank, &obs, &ModelParams::default(), &mut rng).weights
 }
 
+fn ships_from(times: Vec<Vec<f64>>, temps: Vec<Vec<f64>>) -> Vec<ShipmentTrace> {
+    times
+        .into_iter()
+        .zip(temps)
+        .map(|(times_d, temps_c)| ShipmentTrace { times_d, temps_c })
+        .collect()
+}
+
+fn py_belief<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+    let b = PyDict::new(py);
+    b.set_item("lot_counts", PyList::empty(py))?;
+    b.set_item("age_marginals", PyList::empty(py))?;
+    b.set_item("tau_grid", PyList::empty(py))?;
+    b.set_item("L", 0)?;
+    b.set_item("K", 0)?;
+    Ok(b)
+}
+
+fn py_delta<'py>(py: Python<'py>, d: &DayDelta) -> PyResult<Bound<'py, PyDict>> {
+    let day = PyDict::new(py);
+    day.set_item("day", d.episode_day)?;
+    day.set_item("order_qty", d.order_qty)?;
+    day.set_item("arrivals", d.arrivals)?;
+    day.set_item("sales_total", d.sales_total)?;
+    day.set_item("waste_total", d.waste_total)?;
+    day.set_item("demand", d.demand)?;
+    day.set_item("L", d.on_hand)?;
+    let m = PyDict::new(py);
+    m.set_item("seq", d.episode_day)?;
+    m.set_item("episode_day", d.episode_day)?;
+    m.set_item("day", day)?;
+    m.set_item("live_lots", PyList::empty(py))?;
+    m.set_item("pipeline", PyList::empty(py))?;
+    m.set_item("drop_oldest", false)?;
+    m.set_item("belief", py_belief(py)?)?;
+    Ok(m)
+}
+
+fn py_snapshot<'py>(py: Python<'py>, episode_day: u32) -> PyResult<Bound<'py, PyDict>> {
+    let m = PyDict::new(py);
+    m.set_item("seq", 0)?;
+    m.set_item("episode_day", episode_day)?;
+    m.set_item("belief", py_belief(py)?)?;
+    m.set_item("history", PyList::empty(py))?;
+    m.set_item("live_lots", PyList::empty(py))?;
+    m.set_item("pipeline", PyList::empty(py))?;
+    Ok(m)
+}
+
 #[pyclass]
 struct PyEngineSession {
     inner: EngineSession,
@@ -149,25 +199,67 @@ struct PyEngineSession {
 impl PyEngineSession {
     #[new]
     fn new(seed: u64) -> Self {
-        let mut inner = EngineSession::new(seed);
-        inner.init(seed);
-        Self { inner }
+        Self {
+            inner: EngineSession::new(seed),
+        }
     }
 
-    fn step_n(&mut self, orders: Vec<u32>) -> usize {
-        self.inner.step_n(&orders).len()
-    }
-
-    fn step(&mut self, order: u32) -> u32 {
-        self.inner.step(order).episode_day
-    }
-
-    fn init(&mut self, seed: u64) {
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![]))]
+    fn init<'py>(
+        &mut self,
+        py: Python<'py>,
+        seed: u64,
+        lead_time: u32,
+        enable_filter: bool,
+        h: u32,
+        n_paths: u32,
+        radius: i32,
+        times: Vec<Vec<f64>>,
+        temps: Vec<Vec<f64>>,
+    ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
+        self.inner.configure(
+            lead_time,
+            enable_filter,
+            h,
+            n_paths,
+            radius,
+            ships_from(times, temps),
+        );
+        py_snapshot(py, self.inner.episode_day())
     }
 
-    fn act_rollout(&mut self) -> u32 {
-        self.inner.act_rollout().episode_day
+    fn reset<'py>(&mut self, py: Python<'py>, seed: u64) -> PyResult<Bound<'py, PyDict>> {
+        self.init(py, seed, 1, true, 7, 2, 1, vec![], vec![])
+    }
+
+    fn step_n<'py>(&mut self, py: Python<'py>, orders: Vec<u32>) -> PyResult<Bound<'py, PyList>> {
+        let deltas = self.inner.step_n(&orders);
+        let list = PyList::empty(py);
+        for d in &deltas {
+            list.append(py_delta(py, d)?)?;
+        }
+        Ok(list)
+    }
+
+    fn step<'py>(&mut self, py: Python<'py>, order: u32) -> PyResult<Bound<'py, PyDict>> {
+        let d = self.inner.step(order);
+        py_delta(py, &d)
+    }
+
+    #[pyo3(signature = (policy=None))]
+    fn act<'py>(
+        &mut self,
+        py: Python<'py>,
+        policy: Option<String>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let _ = policy;
+        let d = self.inner.act_rollout();
+        py_delta(py, &d)
+    }
+
+    fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        self.act(py, Some("rollout".into()))
     }
 
     fn host_crossings(&self) -> u32 {

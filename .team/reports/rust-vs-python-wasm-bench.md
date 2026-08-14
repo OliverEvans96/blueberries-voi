@@ -8,9 +8,7 @@ T-109 ports CRN **structure**: Q10 shipment ages, SW+rollout, scenario masks (P0
 | --- | --- | --- | --- | --- |
 | Smoke CRN, `smoke_cool` shipments, burn=1 score=2, N=16, H=2, paths=1 | ~0.85 s (this machine) | ~8 ms **debug** PyO3; **not** a citeable speedup; profits ≠ Python | n/a | n/a (session RPC only) |
 | Cold start | T-106 | maturin import | n/a in Node (`loadPyodide` not embedded) | ~0.044 s |
-| `step` | T-106 Python `EngineSession` | `PyEngineSession` exists; Python `EngineSession` class still Python | n/a | mean ~0.7 ms (5 reps; first slower) |
-| `step_n(7)` one crossing | T-106 | same caveat | n/a | mean ~1.1 ms |
-| `act(rollout)` | T-106 | same caveat | n/a | mean ~0.08 ms |
+| `step` / `step_n(7)` / `act(rollout)` | T-106 Python `EngineSession` | T-110: same `EngineSession` class dispatches to Rust when `BLUEBERRIES_VOI_BACKEND=rust` | n/a in Node (`loadPyodide` not embedded) | wasm `handle_rpc` |
 
 **Still n/a:** Node Pyodide column; wasm VOI cell; Abdella parquet on the Rust path (`shipments=None` stays Python); FastAPI / viz / pyodide packaging tests (not ported).
 

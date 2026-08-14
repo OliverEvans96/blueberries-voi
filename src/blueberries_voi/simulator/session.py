@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from blueberries_voi.backend import rust_available, rust_core, warn_fallback_once
 from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_order
 from blueberries_voi.controller.rollout import rollout_order
@@ -30,8 +32,6 @@ from blueberries_voi.simulator.day_driver import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-
     from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, Snapshot
@@ -106,6 +106,7 @@ class EngineSession:
         self._n_rollout_paths: int = int(DEMO_BUDGETS["n_rollout_paths"])
         self._candidate_case_radius: int = int(DEMO_BUDGETS["candidate_case_radius"])
         self._history: list[dict[str, Any]] = []
+        self._rust: Any | None = None
         self._state = DayDriverState(
             cohorts=[],
             pending={},
@@ -122,10 +123,12 @@ class EngineSession:
     ) -> Snapshot:
         """Cold-start the session from ``config``; return a Snapshot."""
         self._apply_config(dict(config), seed=seed)
-        self._boot_state()
         self._initialized = True
         self._seq = 0
         self._history = []
+        if self._rust_backend():
+            return self._init_rust()
+        self._boot_state()
         return self._snapshot()
 
     def reset(
@@ -150,12 +153,27 @@ class EngineSession:
         if not isinstance(order_qty, int) or isinstance(order_qty, bool):
             msg = f"order_qty must be an int, got {type(order_qty)!r}"
             raise TypeError(msg)
+        if self._rust is not None:
+            raw = self._rust.step(int(order_qty))
+            self._seq += 1
+            return self._coerce_day_delta(raw, seq=self._seq)
         return self._advance(int(order_qty))
 
     def step_n(self, orders: Sequence[int]) -> list[DayDelta]:
         """Advance ``k`` days; returns exactly ``k`` DayDelta dicts."""
         self._require_init()
-        return [self.step(int(q)) for q in orders]
+        qty = [int(q) for q in orders]
+        if self._rust is not None:
+            raw = self._rust.step_n(qty)
+            if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+                msg = "rust step_n must return a sequence of DayDeltas"
+                raise TypeError(msg)
+            out: list[DayDelta] = []
+            for item in raw:
+                self._seq += 1
+                out.append(self._coerce_day_delta(item, seq=self._seq))
+            return out
+        return [self.step(q) for q in qty]
 
     def act(
         self,
@@ -165,13 +183,108 @@ class EngineSession:
     ) -> DayDelta:
         """Select an order via the controller surface and advance one day."""
         self._require_init()
+        if self._rust is not None:
+            act_fn = getattr(self._rust, "act", None)
+            raw = (
+                act_fn(policy, **budget_overrides)
+                if callable(act_fn)
+                else self._rust.act_rollout()
+            )
+            self._seq += 1
+            return self._coerce_day_delta(raw, seq=self._seq)
         order_qty = self._select_order(policy=policy, **budget_overrides)
         return self._advance(int(order_qty))
+
+    def host_crossings(self) -> int:
+        """Host/FFI crossings (Rust backend) or Python step count."""
+        if self._rust is not None:
+            return int(self._rust.host_crossings())
+        return int(self._seq)
 
     def _require_init(self) -> None:
         if not self._initialized:
             msg = "EngineSession.init() must be called before step/act"
             raise RuntimeError(msg)
+
+    def _rust_backend(self) -> bool:
+        warn_fallback_once()
+        return rust_available()
+
+    def _init_rust(self) -> Snapshot:
+        if rust_core is None:
+            warn_fallback_once()
+            self._boot_state()
+            return self._snapshot()
+        cls = getattr(rust_core, "PyEngineSession", None)
+        if cls is None:
+            self._boot_state()
+            return self._snapshot()
+        if self._rust is None:
+            self._rust = cls(int(self._seed))
+        sess = self._rust
+        times = [list(map(float, getattr(s, "times_d", []))) for s in self._shipments]
+        temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
+        init_fn = sess.init
+        try:
+            raw = init_fn(
+                int(self._seed),
+                int(self._lead_time),
+                bool(self._enable_filter),
+                int(self._H),
+                int(self._n_rollout_paths),
+                int(self._candidate_case_radius),
+                times,
+                temps,
+            )
+        except TypeError:
+            raw = init_fn(int(self._seed))
+        return self._coerce_snapshot(raw)
+
+    def _coerce_snapshot(self, raw: Any) -> Snapshot:
+        if isinstance(raw, Mapping) and "belief" in raw:
+            snap = dict(raw)
+            snap.setdefault("seq", 0)
+            snap.setdefault("episode_day", 0)
+            snap.setdefault("schedule", schedule_wire())
+            snap.setdefault("demand_summary", demand_summary_wire())
+            snap.setdefault("applied_config", self._applied_config())
+            snap.setdefault("history", [])
+            snap.setdefault("live_lots", [])
+            snap.setdefault("pipeline", [])
+            return snap
+        self._boot_state()
+        return self._snapshot()
+
+    def _coerce_day_delta(self, raw: Any, *, seq: int) -> DayDelta:
+        if isinstance(raw, Mapping) and "day" in raw:
+            delta = dict(raw)
+            delta["seq"] = int(raw.get("seq", seq))
+            delta.setdefault("episode_day", 0)
+            return delta
+        episode_day = int(getattr(raw, "episode_day", 0))
+        order_qty = int(getattr(raw, "order_qty", 0))
+        arrivals = int(getattr(raw, "arrivals", 0))
+        sales = int(getattr(raw, "sales_total", 0))
+        waste = int(getattr(raw, "waste_total", 0))
+        demand = int(getattr(raw, "demand", 0))
+        on_hand = int(getattr(raw, "on_hand", 0))
+        return {
+            "seq": int(seq),
+            "episode_day": episode_day,
+            "day": {
+                "day": episode_day,
+                "order_qty": order_qty,
+                "arrivals": arrivals,
+                "sales_total": sales,
+                "waste_total": waste,
+                "demand": demand,
+                "L": on_hand,
+            },
+            "live_lots": [],
+            "pipeline": [],
+            "drop_oldest": False,
+            "belief": dict(empty_flat_belief(L=self._L, K=self._K)),
+        }
 
     def _apply_config(self, config: dict[str, Any], *, seed: int | None) -> None:
         shipments = config.get("shipments")
