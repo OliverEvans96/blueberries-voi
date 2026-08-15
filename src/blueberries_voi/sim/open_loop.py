@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model import Cohort, ModelParams
+from blueberries_voi.sim.rust_bridge import day_step
 from blueberries_voi.model.abdella import (
     ShipmentTrace,
     load_abdella_shipments,

@@ -144,7 +144,7 @@ def test_extinct_cohorts_dropped() -> None:
 
 def test_shared_day_step_import_gate() -> None:
     assert sim_pkg.day_step is model.day_step
-    assert filter_pkg.day_step is model.day_step
+    assert day_step.__module__ == 'blueberries_voi.sim.rust_bridge'
 
 
 def test_weibull_survival_at_zero() -> None:

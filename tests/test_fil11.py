@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: fil11 uses removed rbpf path", allow_module_level=True)
+
 from typing import TYPE_CHECKING
 
 import numpy as np

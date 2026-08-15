@@ -7,6 +7,13 @@ a new episode. Rust/wasm is out of scope.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: Python EngineSession history/horizon internals removed; Rust owns session",
+    allow_module_level=True,
+)
+
 from pathlib import Path
 from typing import Any
 

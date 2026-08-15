@@ -1,4 +1,8 @@
-"""Filter package - shared ``day_step`` + production counts-only RBPF (ADR 0105)."""
+"""Filter package — observation types and belief façades (ADR 0105 / 0127).
+
+Production PF compute removed in T-121 Wave F; hot filter stepping lives in
+``voi_core``. Research backends under ``filter/backends.py`` remain for bakeoff.
+"""
 
 from __future__ import annotations
 
@@ -11,17 +15,15 @@ from blueberries_voi.filter.belief import (
     ShelfBelief,
     effective_inventory,
     shelf_belief_from_oracle,
-    shelf_belief_from_rbpf,
 )
-from blueberries_voi.filter.l_fallback import BackendChoice, choose_backend
-from blueberries_voi.filter.rbpf import (
+from blueberries_voi.filter.constants import (
     PRODUCTION_BACKEND,
     PRODUCTION_ESS_FRACTION,
     PRODUCTION_K,
     PRODUCTION_L,
     PRODUCTION_N,
-    RBPF,
 )
+from blueberries_voi.filter.l_fallback import BackendChoice, choose_backend
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     FilterSummary,
@@ -32,7 +34,7 @@ from blueberries_voi.filter.types import (
     mask_for,
     rich_obs_from_day_log,
 )
-from blueberries_voi.model import day_step
+from blueberries_voi.sim.rust_bridge import day_step
 
 __all__ = [
     "PRODUCTION_BACKEND",
@@ -40,7 +42,6 @@ __all__ = [
     "PRODUCTION_K",
     "PRODUCTION_L",
     "PRODUCTION_N",
-    "RBPF",
     "UNOBSERVED",
     "BackendChoice",
     "FilterSummary",
@@ -58,5 +59,4 @@ __all__ = [
     "observation_loglik_mc",
     "rich_obs_from_day_log",
     "shelf_belief_from_oracle",
-    "shelf_belief_from_rbpf",
 ]

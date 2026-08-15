@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 from scipy.stats import nbinom
 
-from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.filter.belief import shelf_belief_from_oracle
 from blueberries_voi.model import ModelParams
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
@@ -93,7 +93,7 @@ def _expected_empty_shelf_order(protection_days: int, params: ModelParams) -> in
 
 
 def _sw_cls() -> Any:
-    from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+    from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 
     return DampedSurvivalWeightedPolicy
 
@@ -593,7 +593,7 @@ def test_day_indexed_controllers_document_homogeneous_mu_path_for_b4() -> None:
     """Varying protection length + homogeneous μ is allowed until B4 (ADR 0116)."""
     blobs: list[str] = []
     for mod_name in (
-        "blueberries_voi.controller.damped_sw",
+        "blueberries_voi.sim.bakeoff_damped_sw",
         "blueberries_voi.controller.rung0",
         "blueberries_voi.sim.alpha_tune",
     ):

@@ -7,7 +7,7 @@ import math
 import pytest
 
 from blueberries_voi.backend import rust_core as _maybe_core
-from blueberries_voi.model.physics import weibull_survival
+from blueberries_voi.model.constitutive import weibull_survival
 
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)

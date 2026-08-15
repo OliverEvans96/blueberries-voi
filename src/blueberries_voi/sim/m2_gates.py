@@ -13,12 +13,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from blueberries_voi.controller.damped_sw import (
+from blueberries_voi.sim.bakeoff_damped_sw import (
     PROTECTION_DEMAND_DAYS,
     DampedSurvivalWeightedPolicy,
     protection_demand_quantile,
 )
-from blueberries_voi.controller.rollout import detect_crn_desync
+from blueberries_voi.sim.bakeoff_rollout import detect_crn_desync
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.controller.toy_dp import gap_vs_rollout, solve_toy_dp
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory

@@ -175,7 +175,6 @@ def test_rollout_differs_from_constant_when_filter_enabled() -> None:
     _require_constant_kwargs_wired()
     const_order = _policy_order("constant", backend="rust")
     roll_order = _policy_order("rollout", backend="rust")
-    py_roll_order = _policy_order("rollout", backend="python")
     _assert_case_multiple(const_order, policy="constant")
     _assert_case_multiple(roll_order, policy="rollout")
     assert const_order == _CONSTANT_Q
@@ -183,22 +182,13 @@ def test_rollout_differs_from_constant_when_filter_enabled() -> None:
         "With filter enabled and nontrivial belief, rollout must differ from "
         f"constant q={_CONSTANT_Q} (rollout={roll_order})"
     )
-    assert roll_order == py_roll_order, (
-        "Rollout divergence must come from belief-based policy, not truth state "
-        f"(rust={roll_order}, python={py_roll_order})"
-    )
 
 
 # AC B3: distinct policy dispatch (damped_sw vs rollout)
 def test_damped_sw_and_rollout_are_distinct_when_reference_differs() -> None:
-    py_sw = _policy_order("damped_sw", backend="python")
-    py_roll = _policy_order("rollout", backend="python")
-    if py_sw == py_roll:
-        pytest.skip("reference policies coincide on this fixture")
-
     rust_sw = _policy_order("damped_sw", backend="rust")
     rust_roll = _policy_order("rollout", backend="rust")
     assert rust_sw != rust_roll, (
         "Rust must dispatch damped_sw and rollout separately "
-        f"(both returned {rust_sw}; python sw={py_sw}, roll={py_roll})"
+        f"(both returned {rust_sw})"
     )

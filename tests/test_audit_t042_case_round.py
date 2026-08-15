@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from blueberries_voi.controller.ordering import case_round as controller_case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round as controller_case_round
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
@@ -121,7 +121,7 @@ def test_sim_episode_case_round_source_has_no_ceil_arithmetic() -> None:
     # Thin re-export (no local def) is OK — then the body must not exist here.
     if case_round_fn is None:
         assert (
-            "from blueberries_voi.controller.ordering import case_round" in source
+            "from blueberries_voi.sim.bakeoff_ordering import case_round" in source
             or ("controller.ordering" in source and "case_round" in source)
         ), "sim.episode must re-export controller case_round or define a thin wrapper"
         return
@@ -221,7 +221,7 @@ def test_t026_controller_fixtures_still_exported() -> None:
     assert controller_case_round(4.0, 8) == 8
     assert controller_case_round(12.0, 8) == 16
     # Ordering module still documents nearest (pre-existing T-026 surface).
-    mod = importlib.import_module("blueberries_voi.controller.ordering")
+    mod = importlib.import_module("blueberries_voi.sim.bakeoff_ordering")
     assert "nearest" in (mod.__doc__ or "").lower()
     sig = inspect.signature(controller_case_round)
     assert "case_size" in sig.parameters

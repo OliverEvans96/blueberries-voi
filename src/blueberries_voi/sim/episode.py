@@ -12,8 +12,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from blueberries_voi.controller.ordering import case_round, invoke_order
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.sim.case_round import case_round
+from blueberries_voi.model import Cohort, ModelParams
+from blueberries_voi.sim.rust_bridge import day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -82,6 +83,28 @@ def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
     )
 
 
+def _invoke_order(
+    policy: Policy,
+    day: int,
+    belief: object,
+    pending_orders: Mapping[int, int],
+) -> int:
+    """Dispatch policy.order with belief-first or day-first signatures."""
+    import inspect
+
+    sig = inspect.signature(policy.order)
+    params = sig.parameters
+    if "belief" in params:
+        return int(
+            policy.order(
+                day,
+                belief,
+                pending_orders=tuple(pending_orders.items()),
+            )
+        )
+    return int(policy.order(belief, day=day, pending_orders=tuple(pending_orders.items())))
+
+
 def run_closed_loop_episode(
     policy: Policy,
     *,
@@ -124,7 +147,7 @@ def run_closed_loop_episode(
         # Snapshot pipeline before placing today's order (ADR 0092).
         pending_view: Mapping[int, int] = dict(pending)
         belief = _shelf_belief_from_cohorts(cohorts)
-        raw_qty = invoke_order(policy, day, belief, pending_view)
+        raw_qty = _invoke_order(policy, day, belief, pending_view)
         # Nearest case rounding (not ceil): intentional fork vs open-loop/day_driver.
         order_units = case_round(raw_qty, p.case_size)
         if not sched.can_order(day):

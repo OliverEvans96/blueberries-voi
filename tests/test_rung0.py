@@ -22,7 +22,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
@@ -32,7 +32,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTROLLER_PKG = "blueberries_voi.controller"
 _CANDIDATE_MODULES = (
     "blueberries_voi.controller.rung0",
-    "blueberries_voi.controller.ordering",
+    "blueberries_voi.sim.bakeoff_ordering",
     "blueberries_voi.controller",
 )
 _POLICY_NAMES = (
@@ -388,7 +388,7 @@ def test_rung0_coincides_with_damped_sw_policy_when_available() -> None:
     sw_cls: type[Any] | None = None
     for mod_name in (
         "blueberries_voi.controller.sw_policy",
-        "blueberries_voi.controller.ordering",
+        "blueberries_voi.sim.bakeoff_ordering",
         "blueberries_voi.controller",
     ):
         try:

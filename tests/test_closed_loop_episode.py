@@ -21,7 +21,7 @@ import pytest
 from blueberries_voi import model as model_pkg
 from blueberries_voi import sim as sim_pkg
 from blueberries_voi._type_compat import is_same_package_type
-from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import (

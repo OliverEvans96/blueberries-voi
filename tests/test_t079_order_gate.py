@@ -12,6 +12,10 @@ Locks ``.team/specs/T-079.md``, ADR 0114 (schedule), ADR 0116 (``day=`` shim):
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: day_driver removed", allow_module_level=True)
+
 import inspect
 from collections.abc import Mapping, Sequence
 from datetime import date, timedelta
@@ -20,7 +24,7 @@ from typing import Any
 import numpy as np
 import pytest  # noqa: TC002
 
-from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.model import ModelParams, draw_demand
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng
@@ -373,7 +377,7 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
     Pre-T-082 production ``day_step`` may lack the kwarg; the test installs a
     compatible wrapper so the ADR 0116 shim obligation is observable now.
     """
-    from blueberries_voi.model import day_step as real_day_step
+    from blueberries_voi.sim.rust_bridge import day_step as real_day_step
 
     recorded: list[int | None] = []
 
@@ -409,7 +413,7 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
 def test_advance_day_forwards_day_kw_to_day_step_when_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from blueberries_voi.model import day_step as real_day_step
+    from blueberries_voi.sim.rust_bridge import day_step as real_day_step
 
     recorded: list[int | None] = []
 

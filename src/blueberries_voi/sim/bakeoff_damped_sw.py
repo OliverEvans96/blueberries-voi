@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from scipy.stats import nbinom
 
-from blueberries_voi.controller.ordering import case_round
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams, q10_age_increment
 

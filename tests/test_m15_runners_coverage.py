@@ -9,6 +9,10 @@ unchanged.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: m15 runners use removed compute", allow_module_level=True)
+
 from typing import TYPE_CHECKING
 
 import pytest

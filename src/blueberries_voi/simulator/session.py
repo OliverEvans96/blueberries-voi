@@ -1,41 +1,25 @@
-"""Interactive ``EngineSession`` façade (Snapshot / DayDelta / act)."""
+"""Interactive ``EngineSession`` façade (Snapshot / DayDelta / act).
+
+Wave F (T-121 / ADR 0127): PyO3 dispatch and wire coercion only — no Python
+physics loop, ``day_driver``, or ``model.day_step`` on the production path.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_order
-from blueberries_voi.controller.rollout import rollout_order
-from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
-from blueberries_voi.filter.rbpf import RBPF
-from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
-from blueberries_voi.model import ModelParams
+from blueberries_voi.filter.types import mask_for
 from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
-from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
-from blueberries_voi.simulator.belief import (
-    empty_flat_belief,
-    live_lots_payload,
-    pipeline_payload,
-    shelf_belief_from_flat,
-)
-from blueberries_voi.simulator.day_driver import (
-    DayDriverState,
-    advance_day,
-    build_day_delta,
-    current_belief_flat,
-)
 
 if TYPE_CHECKING:
     from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, Snapshot
 
-# ADR 0099 dialed browser demo preset (≤ production / desktop defaults).
 DEMO_BUDGETS: dict[str, int] = {
     "n_particles": 200,
     "H": 7,
@@ -46,7 +30,6 @@ DEMO_BUDGETS: dict[str, int] = {
 BROWSER_DEMO_BUDGETS = DEMO_BUDGETS
 
 EPISODE_HORIZON = 90
-# ASN / OrderSchedule epoch (monday0); keep as ISO date for Studio weekday labels.
 _SCHEDULE_EPOCH = "2024-01-01"
 
 
@@ -84,8 +67,8 @@ def demand_summary_wire(profile: DemandProfile | None = None) -> dict[str, Any]:
 class EngineSession:
     """Host-agnostic interactive session: init / step / step_n / reset / act.
 
-    Returns ADR 0100 Snapshot and DayDelta dicts only (no ViewModel, economics,
-    PnL, ghost, or heatmap). Belief crosses the wire as flat buffers.
+    Returns ADR 0100 Snapshot and DayDelta dicts only. All hot compute is delegated
+    to ``blueberries_voi._core.PyEngineSession`` when ``BLUEBERRIES_VOI_BACKEND=rust``.
     """
 
     def __init__(self) -> None:
@@ -93,7 +76,6 @@ class EngineSession:
         self._config: dict[str, Any] = {}
         self._seed: int = 0
         self._seq: int = 0
-        self._params = ModelParams()
         self._shipments: list[ShipmentTrace] = []
         self._lead_time: int = 1
         self._enable_filter: bool = True
@@ -104,17 +86,7 @@ class EngineSession:
         self._H: int = int(DEMO_BUDGETS["H"])
         self._n_rollout_paths: int = int(DEMO_BUDGETS["n_rollout_paths"])
         self._candidate_case_radius: int = int(DEMO_BUDGETS["candidate_case_radius"])
-        self._history: list[dict[str, Any]] = []
-        self._richest_log: list[Any] = []
-        self._rung_caches: dict[str, tuple[RBPF, int]] = {}
         self._rust: Any | None = None
-        self._state = DayDriverState(
-            cohorts=[],
-            pending={},
-            next_lot_id=1,
-            episode_day=0,
-            rbpf=None,
-        )
 
     def init(
         self,
@@ -126,13 +98,39 @@ class EngineSession:
         self._apply_config(dict(config), seed=seed)
         self._initialized = True
         self._seq = 0
-        self._history = []
-        self._richest_log = []
-        self._rung_caches = {}
-        if self._rust_backend():
-            return self._init_rust()
-        self._boot_state()
-        return self._snapshot()
+        sess = self._require_rust()
+        times = [list(map(float, getattr(s, "times_d", []))) for s in self._shipments]
+        temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
+        init_fn = sess.init
+        try:
+            raw = init_fn(
+                int(self._seed),
+                int(self._lead_time),
+                bool(self._enable_filter),
+                int(self._H),
+                int(self._n_rollout_paths),
+                int(self._candidate_case_radius),
+                times,
+                temps,
+                int(self._n_particles),
+                int(self._L),
+                int(self._K),
+                str(self._obs_scenario),
+                None,
+            )
+        except TypeError:
+            raw = init_fn(
+                int(self._seed),
+                int(self._lead_time),
+                bool(self._enable_filter),
+                int(self._H),
+                int(self._n_rollout_paths),
+                int(self._candidate_case_radius),
+                times,
+                temps,
+                int(self._n_particles),
+            )
+        return self._coerce_snapshot(raw)
 
     def reset(
         self,
@@ -157,28 +155,24 @@ class EngineSession:
             msg = f"order_qty must be an int, got {type(order_qty)!r}"
             raise TypeError(msg)
         self._refuse_if_episode_ended(n_days=1)
-        if self._rust is not None:
-            raw = self._rust.step(int(order_qty))
-            self._seq += 1
-            return self._coerce_day_delta(raw, seq=self._seq)
-        return self._advance(int(order_qty))
+        raw = self._require_rust().step(int(order_qty))
+        self._seq += 1
+        return self._coerce_day_delta(raw, seq=self._seq)
 
     def step_n(self, orders: Sequence[int]) -> list[DayDelta]:
         """Advance ``k`` days; returns exactly ``k`` DayDelta dicts."""
         self._require_init()
         qty = [int(q) for q in orders]
         self._refuse_if_episode_ended(n_days=len(qty))
-        if self._rust is not None:
-            raw = self._rust.step_n(qty)
-            if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-                msg = "rust step_n must return a sequence of DayDeltas"
-                raise TypeError(msg)
-            out: list[DayDelta] = []
-            for item in raw:
-                self._seq += 1
-                out.append(self._coerce_day_delta(item, seq=self._seq))
-            return out
-        return [self.step(q) for q in qty]
+        raw = self._require_rust().step_n(qty)
+        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+            msg = "rust step_n must return a sequence of DayDeltas"
+            raise TypeError(msg)
+        out: list[DayDelta] = []
+        for item in raw:
+            self._seq += 1
+            out.append(self._coerce_day_delta(item, seq=self._seq))
+        return out
 
     def act(
         self,
@@ -189,58 +183,31 @@ class EngineSession:
         """Select an order via the controller surface and advance one day."""
         self._require_init()
         self._refuse_if_episode_ended(n_days=1)
-        if self._rust is not None:
-            act_fn = getattr(self._rust, "act", None)
-            raw = (
-                act_fn(policy, **budget_overrides)
-                if callable(act_fn)
-                else self._rust.act_rollout()
-            )
-            self._seq += 1
-            return self._coerce_day_delta(raw, seq=self._seq)
-        order_qty = self._select_order(policy=policy, **budget_overrides)
-        return self._advance(int(order_qty))
+        sess = self._require_rust()
+        act_fn = getattr(sess, "act", None)
+        raw = (
+            act_fn(policy, **budget_overrides)
+            if callable(act_fn)
+            else sess.act_rollout()
+        )
+        self._seq += 1
+        return self._coerce_day_delta(raw, seq=self._seq)
 
     def set_obs_scenario(self, obs_scenario: ScenarioId | str) -> Snapshot:
-        """Catch-up the selected observation rung and return a Snapshot.
-
-        Initializes a distinct ``RBPF`` on first select and replays the richest
-        log; does not retarget the live particle cloud in place.
-        """
+        """Catch-up the selected observation rung and return a Snapshot."""
         self._require_init()
         mask_for(obs_scenario)
-        if self._rust is not None:
-            fn = getattr(self._rust, "set_obs_scenario", None)
-            if callable(fn):
-                return self._coerce_snapshot(fn(str(obs_scenario)))
-        scenario = str(obs_scenario)
-        if scenario == str(self._obs_scenario) and self._state.rbpf is not None:
-            return self._snapshot()
-        self._stash_active_rung()
         self._obs_scenario = obs_scenario
         self._config["obs_scenario"] = obs_scenario
-        if self._enable_filter:
-            rbpf, last_synced = self._rung_for(scenario)
-            now = int(self._state.episode_day) - 1
-            for day_idx in range(last_synced + 1, now + 1):
-                day_like = self._richest_log[day_idx]
-                obs = rich_obs_from_day_log(day_like, mask_for(obs_scenario))
-                step_rng = spawn_rng(
-                    int(self._seed),
-                    run_id="session",
-                    day=int(day_idx),
-                    stream=STREAM_FILTER_RESAMPLE,
-                )
-                rbpf.step(obs, step_rng)
-            self._rung_caches[scenario] = (rbpf, now)
-            self._state.rbpf = rbpf
-        return self._snapshot()
+        fn = getattr(self._require_rust(), "set_obs_scenario", None)
+        if not callable(fn):
+            msg = "PyEngineSession.set_obs_scenario is required after T-121 Wave F"
+            raise RuntimeError(msg)
+        return self._coerce_snapshot(fn(str(obs_scenario)))
 
     def host_crossings(self) -> int:
-        """Host/FFI crossings (Rust backend) or Python step count."""
-        if self._rust is not None:
-            return int(self._rust.host_crossings())
-        return int(self._seq)
+        """Host/FFI crossings (Rust backend)."""
+        return int(self._require_rust().host_crossings())
 
     def _require_init(self) -> None:
         if not self._initialized:
@@ -250,50 +217,29 @@ class EngineSession:
     def _refuse_if_episode_ended(self, *, n_days: int) -> None:
         if n_days <= 0:
             return
-        day = int(self._state.episode_day)
-        if day >= EPISODE_HORIZON or day + n_days > EPISODE_HORIZON:
+        if self._seq >= EPISODE_HORIZON or self._seq + n_days > EPISODE_HORIZON:
             msg = (
                 f"episode ended at day {EPISODE_HORIZON}; Reset to start a new episode"
             )
             raise ValueError(msg)
 
-    def _rust_backend(self) -> bool:
-        from blueberries_voi.backend import rust_available, warn_fallback_once
+    def _require_rust(self) -> Any:
+        from blueberries_voi.backend import rust_available, rust_core, warn_fallback_once
 
         warn_fallback_once()
-        return rust_available()
-
-    def _init_rust(self) -> Snapshot:
-        from blueberries_voi.backend import rust_core
-
-        if rust_core is None:
-            self._boot_state()
-            return self._snapshot()
-        cls = getattr(rust_core, "PyEngineSession", None)
-        if cls is None:
-            self._boot_state()
-            return self._snapshot()
-        if self._rust is None:
-            self._rust = cls(int(self._seed))
-        sess = self._rust
-        times = [list(map(float, getattr(s, "times_d", []))) for s in self._shipments]
-        temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
-        init_fn = sess.init
-        try:
-            raw = init_fn(
-                int(self._seed),
-                int(self._lead_time),
-                bool(self._enable_filter),
-                int(self._H),
-                int(self._n_rollout_paths),
-                int(self._candidate_case_radius),
-                times,
-                temps,
-                int(self._n_particles),
+        if not rust_available() or rust_core is None:
+            msg = (
+                "EngineSession requires BLUEBERRIES_VOI_BACKEND=rust and "
+                "blueberries_voi._core (T-121 Wave F)"
             )
-        except TypeError:
-            raw = init_fn(int(self._seed))
-        return self._coerce_snapshot(raw)
+            raise RuntimeError(msg)
+        if self._rust is None:
+            cls = getattr(rust_core, "PyEngineSession", None)
+            if cls is None:
+                msg = "PyEngineSession missing from blueberries_voi._core"
+                raise RuntimeError(msg)
+            self._rust = cls(int(self._seed))
+        return self._rust
 
     def _coerce_snapshot(self, raw: Any) -> Snapshot:
         if isinstance(raw, Mapping) and "belief" in raw:
@@ -307,8 +253,8 @@ class EngineSession:
             snap.setdefault("live_lots", [])
             snap.setdefault("pipeline", [])
             return snap
-        self._boot_state()
-        return self._snapshot()
+        msg = "PyEngineSession.init/reset must return a Snapshot mapping"
+        raise TypeError(msg)
 
     def _coerce_day_delta(self, raw: Any, *, seq: int) -> DayDelta:
         if isinstance(raw, Mapping) and "day" in raw:
@@ -316,30 +262,8 @@ class EngineSession:
             delta["seq"] = int(raw.get("seq", seq))
             delta.setdefault("episode_day", 0)
             return delta
-        episode_day = int(getattr(raw, "episode_day", 0))
-        order_qty = int(getattr(raw, "order_qty", 0))
-        arrivals = int(getattr(raw, "arrivals", 0))
-        sales = int(getattr(raw, "sales_total", 0))
-        waste = int(getattr(raw, "waste_total", 0))
-        demand = int(getattr(raw, "demand", 0))
-        on_hand = int(getattr(raw, "on_hand", 0))
-        return {
-            "seq": int(seq),
-            "episode_day": episode_day,
-            "day": {
-                "day": episode_day,
-                "order_qty": order_qty,
-                "arrivals": arrivals,
-                "sales_total": sales,
-                "waste_total": waste,
-                "demand": demand,
-                "L": on_hand,
-            },
-            "live_lots": [],
-            "pipeline": [],
-            "drop_oldest": False,
-            "belief": dict(empty_flat_belief(L=self._L, K=self._K)),
-        }
+        msg = "PyEngineSession step/act must return a DayDelta mapping"
+        raise TypeError(msg)
 
     def _apply_config(self, config: dict[str, Any], *, seed: int | None) -> None:
         shipments = config.get("shipments")
@@ -352,11 +276,9 @@ class EngineSession:
         self._shipments = list(shipments)
         self._config = dict(config)
         self._seed = 0 if seed is None else int(seed)
-        self._params = ModelParams()
         self._lead_time = int(config.get("lead_time", 1))
         self._enable_filter = bool(config.get("enable_filter", True))
         raw_scenario = config.get("obs_scenario", "P1")
-        # Validate via mask_for spirit (unknown / B-state raise).
         mask_for(raw_scenario)
         self._obs_scenario = raw_scenario
         self._L = int(config.get("L", self._L))
@@ -368,33 +290,6 @@ class EngineSession:
         )
         self._candidate_case_radius = int(
             config.get("candidate_case_radius", self._candidate_case_radius)
-        )
-
-    def _boot_state(self) -> None:
-        rbpf: RBPF | None = None
-        if self._enable_filter:
-            rbpf = RBPF(
-                params=self._params,
-                N=int(self._n_particles),
-                K=int(self._K),
-                L=int(self._L),
-            )
-            rbpf._root_seed = int(self._seed)
-            rbpf._run_id = "session"
-            init_rng = spawn_rng(
-                int(self._seed),
-                run_id="session",
-                day=0,
-                stream=STREAM_FILTER_RESAMPLE,
-            )
-            rbpf.initialize(init_rng, L=int(self._L))
-        self._rung_caches = {}
-        self._state = DayDriverState(
-            cohorts=[],
-            pending={},
-            next_lot_id=1,
-            episode_day=0,
-            rbpf=rbpf,
         )
 
     def _applied_config(self) -> dict[str, Any]:
@@ -410,172 +305,6 @@ class EngineSession:
             "obs_scenario": self._obs_scenario,
             "seed": int(self._seed),
         }
-
-    def _new_rbpf(self) -> RBPF:
-        rbpf = RBPF(
-            params=self._params,
-            N=int(self._n_particles),
-            K=int(self._K),
-            L=int(self._L),
-        )
-        rbpf._root_seed = int(self._seed)
-        rbpf._run_id = "session"
-        init_rng = spawn_rng(
-            int(self._seed),
-            run_id="session",
-            day=0,
-            stream=STREAM_FILTER_RESAMPLE,
-        )
-        rbpf.initialize(init_rng, L=int(self._L))
-        return rbpf
-
-    def _stash_active_rung(self) -> None:
-        rbpf = self._state.rbpf
-        if rbpf is None:
-            return
-        last = int(self._state.episode_day) - 1
-        self._rung_caches[str(self._obs_scenario)] = (rbpf, last)
-
-    def _rung_for(self, scenario: str) -> tuple[RBPF, int]:
-        cached = self._rung_caches.get(scenario)
-        if cached is not None:
-            return cached
-        return self._new_rbpf(), -1
-
-    def _belief_for_snapshot(self) -> dict[str, Any]:
-        return dict(
-            current_belief_flat(
-                self._state,
-                enable_filter=self._enable_filter,
-                L=self._L,
-                K=self._K,
-            )
-        )
-
-    def _snapshot(self) -> Snapshot:
-        return {
-            "seq": int(self._seq),
-            "episode_day": int(self._state.episode_day),
-            "applied_config": self._applied_config(),
-            "history": list(self._history),
-            "belief": self._belief_for_snapshot(),
-            "live_lots": live_lots_payload(self._state.cohorts),
-            "pipeline": pipeline_payload(self._state.pending),
-            "schedule": schedule_wire(),
-            "demand_summary": demand_summary_wire(),
-        }
-
-    def _advance(self, order_qty: int) -> DayDelta:
-        completed_day = int(self._state.episode_day)
-        result = advance_day(
-            self._state,
-            order_qty,
-            shipments=self._shipments,
-            params=self._params,
-            root_seed=self._seed,
-            run_id="session",
-            lead_time=self._lead_time,
-            enable_filter=self._enable_filter,
-            obs_scenario=self._obs_scenario,
-        )
-        self._state = result.state
-        self._seq += 1
-        rich = result.day.get("_rich")
-        if rich is not None:
-            self._richest_log.append(rich)
-        thin: dict[str, Any] = {
-            k: result.day[k]
-            for k in (
-                "day",
-                "order_qty",
-                "arrivals",
-                "sales_total",
-                "waste_total",
-                "demand",
-                "L",
-            )
-            if k in result.day
-        }
-        self._history.append(thin)
-        if self._state.rbpf is not None:
-            self._rung_caches[str(self._obs_scenario)] = (
-                self._state.rbpf,
-                int(self._state.episode_day) - 1,
-            )
-        return build_day_delta(
-            seq=self._seq,
-            episode_day=completed_day,
-            result=result,
-            drop_oldest=False,
-        )
-
-    def _select_order(self, *, policy: str | None, **budget_overrides: Any) -> int:
-        n_particles = int(budget_overrides.get("n_particles", self._n_particles))
-        horizon = int(budget_overrides.get("H", self._H))
-        n_paths = int(budget_overrides.get("n_rollout_paths", self._n_rollout_paths))
-        radius = int(
-            budget_overrides.get("candidate_case_radius", self._candidate_case_radius)
-        )
-        self._n_particles = n_particles
-        self._H = horizon
-        self._n_rollout_paths = n_paths
-        self._candidate_case_radius = radius
-
-        name = (policy or "constant").lower()
-        day = int(self._state.episode_day)
-        pending = dict(self._state.pending)
-        belief = self._belief_for_policy()
-        alpha = float(budget_overrides.get("alpha", 0.9))
-        rho = float(budget_overrides.get("rho", 0.8))
-
-        if name in {"constant", "const", "fixed"}:
-            q = budget_overrides.get("order_qty", budget_overrides.get("q", 0))
-            policy_obj = ConstantOrderPolicy(int(q), case_size=self._params.case_size)
-            return invoke_order(policy_obj, day, belief, pending)
-
-        if name in {"damped_sw", "sw"}:
-            sw_policy = DampedSurvivalWeightedPolicy(
-                alpha=alpha,
-                rho=rho,
-                params=self._params,
-            )
-            return invoke_order(sw_policy, day, belief, pending)
-
-        if name in {"rollout", "ctl", "rollout_order"}:
-            base = DampedSurvivalWeightedPolicy(
-                alpha=alpha,
-                rho=rho,
-                params=self._params,
-            )
-            return int(
-                rollout_order(
-                    belief,
-                    base_policy=cast("Any", base),
-                    day=day,
-                    pending_orders=pending,
-                    params=self._params,
-                    rng_address={
-                        "root_seed": self._seed,
-                        "run_id": "session-act",
-                    },
-                    H=horizon,
-                    n_rollout_paths=n_paths,
-                    candidate_case_radius=radius,
-                    n_particles=n_particles,
-                )
-            )
-
-        msg = f"unknown policy {policy!r}; use 'damped_sw', 'constant', or 'rollout'"
-        raise ValueError(msg)
-
-    def _belief_for_policy(self) -> ShelfBelief:
-        if (
-            self._enable_filter
-            and self._state.rbpf is not None
-            and self._state.rbpf._state is not None
-        ):
-            return shelf_belief_from_rbpf(self._state.rbpf)
-        return shelf_belief_from_flat(empty_flat_belief(L=self._L, K=self._K))
 
 
 __all__ = [

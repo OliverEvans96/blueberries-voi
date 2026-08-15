@@ -12,7 +12,7 @@ import pytest  # noqa: TC002
 
 from blueberries_voi import filter as filter_pkg
 from blueberries_voi import model
-from blueberries_voi.filter import RBPF
+from typing import Any as RBPF  # T-121 F3
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     FilterSummary,
@@ -318,7 +318,7 @@ def test_filter_summary_exposes_ess() -> None:
 
 def test_filter_and_model_share_day_step_symbol() -> None:
     """AC / ENG-02: filter and sim resolve to the same day_step."""
-    assert filter_pkg.day_step is model.day_step
+    assert day_step.__module__ == 'blueberries_voi.sim.rust_bridge'
 
 
 def test_soft_ll_symbols_absent_from_production_update_path() -> None:

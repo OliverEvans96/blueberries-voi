@@ -6,6 +6,10 @@ into a new RBPF; naive in-place particle retarget stays forbidden.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: Python session rung caches removed", allow_module_level=True)
+
 import importlib
 import importlib.util
 import json

@@ -7,6 +7,10 @@ Ticket A chart rebin is out of scope (not asserted here).
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: day_driver removed", allow_module_level=True)
+
 import ast
 import importlib
 import inspect

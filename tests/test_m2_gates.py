@@ -150,7 +150,7 @@ def test_beta1_degeneracy_orders_match_on_same_age_fixture() -> None:
     """Direct order equality: would fail if SW and Rung 0 diverge under flat w."""
     from scipy.stats import nbinom
 
-    from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
+    from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
     from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
     from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
     from blueberries_voi.model import ModelParams
@@ -230,7 +230,7 @@ def test_crn_desync_gate() -> None:
     assert mod.__file__ is not None
     source = Path(mod.__file__).read_text(encoding="utf-8")
     assert "detect_crn_desync" in source, (
-        "crn desync gate must wire blueberries_voi.controller.rollout.detect_crn_desync"
+        "crn desync gate must wire blueberries_voi.sim.bakeoff_rollout.detect_crn_desync"
     )
 
 

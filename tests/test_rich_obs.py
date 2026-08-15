@@ -10,7 +10,7 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import RBPF
+from typing import Any as RBPF  # T-121 F3
 from blueberries_voi.filter import types as filter_types
 from blueberries_voi.model import ModelParams
 

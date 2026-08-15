@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF, shelf_belief_from_rbpf
+from typing import Any as RBPF  # T-121 F3, shelf_belief_from_rbpf
 from blueberries_voi.filter.age_likelihood import mean_field_update
 from blueberries_voi.filter.arrival_priors import (
     arrival_age_prior_f2,

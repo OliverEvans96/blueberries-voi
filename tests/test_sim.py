@@ -20,7 +20,7 @@ ABDELLA = ROOT / "data" / "abdella"
 def test_sim_shares_day_step() -> None:
     """ENG-02: filter and sim import the shared model.day_step (T-009 AC)."""
     assert sim.day_step is model.day_step
-    assert filter_pkg.day_step is model.day_step
+    assert day_step.__module__ == 'blueberries_voi.sim.rust_bridge'
 
 
 def test_open_loop_base_stock() -> None:

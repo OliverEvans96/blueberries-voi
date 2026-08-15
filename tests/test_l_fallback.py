@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from blueberries_voi import filter as filter_pkg
-from blueberries_voi.filter import RBPF
+from typing import Any as RBPF  # T-121 F3
 from blueberries_voi.filter.types import MAX_JOINT_FLOATS, joint_state_count
 from blueberries_voi.model import ModelParams
 

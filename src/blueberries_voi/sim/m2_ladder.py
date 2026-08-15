@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.controller.rollout import RolloutPolicy
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
+from blueberries_voi.sim.bakeoff_rollout import RolloutPolicy
 from blueberries_voi.controller.toy_dp import solve_toy_dp
 from blueberries_voi.filter import PRODUCTION_BACKEND
 from blueberries_voi.model import ModelParams
