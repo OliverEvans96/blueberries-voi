@@ -642,4 +642,77 @@ mod tests {
         assert_eq!(b["ok"], false);
         assert_eq!(b["error"]["type"], "ParseError");
     }
+
+    #[test]
+    fn set_obs_scenario_updates_applied_config_without_reset() {
+        let mut live = EngineSession::new(7);
+        live.init(7);
+        let _ = live.step_n(&[8, 0, 8]);
+        let day_before = live.episode_day();
+        let snap = live.set_obs_scenario("P0").expect("P0");
+        assert_eq!(snap["applied_config"]["obs_scenario"], "P0");
+        assert_eq!(live.episode_day(), day_before);
+        assert_eq!(snap["episode_day"], day_before);
+    }
+
+    #[test]
+    fn set_obs_scenario_invalid_id_errors() {
+        let mut s = EngineSession::new(1);
+        s.init(1);
+        assert!(s.set_obs_scenario("P2").is_err());
+        assert!(s.set_obs_scenario("B-state").is_err());
+    }
+
+    #[test]
+    fn catch_up_matches_never_switched_weights() {
+        let mut always = EngineSession::new(11);
+        always.init(11);
+        always.set_obs_scenario("P0").unwrap();
+        let _ = always.step_n(&[8, 0, 8, 0]);
+        let w_always = always.bank_weights();
+
+        let mut switched = EngineSession::new(11);
+        switched.init(11);
+        let _ = switched.step_n(&[8, 0, 8, 0]);
+        switched.set_obs_scenario("P0").unwrap();
+        let w_switched = switched.bank_weights();
+        assert_eq!(w_always, w_switched);
+    }
+
+    #[test]
+    fn switch_back_is_gap_only() {
+        let mut s = EngineSession::new(3);
+        s.init(3);
+        let _ = s.step_n(&[8, 0, 8]);
+        s.set_obs_scenario("F2").unwrap();
+        let first = s.catchup_days_last_call();
+        assert_eq!(first, 3);
+        let _ = s.step(0);
+        s.set_obs_scenario("P1").unwrap();
+        let back = s.catchup_days_last_call();
+        assert_eq!(back, 1, "switch-back should replay only the unsynced day");
+    }
+
+    #[test]
+    fn rpc_set_obs_scenario_ok() {
+        let _ = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
+        let _ = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+        let out = handle_rpc(
+            r#"{"id":"3","method":"set_obs_scenario","params":{"obs_scenario":"F1"}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        assert_eq!(v["result"]["applied_config"]["obs_scenario"], "F1");
+    }
+
+    #[test]
+    fn step_refuses_at_day_90() {
+        let mut s = EngineSession::new(1);
+        s.init(1);
+        let _ = s.step_n(&[0u32; 90]);
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            s.step(0);
+        }));
+        assert!(panicked.is_err());
+    }
 }
