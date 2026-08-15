@@ -123,9 +123,30 @@ def _bench_engine(backend: str) -> dict[str, Any]:
             # init is one crossing; step_n must add exactly one more (not 90).
             assert sess.host_crossings() == 2, sess.host_crossings()
 
+    def one_act() -> None:
+        sess = _session_fresh()
+        sess.act(policy="rollout")
+
+    def ninety_act() -> None:
+        # No act_n / in-Rust act loop on this tip: 90 host calls.
+        sess = _session_fresh()
+        crossings_before = sess.host_crossings() if backend == "rust" else 0
+        for _ in range(HORIZON):
+            sess.act(policy="rollout")
+        if backend == "rust":
+            assert sess.host_crossings() == crossings_before + HORIZON, (
+                sess.host_crossings()
+            )
+
     out: dict[str, Any] = {
-        "1_calendar_day_step": _time(one_day),
-        "90_calendar_days_step_n": _time(ninety_batched),
+        "simulator_1d_step": _time(one_day),
+        "simulator_90d_step_n": _time(ninety_batched),
+        "controller_1d_act_rollout": _time(one_act),
+        "controller_90d_act_rollout": _time(ninety_act),
+        "controller_90d_note": (
+            "90× EngineSession.act(policy='rollout'); no act_n — "
+            "Rust FFI crossings = 90 (plus init)"
+        ),
         "backend_env": backend,
         "rust_available": rust_available() if backend == "rust" else False,
     }
@@ -196,7 +217,7 @@ def main() -> None:
             "order_qty": ORDER_QTY,
             "horizon_days": HORIZON,
             "repeats": REPEATS,
-            "warmup": 1,
+            "policy": "act(policy='rollout') on both backends (Rust act is rollout-only)",
         },
         "engine_session": {
             "python": _bench_engine("python"),
