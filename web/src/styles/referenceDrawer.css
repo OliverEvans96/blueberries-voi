@@ -1,0 +1,126 @@
+.reference-drawer-root {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reference-drawer-trigger {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 0.25rem;
+  background: var(--surface, #fff);
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  margin: 0;
+  width: min(28rem, 100vw);
+  max-height: 100vh;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 0;
+  padding: 0;
+  background: var(--surface, #fff);
+  box-shadow: -4px 0 16px rgb(0 0 0 / 12%);
+}
+
+.reference-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border, #ccc);
+}
+
+.reference-drawer-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.reference-drawer-tabs [role="tab"] {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-drawer-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--border, #ccc);
+  background: var(--surface-muted, #f5f5f5);
+}
+
+.reference-drawer-panel {
+  padding: 1rem;
+  overflow: auto;
+  max-height: calc(100vh - 3.5rem);
+}
+
+.glossary-list {
+  margin: 0;
+}
+
+.glossary-entry {
+  margin-bottom: 1rem;
+}
+
+.glossary-entry dt {
+  font-weight: 600;
+}
+
+.glossary-entry dd {
+  margin: 0.25rem 0 0;
+}
+
+.shortcut-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcut-list li {
+  margin-bottom: 0.5rem;
+}
+
+.shortcut-list kbd {
+  display: inline-block;
+  min-width: 2rem;
+  padding: 0.125rem 0.375rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 0.25rem;
+  background: var(--surface-muted, #f5f5f5);
+  font-family: inherit;
+}
+
+.voi-reference--loading,
+.voi-reference--empty {
+  color: var(--text-muted, #666);
+}
+
+.voi-reference-disclaimer {
+  margin-top: 0;
+}
+
+.voi-reference-meta {
+  font-size: 0.875rem;
+  color: var(--text-muted, #666);
+}
+
+.voi-reference-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+.voi-reference-table th,
+.voi-reference-table td {
+  border: 1px solid var(--border, #ccc);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
