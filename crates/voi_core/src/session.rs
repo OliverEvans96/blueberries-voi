@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::day_step::{day_step, DayStepIn, ModelParams};
-use crate::obs::FilterObs;
+use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
 use crate::policy::{case_round_ceil, damped_sw_order};
 use crate::rbpf::{filter_step, ParticleBank};
@@ -49,13 +49,6 @@ pub struct EngineSession {
     rungs: HashMap<String, (ParticleBank, i32)>,
     bank_init: ParticleBank,
     catchup_days_last: u32,
-}
-
-#[derive(Clone, Debug)]
-struct RichDay {
-    sales_total: u32,
-    waste_total: u32,
-    arrivals: u32,
 }
 
 impl Default for EngineSession {
@@ -204,13 +197,27 @@ impl EngineSession {
             Some(&mut rng_a),
             Some(&mut rng_s),
         );
+        let rich = RichDay {
+            sales_total: out.sales_total,
+            waste_total: out.waste_total,
+            arrivals: arrival,
+            sales_by: out.sales_by.clone(),
+            waste_by: out.waste_by.clone(),
+            lot_ids: out.lot_ids.clone(),
+            age_at_receipt: if arrival > 0 {
+                Some(self.state.delivery_tau)
+            } else {
+                None
+            },
+            // I1 Gaussian mean = pack_date_days (calendar transit)
+            pack_date_days: if arrival > 0 {
+                Some(self.state.delivery_tau.round() as i32)
+            } else {
+                None
+            },
+        };
         if self.enable_filter {
-            let obs = filter_obs_for(
-                &self.obs_scenario,
-                out.sales_total,
-                out.waste_total,
-                arrival,
-            );
+            let obs = mask_for(&self.obs_scenario).unwrap().apply(&rich);
             let mut fr = stream_rng(self.seed, self.day, 6);
             self.bank = filter_step(&self.bank, &obs, &self.params, &mut fr);
         }
@@ -229,11 +236,7 @@ impl EngineSession {
         };
         self.day += 1;
         self.seq += 1;
-        self.richest_log.push(RichDay {
-            sales_total: out.sales_total,
-            waste_total: out.waste_total,
-            arrivals: arrival,
-        });
+        self.richest_log.push(rich);
         if self.enable_filter {
             self.rungs.insert(
                 self.obs_scenario.clone(),
@@ -289,10 +292,7 @@ impl EngineSession {
     }
 
     fn belief_value(&self) -> serde_json::Value {
-        if self.state.counts.is_empty() {
-            return empty_flat_belief(self.l_dim, self.k_dim);
-        }
-        oracle_flat_belief(&self.state.counts, &self.state.taus, self.k_dim)
+        crate::belief_flat::particle_bank_to_flat(&self.bank, self.l_dim, self.k_dim)
     }
 
     fn live_lots_value(&self) -> serde_json::Value {
@@ -395,8 +395,7 @@ impl EngineSession {
             let mut n = 0u32;
             for day_idx in (last + 1)..=now {
                 let log = &self.richest_log[day_idx as usize];
-                let obs =
-                    filter_obs_for(obs_scenario, log.sales_total, log.waste_total, log.arrivals);
+                let obs = mask_for(obs_scenario).unwrap().apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 bank = filter_step(&bank, &obs, &self.params, &mut fr);
                 n += 1;
@@ -442,6 +441,7 @@ fn tau_grid(k: usize) -> Vec<f64> {
         .collect()
 }
 
+#[allow(dead_code)] // kept for empty-physics overlay comments; live belief uses particle_bank_to_flat
 fn empty_flat_belief(l: usize, k: usize) -> serde_json::Value {
     let grid = tau_grid(k);
     if l == 0 {
@@ -480,6 +480,7 @@ fn nearest_bin(tau: f64, grid: &[f64]) -> usize {
     best
 }
 
+#[allow(dead_code)] // unused: Snapshot.belief is particle_bank_to_flat; live_lots is physics overlay
 fn oracle_flat_belief(counts: &[u32], taus: &[f64], k: usize) -> serde_json::Value {
     let l = counts.len();
     let k = k.max(1);
@@ -543,19 +544,6 @@ fn validate_scenario(id: &str) -> Result<(), String> {
     match id {
         "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" => Ok(()),
         _ => Err(format!("Unknown scenario for ObsMask: {id:?}")),
-    }
-}
-
-fn filter_obs_for(scenario: &str, sales: u32, waste: u32, arrivals: u32) -> FilterObs {
-    FilterObs {
-        sales_tot: Some(sales as i32),
-        waste_tot: if scenario == "P0" {
-            None
-        } else {
-            Some(waste as i32)
-        },
-        arrivals,
-        ..Default::default()
     }
 }
 
