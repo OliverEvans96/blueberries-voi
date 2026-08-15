@@ -36,7 +36,7 @@ export function engineStatusChip(
     return { kind, status: "error", label: "Failed", dot: "red" };
   }
   const label =
-    adapterKind === "http" || adapterKind === "mock" ? "Connecting" : "Loading";
+    adapterKind === "mock" ? "Connecting" : "Loading";
   return { kind, status: "loading", label, dot: "yellow" };
 }
 

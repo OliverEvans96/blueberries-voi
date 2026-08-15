@@ -9,7 +9,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
 import { MockAdapter } from "./mock/adapter";
-import { HttpAdapter } from "./engine/httpAdapter";
 import { PyodideAdapter } from "./engine/pyodideAdapter";
 import { ViewModelProjector } from "./engine/projector";
 import type { DayDelta, Snapshot } from "./engine/types";
@@ -226,51 +225,6 @@ describe("T-089 react/studioLogic.ts passes staged config into adapter.init/rese
 });
 
 describe("T-089 HTTP / Pyodide / mock forward obs_scenario; mock drops P2", () => {
-  it("HttpAdapter init/reset body includes obs_scenario when provided", async () => {
-    const calls: { url: string; body: unknown }[] = [];
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
-      const body =
-        typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
-      calls.push({ url, body });
-      if (url.endsWith("/sessions") && (init?.method ?? "GET").toUpperCase() === "POST") {
-        return new Response(JSON.stringify({ session_id: "s1" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify(sampleSnapshot()), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }) as unknown as typeof fetch;
-
-    const adapter = new HttpAdapter({
-      baseUrl: "http://127.0.0.1:8000",
-      fetch: fetchImpl,
-    });
-    await adapter.init({ obs_scenario: "F1", seed: 1 });
-    await adapter.reset({ obs_scenario: "F2a", seed: 1 });
-
-    const initCall = calls.find((c) => c.url.includes("/init"));
-    const resetCall = calls.find((c) => c.url.includes("/reset"));
-    expect(initCall?.body).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({ obs_scenario: "F1" }),
-      }),
-    );
-    expect(resetCall?.body).toEqual(
-      expect.objectContaining({
-        config: expect.objectContaining({ obs_scenario: "F2a" }),
-      }),
-    );
-  });
-
   it("PyodideAdapter init/reset RPC params include obs_scenario in config", async () => {
     class FakeWorker {
       static instances: FakeWorker[] = [];

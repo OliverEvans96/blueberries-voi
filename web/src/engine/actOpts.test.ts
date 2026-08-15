@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockAdapter } from "../mock/adapter";
 import type { EngineAdapter } from "./adapter";
-import { HttpAdapter } from "./httpAdapter";
 import {
   DEFAULT_DEMO_BUDGETS,
   PyodideAdapter,
@@ -23,7 +22,6 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TYPES_SRC = join(HERE, "types.ts");
 const MOCK_ADAPTER_SRC = join(HERE, "../mock/adapter.ts");
-const HTTP_ADAPTER_SRC = join(HERE, "httpAdapter.ts");
 const PYODIDE_ADAPTER_SRC = join(HERE, "pyodideAdapter.ts");
 
 const BASE = "http://127.0.0.1:8000";
@@ -270,66 +268,6 @@ describe("Typed ActOpts (T-098 / ADR 0117)", () => {
   });
 });
 
-describe("HttpAdapter.act nests budgets under POST body (T-098)", () => {
-  let calls: FetchCall[];
-  let fetch: typeof globalThis.fetch;
-
-  beforeEach(() => {
-    ({ calls, fetch } = installMockFetch(defaultRouteHandler));
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("folds flat + nested knobs into { policy?, budgets } with no flat budget siblings", async () => {
-    const adapter = new HttpAdapter({ baseUrl: BASE, fetch });
-    await adapter.act(CALLER_OPTS);
-
-    const actCall = calls.find(
-      (c) =>
-        c.method === "POST" &&
-        new URL(c.url).pathname === `/sessions/${SESSION_ID}/act`,
-    );
-    expect(actCall).toBeDefined();
-    const body = actCall!.body as Record<string, unknown>;
-    expect(body.policy).toBe("damped_sw");
-    expect(body.budgets).toEqual(
-      expect.objectContaining({
-        alpha: 0.9,
-        rho: 0.8,
-        H: 7,
-        n_rollout_paths: 2,
-        candidate_case_radius: 1,
-        n_particles: 200,
-      }),
-    );
-    for (const key of BUDGET_KEYS) {
-      expect(body).not.toHaveProperty(key);
-    }
-  });
-
-  it("accepts the same caller ActOpts shape as Pyodide (flat order_qty folds into budgets)", async () => {
-    const adapter = new HttpAdapter({ baseUrl: BASE, fetch });
-    const opts: ActOpts = {
-      policy: "constant",
-      order_qty: 24,
-    };
-    await adapter.act(opts);
-    const actCall = calls.find(
-      (c) =>
-        c.method === "POST" &&
-        new URL(c.url).pathname === `/sessions/${SESSION_ID}/act`,
-    );
-    expect(actCall).toBeDefined();
-    const body = actCall!.body as Record<string, unknown>;
-    const budgets = body.budgets as Record<string, unknown>;
-    expect(budgets.order_qty ?? budgets.q).toBe(24);
-    expect(body).not.toHaveProperty("order_qty");
-    expect(body).not.toHaveProperty("q");
-  });
-});
-
 describe("PyodideAdapter.act uses flat worker params (T-098)", () => {
   beforeEach(() => {
     installFakeWorker();
@@ -411,16 +349,9 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
 
 describe("Shared normalize surface (T-098)", () => {
   it("adapters (or a shared helper) encode nest vs flat from one caller shape", () => {
-    const httpSrc = readFileSync(HTTP_ADAPTER_SRC, "utf8");
     const pySrc = readFileSync(PYODIDE_ADAPTER_SRC, "utf8");
-    // Either a shared helper import or explicit normalize call sites.
-    const sharedHelper =
-      /normalizeActOpts|actOptsToHttp|actOptsToFlat|toHttpActBody|toFlatActParams/.test(
-        httpSrc + pySrc,
-      );
-    const httpNests = /budgets/.test(httpSrc) && /act\s*\(/.test(httpSrc);
     const pyFlattens = /act\s*\(/.test(pySrc);
-    expect(sharedHelper || (httpNests && pyFlattens)).toBe(true);
+    expect(pyFlattens).toBe(true);
     // Current Pyodide spreads raw opts — must stop treating nested budgets as wire shape.
     // After implement, act must not simply `{ ...(opts ?? {}) }` without flattening.
     const pyActBody = pySrc.match(/async\s+act\s*\([^)]*\)[^{]*\{[\s\S]*?\n  \}/);
