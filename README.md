@@ -1,8 +1,9 @@
 # blueberries-voi
 
 Simulation, filtering, ordering, and value-of-information (VOI) analysis for a
-perishable blueberry store — a typed Python package, a local HTTP API, and an
-interactive D3 studio that can run the same engine in the browser.
+perishable blueberry store — a typed Python package for notebooks and batch
+studies, plus an interactive D3 studio that runs the same Rust engine in the
+browser via WebAssembly.
 
 The default store orders for **Monday / Wednesday / Friday** deliveries with a
 calendar-shaped weekly demand pattern (not every-day i.i.d. sales). Citeable VOI
@@ -24,13 +25,12 @@ Optional extras if you are not installing everything:
 
 | Extra | Use |
 |-------|-----|
-| `dev` | pytest, ruff, mypy, coverage, xdist, testmon, plus desktop data/viz/API deps |
+| `dev` | pytest, ruff, mypy, coverage, xdist, testmon, plus desktop data/viz deps |
 | `notebooks` | Jupyter + ipykernel |
-| `api` | FastAPI local session host |
 | `data` | pyarrow (Abdella Parquet / Gate 0) |
 | `viz` | matplotlib (static figures) |
-| `browser` | empty marker; slim wheel has no pyarrow/matplotlib |
 | `freshnet` | Hugging Face `datasets` ingest/fit only |
+| `rust` | maturin (PyO3 extension builds) |
 
 ## Interactive studio
 
@@ -38,111 +38,43 @@ The studio (`web/`) is a Vite + D3 store simulator. You can step day by day,
 choose among six observation levels (books-only through age at receipt), and
 Autopilot-play with controller policy knobs.
 
-Three live engines. Pick one per session:
-
-| Mode | When to use | Engine |
-|------|-------------|--------|
-| **HTTP / API** | Local development against FastAPI | Native Python `EngineSession` on port 8000 |
-| **Pyodide** | In-browser / prod-shaped Python path | Web Worker + `micropip.install` of the slim wheel |
-| **WASM** | In-browser Rust kernel | Web Worker + wasm-pack pkg at `/wasm/` |
+The live engine runs in a **Web Worker** with the wasm-pack kernel at `/wasm/`
+(ADR 0129). There is no in-browser Python path and no local HTTP session API —
+notebooks and CLI still use the native PyO3 `EngineSession`.
 
 Open the UI at **http://127.0.0.1:5173** after Vite starts. The footer says
-“Live HTTP studio”, “Live Pyodide studio”, or “Live WASM studio”; the header
-chip is Loading / Ready / Error. `mock` is debug-only
-(`VITE_ENGINE_ADAPTER=mock`) and is never selected silently.
+“Live WASM studio”; the header chip is Loading / Ready / Error. `mock` is
+debug-only (`VITE_ENGINE_ADAPTER=mock`) and is never selected silently.
 
 One-time frontend install (from the repo root):
 
 ```bash
 cd web
-cp .env.example .env.local   # optional; launcher sets mode without this
+cp .env.example .env.local   # optional; launcher sets WASM URLs without this
 npm install
 ```
 
-Pick a mode with **one** flag. With no flag, the launcher prints usage and
-exits (it does not silently choose an engine). Same Vite config for all three.
-
-```bash
-./scripts/studio.sh --http      # FastAPI
-./scripts/studio.sh --pyodide   # in-browser Python
-./scripts/studio.sh --wasm      # in-browser Rust
-```
-
-From `web/` you can use `npm run studio:http` / `studio:pyodide` / `studio:wasm`
-(thin aliases for the same script).
-
-### HTTP / API mode
-
-Two processes: the FastAPI session host, then the studio. CORS allows only the
-Vite origins `http://127.0.0.1:5173` and `http://localhost:5173`.
-
-Terminal 1 — API:
-
-```bash
-uv sync --extra api
-uv run --with uvicorn python -m uvicorn blueberries_voi.api.app:app \
-  --host 127.0.0.1 --port 8000
-# If :8000 is already taken (OpenHands, etc.), use --port 8001 and
-# VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8001 (matches web/.env.example).
-```
-
-Terminal 2 — studio:
-
-```bash
-./scripts/studio.sh --http
-```
-
-The launcher sets `VITE_ENGINE_ADAPTER=http` and uses `$VITE_ENGINE_API_BASE_URL`
-or `http://127.0.0.1:8000`. Restart Vite after changing `VITE_*` values.
-
-The API is a **development host** (in-process sessions, localhost CORS). It is
-not a production multi-tenant service. If the chip stays on Connecting / Error,
-confirm the API port is up and that you opened the studio on port 5173 (not
-another origin).
-
-### Pyodide mode
-
-Vite serves the worker at `/packaging/pyodide/worker.js` and the slim wheel at
-`/wheels/*.whl` from repo `dist/` (local URL so GitHub Release CORS does not
-bite). Build the wheel first (first load downloads Pyodide **314.0.4** and can
-take a minute):
-
-```bash
-uv run python scripts/build_slim_wheel.py
-./scripts/studio.sh --pyodide
-```
-
-No FastAPI process is required. If the worker fails to install the package,
-check that `dist/blueberries_voi-*-py3-none-any.whl` exists and that
-http://127.0.0.1:5173/wheels/blueberries_voi-0.1.0-py3-none-any.whl returns
-200. Rebuild the wheel after Python package changes.
-
-### WASM mode
-
-Vite serves the worker at `/packaging/wasm/worker.js` and the wasm-pack output
-at `/wasm/` from `packaging/wasm/pkg/` (dev middleware; no `web/public`
-symlinks). Build the crate first (needs `rustc` and `wasm-pack`):
+Build the Rust kernel (needs `rustc` and `wasm-pack`), then launch the studio:
 
 ```bash
 ./scripts/build-wasm.sh
-./scripts/studio.sh --wasm
+./scripts/studio.sh
 ```
 
-No FastAPI process is required. If `packaging/wasm/pkg/` is missing, the
-launcher reminds you to run `./scripts/build-wasm.sh`. Rebuild after Rust crate
-changes. Smoke the kernel with `./scripts/smoke-wasm.sh` (see
+From `web/` you can use `npm run studio` (thin alias for the same script).
+
+Vite serves the worker at `/packaging/wasm/worker.js` and the wasm-pack output
+at `/wasm/` from `packaging/wasm/pkg/` (dev middleware; no `web/public`
+symlinks). If `packaging/wasm/pkg/` is missing, the launcher reminds you to run
+`./scripts/build-wasm.sh`. Rebuild after Rust crate changes. Smoke the kernel
+with `./scripts/smoke-wasm.sh` (see
 [`packaging/wasm/README.md`](packaging/wasm/README.md)).
 
 ### Env flags
 
 `web/.env.example` and `./scripts/studio.sh` document the same keys. The
-launcher is the usual way to set `VITE_ENGINE_ADAPTER` (`http` \| `pyodide` \|
-`wasm`). `mock` is debug-only and is never selected by the launcher.
-
-Without `VITE_ENGINE_ADAPTER`, development with an API base URL selects HTTP;
-otherwise the studio prefers Pyodide (including production builds). For the
-GitHub Release wheel URL used in production, see
-[`packaging/README.md`](packaging/README.md).
+launcher sets `VITE_ENGINE_ADAPTER=wasm` plus `VITE_WASM_WORKER_URL` and
+`VITE_WASM_PKG_URL`. `mock` is debug-only and is never selected by the launcher.
 
 ## Quality gates
 
@@ -203,22 +135,21 @@ Reusable code lives under `src/blueberries_voi/`:
 | `controller/` | Ordering policies (age-blind, survival-weighted, rollout, …) |
 | `voi/` | Knowledge-scenario sweep and VOI metrics |
 | `simulator/` | Interactive `EngineSession` (Snapshot / DayDelta) |
-| `api/` | FastAPI session host for the studio |
 | `viz/` | Static figures (desktop; not the browser charts) |
 
-JS owns studio charts and economics projection; Python owns the engine.
+JS owns studio charts and economics projection; the Rust kernel owns hot
+compute in the browser; Python owns notebooks, sweep, and CLI orchestration.
 
-## Browser / Pyodide packaging
+## Browser packaging
 
-The slim interactive wheel is distributed via **GitHub Release** (not PyPI).
-See [`packaging/README.md`](packaging/README.md) for the `micropip.install`
-Release URL pattern, Pyodide **314.0.4** / CPython **3.14.2** pins, local
-`scripts/build_slim_wheel.py` / `scripts/smoke_slim_wheel.py`, and the note
-about copying canonical workflows from `packaging/github-workflows/` into the
-live GitHub Actions workflows directory.
+The sole browser host is the WASM kernel under `packaging/wasm/`. See
+[`packaging/README.md`](packaging/README.md) and
+[`packaging/wasm/README.md`](packaging/wasm/README.md) for build/smoke steps and
+the note about copying canonical workflows from `packaging/github-workflows/`
+into the live GitHub Actions workflows directory.
 
-Quality CI on GitHub is Python **3.11** only. The Pyodide / CPython 3.14 pins
-are for the in-browser wheel, not the native quality job.
+Quality CI on GitHub is Python **3.11** only. Rust kernel tests run via
+`cargo test -p voi_core -p voi_wasm`.
 
 ## Team workflow
 

@@ -1,21 +1,66 @@
 /**
- * T-098: typed ActOpts, shared normalize helpers, MockAdapter.act (T-125 WASM-only).
+ * T-098 RED: typed ActOpts, HTTP nest / Pyodide flatten, MockAdapter.act.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockAdapter } from "../mock/adapter";
-import { normalizeActBudgets, toFlatActParams } from "./actOpts";
+import type { EngineAdapter } from "./adapter";
+import { HttpAdapter } from "./httpAdapter";
+import {
+  DEFAULT_DEMO_BUDGETS,
+  PyodideAdapter,
+  type PyodideAdapterOpts,
+} from "./pyodideAdapter";
 import {
   FORBIDDEN_ENGINE_KEYS,
   type ActOpts,
+  type DayDelta,
+  type Snapshot,
 } from "./types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TYPES_SRC = join(HERE, "types.ts");
 const MOCK_ADAPTER_SRC = join(HERE, "../mock/adapter.ts");
-const ACT_OPTS_SRC = join(HERE, "actOpts.ts");
+const HTTP_ADAPTER_SRC = join(HERE, "httpAdapter.ts");
+const PYODIDE_ADAPTER_SRC = join(HERE, "pyodideAdapter.ts");
+
+const BASE = "http://127.0.0.1:8000";
+const SESSION_ID = "sess-actopts-001";
+
+const SNAPSHOT: Snapshot = {
+  seq: 0,
+  episode_day: 0,
+  belief: {
+    L: 1,
+    K: 2,
+    lot_counts: [4],
+    age_marginals: [0.5, 0.5],
+    tau_grid: [0, 4],
+  },
+  history: [],
+  live_lots: [],
+  pipeline: [],
+};
+
+const DAY_DELTA: DayDelta = {
+  seq: 1,
+  episode_day: 1,
+  day: {
+    day: 0,
+    demand: 10,
+    order_qty: 8,
+    sales_total: 0,
+    waste_total: 0,
+    arrivals: 0,
+    L: 0,
+  },
+  drop_oldest: false,
+  belief: SNAPSHOT.belief,
+  live_lots: [],
+  pipeline: [],
+};
 
 const BUDGET_KEYS = [
   "alpha",
@@ -28,7 +73,7 @@ const BUDGET_KEYS = [
   "q",
 ] as const;
 
-/** Mixed nested + flat caller shape adapters must accept. */
+/** Mixed nested + flat caller shape both adapters must accept. */
 const CALLER_OPTS: ActOpts = {
   policy: "damped_sw",
   alpha: 0.9,
@@ -55,12 +100,141 @@ function collectKeys(value: unknown, found = new Set<string>()): Set<string> {
   return found;
 }
 
+type FetchCall = {
+  url: string;
+  method: string;
+  body: unknown;
+};
+
+function installMockFetch(
+  handler: (call: FetchCall) => { status: number; json?: unknown; text?: string },
+): { calls: FetchCall[]; fetch: typeof fetch } {
+  const calls: FetchCall[] = [];
+  const fetchImpl: typeof fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const method = (init?.method ?? "GET").toUpperCase();
+    let body: unknown = undefined;
+    if (typeof init?.body === "string" && init.body.length > 0) {
+      body = JSON.parse(init.body) as unknown;
+    }
+    const call: FetchCall = { url, method, body };
+    calls.push(call);
+    const res = handler(call);
+    return {
+      ok: res.status >= 200 && res.status < 300,
+      status: res.status,
+      json: async () => res.json,
+      text: async () => res.text ?? JSON.stringify(res.json ?? null),
+      headers: new Headers({ "content-type": "application/json" }),
+    } as Response;
+  }) as typeof fetch;
+  return { calls, fetch: fetchImpl };
+}
+
+function defaultRouteHandler(call: FetchCall): { status: number; json?: unknown } {
+  const path = new URL(call.url).pathname;
+  if (call.method === "POST" && path === "/sessions") {
+    return { status: 200, json: { session_id: SESSION_ID } };
+  }
+  if (call.method === "POST" && path === `/sessions/${SESSION_ID}/act`) {
+    return { status: 200, json: DAY_DELTA };
+  }
+  if (call.method === "POST" && path === `/sessions/${SESSION_ID}/init`) {
+    return { status: 200, json: SNAPSHOT };
+  }
+  return { status: 404, json: { ok: false } };
+}
+
+/** Node FakeWorker: JSON-string RPC (same pattern as pyodideAdapter.test.ts). */
+class FakeWorker {
+  static instances: FakeWorker[] = [];
+  readonly url: string | URL;
+  readonly posted: unknown[] = [];
+  private readonly listeners = new Map<string, Set<(ev: MessageEvent) => void>>();
+
+  constructor(url: string | URL, _opts?: WorkerOptions) {
+    this.url = url;
+    FakeWorker.instances.push(this);
+  }
+
+  addEventListener(type: string, fn: (ev: MessageEvent) => void): void {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(fn);
+  }
+
+  removeEventListener(type: string, fn: (ev: MessageEvent) => void): void {
+    this.listeners.get(type)?.delete(fn);
+  }
+
+  postMessage(data: unknown): void {
+    this.posted.push(data);
+    let request: { id?: string; method?: string; params?: Record<string, unknown> };
+    try {
+      request = typeof data === "string" ? JSON.parse(data) : (data as typeof request);
+    } catch {
+      this.emit(
+        JSON.stringify({
+          id: "",
+          ok: false,
+          error: { type: "JSONDecodeError", message: "bad request" },
+        }),
+      );
+      return;
+    }
+    const id = request.id != null ? String(request.id) : "";
+    this.emit(JSON.stringify({ id, ok: true, result: DAY_DELTA }));
+  }
+
+  terminate(): void {
+    /* no-op */
+  }
+
+  private emit(payload: string): void {
+    const ev = { data: payload } as MessageEvent;
+    for (const fn of this.listeners.get("message") ?? []) {
+      queueMicrotask(() => fn(ev));
+    }
+  }
+}
+
+function installFakeWorker(): void {
+  FakeWorker.instances = [];
+  vi.stubGlobal(
+    "Worker",
+    class extends FakeWorker {
+      constructor(url: string | URL, opts?: WorkerOptions) {
+        super(url, opts);
+      }
+    },
+  );
+}
+
+function lastActParams(worker: FakeWorker): Record<string, unknown> {
+  const actMsgs = worker.posted
+    .map((raw) => (typeof raw === "string" ? JSON.parse(raw) : raw))
+    .filter((m: { method?: string }) => m.method === "act");
+  expect(actMsgs.length).toBeGreaterThanOrEqual(1);
+  return (actMsgs[actMsgs.length - 1]!.params ?? {}) as Record<string, unknown>;
+}
+
+function pyodideOpts(overrides: Partial<PyodideAdapterOpts> = {}): PyodideAdapterOpts {
+  return {
+    workerUrl: "/packaging/pyodide/worker.js",
+    wheelUrl:
+      "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
+      "blueberries_voi-0.1.0-py3-none-any.whl",
+    budgets: { ...DEFAULT_DEMO_BUDGETS },
+    ...overrides,
+  };
+}
+
 describe("Typed ActOpts (T-098 / ADR 0117)", () => {
   it("exports ActPolicyName, ActBudgets, and typed ActOpts (not only Record)", () => {
     const src = readFileSync(TYPES_SRC, "utf8");
     expect(src).toMatch(/export\s+type\s+ActPolicyName\b/);
     expect(src).toMatch(/export\s+type\s+ActBudgets\b/);
     expect(src).toMatch(/export\s+type\s+ActOpts\b/);
+    // Must not remain the untyped Record alias alone.
     expect(src).not.toMatch(
       /export\s+type\s+ActOpts\s*=\s*Record\s*<\s*string\s*,\s*unknown\s*>\s*;/,
     );
@@ -96,9 +270,29 @@ describe("Typed ActOpts (T-098 / ADR 0117)", () => {
   });
 });
 
-describe("Shared normalize surface (T-098 / T-125)", () => {
-  it("normalizeActBudgets folds nested + flat knobs under budgets", () => {
-    const body = normalizeActBudgets(CALLER_OPTS);
+describe("HttpAdapter.act nests budgets under POST body (T-098)", () => {
+  let calls: FetchCall[];
+  let fetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    ({ calls, fetch } = installMockFetch(defaultRouteHandler));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("folds flat + nested knobs into { policy?, budgets } with no flat budget siblings", async () => {
+    const adapter = new HttpAdapter({ baseUrl: BASE, fetch });
+    await adapter.act(CALLER_OPTS);
+
+    const actCall = calls.find(
+      (c) =>
+        c.method === "POST" &&
+        new URL(c.url).pathname === `/sessions/${SESSION_ID}/act`,
+    );
+    expect(actCall).toBeDefined();
+    const body = actCall!.body as Record<string, unknown>;
     expect(body.policy).toBe("damped_sw");
     expect(body.budgets).toEqual(
       expect.objectContaining({
@@ -115,22 +309,51 @@ describe("Shared normalize surface (T-098 / T-125)", () => {
     }
   });
 
-  it("toFlatActParams flattens for wasm worker act RPC (no nested budgets)", () => {
-    const flat = toFlatActParams(CALLER_OPTS);
-    expect(flat).not.toHaveProperty("budgets");
-    expect(flat.policy).toBe("damped_sw");
-    expect(flat.alpha).toBe(0.9);
-    expect(flat.rho).toBe(0.8);
-    expect(flat.H).toBe(7);
-    expect(flat.n_rollout_paths).toBe(2);
-    expect(flat.candidate_case_radius).toBe(1);
-    expect(flat.n_particles).toBe(200);
+  it("accepts the same caller ActOpts shape as Pyodide (flat order_qty folds into budgets)", async () => {
+    const adapter = new HttpAdapter({ baseUrl: BASE, fetch });
+    const opts: ActOpts = {
+      policy: "constant",
+      order_qty: 24,
+    };
+    await adapter.act(opts);
+    const actCall = calls.find(
+      (c) =>
+        c.method === "POST" &&
+        new URL(c.url).pathname === `/sessions/${SESSION_ID}/act`,
+    );
+    expect(actCall).toBeDefined();
+    const body = actCall!.body as Record<string, unknown>;
+    const budgets = body.budgets as Record<string, unknown>;
+    expect(budgets.order_qty ?? budgets.q).toBe(24);
+    expect(body).not.toHaveProperty("order_qty");
+    expect(body).not.toHaveProperty("q");
+  });
+});
+
+describe("PyodideAdapter.act uses flat worker params (T-098)", () => {
+  beforeEach(() => {
+    installFakeWorker();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it("actOpts module exports shared normalize helpers", () => {
-    const src = readFileSync(ACT_OPTS_SRC, "utf8");
-    expect(src).toMatch(/export\s+function\s+normalizeActBudgets/);
-    expect(src).toMatch(/export\s+function\s+toFlatActParams/);
+  it("flattens policy + budget knobs (no nested budgets object on the wire)", async () => {
+    const adapter = new PyodideAdapter(pyodideOpts()) as EngineAdapter;
+    expect(typeof adapter.act).toBe("function");
+    await adapter.act!(CALLER_OPTS);
+
+    const worker = FakeWorker.instances[0]!;
+    const params = lastActParams(worker);
+    expect(params).not.toHaveProperty("budgets");
+    expect(params.policy).toBe("damped_sw");
+    expect(params.alpha).toBe(0.9);
+    expect(params.rho).toBe(0.8);
+    expect(params.H).toBe(7);
+    expect(params.n_rollout_paths).toBe(2);
+    expect(params.candidate_case_radius).toBe(1);
+    expect(params.n_particles).toBe(200);
   });
 });
 
@@ -157,6 +380,8 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
       }),
     );
     expect(delta.seq).toBe(seqBefore + 1);
+    // Snapshot.episode_day is the next day to act (EngineSession parity after
+    // CAL-01); DayDelta.episode_day is the day just completed — equal here.
     expect(delta.episode_day).toBe(dayBefore);
     const day = delta.day as { order_qty?: number };
     expect(day.order_qty).toBe(16);
@@ -178,7 +403,29 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
   it("documents that mock act is not numeric-parity with Python rollout / damped SW", () => {
     const src = readFileSync(MOCK_ADAPTER_SRC, "utf8");
     expect(src).toMatch(/\bact\s*\(/);
+    // Comment / docstring near act must disclaim Python numeric parity.
     expect(src).toMatch(/not.*numeric|≠|!=.*parity|not.*parity/i);
     expect(src).toMatch(/rollout_order|DampedSurvivalWeightedPolicy|Python/i);
+  });
+});
+
+describe("Shared normalize surface (T-098)", () => {
+  it("adapters (or a shared helper) encode nest vs flat from one caller shape", () => {
+    const httpSrc = readFileSync(HTTP_ADAPTER_SRC, "utf8");
+    const pySrc = readFileSync(PYODIDE_ADAPTER_SRC, "utf8");
+    // Either a shared helper import or explicit normalize call sites.
+    const sharedHelper =
+      /normalizeActOpts|normalizeActBudgets|actOptsToHttp|actOptsToFlat|toFlatActParams/.test(
+        httpSrc + pySrc,
+      );
+    const httpNests = /budgets/.test(httpSrc) && /act\s*\(/.test(httpSrc);
+    const pyFlattens = /act\s*\(/.test(pySrc);
+    expect(sharedHelper || (httpNests && pyFlattens)).toBe(true);
+    // Current Pyodide spreads raw opts — must stop treating nested budgets as wire shape.
+    // After implement, act must not simply `{ ...(opts ?? {}) }` without flattening.
+    const pyActBody = pySrc.match(/async\s+act\s*\([^)]*\)[^{]*\{[\s\S]*?\n  \}/);
+    expect(pyActBody?.[0] ?? pySrc).not.toMatch(
+      /return\s+\(await\s+this\.call\(\s*"act"\s*,\s*\{\s*\.\.\.\(opts\s*\?\?\s*\{\}\)\s*\}\s*\)/,
+    );
   });
 });
