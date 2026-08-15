@@ -80,9 +80,19 @@ fn birth_tau<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R
     mix_arrival_age(rng, params)
 }
 
-/// Same mix as `generate_arrival_age` with `smoke_cool()`, one filter rng.
+/// Unlabeled (P0/P1/F1) birth: mix of cool-path lengths, wider than F2a SD=0.75.
 fn mix_arrival_age<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
-    let ships = [ShipmentTrace::smoke_cool()];
+    let ships = [
+        ShipmentTrace {
+            times_d: vec![0.0, 0.5],
+            temps_c: vec![1.0, 1.0],
+        },
+        ShipmentTrace::smoke_cool(),
+        ShipmentTrace {
+            times_d: vec![0.0, 4.0],
+            temps_c: vec![1.0, 1.0],
+        },
+    ];
     let idx = rng.random_range(0..ships.len());
     let _: f64 = rng.random();
     let ages: Vec<f64> = ships
