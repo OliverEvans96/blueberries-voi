@@ -1,6 +1,6 @@
 /**
  * ViewModelProjector — applies Snapshot/DayDelta into the D3 ViewModel;
- * owns economics / PnL / ghost / heatmap locally (ADR 0098 / T-054).
+ * owns economics / PnL / heatmap locally (ADR 0098 / T-054).
  */
 
 import type {
@@ -8,8 +8,6 @@ import type {
   BeliefHistoryDay,
   Day,
   Economics,
-  EpisodeGhost,
-  GhostDeltas,
   Lot,
   PipelineOrder,
   SimConfig,
@@ -164,49 +162,6 @@ export function beliefGridFromFlat(
   };
 }
 
-function snapshotGhost(history: Day[], economics: Economics): EpisodeGhost {
-  const { series } = computePnL(history, economics);
-  let profitCum = 0;
-  const points = history.map((d, i) => {
-    const pnl = series[i]!;
-    profitCum += pnl.profit;
-    return {
-      i,
-      waste: d.waste_total,
-      stockout: d.stockout,
-      sales: d.sales_total,
-      demand: d.demand,
-      profit: pnl.profit,
-      profit_cum: profitCum,
-    };
-  });
-  return {
-    series: points,
-    waste_total: points.reduce((s, p) => s + p.waste, 0),
-    stockout_total: points.reduce((s, p) => s + p.stockout, 0),
-    profit_cum: profitCum,
-    days: points.length,
-  };
-}
-
-function ghostDeltas(
-  history: Day[],
-  economics: Economics,
-  ghost: EpisodeGhost | null,
-): GhostDeltas | null {
-  if (!ghost || ghost.days === 0 || history.length === 0) return null;
-  const { series } = computePnL(history, economics);
-  const waste = history.reduce((s, d) => s + d.waste_total, 0);
-  const stockout = history.reduce((s, d) => s + d.stockout, 0);
-  const profit = series.reduce((s, d) => s + d.profit, 0);
-  const liveDays = history.length;
-  return {
-    waste_rate: waste / liveDays - ghost.waste_total / ghost.days,
-    stockouts: stockout - ghost.stockout_total,
-    profit_cum: profit - ghost.profit_cum,
-  };
-}
-
 /**
  * Normalize a wire day into the chart Day shape.
  *
@@ -291,7 +246,6 @@ export class ViewModelProjector {
     age_marginals: [],
     tau_grid: [],
   };
-  private ghost: EpisodeGhost | null = null;
   private demandSummary: DemandSummary | null = null;
   private schedule: ScheduleWire | null = null;
   private viewModel: ViewModel;
@@ -308,12 +262,6 @@ export class ViewModelProjector {
   }
 
   applySnapshot(snapshot: Snapshot): ViewModel {
-    // Capture ghost from the prior episode when replacing a non-empty window
-    // (studio reset path). Init with empty prior history skips this.
-    if (this.history.length > 0) {
-      this.ghost = snapshotGhost(this.history, this.economics);
-    }
-
     this.episodeDay = snapshot.episode_day;
     this.history = (snapshot.history ?? []).map((d) => ({
       ...d,
@@ -387,7 +335,7 @@ export class ViewModelProjector {
     return this.viewModel;
   }
 
-  /** Local-only: update PnL / ghost from stored history; no engine round-trip. */
+  /** Local-only: update PnL from stored history; no engine round-trip. */
   setEconomics(economics: Partial<Economics>): ViewModel {
     this.economics = { ...this.economics, ...economics };
     this.viewModel = this.buildViewModel();
@@ -404,7 +352,7 @@ export class ViewModelProjector {
     return this.viewModel;
   }
 
-  /** Refresh belief / lots / pipeline from engine without capturing ghost. */
+  /** Refresh belief / lots / pipeline from engine without replacing history. */
   patchEngineState(snapshot: Pick<
     Snapshot,
     "belief" | "live_lots" | "pipeline" | "episode_day" | "applied_config"
@@ -477,8 +425,6 @@ export class ViewModelProjector {
       on_hand: onHandInventory(this.liveLots),
       effective_inv: survivalWeightedInventory(this.liveLots, this.config),
       pipeline: this.pipeline.map((o) => ({ ...o })),
-      ghost: this.ghost,
-      ghost_deltas: ghostDeltas(this.history, this.economics, this.ghost),
       case_size: this.config.case_size,
       pending_order: pending,
       demand_summary: this.demandSummary

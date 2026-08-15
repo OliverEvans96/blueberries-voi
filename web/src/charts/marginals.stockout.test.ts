@@ -39,19 +39,19 @@ describe("MarginalKind stockout (T-116)", () => {
     expect(typeBlock).toMatch(/"stockout"/);
   });
 
-  it("exports marginalYMax(history, ghost?)", () => {
+  it("exports marginalYMax(history)", () => {
     expect(src).toMatch(/export\s+function\s+marginalYMax\s*\(/);
     const params = signatureBlock(src, "marginalYMax");
     expect(params).toMatch(/history/);
-    expect(params).toMatch(/ghost/);
+    expect(params).not.toMatch(/ghost/);
     expect(src).toMatch(/sales_total/);
     expect(src).toMatch(/\.stockout/);
   });
 
-  it("renderMarginal accepts optional yMax after ghost", () => {
+  it("renderMarginal accepts optional yMax", () => {
     const params = signatureBlock(src, "renderMarginal");
     expect(params).toMatch(/\bkind\b/);
-    expect(params).toMatch(/\bghost\b/);
+    expect(params).not.toMatch(/\bghost\b/);
     expect(params).toMatch(/\byMax\s*\?/);
   });
 });
@@ -84,18 +84,6 @@ describe("renderMarginal stockout mapping and geometry (T-116)", () => {
     expect(barJoin).toMatch(/kind\s*===\s*"spoilage"|waste_total/);
   });
 
-  it("stockout ghost uses p.stockout and upward geometry (not y=0 spoilage ghosts)", () => {
-    expect(src).toMatch(/kind\s*===\s*"stockout"/);
-    expect(src).toMatch(/p\.stockout|ghost\.series[\s\S]{0,80}\.stockout/);
-    const ghostJoin = src.match(/bar-ghost[\s\S]{0,800}attr\(\s*"y"/);
-    expect(ghostJoin, "expected .bar-ghost y attr").toBeTruthy();
-    expect(src).toMatch(
-      /kind\s*===\s*"stockout"[\s\S]{0,400}bar-ghost|bar-ghost[\s\S]{0,400}stockout/,
-    );
-    expect(src).toMatch(
-      /kind\s*===\s*"stockout"[\s\S]{0,600}innerH\s*-\s*y|innerH\s*-\s*y[\s\S]{0,200}stockout/,
-    );
-  });
 
   it('no .axis-x for stockout; kind === "spoilage" still has x axis', () => {
     expect(src).toMatch(/kind\s*===\s*"stockout"/);

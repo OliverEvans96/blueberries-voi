@@ -163,10 +163,6 @@ body {
   margin-bottom: 6px;
 }
 
-.ghost-slot {
-  min-height: 0;
-}
-
 /* Nav rail + focus content side-by-side */
 .focus-row {
   display: grid;
@@ -906,17 +902,6 @@ input[type="number"] {
   font-variant-numeric: tabular-nums;
 }
 
-.series-ghost {
-  stroke: rgba(28, 36, 32, 0.35);
-  stroke-dasharray: 4 3;
-  stroke-width: 1.75;
-  color: rgba(28, 36, 32, 0.35);
-}
-
-.bar-ghost {
-  fill: rgba(196, 106, 58, 0.22);
-}
-
 .impact-grid {
   display: flex;
   flex-direction: column;
@@ -1035,33 +1020,6 @@ input[type="number"] {
   stroke: #8a2f1f;
   stroke-width: 1.5;
   fill: none;
-}
-
-.ghost-deltas {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(28, 36, 32, 0.04);
-  border: 1px dashed rgba(28, 36, 32, 0.15);
-}
-
-.ghost-deltas--empty {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.ghost-deltas-title {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
-
-.ghost-deltas-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
 }
 
 .foot {

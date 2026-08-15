@@ -218,41 +218,6 @@ describe("ViewModelProjector.applyDelta", () => {
     expect(vm.pnl_totals.revenue).toBeCloseTo(expectedRevenue);
   });
 
-  it("ghost vs last reset compares two full episodes, overlapping prefix if shorter (T-112)", () => {
-    const projector = new ViewModelProjector({
-      economics: { ...DEFAULT_ECONOMICS },
-    });
-    projector.applySnapshot(sampleSnapshot());
-    for (let i = 0; i < 20; i++) {
-      projector.applyDelta(
-        sampleDelta({
-          seq: i + 1,
-          episode_day: i,
-          day: { ...sampleDay(i), sales_total: 10, waste_total: 1 },
-          drop_oldest: false,
-        }),
-      );
-    }
-    const afterReset = projector.applySnapshot(sampleSnapshot({ history: [] }));
-    expect(afterReset.ghost).not.toBeNull();
-    expect(afterReset.ghost?.days).toBe(20);
-    expect(afterReset.ghost?.series).toHaveLength(20);
-
-    for (let i = 0; i < 5; i++) {
-      projector.applyDelta(
-        sampleDelta({
-          seq: i + 1,
-          episode_day: i,
-          day: sampleDay(i),
-          drop_oldest: false,
-        }),
-      );
-    }
-    const shortRun = projector.getViewModel();
-    expect(shortRun.history).toHaveLength(5);
-    expect(shortRun.ghost?.days).toBe(20);
-    expect(shortRun.ghost_deltas).not.toBeNull();
-  });
 });
 
 describe("ViewModelProjector.setEconomics (local reproject)", () => {
@@ -557,7 +522,6 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
   });
 });
 
-<<<<<<< HEAD
 describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () => {
   const peakedBelief = (ageBin: number): FlatBelief => {
     const K = 4;

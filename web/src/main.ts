@@ -33,7 +33,6 @@ import {
 } from "./charts/inventoryTarget";
 import { renderControllerOrders } from "./charts/controllerOrders";
 import { renderSalesDemand } from "./charts/salesDemand";
-import { renderGhostDeltas } from "./charts/ghostDeltas";
 import {
   renderArrivalPrior,
   renderArrivalShift,
@@ -122,7 +121,6 @@ app.innerHTML = `
             <div id="chart-spoil" class="chart"></div>
           </div>
         </section>
-        <div id="ghost-deltas" class="ghost-slot"></div>
       </main>
 
       <aside class="focus-column">
@@ -327,7 +325,6 @@ const els = {
   controllerOrders: document.querySelector(
     "#chart-controller-orders",
   ) as HTMLElement,
-  ghostDeltas: document.querySelector("#ghost-deltas") as HTMLElement,
   focusTitle: document.querySelector("#focus-title") as HTMLElement,
   focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
   focusPane: document.querySelector("#focus-pane") as HTMLElement,
@@ -395,18 +392,17 @@ function plotVisible(plotId: string): boolean {
 }
 
 function renderStore() {
-  const yMax = marginalYMax(vm.history, vm.ghost);
-  renderMarginal(els.sales, vm.history, "sales", 72, vm.ghost, yMax);
-  renderMarginal(els.stockout, vm.history, "stockout", 72, vm.ghost, yMax);
+  const yMax = marginalYMax(vm.history);
+  renderMarginal(els.sales, vm.history, "sales", 72, yMax);
+  renderMarginal(els.stockout, vm.history, "stockout", 72, yMax);
   renderHistory(els.history, historyForCharts(), { height: 220 });
-  renderMarginal(els.spoil, vm.history, "spoilage", 86, vm.ghost);
+  renderMarginal(els.spoil, vm.history, "spoilage", 86);
   applyHoverStyles(hoveredDay);
 }
 
 function renderChrome(): void {
   renderPnLTotals(els.pnlTotals, vm);
-  renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118, vm.ghost);
-  renderGhostDeltas(els.ghostDeltas, vm.ghost_deltas);
+  renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
 }
 
 function renderActiveFocusPlots(): void {
@@ -445,7 +441,7 @@ function renderActiveFocusPlots(): void {
     renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
   }
   if (plotVisible("plot-pnl")) {
-    renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
+    renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);
     applyHoverStyles(hoveredDay);
   }
   if (plotVisible("plot-survival")) {
@@ -661,7 +657,7 @@ const sectionControlsApi = mountSectionControls(
       vm = projector.setEconomics(partial);
       renderChrome();
       if (plotVisible("plot-pnl")) {
-        renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
+        renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);
         applyHoverStyles(hoveredDay);
       }
       sectionControlsApi.update(controlsState());

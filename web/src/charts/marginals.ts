@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import type { Day, EpisodeGhost, HoverDay } from "../types";
+import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 
 export type MarginalKind = "sales" | "spoilage" | "stockout";
@@ -12,15 +12,10 @@ function rootG(
 }
 
 /** Shared y-domain for sales + missed-sales bars. */
-export function marginalYMax(
-  history: Day[],
-  ghost?: EpisodeGhost | null,
-): number {
+export function marginalYMax(history: Day[]): number {
   const salesMax = d3.max(history, (d) => d.sales_total) ?? 0;
   const stockMax = d3.max(history, (d) => d.stockout) ?? 0;
-  const ghostStock =
-    ghost != null ? (d3.max(ghost.series, (p) => p.stockout) ?? 0) : 0;
-  return Math.max(1, salesMax, stockMax, ghostStock);
+  return Math.max(1, salesMax, stockMax);
 }
 
 /** Style-only: bar active class + vertical rule. */
@@ -69,7 +64,6 @@ export function renderMarginal(
   history: Day[],
   kind: MarginalKind,
   height = 72,
-  ghost: EpisodeGhost | null = null,
   yMax?: number,
 ): void {
   const width = container.clientWidth || 720;
@@ -106,16 +100,10 @@ export function renderMarginal(
     if (kind === "spoilage") return d.waste_total;
     return 0;
   });
-  const ghostVals =
-    kind === "spoilage" && ghost
-      ? ghost.series.slice(0, history.length).map((p) => p.waste)
-      : kind === "stockout" && ghost
-        ? ghost.series.slice(0, history.length).map((p) => p.stockout)
-        : [];
   const maxV =
     (kind === "sales" || kind === "stockout") && yMax != null
       ? Math.max(1, yMax)
-      : Math.max(1, d3.max(values) ?? 1, d3.max(ghostVals) ?? 0);
+      : Math.max(1, d3.max(values) ?? 1);
   const y =
     kind === "sales" || kind === "stockout"
       ? d3.scaleLinear().domain([0, maxV]).range([innerH, 0])
@@ -133,32 +121,6 @@ export function renderMarginal(
     .attr("y", 0)
     .attr("width", step)
     .attr("height", innerH);
-
-  if (kind === "spoilage" && ghostVals.length > 0) {
-    g.selectAll(".bar-ghost")
-      .data(ghostVals)
-      .join("rect")
-      .attr("class", "bar-ghost")
-      .attr("pointer-events", "none")
-      .attr("x", (_, i) => i * step + step * 0.12)
-      .attr("width", Math.max(1, step * 0.76))
-      .attr("y", 0)
-      .attr("height", (v) => y(v))
-      .attr("rx", 2);
-  }
-
-  if (kind === "stockout" && ghost) {
-    g.selectAll(".bar-ghost")
-      .data(ghost.series.slice(0, history.length).map((p) => p.stockout))
-      .join("rect")
-      .attr("class", "bar-ghost")
-      .attr("pointer-events", "none")
-      .attr("x", (_, i) => i * step + step * 0.12)
-      .attr("width", Math.max(1, step * 0.76))
-      .attr("y", (v) => y(v))
-      .attr("height", (v) => innerH - y(v))
-      .attr("rx", 2);
-  }
 
   g.selectAll(".bar")
     .data(history, (d) => String((d as Day).day))

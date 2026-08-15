@@ -104,31 +104,6 @@ export type PipelineOrder = {
   days_until: number;
 };
 
-export type GhostSeriesPoint = {
-  /** Index within the episode history (0 = oldest day in ghost snapshot). */
-  i: number;
-  waste: number;
-  stockout: number;
-  sales: number;
-  demand: number;
-  profit: number;
-  profit_cum: number;
-};
-
-export type EpisodeGhost = {
-  series: GhostSeriesPoint[];
-  waste_total: number;
-  stockout_total: number;
-  profit_cum: number;
-  days: number;
-};
-
-export type GhostDeltas = {
-  waste_rate: number;
-  stockouts: number;
-  profit_cum: number;
-};
-
 export type ViewModel = {
   episode_day: number;
   window_days: number;
@@ -153,8 +128,6 @@ export type ViewModel = {
   on_hand: number;
   effective_inv: number;
   pipeline: PipelineOrder[];
-  ghost: EpisodeGhost | null;
-  ghost_deltas: GhostDeltas | null;
   case_size: number;
   pending_order: number;
   /** Chart-ready DOW demand profile from Snapshot (T-085 / T-087). */
