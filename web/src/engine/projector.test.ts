@@ -708,7 +708,6 @@ describe("stockoutFromDayFields (missed sales wire gap)", () => {
     );
 
     expect(vm.history[0]!.stockout).toBe(3);
->>>>>>> main
   });
 });
 
