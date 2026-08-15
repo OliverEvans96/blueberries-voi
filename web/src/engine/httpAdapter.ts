@@ -55,7 +55,7 @@ function splitConfigSeed(config?: EngineConfig): {
  * - **Reset:** `POST /sessions/{id}/reset` — same session, cold Snapshot.
  * - **Delete:** `dispose()` → `DELETE /sessions/{id}` (204); further calls error.
  *
- * Economics / PnL / ghost / heatmap never leave JS — use
+ * Economics / PnL / heatmap never leave JS — use
  * `ViewModelProjector.setEconomics` (no HTTP).
  */
 export class HttpAdapter implements EngineAdapter {

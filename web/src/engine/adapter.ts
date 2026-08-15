@@ -9,7 +9,7 @@ import type {
 
 /**
  * Host-facing engine boundary. Returns Snapshot / DayDelta only — never a full
- * ViewModel. Economics / PnL / ghost / heatmap stay in ViewModelProjector.
+ * ViewModel. Economics / PnL / heatmap stay in ViewModelProjector.
  */
 export interface EngineAdapter {
   init(config?: EngineConfig): Promise<Snapshot>;

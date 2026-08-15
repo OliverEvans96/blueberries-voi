@@ -100,7 +100,7 @@ export function generateFlatBelief(
 
 /**
  * Mock engine speaking Snapshot / DayDelta (EngineAdapter). Presentation
- * (PnL / economics / ghost / heatmap) stays in ViewModelProjector.
+ * (PnL / economics / heatmap) stays in ViewModelProjector.
  */
 const EPISODE_HORIZON = 90;
 
