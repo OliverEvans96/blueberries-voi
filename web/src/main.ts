@@ -201,11 +201,20 @@ const adapterKind = resolveStudioAdapterKind(studioEnv);
 const footerEl = document.querySelector("#studio-footer");
 if (footerEl) {
   footerEl.textContent = studioFooterCopy(adapterKind);
+  footerEl.setAttribute("data-engine-adapter", adapterKind);
+  footerEl.setAttribute(
+    "data-vite-engine-adapter",
+    studioEnv.VITE_ENGINE_ADAPTER ?? "",
+  );
 }
 const adapter = createStudioAdapter({
   env: studioEnv,
   baseUrl: studioEnv.VITE_ENGINE_API_BASE_URL ?? studioEnv.VITE_API_BASE_URL,
-  workerUrl: studioEnv.VITE_PYODIDE_WORKER_URL,
+  // Never pass the Pyodide worker URL into wasm (that boots micropip + GitHub wheel).
+  workerUrl:
+    adapterKind === "wasm"
+      ? studioEnv.VITE_WASM_WORKER_URL
+      : studioEnv.VITE_PYODIDE_WORKER_URL,
   wheelUrl: studioEnv.VITE_PYODIDE_WHEEL_URL,
 });
 const engineStatus = createEngineStatusTracker("loading");
