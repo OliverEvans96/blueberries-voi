@@ -45,7 +45,9 @@ def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     importlib.reload(backend_mod)
 
 
-def test_backend_default_is_rust_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_backend_default_is_rust_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Wave E: production default is rust; env still overrides."""
     monkeypatch.delenv("BLUEBERRIES_VOI_BACKEND", raising=False)
     import blueberries_voi.backend as backend_mod
