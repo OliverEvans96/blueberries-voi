@@ -3,7 +3,7 @@
  */
 
 import type { EngineAdapter } from "./adapter";
-import { toHttpActBody } from "./actOpts";
+import { normalizeActBudgets } from "./actOpts";
 import type { ActOpts, DayDelta, EngineConfig, Snapshot } from "./types";
 
 export type HttpAdapterOptions = {
@@ -119,7 +119,7 @@ export class HttpAdapter implements EngineAdapter {
     await this.ensureSession();
     return this.postJson<DayDelta>(
       `/sessions/${this.sessionId}/act`,
-      toHttpActBody(opts),
+      normalizeActBudgets(opts),
     );
   }
 
