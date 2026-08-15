@@ -11,31 +11,26 @@ Same fixture and demo budgets. **Simulator** = fixed order qty (no policy).
 
 | path | 1d python | 1d rust | 1d pyodide | 90d python | 90d rust | 90d pyodide |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **simulator** (`step` / batched `step_n`) | **23.8 ms** | **0.127 ms** | **73.1 ms** | **10.9 s** | **23.9 ms** | **23.1 s** |
-| **controller** (`act` rollout) | **126 ms** | **0.190 ms** | **209 ms** | **67.4 s** | **1.47 s** | **81.8 s** |
+| **simulator** (`step` / batched `step_n`) | **23.8 ms** | **0.127 ms** | **46.6 ms** | **10.9 s** | **23.9 ms** | **17.4 s** |
+| **controller** (`act` rollout) | **126 ms** | **0.190 ms** | **135 ms** | **67.4 s** | **1.47 s** | **89.5 s** |
 
 90-day **simulator** is one `step_n([16]*90)` (one Rust FFI crossing; one
 Pyodide RPC). 90-day **controller** is **90× `act`** — there is no `act_n`.
 
-Pyodide **cold start** (`loadPyodide` + slim wheel + packages): **27.2 s**,
-**not** folded into the 1-day cells.
+Pyodide **cold start** (`loadPyodide` + slim wheel + packages + FS mounts):
+**24.5 s**, **not** folded into the 1-day cells.
 
 ### Compact layout (same numbers)
 
-| path | 1d python | 1d rust | 90d python | 90d rust |
-| --- | ---: | ---: | ---: | ---: |
-| **simulator** | 23.8 ms | 0.127 ms | 10.9 s | 23.9 ms |
-| **controller** | 126 ms | 0.190 ms | 67.4 s | 1.47 s |
-
-| path | 1d pyodide (Node, 314.0.4) | 90d pyodide |
-| --- | ---: | ---: |
-| **simulator** | 73.1 ms | 23.1 s |
-| **controller** | 209 ms | 81.8 s |
+| path | 1d python | 1d rust | 1d pyodide | 90d python | 90d rust | 90d pyodide |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **simulator** | 23.8 ms | 0.127 ms | 46.6 ms | 10.9 s | 23.9 ms | 17.4 s |
+| **controller** | 126 ms | 0.190 ms | 135 ms | 67.4 s | 1.47 s | 89.5 s |
 
 ## Method
 
-- **Branch / SHA:** `team/T-110/bench-1d-90d` (python/rust at `dceacf5`; this
-  Pyodide pass on top).
+- **Branch:** `team/T-110/bench-1d-90d`. Native python/rust at `dceacf5`;
+  Pyodide harness + this column on top.
 - **Python native:** 3.11.13. **CPU:** Intel Core i7-8550U @ 1.80 GHz.
   **rustc:** 1.93.0, `maturin develop --release`.
 - **Pyodide:** 314.0.4 via npm `loadPyodide` in Node (not the studio Vite
@@ -45,8 +40,8 @@ Pyodide **cold start** (`loadPyodide` + slim wheel + packages): **27.2 s**,
 - **Fixture:** `smoke_cool_shipments()` / `ensure_demo_shipments` (no Abdella
   traces as the **session** shipment list). Native and Pyodide filter birth
   priors still read vendored Abdella parquet on first delivery (CPython from
-  the checkout; Pyodide from files mounted into the emscripten FS — same
-  files, not invented traces).
+  the checkout; Pyodide from files mounted at `default_abdella_root()` in the
+  emscripten FS — same files, not invented traces).
 - **Budgets:** `n_particles=200`, `H=7`, `n_rollout_paths=2`,
   `candidate_case_radius=1`, `enable_filter=True` (`DEMO_BUDGETS`).
 - **Simulator 1d:** `step(16)` after `init`.
@@ -58,7 +53,7 @@ Pyodide **cold start** (`loadPyodide` + slim wheel + packages): **27.2 s**,
 - Re-run native:
   `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 uv run --python 3.11 python experiments/bench_1d_90d.py`
 - Re-run Pyodide:
-  `uv run python scripts/build_slim_wheel.py && NODE_PATH=… node --max-old-space-size=8192 experiments/bench_1d_90d_pyodide.mjs`
+  `uv run python scripts/build_slim_wheel.py && NODE_PATH=/tmp/pyodide314/node_modules node experiments/bench_1d_90d_pyodide.mjs`
   (JSON under gitignored `outputs/`).
 
 ## Footnote: 90 naive `step` (native only)
@@ -83,6 +78,7 @@ Filter N=200 dominates; FFI is not the 90-day simulator story.
   Abdella temperature paths.
 - Debug PyO3 is **not** the rust column; that column is **release**.
 - Init sits inside each timed cell; Pyodide `loadPyodide` does not.
-- Controller 90d is **not** batched; Pyodide 90d act mean 81.8 s (range
-  70–89 s) finished well under 40 min, so no 7/14-day n/a footnote.
-- Pyodide 90d simulator ranged 16–37 s across repeats.
+- Controller 90d is **not** batched; Pyodide 90d act mean **89.5 s** (range
+  83–102 s) finished in one ~7.6 min Node process, well under 40 min, so no
+  7/14-day n/a footnote.
+- Pyodide 90d simulator ranged 15.8–19.0 s across the three timed repeats.

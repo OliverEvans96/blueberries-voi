@@ -17,8 +17,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPEATS = 3;
 const ORDER = 16;
 const HORIZON = Number(process.env.BENCH_HORIZON || 90);
-  const FOOTNOTE_DAYS = Number(process.env.BENCH_FOOTNOTE_DAYS || 14);
-  const FOOTNOTE_DAYS_ALT = 7;
+const FOOTNOTE_DAYS = Number(process.env.BENCH_FOOTNOTE_DAYS || 14);
 const DEADLINE_MS = Number(process.env.BENCH_DEADLINE_MS || 40 * 60 * 1000);
 const SEED = 42;
 
