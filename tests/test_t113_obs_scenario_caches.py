@@ -444,7 +444,11 @@ def test_fastapi_forwards_set_obs_scenario_on_session_object() -> None:
         }
         for s in cfg["shipments"]
     ]
-    assert client.post(f"/sessions/{sid}/init", json={"config": cfg, "seed": 8}).status_code == 200
+    init_resp = client.post(
+        f"/sessions/{sid}/init",
+        json={"config": cfg, "seed": 8},
+    )
+    assert init_resp.status_code == 200
     assert (
         client.post(f"/sessions/{sid}/step", json={"order_qty": 16}).status_code == 200
     )
