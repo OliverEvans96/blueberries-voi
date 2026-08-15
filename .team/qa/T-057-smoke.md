@@ -1,43 +1,31 @@
 # T-057 smoke checklist — studio adapter wiring
 
-Pass / fail checklist for wiring the D3 studio off fake JS physics onto real
-adapters (dev = **HttpAdapter**, prod = **PyodideAdapter**).
+Pass / fail checklist for wiring the D3 studio off fake JS physics onto the
+**WasmAdapter** (Rust kernel in the browser, ADR 0129).
 
 ## Env flags
 
 | Variable | Purpose |
 |----------|---------|
-| `VITE_ENGINE_ADAPTER` | Explicit override: `http` \| `pyodide` \| `mock` (debug only) |
-| `VITE_ENGINE_API_BASE_URL` | Preferred ASGI base URL for HttpAdapter |
-| `VITE_API_BASE_URL` | Fallback ASGI base URL |
-| `VITE_PYODIDE_WORKER_URL` | Pyodide worker script URL (default `/packaging/pyodide/worker.js`) |
-| `VITE_PYODIDE_WHEEL_URL` | Release/slim wheel URL for micropip |
+| `VITE_ENGINE_ADAPTER` | Explicit override: `wasm` \| `mock` (debug only) |
+| `VITE_WASM_WORKER_URL` | WASM worker script URL (default `/packaging/wasm/worker.js`) |
+| `VITE_WASM_PKG_URL` | wasm-pack output base URL (default `/wasm/`) |
 
 Selection rules (`resolveStudioAdapterKind`):
 
-1. `VITE_ENGINE_ADAPTER` wins when set to `http` / `pyodide` / `mock`
-2. Else production (`PROD` / `MODE=production`) → **pyodide**
-3. Else development with an API base URL → **http**
-4. `mock` only when explicitly selected
+1. `VITE_ENGINE_ADAPTER` wins when set to `wasm` / `mock`
+2. Else default → **wasm**
+3. `mock` only when explicitly selected
 
-## Dev / HttpAdapter
+## WASM studio (default)
 
-- [ ] `cd web && VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8000 npm run dev`
-- [ ] Local ASGI session API is running on that base URL
-- [ ] Studio loads; Advance calls `adapter.step` (network to `/sessions/.../step`)
+- [ ] `./scripts/build-wasm.sh` (if `packaging/wasm/pkg` is missing)
+- [ ] `./scripts/studio.sh` or `cd web && npm run studio`
+- [ ] Studio footer shows live WASM (not fake / mock data)
+- [ ] Advance calls `adapter.step_n` (worker RPC, not `generate.ts`)
 - [ ] Reset calls `adapter.reset`; bootstrap called `adapter.init`
 - [ ] Economics sliders update charts without network (projector `setEconomics` only)
-- [ ] No `generate.ts` / fake day-loop on the Advance path
-
-**Pass / fail:** ________
-
-## Prod / PyodideAdapter
-
-- [ ] `cd web && npm run build && npm run preview` (or production MODE)
-- [ ] Worker + wheel URLs resolve (`VITE_PYODIDE_*` or package defaults)
-- [ ] Studio constructs **PyodideAdapter** (worker starts; no HttpAdapter traffic)
-- [ ] Advance / Reset / init return Snapshot / DayDelta via worker RPC
-- [ ] Economics remain local via projector
+- [ ] Worker URL resolves to `/packaging/wasm/worker.js` with `pkgUrl=/wasm/`
 
 **Pass / fail:** ________
 

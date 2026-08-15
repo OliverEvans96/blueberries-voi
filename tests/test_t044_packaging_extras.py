@@ -93,8 +93,7 @@ def test_eng01_extras_are_data_and_viz_only() -> None:
         }
     }
     assert eng_keys == {"data", "viz"}, (
-        "T-125 locks ENG-01 extras to data + viz only; "
-        f"have {sorted(eng_keys)}"
+        f"T-125 locks ENG-01 extras to data + viz only; have {sorted(eng_keys)}"
     )
 
 

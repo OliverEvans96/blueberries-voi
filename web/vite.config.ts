@@ -7,18 +7,13 @@ import { defineConfig } from "vitest/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const packagingPyodideDir = path.join(repoRoot, "packaging", "pyodide");
 const packagingWasmDir = path.join(repoRoot, "packaging", "wasm");
 const wasmPkgDir = path.join(packagingWasmDir, "pkg");
-/** Local slim wheels from ``uv run python scripts/build_slim_wheel.py`` (repo dist/). */
-const slimWheelDir = path.join(repoRoot, "dist");
 
 /**
- * T-072 / ADR 0108 / ADR 0120 local URL contract:
- * - pyodide worker: /packaging/pyodide/worker.js
- * - wasm worker:    /packaging/wasm/worker.js
- * - wasm pkg:       /wasm/* (packaging/wasm/pkg from wasm-pack)
- * - wheel:          /wheels/*.whl (repo dist/*.whl from build_slim_wheel)
+ * T-072 / ADR 0120 / T-125 local URL contract:
+ * - wasm worker: /packaging/wasm/worker.js
+ * - wasm pkg:    /wasm/* (packaging/wasm/pkg from wasm-pack)
  */
 function contentTypeFor(filePath: string): string {
   if (filePath.endsWith(".js") || filePath.endsWith(".mjs")) {
@@ -38,24 +33,13 @@ function tryServeFile(res: Connect.ServerResponse, filePath: string): boolean {
   return true;
 }
 
-function servePackagingAndWheels(): Plugin {
+function servePackagingWasm(): Plugin {
   return {
-    name: "serve-packaging-and-wheels",
+    name: "serve-packaging-wasm",
     configureServer(server) {
       const middleware: Connect.NextHandleFunction = (req, res, next) => {
         const rawUrl = req.url ?? "";
         const pathname = rawUrl.split("?")[0] ?? "";
-
-        if (pathname.startsWith("/packaging/pyodide/")) {
-          const rel = pathname.slice("/packaging/pyodide/".length);
-          if (!rel || rel.includes("..")) {
-            next();
-            return;
-          }
-          if (tryServeFile(res, path.join(packagingPyodideDir, rel))) return;
-          next();
-          return;
-        }
 
         if (pathname.startsWith("/packaging/wasm/")) {
           const rel = pathname.slice("/packaging/wasm/".length);
@@ -79,17 +63,6 @@ function servePackagingAndWheels(): Plugin {
           return;
         }
 
-        if (pathname.startsWith("/wheels/")) {
-          const rel = pathname.slice("/wheels/".length);
-          if (!rel || rel.includes("..") || !rel.endsWith(".whl")) {
-            next();
-            return;
-          }
-          if (tryServeFile(res, path.join(slimWheelDir, rel))) return;
-          next();
-          return;
-        }
-
         next();
       };
       server.middlewares.use(middleware);
@@ -99,12 +72,12 @@ function servePackagingAndWheels(): Plugin {
 
 export default defineConfig({
   root: ".",
-  plugins: [react(), servePackagingAndWheels()],
+  plugins: [react(), servePackagingWasm()],
   server: {
     port: 5173,
     open: false,
     fs: {
-      // Allow Vite to read packaging/ + dist/ outside web/ when needed.
+      // Allow Vite to read packaging/ outside web/ when needed.
       allow: [repoRoot],
     },
   },

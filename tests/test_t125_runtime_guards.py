@@ -52,9 +52,7 @@ def _rel(path: Path) -> str:
 
 
 def _assert_absent(path: Path) -> None:
-    assert not path.exists(), (
-        f"T-125 guard: retired path still present: {_rel(path)}"
-    )
+    assert not path.exists(), f"T-125 guard: retired path still present: {_rel(path)}"
 
 
 @pytest.mark.parametrize(
