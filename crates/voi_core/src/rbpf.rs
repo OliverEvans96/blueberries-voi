@@ -10,6 +10,8 @@ use crate::physics::{
 use crate::wor::sequential_wor_composition_prob;
 use crate::ModelParams;
 
+pub use crate::obs::FilterObs;
+
 /// Log-likelihood of a sales composition under sequential WOR (exact LL).
 pub fn exact_wor_loglik(counts: &[u32], sales: &[u32], weights: &[f64]) -> f64 {
     let p = sequential_wor_composition_prob(counts, sales, weights);
@@ -53,13 +55,6 @@ pub struct ParticleBank {
     pub weights: Vec<f64>,
     pub counts: Vec<Vec<u32>>,
     pub taus: Vec<Vec<f64>>,
-}
-
-#[derive(Clone, Debug)]
-pub struct FilterObs {
-    pub sales_tot: Option<i32>,
-    pub waste_tot: Option<i32>,
-    pub arrivals: u32,
 }
 
 pub fn filter_step<R: Rng + ?Sized>(
@@ -208,10 +203,133 @@ mod tests {
             sales_tot: Some(2),
             waste_tot: Some(1),
             arrivals: 0,
+            ..Default::default()
         };
         let out = filter_step(&bank, &obs, &ModelParams::default(), &mut rng);
         let s: f64 = out.weights.iter().sum();
         assert!((s - 1.0).abs() < 1e-9, "{s}");
         assert_eq!(out.counts.len(), 2);
+    }
+
+    fn emptyish_bank(n: usize) -> ParticleBank {
+        ParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            counts: vec![vec![]; n],
+            taus: vec![vec![]; n],
+        }
+    }
+
+    /// F2: Dirac birth on `age_at_receipt`, not τ=0 (clock already applied to old lots).
+    #[test]
+    fn filter_step_f2_births_dirac_on_age_at_receipt() {
+        let mut rng = Pcg64::seed_from_u64(9);
+        let bank = emptyish_bank(8);
+        let obs = FilterObs {
+            arrivals: 6,
+            age_at_receipt: Some(2.25),
+            ..Default::default()
+        };
+        let out = filter_step(&bank, &obs, &ModelParams::default(), &mut rng);
+        for row in &out.taus {
+            let born = *row.last().expect("birth slot");
+            assert!(
+                (born - 2.25).abs() < 1e-9,
+                "F2 birth must be Dirac at 2.25, got {born}"
+            );
+        }
+    }
+
+    /// F2a: Gaussian birth, mean = calendar transit encoded in `pack_date_days`, SD=0.75.
+    #[test]
+    fn filter_step_f2a_gaussian_birth_mean_calendar_sd_075() {
+        let mut rng = Pcg64::seed_from_u64(3);
+        let n = 400usize;
+        let bank = emptyish_bank(n);
+        let mean = 2.0;
+        let obs = FilterObs {
+            arrivals: 8,
+            pack_date_days: Some(mean as i32),
+            ..Default::default()
+        };
+        let out = filter_step(&bank, &obs, &ModelParams::default(), &mut rng);
+        let births: Vec<f64> = out
+            .taus
+            .iter()
+            .map(|row| *row.last().expect("birth"))
+            .collect();
+        let m = births.iter().sum::<f64>() / n as f64;
+        let var = births.iter().map(|t| (t - m) * (t - m)).sum::<f64>() / n as f64;
+        assert!(
+            (m - mean).abs() < 0.2,
+            "F2a birth mean should be calendar transit {mean}, got {m}"
+        );
+        assert!(
+            (var.sqrt() - 0.75).abs() < 0.15,
+            "F2a SD should be 0.75, got {}",
+            var.sqrt()
+        );
+        assert!(
+            births.iter().any(|t| (*t - 0.0).abs() > 0.05),
+            "must not birth every particle at τ=0"
+        );
+    }
+
+    /// P0/P1 mix: arrivals without receipt fields must not all sit at τ=0.
+    #[test]
+    fn filter_step_p0_birth_not_always_zero() {
+        let mut rng = Pcg64::seed_from_u64(5);
+        let bank = emptyish_bank(64);
+        let obs = FilterObs {
+            sales_tot: Some(0),
+            waste_tot: None,
+            arrivals: 8,
+            ..Default::default()
+        };
+        let out = filter_step(&bank, &obs, &ModelParams::default(), &mut rng);
+        let any_nonzero = out
+            .taus
+            .iter()
+            .any(|row| row.last().is_some_and(|t| *t > 0.05));
+        assert!(
+            any_nonzero,
+            "P0/P1/F1 birth should sample the shipments mix, not always τ=0"
+        );
+    }
+
+    #[test]
+    fn filter_step_lot_map_sales_by_changes_weights_vs_totals() {
+        let bank = ParticleBank {
+            weights: vec![0.5, 0.5],
+            counts: vec![vec![10, 0], vec![0, 10]],
+            taus: vec![vec![1.0, 3.0], vec![1.0, 3.0]],
+        };
+        let totals = FilterObs {
+            sales_tot: Some(4),
+            waste_tot: Some(0),
+            arrivals: 0,
+            ..Default::default()
+        };
+        let mapped = FilterObs {
+            sales_tot: Some(4),
+            waste_tot: Some(0),
+            arrivals: 0,
+            sales_by: Some(vec![4, 0]),
+            lot_ids_live: Some(vec![1, 2]),
+            ..Default::default()
+        };
+        let mut rng_a = Pcg64::seed_from_u64(21);
+        let mut rng_b = Pcg64::seed_from_u64(21);
+        let out_p1 = filter_step(&bank, &totals, &ModelParams::default(), &mut rng_a);
+        let out_f1 = filter_step(&bank, &mapped, &ModelParams::default(), &mut rng_b);
+        let d: f64 = out_p1
+            .weights
+            .iter()
+            .zip(out_f1.weights.iter())
+            .map(|(a, b)| (a - b).abs())
+            .sum();
+        assert!(
+            d > 1e-9,
+            "F1 sales_by should reweight vs P1 totals-only; L1={d}"
+        );
     }
 }

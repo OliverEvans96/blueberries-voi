@@ -556,3 +556,91 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
   });
 });
 
+describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () => {
+  const peakedBelief = (ageBin: number): FlatBelief => {
+    const K = 4;
+    const age_marginals = Array.from({ length: 2 * K }, () => 0);
+    age_marginals[ageBin] = 1;
+    age_marginals[K + ageBin] = 1;
+    return {
+      L: 2,
+      K,
+      lot_counts: [5, 5],
+      age_marginals,
+      tau_grid: [0, 2.6666666666666665, 5.333333333333333, 8],
+    };
+  };
+
+  function ageMass(density: number[][]): number[] {
+    return density.map((row) => row.reduce((a, b) => a + b, 0));
+  }
+
+  it("applySnapshot density follows belief, not live_lots n/τ", () => {
+    const projector = new ViewModelProjector();
+    const belief = peakedBelief(0);
+    const vm = projector.applySnapshot(
+      sampleSnapshot({
+        belief,
+        live_lots: [{ lot_id: 1, n: 99, tau: 8 }],
+      }),
+    );
+    const mass = ageMass(vm.belief.density);
+    const sum = mass.reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(10);
+    expect(mass[0]!).toBeCloseTo(10);
+    expect(mass[3]!).toBeCloseTo(0);
+    expect(vm.belief.age_marginal).toEqual(ageMarginalFromFlat(belief));
+  });
+
+  it("patchEngineState: changing belief with fixed live_lots changes density", () => {
+    const projector = new ViewModelProjector();
+    const lots = [{ lot_id: 1, n: 8, tau: 2 }];
+    projector.applySnapshot(
+      sampleSnapshot({
+        belief: peakedBelief(0),
+        live_lots: lots,
+      }),
+    );
+    const before = projector.getViewModel().belief.density.map((r) => [...r]);
+    const vm = projector.patchEngineState({
+      belief: peakedBelief(3),
+      live_lots: lots,
+      pipeline: [],
+      episode_day: 0,
+    });
+    const afterMass = ageMass(vm.belief.density);
+    const beforeMass = ageMass(before);
+    expect(afterMass[3]!).toBeCloseTo(10);
+    expect(beforeMass[0]!).toBeCloseTo(10);
+    expect(afterMass).not.toEqual(beforeMass);
+  });
+
+  it("patchEngineState: changing live_lots with fixed belief does not rewrite age mass", () => {
+    const projector = new ViewModelProjector();
+    const belief = peakedBelief(1);
+    projector.applySnapshot(
+      sampleSnapshot({
+        belief,
+        live_lots: [{ lot_id: 1, n: 4, tau: 1 }],
+      }),
+    );
+    const before = projector.getViewModel();
+    const beforeMass = ageMass(before.belief.density);
+    const vm = projector.patchEngineState({
+      belief,
+      live_lots: [
+        { lot_id: 1, n: 4, tau: 1 },
+        { lot_id: 2, n: 40, tau: 8 },
+      ],
+      pipeline: [],
+      episode_day: 0,
+    });
+    const afterMass = ageMass(vm.belief.density);
+    expect(afterMass).toEqual(beforeMass);
+    expect(vm.belief.age_marginal).toEqual(before.belief.age_marginal);
+    expect(vm.belief.count_edges.length).toBeGreaterThanOrEqual(
+      before.belief.count_edges.length,
+    );
+  });
+});
+

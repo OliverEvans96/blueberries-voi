@@ -54,11 +54,13 @@ fn mask_obs(scenario: &str, sales: u32, waste: u32, arrivals: u32) -> FilterObs 
             sales_tot: Some(sales as i32),
             waste_tot: None,
             arrivals,
+            ..Default::default()
         },
         _ => FilterObs {
             sales_tot: Some(sales as i32),
             waste_tot: Some(waste as i32),
             arrivals,
+            ..Default::default()
         },
     }
 }

@@ -136,6 +136,7 @@ fn filter_step_py(
         sales_tot: Some(sales),
         waste_tot: Some(waste),
         arrivals: 0,
+        ..Default::default()
     };
     let mut rng = Pcg64::seed_from_u64(seed);
     filter_step(&bank, &obs, &ModelParams::default(), &mut rng).weights

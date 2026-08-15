@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::obs::FilterObs;
 use crate::physics::draw_demand;
 use crate::policy::{case_round_ceil, damped_sw_order};
-use crate::rbpf::{filter_step, FilterObs, ParticleBank};
+use crate::rbpf::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{generate_arrival_age, ShipmentTrace};
@@ -302,9 +303,7 @@ impl EngineSession {
             .zip(self.state.taus.iter())
             .zip(self.state.lot_ids.iter())
             .filter(|((&n, _), _)| n > 0)
-            .map(|((&n, &tau), &lot_id)| {
-                serde_json::json!({"lot_id": lot_id, "n": n, "tau": tau})
-            })
+            .map(|((&n, &tau), &lot_id)| serde_json::json!({"lot_id": lot_id, "n": n, "tau": tau}))
             .collect();
         serde_json::Value::Array(lots)
     }
@@ -396,12 +395,8 @@ impl EngineSession {
             let mut n = 0u32;
             for day_idx in (last + 1)..=now {
                 let log = &self.richest_log[day_idx as usize];
-                let obs = filter_obs_for(
-                    obs_scenario,
-                    log.sales_total,
-                    log.waste_total,
-                    log.arrivals,
-                );
+                let obs =
+                    filter_obs_for(obs_scenario, log.sales_total, log.waste_total, log.arrivals);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 bank = filter_step(&bank, &obs, &self.params, &mut fr);
                 n += 1;
@@ -560,6 +555,7 @@ fn filter_obs_for(scenario: &str, sales: u32, waste: u32, arrivals: u32) -> Filt
             Some(waste as i32)
         },
         arrivals,
+        ..Default::default()
     }
 }
 
@@ -851,9 +847,8 @@ mod tests {
     fn rpc_set_obs_scenario_ok() {
         let _ = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
         let _ = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
-        let out = handle_rpc(
-            r#"{"id":"3","method":"set_obs_scenario","params":{"obs_scenario":"F1"}}"#,
-        );
+        let out =
+            handle_rpc(r#"{"id":"3","method":"set_obs_scenario","params":{"obs_scenario":"F1"}}"#);
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["ok"], true, "{out}");
         assert_eq!(v["result"]["applied_config"]["obs_scenario"], "F1");
@@ -876,5 +871,198 @@ mod tests {
         s.init(1);
         s.configure(1, true, 7, 2, 1, vec![], 200);
         assert_eq!(s.n_particles(), 200);
+    }
+
+    fn shannon(p: &[f64]) -> f64 {
+        let z: f64 = p.iter().sum();
+        if z <= 0.0 {
+            return 0.0;
+        }
+        p.iter()
+            .map(|x| {
+                let q = *x / z;
+                if q > 0.0 {
+                    -q * q.ln()
+                } else {
+                    0.0
+                }
+            })
+            .sum()
+    }
+
+    fn json_f64s(v: &serde_json::Value, key: &str) -> Vec<f64> {
+        v[key]
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .collect()
+    }
+
+    fn merged_age_mass(belief: &serde_json::Value) -> Vec<f64> {
+        let k = belief["K"].as_u64().unwrap_or(0) as usize;
+        let l = belief["L"].as_u64().unwrap_or(0) as usize;
+        let counts = json_f64s(belief, "lot_counts");
+        let ages = json_f64s(belief, "age_marginals");
+        let mut m = vec![0.0; k];
+        for i in 0..l {
+            let c = counts.get(i).copied().unwrap_or(0.0);
+            for j in 0..k {
+                m[j] += c * ages.get(i * k + j).copied().unwrap_or(0.0);
+            }
+        }
+        m
+    }
+
+    fn step_until_arrivals(s: &mut EngineSession, orders: &[u32]) -> u32 {
+        let mut arrived = 0u32;
+        for &q in orders {
+            let d = s.step(q);
+            arrived += d.arrivals;
+        }
+        arrived
+    }
+
+    /// AC: F2 vs P0 Snapshot.belief.age_marginals differ; live_lots identical.
+    #[test]
+    fn f2_belief_differs_from_p0_live_lots_unchanged() {
+        let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
+        let mut f2 = EngineSession::new(42);
+        f2.init(42);
+        f2.set_obs_scenario("F2").unwrap();
+        assert!(step_until_arrivals(&mut f2, &orders) > 0);
+        let snap_f2 = f2.snapshot_value();
+
+        let mut p0 = EngineSession::new(42);
+        p0.init(42);
+        p0.set_obs_scenario("P0").unwrap();
+        let _ = p0.step_n(&orders);
+        let snap_p0 = p0.snapshot_value();
+
+        assert_eq!(
+            snap_f2["live_lots"], snap_p0["live_lots"],
+            "physics live_lots must match across rungs"
+        );
+        assert_ne!(
+            json_f64s(&snap_f2["belief"], "age_marginals"),
+            json_f64s(&snap_p0["belief"], "age_marginals"),
+            "F2 particle posterior must differ from P0"
+        );
+    }
+
+    /// AC: F2a age mass narrower than P1 (lower entropy).
+    #[test]
+    fn f2a_age_mass_narrower_than_p1() {
+        let orders = [8u32, 0, 8, 0, 8, 0, 8, 0, 8, 0];
+        let mut f2a = EngineSession::new(17);
+        f2a.init(17);
+        f2a.set_obs_scenario("F2a").unwrap();
+        let _ = f2a.step_n(&orders);
+        let mut p1 = EngineSession::new(17);
+        p1.init(17);
+        p1.set_obs_scenario("P1").unwrap();
+        let _ = p1.step_n(&orders);
+        let h_f2a = shannon(&merged_age_mass(&f2a.snapshot_value()["belief"]));
+        let h_p1 = shannon(&merged_age_mass(&p1.snapshot_value()["belief"]));
+        assert!(
+            h_f2a < h_p1 - 1e-9,
+            "F2a entropy {h_f2a} should be < P1 {h_p1}"
+        );
+    }
+
+    /// AC: after positive waste, P0 vs P1 Snapshot belief (lot_counts or ages) differ.
+    #[test]
+    fn p0_vs_p1_belief_differs_after_waste() {
+        let mut p0 = EngineSession::new(99);
+        p0.init(99);
+        p0.set_obs_scenario("P0").unwrap();
+        let mut p1 = EngineSession::new(99);
+        p1.init(99);
+        p1.set_obs_scenario("P1").unwrap();
+        let mut saw_waste = false;
+        for _ in 0..89 {
+            let d0 = p0.step(32);
+            let d1 = p1.step(32);
+            assert_eq!(d0.waste_total, d1.waste_total);
+            if d0.waste_total > 0 {
+                saw_waste = true;
+                break;
+            }
+        }
+        assert!(saw_waste, "fixture must produce waste");
+        let b0 = p0.snapshot_value()["belief"].clone();
+        let b1 = p1.snapshot_value()["belief"].clone();
+        let same_counts = json_f64s(&b0, "lot_counts") == json_f64s(&b1, "lot_counts");
+        let same_ages = json_f64s(&b0, "age_marginals") == json_f64s(&b1, "age_marginals");
+        assert!(
+            !same_counts || !same_ages,
+            "P0 omits waste LL so posterior must differ from P1"
+        );
+    }
+
+    /// AC: uneven sales_by → F1 posterior differs from P1.
+    #[test]
+    fn f1_vs_p1_belief_differs_after_uneven_sales() {
+        let orders = [8u32, 8, 0, 8, 0, 8, 0, 8, 0, 8];
+        let mut f1 = EngineSession::new(5);
+        f1.init(5);
+        f1.set_obs_scenario("F1").unwrap();
+        let _ = f1.step_n(&orders);
+        let mut p1 = EngineSession::new(5);
+        p1.init(5);
+        p1.set_obs_scenario("P1").unwrap();
+        let _ = p1.step_n(&orders);
+        assert_ne!(
+            json_f64s(&f1.snapshot_value()["belief"], "age_marginals"),
+            json_f64s(&p1.snapshot_value()["belief"], "age_marginals"),
+            "F1 lot-resolved sales must move the posterior vs P1"
+        );
+        assert_eq!(
+            f1.snapshot_value()["live_lots"],
+            p1.snapshot_value()["live_lots"]
+        );
+    }
+
+    /// AC: catch-up to F2 matches never-switched F2 (CRN); belief is not oracle-only.
+    #[test]
+    fn catch_up_f2_matches_never_switched_and_not_oracle() {
+        let orders = [8u32, 0, 8, 0, 8, 0];
+        let mut always = EngineSession::new(11);
+        always.init(11);
+        always.set_obs_scenario("F2").unwrap();
+        let _ = always.step_n(&orders);
+        let b_always = always.snapshot_value()["belief"].clone();
+
+        let mut switched = EngineSession::new(11);
+        switched.init(11);
+        let _ = switched.step_n(&orders);
+        switched.set_obs_scenario("F2").unwrap();
+        let b_switched = switched.snapshot_value()["belief"].clone();
+        assert_eq!(
+            json_f64s(&b_always, "age_marginals"),
+            json_f64s(&b_switched, "age_marginals"),
+            "day-keyed catch-up must match a never-switched F2 session"
+        );
+        assert_eq!(always.bank_weights(), switched.bank_weights());
+
+        let mut p0 = EngineSession::new(11);
+        p0.init(11);
+        p0.set_obs_scenario("P0").unwrap();
+        let _ = p0.step_n(&orders);
+        assert_ne!(
+            json_f64s(&b_always, "age_marginals"),
+            json_f64s(&p0.snapshot_value()["belief"], "age_marginals"),
+            "caught-up F2 posterior must not collapse to P0/oracle"
+        );
+    }
+
+    #[test]
+    fn set_obs_scenario_rejects_p2_and_b_state() {
+        let mut s = EngineSession::new(1);
+        s.init(1);
+        let p2 = s.set_obs_scenario("P2").unwrap_err();
+        assert!(p2.contains("Unknown scenario"), "{p2}");
+        let b = s.set_obs_scenario("B-state").unwrap_err();
+        assert!(b.contains("bypass") || b.contains("B-state"), "{b}");
     }
 }
