@@ -43,12 +43,14 @@ _APPROVED = re.compile(
 # Non-goal / contract themes required on the Slice-2 close-out checklist.
 _CHECKLIST_THEMES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
-        "API responses share Snapshot/DayDelta with Pyodide",
+        "hosts share Snapshot/DayDelta (WASM / native / historical Pyodide)",
         (
             "snapshot",
             "daydelta",
             "day delta",
             "pyodide",
+            "wasm",
+            "native",
             "same",
             "share",
             "parity",
@@ -230,13 +232,13 @@ def _closeout_checklist_candidates() -> list[Path]:
 
 
 def _changelog_slice2_entry() -> str | None:
-    """Return the changelog block that looks like the Slice-2 / API close-out."""
+    """Return the changelog block that looks like the Slice-2 / dev-host close-out."""
     if not _CHANGELOG.is_file():
         return None
     text = _CHANGELOG.read_text(encoding="utf-8")
     heading = re.search(
         r"^##\s+.*(Slice\s*2|local\s+HTTP|HTTP\s+API|ASGI|API\s+\(dev\)|"
-        r"developers?\s+can).*$",
+        r"developers?\s+can|wasm|simulator\s+engine).*$",
         text,
         re.I | re.M,
     )
@@ -329,17 +331,18 @@ def test_slice2_ticket_review_approved(ticket: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: changelog plain-English local HTTP API entry (client voice)
+# AC: changelog plain-English dev-host entry (client voice; HTTP optional post T-125)
 # ---------------------------------------------------------------------------
 
 
 def test_changelog_has_slice2_client_voice_entry() -> None:
-    """Changelog: developers drive the same simulator engine over a local HTTP API."""
+    """Changelog: developers drive the simulator via local HTTP or native/WASM paths."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
     entry = _changelog_slice2_entry()
     assert entry is not None, (
         ".team/changelog.md must include a plain-English Slice-2 entry "
-        "(developers / local HTTP API / same simulator engine; T-052)"
+        "(developers / simulator engine; historical local HTTP API OK — not required "
+        "post T-125 / ADR 0129 WASM-only studio)"
     )
     lowered = entry.lower()
     assert any(
