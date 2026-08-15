@@ -79,3 +79,7 @@ ViewModel/PnL on Python returns.
 consider Transferable buffers as an additive transport, not a schema replacement.
 
 **Depends on:** ADR [0099](./0099-eng-01-dual-runtime-ap.md), [0092](./0092-controller-belief-api.md)
+
+**History window:** the “History window append / drop” ownership row is revisited by
+[0122](./0122-studio-episode-horizon-90.md): JS still mirrors DayDelta, but days are never dropped
+until Reset; `drop_oldest` stays on the wire and is always false.
