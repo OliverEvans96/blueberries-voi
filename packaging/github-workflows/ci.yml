@@ -4,9 +4,6 @@
 # (or symlink) this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
 # Quality job: single Python from repo pin (`.python-version` → 3.11).
-# Browser / Pyodide ABI pins (ADR 0099) remain documented elsewhere:
-#   PYODIDE_VERSION=314.0.4
-#   CPYTHON_VERSION=3.14.2
 name: CI
 
 on:
@@ -17,10 +14,6 @@ on:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  PYODIDE_VERSION: "314.0.4"
-  CPYTHON_VERSION: "3.14.2"
 
 jobs:
   quality:

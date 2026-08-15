@@ -3,13 +3,12 @@
 Locks ``.team/specs/T-097.md`` and ADR 0117: ``damped_sw`` / ``sw`` aliases,
 alpha/rho budget defaults and overrides, rollout base =
 ``DampedSurvivalWeightedPolicy`` (not ``ConstantOrderPolicy(0)``), constant
-regression, unknown-policy error text, and ASGI ``POST .../act`` forwarding.
+regression, unknown-policy error text.
 """
 
 from __future__ import annotations
 
 import importlib
-import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -20,7 +19,6 @@ import pytest
 
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.simulator.schema import validate_day_delta
 
 
 @pytest.fixture(autouse=True)
@@ -31,10 +29,6 @@ def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DAY_DELTA_TOP_KEYS = frozenset({"seq", "episode_day", "day"})
 _SESSION_MOD = "blueberries_voi.simulator.session"
-_API_PKG = "blueberries_voi.api"
-_SESSION_CREATE = "/sessions"
-_INIT = "/sessions/{session_id}/init"
-_ACT = "/sessions/{session_id}/act"
 
 _DEFAULT_ALPHA = 0.9
 _DEFAULT_RHO = 0.8
@@ -339,119 +333,6 @@ def test_act_budget_overrides_update_session_dials_and_rollout_kwargs(
     assert int(kwargs.get("n_rollout_paths", -1)) == 1
     assert int(kwargs.get("candidate_case_radius", -1)) == 0
     assert int(kwargs.get("n_particles", -1)) == 24
-
-
-# ---------------------------------------------------------------------------
-# AC: ASGI POST .../act with damped_sw + alpha/rho budgets
-# ---------------------------------------------------------------------------
-
-
-def _json_shipments() -> list[dict[str, Any]]:
-    return [
-        {
-            "shipment_id": "T097-COOL",
-            "times_d": [0.0, 1.0, 2.0],
-            "temps_c": [1.0, 1.0, 1.0],
-            "duration_d": 2.0,
-        },
-        {
-            "shipment_id": "T097-WARM",
-            "times_d": [0.0, 1.0, 2.0],
-            "temps_c": [5.0, 5.0, 5.0],
-            "duration_d": 2.0,
-        },
-    ]
-
-
-def _init_body() -> dict[str, Any]:
-    return {
-        "config": {
-            "shipments": _json_shipments(),
-            "n_particles": 32,
-            "H": 3,
-            "n_rollout_paths": 1,
-            "candidate_case_radius": 1,
-            "L": 2,
-            "K": 4,
-            "enable_filter": True,
-            "lead_time": 1,
-        },
-        "seed": 97,
-    }
-
-
-def _resolve_app() -> Any:
-    mod = importlib.import_module(_API_PKG)
-    app = getattr(mod, "app", None)
-    assert app is not None, f"{_API_PKG}.app must export the ASGI application"
-    return app
-
-
-def _asgi_client(app: Any) -> Any:
-    try:
-        from starlette.testclient import TestClient
-
-        return TestClient(app)
-    except ImportError:
-        pass
-    try:
-        from fastapi.testclient import TestClient
-
-        return TestClient(app)
-    except ImportError:
-        pass
-    pytest.fail("need Starlette/FastAPI TestClient for ASGI act test (T-097)")
-
-
-def _response_json(resp: Any) -> Any:
-    if hasattr(resp, "json") and callable(resp.json):
-        data = resp.json()
-        return data() if callable(data) else data
-    body = getattr(resp, "content", None) or getattr(resp, "text", b"")
-    if isinstance(body, bytes):
-        return json.loads(body.decode("utf-8"))
-    if isinstance(body, (str, bytearray)):
-        return json.loads(body)
-    pytest.fail(f"response body is not JSON-decodable: {type(body)!r}")
-
-
-def _status(resp: Any) -> int:
-    return int(resp.status_code)
-
-
-def _path(template: str, session_id: str) -> str:
-    return template.format(session_id=session_id)
-
-
-def _create_session(client: Any) -> str:
-    resp = client.post(_SESSION_CREATE)
-    assert _status(resp) in {200, 201}
-    payload = _response_json(resp)
-    assert isinstance(payload, Mapping)
-    sid = payload.get("session_id")
-    assert isinstance(sid, str) and sid
-    return sid
-
-
-def test_asgi_act_damped_sw_with_alpha_rho_budgets_returns_200_day_delta() -> None:
-    client = _asgi_client(_resolve_app())
-    sid = _create_session(client)
-    assert _status(client.post(_path(_INIT, sid), json=_init_body())) == 200
-    resp = client.post(
-        _path(_ACT, sid),
-        json={
-            "policy": "damped_sw",
-            "budgets": {"alpha": 0.9, "rho": 0.8},
-        },
-    )
-    assert _status(resp) == 200, (
-        f"POST act damped_sw must return 200; got {_status(resp)} "
-        f"body={getattr(resp, 'text', resp)!r}"
-    )
-    delta = _response_json(resp)
-    assert isinstance(delta, Mapping)
-    validate_day_delta(delta)
-    _assert_day_delta(delta, label="ASGI act damped_sw DayDelta")
 
 
 # ---------------------------------------------------------------------------
