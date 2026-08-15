@@ -1,35 +1,29 @@
-"""T-113 RED: lazy per-rung obs_scenario caches + EngineSession.set_obs_scenario.
+"""T-125 migrated T-113: EngineSession.set_obs_scenario (PyO3) + WASM worker dispatch.
 
-Locks `.team/specs/T-113.md` and ADR 0123. Catch-up must replay the richest log
-into a new RBPF; naive in-place particle retarget stays forbidden.
+Locks `.team/specs/T-125.md` AC-mixed: catch-up via Rust ``PyEngineSession`` and
+``packaging/wasm/worker.js`` — no FastAPI or ``packaging/pyodide/session_rpc.py``.
 """
 
 from __future__ import annotations
 
-import pytest
-
-pytest.skip("T-121 F3: Python session rung caches removed", allow_module_level=True)
-
-import importlib
-import importlib.util
-import json
-from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
 import pytest
-from blueberries_voi.filter.rbpf import RBPF
 
 from blueberries_voi.filter.types import mask_for
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.simulator.belief import empty_flat_belief
 from blueberries_voi.simulator.session import EngineSession
 
 _REPO = Path(__file__).resolve().parents[1]
-_SESSION_SRC = _REPO / "src" / "blueberries_voi" / "simulator" / "session.py"
-_RPC_SRC = _REPO / "packaging" / "pyodide" / "session_rpc.py"
-_WORKER_SRC = _REPO / "packaging" / "pyodide" / "worker.js"
+_WASM_WORKER = _REPO / "packaging" / "wasm" / "worker.js"
+_PYODIDE_RPC = _REPO / "packaging" / "pyodide" / "session_rpc.py"
 _API_PKG = "blueberries_voi.api"
+
+_FLAT = empty_flat_belief(L=2, K=4)
 
 
 def _fixture_shipments() -> list[ShipmentTrace]:
@@ -69,400 +63,149 @@ def _config(**overrides: Any) -> dict[str, Any]:
     return cfg
 
 
-def _day_field(day: Any, name: str) -> Any:
-    if isinstance(day, dict):
-        return day.get(name)
-    return getattr(day, name, None)
+def _snap(*, seq: int = 0, day: int = 0, obs: str = "P1") -> dict[str, Any]:
+    return {
+        "seq": seq,
+        "episode_day": day,
+        "belief": dict(_FLAT),
+        "applied_config": {"obs_scenario": obs},
+        "history": [],
+        "live_lots": [],
+        "pipeline": [],
+    }
 
 
-def _richest_log(session: EngineSession) -> list[Any]:
-    for attr in ("_richest_log", "_episode_log", "_obs_log"):
-        raw = getattr(session, attr, None)
-        if raw is None:
-            continue
-        days = getattr(raw, "days", raw)
-        if isinstance(days, list):
-            return days
-    pytest.fail(
-        "EngineSession must persist a richest episode log "
-        "(_richest_log / _episode_log) including lot maps and receipt meta; "
-        "thin Snapshot history is not enough"
-    )
+class _FakePyEngineSession:
+    def __init__(self, seed: int = 0) -> None:
+        self.seed = int(seed)
+        self.obs_scenario = "P1"
+        self.set_obs_calls: list[str] = []
+
+    def init(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return _snap(obs=self.obs_scenario)
+
+    def step(self, order_qty: int) -> dict[str, Any]:
+        return {
+            "seq": 1,
+            "episode_day": 0,
+            "day": {"day": 0, "order_qty": order_qty},
+            "belief": dict(_FLAT),
+            "live_lots": [],
+            "pipeline": [],
+            "drop_oldest": False,
+        }
+
+    def set_obs_scenario(self, obs_scenario: str) -> dict[str, Any]:
+        self.set_obs_calls.append(str(obs_scenario))
+        self.obs_scenario = str(obs_scenario)
+        return _snap(obs=self.obs_scenario)
 
 
-def _assert_snapshot(payload: Any) -> dict[str, Any]:
-    assert isinstance(payload, dict), f"expected Snapshot dict, got {type(payload)!r}"
-    assert "belief" in payload
-    assert "applied_config" in payload
-    applied = payload["applied_config"]
-    assert isinstance(applied, dict)
-    return payload
+def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSession]:
+    holder: dict[str, _FakePyEngineSession] = {}
+
+    def factory(seed: int = 0) -> _FakePyEngineSession:
+        sess = _FakePyEngineSession(seed)
+        holder["s"] = sess
+        return sess
+
+    fake = SimpleNamespace(PyEngineSession=factory)
+    monkeypatch.setattr("blueberries_voi.backend.rust_available", lambda: True)
+    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
+    return holder
 
 
-def _set_obs(session: EngineSession, obs_scenario: str) -> Any:
-    fn = getattr(session, "set_obs_scenario", None)
-    assert callable(fn), "EngineSession.set_obs_scenario is required (T-113 / ADR 0123)"
-    return fn(obs_scenario)
-
-
-# ---------------------------------------------------------------------------
-# AC: richest episode log after advance_day / EngineSession.step
-# ---------------------------------------------------------------------------
-
-
-def test_session_keeps_richest_log_fields_after_steps() -> None:
-    session = EngineSession()
-    session.init(_config(), seed=11)
-    for _ in range(8):
-        session.step(24)
-    log = _richest_log(session)
-    assert len(log) == 8
-    names = ("sales_by_lot", "waste_by_lot", "age_at_receipt", "pack_date")
-    seen = {n: False for n in names}
-    for day in log:
-        for name in names:
-            val = _day_field(day, name)
-            if val is None:
-                continue
-            if name in {"sales_by_lot", "waste_by_lot"}:
-                assert isinstance(val, dict)
-                seen[name] = True
-            elif name == "age_at_receipt":
-                assert isinstance(val, (int, float, np.floating))
-                seen[name] = True
-            elif name == "pack_date":
-                assert isinstance(val, (date, str))
-                seen[name] = True
-    missing = [n for n, ok in seen.items() if not ok]
-    assert not missing, (
-        f"richest log never stored {missing} across 8 days "
-        "(fields must persist when they exist for the day)"
-    )
-
-
-def test_snapshot_history_may_stay_thin_while_richest_log_is_separate() -> None:
-    session = EngineSession()
-    session.init(_config(), seed=3)
-    session.step(16)
-    history = session._snapshot()["history"]
-    assert isinstance(history, list) and history
-    log = _richest_log(session)
-    assert len(log) >= len(history)
-    rich_day = log[0]
-    assert _day_field(rich_day, "sales_total") is not None
-    assert _day_field(rich_day, "waste_total") is not None
+def _wasm_worker_source() -> str:
+    assert _WASM_WORKER.is_file(), "packaging/wasm/worker.js must exist (T-125)"
+    return _WASM_WORKER.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
-# AC: set_obs_scenario catch-up protocol
+# AC-mixed: EngineSession.set_obs_scenario (PyO3 dispatch)
 # ---------------------------------------------------------------------------
 
 
-def test_set_obs_scenario_exists_and_returns_snapshot_without_reset() -> None:
-    assert hasattr(EngineSession, "set_obs_scenario"), (
-        "EngineSession.set_obs_scenario is required (T-113 / ADR 0123)"
-    )
+def test_set_obs_scenario_exists_and_returns_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert hasattr(EngineSession, "set_obs_scenario")
+    holder = _install_fake(monkeypatch)
     session = EngineSession()
     session.init(_config(obs_scenario="P1"), seed=5)
-    session.step(16)
-    session.step(16)
-    before_day = int(session._snapshot()["episode_day"])
-    before_seq = int(session._snapshot()["seq"])
-    snap = _set_obs(session, "F2")
-    payload = _assert_snapshot(snap)
-    assert payload["applied_config"]["obs_scenario"] == "F2"
-    assert int(payload["episode_day"]) == before_day
-    assert int(payload["seq"]) == before_seq
+    snap = session.set_obs_scenario("F2")
+    assert isinstance(snap, dict)
+    assert snap["applied_config"]["obs_scenario"] == "F2"
+    inner = holder["s"]
+    assert inner.set_obs_calls == ["F2"]
 
 
-def test_first_select_catchup_steps_days_0_through_t_minus_1(
+def test_set_obs_scenario_delegates_to_pyo3_rust_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    stepped: list[int] = []
-    real = RBPF.step
-
-    def _spy(self: RBPF, obs: Any, rng: Any = None) -> Any:
-        stepped.append(int(self._day))
-        return real(self, obs, rng)
-
-    monkeypatch.setattr(RBPF, "step", _spy)
+    holder = _install_fake(monkeypatch)
     session = EngineSession()
-    session.init(_config(obs_scenario="P1"), seed=9)
-    t = 4
-    for _ in range(t):
-        session.step(24)
-    stepped.clear()
-    _set_obs(session, "F1")
-    assert stepped == list(range(t)), (
-        f"first select at day {t} must initialize a new RBPF and step 0…{t - 1}; "
-        f"got days {stepped!r}"
-    )
-
-
-def test_switch_back_catchup_steps_only_the_gap(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session = EngineSession()
-    session.init(_config(obs_scenario="P1"), seed=13)
-    for _ in range(3):
-        session.step(24)
-    _set_obs(session, "F2")
-    _set_obs(session, "P1")
-    for _ in range(2):
-        session.step(16)
-
-    stepped: list[int] = []
-    real = RBPF.step
-
-    def _spy(self: RBPF, obs: Any, rng: Any = None) -> Any:
-        stepped.append(int(self._day))
-        return real(self, obs, rng)
-
-    monkeypatch.setattr(RBPF, "step", _spy)
-    _set_obs(session, "F2")
-    assert stepped == [3, 4], (
-        "switch-back must step only last_synced+1 … now (days 3,4 after "
-        f"warming F2 at t=3 then advancing 2 on P1); got {stepped!r}"
-    )
+    session.init(_config(), seed=1)
+    session.set_obs_scenario("F1")
+    assert holder["s"].set_obs_calls == ["F1"]
 
 
 @pytest.mark.parametrize("bad_id", ["P2", "B-state", "not-a-scenario", ""])
-def test_set_obs_scenario_invalid_id_raises_like_mask_for(bad_id: str) -> None:
+def test_set_obs_scenario_invalid_id_raises_like_mask_for(
+    bad_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    holder = _install_fake(monkeypatch)
     session = EngineSession()
     session.init(_config(), seed=1)
     with pytest.raises((ValueError, KeyError, TypeError)):
         mask_for(bad_id)
-    fn = getattr(session, "set_obs_scenario", None)
-    assert callable(fn), "EngineSession.set_obs_scenario is required (T-113 / ADR 0123)"
     with pytest.raises((ValueError, KeyError, TypeError)):
-        fn(bad_id)
+        session.set_obs_scenario(bad_id)
+    assert holder["s"].set_obs_calls == []
 
 
 # ---------------------------------------------------------------------------
-# AC: CRN golden — catch-up matches never-switched filter
+# AC-mixed: WASM worker dispatches set_obs_scenario
 # ---------------------------------------------------------------------------
 
 
-def _belief_vec(snap: dict[str, Any]) -> np.ndarray:
-    bel = snap["belief"]
-    return np.asarray(bel["age_marginals"], dtype=float)
-
-
-def test_catchup_matches_never_switched_filter_crn() -> None:
-    seed = 42
-    days = 5
-    live = EngineSession()
-    live.init(_config(obs_scenario="F2"), seed=seed)
-    for _ in range(days):
-        live.step(24)
-    live_snap = live._snapshot()
-
-    switched = EngineSession()
-    switched.init(_config(obs_scenario="P1"), seed=seed)
-    for _ in range(days):
-        switched.step(24)
-    caught = _set_obs(switched, "F2")
-    payload = _assert_snapshot(caught)
-    np.testing.assert_allclose(
-        _belief_vec(payload),
-        _belief_vec(live_snap),
-        rtol=0.0,
-        atol=0.0,
-        err_msg="catch-up F2 must match a filter that was F2 the whole episode (CRN)",
+def test_wasm_worker_mentions_set_obs_scenario() -> None:
+    text = _wasm_worker_source()
+    assert "set_obs_scenario" in text, (
+        "wasm worker.js must mention set_obs_scenario in RPC dispatch (T-113 / T-125)"
     )
-    np.testing.assert_allclose(
-        np.asarray(payload["belief"]["lot_counts"], dtype=float),
-        np.asarray(live_snap["belief"]["lot_counts"], dtype=float),
-        rtol=0.0,
-        atol=0.0,
-    )
+
+
+def test_wasm_worker_rpc_surface_matches_session_contract() -> None:
+    text = _wasm_worker_source()
+    for method in ("init", "step", "act", "set_obs_scenario"):
+        assert method in text, f"wasm worker must support RPC method {method!r}"
 
 
 # ---------------------------------------------------------------------------
-# AC: advance/act step only the active filter; Reset wipes caches
+# AC-pyodide / AC-api: retired FastAPI + session_rpc paths absent (T-125)
 # ---------------------------------------------------------------------------
 
 
-def test_step_and_act_advance_only_the_active_filter(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session = EngineSession()
-    session.init(_config(obs_scenario="P1"), seed=17)
-    for _ in range(3):
-        session.step(24)
-    _set_obs(session, "F2")
-    _set_obs(session, "P1")
-
-    owners: list[int] = []
-    real = RBPF.step
-
-    def _spy(self: RBPF, obs: Any, rng: Any = None) -> Any:
-        owners.append(id(self))
-        return real(self, obs, rng)
-
-    monkeypatch.setattr(RBPF, "step", _spy)
-    active = session._state.rbpf
-    assert active is not None
-    session.step(16)
-    session.act(policy="constant", order_qty=8)
-    assert owners, "step/act must call RBPF.step on the active filter"
-    assert all(oid == id(active) for oid in owners), (
-        "advance_day / act must step only the active filter; warmed rungs stay behind"
+def test_packaging_pyodide_session_rpc_absent() -> None:
+    assert not _PYODIDE_RPC.is_file(), (
+        "packaging/pyodide/session_rpc.py must be deleted (T-125); "
+        "set_obs_scenario is wasm + PyO3 only"
     )
 
 
-def test_reset_wipes_richest_log_and_per_rung_caches() -> None:
-    session = EngineSession()
-    session.init(_config(obs_scenario="P1"), seed=19)
-    for _ in range(4):
-        session.step(24)
-    _set_obs(session, "F1")
-    assert len(_richest_log(session)) == 4
-    rbpf_before = session._state.rbpf
-    session.reset(_config(obs_scenario="P1"), seed=19)
-    log = _richest_log(session)
-    assert log == [], "Reset must wipe the richest episode log"
-    assert session._state.rbpf is not rbpf_before
-    snap = _set_obs(session, "F2")
-    _assert_snapshot(snap)
-    assert int(snap["episode_day"]) == 0
-    assert len(_richest_log(session)) == 0
-
-
-def test_init_wipes_caches_like_reset() -> None:
-    session = EngineSession()
-    session.init(_config(), seed=2)
-    session.step(16)
-    _set_obs(session, "F2")
-    session.init(_config(), seed=2)
-    assert _richest_log(session) == []
-
-
-# ---------------------------------------------------------------------------
-# AC: no in-place particle retarget
-# ---------------------------------------------------------------------------
-
-
-def test_set_obs_scenario_creates_a_distinct_rbpf_not_in_place_weights() -> None:
-    session = EngineSession()
-    session.init(_config(obs_scenario="P1"), seed=23)
-    for _ in range(3):
-        session.step(24)
-    live = session._state.rbpf
-    assert live is not None
-    live_id = id(live)
-    state_id = id(live._state)
-    _set_obs(session, "F2")
-    new = session._state.rbpf
-    assert new is not None
-    assert id(new) != live_id, "catch-up must construct a distinct RBPF"
-    assert id(new._state) != state_id, (
-        "must not mutate the live particle cloud in place"
+def test_fastapi_api_package_absent() -> None:
+    api_dir = _REPO / "src" / "blueberries_voi" / "api"
+    assert not api_dir.is_dir(), (
+        "src/blueberries_voi/api/ must be deleted (T-125 AC-api); "
+        "no FastAPI set_obs_scenario forwarding"
     )
 
 
-def test_session_source_does_not_retarget_particle_obs_scenario_in_place() -> None:
-    src = _SESSION_SRC.read_text(encoding="utf-8")
-    assert "set_obs_scenario" in src
-    forbidden = (
-        "._obs_scenario =",
-        "particle._obs_scenario",
-        "p._obs_scenario",
+def test_blueberries_voi_api_not_importable() -> None:
+    import importlib.util
+
+    spec = importlib.util.find_spec(_API_PKG)
+    assert spec is None, (
+        f"{_API_PKG} must not be importable after T-125 AC-api retirement"
     )
-    # Live cloud field retarget without replay is the forbidden path.
-    assert "weights" not in src.split("def set_obs_scenario", 1)[-1][:800] or (
-        "RBPF(" in src.split("def set_obs_scenario", 1)[-1]
-    )
-    assert "particle._obs_scenario" not in src
-    for needle in forbidden[1:]:
-        assert needle not in src
-
-
-# ---------------------------------------------------------------------------
-# AC: session_rpc + FastAPI forward set_obs_scenario
-# ---------------------------------------------------------------------------
-
-
-def test_session_rpc_dispatches_set_obs_scenario() -> None:
-    spec = importlib.util.spec_from_file_location(
-        "t113_session_rpc",
-        _RPC_SRC,
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    methods = getattr(mod, "_RPC_METHODS", None)
-    assert methods is not None and "set_obs_scenario" in methods
-    init = json.loads(
-        mod.handle_rpc(
-            {
-                "id": "1",
-                "method": "init",
-                "params": {"config": _config(), "seed": 4},
-            }
-        )
-    )
-    assert init.get("ok") is True
-    json.loads(
-        mod.handle_rpc({"id": "2", "method": "step", "params": {"order_qty": 16}})
-    )
-    resp = json.loads(
-        mod.handle_rpc(
-            {
-                "id": "3",
-                "method": "set_obs_scenario",
-                "params": {"obs_scenario": "F1"},
-            }
-        )
-    )
-    assert resp.get("ok") is True, f"RPC set_obs_scenario failed: {resp!r}"
-    result = resp["result"]
-    assert isinstance(result, dict)
-    assert result["applied_config"]["obs_scenario"] == "F1"
-
-
-def test_pyodide_worker_mentions_set_obs_scenario() -> None:
-    text = _WORKER_SRC.read_text(encoding="utf-8")
-    assert "set_obs_scenario" in text
-
-
-def _asgi_client() -> Any:
-    app = importlib.import_module(_API_PKG).app
-    from starlette.testclient import TestClient
-
-    return TestClient(app)
-
-
-def test_fastapi_forwards_set_obs_scenario_on_session_object() -> None:
-    client = _asgi_client()
-    created = client.post("/sessions")
-    assert created.status_code == 200
-    sid = created.json()["session_id"]
-    cfg = _config()
-    cfg["shipments"] = [
-        {
-            "shipment_id": s.shipment_id,
-            "times_d": s.times_d.tolist(),
-            "temps_c": s.temps_c.tolist(),
-            "duration_d": s.duration_d,
-        }
-        for s in cfg["shipments"]
-    ]
-    init_resp = client.post(
-        f"/sessions/{sid}/init",
-        json={"config": cfg, "seed": 8},
-    )
-    assert init_resp.status_code == 200
-    assert (
-        client.post(f"/sessions/{sid}/step", json={"order_qty": 16}).status_code == 200
-    )
-    resp = client.post(
-        f"/sessions/{sid}/set_obs_scenario",
-        json={"obs_scenario": "F2"},
-    )
-    assert resp.status_code == 200, (
-        f"POST /sessions/{{id}}/set_obs_scenario must exist on the session object; "
-        f"got {resp.status_code} {resp.text}"
-    )
-    body = resp.json()
-    assert body["applied_config"]["obs_scenario"] == "F2"
