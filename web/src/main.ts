@@ -20,6 +20,10 @@ import { renderBeliefAgeMarginal } from "./charts/beliefAgeMarginal";
 import { renderSurvival } from "./charts/survival";
 import { renderDemandDist } from "./charts/demandDist";
 import {
+  ageCompositionSeries,
+  ageCompositionSeriesFromBelief,
+  inventorySeries,
+  inventorySeriesFromBelief,
   renderAgeComposition,
   renderInventoryTarget,
 } from "./charts/inventoryTarget";
@@ -48,6 +52,7 @@ import {
 import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
 import type { ActOpts, ScheduleWire } from "./engine/types";
 import { buildStepNOrders } from "./calendar/nextOrderAdvance";
+import { loadShowTruth, saveShowTruth, truthLots } from "./showTruth";
 
 const app = document.querySelector("#app");
 if (!app) throw new Error("#app missing");
@@ -137,7 +142,7 @@ app.innerHTML = `
             <div id="section-controls"></div>
             <div class="focus-plots">
               <div class="focus-plot" data-plot="plot-belief" hidden>
-                <div class="chart-caption impact-caption">Belief vs truth</div>
+                <div class="chart-caption impact-caption" data-truth-caption="belief">Belief</div>
                 <div id="chart-belief" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-sales-demand" hidden>
@@ -177,7 +182,7 @@ app.innerHTML = `
                 <div id="chart-belief-age-marginal" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-belief-lg" hidden>
-                <div class="chart-caption impact-caption">Belief heatmap · truth overlay</div>
+                <div class="chart-caption impact-caption" data-truth-caption="belief-lg">Belief heatmap</div>
                 <div id="chart-belief-lg" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-controller-orders" hidden>
@@ -216,6 +221,7 @@ if (engineStatusEl) {
 }
 const projector = new ViewModelProjector();
 let vm: ViewModel = projector.getViewModel();
+let showTruth = loadShowTruth();
 /** Snapshot schedule for next-order step_n + weekday chrome (T-086). */
 let schedule: ScheduleWire | null = null;
 
@@ -331,6 +337,30 @@ attachLinkedHover(els.linked, () => vm.history.map((d) => d.day), {
   onDay: onHoverDay,
 });
 
+function historyForCharts(): ViewModel["history"] {
+  if (showTruth) return vm.history;
+  return vm.history.map((d) => ({
+    ...d,
+    lots: [],
+    age_at_receipt: null,
+  }));
+}
+
+function syncTruthCaptions(): void {
+  document.querySelectorAll<HTMLElement>("[data-truth-caption]").forEach((el) => {
+    const kind = el.dataset.truthCaption;
+    if (kind === "belief" || kind === "belief-lg") {
+      el.textContent = showTruth ? "Belief vs truth" : "Belief";
+    }
+  });
+  const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
+  if (belief && activeSection === "belief") {
+    els.focusBlurb.textContent = showTruth
+      ? `${belief.blurb} Truth lots overlay when enabled.`
+      : belief.blurb;
+  }
+}
+
 function plotVisible(plotId: string): boolean {
   const node = document.querySelector(
     `.focus-plot[data-plot="${plotId}"]`,
@@ -340,7 +370,7 @@ function plotVisible(plotId: string): boolean {
 
 function renderStore(): void {
   renderMarginal(els.sales, vm.history, "sales", 72);
-  renderHistory(els.history, vm.history, { height: 220 });
+  renderHistory(els.history, historyForCharts(), { height: 220 });
   renderMarginal(els.spoil, vm.history, "spoilage", 86, vm.ghost);
   applyHoverStyles(hoveredDay);
 }
@@ -353,29 +383,50 @@ function renderChrome(): void {
 
 function renderActiveFocusPlots(): void {
   if (plotVisible("plot-belief")) {
-    renderBeliefAgeCount(els.belief, vm.belief, vm.live_lots, 200);
+    renderBeliefAgeCount(
+      els.belief,
+      vm.belief,
+      truthLots(showTruth, vm.live_lots),
+      200,
+    );
   }
   if (plotVisible("plot-belief-age-marginal")) {
     renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 72);
   }
   if (plotVisible("plot-belief-lg")) {
-    renderBeliefAgeCount(els.beliefLg, vm.belief, vm.live_lots, 280);
+    renderBeliefAgeCount(
+      els.beliefLg,
+      vm.belief,
+      truthLots(showTruth, vm.live_lots),
+      280,
+    );
   }
   if (plotVisible("plot-sales-demand")) {
     renderSalesDemand(els.salesDemand, vm.history, 130);
   }
   if (plotVisible("plot-inventory")) {
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 170);
+    const invSeries = showTruth
+      ? inventorySeries(vm.history, vm.config)
+      : inventorySeriesFromBelief(vm.belief_history, vm.config);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 170, invSeries);
   }
   if (plotVisible("plot-age-comp")) {
-    renderAgeComposition(els.ageComp, vm.history, 140);
+    const ageRows = showTruth
+      ? ageCompositionSeries(vm.history)
+      : ageCompositionSeriesFromBelief(vm.belief_history);
+    renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
   }
   if (plotVisible("plot-pnl")) {
     renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160, vm.ghost);
     applyHoverStyles(hoveredDay);
   }
   if (plotVisible("plot-survival")) {
-    renderSurvival(els.survival, vm.config, vm.live_lots, 160);
+    renderSurvival(
+      els.survival,
+      vm.config,
+      truthLots(showTruth, vm.live_lots),
+      160,
+    );
   }
   if (plotVisible("plot-demand")) {
     renderDemandDist(
@@ -386,7 +437,7 @@ function renderActiveFocusPlots(): void {
     );
   }
   if (plotVisible("plot-arrival-prior")) {
-    renderArrivalPrior(els.arrivalPrior, vm.config, vm.history, 160);
+    renderArrivalPrior(els.arrivalPrior, vm.config, historyForCharts(), 160);
   }
   if (plotVisible("plot-arrival-shift")) {
     renderArrivalShift(els.arrivalShift, vm.config, 150);
@@ -419,9 +470,11 @@ function setSection(id: SectionId): void {
   els.focusPane.classList.add("focus-flash");
 
   renderActiveFocusPlots();
+  syncTruthCaptions();
 }
 
 function renderAll(): void {
+  syncTruthCaptions();
   renderStore();
   renderChrome();
   renderActiveFocusPlots();
@@ -501,6 +554,15 @@ playChromeApi = mountPlayChrome(
       autopilot.pause();
       syncAutopilotChrome();
     },
+    onShowTruthChange(show) {
+      showTruth = show;
+      saveShowTruth(show);
+      renderAll();
+    },
+  },
+  {
+    showTruth,
+    truthClassTarget: app as HTMLElement,
   },
 );
 

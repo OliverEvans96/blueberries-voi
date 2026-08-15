@@ -1,5 +1,6 @@
 import * as d3 from "d3";
-import type { Day, SimConfig } from "../types";
+import type { FlatBelief } from "../engine/types";
+import type { BeliefHistoryDay, Day, SimConfig } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { survivalWeightedInventory } from "../mock/generate";
 
@@ -9,14 +10,101 @@ export type InventoryPoint = {
   effective: number;
 };
 
+export type AgeCompositionRow = {
+  day: number;
+  young: number;
+  mid: number;
+  old: number;
+};
+
+export type InventorySeriesOpts = {
+  from: "lots" | "belief";
+  belief_history?: BeliefHistoryDay[];
+};
+
+function expectedLotsFromFlat(flat: FlatBelief): { lot_id: number; n: number; tau: number }[] {
+  const lots: { lot_id: number; n: number; tau: number }[] = [];
+  for (let l = 0; l < flat.L; l++) {
+    let tau = 0;
+    for (let k = 0; k < flat.K; k++) {
+      tau += (flat.age_marginals[l * flat.K + k] ?? 0) * (flat.tau_grid[k] ?? 0);
+    }
+    lots.push({ lot_id: l, n: flat.lot_counts[l] ?? 0, tau });
+  }
+  return lots;
+}
+
+export function expectedAgeBands(flat: FlatBelief): Pick<
+  AgeCompositionRow,
+  "young" | "mid" | "old"
+> {
+  const row = { young: 0, mid: 0, old: 0 };
+  for (let l = 0; l < flat.L; l++) {
+    const n = flat.lot_counts[l] ?? 0;
+    for (let k = 0; k < flat.K; k++) {
+      const mass = n * (flat.age_marginals[l * flat.K + k] ?? 0);
+      const tau = flat.tau_grid[k] ?? 0;
+      if (tau <= 2) row.young += mass;
+      else if (tau <= 5) row.mid += mass;
+      else row.old += mass;
+    }
+  }
+  return row;
+}
+
 export function inventorySeries(
   history: Day[],
   config: SimConfig,
+  opts?: InventorySeriesOpts,
 ): InventoryPoint[] {
+  if (opts?.from === "belief" && opts.belief_history) {
+    return inventorySeriesFromBelief(opts.belief_history, config);
+  }
   return history.map((d) => ({
     day: d.day,
     on_hand: d.lots.reduce((s, l) => s + l.n, 0),
     effective: survivalWeightedInventory(d.lots, config),
+  }));
+}
+
+export function inventorySeriesFromBelief(
+  beliefHistory: BeliefHistoryDay[],
+  config: SimConfig,
+): InventoryPoint[] {
+  return beliefHistory.map((b) => {
+    const lots = expectedLotsFromFlat(b.flatBelief);
+    return {
+      day: b.day,
+      on_hand: b.flatBelief.lot_counts.reduce((s, n) => s + n, 0),
+      effective: survivalWeightedInventory(lots, config),
+    };
+  });
+}
+
+export function ageCompositionSeries(
+  history: Day[],
+  opts?: InventorySeriesOpts,
+): AgeCompositionRow[] {
+  if (opts?.from === "belief" && opts.belief_history) {
+    return ageCompositionSeriesFromBelief(opts.belief_history);
+  }
+  return history.map((d) => {
+    const row: AgeCompositionRow = { day: d.day, young: 0, mid: 0, old: 0 };
+    for (const lot of d.lots) {
+      if (lot.tau <= 2) row.young += lot.n;
+      else if (lot.tau <= 5) row.mid += lot.n;
+      else row.old += lot.n;
+    }
+    return row;
+  });
+}
+
+export function ageCompositionSeriesFromBelief(
+  beliefHistory: BeliefHistoryDay[],
+): AgeCompositionRow[] {
+  return beliefHistory.map((b) => ({
+    day: b.day,
+    ...expectedAgeBands(b.flatBelief),
   }));
 }
 
@@ -26,6 +114,7 @@ export function renderInventoryTarget(
   history: Day[],
   config: SimConfig,
   height = 160,
+  seriesOverride?: InventoryPoint[],
 ): void {
   const width = container.clientWidth || 320;
   const margin = {
@@ -38,7 +127,7 @@ export function renderInventoryTarget(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  const series = inventorySeries(history, config);
+  const series = seriesOverride ?? inventorySeries(history, config);
   if (series.length === 0) return;
 
   const svg = d3
@@ -148,6 +237,7 @@ export function renderAgeComposition(
   container: HTMLElement,
   history: Day[],
   height = 140,
+  rowsOverride?: AgeCompositionRow[],
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 10, right: 12, bottom: 28, left: 40 };
@@ -155,7 +245,7 @@ export function renderAgeComposition(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0) return;
+  if (history.length === 0 && !rowsOverride?.length) return;
 
   const bands = [
     { key: "young", label: "0–2d", lo: 0, hi: 2, cls: "age-young" },
@@ -163,16 +253,8 @@ export function renderAgeComposition(
     { key: "old", label: "6d+", lo: 6, hi: 999, cls: "age-old" },
   ] as const;
 
-  type Row = { day: number; young: number; mid: number; old: number };
-  const rows: Row[] = history.map((d) => {
-    const row = { day: d.day, young: 0, mid: 0, old: 0 };
-    for (const lot of d.lots) {
-      if (lot.tau <= 2) row.young += lot.n;
-      else if (lot.tau <= 5) row.mid += lot.n;
-      else row.old += lot.n;
-    }
-    return row;
-  });
+  type Row = AgeCompositionRow;
+  const rows: Row[] = rowsOverride ?? ageCompositionSeries(history);
 
   const svg = d3
     .select(container)

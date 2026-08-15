@@ -101,7 +101,7 @@ export function renderArrivalPrior(
   g.selectAll(".arrival-rug")
     .data(samples)
     .join("line")
-    .attr("class", "arrival-rug")
+    .attr("class", "arrival-rug truth-cross")
     .attr("x1", (d) => x(d))
     .attr("x2", (d) => x(d))
     .attr("y1", innerH)

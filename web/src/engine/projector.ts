@@ -5,6 +5,7 @@
 
 import type {
   BeliefGrid,
+  BeliefHistoryDay,
   Day,
   Economics,
   EpisodeGhost,
@@ -205,6 +206,15 @@ function ghostDeltas(
  * when the day payload has no lot snapshot (HTTP / Pyodide). Mock still sends
  * day.lots explicitly and that wins.
  */
+function cloneFlat(belief: FlatBelief): FlatBelief {
+  return {
+    ...belief,
+    lot_counts: [...belief.lot_counts],
+    age_marginals: [...belief.age_marginals],
+    tau_grid: [...belief.tau_grid],
+  };
+}
+
 function asDay(
   day: DayDelta["day"],
   liveLotsFallback?: readonly Lot[] | undefined,
@@ -261,6 +271,7 @@ export class ViewModelProjector {
   private appliedConfig: SimConfig;
   private episodeDay = 0;
   private history: Day[] = [];
+  private beliefHistory: BeliefHistoryDay[] = [];
   private liveLots: Lot[] = [];
   private pipeline: PipelineOrder[] = [];
   private flatBelief: FlatBelief = {
@@ -297,6 +308,10 @@ export class ViewModelProjector {
     this.history = (snapshot.history ?? []).map((d) => ({
       ...d,
       lots: d.lots.map((l) => ({ ...l })),
+    }));
+    this.beliefHistory = this.history.map((d) => ({
+      day: d.day,
+      flatBelief: cloneFlat(snapshot.belief),
     }));
     this.liveLots = (snapshot.live_lots ?? []).map((l) => ({ ...l }));
     this.pipeline = normalizePipeline(snapshot.pipeline, this.episodeDay);
@@ -341,21 +356,25 @@ export class ViewModelProjector {
 
     if (delta.drop_oldest && this.history.length > 0) {
       this.history = this.history.slice(1);
+      this.beliefHistory = this.beliefHistory.slice(1);
     }
 
-    this.history = [...this.history, asDay(delta.day, delta.live_lots)];
+    const nextDay = asDay(delta.day, delta.live_lots);
+    this.history = [...this.history, nextDay];
     // Enforce rolling window even if drop_oldest was omitted.
     if (this.history.length > this.windowDays) {
       this.history = this.history.slice(-this.windowDays);
     }
 
     if (delta.belief) {
-      this.flatBelief = {
-        ...delta.belief,
-        lot_counts: [...delta.belief.lot_counts],
-        age_marginals: [...delta.belief.age_marginals],
-        tau_grid: [...delta.belief.tau_grid],
-      };
+      this.flatBelief = cloneFlat(delta.belief);
+    }
+    this.beliefHistory = [
+      ...this.beliefHistory,
+      { day: nextDay.day, flatBelief: cloneFlat(this.flatBelief) },
+    ];
+    if (this.beliefHistory.length > this.windowDays) {
+      this.beliefHistory = this.beliefHistory.slice(-this.windowDays);
     }
     if (delta.live_lots) {
       this.liveLots = delta.live_lots.map((l) => ({ ...l }));
@@ -449,6 +468,10 @@ export class ViewModelProjector {
       pnl_totals: totals,
       belief: beliefGridFromFlat(this.flatBelief, this.liveLots),
       live_lots: this.liveLots.map((l) => ({ ...l })),
+      belief_history: this.beliefHistory.map((b) => ({
+        day: b.day,
+        flatBelief: cloneFlat(b.flatBelief),
+      })),
       on_hand: onHandInventory(this.liveLots),
       effective_inv: survivalWeightedInventory(this.liveLots, this.config),
       pipeline: this.pipeline.map((o) => ({ ...o })),

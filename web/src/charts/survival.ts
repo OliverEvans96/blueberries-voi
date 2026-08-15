@@ -70,7 +70,7 @@ export function renderSurvival(
   g.selectAll(".lot-rug")
     .data(lots)
     .join("circle")
-    .attr("class", "lot-rug")
+    .attr("class", "lot-rug truth-circle")
     .attr("cx", (d) => x(d.tau))
     .attr("cy", innerH)
     .attr("r", (d) => r(d.n))

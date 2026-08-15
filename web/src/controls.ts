@@ -12,6 +12,7 @@ import {
   pipelineDeliveryHint,
   weekdayLabel,
 } from "./calendar/nextOrderAdvance";
+import { saveShowTruth } from "./showTruth";
 
 /** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
@@ -53,6 +54,7 @@ export type ControlsCallbacks = {
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
   onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
+  onShowTruthChange?: (show: boolean) => void;
 };
 
 export type ControlsState = {
@@ -175,6 +177,11 @@ function sliderHtml(spec: SliderSpec): string {
   `;
 }
 
+export type PlayChromeOpts = {
+  showTruth?: boolean;
+  truthClassTarget?: HTMLElement;
+};
+
 /** Persistent order / advance / reset chrome — always visible. */
 export function mountPlayChrome(
   root: HTMLElement,
@@ -186,7 +193,9 @@ export function mountPlayChrome(
     | "onReset"
     | "onAutopilotPlay"
     | "onAutopilotPause"
+    | "onShowTruthChange"
   >,
+  opts?: PlayChromeOpts,
 ): {
   update: (s: ControlsState) => void;
   setOrderFromCaseChange: (qty: number, caseSize: number) => void;
@@ -206,6 +215,14 @@ export function mountPlayChrome(
         <button type="button" class="btn-autopilot" id="btn-autopilot-play" aria-label="Autopilot Play">Autopilot Play</button>
         <button type="button" class="btn-autopilot" id="btn-autopilot-pause" aria-label="Autopilot Pause" disabled>Autopilot Pause</button>
         <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
+        <button
+          type="button"
+          class="btn-show-truth"
+          id="btn-show-truth"
+          role="switch"
+          aria-label="Show true state"
+          aria-pressed="false"
+        >Show true state</button>
       </div>
       <p class="hint" id="autopilot-hint">
         While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
@@ -298,6 +315,32 @@ export function mountPlayChrome(
   dirtyBanner.hidden = !initial.configDirty;
   setAutopilotRunning(false);
 
+  const btnShowTruth = root.querySelector("#btn-show-truth") as HTMLButtonElement;
+  const truthTarget =
+    opts?.truthClassTarget ??
+    (typeof document !== "undefined"
+      ? (document.getElementById("app") ?? document.body)
+      : null);
+  let showTruth = opts?.showTruth ?? false;
+
+  function applyShowTruthClass(on: boolean): void {
+    truthTarget?.classList.toggle("studio--show-truth", on);
+  }
+
+  function setShowTruth(on: boolean): void {
+    showTruth = on;
+    btnShowTruth.setAttribute("aria-pressed", on ? "true" : "false");
+    applyShowTruthClass(on);
+    saveShowTruth(on);
+    cb.onShowTruthChange?.(on);
+  }
+
+  btnShowTruth.addEventListener("click", () => {
+    setShowTruth(!showTruth);
+  });
+  btnShowTruth.setAttribute("aria-pressed", showTruth ? "true" : "false");
+  applyShowTruthClass(showTruth);
+
   return {
     update(s) {
       syncOrderInputs(s.orderQty, s.config.case_size);
@@ -366,7 +409,7 @@ export function mountSectionControls(
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="belief" hidden>
-        <p class="hint">Observation richness changes belief blur vs truth lots.</p>
+        <p class="hint">Observation richness changes how sharp the belief is.</p>
         <div class="field">
           <span class="field-label">Observation scenario</span>
           <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
