@@ -71,6 +71,7 @@ fn day_step_injected(
 }
 
 #[pyfunction]
+#[pyo3(signature = (beta, root_seed, n_burn, n_score, filter_n, h, n_rollout_paths, lead_time, times, temps, demand_profile_json=None))]
 fn run_voi_crn_cell_py(
     beta: f64,
     root_seed: u64,
@@ -82,7 +83,8 @@ fn run_voi_crn_cell_py(
     lead_time: u32,
     times: Vec<Vec<f64>>,
     temps: Vec<Vec<f64>>,
-) -> Vec<(String, f64)> {
+    demand_profile_json: Option<&str>,
+) -> PyResult<Vec<(String, f64)>> {
     let ships: Vec<ShipmentTrace> = times
         .into_iter()
         .zip(temps)
@@ -97,7 +99,21 @@ fn run_voi_crn_cell_py(
         lead_time,
         alpha: 0.9,
     };
-    run_voi_crn_cell(beta, root_seed, &ships, &budgets, &[])
+    let demand_profile = match demand_profile_json {
+        Some(json) => Some(
+            DemandProfile::from_json(json)
+                .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?,
+        ),
+        None => None,
+    };
+    Ok(run_voi_crn_cell(
+        beta,
+        root_seed,
+        &ships,
+        &budgets,
+        &[],
+        demand_profile,
+    ))
 }
 
 #[pyfunction]

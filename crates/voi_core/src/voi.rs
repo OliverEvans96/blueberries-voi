@@ -5,6 +5,7 @@ use rand_pcg::Pcg64;
 
 use crate::belief_flat::mean_bank;
 use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::demand_profile::DemandProfile;
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order;
 use crate::rbpf::{filter_step, FilterObs, ParticleBank};
@@ -178,7 +179,7 @@ fn run_scenario_episode(
             state.delivery_n = 0;
         }
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
-        let demand = draw_demand(&mut rng_d, params, None);
+        let demand = draw_demand(&mut rng_d, params, Some(day));
         state.demand = Some(demand);
         state.spoil_by = None;
         let mut rng_a = rng(root_seed, phys, day, STREAM_ALLOC);
@@ -206,6 +207,7 @@ pub fn run_voi_crn_cell(
     shipments: &[ShipmentTrace],
     budgets: &CrnBudgets,
     scenarios: &[&str],
+    demand_profile: Option<DemandProfile>,
 ) -> Vec<(String, f64)> {
     let names: Vec<&str> = if scenarios.is_empty() {
         VOI_SCENARIOS.to_vec()
@@ -214,6 +216,7 @@ pub fn run_voi_crn_cell(
     };
     let mut params = ModelParams::default();
     params.beta = beta;
+    params.demand_profile = demand_profile;
     if shipments.is_empty() {
         panic!("shipments must be non-empty (no Abdella parquet in Rust)");
     }
@@ -252,7 +255,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
         };
-        let profits = run_voi_crn_cell(2.0, 1, &ships, &b, &[]);
+        let profits = run_voi_crn_cell(2.0, 1, &ships, &b, &[], None);
         assert_eq!(profits.len(), 7);
         assert!(profits.iter().any(|(k, _)| k == "P0"));
         assert!(profits.iter().any(|(k, _)| k == "B-state"));
@@ -271,7 +274,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
         };
-        let a = run_voi_crn_cell(2.0, 3, &ships, &b, &["P0", "P1"]);
+        let a = run_voi_crn_cell(2.0, 3, &ships, &b, &["P0", "P1"], None);
         assert_eq!(a.len(), 2);
     }
 
@@ -279,7 +282,7 @@ mod tests {
     fn empty_shipments_in_episode_panics() {
         let b = CrnBudgets::default();
         let panicked = std::panic::catch_unwind(|| {
-            run_voi_crn_cell(2.0, 1, &[], &b, &["P1"]);
+            run_voi_crn_cell(2.0, 1, &[], &b, &["P1"], None);
         });
         assert!(panicked.is_err());
     }
@@ -296,8 +299,34 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
         };
-        let x = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"]);
-        let y = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"]);
+        let x = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"], None);
+        let y = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"], None);
         assert_eq!(x, y);
+    }
+
+    #[test]
+    fn crn_calendar_profile_changes_b_state_profit() {
+        let profile = DemandProfile::from_json(include_str!(
+            "../../../data/freshnet/demand_profile.json"
+        ))
+        .expect("embedded profile");
+        let ships = [ShipmentTrace::smoke_cool()];
+        let b = CrnBudgets {
+            n_burn: 0,
+            n_score: 5,
+            filter_n: 8,
+            h: 1,
+            n_rollout_paths: 1,
+            lead_time: 1,
+            alpha: 0.9,
+        };
+        let flat = run_voi_crn_cell(2.0, 42, &ships, &b, &["B-state"], None);
+        let cal = run_voi_crn_cell(2.0, 42, &ships, &b, &["B-state"], Some(profile));
+        let flat_profit = flat[0].1;
+        let cal_profit = cal[0].1;
+        assert!(
+            (flat_profit - cal_profit).abs() > 0.01,
+            "flat={flat_profit} calendar={cal_profit}"
+        );
     }
 }
