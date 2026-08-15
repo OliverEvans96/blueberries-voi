@@ -97,12 +97,20 @@ impl EngineSession {
         n_paths: u32,
         radius: i32,
         shipments: Vec<ShipmentTrace>,
+        n_particles: usize,
     ) {
         self.lead_time = lead_time.max(1);
         self.enable_filter = enable_filter;
         self.h = h.max(1);
         self.n_paths = n_paths.max(1);
         self.radius = radius;
+        let n = n_particles.max(1);
+        self._n_particles = n;
+        self.bank = ParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            counts: vec![vec![]; n],
+            taus: vec![vec![]; n],
+        };
         if !shipments.is_empty() {
             self.shipments = shipments;
         }
@@ -235,6 +243,10 @@ impl EngineSession {
 
     pub fn host_crossings(&self) -> u32 {
         self.crossings
+    }
+
+    pub fn n_particles(&self) -> usize {
+        self._n_particles
     }
 }
 
@@ -370,5 +382,13 @@ mod tests {
         s.init(1);
         let d = s.act_rollout();
         assert_eq!(d.episode_day, 0);
+    }
+
+    #[test]
+    fn configure_sets_particle_count() {
+        let mut s = EngineSession::new(1);
+        s.init(1);
+        s.configure(1, true, 7, 2, 1, vec![], 200);
+        assert_eq!(s.n_particles(), 200);
     }
 }
