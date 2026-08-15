@@ -38,17 +38,18 @@ The studio (`web/`) is a Vite + D3 store simulator. You can step day by day,
 choose among six observation levels (books-only through age at receipt), and
 Autopilot-play with controller policy knobs.
 
-Two live engines share the Python library. Pick one per session:
+Three live engines. Pick one per session:
 
 | Mode | When to use | Engine |
 |------|-------------|--------|
 | **HTTP / API** | Local development against FastAPI | Native Python `EngineSession` on port 8000 |
-| **Pyodide** | In-browser / prod-shaped path | Web Worker + `micropip.install` of the slim wheel |
+| **Pyodide** | In-browser / prod-shaped Python path | Web Worker + `micropip.install` of the slim wheel |
+| **WASM** | In-browser Rust kernel | Web Worker + wasm-pack pkg at `/wasm/` |
 
 Open the UI at **http://127.0.0.1:5173** after Vite starts. The footer says
-“Live HTTP studio” or “Live Pyodide studio”; the header chip is Loading /
-Ready / Error. `mock` is debug-only (`VITE_ENGINE_ADAPTER=mock`) and is never
-selected silently.
+“Live HTTP studio”, “Live Pyodide studio”, or “Live WASM studio”; the header
+chip is Loading / Ready / Error. `mock` is debug-only
+(`VITE_ENGINE_ADAPTER=mock`) and is never selected silently.
 
 One-time frontend install (from the repo root):
 
@@ -106,16 +107,37 @@ check that `dist/blueberries_voi-*-py3-none-any.whl` exists and that
 http://127.0.0.1:5173/wheels/blueberries_voi-0.1.0-py3-none-any.whl returns
 200. Rebuild the wheel after Python package changes.
 
+### WASM mode
+
+Vite serves the worker at `/packaging/wasm/worker.js` and the wasm-pack output
+at `/wasm/` from `packaging/wasm/pkg/` (dev middleware; no `web/public`
+symlinks). Build the crate first (needs `rustc` and `wasm-pack`):
+
+```bash
+./scripts/build-wasm.sh
+cd web
+VITE_ENGINE_ADAPTER=wasm \
+  VITE_WASM_WORKER_URL=/packaging/wasm/worker.js \
+  VITE_WASM_PKG_URL=/wasm/ \
+  npm run dev
+```
+
+No FastAPI process is required. Rebuild after Rust crate changes. Smoke the
+kernel with `./scripts/smoke-wasm.sh` (see
+[`packaging/wasm/README.md`](packaging/wasm/README.md)).
+
 ### Env flags
 
 `web/.env.example` documents:
 
 | Variable | Role |
 |----------|------|
-| `VITE_ENGINE_ADAPTER` | `http` \| `pyodide` \| `mock` (explicit wins) |
+| `VITE_ENGINE_ADAPTER` | `http` \| `pyodide` \| `wasm` \| `mock` (explicit wins) |
 | `VITE_ENGINE_API_BASE_URL` | FastAPI base (`http://127.0.0.1:8000`) |
 | `VITE_PYODIDE_WORKER_URL` | default `/packaging/pyodide/worker.js` |
 | `VITE_PYODIDE_WHEEL_URL` | default `/wheels/blueberries_voi-0.1.0-py3-none-any.whl` |
+| `VITE_WASM_WORKER_URL` | default `/packaging/wasm/worker.js` |
+| `VITE_WASM_PKG_URL` | default `/wasm/` |
 
 Without `VITE_ENGINE_ADAPTER`, development with an API base URL selects HTTP;
 otherwise the studio prefers Pyodide (including production builds). For the
