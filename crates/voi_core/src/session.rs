@@ -1,5 +1,7 @@
 //! EngineSession JSON RPC — order schedule + RBPF + rollout (Python day_driver).
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::day_step::{day_step, DayStepIn, ModelParams};
@@ -41,6 +43,18 @@ pub struct EngineSession {
     seq: u32,
     l_dim: usize,
     k_dim: usize,
+    obs_scenario: String,
+    richest_log: Vec<RichDay>,
+    rungs: HashMap<String, (ParticleBank, i32)>,
+    bank_init: ParticleBank,
+    catchup_days_last: u32,
+}
+
+#[derive(Clone, Debug)]
+struct RichDay {
+    sales_total: u32,
+    waste_total: u32,
+    arrivals: u32,
 }
 
 impl Default for EngineSession {
@@ -86,6 +100,15 @@ impl EngineSession {
             seq: 0,
             l_dim: 2,
             k_dim: 4,
+            obs_scenario: "P1".to_string(),
+            richest_log: Vec::new(),
+            rungs: HashMap::new(),
+            bank_init: ParticleBank {
+                weights: vec![1.0 / n as f64; n],
+                counts: vec![vec![]; n],
+                taus: vec![vec![]; n],
+            },
+            catchup_days_last: 0,
         }
     }
 
@@ -118,6 +141,10 @@ impl EngineSession {
         self.day
     }
 
+    pub fn obs_scenario(&self) -> &str {
+        &self.obs_scenario
+    }
+
     fn require_init(&self) {
         if !self.initialized {
             panic!("EngineSession.init() must be called before step/act");
@@ -126,6 +153,9 @@ impl EngineSession {
 
     fn advance_one(&mut self, order_qty: u32) -> DayDelta {
         self.require_init();
+        if self.day >= 90 {
+            panic!("episode ended at day 90; Reset to start a new episode");
+        }
         let mut order = case_round_ceil(order_qty, self.params.case_size);
         if !self.schedule.can_order(self.day) {
             order = 0;
@@ -166,11 +196,12 @@ impl EngineSession {
             Some(&mut rng_s),
         );
         if self.enable_filter {
-            let obs = FilterObs {
-                sales_tot: Some(out.sales_total as i32),
-                waste_tot: Some(out.waste_total as i32),
-                arrivals: arrival,
-            };
+            let obs = filter_obs_for(
+                &self.obs_scenario,
+                out.sales_total,
+                out.waste_total,
+                arrival,
+            );
             let mut fr = stream_rng(self.seed, self.day, 6);
             self.bank = filter_step(&self.bank, &obs, &self.params, &mut fr);
         }
@@ -189,6 +220,17 @@ impl EngineSession {
         };
         self.day += 1;
         self.seq += 1;
+        self.richest_log.push(RichDay {
+            sales_total: out.sales_total,
+            waste_total: out.waste_total,
+            arrivals: arrival,
+        });
+        if self.enable_filter {
+            self.rungs.insert(
+                self.obs_scenario.clone(),
+                (self.bank.clone(), self.day as i32 - 1),
+            );
+        }
         delta
     }
 
@@ -209,7 +251,7 @@ impl EngineSession {
                 "K": self.k_dim,
                 "enable_filter": self.enable_filter,
                 "lead_time": self.lead_time,
-                "obs_scenario": "P1",
+                "obs_scenario": self.obs_scenario,
                 "seed": self.seed,
             },
             "schedule": schedule_wire(&self.schedule),
@@ -320,6 +362,56 @@ impl EngineSession {
 
     pub fn reset(&mut self, seed: u64) {
         self.init(seed);
+    }
+
+    pub fn set_obs_scenario(&mut self, obs_scenario: &str) -> Result<serde_json::Value, String> {
+        self.require_init();
+        validate_scenario(obs_scenario)?;
+        self.catchup_days_last = 0;
+        if obs_scenario == self.obs_scenario && self.rungs.contains_key(obs_scenario) {
+            return Ok(self.snapshot_value());
+        }
+        if self.enable_filter {
+            self.rungs.insert(
+                self.obs_scenario.clone(),
+                (self.bank.clone(), self.day as i32 - 1),
+            );
+        }
+        self.obs_scenario = obs_scenario.to_string();
+        if self.enable_filter {
+            let (mut bank, last) = self
+                .rungs
+                .get(obs_scenario)
+                .cloned()
+                .unwrap_or_else(|| (self.bank_init.clone(), -1));
+            let now = self.day as i32 - 1;
+            let mut n = 0u32;
+            for day_idx in (last + 1)..=now {
+                let log = &self.richest_log[day_idx as usize];
+                let obs = filter_obs_for(
+                    obs_scenario,
+                    log.sales_total,
+                    log.waste_total,
+                    log.arrivals,
+                );
+                let mut fr = stream_rng(self.seed, day_idx as u32, 6);
+                bank = filter_step(&bank, &obs, &self.params, &mut fr);
+                n += 1;
+            }
+            self.catchup_days_last = n;
+            self.bank = bank;
+            self.rungs
+                .insert(obs_scenario.to_string(), (self.bank.clone(), now));
+        }
+        Ok(self.snapshot_value())
+    }
+
+    pub fn bank_weights(&self) -> Vec<f64> {
+        self.bank.weights.clone()
+    }
+
+    pub fn catchup_days_last_call(&self) -> u32 {
+        self.catchup_days_last
     }
 
     pub fn host_crossings(&self) -> u32 {
@@ -434,6 +526,31 @@ fn demand_summary_wire() -> serde_json::Value {
     })
 }
 
+fn validate_scenario(id: &str) -> Result<(), String> {
+    if id == "B-state" {
+        return Err(
+            "SCN-B-state is a verification bypass, not an ObsMask; do not fabricate observations via mask_for"
+                .to_string(),
+        );
+    }
+    match id {
+        "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" => Ok(()),
+        _ => Err(format!("Unknown scenario for ObsMask: {id:?}")),
+    }
+}
+
+fn filter_obs_for(scenario: &str, sales: u32, waste: u32, arrivals: u32) -> FilterObs {
+    FilterObs {
+        sales_tot: Some(sales as i32),
+        waste_tot: if scenario == "P0" {
+            None
+        } else {
+            Some(waste as i32)
+        },
+        arrivals,
+    }
+}
+
 fn rpc_u64(params: &serde_json::Value, key: &str) -> Option<u64> {
     params.get(key).and_then(|v| v.as_u64()).or_else(|| {
         params
@@ -485,6 +602,14 @@ pub fn handle_rpc(request_json: &str) -> String {
                 let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
+                if let Some(sc) = req
+                    .params
+                    .get("obs_scenario")
+                    .or_else(|| req.params.get("config").and_then(|c| c.get("obs_scenario")))
+                    .and_then(|v| v.as_str())
+                {
+                    let _ = sess.set_obs_scenario(sc);
+                }
                 sess.snapshot_value()
             }
             "step" => {
@@ -521,6 +646,23 @@ pub fn handle_rpc(request_json: &str) -> String {
             "act" => {
                 let d = sess.act_rollout();
                 sess.day_delta_value(&d)
+            }
+            "set_obs_scenario" => {
+                let id = req
+                    .params
+                    .get("obs_scenario")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                match sess.set_obs_scenario(id) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return format!(
+                            "{{\"id\":{},\"ok\":false,\"error\":{{\"type\":\"ValidationError\",\"message\":{}}}}}",
+                            req.id,
+                            serde_json::to_string(&e).unwrap()
+                        );
+                    }
+                }
             }
             other => {
                 return format!(

@@ -273,6 +273,9 @@ export class MockAdapter implements EngineAdapter {
   }
 
   private stepOnce(orderQty: number): DayDelta {
+    if (this.state.day >= 90) {
+      throw new Error("episode ended at day 90; Reset to start a new episode");
+    }
     const { state, dayRecord, completedDay } = stepSimulation(
       this.state,
       orderQty,

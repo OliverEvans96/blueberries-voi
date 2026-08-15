@@ -1,7 +1,7 @@
 /**
  * WASM worker host for EngineSession (ADR 0120).
  * Same JSON RPC envelope as packaging/pyodide/worker.js:
- *   init | step | step_n | reset | act
+ *   init | step | step_n | reset | act | set_obs_scenario
  *
  * Load voi_wasm from VITE_WASM_PKG_URL (default /wasm/) or sibling ./pkg/.
  */

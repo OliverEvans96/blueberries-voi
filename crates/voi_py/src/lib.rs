@@ -262,6 +262,21 @@ impl PyEngineSession {
         self.act(py, Some("rollout".into()))
     }
 
+    fn set_obs_scenario<'py>(
+        &mut self,
+        py: Python<'py>,
+        obs_scenario: String,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        self.inner
+            .set_obs_scenario(&obs_scenario)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        let snap = py_snapshot(py, self.inner.episode_day())?;
+        let cfg = PyDict::new(py);
+        cfg.set_item("obs_scenario", self.inner.obs_scenario())?;
+        snap.set_item("applied_config", cfg)?;
+        Ok(snap)
+    }
+
     fn host_crossings(&self) -> u32 {
         self.inner.host_crossings()
     }
