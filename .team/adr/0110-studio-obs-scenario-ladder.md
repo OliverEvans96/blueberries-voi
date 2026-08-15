@@ -1,6 +1,6 @@
 # 0110. Studio observation scenario is the filter ScenarioId ladder
 
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0123
 DATE: 2026-08-13
 BOARD-ID: SCN-* / ENG-01 (studio)
 MILESTONE: Studio knowledge-scenario wiring (Ticket B)
@@ -73,3 +73,6 @@ Locked human-facing chip copy (studio):
   SCN-P2 stays Out; Ticket A chart work remains a separate ticket.
 - **Revisit if:** Oliver reopens SCN-P2 / F3, or the studio gains a mid-episode filter restart
   protocol that is bit-stable under CRN.
+
+Superseding decision: [0123](./0123-lazy-obs-scenario-filter-caches.md) (lazy catch-up). The
+ladder, default P1, and SCN-P2 Out still apply.
