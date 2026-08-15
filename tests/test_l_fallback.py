@@ -5,16 +5,23 @@ Supersedes T-021 / ADR 0091 ``always mean_field`` production selector locks.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — production RBPF L-fallback removed",
+    allow_module_level=True,
+)
+
 import importlib
 import re
 from pathlib import Path
 from typing import Any
+from typing import Any as RBPF  # T-121 F3
 
 import numpy as np
 import pytest
 
 from blueberries_voi import filter as filter_pkg
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import MAX_JOINT_FLOATS, joint_state_count
 from blueberries_voi.model import ModelParams
 

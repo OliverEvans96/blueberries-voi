@@ -20,3 +20,4 @@ voi_core = { path = "../voi_core" }
 pyo3 = { workspace = true, features = ["extension-module"] }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
+serde_json = { workspace = true }

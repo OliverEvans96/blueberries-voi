@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from blueberries_voi.filter.rbpf import PRODUCTION_K, PRODUCTION_N
+
 from blueberries_voi.viz.fil11 import run_fil11_stage_b
 
 ROOT = Path(__file__).resolve().parents[1]

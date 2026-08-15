@@ -158,17 +158,10 @@ def test_rust_step_n_is_one_ffi_crossing(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_python_skips_pyo3(monkeypatch: pytest.MonkeyPatch) -> None:
-    holder: dict[str, int] = {"n": 0}
+    import pytest as pt
 
-    def factory(seed: int = 0) -> _FakePyEngineSession:
-        holder["n"] += 1
-        return _FakePyEngineSession(seed)
-
-    fake = SimpleNamespace(PyEngineSession=factory)
     monkeypatch.setattr("blueberries_voi.backend.rust_available", lambda: False)
-    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
+    monkeypatch.setattr("blueberries_voi.backend.rust_core", None)
     session = EngineSession()
-    session.init(_cfg(), seed=1)
-    session.step(0)
-    session.step_n([0, 8])
-    assert holder["n"] == 0
+    with pt.raises(RuntimeError, match="T-121 Wave F"):
+        session.init(_cfg(), seed=1)

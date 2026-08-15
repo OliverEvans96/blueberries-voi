@@ -1,6 +1,8 @@
 //! Shared VOI compute kernel (ADR 0119 / 0121).
 
 pub mod belief_flat;
+pub mod demand_profile;
+pub mod params;
 pub mod day_step;
 pub mod episode;
 pub mod exact_ll;
@@ -12,11 +14,14 @@ pub mod rollout;
 pub mod schedule;
 pub mod session;
 pub mod shipments;
+pub mod spawn_rng;
 pub mod voi;
 pub mod wor;
 
-pub use belief_flat::particle_bank_to_flat;
-pub use day_step::{advance_days, day_step, DayStepIn, DayStepOut, ModelParams};
+pub use belief_flat::{mean_bank, particle_bank_to_flat};
+pub use demand_profile::{DemandProfile, DemandProfileError};
+pub use day_step::{advance_days, day_step, DayStepIn, DayStepOut};
+pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use exact_ll::log_p_sales_waste_given_ages;
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};

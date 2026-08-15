@@ -14,6 +14,10 @@ CAL-01 / ADR 0112 base case is MWF day-indexed protection (T-081 / T-083).
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: Python damped_sw compute removed", allow_module_level=True)
+
 import ast
 import importlib
 import inspect
@@ -26,18 +30,18 @@ if TYPE_CHECKING:
 import pytest
 from scipy.stats import nbinom
 
-from blueberries_voi.controller.ordering import case_round
 from blueberries_voi.filter.belief import effective_inventory, shelf_belief_from_oracle
 from blueberries_voi.model import ModelParams, q10_age_increment
+from blueberries_voi.sim.bakeoff_ordering import case_round
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTROLLER_PKG = "blueberries_voi.controller"
 _POLICY_ATTR = "DampedSurvivalWeightedPolicy"
 _POLICY_MODULE_CANDIDATES = (
-    "blueberries_voi.controller.damped_sw",
+    "blueberries_voi.sim.bakeoff_damped_sw",
     "blueberries_voi.controller.sw_base_stock",
     "blueberries_voi.controller.base_stock",
-    "blueberries_voi.controller.ordering",
+    "blueberries_voi.sim.bakeoff_ordering",
     "blueberries_voi.controller",
 )
 

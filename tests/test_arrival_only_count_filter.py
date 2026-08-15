@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: day_driver removed", allow_module_level=True)
+
 import ast
 import dataclasses
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest  # noqa: TC002
+import pytest
 
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for

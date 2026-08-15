@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-15
+
+- **The store simulator now runs its heavy day-by-day math in the native engine by default, while notebooks and batch studies still orchestrate runs from Python** (T-121 Wave E).
+
 ## 2026-08-14
 
 - **On the in-browser store, the knowledge chips now change the belief heatmap for real, without changing the true lots on the shelf** (T-117).

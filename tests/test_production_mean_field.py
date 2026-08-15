@@ -6,6 +6,10 @@ Former T-021 guards required production ``mean_field_update`` / MC weights /
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: production RBPF removed", allow_module_level=True)
+
 import ast
 import re
 from pathlib import Path

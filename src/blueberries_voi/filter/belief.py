@@ -4,16 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
 from blueberries_voi.filter.age_likelihood import survival_weighted_on_hand
-from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import Cohort, ModelParams, weibull_survival
-
-if TYPE_CHECKING:
-    from blueberries_voi.filter.rbpf import RBPF
 
 PendingOrders = Mapping[int, int]
 
@@ -64,39 +60,11 @@ def _flat_prior_expected_survival(
     return float(sum(s) / len(s))
 
 
-def _weight_averaged_counts(rbpf: RBPF) -> list[float]:
-    """Mean lot counts from particle weights (filter-internal; not CTL surface)."""
-    state = rbpf._state
-    if state is None:
-        msg = "RBPF.initialize must be called before shelf_belief_from_rbpf"
-        raise RuntimeError(msg)
-
-    w = np.asarray(state.weights, dtype=float)
-    counts = np.asarray(state.counts, dtype=float)
-    mean = (w[:, None] * counts).sum(axis=0) / max(float(w.sum()), 1e-300)
-    return [float(x) for x in mean]
-
-
-def shelf_belief_from_rbpf(rbpf: RBPF) -> ShelfBelief:
-    """Build ShelfBelief from arrival-prior age rows and weighted counts (ADR 0106).
-
-    ``age_marginals`` are arrival-derived / birth-prior exports as carried by the
-    filter (Dirac, F2a prior, cold Abdella), not sales-updated posteriors.
-    """
-    if rbpf._state is None:
-        msg = "RBPF.initialize must be called before shelf_belief_from_rbpf"
-        raise RuntimeError(msg)
-
-    lot_counts = _weight_averaged_counts(rbpf)
-    age_marginals = [
-        [float(x) for x in rbpf.age_posterior(ell)] for ell in range(rbpf.L)
-    ]
-    tau = [float(t) for t in age_grid(rbpf.K)]
-    return ShelfBelief(
-        lot_counts=lot_counts,
-        age_marginals=age_marginals,
-        tau_grid=tau,
-    )
+def shelf_belief_from_rbpf(rbpf: Any) -> ShelfBelief:
+    """Removed with production RBPF (T-121 Wave F); use Rust belief wire."""
+    del rbpf
+    msg = "shelf_belief_from_rbpf removed in T-121 Wave F (use Rust session belief)"
+    raise RuntimeError(msg)
 
 
 def shelf_belief_from_oracle(
@@ -139,14 +107,7 @@ def shelf_belief_from_cohorts_oracle(
     *,
     empty_tau_grid: Sequence[float],
 ) -> ShelfBelief:
-    """B-state ShelfBelief from live cohorts with dynamic even-τ pad (ADR 0092).
-
-    When no live units remain, returns ``empty_shelf_belief`` on
-    ``empty_tau_grid`` (site-specific; not a single canonical empty grid).
-    Otherwise builds an even grid covering ages with the voi/crn /
-    m2_multi_scenario pad: ``hi = max(ages, 6) + 2``, then
-    ``range(0, int(hi) + 3, 2)``.
-    """
+    """B-state ShelfBelief from live cohorts with dynamic even-τ pad (ADR 0092)."""
     live = [c for c in cohorts if c.n > 0]
     if not live:
         return empty_shelf_belief(tau_grid=empty_tau_grid)
@@ -172,7 +133,6 @@ def effective_inventory(
             msg = "pending_orders quantities must be non-negative"
             raise ValueError(msg)
 
-    # Preserve fractional MF means; flooring would bias tilde I_t low (ADR 0092).
     n_on_hand = [float(x) for x in belief.lot_counts]
     marg = np.asarray(belief.age_marginals, dtype=float)
     on_hand = survival_weighted_on_hand(

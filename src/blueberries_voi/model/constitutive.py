@@ -1,4 +1,8 @@
-"""Constitutive physics and demand kernels (Weibull, Q10, picking, NB)."""
+"""Pure constitutive formulas (viz / diagnostics; not hot compute loops).
+
+Retained intentionally after T-121 Wave F removed ``model/physics.py``. Production
+session and VOI paths use ``voi_core`` via PyO3/WASM only (ADR 0127).
+"""
 
 from __future__ import annotations
 
@@ -49,7 +53,6 @@ def death_prob_hazard_product(
     """First-order hazardxdt approximation (for regression contrast only)."""
     if dtau <= 0.0 or tau < 0.0:
         return 0.0
-    # h(τ) = (β/η) (τ/η)^{β-1}
     if tau == 0.0:
         if beta > 1.0:
             return 0.0
@@ -120,7 +123,6 @@ def allocate_sales(
         avail_w = np.where(mask, w, 0.0)
         total = float(avail_w.sum())
         if total <= 0.0:
-            # Fall back to uniform over nonempty cohorts.
             avail_w = mask.astype(float)
             total = float(avail_w.sum())
         probs = avail_w / total

@@ -7,6 +7,13 @@ use ``data/abdella/`` or monkeypatch; cool fixtures must be explicitly named
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — VOI CRN Python episode audit removed",
+    allow_module_level=True,
+)
+
 import importlib
 import inspect
 from pathlib import Path

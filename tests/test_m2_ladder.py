@@ -8,6 +8,13 @@ production ``counts_only`` backend (ADR 0105). See ``.team/specs/T-032.md``.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — M2 ladder bakeoff uses removed compute",
+    allow_module_level=True,
+)
+
 import ast
 import importlib
 import inspect

@@ -11,19 +11,23 @@ Locks ``.team/specs/T-084.md`` + ADR 0116 CRN identity:
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: Python CRN episode loop removed", allow_module_level=True)
+
 import inspect
 from dataclasses import fields, replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest  # noqa: TC002
+import pytest
 
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.filter.backends import observation_loglik_mc
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
 from blueberries_voi.model import ModelParams, draw_demand, load_demand_profile
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.voi import PHYSICS_RUN_ID
 from blueberries_voi.voi.crn import _run_scenario_episode

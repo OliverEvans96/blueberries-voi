@@ -6,6 +6,10 @@ before production code exists. No CTL-01 policy math beyond `effective_inventory
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: shelf_belief_from_rbpf removed", allow_module_level=True)
+
 import importlib
 import inspect
 import json

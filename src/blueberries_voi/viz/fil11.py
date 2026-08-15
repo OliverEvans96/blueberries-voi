@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from blueberries_voi.filter.rbpf import PRODUCTION_K, PRODUCTION_L, PRODUCTION_N
+from blueberries_voi.filter.constants import PRODUCTION_K, PRODUCTION_L, PRODUCTION_N
 from blueberries_voi.viz.fil11_metrics import FIG as FIG
 from blueberries_voi.viz.fil11_metrics import ROOT as ROOT
 from blueberries_voi.viz.fil11_metrics import STAGE_B_COVERAGE_HI as STAGE_B_COVERAGE_HI

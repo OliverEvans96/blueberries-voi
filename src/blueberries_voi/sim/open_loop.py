@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from blueberries_voi.model import Cohort, ModelParams, day_step
+from blueberries_voi.model import Cohort, ModelParams
 from blueberries_voi.model.abdella import (
     ShipmentTrace,
     load_abdella_shipments,
@@ -27,6 +27,7 @@ from blueberries_voi.sim.day_tick import (
     pre_live_lot_ids,
 )
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
+from blueberries_voi.sim.rust_bridge import day_step
 from blueberries_voi.sim.types_log import DayLog, EpisodeLog
 
 __all__ = [

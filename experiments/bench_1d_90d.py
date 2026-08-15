@@ -12,7 +12,10 @@ import platform
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -56,7 +59,7 @@ def _rustc_profile() -> dict[str, str]:
 
         so = getattr(rust_core, "__file__", None)
         info["extension"] = str(so) if so else "unknown"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         info["extension"] = f"unavailable: {exc}"
     return info
 
@@ -144,7 +147,7 @@ def _bench_engine(backend: str) -> dict[str, Any]:
         "controller_1d_act_rollout": _time(one_act),
         "controller_90d_act_rollout": _time(ninety_act),
         "controller_90d_note": (
-            "90× EngineSession.act(policy='rollout'); no act_n — "
+            "90x EngineSession.act(policy='rollout'); no act_n - "
             "Rust FFI crossings = 90 (plus init)"
         ),
         "backend_env": backend,
@@ -165,6 +168,7 @@ def _bench_physics(backend: str) -> dict[str, Any]:
     """Filter-off day_step 1 vs 90 (clarifies physics vs RBPF cost)."""
     os.environ["BLUEBERRIES_VOI_BACKEND"] = backend
     from blueberries_voi.model.day_step import day_step
+
     from blueberries_voi.model.params import Cohort, ModelParams
     from blueberries_voi.rng import STREAM_ALLOC, STREAM_SPOIL, spawn_rng
 
@@ -217,7 +221,9 @@ def main() -> None:
             "order_qty": ORDER_QTY,
             "horizon_days": HORIZON,
             "repeats": REPEATS,
-            "policy": "act(policy='rollout') on both backends (Rust act is rollout-only)",
+            "policy": (
+                "act(policy='rollout') on both backends (Rust act is rollout-only)"
+            ),
         },
         "engine_session": {
             "python": _bench_engine("python"),

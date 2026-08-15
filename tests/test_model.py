@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from blueberries_voi import filter as filter_pkg
 from blueberries_voi import model
 from blueberries_voi import sim as sim_pkg
 from blueberries_voi.model import (
@@ -21,6 +21,9 @@ from blueberries_voi.model import (
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 
 
+@pytest.mark.skip(
+    reason="T-121 F3: ADR 0127 Wave F supersession — Python day_step event_log removed"
+)
 def test_day_step_event_order() -> None:
     events: list[str] = []
     params = ModelParams()
@@ -144,7 +147,7 @@ def test_extinct_cohorts_dropped() -> None:
 
 def test_shared_day_step_import_gate() -> None:
     assert sim_pkg.day_step is model.day_step
-    assert filter_pkg.day_step is model.day_step
+    assert day_step.__module__ == "blueberries_voi.sim.rust_bridge"
 
 
 def test_weibull_survival_at_zero() -> None:

@@ -7,12 +7,16 @@ Diagnostic ``mean_field_update`` API tests remain in ``test_age_likelihood.py``.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: production RBPF removed", allow_module_level=True)
+
 import ast
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest  # noqa: TC002
+import pytest
 
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for

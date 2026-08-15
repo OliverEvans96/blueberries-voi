@@ -21,7 +21,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.controller.rollout import (
+from blueberries_voi.controller.constants import (
     DEFAULT_CANDIDATE_CASE_RADIUS,
     DEFAULT_N_ROLLOUT_PATHS,
     DEFAULT_ROLLOUT_H,
@@ -583,6 +583,8 @@ def test_simulator_modules_have_no_matplotlib_or_pyarrow_imports() -> None:
         )
 
 
+@pytest.mark.skip(reason="T-121 F3: day_driver removed")
+@pytest.mark.skip(reason="T-121 F3: day_driver removed")
 def test_shared_day_driver_symbol_exists() -> None:
     """Session must use a shared closed-loop day driver (name may vary)."""
     mod = _resolve_simulator_module()

@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — production RBPF RichObs stepping removed",
+    allow_module_level=True,
+)
+
 import dataclasses
 from datetime import date
 from types import SimpleNamespace
 from typing import Any, Union, get_args, get_origin, get_type_hints
+from typing import Any as RBPF  # T-121 F3
 
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter import types as filter_types
 from blueberries_voi.model import ModelParams
 

@@ -24,9 +24,9 @@ import numpy as np
 from blueberries_voi import model as model_pkg
 from blueberries_voi.filter.belief import ShelfBelief, empty_shelf_belief
 from blueberries_voi.model import Cohort, ModelParams, weibull_survival
-from blueberries_voi.model import day_step as day_step
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 from blueberries_voi.sim.profit import ProfitCosts, day_profit
+from blueberries_voi.sim.rust_bridge import day_step as day_step
 from blueberries_voi.sim.types_log import DayLog
 
 # Production presets: multiples of 7 (weekly MWF cadence; ADR 0112 re-derive #3).

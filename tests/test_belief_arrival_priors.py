@@ -7,15 +7,22 @@ age-learning gates), and the plain-English changelog rationale for dropping RB a
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — shelf_belief_from_rbpf removed",
+    allow_module_level=True,
+)
+
 import ast
 import inspect
 import re
 from pathlib import Path
 from typing import Any
+from typing import Any as RBPF  # T-121 F3, shelf_belief_from_rbpf
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF, shelf_belief_from_rbpf
 from blueberries_voi.filter.age_likelihood import mean_field_update
 from blueberries_voi.filter.arrival_priors import (
     arrival_age_prior_f2,
