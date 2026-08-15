@@ -2,6 +2,7 @@
  * Sim truth overlay toggle — mountPlayChrome switch UX (ADR 0125).
  */
 // @vitest-environment jsdom
+import { fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountPlayChrome, type ControlsState } from "./controls";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
@@ -27,7 +28,10 @@ const noopCb = {
 
 const MEMORY_STORE = new Map<string, string>();
 
+let cleanup: (() => void) | undefined;
 afterEach(() => {
+  cleanup?.();
+  cleanup = undefined;
   document.body.replaceChildren();
   document.body.classList.remove("studio--show-truth");
   MEMORY_STORE.clear();
@@ -58,12 +62,13 @@ function mountWithApp(showTruth = false) {
   const root = document.createElement("div");
   document.body.appendChild(root);
   const onShowTruthChange = vi.fn();
-  mountPlayChrome(
+  const api = mountPlayChrome(
     root,
     sampleState(),
     { ...noopCb, onShowTruthChange },
     { showTruth, truthClassTarget: app },
   );
+  cleanup = () => api.destroy();
   const btn = root.querySelector("#btn-show-truth") as HTMLButtonElement;
   return { app, root, btn, onShowTruthChange };
 }
@@ -83,7 +88,7 @@ describe("mountPlayChrome truth toggle", () => {
     stubLocalStorage();
     const { app, btn, onShowTruthChange } = mountWithApp(false);
 
-    btn.click();
+    fireEvent.click(btn);
     expect(btn.getAttribute("aria-checked")).toBe("true");
     expect(btn.classList.contains("truth-toggle--on")).toBe(true);
     expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("On");
@@ -91,7 +96,7 @@ describe("mountPlayChrome truth toggle", () => {
     expect(MEMORY_STORE.get(SHOW_TRUTH_STORAGE_KEY)).toBe("true");
     expect(onShowTruthChange).toHaveBeenLastCalledWith(true);
 
-    btn.click();
+    fireEvent.click(btn);
     expect(btn.getAttribute("aria-checked")).toBe("false");
     expect(btn.classList.contains("truth-toggle--on")).toBe(false);
     expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("Off");

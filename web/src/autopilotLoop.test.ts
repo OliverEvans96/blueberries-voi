@@ -10,8 +10,9 @@ import type { DayDelta } from "./engine/types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AUTOPILOT_LOOP_TS = join(HERE, "autopilotLoop.ts");
-const CONTROLS_TS = join(HERE, "controls.ts");
-const MAIN_TS = join(HERE, "main.ts");
+const CONTROLS_TS = join(HERE, "controlsPlayMount.tsx");
+const PLAY_CHROME_TS = join(HERE, "react/PlayChrome.tsx");
+const MAIN_TS = join(HERE, "react/studioLogic.ts");
 
 function sampleDelta(orderQty: number, episodeDay = 1): DayDelta {
   return {
@@ -375,7 +376,7 @@ describe("createAutopilotLoop pause on error / config_dirty + order sync (T-100)
 
 describe("Play chrome Autopilot Play/Pause (T-100)", () => {
   it("mountPlayChrome exposes Autopilot Play and Autopilot Pause labels", () => {
-    const src = readFileSync(CONTROLS_TS, "utf8");
+    const src = readFileSync(CONTROLS_TS, "utf8") + readFileSync(PLAY_CHROME_TS, "utf8");
     expect(src).toMatch(/function\s+mountPlayChrome\b/);
     expect(
       src,
@@ -389,11 +390,11 @@ describe("Play chrome Autopilot Play/Pause (T-100)", () => {
     // T-112 also disables Advance at episode day 90.
     expect(src).toMatch(/Advance is disabled/);
     expect(src).toMatch(
-      /btnAdvance\.disabled\s*=\s*(running|autopilotRunning\s*\|\|)/,
+      /btnAdvance\.disabled\s*=\s*(running|autopilotRunning\s*\|\|)|disabled=\{autopilotRunning \|\| atEnd\}/,
     );
   });
 
-  it("main.ts wires createAutopilotLoop (adapter.act path, not generate autopilot)", () => {
+  it("react/studioLogic.ts wires createAutopilotLoop (adapter.act path, not generate autopilot)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).toMatch(/createAutopilotLoop/);
     expect(src).toMatch(/autopilotLoop/);

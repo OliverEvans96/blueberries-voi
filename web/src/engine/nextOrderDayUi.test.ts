@@ -12,8 +12,9 @@ import type { ScheduleWire } from "./types";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
 const REPO_ROOT = join(WEB_ROOT, "..");
-const MAIN_TS = join(WEB_ROOT, "src/main.ts");
-const CONTROLS_TS = join(WEB_ROOT, "src/controls.ts");
+const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
+const CONTROLS_TS = join(WEB_ROOT, "src/react/PlayChrome.tsx");
+const CALENDAR_TS = join(WEB_ROOT, "src/calendar/nextOrderAdvance.ts");
 
 const DEFAULT_SCHEDULE: ScheduleWire = {
   delivery_weekdays: [0, 2, 4],
@@ -23,10 +24,10 @@ const DEFAULT_SCHEDULE: ScheduleWire = {
 };
 
 describe("T-086 primary play advances via step_n to next order day", () => {
-  it("main.ts primary onAdvance calls adapter.step_n (not only single-day step)", () => {
+  it("react/studioLogic.ts primary onAdvance calls adapter.step_n (not only single-day step)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     const advance = src.match(/onAdvance\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/);
-    expect(advance, "expected onAdvance handler in main.ts").toBeTruthy();
+    expect(advance, "expected onAdvance handler in react/studioLogic.ts").toBeTruthy();
     const body = advance![0]!;
     expect(body).toMatch(/adapter\.step_n\s*\(/);
     // Primary path must not be a lone single-day step.
@@ -71,7 +72,8 @@ describe("T-086 weekday labels + pipeline hint in studio chrome", () => {
   it("play chrome / main surfaces weekday labels from schedule epoch", () => {
     const controls = readFileSync(CONTROLS_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
-    const blob = controls + main;
+    const calendar = readFileSync(CALENDAR_TS, "utf8");
+    const blob = controls + main + calendar;
     // Avoid matching incidental substrings like ArrowDown's "dow".
     expect(blob).toMatch(/\bweekdayLabel\b|\bweekday_label\b|\bformatWeekday\b|\bday-label\b|\bweekday\b/i);
     expect(blob).toMatch(/2024-01-01|schedule\.epoch|epoch.*weekday|weekday.*epoch/i);
@@ -80,7 +82,8 @@ describe("T-086 weekday labels + pipeline hint in studio chrome", () => {
   it("UI surfaces next delivery / pipeline hint consistent with LT=1", () => {
     const controls = readFileSync(CONTROLS_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
-    const blob = controls + main;
+    const calendar = readFileSync(CALENDAR_TS, "utf8");
+    const blob = controls + main + calendar;
     expect(blob).toMatch(
       /pipeline|deliver|arrival|inbound|LT\s*=?\s*1|lead_time/i,
     );

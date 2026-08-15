@@ -1,7 +1,6 @@
 /**
- * T-116 RED: missed-sales store chart — source contracts on main.ts +
- * styles.css (stack order, caption, legend chip, hover, shared yMax).
- * Node vitest has no jsdom.
+ * T-116 RED: missed-sales store chart — source contracts on StudioLayout +
+ * studioLogic + styles.css (stack order, caption, legend chip, hover, shared yMax).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -9,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MAIN_TS = join(HERE, "main.ts");
+const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
+const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const STYLES_CSS = join(HERE, "styles.css");
 const SALES_DEMAND_TS = join(HERE, "charts/salesDemand.ts");
 
@@ -20,13 +20,14 @@ function stripComments(src: string): string {
 }
 
 describe("Store chart-stack missed sales (T-116)", () => {
-  const src = stripComments(readFileSync(MAIN_TS, "utf8"));
+  const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
+  const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
 
   it("chart-stack order: Units sold, sales, Missed sales, stockout, Lots, history, Units spoiled, spoil", () => {
-    const stack = src.match(
-      /<div class="chart-stack">([\s\S]*?)<\/div>\s*<\/section>/,
+    const stack = layoutSrc.match(
+      /className="chart-stack">([\s\S]*?)<\/section>/,
     )?.[1];
-    expect(stack, "expected .chart-stack markup in main.ts").toBeDefined();
+    expect(stack, "expected .chart-stack markup in StudioLayout.tsx").toBeDefined();
 
     const sold = stack!.indexOf("Units sold");
     const salesId = stack!.indexOf('id="chart-sales"');
@@ -48,17 +49,17 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it('caption text is exactly "Missed sales"', () => {
-    expect(src).toMatch(
-      /<div class="chart-caption">Missed sales<\/div>/,
+    expect(layoutSrc).toMatch(
+      /className="chart-caption">Missed sales<\/div>/,
     );
-    expect(src).not.toMatch(
-      /<div class="chart-caption">Stockout<\/div>/,
+    expect(layoutSrc).not.toMatch(
+      /className="chart-caption">Stockout<\/div>/,
     );
   });
 
   it("store legend includes chip-missed alongside Sales / Lots / Spoilage", () => {
-    const legend = src.match(
-      /<div class="legend-inline store-legend">([\s\S]*?)<\/div>/,
+    const legend = layoutSrc.match(
+      /className="legend-inline store-legend">([\s\S]*?)<\/div>/,
     )?.[1];
     expect(legend, "expected store-legend").toBeDefined();
     expect(legend).toMatch(/chip-sales/);
@@ -71,11 +72,11 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("els.stockout binds #chart-stockout", () => {
-    expect(src).toMatch(/stockout:\s*document\.querySelector\(\s*"#chart-stockout"/);
+    expect(logicSrc).toMatch(/stockout:\s*document\.querySelector\(\s*"#chart-stockout"/);
   });
 
   it("applyHoverStyles calls setMarginalHover(els.stockout, day)", () => {
-    const fn = src.match(
+    const fn = logicSrc.match(
       /function applyHoverStyles\s*\(\s*day[\s\S]*?\n\}/,
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
@@ -85,7 +86,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("renderStore shares marginalYMax / yMax for sales and stockout", () => {
-    const fn = src.match(/function renderStore\s*\(\s*\)\s*\{[\s\S]*?\n\}/)?.[0];
+    const fn = logicSrc.match(/function renderStore\s*\(\s*\)\s*\{[\s\S]*?\n\}/)?.[0];
     expect(fn, "expected renderStore").toBeDefined();
     expect(fn).toMatch(/marginalYMax\s*\(/);
     expect(fn).toMatch(/yMax/);
@@ -101,9 +102,9 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {
-    expect(src).toMatch(/Sales vs demand/);
-    expect(src).toMatch(/id="chart-sales-demand"/);
-    expect(src).toMatch(/renderSalesDemand\(\s*els\.salesDemand/);
+    expect(layoutSrc).toMatch(/Sales vs demand/);
+    expect(layoutSrc).toMatch(/id="chart-sales-demand"/);
+    expect(logicSrc).toMatch(/renderSalesDemand\(\s*els\.salesDemand/);
     expect(existsSync(SALES_DEMAND_TS)).toBe(true);
     const sd = stripComments(readFileSync(SALES_DEMAND_TS, "utf8"));
     expect(sd).toMatch(/export\s+function\s+renderSalesDemand/);

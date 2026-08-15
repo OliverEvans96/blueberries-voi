@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import { STUDIO_SECTIONS } from "./sections";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MAIN_TS = join(HERE, "main.ts");
+const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
+const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const BELIEF_AGE_MARGINAL_TS = join(HERE, "charts/beliefAgeMarginal.ts");
 const BELIEF_AGE_COUNT_TS = join(HERE, "charts/beliefAgeCount.ts");
 
@@ -44,14 +45,15 @@ describe("Belief section contracts (T-090)", () => {
   });
 
   it("main.ts mounts age-marginal above the Belief heatmap (source order)", () => {
-    const src = readFileSync(MAIN_TS, "utf8");
-    expect(src).toMatch(/beliefAgeMarginal|renderBeliefAgeMarginal/);
+    const layout = readFileSync(LAYOUT_TS, "utf8");
+    const logic = readFileSync(LOGIC_TS, "utf8");
+    expect(logic).toMatch(/beliefAgeMarginal|renderBeliefAgeMarginal/);
 
     // data-plot for marginal should appear before heatmap lg in the focus pane markup.
-    const marginalIdx = src.search(
+    const marginalIdx = layout.search(
       /data-plot=["'][^"']*(age[-_]?marginal|marginal)[^"']*["']/,
     );
-    const heatmapIdx = src.search(
+    const heatmapIdx = layout.search(
       /data-plot=["']plot-belief-lg["']|data-plot=["'][^"']*heatmap[^"']*["']/,
     );
     expect(marginalIdx, "expected age-marginal focus-plot in main.ts").toBeGreaterThanOrEqual(

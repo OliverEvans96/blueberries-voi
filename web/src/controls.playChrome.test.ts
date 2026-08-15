@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mountPlayChrome, type ControlsState } from "./controls";
 
 const initial: ControlsState = {
@@ -35,6 +35,14 @@ const initial: ControlsState = {
   schedule: null,
 };
 
+let destroyMount: (() => void) | undefined;
+afterEach(() => {
+  destroyMount?.();
+  destroyMount = undefined;
+  document.body.replaceChildren();
+  document.body.classList.remove("studio--show-truth");
+});
+
 describe("mountPlayChrome show-truth init", () => {
   it("does not call onShowTruthChange during mount", () => {
     const root = document.createElement("div");
@@ -50,6 +58,7 @@ describe("mountPlayChrome show-truth init", () => {
       },
       { showTruth: true, truthClassTarget: document.body },
     );
+    destroyMount = () => api.destroy();
 
     expect(onShowTruthChange).not.toHaveBeenCalled();
     expect(document.body.classList.contains("studio--show-truth")).toBe(true);
@@ -59,7 +68,7 @@ describe("mountPlayChrome show-truth init", () => {
   it("calls onShowTruthChange when the user toggles truth", () => {
     const root = document.createElement("div");
     const onShowTruthChange = vi.fn();
-    mountPlayChrome(
+    const api = mountPlayChrome(
       root,
       initial,
       {
@@ -70,6 +79,7 @@ describe("mountPlayChrome show-truth init", () => {
       },
       { showTruth: false, truthClassTarget: document.body },
     );
+    destroyMount = () => api.destroy();
 
     const btn = root.querySelector("#btn-show-truth") as HTMLButtonElement;
     btn.click();

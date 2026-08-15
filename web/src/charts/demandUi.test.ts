@@ -15,7 +15,7 @@ import { MockAdapter } from "../mock/adapter";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
 const REPO_ROOT = join(WEB_ROOT, "..");
-const MAIN_TS = join(WEB_ROOT, "src/main.ts");
+const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
 const DEMAND_DIST_TS = join(HERE, "demandDist.ts");
 const SALES_DEMAND_TS = join(HERE, "salesDemand.ts");
 const GENERATE_TS = join(WEB_ROOT, "src/mock/generate.ts");
@@ -149,7 +149,7 @@ describe("T-087 DOW profile from demand_summary", () => {
     expect(stillMuOnly).toBe(false);
   });
 
-  it("main.ts wires demand chart with demand_summary (not config.demand_mu alone)", () => {
+  it("react/studioLogic.ts wires demand chart with demand_summary (not config.demand_mu alone)", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
     expect(main).toMatch(/demand_summary|dow_means|dowProfile|renderDow/i);
     // Legacy call site: renderDemandDist(els.demand, vm.config, …) with no summary.
@@ -385,7 +385,7 @@ describe("T-087 no HF in browser path / no new runtime Python deps", () => {
 
   it("web/src does not import Hugging Face datasets in the browser path", () => {
     const roots = [
-      join(WEB_ROOT, "src/main.ts"),
+      join(WEB_ROOT, "src/react/studioLogic.ts"),
       join(WEB_ROOT, "src/charts"),
       join(WEB_ROOT, "src/engine"),
       join(WEB_ROOT, "src/mock"),

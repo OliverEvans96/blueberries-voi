@@ -1,6 +1,6 @@
 /**
  * T-099 RED: Controller section (nav key 8), controls knobs, plotIds,
- * main.ts chart mount wiring.
+ * react/studioLogic.ts chart mount wiring.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -15,7 +15,8 @@ import {
 } from "./sections";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MAIN_TS = join(HERE, "main.ts");
+const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
+const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const CONTROLS_TS = join(HERE, "controls.ts");
 const SECTIONS_TS = join(HERE, "sections.ts");
 const CONTROLLER_ORDERS_TS = join(HERE, "charts/controllerOrders.ts");
@@ -128,10 +129,11 @@ describe("Controller chart wiring (T-099)", () => {
     ).toBe(true);
   });
 
-  it("main.ts mounts controller orders when that plot is visible", () => {
-    const src = readFileSync(MAIN_TS, "utf8");
-    expect(src).toMatch(/controllerOrders|renderControllerOrders/);
-    expect(src).toMatch(/data-plot=["']plot-controller-orders["']/);
-    expect(src).toMatch(/plotVisible\(\s*["']plot-controller-orders["']\s*\)/);
+  it("react/studioLogic.ts mounts controller orders when that plot is visible", () => {
+    const layout = readFileSync(LAYOUT_TS, "utf8");
+    const logic = readFileSync(LOGIC_TS, "utf8");
+    expect(logic).toMatch(/controllerOrders|renderControllerOrders/);
+    expect(layout).toMatch(/data-plot=["']plot-controller-orders["']/);
+    expect(logic).toMatch(/plotVisible\(\s*["']plot-controller-orders["']\s*\)/);
   });
 });

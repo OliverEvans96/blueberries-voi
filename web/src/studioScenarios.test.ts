@@ -1,6 +1,6 @@
 /**
  * T-089 RED: Studio ScenarioId ladder (P0|P1|F1|F1s|F2a|F2), locked chip copy,
- * dirty-until-reset, main.ts passes staged config, mock drops P2.
+ * dirty-until-reset, react/studioLogic.ts passes staged config, mock drops P2.
  * Ticket A chart rebin is out of scope.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -20,7 +20,7 @@ const WEB_ROOT = join(HERE, "..");
 const REPO_ROOT = join(WEB_ROOT, "..");
 const CONTROLS_TS = join(WEB_SRC, "controls.ts");
 const TYPES_TS = join(WEB_SRC, "types.ts");
-const MAIN_TS = join(WEB_SRC, "main.ts");
+const MAIN_TS = join(WEB_SRC, "react/studioLogic.ts");
 const GENERATE_TS = join(WEB_SRC, "mock/generate.ts");
 const MOCK_ADAPTER_TS = join(WEB_SRC, "mock/adapter.ts");
 const BACKLOG = join(REPO_ROOT, ".team/backlog.md");
@@ -209,7 +209,7 @@ describe("T-113 obs_scenario is live; not config_dirty until Reset (supersedes T
   });
 });
 
-describe("T-089 main.ts passes staged config into adapter.init/reset", () => {
+describe("T-089 react/studioLogic.ts passes staged config into adapter.init/reset", () => {
   it("bootstrap calls adapter.init with a config argument (not bare init())", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).not.toMatch(/adapter\.init\s*\(\s*\)/);

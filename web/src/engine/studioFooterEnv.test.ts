@@ -19,7 +19,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
-const MAIN_TS = join(WEB_ROOT, "src/main.ts");
+const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
 const STUDIO_ADAPTER_TS = join(HERE, "studioAdapter.ts");
 const LOCAL_WHEEL_PATH =
   "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
@@ -78,7 +78,7 @@ describe("T-074 studio footer for live adapters", () => {
     expect(copy).not.toMatch(/\bmock\b/i);
   });
 
-  it("main.ts footer is driven by adapter kind (no hardcoded Fake data studio for live path)", () => {
+  it("react/studioLogic.ts footer is driven by adapter kind (no hardcoded Fake data studio for live path)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).toMatch(/studioFooterCopy|footerCopy|studioFooter/);
     // Unconditional template claim must go for live Http/Pyodide readiness.
@@ -189,13 +189,13 @@ describe("T-074 adapter init/step errors surface to the user", () => {
     expect(joined).toMatch(/Studio|init failed|connection refused/i);
   });
 
-  it("main.ts catches adapter init/step failures and surfaces them (non-silent)", () => {
+  it("react/studioLogic.ts catches adapter init/step failures and surfaces them (non-silent)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).toMatch(/reportStudioAdapterError|studio-error|surfaceAdapter/);
     // bootstrap / Advance / Reset must not swallow rejections without catch.
     expect(src).toMatch(/catch\s*\(/);
     const bootstrap = src.match(/async function bootstrap[\s\S]*?\n\}/);
-    expect(bootstrap, "expected bootstrap() in main.ts").toBeTruthy();
+    expect(bootstrap, "expected bootstrap() in react/studioLogic.ts").toBeTruthy();
     expect(bootstrap![0]).toMatch(/catch|reportStudioAdapterError/);
     // Advance may use step_n (CAL-01 next-order-day) with a longer try body.
     expect(src).toMatch(
@@ -203,7 +203,7 @@ describe("T-074 adapter init/step errors surface to the user", () => {
     );
   });
 
-  it("main.ts passes the original err into reportStudioAdapterError (banner + console)", () => {
+  it("react/studioLogic.ts passes the original err into reportStudioAdapterError (banner + console)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     const calls = [...src.matchAll(/reportStudioAdapterError\(([^;]+)\)/g)];
     expect(calls.length).toBeGreaterThanOrEqual(4);

@@ -18,7 +18,8 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_SRC = join(HERE, "..");
-const MAIN_TS = join(WEB_SRC, "main.ts");
+const LOGIC_TS = join(WEB_SRC, "react/studioLogic.ts");
+const LAYOUT_TS = join(WEB_SRC, "react/StudioLayout.tsx");
 const STYLES_CSS = join(WEB_SRC, "styles.css");
 const PYODIDE_ADAPTER_TS = join(HERE, "pyodideAdapter.ts");
 
@@ -235,22 +236,22 @@ describe("applyEngineStatusChip mutates a node-like target (no jsdom)", () => {
 });
 
 describe("studio wires the chip in the header and follows bootstrap init", () => {
-  it("main.ts hero includes #engine-status starting as Loading", () => {
-    const src = readFileSync(MAIN_TS, "utf8");
+  it("StudioLayout hero includes #engine-status starting as Loading", () => {
+    const src = readFileSync(LAYOUT_TS, "utf8");
     expect(src).toMatch(/id="engine-status"/);
     expect(src).toMatch(/data-status="loading"/);
     expect(src).toMatch(/engine-status-label">Loading</);
     expect(src).toMatch(/engine-status-dot/);
-    const hero = src.match(/<header class="hero">[\s\S]*?<\/header>/);
+    const hero = src.match(/<header className="hero">[\s\S]*?<\/header>/);
     expect(hero, "expected hero header markup").toBeTruthy();
     expect(hero![0]).toMatch(/id="engine-status"/);
   });
 
   it("bootstrap maps successful init to ready and failed init to error", () => {
-    const src = readFileSync(MAIN_TS, "utf8");
+    const src = readFileSync(LOGIC_TS, "utf8");
     expect(src).toMatch(/createEngineStatusTracker|applyEngineStatusChip/);
     const bootstrap = src.match(/async function bootstrap[\s\S]*?\n\}/);
-    expect(bootstrap, "expected bootstrap() in main.ts").toBeTruthy();
+    expect(bootstrap, "expected bootstrap() in react/studioLogic.ts").toBeTruthy();
     expect(bootstrap![0]).toMatch(/follow\(|applyEngineStatusChip/);
     expect(bootstrap![0]).toMatch(/adapter\.init/);
     expect(src).toMatch(/reportStudioAdapterError/);

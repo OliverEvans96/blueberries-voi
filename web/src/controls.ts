@@ -8,11 +8,6 @@ import type {
 import type { SectionId } from "./sections";
 import { defaultIntervalMsForPolicy } from "./autopilotLoop";
 import type { ScheduleWire } from "./engine/types";
-import {
-  pipelineDeliveryHint,
-  weekdayLabel,
-} from "./calendar/nextOrderAdvance";
-import { saveShowTruth } from "./showTruth";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -100,11 +95,6 @@ export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
   intervalMs: 500,
 };
 
-function snap(qty: number, caseSize: number): number {
-  if (qty <= 0) return 0;
-  const cs = Math.max(1, Math.round(caseSize));
-  return Math.round(qty / cs) * cs;
-}
 
 type SliderSpec = {
   id: string;
@@ -189,213 +179,9 @@ export type PlayChromeOpts = {
 };
 
 /** Persistent order / advance / reset chrome — always visible. */
-export function mountPlayChrome(
-  root: HTMLElement,
-  initial: ControlsState,
-  cb: Pick<
-    ControlsCallbacks,
-    | "onOrderChange"
-    | "onAdvance"
-    | "onReset"
-    | "onAutopilotPlay"
-    | "onAutopilotPause"
-    | "onShowTruthChange"
-  >,
-  opts?: PlayChromeOpts,
-): {
-  update: (s: ControlsState) => void;
-  setOrderFromCaseChange: (qty: number, caseSize: number) => void;
-  setAutopilotRunning: (running: boolean) => void;
-} {
-  root.innerHTML = `
-    <div class="play-chrome">
-      <label class="field">
-        <span class="field-label">Order quantity <em id="case-em">(case ${initial.config.case_size})</em></span>
-        <div class="order-row">
-          <input type="range" id="order-range" min="0" max="160" step="${initial.config.case_size}" value="${initial.orderQty}" />
-          <input type="number" id="order-num" min="0" max="320" step="${initial.config.case_size}" value="${initial.orderQty}" />
-        </div>
-      </label>
-      <div class="btn-row btn-row-play">
-        <button type="button" class="btn-advance" id="btn-advance">Advance to next order day</button>
-        <button type="button" class="btn-autopilot" id="btn-autopilot-play" aria-label="Autopilot Play">Autopilot Play</button>
-        <button type="button" class="btn-autopilot" id="btn-autopilot-pause" aria-label="Autopilot Pause" disabled>Autopilot Pause</button>
-        <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
-      </div>
-      <div class="truth-toggle-row">
-        <span class="truth-toggle-label">Sim truth overlay</span>
-        <button
-          type="button"
-          class="truth-toggle"
-          id="btn-show-truth"
-          role="switch"
-          aria-checked="false"
-          aria-label="Show true state"
-        >
-          <span class="truth-toggle-track" aria-hidden="true">
-            <span class="truth-toggle-thumb"></span>
-          </span>
-          <span class="truth-toggle-text">Off</span>
-        </button>
-      </div>
-      <p class="hint" id="autopilot-hint">
-        While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
-      </p>
-      <p class="hint" id="episode-end-hint" hidden>
-        The episode finished at day 90. Reset to start another episode.
-      </p>
-      <div class="meta-line" id="order-meta"></div>
-      <div class="day-label" id="day-label"></div>
-      <div class="delivery-hint" id="delivery-hint"></div>
-      <div class="dirty-banner" id="dirty-banner" hidden>
-        Config edited — new days use it; <strong>Reset</strong> regenerates history from seed.
-      </div>
-    </div>
-  `;
-
-  const orderRange = root.querySelector("#order-range") as HTMLInputElement;
-  const orderNum = root.querySelector("#order-num") as HTMLInputElement;
-  const caseEm = root.querySelector("#case-em") as HTMLElement;
-  const meta = root.querySelector("#order-meta") as HTMLElement;
-  const dayLabelEl = root.querySelector("#day-label") as HTMLElement;
-  const deliveryHintEl = root.querySelector("#delivery-hint") as HTMLElement;
-  const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
-  const episodeEndHint = root.querySelector(
-    "#episode-end-hint",
-  ) as HTMLElement;
-  const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
-  const btnAutopilotPlay = root.querySelector(
-    "#btn-autopilot-play",
-  ) as HTMLButtonElement;
-  const btnAutopilotPause = root.querySelector(
-    "#btn-autopilot-pause",
-  ) as HTMLButtonElement;
-  let caseSize = initial.config.case_size;
-  let autopilotRunning = false;
-  let episodeDay = initial.episodeDay;
-
-  function episodeFinished(day: number): boolean {
-    return day >= EPISODE_HORIZON;
-  }
-
-  function syncAdvanceAndAutopilotButtons(): void {
-    const atEnd = episodeFinished(episodeDay);
-    btnAdvance.disabled = autopilotRunning || atEnd;
-    btnAutopilotPlay.disabled = autopilotRunning || atEnd;
-    btnAutopilotPause.disabled = !autopilotRunning;
-    episodeEndHint.hidden = !atEnd;
-  }
-
-  function syncCalendarChrome(s: ControlsState): void {
-    if (s.schedule) {
-      // Weekday from schedule.epoch (2024-01-01 monday0) + episode day.
-      dayLabelEl.textContent = `Weekday ${weekdayLabel(s.episodeDay, s.schedule)}`;
-      deliveryHintEl.textContent = pipelineDeliveryHint(
-        s.episodeDay,
-        s.schedule,
-      );
-    } else {
-      dayLabelEl.textContent = "";
-      deliveryHintEl.textContent = "";
-    }
-  }
-
-  function syncOrderInputs(qty: number, cs: number): void {
-    caseSize = cs;
-    const snapped = snap(qty, cs);
-    orderRange.step = String(cs);
-    orderNum.step = String(cs);
-    orderRange.max = String(Math.max(160, cs * 20));
-    orderRange.value = String(snapped);
-    orderNum.value = String(snapped);
-    caseEm.textContent = `(case ${cs})`;
-  }
-
-  function setOrder(raw: number): void {
-    const snapped = snap(raw, caseSize);
-    syncOrderInputs(snapped, caseSize);
-    cb.onOrderChange(snapped);
-  }
-
-  function setAutopilotRunning(running: boolean): void {
-    autopilotRunning = running;
-    syncAdvanceAndAutopilotButtons();
-  }
-
-  orderRange.addEventListener("input", () => setOrder(Number(orderRange.value)));
-  orderNum.addEventListener("change", () => setOrder(Number(orderNum.value)));
-  btnAdvance.addEventListener("click", () => {
-    if (autopilotRunning || episodeFinished(episodeDay)) return;
-    cb.onAdvance();
-  });
-  btnAutopilotPlay.addEventListener("click", () => {
-    if (episodeFinished(episodeDay)) return;
-    cb.onAutopilotPlay?.();
-  });
-  btnAutopilotPause.addEventListener("click", () => {
-    cb.onAutopilotPause?.();
-  });
-  (root.querySelector("#btn-reset") as HTMLButtonElement).addEventListener(
-    "click",
-    () => cb.onReset(),
-  );
-
-  syncOrderInputs(initial.orderQty, initial.config.case_size);
-  meta.textContent = `Episode day ${initial.episodeDay} · pending inbound ${initial.pendingOrder} units`;
-  syncCalendarChrome(initial);
-  dirtyBanner.hidden = !initial.configDirty;
-  setAutopilotRunning(false);
-
-  const btnShowTruth = root.querySelector("#btn-show-truth") as HTMLButtonElement;
-  const truthTarget =
-    opts?.truthClassTarget ??
-    (typeof document !== "undefined"
-      ? (document.getElementById("app") ?? document.body)
-      : null);
-  let showTruth = opts?.showTruth ?? false;
-
-  function applyShowTruthClass(on: boolean): void {
-    truthTarget?.classList.toggle("studio--show-truth", on);
-  }
-
-  function setShowTruth(on: boolean, notify = true): void {
-    showTruth = on;
-    btnShowTruth.setAttribute("aria-checked", on ? "true" : "false");
-    btnShowTruth.classList.toggle("truth-toggle--on", on);
-    const textEl = btnShowTruth.querySelector(".truth-toggle-text");
-    if (textEl) textEl.textContent = on ? "On" : "Off";
-    applyShowTruthClass(on);
-    if (notify) {
-      saveShowTruth(on);
-      cb.onShowTruthChange?.(on);
-    }
-  }
-
-  btnShowTruth.addEventListener("click", () => {
-    setShowTruth(!showTruth);
-  });
-  // Initial sync only — parent assigns playChromeApi after mount returns.
-  setShowTruth(showTruth, false);
-
-  return {
-    update(s) {
-      episodeDay = s.episodeDay;
-      syncOrderInputs(s.orderQty, s.config.case_size);
-      meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
-      syncCalendarChrome(s);
-      dirtyBanner.hidden = !s.configDirty;
-      syncAdvanceAndAutopilotButtons();
-    },
-    setOrderFromCaseChange(qty, cs) {
-      syncOrderInputs(qty, cs);
-      cb.onOrderChange(snap(qty, cs));
-    },
-    setAutopilotRunning,
-  };
-}
 
 /** Section-specific knobs — one block visible at a time. */
-export function mountSectionControls(
+function mountSectionControlsDom(
   root: HTMLElement,
   initial: ControlsState,
   cb: Pick<
@@ -702,3 +488,8 @@ export function controlsFromVm(
     schedule,
   };
 }
+
+export { mountPlayChrome } from "./controlsPlayMount";
+export { mountSectionControls } from "./controlsSectionMount";
+
+export { mountSectionControlsDom };

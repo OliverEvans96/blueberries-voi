@@ -15,8 +15,9 @@ import type { EngineAdapter } from "./adapter";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_SRC = join(HERE, "..");
-const CONTROLS_TS = join(WEB_SRC, "controls.ts");
-const MAIN_TS = join(WEB_SRC, "main.ts");
+const CONTROLS_TS = join(WEB_SRC, "controlsPlayMount.tsx");
+const PLAY_CHROME_TS = join(WEB_SRC, "react/PlayChrome.tsx");
+const MAIN_TS = join(WEB_SRC, "react/studioLogic.ts");
 const AUTOPILOT_TS = join(WEB_SRC, "autopilotLoop.ts");
 const PNL_TOTALS_TS = join(WEB_SRC, "charts/pnlTotals.ts");
 const GENERATE_TS = join(WEB_SRC, "mock/generate.ts");
@@ -98,14 +99,14 @@ describe("T-112 studio UI episode complete + PnL episode totals", () => {
   });
 
   it("controls has no user-facing window_days rolling chart knob", () => {
-    const src = readFileSync(CONTROLS_TS, "utf8");
+    const src = readFileSync(CONTROLS_TS, "utf8") + readFileSync(PLAY_CHROME_TS, "utf8");
     expect(src).not.toMatch(/id:\s*"window_days"/);
     expect(src).not.toMatch(/window_days.*group/);
     expect(src).not.toMatch(/label:\s*"window/i);
   });
 
   it("at day 90 Advance is disabled and copy tells the user to Reset", () => {
-    const controls = readFileSync(CONTROLS_TS, "utf8");
+    const controls = readFileSync(CONTROLS_TS, "utf8") + readFileSync(PLAY_CHROME_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
     const combined = `${controls}\n${main}`;
     expect(combined).toMatch(/90/);
@@ -114,7 +115,7 @@ describe("T-112 studio UI episode complete + PnL episode totals", () => {
     expect(combined).toMatch(
       /episodeDay\s*>=\s*90|episode_day\s*>=\s*90|EPISODE_(LEN|HORIZON|DAYS)/,
     );
-    expect(controls).toMatch(/btnAdvance\.disabled/);
+    expect(controls).toMatch(/btnAdvance\.disabled|id="btn-advance"[\s\S]*disabled=/);
   });
 
   it("Autopilot pauses or refuses play at episode day 90", () => {
