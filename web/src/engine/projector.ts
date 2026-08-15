@@ -36,6 +36,16 @@ export type ProjectorOptions = {
   config?: SimConfig;
 };
 
+/** Derive missed sales when wire omits stockout (HTTP / Pyodide / WASM). */
+export function stockoutFromDayFields(
+  demand: number | undefined,
+  sales_total: number | undefined,
+  explicit?: number | undefined,
+): number {
+  if (typeof explicit === "number" && Number.isFinite(explicit)) return explicit;
+  return Math.max(0, (demand ?? 0) - (sales_total ?? 0));
+}
+
 /**
  * Lot×age mass matrix: density[l][k] = lot_counts[l] * age_marginals[l*K+k]
  * (ADR 0098 intermediate; presentation rebin is beliefGridFromFlat).
@@ -233,7 +243,7 @@ function asDay(
     demand: d.demand ?? 0,
     order_qty: d.order_qty ?? 0,
     arrivals: d.arrivals ?? 0,
-    stockout: d.stockout ?? 0,
+    stockout: stockoutFromDayFields(d.demand, d.sales_total, d.stockout),
     age_at_receipt: d.age_at_receipt ?? null,
   };
 }
@@ -308,6 +318,7 @@ export class ViewModelProjector {
     this.history = (snapshot.history ?? []).map((d) => ({
       ...d,
       lots: d.lots.map((l) => ({ ...l })),
+      stockout: stockoutFromDayFields(d.demand, d.sales_total, d.stockout),
     }));
     this.beliefHistory = this.history.map((d) => ({
       day: d.day,

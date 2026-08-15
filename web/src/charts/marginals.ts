@@ -2,13 +2,25 @@ import * as d3 from "d3";
 import type { Day, EpisodeGhost, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 
-type MarginalKind = "sales" | "spoilage";
+export type MarginalKind = "sales" | "spoilage" | "stockout";
 
 function rootG(
   container: HTMLElement,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
   const g = container.querySelector("svg g.chart-root");
   return g ? d3.select(g as SVGGElement) : null;
+}
+
+/** Shared y-domain for sales + missed-sales bars. */
+export function marginalYMax(
+  history: Day[],
+  ghost?: EpisodeGhost | null,
+): number {
+  const salesMax = d3.max(history, (d) => d.sales_total) ?? 0;
+  const stockMax = d3.max(history, (d) => d.stockout) ?? 0;
+  const ghostStock =
+    ghost != null ? (d3.max(ghost.series, (p) => p.stockout) ?? 0) : 0;
+  return Math.max(1, salesMax, stockMax, ghostStock);
 }
 
 /** Style-only: bar active class + vertical rule. */
@@ -45,6 +57,12 @@ export function setMarginalHover(
   rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
 }
 
+function ariaLabel(kind: MarginalKind): string {
+  if (kind === "sales") return "Daily sales";
+  if (kind === "stockout") return "Daily missed sales";
+  return "Daily spoilage";
+}
+
 /** Data join only — call on step / resize / new ViewModel, not on hover. */
 export function renderMarginal(
   container: HTMLElement,
@@ -52,12 +70,13 @@ export function renderMarginal(
   kind: MarginalKind,
   height = 72,
   ghost: EpisodeGhost | null = null,
+  yMax?: number,
 ): void {
   const width = container.clientWidth || 720;
   const margin = {
     top: 8,
     right: CHART_MARGIN.right,
-    bottom: kind === "sales" ? 4 : 22,
+    bottom: kind === "spoilage" ? 22 : 4,
     left: CHART_MARGIN.left,
   };
   const innerW = width - margin.left - margin.right;
@@ -71,7 +90,7 @@ export function renderMarginal(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", kind === "sales" ? "Daily sales" : "Daily spoilage");
+    .attr("aria-label", ariaLabel(kind));
 
   const g = svg
     .append("g")
@@ -81,16 +100,24 @@ export function renderMarginal(
   const days = history.map((d) => d.day);
   const step = days.length > 0 ? innerW / days.length : innerW;
 
-  const values = history.map((d) =>
-    kind === "sales" ? d.sales_total : d.waste_total,
-  );
+  const values = history.map((d) => {
+    if (kind === "sales") return d.sales_total;
+    if (kind === "stockout") return d.stockout;
+    if (kind === "spoilage") return d.waste_total;
+    return 0;
+  });
   const ghostVals =
     kind === "spoilage" && ghost
       ? ghost.series.slice(0, history.length).map((p) => p.waste)
-      : [];
-  const maxV = Math.max(1, d3.max(values) ?? 1, d3.max(ghostVals) ?? 0);
+      : kind === "stockout" && ghost
+        ? ghost.series.slice(0, history.length).map((p) => p.stockout)
+        : [];
+  const maxV =
+    (kind === "sales" || kind === "stockout") && yMax != null
+      ? Math.max(1, yMax)
+      : Math.max(1, d3.max(values) ?? 1, d3.max(ghostVals) ?? 0);
   const y =
-    kind === "sales"
+    kind === "sales" || kind === "stockout"
       ? d3.scaleLinear().domain([0, maxV]).range([innerH, 0])
       : d3.scaleLinear().domain([0, maxV]).range([0, innerH]);
 
@@ -120,6 +147,19 @@ export function renderMarginal(
       .attr("rx", 2);
   }
 
+  if (kind === "stockout" && ghost) {
+    g.selectAll(".bar-ghost")
+      .data(ghost.series.slice(0, history.length).map((p) => p.stockout))
+      .join("rect")
+      .attr("class", "bar-ghost")
+      .attr("pointer-events", "none")
+      .attr("x", (_, i) => i * step + step * 0.12)
+      .attr("width", Math.max(1, step * 0.76))
+      .attr("y", (v) => y(v))
+      .attr("height", (v) => innerH - y(v))
+      .attr("rx", 2);
+  }
+
   g.selectAll(".bar")
     .data(history, (d) => String((d as Day).day))
     .join("rect")
@@ -129,17 +169,32 @@ export function renderMarginal(
     .attr("x", (_, i) => i * step + step * 0.12)
     .attr("width", Math.max(1, step * 0.76))
     .attr("y", (d) => {
-      const v = kind === "sales" ? d.sales_total : d.waste_total;
-      return kind === "sales" ? y(v) : 0;
+      const v =
+        kind === "stockout"
+          ? d.stockout
+          : kind === "sales"
+            ? d.sales_total
+            : d.waste_total;
+      return kind === "spoilage" ? 0 : y(v);
     })
     .attr("height", (d) => {
-      const v = kind === "sales" ? d.sales_total : d.waste_total;
-      return kind === "sales" ? innerH - y(v) : y(v);
+      const v =
+        kind === "stockout"
+          ? d.stockout
+          : kind === "sales"
+            ? d.sales_total
+            : d.waste_total;
+      return kind === "spoilage" ? y(v) : innerH - y(v);
     })
     .attr("rx", 2)
     .call((sel) =>
       sel.append("title").text((d) => {
-        const v = kind === "sales" ? d.sales_total : d.waste_total;
+        const v =
+          kind === "stockout"
+            ? d.stockout
+            : kind === "sales"
+              ? d.sales_total
+              : d.waste_total;
         return `Day ${d.day}: ${kind} ${v}`;
       }),
     );
