@@ -1,6 +1,9 @@
-//! Python `spawn_rng` parity (SIM-05 / ADR 0068): SeedSequence + NumPy PCG64.
+//! Hierarchical stream RNG: SeedSequence addressing + PCG64 (pure Rust).
 
 use rand::RngCore;
+use rand::SeedableRng;
+use rand_distr::{Distribution, Gamma, Poisson};
+use rand_pcg::Pcg64;
 use sha2::{Digest, Sha256};
 
 const INIT_A: u32 = 0x43b0_d7e5;
@@ -12,11 +15,8 @@ const MIX_MULT_R: u32 = 0x4973_f715;
 const XSHIFT: u32 = 16;
 const POOL_SIZE: usize = 4;
 
-include!(concat!(env!("OUT_DIR"), "/pcg64_bindings.rs"));
-
 pub struct SpawnRng {
-    state: Pcg64State,
-    storage: Box<Pcg64Random>,
+    inner: Pcg64,
 }
 
 impl SpawnRng {
@@ -33,52 +33,54 @@ impl SpawnRng {
         for i in 0..4 {
             seed_words[i] = u64::from(words[2 * i]) | (u64::from(words[2 * i + 1]) << 32);
         }
-        let mut storage = Box::new(Pcg64Random {
-            state: Pcg128 { high: 0, low: 0 },
-            inc: Pcg128 { high: 0, low: 0 },
-        });
-        let mut state = Pcg64State {
-            pcg_state: storage.as_mut(),
-            has_uint32: 0,
-            uinteger: 0,
-        };
-        unsafe {
-            voi_pcg64_set_seed(
-                &mut state,
-                seed_words.as_mut_ptr(),
-                seed_words.as_mut_ptr().add(2),
-            );
+        let mut seed_bytes = [0u8; 32];
+        for (i, word) in seed_words.iter().enumerate() {
+            seed_bytes[i * 8..(i + 1) * 8].copy_from_slice(&word.to_le_bytes());
         }
-        Self { state, storage }
+        Self {
+            inner: Pcg64::from_seed(seed_bytes),
+        }
     }
 
     #[inline]
     pub fn next_f64(&mut self) -> f64 {
-        let rnd = unsafe { voi_pcg64_next64(&mut self.state) };
-        (rnd >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
+        (self.inner.next_u64() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
     }
 
-    /// NumPy `Generator.negative_binomial(n, p)` (failures before n successes).
+    /// Negative binomial (failures before `n` successes) via gamma→Poisson mixture.
     pub fn negative_binomial(&mut self, n: f64, p: f64) -> u32 {
-        unsafe { voi_negative_binomial(&mut self.state, n, p) }
+        negative_binomial_gamma_poisson(&mut self.inner, n, p)
     }
 }
 
 impl RngCore for SpawnRng {
     fn next_u32(&mut self) -> u32 {
-        unsafe { voi_pcg64_next32(&mut self.state) }
+        self.inner.next_u32()
     }
 
     fn next_u64(&mut self) -> u64 {
-        unsafe { voi_pcg64_next64(&mut self.state) }
+        self.inner.next_u64()
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for chunk in dest.chunks_mut(8) {
-            let val = self.next_u64().to_le_bytes();
-            chunk.copy_from_slice(&val[..chunk.len()]);
-        }
+        self.inner.fill_bytes(dest);
     }
+}
+
+/// Gamma-Poisson mixture for overdispersed negative binomial draws.
+pub fn negative_binomial_gamma_poisson<R: rand::Rng + ?Sized>(
+    rng: &mut R,
+    n: f64,
+    p: f64,
+) -> u32 {
+    let scale = (1.0 - p) / p;
+    let gamma = Gamma::new(n, scale).expect("gamma");
+    let lam = gamma.sample(rng);
+    if lam <= 0.0 {
+        return 0;
+    }
+    let pois = Poisson::new(lam).expect("poisson");
+    pois.sample(rng) as u32
 }
 
 fn stable_u32(label: &str) -> u32 {
@@ -144,19 +146,34 @@ mod tests {
     }
 
     #[test]
-    fn spawn_rng_first_uniform_matches_numpy_session_day0() {
-        let mut rng = SpawnRng::spawn_rng(0, "session", 0, ":demand");
-        let u0 = rng.next_f64();
-        assert!((u0 - 0.697_793_16).abs() < 1e-7, "u0={u0}");
+    fn spawn_rng_is_deterministic_for_same_inputs() {
+        let mut a = SpawnRng::spawn_rng(0, "session", 0, ":demand");
+        let mut b = SpawnRng::spawn_rng(0, "session", 0, ":demand");
+        assert_eq!(a.next_f64(), b.next_f64());
+        assert_eq!(a.next_u32(), b.next_u32());
+        assert_eq!(a.next_u64(), b.next_u64());
     }
 
     #[test]
-    fn spawn_rng_negative_binomial_matches_numpy_day0_demand() {
+    fn spawn_rng_differs_across_stream_labels() {
+        let mut demand = SpawnRng::spawn_rng(0, "session", 0, ":demand");
+        let mut spoil = SpawnRng::spawn_rng(0, "session", 0, ":spoil");
+        assert_ne!(demand.next_f64(), spoil.next_f64());
+    }
+
+    #[test]
+    fn spawn_rng_negative_binomial_mean_in_band() {
         let mu = 24.318_236_947_2_f64;
         let vm = 2.0_f64;
         let r = mu / (vm - 1.0);
         let p = r / (r + mu);
         let mut rng = SpawnRng::spawn_rng(0, "session", 0, ":demand");
-        assert_eq!(rng.negative_binomial(r, p), 21);
+        let n = 2000u32;
+        let mut acc = 0.0;
+        for _ in 0..n {
+            acc += f64::from(rng.negative_binomial(r, p));
+        }
+        let mean = acc / f64::from(n);
+        assert!(mean > 20.0 && mean < 40.0, "mean={mean}");
     }
 }

@@ -17,8 +17,5 @@ rand_pcg = { workspace = true }
 rand_distr = { workspace = true }
 sha2 = { workspace = true }
 
-[build-dependencies]
-cc = { workspace = true }
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { workspace = true, features = ["wasm_js"] }

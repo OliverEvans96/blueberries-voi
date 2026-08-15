@@ -1,6 +1,6 @@
 # WASM studio kernel
 
-Build (requires rustc + wasm-pack):
+Build (requires rustc + wasm-pack; no C cross-compiler or clang needed):
 
 ```bash
 ./scripts/build-wasm.sh
