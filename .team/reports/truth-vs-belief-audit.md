@@ -13,7 +13,7 @@
 
 ## Verdict
 
-**Still substantially complete.** T-115 / ADR 0125 presentation contract holds on current `main`. No new default god-mode leaks. One medium wire gap from run 1 is **fixed** (`patchEngineState` + `onSetObsScenario`). Remaining items are polish, opt-in Rust backend, and deferred knowledge-scenario UI audit.
+**Still substantially complete.** T-115 / ADR 0125 presentation contract holds on current `main`. No new default god-mode leaks. `patchEngineState` + `onSetObsScenario` fixed since run 1. Knowledge-scenario chrome audited separately on `main` (T-119); remaining items are optional polish, T-119 remediation, and opt-in Rust backend gaps.
 
 ---
 
