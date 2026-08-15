@@ -204,7 +204,7 @@ impl PyEngineSession {
         }
     }
 
-    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![]))]
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200))]
     fn init<'py>(
         &mut self,
         py: Python<'py>,
@@ -216,6 +216,7 @@ impl PyEngineSession {
         radius: i32,
         times: Vec<Vec<f64>>,
         temps: Vec<Vec<f64>>,
+        n_particles: usize,
     ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
         self.inner.configure(
@@ -225,12 +226,13 @@ impl PyEngineSession {
             n_paths,
             radius,
             ships_from(times, temps),
+            n_particles,
         );
         py_snapshot(py, self.inner.episode_day())
     }
 
     fn reset<'py>(&mut self, py: Python<'py>, seed: u64) -> PyResult<Bound<'py, PyDict>> {
-        self.init(py, seed, 1, true, 7, 2, 1, vec![], vec![])
+        self.init(py, seed, 1, true, 7, 2, 1, vec![], vec![], 200)
     }
 
     fn step_n<'py>(&mut self, py: Python<'py>, orders: Vec<u32>) -> PyResult<Bound<'py, PyList>> {

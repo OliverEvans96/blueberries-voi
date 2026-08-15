@@ -289,6 +289,7 @@ class EngineSession:
                 int(self._candidate_case_radius),
                 times,
                 temps,
+                int(self._n_particles),
             )
         except TypeError:
             raw = init_fn(int(self._seed))
