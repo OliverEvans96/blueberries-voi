@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - extension optional until maturin
 
 
 def _backend() -> str:
-    return os.environ.get("BLUEBERRIES_VOI_BACKEND", "python").strip().lower()
+    return os.environ.get("BLUEBERRIES_VOI_BACKEND", "rust").strip().lower()
 
 
 def rust_available() -> bool:

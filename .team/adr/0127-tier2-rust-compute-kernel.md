@@ -1,7 +1,8 @@
 # 0127. Tier 2 Rust compute kernel — sole hot path; Python orchestration only
 
-STATUS: PROPOSED
+STATUS: ACCEPTED
 DATE: 2026-08-15
+ACCEPTED: 2026-08-15
 BOARD-ID: X-09
 GROUP: X
 PROVENANCE: Rust compute parity plan (2026-08-15); milestone T-121
