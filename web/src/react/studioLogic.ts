@@ -67,6 +67,7 @@ import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
 import { DecisionRail } from "./DecisionRail";
+import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
@@ -206,11 +207,13 @@ export function initStudio(app: HTMLElement): () => void {
   };
 
   const insightStripHost = document.querySelector("#insight-strip-host");
+  const guidedPathsHost = document.querySelector("#guided-paths-host");
   const chapterTabsHost = document.querySelector("#chapter-tabs-host");
   const decisionRailHost = document.querySelector("#decision-rail-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
+  const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
   const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
   let dayInspectorPortal = document.getElementById("day-inspector-portal");
@@ -232,6 +235,28 @@ export function initStudio(app: HTMLElement): () => void {
   function renderDayInspector(): void {
     dayInspectorRoot.render(
       createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+    );
+  }
+
+  function hintAutoplay(): void {
+    const playBtn = document.querySelector<HTMLButtonElement>("#btn-autopilot-play");
+    if (!playBtn) return;
+    playBtn.classList.add("autopilot-hint");
+    window.setTimeout(() => playBtn.classList.remove("autopilot-hint"), 2400);
+  }
+
+  function onGuidedPathSelect(path: GuidedPath): void {
+    void railHandlers.onSetObsScenario(path.scenario);
+    setSection(path.section);
+    if (path.autoplayHint) {
+      hintAutoplay();
+    }
+  }
+
+  function renderGuidedPaths(): void {
+    if (!guidedPathsRoot) return;
+    guidedPathsRoot.render(
+      createElement(GuidedPaths, { onSelect: onGuidedPathSelect }),
     );
   }
 
@@ -474,6 +499,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderChrome();
     renderActiveFocusPlots();
     renderInsightStrip();
+    renderGuidedPaths();
     renderChapterTabs();
     renderDayInspector();
     renderDecisionRailChrome();

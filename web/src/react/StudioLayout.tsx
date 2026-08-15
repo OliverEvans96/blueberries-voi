@@ -10,6 +10,7 @@ export function StudioLayout() {
         <div className="hero-top">
           <div className="brand">Cold Case Ledger</div>
           <div className="hero-tools">
+            <div id="guided-paths-host" className="guided-paths-host" />
             <ReferenceDrawer />
             <span
               id="engine-status"
