@@ -11,12 +11,24 @@ use voi_core::{
     DemandProfile,
 };
 
+fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
+    let json = if std::path::Path::new(source).is_file() {
+        std::fs::read_to_string(source).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "failed to read demand profile at {source}: {err}"
+            ))
+        })?
+    } else {
+        source.to_string()
+    };
+    DemandProfile::from_json(&json)
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))
+}
+
 #[pyfunction]
 #[pyo3(signature = (day, json))]
 fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
-    let profile = DemandProfile::from_json(json)
-        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
-    Ok(profile.mu(day))
+    Ok(demand_profile_from_source(json)?.mu(day))
 }
 
 #[pyfunction]
