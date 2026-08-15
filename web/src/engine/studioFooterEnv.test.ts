@@ -1,5 +1,5 @@
 /**
- * T-074 RED: studio footer, local env defaults, live-adapter errors (ADR 0108).
+ * T-074 / T-125 RED: studio footer, WASM local env defaults, live-adapter errors (ADR 0129).
  *
  * Static + unit contracts. Does not start Vite or the ASGI API.
  */
@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockAdapter } from "../mock/adapter";
+import { WasmAdapter } from "./wasmAdapter";
 import {
   createStudioAdapter,
   resolveStudioAdapterKind,
@@ -21,9 +22,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
 const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
 const STUDIO_ADAPTER_TS = join(HERE, "studioAdapter.ts");
-const LOCAL_WHEEL_PATH =
-  "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
-const LOCAL_WORKER_PATH = "/packaging/pyodide/worker.js";
 
 class FakeWorker {
   static instances: FakeWorker[] = [];
@@ -63,19 +61,25 @@ function installFakeWorker(): void {
   );
 }
 
-describe("T-074 studio footer for live adapters", () => {
-  it("studioFooterCopy(http) does not claim fake or mock data", () => {
-    const copy = studioFooterCopy("http");
+describe("T-125 studio footer for live WASM adapter", () => {
+  it("studioFooterCopy(wasm) does not claim fake or mock data", () => {
+    const copy = studioFooterCopy("wasm");
     expect(copy.length).toBeGreaterThan(0);
+    expect(copy).toMatch(/WASM/i);
     expect(copy).not.toMatch(/fake\s+data/i);
     expect(copy).not.toMatch(/\bmock\b/i);
+    expect(copy).not.toMatch(/Pyodide/i);
+    expect(copy).not.toMatch(/HTTP/i);
   });
 
-  it("studioFooterCopy(pyodide) does not claim fake or mock data", () => {
-    const copy = studioFooterCopy("pyodide");
-    expect(copy.length).toBeGreaterThan(0);
-    expect(copy).not.toMatch(/fake\s+data/i);
-    expect(copy).not.toMatch(/\bmock\b/i);
+  it("studioFooterCopy has no http or pyodide branches", () => {
+    const src = readFileSync(STUDIO_ADAPTER_TS, "utf8");
+    const fn = src.match(/function studioFooterCopy[\s\S]*?\n\}/);
+    expect(fn, "expected studioFooterCopy in studioAdapter.ts").toBeTruthy();
+    const body = fn![0]!;
+    expect(body).toMatch(/kind\s*===\s*["']wasm["']/);
+    expect(body).not.toMatch(/kind\s*===\s*["']http["']/);
+    expect(body).not.toMatch(/kind\s*===\s*["']pyodide["']/);
   });
 
   it("react/studioLogic.ts footer is driven by adapter kind (no hardcoded Fake data studio for live path)", () => {
@@ -86,7 +90,7 @@ describe("T-074 studio footer for live adapters", () => {
   });
 });
 
-describe("T-074 local env defaults (API + worker + wheel)", () => {
+describe("T-125 local env defaults (WASM worker + pkg)", () => {
   beforeEach(() => {
     installFakeWorker();
   });
@@ -95,31 +99,29 @@ describe("T-074 local env defaults (API + worker + wheel)", () => {
     vi.restoreAllMocks();
   });
 
-  it("resolveLocalStudioDefaults exposes localhost API base for HTTP readiness", () => {
+  it("resolveLocalStudioDefaults exposes WASM worker + pkg URLs (not pyodide wheel)", () => {
     const defaults = resolveLocalStudioDefaults();
-    expect(defaults.apiBaseUrl).toMatch(/^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?/);
-  });
-
-  it("resolveLocalStudioDefaults uses local worker + local wheel (not github.com/oliver only)", () => {
-    const defaults = resolveLocalStudioDefaults();
-    expect(defaults.workerUrl).toMatch(/packaging\/pyodide\/worker\.js|\/worker\.js/);
-    expect(defaults.wheelUrl).toMatch(/\/wheels\/.+\.whl/);
+    expect(defaults.workerUrl).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(defaults.workerUrl).not.toMatch(/pyodide/);
+    expect(defaults.wheelUrl).toMatch(/\/wasm\//);
+    expect(defaults.wheelUrl).not.toMatch(/\/wheels\/.+\.whl/);
     expect(defaults.wheelUrl).not.toMatch(/github\.com\/oliver\//);
   });
 
-  it("createStudioAdapter pyodide defaults use local worker + local wheel URLs", () => {
+  it("createStudioAdapter wasm defaults use local WASM worker + pkg URLs", () => {
     createStudioAdapter({
-      kind: "pyodide",
       env: { MODE: "production", PROD: true },
     });
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
     const urlStr = decodeURIComponent(String(FakeWorker.instances[0]!.url));
-    expect(urlStr).toMatch(/packaging\/pyodide\/worker\.js|\/worker\.js/);
-    expect(urlStr).toMatch(/\/wheels\/.+\.whl|wheelUrl=/);
+    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).toMatch(/pkgUrl=/);
+    expect(urlStr).not.toMatch(/pyodide/);
+    expect(urlStr).not.toMatch(/\/wheels\/.+\.whl|wheelUrl=/);
     expect(urlStr).not.toMatch(/github\.com\/oliver\//);
   });
 
-  it("documents local defaults via .env.example or studioAdapter contract constants", () => {
+  it("documents WASM defaults via .env.example or studioAdapter contract constants", () => {
     const envCandidates = [
       join(WEB_ROOT, ".env.example"),
       join(WEB_ROOT, ".env.development"),
@@ -128,23 +130,20 @@ describe("T-074 local env defaults (API + worker + wheel)", () => {
     const envHit = envCandidates.find((p) => existsSync(p));
     const adapterSrc = readFileSync(STUDIO_ADAPTER_TS, "utf8");
     const hasCodeDefaults =
-      /127\.0\.0\.1|localhost/.test(adapterSrc) &&
-      /\/wheels\//.test(adapterSrc) &&
-      !/DEFAULT_PYODIDE_WHEEL_URL\s*=\s*[\s\S]*?github\.com\/oliver\//.test(
-        adapterSrc,
-      );
+      /packaging\/wasm\/worker\.js/.test(adapterSrc) &&
+      /\/wasm\//.test(adapterSrc) &&
+      !/DEFAULT_PYODIDE_WHEEL_URL/.test(adapterSrc);
     if (envHit) {
       const text = readFileSync(envHit, "utf8");
-      expect(text).toMatch(/VITE_ENGINE_API_BASE_URL/);
-      expect(text).toMatch(/localhost|127\.0\.0\.1/);
-      expect(text).toMatch(/VITE_PYODIDE_WORKER_URL|VITE_PYODIDE_WHEEL_URL/);
+      expect(text).toMatch(/VITE_WASM_WORKER_URL|VITE_WASM_PKG_URL/);
+      expect(text).not.toMatch(/VITE_PYODIDE_WORKER_URL|VITE_PYODIDE_WHEEL_URL/);
       expect(text).not.toMatch(
         /VITE_PYODIDE_WHEEL_URL\s*=\s*https:\/\/github\.com\/oliver\//,
       );
     }
     expect(
       envHit || hasCodeDefaults,
-      "need .env.example (or equiv) or code defaults with localhost API + local /wheels wheel",
+      "need .env.example (or equiv) or code defaults with WASM worker + /wasm pkg",
     ).toBeTruthy();
   });
 });
@@ -214,7 +213,7 @@ describe("T-074 adapter init/step errors surface to the user", () => {
   });
 });
 
-describe("T-074 MockAdapter only when VITE_ENGINE_ADAPTER=mock", () => {
+describe("T-125 MockAdapter only when VITE_ENGINE_ADAPTER=mock", () => {
   beforeEach(() => {
     installFakeWorker();
   });
@@ -231,8 +230,7 @@ describe("T-074 MockAdapter only when VITE_ENGINE_ADAPTER=mock", () => {
       { MODE: "development", DEV: true, VITE_ENGINE_API_BASE_URL: "http://127.0.0.1:8000" },
       { MODE: "production", PROD: true },
       { MODE: "development", DEV: true },
-      { VITE_ENGINE_ADAPTER: "http", VITE_ENGINE_API_BASE_URL: "http://127.0.0.1:8000" },
-      { VITE_ENGINE_ADAPTER: "pyodide" },
+      { VITE_ENGINE_ADAPTER: "wasm" },
     ];
     for (const env of liveEnvs) {
       expect(resolveStudioAdapterKind(env)).not.toBe("mock");
@@ -245,32 +243,24 @@ describe("T-074 MockAdapter only when VITE_ENGINE_ADAPTER=mock", () => {
     });
     expect(mock).toBeInstanceOf(MockAdapter);
 
-    const http = createStudioAdapter({
-      kind: "http",
-      baseUrl: "http://127.0.0.1:8000",
-      fetch: vi.fn() as unknown as typeof fetch,
+    const wasm = createStudioAdapter({
+      env: { MODE: "production", PROD: true },
     });
-    expect(http).not.toBeInstanceOf(MockAdapter);
-
-    const pyodide = createStudioAdapter({
-      kind: "pyodide",
-      workerUrl: LOCAL_WORKER_PATH,
-      wheelUrl: LOCAL_WHEEL_PATH,
-    });
-    expect(pyodide).not.toBeInstanceOf(MockAdapter);
+    expect(wasm).toBeInstanceOf(WasmAdapter);
+    expect(wasm).not.toBeInstanceOf(MockAdapter);
   });
 
-  it("default readiness path does not silently fall back to mock", () => {
+  it("default readiness path resolves to wasm and does not silently fall back to mock", () => {
     const kind = resolveStudioAdapterKind({
       MODE: "development",
       DEV: true,
     });
+    expect(kind).toBe("wasm");
     expect(kind).not.toBe("mock");
     const adapter = createStudioAdapter({
       env: { MODE: "development", DEV: true },
-      workerUrl: LOCAL_WORKER_PATH,
-      wheelUrl: LOCAL_WHEEL_PATH,
     });
+    expect(adapter).toBeInstanceOf(WasmAdapter);
     expect(adapter).not.toBeInstanceOf(MockAdapter);
   });
 });
