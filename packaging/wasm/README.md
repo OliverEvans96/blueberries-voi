@@ -1,5 +1,9 @@
 # WASM studio kernel
 
+The **sole browser host** for the interactive store studio (ADR 0129). Vite
+serves this worker and the wasm-pack output; there is no HTTP session API or
+in-browser Python path.
+
 Build (requires rustc + wasm-pack; no C cross-compiler or clang needed):
 
 ```bash
@@ -15,5 +19,11 @@ alone is not enough):
 ./scripts/smoke-wasm.sh
 ```
 
-Vite should serve `packaging/wasm/pkg/` at `/wasm/` (`VITE_WASM_PKG_URL=/wasm/`).
+Launch the studio after a build:
+
+```bash
+./scripts/studio.sh
+```
+
+Vite serves `packaging/wasm/pkg/` at `/wasm/` (`VITE_WASM_PKG_URL=/wasm/`).
 The worker is `packaging/wasm/worker.js` (`VITE_WASM_WORKER_URL`).
