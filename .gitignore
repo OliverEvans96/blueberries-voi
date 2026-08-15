@@ -40,6 +40,11 @@ htmlcov/
 result
 result-*
 
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
 # Local data / outputs
 .data/
 data/raw/

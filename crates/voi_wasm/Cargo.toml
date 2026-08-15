@@ -1,0 +1,16 @@
+[package]
+name = "voi_wasm"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "wasm-bindgen EngineSession RPC for the studio worker"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+voi_core = { path = "../voi_core" }
+wasm-bindgen = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

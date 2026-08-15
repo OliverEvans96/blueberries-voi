@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "blueberries-voi-core"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.maturin]
+module-name = "blueberries_voi._core"
+python-source = "../../src"
+manifest-path = "Cargo.toml"
+features = ["pyo3/extension-module"]

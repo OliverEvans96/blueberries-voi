@@ -115,7 +115,14 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     ).toBe("mock");
   });
 
-  it("explicit VITE_ENGINE_ADAPTER=http forces Http even in production MODE", () => {
+  it("explicit VITE_ENGINE_ADAPTER=wasm selects wasm", () => {
+    expect(
+      resolveStudioAdapterKind({
+        ...PROD_ENV,
+        VITE_ENGINE_ADAPTER: "wasm",
+      }),
+    ).toBe("wasm");
+  });
     expect(
       resolveStudioAdapterKind({
         ...PROD_ENV,
