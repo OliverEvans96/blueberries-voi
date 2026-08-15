@@ -55,6 +55,8 @@ describe("DecisionRail (T-124 AC-ia)", () => {
       screen.getByRole("button", { name: /advance/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/order quantity/i)).toBeInTheDocument();
+    expect(document.querySelector("#order-num")).toHaveValue(16);
 
     for (const id of LADDER) {
       expect(document.querySelector(`[data-obs="${id}"]`)).not.toBeNull();
@@ -68,6 +70,15 @@ describe("DecisionRail (T-124 AC-ia)", () => {
         "[data-testid='pnl-consolidated'], #chart-pnl-totals",
       ),
     ).not.toBeNull();
+  });
+
+  it("updates order quantity when the slider moves", () => {
+    const props = baseProps();
+    render(createElement(DecisionRail, props));
+
+    const slider = document.querySelector("#order-range") as HTMLInputElement;
+    fireEvent.input(slider, { target: { value: "32" } });
+    expect(props.onOrderChange).toHaveBeenCalledWith(32);
   });
 
   it("keeps observation ladder chips visible when active section is not Belief", () => {

@@ -212,7 +212,6 @@ export function StudioLayout() {
         <div className="decision-rail-column">
           <div id="play-chrome" hidden />
           <div className="pnl-chrome" hidden>
-            <D3ChartHost id="chart-pnl-totals" ariaLabel="Episode profit and loss totals" />
             <div className="chart-caption impact-caption">Cumulative PnL</div>
             <D3ChartHost
               id="chart-pnl-spark"

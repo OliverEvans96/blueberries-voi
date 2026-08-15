@@ -23,7 +23,6 @@ import {
   setMarginalHover,
 } from "../charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
-import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderBeliefAgeCount } from "../charts/beliefAgeCount";
 import { renderBeliefAgeMarginal } from "../charts/beliefAgeMarginal";
 import { renderSurvival } from "../charts/survival";
@@ -182,7 +181,6 @@ export function initStudio(app: HTMLElement): () => void {
     spoil: document.querySelector("#chart-spoil") as HTMLElement,
     pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
     pnlSpark: document.querySelector("#chart-pnl-spark") as HTMLElement,
-    pnlTotals: document.querySelector("#chart-pnl-totals") as HTMLElement,
     belief: document.querySelector("#chart-belief") as HTMLElement,
     beliefAgeMarginal: document.querySelector(
       "#chart-belief-age-marginal",
@@ -288,6 +286,8 @@ export function initStudio(app: HTMLElement): () => void {
         onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
         onOrderChange: (qty) => {
           orderQty = snapOrder(qty);
+          playChromeApi.update(controlsState());
+          renderDecisionRailChrome();
         },
       }),
     );
@@ -401,7 +401,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderChrome(): void {
-    renderPnLTotals(els.pnlTotals, vm);
     renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
   }
 
@@ -528,6 +527,7 @@ export function initStudio(app: HTMLElement): () => void {
     {
       onOrderChange(qty) {
         orderQty = qty;
+        renderDecisionRailChrome();
       },
       onAdvance() {
         void (async () => {
@@ -586,10 +586,17 @@ export function initStudio(app: HTMLElement): () => void {
         })();
       },
       onAutopilotPlay() {
-        railHandlers.onAutopilotPlay();
+        if (vm.episode_day >= EPISODE_HORIZON) {
+          autopilot.pause();
+          syncAutopilotChrome();
+          return;
+        }
+        autopilot.play();
+        syncAutopilotChrome();
       },
       onAutopilotPause() {
-        railHandlers.onAutopilotPause();
+        autopilot.pause();
+        syncAutopilotChrome();
       },
       onShowTruthChange(show) {
         showTruth = show;
@@ -707,10 +714,17 @@ export function initStudio(app: HTMLElement): () => void {
     els.playChrome.querySelector<HTMLButtonElement>("#btn-reset")?.click();
   };
   railHandlers.onAutopilotPlay = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-play")?.click();
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+      syncAutopilotChrome();
+      return;
+    }
+    autopilot.play();
+    syncAutopilotChrome();
   };
   railHandlers.onAutopilotPause = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-pause")?.click();
+    autopilot.pause();
+    syncAutopilotChrome();
   };
   railHandlers.onSetObsScenario = async (id: ScenarioId) => {
     const setObs =
