@@ -360,8 +360,17 @@ def test_changelog_has_slice2_client_voice_entry() -> None:
             "http",
             "api",
             "asgi",
+            "wasm",
+            "native",
+            "python",
+            "rust",
+            "simulator",
+            "engine",
         )
-    ), "Slice-2 changelog entry must mention the local HTTP / API path"
+    ), (
+        "Slice-2 changelog entry must mention a dev or browser engine path "
+        "(local HTTP/ASGI historical OK; WASM/native acceptable post T-125)"
+    )
     assert any(
         tok in lowered
         for tok in (
@@ -394,6 +403,8 @@ def test_changelog_has_slice2_client_voice_entry() -> None:
             "iterate",
             "iteration",
             "simulator",
+            "wasm",
+            "native",
         )
     )
     assert not jargon_only, (
@@ -413,7 +424,7 @@ def test_slice2_closeout_contract_checklist() -> None:
     assert candidates, (
         "Add a Slice-2 close-out checklist under .team/reviews/ "
         "(e.g. ENG-01-slice2.md / T-052.md) asserting Snapshot/DayDelta parity "
-        "with Pyodide and no production multi-tenant hosting claim"
+        "across browser/native hosts and no production multi-tenant hosting claim"
     )
 
     best: Path | None = None
@@ -433,16 +444,25 @@ def test_slice2_closeout_contract_checklist() -> None:
     assert best is not None and best_text, "no close-out candidate readable"
     lowered = best_text.lower()
 
-    # Theme 1: shared Snapshot / DayDelta with Pyodide (positive parity claim).
+    # Theme 1: shared Snapshot / DayDelta across browser/native hosts.
     has_snapshot = "snapshot" in lowered
     has_day_delta = "daydelta" in lowered or "day delta" in lowered
-    has_pyodide_or_share = any(
+    has_host_parity = any(
         tok in lowered
-        for tok in ("pyodide", "share", "same", "parity", "both runtimes", "0100")
+        for tok in (
+            "pyodide",
+            "wasm",
+            "native",
+            "share",
+            "same",
+            "parity",
+            "both runtimes",
+            "0100",
+        )
     )
-    assert has_snapshot and has_day_delta and has_pyodide_or_share, (
-        f"{best} must assert API responses share Snapshot/DayDelta with Pyodide "
-        "(name both schemas and the shared / Pyodide parity)"
+    assert has_snapshot and has_day_delta and has_host_parity, (
+        f"{best} must assert hosts share Snapshot/DayDelta "
+        "(name both schemas and WASM/native/Pyodide parity)"
     )
 
     # Theme 2: explicit non-claim for production multi-tenant hosting.
