@@ -350,19 +350,21 @@ export function mountPlayChrome(
     truthTarget?.classList.toggle("studio--show-truth", on);
   }
 
-  function setShowTruth(on: boolean): void {
+  function setShowTruth(on: boolean, notify = true): void {
     showTruth = on;
     btnShowTruth.setAttribute("aria-pressed", on ? "true" : "false");
     applyShowTruthClass(on);
-    saveShowTruth(on);
-    cb.onShowTruthChange?.(on);
+    if (notify) {
+      saveShowTruth(on);
+      cb.onShowTruthChange?.(on);
+    }
   }
 
   btnShowTruth.addEventListener("click", () => {
     setShowTruth(!showTruth);
   });
-  btnShowTruth.setAttribute("aria-pressed", showTruth ? "true" : "false");
-  applyShowTruthClass(showTruth);
+  // Initial sync only — parent assigns playChromeApi after mount returns.
+  setShowTruth(showTruth, false);
 
   return {
     update(s) {
