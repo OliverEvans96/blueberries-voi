@@ -1,5 +1,5 @@
 /**
- * T-115: History lot circles gated by empty lots arrays; .truth-* when drawn.
+ * T-115: History lot circles gated by empty lots arrays; filled when drawn.
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ describe("history lot circles (T-115)", () => {
     expect(el.querySelectorAll("circle.lot").length).toBe(0);
   });
 
-  it("draws lot circles with a truth stroke class when lots are nonempty", () => {
+  it("draws lot circles with age-based fill when lots are nonempty", () => {
     const el = host();
     renderHistory(
       el,
@@ -53,12 +53,12 @@ describe("history lot circles (T-115)", () => {
     );
     const circles = el.querySelectorAll("circle.lot");
     expect(circles.length).toBeGreaterThan(0);
-    const truthStroke = el.querySelectorAll(
-      "circle.lot.truth-circle, circle.truth-circle, .lot.truth-circle",
-    );
-    expect(
-      truthStroke.length,
-      "history lot circles must carry .truth-circle (or .lot.truth-circle)",
-    ).toBeGreaterThan(0);
+    for (const circle of circles) {
+      const fill = circle.getAttribute("fill");
+      expect(fill, "history lot circles must have a fill color").toBeTruthy();
+      expect(fill).not.toBe("none");
+      const fillOpacity = Number(circle.getAttribute("fill-opacity") ?? "1");
+      expect(fillOpacity).toBeGreaterThan(0);
+    }
   });
 });

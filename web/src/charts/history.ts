@@ -172,7 +172,7 @@ export function renderHistory(
       (enter) =>
         enter
           .append("circle")
-          .attr("class", "lot truth-circle")
+          .attr("class", "lot")
           .attr("data-day", (d) => d.day)
           .attr("cx", (d) => (dayIndex.get(d.day) ?? 0) * step + step / 2)
           .attr("cy", (d) => y(d.tau))
