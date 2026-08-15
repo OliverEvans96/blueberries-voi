@@ -88,6 +88,11 @@ pub fn damped_sw_order(
     case_round(raw, params.case_size)
 }
 
+/// Fixed-q constant order (Python `ConstantOrderPolicy`: nearest `case_round`).
+pub fn constant_order(q: u32, case_size: u32) -> u32 {
+    case_round(f64::from(q), case_size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,6 +126,28 @@ mod tests {
         assert_eq!(
             damped_sw_order(&[10], &[0.0], 0, 0, &p, 0.9, 0.8, Some(&s)),
             0
+        );
+    }
+
+    #[test]
+    fn constant_order_nearest_case_round_representative_pairs() {
+        let pairs = [(10, 8, 8), (12, 8, 16), (16, 8, 16), (0, 8, 0), (4, 8, 8), (2, 4, 4)];
+        for (q, case_size, expected) in pairs {
+            let got = constant_order(q, case_size);
+            assert_eq!(got, expected, "constant_order({q}, {case_size})");
+            assert_eq!(got % case_size, 0);
+        }
+    }
+
+    #[test]
+    fn constant_order_differs_from_damped_sw_when_demand_exceeds_q() {
+        let p = ModelParams::default();
+        let q = constant_order(8, p.case_size);
+        assert!(q > 0);
+        let sw = damped_sw_order(&[], &[], 0, 0, &p, 0.9, 0.8, None);
+        assert!(
+            sw > q,
+            "damped_sw on empty shelf ({sw}) should exceed constant q={q}"
         );
     }
 }
