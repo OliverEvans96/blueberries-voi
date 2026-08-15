@@ -137,6 +137,34 @@ impl EngineSession {
         if !shipments.is_empty() {
             self.shipments = shipments;
         }
+        if self.enable_filter {
+            self.seed_particle_bank();
+        }
+    }
+
+    fn seed_particle_bank(&mut self) {
+        use rand::Rng;
+
+        let n = self._n_particles.max(1);
+        let l = self.l_dim;
+        let k = self.k_dim.max(1);
+        let grid = tau_grid(k);
+        let mut rng = Pcg64::seed_from_u64(self.seed.wrapping_add(0xF117_0000));
+        let mut counts = vec![vec![0u32; l]; n];
+        let mut taus = vec![vec![0.0; l]; n];
+        for i in 0..n {
+            for slot in 0..l {
+                counts[i][slot] = rng.random_range(0..8);
+                let bin = rng.random_range(0..k);
+                taus[i][slot] = grid[bin];
+            }
+        }
+        self.bank = ParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            counts,
+            taus,
+        };
+        self.bank_init = self.bank.clone();
     }
 
     pub fn episode_day(&self) -> u32 {
@@ -271,7 +299,7 @@ impl EngineSession {
         })
     }
 
-    fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
+    pub fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
         serde_json::json!({
             "seq": self.seq,
             "episode_day": d.episode_day,
