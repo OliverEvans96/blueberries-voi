@@ -24,6 +24,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - CAL-01 calendar realism Wave 0 (2026-08-13): **[0112](./0112-x-11-mwf-delivery-base-case.md)–[0116](./0116-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. Renumbered past ENG-01 **0109–0111** at T-088 integrate.
 - Studio Autopilot Mode (2026-08-13): **[0117](./0117-studio-autopilot-mode.md)** (`adapter.act` play loop; `damped_sw` default; SW-based rollout base; Controller section; cadence 1–2 act/s). User plan T-076–T-081 → **T-091 + T-097–T-101**; Autopilot ADR renumbered **0112→0117** at merge with CAL-01 (CAL-01 keeps 0112–0116).
 - Behavior-frozen structure refactor (2026-08-13): provisional **[0118](./0118-behavior-frozen-module-splits.md)** (T-102) — internal module splits behind re-export façades; existing suite is AC; no semantic unification of order-gate/ceil/Policy forks.
+- Studio show-truth (2026-08-14): provisional **[0122](./0122-studio-show-truth-js-only.md)** (T-115) — JS-only presentation; wire unchanged. Number 0122 skips 0119–0121 reserved on other tips.
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -150,3 +151,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0116](./0116-cal-01-track-ownership.md) | `CAL-01` | Track ownership + draw_demand(day=) shim | ACCEPTED |
 | [0117](./0117-studio-autopilot-mode.md) | *(studio)* / ENG | Studio Autopilot Mode: act loop + Controller | ACCEPTED |
 | [0118](./0118-behavior-frozen-module-splits.md) | *(refactor)* / ENG | Behavior-frozen splits + re-export façades | PROPOSED |
+| [0122](./0122-studio-show-truth-js-only.md) | ENG-01 | Studio show-truth is JS-only presentation | PROPOSED |
