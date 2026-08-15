@@ -28,16 +28,17 @@ We will:
 - **Leave wasm on reset-only chips** — rejected: studio already calls
   `set_obs_scenario`; wasm would silently fall back or fail.
 - **Replay full physics from seed** — rejected in 0123; same for Rust.
-- **Port full RichObs/lot masks into Rust now** — rejected: interactive wasm
-  filter is totals-only; P0 vs P1 is the distinguishable mask.
+- **Port full RichObs/lot masks into Rust now** — rejected at T-114: interactive
+  wasm filter was totals-only; P0 vs P1 was the distinguishable mask. **Superseded
+  for FilterObs richness by [0126](./0126-wasm-rich-filterobs-particle-belief.md).**
 
 ## Consequences
 
 **Easy:** chips work on wasm the same way as Pyodide/HTTP.
 
-**Hard / cost:** three hosts must keep the catch-up protocol in sync; Rust
-beliefs will not match Python F1/F2 lot-resolved filters.
+**Hard / cost:** three hosts must keep the catch-up protocol in sync; until 0126,
+Rust beliefs did not match Python F1/F2 lot-resolved filters.
 
 **Locked in:** RPC name `set_obs_scenario`; lazy rungs in `voi_core`.
 
-**Revisit if:** Rust grows lot-resolved observations.
+**Revisit if:** Rust grows lot-resolved observations — done in 0126.

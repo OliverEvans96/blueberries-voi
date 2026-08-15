@@ -27,6 +27,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Rust compute kernel (2026-08-14): **[0119](./0119-rust-compute-kernel-python-host.md)–[0121](./0121-rust-workspace-pyo3-wasm-deps.md)** (Python host + citeable; Rust `voi_core`; wasm studio adapter; pyo3/wasm-bindgen deps). **[0009](./0009-x-09-language-and-stack.md)** superseded for compute; **[0099](./0099-eng-01-dual-runtime-ap.md)** amended (Pyodide retained).
 - Studio 90-day episode (2026-08-14): **[0122](./0122-studio-episode-horizon-90.md)**. Lazy obs_scenario catch-up (Python): **[0123](./0123-lazy-obs-scenario-filter-caches.md)**. Rust/wasm `set_obs_scenario` parity: **[0124](./0124-rust-wasm-set-obs-scenario.md)**.
 - Studio show-truth (2026-08-14): provisional **[0125](./0125-studio-show-truth-js-only.md)** (T-115) — JS-only presentation; wire unchanged. Renumbered from 0122 at merge with main (0122 is episode horizon).
+- Wasm particle belief (2026-08-14): provisional **[0126](./0126-wasm-rich-filterobs-particle-belief.md)** (T-117) — RichObs-shaped FilterObs + Snapshot.belief from ParticleBank.
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -160,3 +161,4 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0123](./0123-lazy-obs-scenario-filter-caches.md) | ENG | Live obs_scenario via lazy per-rung catch-up | ACCEPTED |
 | [0124](./0124-rust-wasm-set-obs-scenario.md) | ENG | Rust/wasm `set_obs_scenario` parity with 0123 | ACCEPTED |
 | [0125](./0125-studio-show-truth-js-only.md) | ENG-01 | Studio show-truth is JS-only presentation | PROPOSED |
+| [0126](./0126-wasm-rich-filterobs-particle-belief.md) | ENG | Wasm RichObs FilterObs; belief = particle posterior | ACCEPTED |
