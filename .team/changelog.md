@@ -4,6 +4,7 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-15
 
+- **The store studio now runs its day-by-day math in the browser through the native Rust engine — no separate server or in-browser Python install** (T-125).
 - **The store studio is easier to scan: a top strip shows the day, delivery rhythm, knowledge rung, and profit; a sticky rail keeps Run controls, observation chips, truth toggle, and P&L visible while you explore any section** (T-124).
 - **Charts and knobs now respect what each knowledge rung actually observes — spoilage stays hidden on books-only P0, arrival receipt detail unlocks on F2, and demand sliders preview the week profile without resetting the episode** (T-124).
 - **The store simulator now runs its heavy day-by-day math in the native engine by default, while notebooks and batch studies still orchestrate runs from Python** (T-121 Wave E).
