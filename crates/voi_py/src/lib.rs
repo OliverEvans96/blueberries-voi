@@ -7,8 +7,16 @@ use serde_json::Value;
 use voi_core::{
     crate_name, day_step, filter_step, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
     sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayDelta, DayStepIn,
-    EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
+    DemandProfile, EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
 };
+
+#[pyfunction]
+#[pyo3(signature = (json, day))]
+fn demand_profile_mu_from_json_py(json: &str, day: u32) -> PyResult<f64> {
+    let profile = DemandProfile::from_json(json)
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
+    Ok(profile.mu(day))
+}
 
 #[pyfunction]
 fn weibull_survival_py(tau: f64, beta: f64, eta: f64) -> f64 {
@@ -345,6 +353,7 @@ impl PyEngineSession {
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("VOI_CORE", crate_name())?;
+    m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(weibull_survival_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(day_step_injected, m)?)?;
