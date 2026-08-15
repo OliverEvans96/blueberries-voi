@@ -46,6 +46,9 @@ api = [
     "fastapi>=0.115.0",
     "httpx>=0.27.0",
 ]
+rust = [
+    "maturin>=1.8.0",
+]
 # FreshNet ingest / fit only (ADR 0115 / T-078). Not core or browser.
 freshnet = [
     "datasets>=3.0.0",

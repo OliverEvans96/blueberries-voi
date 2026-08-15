@@ -1,5 +1,5 @@
 # 0009. X-09: Language and stack
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0119 (compute language; Python remains host — see 0119)
 DATE: 2026-08-12
 BOARD-ID: X-09
 GROUP: X

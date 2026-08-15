@@ -10,6 +10,7 @@ import type { EngineAdapter } from "./adapter";
 import { HttpAdapter } from "./httpAdapter";
 import { MockAdapter } from "../mock/adapter";
 import { PyodideAdapter } from "./pyodideAdapter";
+import { WasmAdapter } from "./wasmAdapter";
 import { ViewModelProjector } from "./projector";
 import {
   createStudioAdapter,
@@ -115,7 +116,32 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     ).toBe("mock");
   });
 
-  it("explicit VITE_ENGINE_ADAPTER=http forces Http even in production MODE", () => {
+  it("explicit VITE_ENGINE_ADAPTER=wasm selects wasm", () => {
+    expect(
+      resolveStudioAdapterKind({
+        ...PROD_ENV,
+        VITE_ENGINE_ADAPTER: "wasm",
+      }),
+    ).toBe("wasm");
+  });
+
+  it("wasm Init does not load the Pyodide worker even if that URL is passed", () => {
+    const adapter = createStudioAdapter({
+      env: {
+        ...PROD_ENV,
+        VITE_ENGINE_ADAPTER: "wasm",
+      },
+      workerUrl: "/packaging/pyodide/worker.js",
+    });
+    expect(adapter).toBeInstanceOf(WasmAdapter);
+    expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
+    const urlStr = String(FakeWorker.instances[0]!.url);
+    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).not.toMatch(/pyodide/);
+    expect(urlStr).not.toMatch(/github\.com\/oliver/);
+  });
+
+  it("explicit VITE_ENGINE_ADAPTER=http selects http", () => {
     expect(
       resolveStudioAdapterKind({
         ...PROD_ENV,

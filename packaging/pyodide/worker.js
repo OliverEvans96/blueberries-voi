@@ -20,14 +20,14 @@ import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.4/full/pyod
 const PYODIDE_VERSION = "314.0.4";
 const PYODIDE_INDEX = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-/** GitHub Release URL for the slim / browser wheel (replace tag/asset as published). */
-const SLIM_WHEEL_URL =
-  "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
-  "blueberries_voi-0.1.0-py3-none-any.whl";
+/** Vite-served slim wheel (ADR 0108). Do not fetch GitHub Releases from the browser (CORS). */
+const LOCAL_WHEEL_PATH = "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
+/** Docs / offline publish pattern only — not used as the local fallback. */
+const SLIM_WHEEL_URL = LOCAL_WHEEL_PATH;
 
 /**
  * Resolve wheel URL for micropip (ADR 0108 / T-072).
- * Prefer ``?wheelUrl=`` on the worker script URL; Release URL is fallback only.
+ * Prefer ``?wheelUrl=`` on the worker script URL; local Vite ``/wheels/`` otherwise.
  */
 function resolveWheelUrl() {
   try {
@@ -37,7 +37,11 @@ function resolveWheelUrl() {
   } catch (_err) {
     /* ignore malformed location */
   }
-  return SLIM_WHEEL_URL;
+  try {
+    return new URL(LOCAL_WHEEL_PATH, self.location.origin).href;
+  } catch (_err) {
+    return LOCAL_WHEEL_PATH;
+  }
 }
 
 let pyodide = null;
@@ -57,7 +61,7 @@ async function ensureReady() {
     // pyarrow: sim.shipments → model.abdella imports it at module load.
     await pyodide.loadPackage(["micropip", "numpy", "scipy", "pyarrow"]);
     const micropip = pyodide.pyimport("micropip");
-    // Local override via ?wheelUrl=; Release/slim URL is fallback only (ADR 0108).
+    // Local override via ?wheelUrl=; Vite /wheels/ otherwise (never GitHub CORS).
     const wheelUrl = resolveWheelUrl();
     await micropip.install(wheelUrl);
 
@@ -67,7 +71,7 @@ from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _SESSION = EngineSession()
-_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act"})
+_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act", "set_obs_scenario"})
 
 def dumps_payload(obj):
     return json.dumps(obj)
@@ -103,6 +107,8 @@ def _dispatch(method, params):
         policy = params.get("policy")
         overrides = {k: v for k, v in params.items() if k != "policy"}
         return _SESSION.act(policy=policy, **overrides)
+    if method == "set_obs_scenario":
+        return _SESSION.set_obs_scenario(params["obs_scenario"])
     raise ValueError(f"unknown method {method!r}")
 
 def handle_rpc(request):

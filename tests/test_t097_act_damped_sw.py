@@ -114,12 +114,12 @@ def _patch_damped_sw_spy(
             )
             super().__init__(*args, **kwargs)
 
-    import blueberries_voi.controller.damped_sw as damped_sw_mod
-
-    monkeypatch.setattr(damped_sw_mod, "DampedSurvivalWeightedPolicy", _SpyPolicy)
     session_mod = importlib.import_module(_SESSION_MOD)
-    if hasattr(session_mod, "DampedSurvivalWeightedPolicy"):
-        monkeypatch.setattr(session_mod, "DampedSurvivalWeightedPolicy", _SpyPolicy)
+    monkeypatch.setitem(
+        session_mod.EngineSession._select_order.__globals__,
+        "DampedSurvivalWeightedPolicy",
+        _SpyPolicy,
+    )
     return seen
 
 
@@ -142,7 +142,11 @@ def _capture_rollout_base(
         except Exception:
             return 0
 
-    monkeypatch.setattr(session_mod, "rollout_order", _spy)
+    monkeypatch.setitem(
+        session_mod.EngineSession._select_order.__globals__,
+        "rollout_order",
+        _spy,
+    )
     return captured
 
 
@@ -249,7 +253,7 @@ def test_act_rollout_base_policy_is_damped_sw_not_constant_zero(
     )
     base = captured.get("base_policy")
     assert base is not None, f"act(policy={policy!r}) must call rollout_order"
-    assert isinstance(base, DampedSurvivalWeightedPolicy), (
+    assert type(base).__name__ == "DampedSurvivalWeightedPolicy", (
         f"rollout base must be DampedSurvivalWeightedPolicy, got {type(base)!r}"
     )
     assert type(base).__name__ != "ConstantOrderPolicy", (

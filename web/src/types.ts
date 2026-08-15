@@ -105,7 +105,7 @@ export type PipelineOrder = {
 };
 
 export type GhostSeriesPoint = {
-  /** Index within the rolling window (0 = oldest in ghost snapshot). */
+  /** Index within the episode history (0 = oldest day in ghost snapshot). */
   i: number;
   waste: number;
   stockout: number;

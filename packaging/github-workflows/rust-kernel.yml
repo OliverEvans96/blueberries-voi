@@ -1,0 +1,25 @@
+# Draft job fragment (T-103 / ADR 0121).
+# Human: merge into live `.github/workflows/ci.yml` when runners have rustc.
+# Agents must not edit `.github/workflows/`.
+#
+# Suggested job (keep `if: false` until ready):
+#
+#   rust-kernel:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: dtolnay/rust-toolchain@stable
+#       - run: cargo test -p voi_core
+#       - run: wasm-pack build crates/voi_wasm --target web   # optional
+name: rust-kernel-draft
+on:
+  workflow_dispatch: {}
+jobs:
+  rust-kernel:
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cargo test voi_core
+        run: cargo test -p voi_core

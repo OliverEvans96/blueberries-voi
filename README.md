@@ -69,6 +69,8 @@ Terminal 1 — API:
 uv sync --extra api
 uv run --with uvicorn python -m uvicorn blueberries_voi.api.app:app \
   --host 127.0.0.1 --port 8000
+# If :8000 is already taken (OpenHands, etc.), use --port 8001 and set
+# VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8001 before starting Vite.
 ```
 
 Terminal 2 — studio:

@@ -24,7 +24,9 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - CAL-01 calendar realism Wave 0 (2026-08-13): **[0112](./0112-x-11-mwf-delivery-base-case.md)–[0116](./0116-cal-01-track-ownership.md)** (MWF base case; calendar NB; OrderSchedule; FreshNet product; track ownership). **[0011](./0011-x-11-delivery-cadence-for-the-base-case.md)** and **[0031](./0031-mod-09-demand-model.md)** superseded. Renumbered past ENG-01 **0109–0111** at T-088 integrate.
 - Studio Autopilot Mode (2026-08-13): **[0117](./0117-studio-autopilot-mode.md)** (`adapter.act` play loop; `damped_sw` default; SW-based rollout base; Controller section; cadence 1–2 act/s). User plan T-076–T-081 → **T-091 + T-097–T-101**; Autopilot ADR renumbered **0112→0117** at merge with CAL-01 (CAL-01 keeps 0112–0116).
 - Behavior-frozen structure refactor (2026-08-13): provisional **[0118](./0118-behavior-frozen-module-splits.md)** (T-102) — internal module splits behind re-export façades; existing suite is AC; no semantic unification of order-gate/ceil/Policy forks.
-- Studio show-truth (2026-08-14): provisional **[0122](./0122-studio-show-truth-js-only.md)** (T-115) — JS-only presentation; wire unchanged. Number 0122 skips 0119–0121 reserved on other tips.
+- Rust compute kernel (2026-08-14): **[0119](./0119-rust-compute-kernel-python-host.md)–[0121](./0121-rust-workspace-pyo3-wasm-deps.md)** (Python host + citeable; Rust `voi_core`; wasm studio adapter; pyo3/wasm-bindgen deps). **[0009](./0009-x-09-language-and-stack.md)** superseded for compute; **[0099](./0099-eng-01-dual-runtime-ap.md)** amended (Pyodide retained).
+- Studio 90-day episode (2026-08-14): **[0122](./0122-studio-episode-horizon-90.md)**. Lazy obs_scenario catch-up (Python): **[0123](./0123-lazy-obs-scenario-filter-caches.md)**. Rust/wasm `set_obs_scenario` parity: **[0124](./0124-rust-wasm-set-obs-scenario.md)**.
+- Studio show-truth (2026-08-14): provisional **[0125](./0125-studio-show-truth-js-only.md)** (T-115) — JS-only presentation; wire unchanged. Renumbered from 0122 at merge with main (0122 is episode horizon).
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -40,7 +42,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0006](./0006-x-06-voi-sweep-axes.md) | `X-06` | VOI sweep axes ⚑ | ACCEPTED |
 | [0007](./0007-x-07-scope-of-the-instance.md) | `X-07` | Scope of the instance | ACCEPTED |
 | [0008](./0008-x-08-data-provenance.md) | `X-08` | Data provenance | ACCEPTED |
-| [0009](./0009-x-09-language-and-stack.md) | `X-09` | Language and stack ⚑ | ACCEPTED |
+| [0009](./0009-x-09-language-and-stack.md) | `X-09` | Language and stack ⚑ | SUPERSEDED BY 0119 (host remains Python) |
 | [0010](./0010-x-10-reproducibility-standard.md) | `X-10` | Reproducibility standard | ACCEPTED |
 | [0011](./0011-x-11-delivery-cadence-for-the-base-case.md) | `X-11` | Delivery cadence for the base case ⚑ (daily) | SUPERSEDED BY 0112 |
 | [0012](./0012-x-12-tripwire-if-the-headline-number-is-flat.md) | `X-12` | Tripwire if the headline number is flat ⚑ | ACCEPTED |
@@ -131,7 +133,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0096](./0096-voi-scenario-columns.md) | `X-05` / `X-06` | M3 knowledge-scenario columns for the VOI sweep | ACCEPTED |
 | [0097](./0097-pytest-xdist-for-verify-ci.md) | *(repo)* | pytest-xdist for verify/CI full-suite runs | ACCEPTED |
 | [0098](./0098-pytest-testmon-lfs-cache.md) | *(repo)* | pytest-testmon + Git LFS `.testmondata` seed | ACCEPTED |
-| [0099](./0099-eng-01-dual-runtime-ap.md) | `ENG-01` | Reopen: dual runtime A′ (Pyodide prod + API dev) | ACCEPTED |
+| [0099](./0099-eng-01-dual-runtime-ap.md) | `ENG-01` | Reopen: dual runtime A′ (Pyodide prod + API dev) | ACCEPTED (amended by 0120) |
 | [0100](./0100-simulator-export-contract.md) | `ENG-01` | Simulator export: Snapshot / DayDelta / step_n | SUPERSEDED BY 0106 |
 | [0101](./0101-eng-01-packaging-pyodide-wheels.md) | `ENG-01` | Packaging: derived Abdella, extras, GH Release, Pyodide 314 | ACCEPTED |
 | [0102](./0102-eng-01-api-asgi-session.md) | `ENG-01` | API host: ASGI sessions wrapping EngineSession | ACCEPTED |
@@ -151,4 +153,10 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0116](./0116-cal-01-track-ownership.md) | `CAL-01` | Track ownership + draw_demand(day=) shim | ACCEPTED |
 | [0117](./0117-studio-autopilot-mode.md) | *(studio)* / ENG | Studio Autopilot Mode: act loop + Controller | ACCEPTED |
 | [0118](./0118-behavior-frozen-module-splits.md) | *(refactor)* / ENG | Behavior-frozen splits + re-export façades | PROPOSED |
-| [0122](./0122-studio-show-truth-js-only.md) | ENG-01 | Studio show-truth is JS-only presentation | PROPOSED |
+| [0119](./0119-rust-compute-kernel-python-host.md) | `X-09` | Rust compute kernel; Python host + citeable | ACCEPTED |
+| [0120](./0120-studio-wasm-adapter-third-host.md) | `ENG-01` | Studio adapter `wasm`; Pyodide retained | ACCEPTED |
+| [0121](./0121-rust-workspace-pyo3-wasm-deps.md) | *(repo)* | Cargo workspace + pyo3/wasm-bindgen/rand | ACCEPTED |
+| [0122](./0122-studio-episode-horizon-90.md) | ENG | Studio episode horizon is 90 days | ACCEPTED |
+| [0123](./0123-lazy-obs-scenario-filter-caches.md) | ENG | Live obs_scenario via lazy per-rung catch-up | ACCEPTED |
+| [0124](./0124-rust-wasm-set-obs-scenario.md) | ENG | Rust/wasm `set_obs_scenario` parity with 0123 | ACCEPTED |
+| [0125](./0125-studio-show-truth-js-only.md) | ENG-01 | Studio show-truth is JS-only presentation | PROPOSED |

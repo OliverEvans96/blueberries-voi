@@ -1,4 +1,4 @@
-# 0122. Studio show-truth is JS-only presentation
+# 0125. Studio show-truth is JS-only presentation
 
 STATUS: PROPOSED
 DATE: 2026-08-14

@@ -246,6 +246,33 @@ def run_voi_crn_cell(
     Production callers pass ``alpha_table_path`` (CTL-03); smoke may omit it and
     keep fixed ``alpha`` (default 0.9). ``shipments=None`` loads Abdella.
     """
+    from blueberries_voi.backend import rust_available, warn_fallback_once
+
+    # Rust has no Abdella parquet loader. `shipments=None` stays on Python.
+    if rust_available() and shipments is not None:
+        warn_fallback_once()
+        from blueberries_voi.backend import rust_core
+
+        assert rust_core is not None
+        ships = list(shipments)
+        times = [list(map(float, getattr(s, "times_d", []))) for s in ships]
+        temps = [list(map(float, getattr(s, "temps_c", []))) for s in ships]
+        rows = rust_core.run_voi_crn_cell_py(
+            float(beta),
+            int(root_seed),
+            int(n_burn),
+            int(n_score),
+            int(filter_n),
+            int(H),
+            int(n_rollout_paths),
+            int(lead_time),
+            times,
+            temps,
+        )
+        names = list(scenarios) if scenarios is not None else list(VOI_SCENARIOS)
+        table = {str(k): float(v) for k, v in rows}
+        return {n: table[n] for n in names if n in table}
+
     names = list(scenarios) if scenarios is not None else list(VOI_SCENARIOS)
     for name in names:
         if name not in VOI_SCENARIOS:

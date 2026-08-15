@@ -84,16 +84,14 @@ def test_crn_passes_calendar_day_into_draw_demand(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """VOI CRN day_step / draw_demand must receive episode day (not day=None)."""
-    import blueberries_voi.voi.crn as crn_mod
-
     days_seen: list[int | None] = []
-    real_day_step = getattr(crn_mod, "day_step")  # noqa: B009
+    real_day_step = _run_scenario_episode.__globals__["day_step"]
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
         return real_day_step(*args, day=day, **kwargs)
 
-    monkeypatch.setattr(crn_mod, "day_step", _spy)
+    monkeypatch.setitem(_run_scenario_episode.__globals__, "day_step", _spy)
 
     params = _params_with_profile()
     horizon = _N_BURN + _N_SCORE
@@ -221,8 +219,6 @@ def test_observation_loglik_mc_forwards_day_without_scenario_demand_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """MC path forwards day into day_step/draw_demand; no scenario demand key."""
-    import blueberries_voi.filter.backends as backends_mod
-
     sig = inspect.signature(observation_loglik_mc)
     assert "day" in sig.parameters, (
         "observation_loglik_mc must accept day= before forwarding can be asserted; "
@@ -231,13 +227,13 @@ def test_observation_loglik_mc_forwards_day_without_scenario_demand_key(
     assert "scenario" not in sig.parameters
 
     days_seen: list[int | None] = []
-    real_day_step = getattr(backends_mod, "day_step")  # noqa: B009
+    real_day_step = observation_loglik_mc.__globals__["day_step"]
 
     def _spy(*args: Any, day: int | None = None, **kwargs: Any) -> Any:
         days_seen.append(day)
         return real_day_step(*args, day=day, **kwargs)
 
-    monkeypatch.setattr(backends_mod, "day_step", _spy)
+    monkeypatch.setitem(observation_loglik_mc.__globals__, "day_step", _spy)
 
     params = _params_with_profile()
     counts = np.full((2, 2), 4, dtype=int)

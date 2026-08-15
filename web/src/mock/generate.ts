@@ -48,7 +48,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   starting_inv: 72,
   seed: 42,
   obs_scenario: "P1",
-  window_days: 14,
+  window_days: 90,
   arrival_product: "abdella_all",
   spread_scale: 1,
   transit_temp_bias_c: 0,
@@ -562,33 +562,14 @@ function runDay(
 export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
-  let lots = buildStartingLots(config, rng);
-  let nextLotId = lots.reduce((m, l) => Math.max(m, l.lot_id), 0) + 1;
-  let pendingOrders: { arriveOn: number; qty: number }[] = [];
+  const lots = buildStartingLots(config, rng);
+  const nextLotId = lots.reduce((m, l) => Math.max(m, l.lot_id), 0) + 1;
+  const pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];
-  let day = 0;
-
-  for (let i = 0; i < config.window_days; i++) {
-    day += 1;
-    const stepped = runDay(
-      day,
-      lots,
-      pendingOrders,
-      nextLotId,
-      0,
-      config,
-      rng,
-      true,
-    );
-    lots = stepped.lots;
-    pendingOrders = stepped.pendingOrders;
-    nextLotId = stepped.nextLotId;
-    history.push(stepped.record);
-  }
 
   return {
-    // Next day to act (EngineSession parity): last burn-in day was `day`.
-    day: day + 1,
+    // Next day to act (EngineSession parity): episode starts at day 0.
+    day: 0,
     lots,
     nextLotId,
     pendingOrders,
@@ -617,7 +598,7 @@ export function stepSimulation(
     false,
   );
 
-  const history = [...state.history, stepped.record].slice(-config.window_days);
+  const history = [...state.history, stepped.record];
 
   return {
     state: {

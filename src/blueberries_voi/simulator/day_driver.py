@@ -173,19 +173,24 @@ def advance_day(
         pre_live_ids, result.sales_by_cohort, result.waste_by_cohort
     )
 
+    rich_day = SimpleNamespace(
+        day=day,
+        order_qty=order_units,
+        arrivals=int(arrival_units),
+        sales_total=int(result.sales_total),
+        waste_total=int(result.waste_total),
+        demand=int(result.demand),
+        L=len([c for c in cohorts if c.n > 0]),
+        sales_by_lot=sales_by_lot,
+        waste_by_lot=waste_by_lot,
+        age_at_receipt=age_at_receipt,
+        pack_date=pack_date,
+        lots=cohorts,
+    )
+
     belief_flat: FlatBelief | None = None
     if enable_filter and rbpf is not None:
-        day_like = SimpleNamespace(
-            arrivals=int(arrival_units),
-            sales_total=int(result.sales_total),
-            waste_total=int(result.waste_total),
-            sales_by_lot=sales_by_lot,
-            waste_by_lot=waste_by_lot,
-            age_at_receipt=age_at_receipt,
-            pack_date=pack_date,
-            lots=cohorts,
-        )
-        obs = rich_obs_from_day_log(day_like, mask_for(obs_scenario))
+        obs = rich_obs_from_day_log(rich_day, mask_for(obs_scenario))
         step_rng = spawn_rng(
             int(root_seed),
             run_id=run_id,
@@ -204,6 +209,11 @@ def advance_day(
         "waste_total": int(result.waste_total),
         "demand": int(result.demand),
         "L": len([c for c in cohorts if c.n > 0]),
+        "sales_by_lot": dict(sales_by_lot),
+        "waste_by_lot": dict(waste_by_lot),
+        "age_at_receipt": age_at_receipt,
+        "pack_date": pack_date.isoformat() if pack_date is not None else None,
+        "_rich": rich_day,
     }
 
     new_state = DayDriverState(
@@ -230,10 +240,11 @@ def build_day_delta(
     drop_oldest: bool = False,
 ) -> DayDelta:
     """Frame a DayAdvanceResult as an ADR 0100 DayDelta dict."""
+    day_wire = {k: v for k, v in result.day.items() if k != "_rich"}
     delta: DayDelta = {
         "seq": int(seq),
         "episode_day": int(episode_day),
-        "day": dict(result.day),
+        "day": day_wire,
         "live_lots": list(result.live_lots),
         "pipeline": list(result.pipeline),
         "drop_oldest": bool(drop_oldest),

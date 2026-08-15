@@ -37,6 +37,7 @@ import {
 import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
+  EPISODE_HORIZON,
   mountPlayChrome,
   mountSectionControls,
   type ControllerControlsState,
@@ -49,8 +50,8 @@ import {
   saveSection,
   type SectionId,
 } from "./sections";
-import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
-import type { ActOpts, ScheduleWire } from "./engine/types";
+import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "./types";
+import type { ActOpts, ScheduleWire, Snapshot } from "./engine/types";
 import { buildStepNOrders } from "./calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth, truthLots } from "./showTruth";
 
@@ -205,11 +206,20 @@ const adapterKind = resolveStudioAdapterKind(studioEnv);
 const footerEl = document.querySelector("#studio-footer");
 if (footerEl) {
   footerEl.textContent = studioFooterCopy(adapterKind);
+  footerEl.setAttribute("data-engine-adapter", adapterKind);
+  footerEl.setAttribute(
+    "data-vite-engine-adapter",
+    studioEnv.VITE_ENGINE_ADAPTER ?? "",
+  );
 }
 const adapter = createStudioAdapter({
   env: studioEnv,
   baseUrl: studioEnv.VITE_ENGINE_API_BASE_URL ?? studioEnv.VITE_API_BASE_URL,
-  workerUrl: studioEnv.VITE_PYODIDE_WORKER_URL,
+  // Never pass the Pyodide worker URL into wasm (that boots micropip + GitHub wheel).
+  workerUrl:
+    adapterKind === "wasm"
+      ? studioEnv.VITE_WASM_WORKER_URL
+      : studioEnv.VITE_PYODIDE_WORKER_URL,
   wheelUrl: studioEnv.VITE_PYODIDE_WHEEL_URL,
 });
 const engineStatus = createEngineStatusTracker("loading");
@@ -248,10 +258,11 @@ function captureSchedule(snap: { schedule?: ScheduleWire }): void {
 }
 
 function controlsState() {
-  return controlsFromVm(vm, orderQty, schedule);
+  return { ...controlsFromVm(vm, orderQty, schedule), catchingUp };
 }
 
 let orderQty = snapOrder(24);
+let catchingUp = false; // catch-up: pause Autopilot, then resume
 let hoveredDay: HoverDay = null;
 let activeSection: SectionId = loadSection();
 let controllerState: ControllerControlsState = {
@@ -494,6 +505,9 @@ playChromeApi = mountPlayChrome(
     onAdvance() {
       void (async () => {
         try {
+          if (vm.episode_day >= EPISODE_HORIZON) {
+            return;
+          }
           if (!schedule) {
             throw new Error("schedule missing — init/reset before advance");
           }
@@ -547,6 +561,11 @@ playChromeApi = mountPlayChrome(
       })();
     },
     onAutopilotPlay() {
+      if (vm.episode_day >= EPISODE_HORIZON) {
+        autopilot.pause();
+        syncAutopilotChrome();
+        return;
+      }
       autopilot.play();
       syncAutopilotChrome();
     },
@@ -568,6 +587,12 @@ playChromeApi = mountPlayChrome(
 
 autopilot = createAutopilotLoop({
   act: (opts) => {
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+      return Promise.reject(
+        new Error("episode finished at day 90; Reset to start another"),
+      );
+    }
     if (typeof adapter.act !== "function") {
       return Promise.reject(new Error("adapter.act unavailable"));
     }
@@ -580,6 +605,11 @@ autopilot = createAutopilotLoop({
       orderQty = snapOrder(q);
     }
     vm = projector.applyDelta(delta);
+    // DayDelta.episode_day is the completed day; next act cursor is +1.
+    vm = { ...vm, episode_day: delta.episode_day + 1 };
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+    }
     onHoverDay(null);
     renderAll();
   },
@@ -633,6 +663,43 @@ const sectionControlsApi = mountSectionControls(
       if (vm.config_dirty && autopilot.isRunning()) {
         autopilot.pause();
         syncAutopilotChrome();
+      }
+    },
+    async onSetObsScenario(id: ScenarioId) {
+      const setObs =
+        adapter.setObsScenario?.bind(adapter) ??
+        adapter.set_obs_scenario?.bind(adapter);
+      if (typeof setObs !== "function") {
+        vm = projector.setConfig({ obs_scenario: id });
+        sectionControlsApi.update(controlsState());
+        renderAll();
+        return;
+      }
+      const resumeAfter = autopilot.isRunning();
+      if (resumeAfter) {
+        autopilot.pause();
+        syncAutopilotChrome();
+      }
+      catchingUp = true;
+      sectionControlsApi.update(controlsState());
+      try {
+        const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+        vm = projector.applySnapshot(snap);
+        projector.setConfig({ obs_scenario: id });
+        renderAll();
+      } catch (err) {
+        reportStudioAdapterError(
+          `set_obs_scenario failed: ${formatAdapterError(err)}`,
+          undefined,
+          err,
+        );
+      } finally {
+        catchingUp = false;
+        sectionControlsApi.update(controlsState());
+        if (resumeAfter) {
+          autopilot.play();
+          syncAutopilotChrome();
+        }
       }
     },
     onControllerChange(partial: Partial<ControllerControlsState>) {

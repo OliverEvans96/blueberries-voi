@@ -192,41 +192,65 @@ describe("ViewModelProjector.applyDelta", () => {
     expect(vm.live_lots).toEqual(live);
   });
 
-  it("honours drop_oldest when the rolling window is full", () => {
-    const windowDays = 2;
+  it("never drops history for drop_oldest true or a 14-day window_days cap (T-112)", () => {
     const projector = new ViewModelProjector({
       economics: { ...DEFAULT_ECONOMICS },
-      window_days: windowDays,
+      window_days: 14,
     });
     projector.applySnapshot(sampleSnapshot());
-    projector.applyDelta(
-      sampleDelta({
-        seq: 1,
-        day: sampleDay(0),
-        drop_oldest: false,
-      }),
-    );
-    projector.applyDelta(
-      sampleDelta({
-        seq: 2,
-        episode_day: 1,
-        day: sampleDay(1),
-        drop_oldest: false,
-      }),
-    );
-    const vm = projector.applyDelta(
-      sampleDelta({
-        seq: 3,
-        episode_day: 2,
-        day: sampleDay(2),
-        drop_oldest: true,
-      }),
-    );
+    for (let i = 0; i < 16; i++) {
+      projector.applyDelta(
+        sampleDelta({
+          seq: i + 1,
+          episode_day: i,
+          day: sampleDay(i),
+          drop_oldest: i >= 14,
+        }),
+      );
+    }
+    const vm = projector.getViewModel();
+    expect(vm.history).toHaveLength(16);
+    expect(vm.history[0]?.day).toBe(0);
+    expect(vm.history[15]?.day).toBe(15);
+    expect(vm.pnl_series).toHaveLength(16);
+    const expectedRevenue = 16 * 10 * DEFAULT_ECONOMICS.p_sell;
+    expect(vm.pnl_totals.revenue).toBeCloseTo(expectedRevenue);
+  });
 
-    expect(Array.isArray(vm.history)).toBe(true);
-    expect(vm.history).toHaveLength(windowDays);
-    expect(vm.history?.[0]?.day).toBe(1);
-    expect(vm.history?.[1]?.day).toBe(2);
+  it("ghost vs last reset compares two full episodes, overlapping prefix if shorter (T-112)", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+    });
+    projector.applySnapshot(sampleSnapshot());
+    for (let i = 0; i < 20; i++) {
+      projector.applyDelta(
+        sampleDelta({
+          seq: i + 1,
+          episode_day: i,
+          day: { ...sampleDay(i), sales_total: 10, waste_total: 1 },
+          drop_oldest: false,
+        }),
+      );
+    }
+    const afterReset = projector.applySnapshot(sampleSnapshot({ history: [] }));
+    expect(afterReset.ghost).not.toBeNull();
+    expect(afterReset.ghost?.days).toBe(20);
+    expect(afterReset.ghost?.series).toHaveLength(20);
+
+    for (let i = 0; i < 5; i++) {
+      projector.applyDelta(
+        sampleDelta({
+          seq: i + 1,
+          episode_day: i,
+          day: sampleDay(i),
+          drop_oldest: false,
+        }),
+      );
+    }
+    const shortRun = projector.getViewModel();
+    expect(shortRun.history).toHaveLength(5);
+    expect(shortRun.ghost?.days).toBe(20);
+    expect(shortRun.ghost_deltas).not.toBeNull();
   });
 });
 
@@ -459,10 +483,9 @@ describe("ageMarginalFromFlat (T-090)", () => {
 
 describe("ViewModelProjector belief_history rolling window (T-115)", () => {
   it("belief_history length tracks history after applySnapshot + applyDelta; payloads omit showTruth", () => {
-    const windowDays = 2;
     const projector = new ViewModelProjector({
       economics: { ...DEFAULT_ECONOMICS },
-      window_days: windowDays,
+      window_days: 2,
     });
     const snap = sampleSnapshot();
     expect(Object.prototype.hasOwnProperty.call(snap, "showTruth")).toBe(
@@ -521,14 +544,15 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
       belief_history?: Array<{ day: number; flatBelief: FlatBelief }>;
     };
 
-    expect(vm.history).toHaveLength(windowDays);
+    expect(vm.history).toHaveLength(3);
     expect(Array.isArray(vm.belief_history)).toBe(true);
     expect(vm.belief_history).toHaveLength(vm.history.length);
     expect(vm.belief_history?.map((b) => b.day)).toEqual(
       vm.history.map((h) => h.day),
     );
-    expect(vm.belief_history?.[0]?.flatBelief.lot_counts).toEqual([2, 2]);
-    expect(vm.belief_history?.[1]?.flatBelief.lot_counts).toEqual([3, 3]);
+    expect(vm.belief_history?.[0]?.flatBelief.lot_counts).toEqual([1, 1]);
+    expect(vm.belief_history?.[1]?.flatBelief.lot_counts).toEqual([2, 2]);
+    expect(vm.belief_history?.[2]?.flatBelief.lot_counts).toEqual([3, 3]);
   });
 });
 

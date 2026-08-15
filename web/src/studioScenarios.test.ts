@@ -173,8 +173,8 @@ describe("T-089 ScenarioId type + default P1", () => {
   });
 });
 
-describe("T-089 config_dirty until Reset; Advance does not apply scenario", () => {
-  it("staging obs_scenario sets config_dirty; applyDelta (Advance) does not clear it", () => {
+describe("T-113 obs_scenario is live; not config_dirty until Reset (supersedes T-089 apply path)", () => {
+  it("staging obs_scenario alone does not set config_dirty", () => {
     const projector = new ViewModelProjector({
       economics: { ...DEFAULT_ECONOMICS },
       window_days: 14,
@@ -188,27 +188,24 @@ describe("T-089 config_dirty until Reset; Advance does not apply scenario", () =
       obs_scenario: "F2" as typeof DEFAULT_SIM_CONFIG.obs_scenario,
     });
     expect(staged.config.obs_scenario).toBe("F2");
-    expect(staged.config_dirty).toBe(true);
+    expect(staged.config_dirty).toBe(false);
 
     const afterAdvance = projector.applyDelta(sampleDelta());
-    expect(afterAdvance.config_dirty).toBe(true);
+    expect(afterAdvance.config_dirty).toBe(false);
     expect(afterAdvance.config.obs_scenario).toBe("F2");
   });
 
-  it("markConfigApplied (Reset path) clears dirty without Advance applying scenario", () => {
+  it("staging other SimConfig knobs still sets config_dirty until Reset", () => {
     const projector = new ViewModelProjector({
       economics: { ...DEFAULT_ECONOMICS },
       window_days: 14,
       config: { ...DEFAULT_SIM_CONFIG },
     });
     projector.markConfigApplied();
-    projector.setConfig({
-      obs_scenario: "F1" as typeof DEFAULT_SIM_CONFIG.obs_scenario,
-    });
+    projector.setConfig({ case_size: DEFAULT_SIM_CONFIG.case_size + 1 });
     expect(projector.getViewModel().config_dirty).toBe(true);
     const cleared = projector.markConfigApplied();
     expect(cleared.config_dirty).toBe(false);
-    expect(cleared.config.obs_scenario).toBe("F1");
   });
 });
 

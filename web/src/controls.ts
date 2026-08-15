@@ -14,6 +14,9 @@ import {
 } from "./calendar/nextOrderAdvance";
 import { saveShowTruth } from "./showTruth";
 
+/** Studio episode length (ADR 0122 / T-112). */
+export const EPISODE_HORIZON = 90;
+
 /** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
   ScenarioId,
@@ -53,6 +56,8 @@ export type ControlsCallbacks = {
   onAutopilotPause?: () => void;
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
+  onSetObsScenario?: (id: ScenarioId) => void;
+  onObsScenario?: (id: ScenarioId) => void;
   onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
   onShowTruthChange?: (show: boolean) => void;
 };
@@ -62,6 +67,7 @@ export type ControlsState = {
   economics: Economics;
   config: SimConfig;
   configDirty: boolean;
+  catchingUp?: boolean;
   episodeDay: number;
   pendingOrder: number;
   /** Snapshot schedule for weekday / pipeline chrome (T-086). */
@@ -227,6 +233,9 @@ export function mountPlayChrome(
       <p class="hint" id="autopilot-hint">
         While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
       </p>
+      <p class="hint" id="episode-end-hint" hidden>
+        The episode finished at day 90. Reset to start another episode.
+      </p>
       <div class="meta-line" id="order-meta"></div>
       <div class="day-label" id="day-label"></div>
       <div class="delivery-hint" id="delivery-hint"></div>
@@ -243,6 +252,9 @@ export function mountPlayChrome(
   const dayLabelEl = root.querySelector("#day-label") as HTMLElement;
   const deliveryHintEl = root.querySelector("#delivery-hint") as HTMLElement;
   const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
+  const episodeEndHint = root.querySelector(
+    "#episode-end-hint",
+  ) as HTMLElement;
   const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
   const btnAutopilotPlay = root.querySelector(
     "#btn-autopilot-play",
@@ -252,6 +264,19 @@ export function mountPlayChrome(
   ) as HTMLButtonElement;
   let caseSize = initial.config.case_size;
   let autopilotRunning = false;
+  let episodeDay = initial.episodeDay;
+
+  function episodeFinished(day: number): boolean {
+    return day >= EPISODE_HORIZON;
+  }
+
+  function syncAdvanceAndAutopilotButtons(): void {
+    const atEnd = episodeFinished(episodeDay);
+    btnAdvance.disabled = autopilotRunning || atEnd;
+    btnAutopilotPlay.disabled = autopilotRunning || atEnd;
+    btnAutopilotPause.disabled = !autopilotRunning;
+    episodeEndHint.hidden = !atEnd;
+  }
 
   function syncCalendarChrome(s: ControlsState): void {
     if (s.schedule) {
@@ -286,19 +311,17 @@ export function mountPlayChrome(
 
   function setAutopilotRunning(running: boolean): void {
     autopilotRunning = running;
-    // Advance disabled while Autopilot runs (T-100 open question pick).
-    btnAdvance.disabled = running;
-    btnAutopilotPlay.disabled = running;
-    btnAutopilotPause.disabled = !running;
+    syncAdvanceAndAutopilotButtons();
   }
 
   orderRange.addEventListener("input", () => setOrder(Number(orderRange.value)));
   orderNum.addEventListener("change", () => setOrder(Number(orderNum.value)));
   btnAdvance.addEventListener("click", () => {
-    if (autopilotRunning) return;
+    if (autopilotRunning || episodeFinished(episodeDay)) return;
     cb.onAdvance();
   });
   btnAutopilotPlay.addEventListener("click", () => {
+    if (episodeFinished(episodeDay)) return;
     cb.onAutopilotPlay?.();
   });
   btnAutopilotPause.addEventListener("click", () => {
@@ -343,10 +366,12 @@ export function mountPlayChrome(
 
   return {
     update(s) {
+      episodeDay = s.episodeDay;
       syncOrderInputs(s.orderQty, s.config.case_size);
       meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
       syncCalendarChrome(s);
       dirtyBanner.hidden = !s.configDirty;
+      syncAdvanceAndAutopilotButtons();
     },
     setOrderFromCaseChange(qty, cs) {
       syncOrderInputs(qty, cs);
@@ -362,7 +387,11 @@ export function mountSectionControls(
   initial: ControlsState,
   cb: Pick<
     ControlsCallbacks,
-    "onEconomicsChange" | "onConfigChange" | "onControllerChange"
+    | "onEconomicsChange"
+    | "onConfigChange"
+    | "onControllerChange"
+    | "onSetObsScenario"
+    | "onObsScenario"
   >,
   onCaseSizeChange?: (caseSize: number) => void,
   initialController: ControllerControlsState = DEFAULT_CONTROLLER_CONTROLS,
@@ -409,7 +438,9 @@ export function mountSectionControls(
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="belief" hidden>
-        <p class="hint">Observation richness changes how sharp the belief is.</p>
+        <p class="hint">
+          Knowledge changes what the store sees, so future orders can change.
+        </p>
         <div class="field">
           <span class="field-label">Observation scenario</span>
           <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
@@ -420,6 +451,9 @@ export function mountSectionControls(
             <button type="button" class="obs-chip" data-obs="F2a" title="Pack date on ASN">F2a</button>
             <button type="button" class="obs-chip" data-obs="F2" title="Age at receipt">F2</button>
           </div>
+          <p class="obs-catchup-progress" id="obs-catchup-progress" hidden>
+            Catch-up in progress…
+          </p>
           <div class="obs-scenario-copy" id="obs-scenario-copy">
             <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
             <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
@@ -484,7 +518,15 @@ export function mountSectionControls(
     for (const spec of PRICE_SLIDERS) syncSlider(spec, e[spec.id as keyof Economics]);
   }
 
-  function syncConfig(c: SimConfig): void {
+  function syncObsCatchup(catchingUp: boolean): void {
+    const progress = root.querySelector("#obs-catchup-progress") as HTMLElement | null;
+    if (progress) progress.hidden = !catchingUp;
+    root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
+      btn.disabled = catchingUp;
+    });
+  }
+
+  function syncConfig(c: SimConfig, catchingUp = false): void {
     for (const spec of CONFIG_SLIDERS) {
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
@@ -500,6 +542,7 @@ export function mountSectionControls(
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
+    syncObsCatchup(catchingUp);
   }
 
   function syncController(s: ControllerControlsState): void {
@@ -552,7 +595,9 @@ export function mountSectionControls(
 
   root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      cb.onConfigChange({ obs_scenario: btn.dataset.obs as ScenarioId });
+      const id = btn.dataset.obs as ScenarioId;
+      cb.onSetObsScenario?.(id);
+      cb.onObsScenario?.(id);
     });
   });
 
@@ -616,7 +661,7 @@ export function mountSectionControls(
   return {
     update(s) {
       syncEconomics(s.economics);
-      syncConfig(s.config);
+      syncConfig(s.config, Boolean(s.catchingUp));
     },
     updateController(s) {
       syncController(s);

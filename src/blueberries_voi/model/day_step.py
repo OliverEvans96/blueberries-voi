@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from blueberries_voi.backend import rust_available, warn_fallback_once
 from blueberries_voi.model.params import Cohort, DayStepResult, ModelParams
 from blueberries_voi.model.physics import (
     allocate_sales,
@@ -32,6 +33,41 @@ def day_step(
     day: int | None = None,
 ) -> DayStepResult:
     """Apply MOD-12 events: age → demand → allocate → spoil → deliver."""
+    if rust_available() and demand is not None:
+        warn_fallback_once()
+        from blueberries_voi.backend import rust_core
+
+        assert rust_core is not None
+        live = [Cohort(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts if c.n > 0]
+        seed = 0
+        if rng_alloc is not None:
+            seed = int(rng_alloc.integers(0, 2**31 - 1))
+        dn = int(delivery.n) if delivery is not None else 0
+        dtau = float(delivery.tau) if delivery is not None else 0.0
+        dlot = int(delivery.lot_id) if delivery is not None else 0
+        counts, taus, lot_ids, dem, sales_t, waste_t = rust_core.day_step_injected(
+            [int(c.n) for c in live],
+            [float(c.tau) for c in live],
+            [int(c.lot_id) for c in live],
+            int(demand),
+            dn,
+            dtau,
+            dlot,
+            seed,
+        )
+        out_c = [
+            Cohort(n=int(n), tau=float(t), lot_id=int(i))
+            for n, t, i in zip(counts, taus, lot_ids, strict=True)
+        ]
+        return DayStepResult(
+            cohorts=out_c,
+            demand=int(dem),
+            sales_total=int(sales_t),
+            sales_by_cohort=np.zeros(0, dtype=int),
+            waste_total=int(waste_t),
+            waste_by_cohort=np.zeros(0, dtype=int),
+        )
+
     live = [Cohort(n=c.n, tau=c.tau, lot_id=c.lot_id) for c in cohorts if c.n > 0]
 
     # 1. Age

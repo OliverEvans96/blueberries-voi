@@ -181,6 +181,14 @@ export class PyodideAdapter implements EngineAdapter {
     return (await this.call("act", toFlatActParams(opts))) as DayDelta;
   }
 
+  async setObsScenario(obs_scenario: string): Promise<Snapshot> {
+    return (await this.call("set_obs_scenario", { obs_scenario })) as Snapshot;
+  }
+
+  async set_obs_scenario(obs_scenario: string): Promise<Snapshot> {
+    return this.setObsScenario(obs_scenario);
+  }
+
   /** Tear down the worker (optional for hosts / smoke). */
   terminate(): void {
     this.worker.removeEventListener("message", this.onMessage);
@@ -202,9 +210,7 @@ export async function runPyodideAdapterSmoke(opts?: {
 }): Promise<{ ok: true; snapshot: Snapshot; delta: DayDelta }> {
   const workerUrl = opts?.workerUrl ?? "/packaging/pyodide/worker.js";
   const wheelUrl =
-    opts?.wheelUrl ??
-    "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
-      "blueberries_voi-0.1.0-py3-none-any.whl";
+    opts?.wheelUrl ?? "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
   const adapter = new PyodideAdapter({ workerUrl, wheelUrl });
   try {
     const snapshot = await adapter.init({});

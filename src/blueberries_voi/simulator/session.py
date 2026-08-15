@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -11,7 +12,7 @@ from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_orde
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF
-from blueberries_voi.filter.types import mask_for
+from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
@@ -30,8 +31,6 @@ from blueberries_voi.simulator.day_driver import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-
     from blueberries_voi.filter.types import ScenarioId
     from blueberries_voi.model.abdella import ShipmentTrace
     from blueberries_voi.simulator.belief import DayDelta, Snapshot
@@ -46,7 +45,7 @@ DEMO_BUDGETS: dict[str, int] = {
 
 BROWSER_DEMO_BUDGETS = DEMO_BUDGETS
 
-_HISTORY_WINDOW = 14
+EPISODE_HORIZON = 90
 # ASN / OrderSchedule epoch (monday0); keep as ISO date for Studio weekday labels.
 _SCHEDULE_EPOCH = "2024-01-01"
 
@@ -106,6 +105,9 @@ class EngineSession:
         self._n_rollout_paths: int = int(DEMO_BUDGETS["n_rollout_paths"])
         self._candidate_case_radius: int = int(DEMO_BUDGETS["candidate_case_radius"])
         self._history: list[dict[str, Any]] = []
+        self._richest_log: list[Any] = []
+        self._rung_caches: dict[str, tuple[RBPF, int]] = {}
+        self._rust: Any | None = None
         self._state = DayDriverState(
             cohorts=[],
             pending={},
@@ -122,10 +124,14 @@ class EngineSession:
     ) -> Snapshot:
         """Cold-start the session from ``config``; return a Snapshot."""
         self._apply_config(dict(config), seed=seed)
-        self._boot_state()
         self._initialized = True
         self._seq = 0
         self._history = []
+        self._richest_log = []
+        self._rung_caches = {}
+        if self._rust_backend():
+            return self._init_rust()
+        self._boot_state()
         return self._snapshot()
 
     def reset(
@@ -150,12 +156,29 @@ class EngineSession:
         if not isinstance(order_qty, int) or isinstance(order_qty, bool):
             msg = f"order_qty must be an int, got {type(order_qty)!r}"
             raise TypeError(msg)
+        self._refuse_if_episode_ended(n_days=1)
+        if self._rust is not None:
+            raw = self._rust.step(int(order_qty))
+            self._seq += 1
+            return self._coerce_day_delta(raw, seq=self._seq)
         return self._advance(int(order_qty))
 
     def step_n(self, orders: Sequence[int]) -> list[DayDelta]:
         """Advance ``k`` days; returns exactly ``k`` DayDelta dicts."""
         self._require_init()
-        return [self.step(int(q)) for q in orders]
+        qty = [int(q) for q in orders]
+        self._refuse_if_episode_ended(n_days=len(qty))
+        if self._rust is not None:
+            raw = self._rust.step_n(qty)
+            if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+                msg = "rust step_n must return a sequence of DayDeltas"
+                raise TypeError(msg)
+            out: list[DayDelta] = []
+            for item in raw:
+                self._seq += 1
+                out.append(self._coerce_day_delta(item, seq=self._seq))
+            return out
+        return [self.step(q) for q in qty]
 
     def act(
         self,
@@ -165,13 +188,158 @@ class EngineSession:
     ) -> DayDelta:
         """Select an order via the controller surface and advance one day."""
         self._require_init()
+        self._refuse_if_episode_ended(n_days=1)
+        if self._rust is not None:
+            act_fn = getattr(self._rust, "act", None)
+            raw = (
+                act_fn(policy, **budget_overrides)
+                if callable(act_fn)
+                else self._rust.act_rollout()
+            )
+            self._seq += 1
+            return self._coerce_day_delta(raw, seq=self._seq)
         order_qty = self._select_order(policy=policy, **budget_overrides)
         return self._advance(int(order_qty))
+
+    def set_obs_scenario(self, obs_scenario: ScenarioId | str) -> Snapshot:
+        """Catch-up the selected observation rung and return a Snapshot.
+
+        Initializes a distinct ``RBPF`` on first select and replays the richest
+        log; does not retarget the live particle cloud in place.
+        """
+        self._require_init()
+        mask_for(obs_scenario)
+        if self._rust is not None:
+            fn = getattr(self._rust, "set_obs_scenario", None)
+            if callable(fn):
+                return self._coerce_snapshot(fn(str(obs_scenario)))
+        scenario = str(obs_scenario)
+        if scenario == str(self._obs_scenario) and self._state.rbpf is not None:
+            return self._snapshot()
+        self._stash_active_rung()
+        self._obs_scenario = obs_scenario
+        self._config["obs_scenario"] = obs_scenario
+        if self._enable_filter:
+            rbpf, last_synced = self._rung_for(scenario)
+            now = int(self._state.episode_day) - 1
+            for day_idx in range(last_synced + 1, now + 1):
+                day_like = self._richest_log[day_idx]
+                obs = rich_obs_from_day_log(day_like, mask_for(obs_scenario))
+                step_rng = spawn_rng(
+                    int(self._seed),
+                    run_id="session",
+                    day=int(day_idx),
+                    stream=STREAM_FILTER_RESAMPLE,
+                )
+                rbpf.step(obs, step_rng)
+            self._rung_caches[scenario] = (rbpf, now)
+            self._state.rbpf = rbpf
+        return self._snapshot()
+
+    def host_crossings(self) -> int:
+        """Host/FFI crossings (Rust backend) or Python step count."""
+        if self._rust is not None:
+            return int(self._rust.host_crossings())
+        return int(self._seq)
 
     def _require_init(self) -> None:
         if not self._initialized:
             msg = "EngineSession.init() must be called before step/act"
             raise RuntimeError(msg)
+
+    def _refuse_if_episode_ended(self, *, n_days: int) -> None:
+        if n_days <= 0:
+            return
+        day = int(self._state.episode_day)
+        if day >= EPISODE_HORIZON or day + n_days > EPISODE_HORIZON:
+            msg = (
+                f"episode ended at day {EPISODE_HORIZON}; Reset to start a new episode"
+            )
+            raise ValueError(msg)
+
+    def _rust_backend(self) -> bool:
+        from blueberries_voi.backend import rust_available, warn_fallback_once
+
+        warn_fallback_once()
+        return rust_available()
+
+    def _init_rust(self) -> Snapshot:
+        from blueberries_voi.backend import rust_core
+
+        if rust_core is None:
+            self._boot_state()
+            return self._snapshot()
+        cls = getattr(rust_core, "PyEngineSession", None)
+        if cls is None:
+            self._boot_state()
+            return self._snapshot()
+        if self._rust is None:
+            self._rust = cls(int(self._seed))
+        sess = self._rust
+        times = [list(map(float, getattr(s, "times_d", []))) for s in self._shipments]
+        temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
+        init_fn = sess.init
+        try:
+            raw = init_fn(
+                int(self._seed),
+                int(self._lead_time),
+                bool(self._enable_filter),
+                int(self._H),
+                int(self._n_rollout_paths),
+                int(self._candidate_case_radius),
+                times,
+                temps,
+                int(self._n_particles),
+            )
+        except TypeError:
+            raw = init_fn(int(self._seed))
+        return self._coerce_snapshot(raw)
+
+    def _coerce_snapshot(self, raw: Any) -> Snapshot:
+        if isinstance(raw, Mapping) and "belief" in raw:
+            snap = dict(raw)
+            snap.setdefault("seq", 0)
+            snap.setdefault("episode_day", 0)
+            snap.setdefault("schedule", schedule_wire())
+            snap.setdefault("demand_summary", demand_summary_wire())
+            snap.setdefault("applied_config", self._applied_config())
+            snap.setdefault("history", [])
+            snap.setdefault("live_lots", [])
+            snap.setdefault("pipeline", [])
+            return snap
+        self._boot_state()
+        return self._snapshot()
+
+    def _coerce_day_delta(self, raw: Any, *, seq: int) -> DayDelta:
+        if isinstance(raw, Mapping) and "day" in raw:
+            delta = dict(raw)
+            delta["seq"] = int(raw.get("seq", seq))
+            delta.setdefault("episode_day", 0)
+            return delta
+        episode_day = int(getattr(raw, "episode_day", 0))
+        order_qty = int(getattr(raw, "order_qty", 0))
+        arrivals = int(getattr(raw, "arrivals", 0))
+        sales = int(getattr(raw, "sales_total", 0))
+        waste = int(getattr(raw, "waste_total", 0))
+        demand = int(getattr(raw, "demand", 0))
+        on_hand = int(getattr(raw, "on_hand", 0))
+        return {
+            "seq": int(seq),
+            "episode_day": episode_day,
+            "day": {
+                "day": episode_day,
+                "order_qty": order_qty,
+                "arrivals": arrivals,
+                "sales_total": sales,
+                "waste_total": waste,
+                "demand": demand,
+                "L": on_hand,
+            },
+            "live_lots": [],
+            "pipeline": [],
+            "drop_oldest": False,
+            "belief": dict(empty_flat_belief(L=self._L, K=self._K)),
+        }
 
     def _apply_config(self, config: dict[str, Any], *, seed: int | None) -> None:
         shipments = config.get("shipments")
@@ -220,6 +388,7 @@ class EngineSession:
                 stream=STREAM_FILTER_RESAMPLE,
             )
             rbpf.initialize(init_rng, L=int(self._L))
+        self._rung_caches = {}
         self._state = DayDriverState(
             cohorts=[],
             pending={},
@@ -241,6 +410,37 @@ class EngineSession:
             "obs_scenario": self._obs_scenario,
             "seed": int(self._seed),
         }
+
+    def _new_rbpf(self) -> RBPF:
+        rbpf = RBPF(
+            params=self._params,
+            N=int(self._n_particles),
+            K=int(self._K),
+            L=int(self._L),
+        )
+        rbpf._root_seed = int(self._seed)
+        rbpf._run_id = "session"
+        init_rng = spawn_rng(
+            int(self._seed),
+            run_id="session",
+            day=0,
+            stream=STREAM_FILTER_RESAMPLE,
+        )
+        rbpf.initialize(init_rng, L=int(self._L))
+        return rbpf
+
+    def _stash_active_rung(self) -> None:
+        rbpf = self._state.rbpf
+        if rbpf is None:
+            return
+        last = int(self._state.episode_day) - 1
+        self._rung_caches[str(self._obs_scenario)] = (rbpf, last)
+
+    def _rung_for(self, scenario: str) -> tuple[RBPF, int]:
+        cached = self._rung_caches.get(scenario)
+        if cached is not None:
+            return cached
+        return self._new_rbpf(), -1
 
     def _belief_for_snapshot(self) -> dict[str, Any]:
         return dict(
@@ -280,15 +480,33 @@ class EngineSession:
         )
         self._state = result.state
         self._seq += 1
-        drop_oldest = len(self._history) >= _HISTORY_WINDOW
-        if drop_oldest and self._history:
-            self._history.pop(0)
-        self._history.append(dict(result.day))
+        rich = result.day.get("_rich")
+        if rich is not None:
+            self._richest_log.append(rich)
+        thin: dict[str, Any] = {
+            k: result.day[k]
+            for k in (
+                "day",
+                "order_qty",
+                "arrivals",
+                "sales_total",
+                "waste_total",
+                "demand",
+                "L",
+            )
+            if k in result.day
+        }
+        self._history.append(thin)
+        if self._state.rbpf is not None:
+            self._rung_caches[str(self._obs_scenario)] = (
+                self._state.rbpf,
+                int(self._state.episode_day) - 1,
+            )
         return build_day_delta(
             seq=self._seq,
             episode_day=completed_day,
             result=result,
-            drop_oldest=drop_oldest,
+            drop_oldest=False,
         )
 
     def _select_order(self, *, policy: str | None, **budget_overrides: Any) -> int:
@@ -363,6 +581,7 @@ class EngineSession:
 __all__ = [
     "BROWSER_DEMO_BUDGETS",
     "DEMO_BUDGETS",
+    "EPISODE_HORIZON",
     "EngineSession",
     "demand_summary_wire",
     "schedule_wire",

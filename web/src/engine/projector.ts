@@ -354,17 +354,9 @@ export class ViewModelProjector {
   applyDelta(delta: DayDelta): ViewModel {
     this.episodeDay = delta.episode_day;
 
-    if (delta.drop_oldest && this.history.length > 0) {
-      this.history = this.history.slice(1);
-      this.beliefHistory = this.beliefHistory.slice(1);
-    }
-
+    // T-112 / ADR 0122: keep full episode history until Reset; ignore drop_oldest.
     const nextDay = asDay(delta.day, delta.live_lots);
     this.history = [...this.history, nextDay];
-    // Enforce rolling window even if drop_oldest was omitted.
-    if (this.history.length > this.windowDays) {
-      this.history = this.history.slice(-this.windowDays);
-    }
 
     if (delta.belief) {
       this.flatBelief = cloneFlat(delta.belief);
@@ -373,9 +365,6 @@ export class ViewModelProjector {
       ...this.beliefHistory,
       { day: nextDay.day, flatBelief: cloneFlat(this.flatBelief) },
     ];
-    if (this.beliefHistory.length > this.windowDays) {
-      this.beliefHistory = this.beliefHistory.slice(-this.windowDays);
-    }
     if (delta.live_lots) {
       this.liveLots = delta.live_lots.map((l) => ({ ...l }));
     }
@@ -448,7 +437,9 @@ export class ViewModelProjector {
   }
 
   private configsEqual(a: SimConfig, b: SimConfig): boolean {
-    return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
+    return (Object.keys(a) as (keyof SimConfig)[]).every((k) =>
+      k === "obs_scenario" ? true : a[k] === b[k],
+    );
   }
 
   private buildViewModel(): ViewModel {

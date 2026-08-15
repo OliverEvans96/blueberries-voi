@@ -1,6 +1,6 @@
 # 0099. ENG-01 reopen: dual runtime A′ (Pyodide prod + API dev)
 
-STATUS: ACCEPTED
+STATUS: ACCEPTED (amended by 0120: third adapter `wasm`; Pyodide retained)
 DATE: 2026-08-12
 BOARD-ID: ENG-01
 GROUP: ENG
