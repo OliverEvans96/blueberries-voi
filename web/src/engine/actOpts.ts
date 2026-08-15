@@ -2,7 +2,7 @@
  * Shared ActOpts normalizer (T-098 / ADR 0117).
  *
  * Callers may pass nested `{ policy, budgets }` and/or flat budget knobs.
- * Adapters fold once here: HTTP nests under `budgets`; Pyodide flattens.
+ * Adapters fold once here: HTTP nests under `budgets`; WASM/Pyodide flatten.
  */
 
 import type { ActBudgets, ActOpts } from "./types";
@@ -23,8 +23,8 @@ export type HttpActBody = {
   budgets: ActBudgets;
 };
 
-/** Fold nested + flat knobs into HTTP `{ policy?, budgets }` (no flat siblings). */
-export function toHttpActBody(opts?: ActOpts): HttpActBody {
+/** Fold nested + flat knobs into `{ policy?, budgets }` (no flat siblings). */
+export function normalizeActBudgets(opts?: ActOpts): HttpActBody {
   const budgets: ActBudgets = {};
   if (opts?.budgets) {
     for (const key of ACT_BUDGET_KEYS) {
@@ -51,7 +51,7 @@ export function toHttpActBody(opts?: ActOpts): HttpActBody {
 
 /** Flatten to worker / Pyodide `act` params (no nested `budgets` object). */
 export function toFlatActParams(opts?: ActOpts): Record<string, unknown> {
-  const { policy, budgets } = toHttpActBody(opts);
+  const { policy, budgets } = normalizeActBudgets(opts);
   const flat: Record<string, unknown> = { ...budgets };
   if (policy !== undefined) {
     flat.policy = policy;
