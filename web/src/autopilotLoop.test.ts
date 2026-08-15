@@ -386,8 +386,11 @@ describe("Play chrome Autopilot Play/Pause (T-100)", () => {
       "expected Autopilot Pause accessible name/label in play chrome",
     ).toMatch(/Autopilot\s+Pause/);
     // T-100 open question: Advance disabled while Autopilot runs (not step+pause).
+    // T-112 also disables Advance at episode day 90.
     expect(src).toMatch(/Advance is disabled/);
-    expect(src).toMatch(/btnAdvance\.disabled\s*=\s*running/);
+    expect(src).toMatch(
+      /btnAdvance\.disabled\s*=\s*(running|autopilotRunning\s*\|\|)/,
+    );
   });
 
   it("main.ts wires createAutopilotLoop (adapter.act path, not generate autopilot)", () => {

@@ -252,7 +252,6 @@ export class MockAdapter implements EngineAdapter {
   }
 
   private stepOnce(orderQty: number): DayDelta {
-    const drop_oldest = this.state.history.length >= this.config.window_days;
     const { state, dayRecord, completedDay } = stepSimulation(
       this.state,
       orderQty,
@@ -272,7 +271,7 @@ export class MockAdapter implements EngineAdapter {
         ...dayRecord,
         lots: dayRecord.lots.map((l) => ({ ...l })),
       },
-      drop_oldest,
+      drop_oldest: false,
       belief: {
         ...this.flatBelief,
         lot_counts: [...this.flatBelief.lot_counts],

@@ -33,6 +33,7 @@ import {
 import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
+  EPISODE_HORIZON,
   mountPlayChrome,
   mountSectionControls,
   type ControllerControlsState,
@@ -441,6 +442,9 @@ playChromeApi = mountPlayChrome(
     onAdvance() {
       void (async () => {
         try {
+          if (vm.episode_day >= EPISODE_HORIZON) {
+            return;
+          }
           if (!schedule) {
             throw new Error("schedule missing — init/reset before advance");
           }
@@ -494,6 +498,11 @@ playChromeApi = mountPlayChrome(
       })();
     },
     onAutopilotPlay() {
+      if (vm.episode_day >= EPISODE_HORIZON) {
+        autopilot.pause();
+        syncAutopilotChrome();
+        return;
+      }
       autopilot.play();
       syncAutopilotChrome();
     },
@@ -506,6 +515,12 @@ playChromeApi = mountPlayChrome(
 
 autopilot = createAutopilotLoop({
   act: (opts) => {
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+      return Promise.reject(
+        new Error("episode finished at day 90; Reset to start another"),
+      );
+    }
     if (typeof adapter.act !== "function") {
       return Promise.reject(new Error("adapter.act unavailable"));
     }
@@ -518,6 +533,11 @@ autopilot = createAutopilotLoop({
       orderQty = snapOrder(q);
     }
     vm = projector.applyDelta(delta);
+    // DayDelta.episode_day is the completed day; next act cursor is +1.
+    vm = { ...vm, episode_day: delta.episode_day + 1 };
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+    }
     onHoverDay(null);
     renderAll();
   },

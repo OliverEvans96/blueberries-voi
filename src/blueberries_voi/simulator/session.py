@@ -46,7 +46,7 @@ DEMO_BUDGETS: dict[str, int] = {
 
 BROWSER_DEMO_BUDGETS = DEMO_BUDGETS
 
-_HISTORY_WINDOW = 14
+EPISODE_HORIZON = 90
 # ASN / OrderSchedule epoch (monday0); keep as ISO date for Studio weekday labels.
 _SCHEDULE_EPOCH = "2024-01-01"
 
@@ -150,12 +150,15 @@ class EngineSession:
         if not isinstance(order_qty, int) or isinstance(order_qty, bool):
             msg = f"order_qty must be an int, got {type(order_qty)!r}"
             raise TypeError(msg)
+        self._refuse_if_episode_ended(n_days=1)
         return self._advance(int(order_qty))
 
     def step_n(self, orders: Sequence[int]) -> list[DayDelta]:
         """Advance ``k`` days; returns exactly ``k`` DayDelta dicts."""
         self._require_init()
-        return [self.step(int(q)) for q in orders]
+        seq = list(orders)
+        self._refuse_if_episode_ended(n_days=len(seq))
+        return [self.step(int(q)) for q in seq]
 
     def act(
         self,
@@ -165,6 +168,7 @@ class EngineSession:
     ) -> DayDelta:
         """Select an order via the controller surface and advance one day."""
         self._require_init()
+        self._refuse_if_episode_ended(n_days=1)
         order_qty = self._select_order(policy=policy, **budget_overrides)
         return self._advance(int(order_qty))
 
@@ -172,6 +176,16 @@ class EngineSession:
         if not self._initialized:
             msg = "EngineSession.init() must be called before step/act"
             raise RuntimeError(msg)
+
+    def _refuse_if_episode_ended(self, *, n_days: int) -> None:
+        if n_days <= 0:
+            return
+        day = int(self._state.episode_day)
+        if day >= EPISODE_HORIZON or day + n_days > EPISODE_HORIZON:
+            msg = (
+                f"episode ended at day {EPISODE_HORIZON}; Reset to start a new episode"
+            )
+            raise ValueError(msg)
 
     def _apply_config(self, config: dict[str, Any], *, seed: int | None) -> None:
         shipments = config.get("shipments")
@@ -280,15 +294,12 @@ class EngineSession:
         )
         self._state = result.state
         self._seq += 1
-        drop_oldest = len(self._history) >= _HISTORY_WINDOW
-        if drop_oldest and self._history:
-            self._history.pop(0)
         self._history.append(dict(result.day))
         return build_day_delta(
             seq=self._seq,
             episode_day=completed_day,
             result=result,
-            drop_oldest=drop_oldest,
+            drop_oldest=False,
         )
 
     def _select_order(self, *, policy: str | None, **budget_overrides: Any) -> int:
@@ -363,6 +374,7 @@ class EngineSession:
 __all__ = [
     "BROWSER_DEMO_BUDGETS",
     "DEMO_BUDGETS",
+    "EPISODE_HORIZON",
     "EngineSession",
     "demand_summary_wire",
     "schedule_wire",

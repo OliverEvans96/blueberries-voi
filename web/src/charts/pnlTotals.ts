@@ -13,15 +13,15 @@ export function renderPnLTotals(
   container.innerHTML = `
     <div class="pnl-totals">
       <div class="pnl-row">
-        <span class="pnl-label">Window revenue</span>
+        <span class="pnl-label">Episode revenue</span>
         <span class="pnl-value pnl-value--rev">${money(t.revenue)}</span>
       </div>
       <div class="pnl-row">
-        <span class="pnl-label">Window cost</span>
+        <span class="pnl-label">Episode cost</span>
         <span class="pnl-value pnl-value--cost">${money(t.cost)}</span>
       </div>
       <div class="pnl-row pnl-row--emphasis">
-        <span class="pnl-label">Window profit</span>
+        <span class="pnl-label">Episode profit</span>
         <span class="pnl-value pnl-value--profit ${t.profit >= 0 ? "is-pos" : "is-neg"}">${money(t.profit)}</span>
       </div>
       <div class="pnl-divider"></div>

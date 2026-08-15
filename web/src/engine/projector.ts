@@ -339,15 +339,8 @@ export class ViewModelProjector {
   applyDelta(delta: DayDelta): ViewModel {
     this.episodeDay = delta.episode_day;
 
-    if (delta.drop_oldest && this.history.length > 0) {
-      this.history = this.history.slice(1);
-    }
-
+    // T-112 / ADR 0122: keep full episode history until Reset; ignore drop_oldest.
     this.history = [...this.history, asDay(delta.day, delta.live_lots)];
-    // Enforce rolling window even if drop_oldest was omitted.
-    if (this.history.length > this.windowDays) {
-      this.history = this.history.slice(-this.windowDays);
-    }
 
     if (delta.belief) {
       this.flatBelief = {

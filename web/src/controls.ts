@@ -13,6 +13,9 @@ import {
   weekdayLabel,
 } from "./calendar/nextOrderAdvance";
 
+/** Studio episode length (ADR 0122 / T-112). */
+export const EPISODE_HORIZON = 90;
+
 /** Locked chip copy (ADR 0110 / T-089). */
 const SCENARIO_COPY: Record<
   ScenarioId,
@@ -210,6 +213,9 @@ export function mountPlayChrome(
       <p class="hint" id="autopilot-hint">
         While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
       </p>
+      <p class="hint" id="episode-end-hint" hidden>
+        The episode finished at day 90. Reset to start another episode.
+      </p>
       <div class="meta-line" id="order-meta"></div>
       <div class="day-label" id="day-label"></div>
       <div class="delivery-hint" id="delivery-hint"></div>
@@ -226,6 +232,9 @@ export function mountPlayChrome(
   const dayLabelEl = root.querySelector("#day-label") as HTMLElement;
   const deliveryHintEl = root.querySelector("#delivery-hint") as HTMLElement;
   const dirtyBanner = root.querySelector("#dirty-banner") as HTMLElement;
+  const episodeEndHint = root.querySelector(
+    "#episode-end-hint",
+  ) as HTMLElement;
   const btnAdvance = root.querySelector("#btn-advance") as HTMLButtonElement;
   const btnAutopilotPlay = root.querySelector(
     "#btn-autopilot-play",
@@ -235,6 +244,19 @@ export function mountPlayChrome(
   ) as HTMLButtonElement;
   let caseSize = initial.config.case_size;
   let autopilotRunning = false;
+  let episodeDay = initial.episodeDay;
+
+  function episodeFinished(day: number): boolean {
+    return day >= EPISODE_HORIZON;
+  }
+
+  function syncAdvanceAndAutopilotButtons(): void {
+    const atEnd = episodeFinished(episodeDay);
+    btnAdvance.disabled = autopilotRunning || atEnd;
+    btnAutopilotPlay.disabled = autopilotRunning || atEnd;
+    btnAutopilotPause.disabled = !autopilotRunning;
+    episodeEndHint.hidden = !atEnd;
+  }
 
   function syncCalendarChrome(s: ControlsState): void {
     if (s.schedule) {
@@ -269,19 +291,17 @@ export function mountPlayChrome(
 
   function setAutopilotRunning(running: boolean): void {
     autopilotRunning = running;
-    // Advance disabled while Autopilot runs (T-100 open question pick).
-    btnAdvance.disabled = running;
-    btnAutopilotPlay.disabled = running;
-    btnAutopilotPause.disabled = !running;
+    syncAdvanceAndAutopilotButtons();
   }
 
   orderRange.addEventListener("input", () => setOrder(Number(orderRange.value)));
   orderNum.addEventListener("change", () => setOrder(Number(orderNum.value)));
   btnAdvance.addEventListener("click", () => {
-    if (autopilotRunning) return;
+    if (autopilotRunning || episodeFinished(episodeDay)) return;
     cb.onAdvance();
   });
   btnAutopilotPlay.addEventListener("click", () => {
+    if (episodeFinished(episodeDay)) return;
     cb.onAutopilotPlay?.();
   });
   btnAutopilotPause.addEventListener("click", () => {
@@ -300,10 +320,12 @@ export function mountPlayChrome(
 
   return {
     update(s) {
+      episodeDay = s.episodeDay;
       syncOrderInputs(s.orderQty, s.config.case_size);
       meta.textContent = `Episode day ${s.episodeDay} · pending inbound ${s.pendingOrder} units`;
       syncCalendarChrome(s);
       dirtyBanner.hidden = !s.configDirty;
+      syncAdvanceAndAutopilotButtons();
     },
     setOrderFromCaseChange(qty, cs) {
       syncOrderInputs(qty, cs);
