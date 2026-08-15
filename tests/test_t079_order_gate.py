@@ -233,7 +233,7 @@ def test_advance_day_forces_zero_order_on_non_order_day() -> None:
         pending={},
         next_lot_id=1,
         episode_day=0,  # Monday — non-order
-        rbpf=None,
+        particle_filter=None,
     )
     assert not _is_order_day(0)
     result = advance_day(
@@ -257,7 +257,7 @@ def test_advance_day_passes_order_on_order_day() -> None:
         pending={},
         next_lot_id=1,
         episode_day=1,  # Tuesday — order day
-        rbpf=None,
+        particle_filter=None,
     )
     assert _is_order_day(1)
     result = advance_day(
@@ -433,7 +433,7 @@ def test_advance_day_forwards_day_kw_to_day_step_when_supported(
         pending={},
         next_lot_id=1,
         episode_day=3,
-        rbpf=None,
+        particle_filter=None,
     )
     advance_day(
         state,

@@ -16,7 +16,7 @@ TDD left the suite green but the package with **fat modules**
 **intentional semantic forks** (ceil vs nearest case rounding; dual
 `Policy.order` signatures; call-site-specific τ grids; some VOI/m2 paths omitting
 MWF order gates). Existing tests — including AST hygiene scanners that load
-`filter.backends.__file__` and require a top-level `def _rbpf_update(` in that
+`filter.backends.__file__` and require a top-level `def _particle_filter_update(` in that
 file — are the safety net.
 
 We need a structure-only cleanup that does **not** change scores, freezes, or
@@ -37,11 +37,11 @@ We will:
    (`filter.backends`, `filter.age_likelihood`, `filter` / `sim` / `simulator` /
    `controller` / `viz.m15` / `viz.fil11` public and AST-pinned names, etc.).
    Callers and scanners keep working without test edits.
-3. **Keep a real top-level `def _rbpf_update(...):` in
+3. **Keep a real top-level `def _particle_filter_update(...):` in
    `filter/backends.py`** that delegates to an implementation living under
    `filter/particle/` (e.g. `counts_update.py`). Body may move; the **`def` must
    remain** in `backends.py` so AST scanners that parse that file stay green.
-   Preserve other file-pinned markers (`_rbpf_update_end_marker`,
+   Preserve other file-pinned markers (`_particle_filter_update_end_marker`,
    `_SHARED_MC_KERNELS`, identity tricks) the same way.
 4. **Freeze intentional forks — do not unify:**
    - Ceil case rounding in `simulator/day_driver.py` / open-loop `sim` vs
@@ -60,7 +60,7 @@ We will:
    and time allows — still behind the same façades.
 6. **Add no new runtime dependencies.** Do not rename `sim/` vs `simulator/`,
    change ESS (`< 0.5 * N`), production backend selection, WOR weights, or
-   `RBPF._state` pokeable layout (`.counts` / `.age_post` / `.weights`).
+   `ResearchParticleFilter._state` pokeable layout (`.counts` / `.age_post` / `.weights`).
 7. **Zero edits under `tests/`** for this milestone. Prefer façades over
    updating AST path strings. Semantic unification items go to `.team/backlog.md`
    as notes only — not fixed here.
@@ -90,7 +90,7 @@ verify stays “full suite green on Python 3.11”; reviewers check “no test c
 merge discipline across wave tips; implementers must resist “while we’re here”
 semantic fixes; dead-code deletes require grep proof.
 
-**Locked in:** Locked import paths and `def _rbpf_update` in `backends.py`;
+**Locked in:** Locked import paths and `def _particle_filter_update` in `backends.py`;
 existing suite as AC; intentional forks remain until a later ADR explicitly
 unifies them.
 

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -103,11 +103,11 @@ def _calibrate_rung(
             n_score=n_score,
             shipments=ships,
         )
-        rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
-        rbpf._root_seed = seed
-        rbpf._run_id = f"m15_b_{scenario}_{rep}"
+        particle_filter = ResearchParticleFilter(params=params, N=n_particles, K=K, L=L)
+        particle_filter._root_seed = seed
+        particle_filter._run_id = f"m15_b_{scenario}_{rep}"
         rng = np.random.default_rng(seed + 19)
-        rbpf.initialize(rng, L=L)
+        particle_filter.initialize(rng, L=L)
 
         tracked_slot: int | None = None
         tracked_lot_id: int | None = None
@@ -115,7 +115,7 @@ def _calibrate_rung(
         last_post: np.ndarray | None = None
         for d in ep.scored:
             obs = rich_obs_from_day_log(d, mask)
-            rbpf.step(obs, rng)
+            particle_filter.step(obs, rng)
             if d.arrivals > 0:
                 if tracked_slot is None:
                     tracked_slot = L - 1
@@ -127,7 +127,7 @@ def _calibrate_rung(
                     tracked_lot_id = int(d.lots[-1].lot_id)
                     true_age = float(d.lots[-1].tau)
             elif tracked_slot is not None:
-                last_post = rbpf.age_posterior(tracked_slot)
+                last_post = particle_filter.age_posterior(tracked_slot)
                 if tracked_lot_id is not None:
                     for lot in d.lots:
                         if int(lot.lot_id) == tracked_lot_id:
@@ -136,7 +136,7 @@ def _calibrate_rung(
 
         if last_post is None:
             idx = L - 1 if tracked_slot is None else max(tracked_slot, 0)
-            last_post = rbpf.age_posterior(idx)
+            last_post = particle_filter.age_posterior(idx)
         if true_age is None:
             true_age = float(np.sum(grid * last_post))
 

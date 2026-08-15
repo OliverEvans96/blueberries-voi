@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: rbpf production path removed", allow_module_level=True)
+pytest.skip(
+    "T-121 F3: particle_filter production path removed", allow_module_level=True
+)
 
 import ast
 import inspect
@@ -172,7 +174,7 @@ def test_stage_c_m15_entrypoint_documented() -> None:
 
 
 def test_optional_auxiliary_does_not_restore_soft_self_check() -> None:
-    """AC (if auxiliary present): RBPF vs brute-force must not use soft tv_vs_exact.
+    """AC (if auxiliary present): RPF vs brute-force must not use soft tv_vs_exact.
 
     Optional per T-012; skips when no auxiliary helper exists yet.
     """
@@ -190,7 +192,7 @@ def test_optional_auxiliary_does_not_restore_soft_self_check() -> None:
         and name != "run_fil11_stage_c"
     ]
     if not aux_names:
-        pytest.skip("optional RBPF-vs-brute auxiliary not implemented")
+        pytest.skip("optional particle filter-vs-brute auxiliary not implemented")
     src = _fil11_source()
     for name in aux_names:
         fn = _ast_function(src, name)

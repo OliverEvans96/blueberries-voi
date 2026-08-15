@@ -12,10 +12,10 @@ scope). Create them with `/ticket` or the write-spec skill after intake.
 | [T-003](./T-003.md) | Gate 0 + Abdella traces | ADR 0078, MOD-21 |
 | [T-004](./T-004.md) | Arrival generator, forward sim, SIM-04 logging, cohort-count figure | T-002, T-003 |
 | [T-005](./T-005.md) | FIL-13 runtime/accuracy bakeoff (A–E) | T-004; ADR 0082 PROPOSED |
-| [T-006](./T-006.md) | Production RBPF (after FIL-13/15 settled) | T-005 + Oliver settle; ADR 0082/0083 |
+| [T-006](./T-006.md) | Production ResearchParticleFilter (after FIL-13/15 settled) | T-005 + Oliver settle; ADR 0082/0083 |
 | [T-007](./T-007.md) | FIL-11 staged validation A → B → C (hard stop if A fails) | T-006; ADR 0056 |
 | [T-020](./T-020.md) | FIL-11 Stage C exact joint vs mean-field (FIL-04 check) | ADR 0090; evidence-only side path (does not replace M1.5 generative Stage C) |
-| [T-021](./T-021.md) | Production RBPF → mean-field (FIL-13=B, FIL-04=C) | ADR 0091; wires `mean_field_update` + keeps MC LL weights |
+| [T-021](./T-021.md) | Production ResearchParticleFilter → mean-field (FIL-13=B, FIL-04=C) | ADR 0091; wires `mean_field_update` + keeps MC LL weights |
 
 Wave order: T-001 ∥ T-002 ∥ T-003 → T-004 → T-005 → (human FIL-13/15) → T-006 → T-007 → T-020 (additive MF evidence) → T-021 (production MF settle).
 
@@ -124,7 +124,7 @@ ADR: [0104](../adr/0104-audit-remediation-defaults.md).
 Base: `main` @ M2+M3 merge tip. Integration branch deferred to Phase 3 as
 `team/audit-remediation` (git cannot nest role branches under a bare branch of
 the same name).  
-Non-goals: M3 compute reduction; RBPF count physics; Stage A honesty; ENG-01.
+Non-goals: M3 compute reduction; ResearchParticleFilter count physics; Stage A honesty; ENG-01.
 
 | Ticket | Title | Depends on / notes |
 | --- | --- | --- |

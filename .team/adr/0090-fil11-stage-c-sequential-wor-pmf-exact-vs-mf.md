@@ -16,7 +16,7 @@ FIL-11=D requires Stage C as an exact comparison at small `L`/`K`, and that comp
 **FIL-04 factorisation check**: does a mean-field age posterior match the exact joint well enough
 that decisions (and VOI deltas) stay honest?
 
-The current production soft observation path in `_rbpf_update` (powered picking / death terms with
+The current production soft observation path in `_particle_filter_update` (powered picking / death terms with
 Gaussian-style total matching — the M1 `sales_pow` / `waste_pow` stub) makes a “TV vs exact”
 self-check **tautological**: the same soft likelihood drives both sides. That does not validate
 generative agreement with the simulator, nor does it produce FIL-04 evidence.
@@ -50,7 +50,7 @@ We will:
      **coordinate ascent** with posterior-mean picking/death plug-ins for other lots, max **5**
      sweeps, stop when max marginal total-variation change `< 1e-6`
 4. Run **FIL-11 Stage C** as exact joint vs mean-field **induced joint** on **fixed count paths**
-   (not a full RBPF-vs-RBPF bakeoff). Leave production MC `_rbpf_update` / RBPF unchanged; this ADR is evidence-only.
+   (not a full ResearchParticleFilter-vs-ResearchParticleFilter bakeoff). Leave production MC `_particle_filter_update` / ResearchParticleFilter unchanged; this ADR is evidence-only.
 5. **Do not** flip ⚑ FIL-04 (ADR 0049) or FIL-12 (ADR 0057) statuses in this ADR; this ADR produces
    **evidence**. A settle note after green verifier may recommend a board move later.
 6. Record that **MOD-08=A remains sim-only** (simulate Wallenius; no density in the simulator);
@@ -72,13 +72,13 @@ We will:
   simulator’s sampling law exactly and is the density we need for Stage C.
 - **Multinomial with the same weights** — rejected unless `sequential_wor_pmf` proves numerically
   bad (MOD-08 already rejected multinomial for near-clear shelves).
-- **Wiring mean-field into production RBPF before settle** — rejected as premature; this check is
+- **Wiring mean-field into production particle filter before settle** — rejected as premature; this check is
   evidence-only until gates and a settle note say otherwise. M1.5 production uses MC LL + generative Stage C (ADRs 0087–0088).
 
 ## Consequences
 
 **Easy:** a shared, named likelihood that can be unit-tested against hand grids; Stage C produces
-explicit FIL-04 pass/fail tables (TV / KL / MI / decision Δ) without touching production RBPF.
+explicit FIL-04 pass/fail tables (TV / KL / MI / decision Δ) without touching production particle filter.
 
 **Hard / cost:** implementers must enumerate or otherwise marginalize latent sales/waste
 compositions for P1 totals; coordinate-ascent MF is an approximation of the factorised posterior,
@@ -86,7 +86,7 @@ not a free lunch, and stress failures may force keeping joint (FIL-04=B) despite
 pressure.
 
 **Locked in:** This evidence Stage C uses `sequential_wor_pmf` + exact joint vs MF on fixed counts;
-production RBPF keeps M1.5 MC LL (ADR 0087) and generative Stage C (ADR 0088); ADR 0049 / 0057
+production particle filter keeps M1.5 MC LL (ADR 0087) and generative Stage C (ADR 0088); ADR 0049 / 0057
 statuses are unchanged by this work.
 
 **Revisit when:** Stage C gates fail under P1 base or stress (recommend board reopen of FIL-04/12),

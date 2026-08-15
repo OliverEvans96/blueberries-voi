@@ -10,7 +10,7 @@ contraction grids below are historical diagnostics, not a reopen of in-store age
 
 Settings (shared unless noted): K=8, N=500, L_filter=3, n_burn=20, n_score=30, seed=21, pass if full-mix posterior_sd < prior_sd × 0.95 and tight-spread control check.
 
-**Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), same as baseline Stage A. No single-cohort-from-birth API in the production RBPF; longer_score only lengthens the observation window.
+**Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), same as baseline Stage A. No single-cohort-from-birth API in the production particle filter; longer_score only lengthens the observation window.
 
 | scenario | L p50 | L max | prior_sd | post_sd | Δ% | contracted? | pass/fail |
 |---|---:|---:|---:|---:|---:|:---:|:---:|
@@ -42,7 +42,7 @@ Settings (shared unless noted): K=8, N=500, L_filter=3, n_burn=20, n_score=30, s
 
 ## Interpretation (for Oliver)
 
-Baseline reproduces the documented Stage A failure (prior_sd≈1.98, posterior widens). Two knobs restore ≥5% contraction under the same metric: (1) **long dwell** — μ=15 combined with S=120 (+20.7% contraction; L p50/max = 7/8), while μ=15 or S=120 alone do not clear the threshold (S=120 only stops the blow-up); (2) **sharper spoilage** — Weibull β=4.0 (+15.9%), with β=3.5 only a weak +2.7% miss. Fresh-bias σ≤0.25, uniform picking, cooler T_store=1°C, and a longer score window do **not** restore contraction. Caveat: when empirical L exceeds L_filter=3 (slow-dwell cells), the RBPF still only tracks three slots and the reported posterior remains the oldest slot — so the μ15+S120 PASS is encouraging but not a single-cohort-from-birth proof.
+Baseline reproduces the documented Stage A failure (prior_sd≈1.98, posterior widens). Two knobs restore ≥5% contraction under the same metric: (1) **long dwell** — μ=15 combined with S=120 (+20.7% contraction; L p50/max = 7/8), while μ=15 or S=120 alone do not clear the threshold (S=120 only stops the blow-up); (2) **sharper spoilage** — Weibull β=4.0 (+15.9%), with β=3.5 only a weak +2.7% miss. Fresh-bias σ≤0.25, uniform picking, cooler T_store=1°C, and a longer score window do **not** restore contraction. Caveat: when empirical L exceeds L_filter=3 (slow-dwell cells), the particle filter still only tracks three slots and the reported posterior remains the oldest slot — so the μ15+S120 PASS is encouraging but not a single-cohort-from-birth proof.
 
 Figure directory: `/home/oliver/blog/blueberries-voi/figures/m1/fil11_a_scenarios`
 Grid: `figures/m1/fil11_a_scenarios/grid.png`

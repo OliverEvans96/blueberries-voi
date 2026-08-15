@@ -21,7 +21,7 @@ We will:
 
 1. Keep **one physics trajectory and one order sequence**. Persist a **richest** day log for
    the episode (totals, lot maps, receipt meta). Do not store 90 particle clouds.
-2. Keep a lazy map per `ScenarioId`: `RBPF | None` and `last_synced_day`. First select at day
+2. Keep a lazy map per `ScenarioId`: `ResearchParticleFilter | None` and `last_synced_day`. First select at day
    t initializes and steps `0…t-1` with `mask_for(id)` on the log. Advance steps **only the
    active** filter. Switch-back steps only the gap.
 3. Expose `EngineSession.set_obs_scenario(id)` that performs that catch-up and returns a
@@ -32,7 +32,7 @@ We will:
 5. Reset / seed / physics knobs still wipe log and all caches. Other SimConfig remains
    reset-gated.
 6. **Still forbidden:** retarget `_obs_scenario` on the current particles without replay.
-7. Keep the type name `RBPF`. Do not rename in this decision.
+7. Keep the type name `ResearchParticleFilter`. Do not rename in this decision.
 
 The six-rung ladder, default P1, and SCN-P2 Out from ADR 0110 remain.
 
@@ -56,4 +56,4 @@ UI must disable chips and show progress. Memory up to one demo `N=200` cloud per
 **Locked in:** catch-up protocol; `set_obs_scenario`; Autopilot follows the chip; no in-place
 mask swap.
 
-**Revisit if:** a rename of `RBPF`. Rust/wasm method: ADR [0124](./0124-rust-wasm-set-obs-scenario.md).
+**Revisit if:** a rename of `ResearchParticleFilter`. Rust/wasm method: ADR [0124](./0124-rust-wasm-set-obs-scenario.md).

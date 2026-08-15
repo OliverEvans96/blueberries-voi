@@ -3,15 +3,14 @@
 Oliver requested B/C as diagnostic evidence even though Stage A failed.
 This does not reopen the FIL-11=D gate or claim A passed.
 
-Production settings: full_joint RBPF, K=8, N=2000, shared day_step.
+Production settings: full_joint particle filter, K=8, N=2000, shared day_step.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from blueberries_voi.filter.rbpf import PRODUCTION_K, PRODUCTION_N
-
+from blueberries_voi.filter.constants import PRODUCTION_K, PRODUCTION_N
 from blueberries_voi.viz.fil11 import run_fil11_stage_b
 
 ROOT = Path(__file__).resolve().parents[1]

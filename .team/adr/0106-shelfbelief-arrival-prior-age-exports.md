@@ -10,7 +10,7 @@ MILESTONE: Arrival-only count filter
 
 ## Context
 
-ADR 0092 defined `ShelfBelief` with `age_marginals` filled from production RBPF
+ADR 0092 defined `ShelfBelief` with `age_marginals` filled from production particle filter
 mean-field `age_post` rows — sales-updated MF posteriors. ADR 0100 / ENG-01 flatten that
 `(L,K)` structure to a length-`L·K` buffer on the wire. ADR 0105 removes production
 in-store age learning: particle ages are birth priors clocked forward, not MF posteriors.

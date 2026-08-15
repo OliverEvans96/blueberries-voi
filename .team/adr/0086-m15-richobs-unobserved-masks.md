@@ -11,7 +11,7 @@ FIL-08=C already locks “one filter with the richest observation model; other r
 M1 shipped only `P1Obs(sales_total, waste_total, arrivals)`, so every rung was forced into the same
 three integers. Missing fields were never expressible: writing `0` for “no waste observed” on P0
 would falsely update as “zero waste.” M1.5 must compare settled data-availability rungs
-(P0, P1, F1, F1s, F2a, F2) fairly under one RBPF binary, without inventing receiving error
+(P0, P1, F1, F1s, F2a, F2) fairly under one ResearchParticleFilter binary, without inventing receiving error
 (MOD-17=A) or reopening ⚑ cards.
 
 ## Decision
@@ -19,7 +19,7 @@ would falsely update as “zero waste.” M1.5 must compare settled data-availab
 We will use a single frozen **`RichObs`** schema as the filter’s observation type. Fields absent
 under a rung are set to a sentinel **`UNOBSERVED`**, never to numeric zero or an empty map that
 the likelihood would treat as data. An **`ObsMask`** (or `ScenarioId → frozenset` of present field
-names) with `mask.apply(rich) -> RichObs` materialises that rule. One `RBPF` class takes masked
+names) with `mask.apply(rich) -> RichObs` materialises that rule. One `ResearchParticleFilter` class takes masked
 `RichObs`; scenario is a mask argument, not a subclass. SCN-B-state is a verification bypass (true
 state → belief identity), not a mask that invents observations.
 
@@ -45,7 +45,7 @@ lot-resolved sales in M1.5; biased-ρ is sensitivity-only, not a DoD gate.
   invites divergent filter implementations that contaminate rung comparisons.
 - **Encode missing as `0` / empty dict with a parallel boolean mask** — rejected because callers
   routinely forget the boolean and the likelihood silently conditions on false zeros (the P0 bug).
-- **Separate observation dataclass per rung** — rejected because it forks types at the RBPF
+- **Separate observation dataclass per rung** — rejected because it forks types at the particle filter
   boundary and makes shared CRN multi-rung Stage A harder than one schema + mask.
 
 ## Consequences

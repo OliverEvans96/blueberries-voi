@@ -15,8 +15,6 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 ## Needs human now
 
-- **Leftover — Ticket N (rename RBPF):** after H and C (not now); LSP/rust-analyzer rename of `class RBPF` + Rust `voi_core` / wasm / PyO3; keep ADR 0118 `_rbpf_update` unless N amends that ADR.
-
 - **T-102 deferred semantics (notes only — do not unify in this milestone):** VOI/m2 still omit some order-gate / `day=` wiring that closed-loop episode has; ceil vs nearest case-rounding owners stay split (day_driver/open-loop vs episode/m2/voi); `ess_fraction` remains unused vs hardcoded `0.5 * N` resample; `sim/` vs `simulator/` naming debt stays. See ADR [0118](./adr/0118-behavior-frozen-module-splits.md).
 - **needs-human — CAL-01 merge:** Human merge of `team/T-088/integrate-main` (CAL-01 close-out + main; ADRs 0112–0116) into parent when ready (agents must not merge to `main`). Citeable VOI regen after land; remotesure FIL-13 L before citing L-dependent filter claims.
 - **needs-human — T-071 xdist flake:** `tests/test_t071_demo_hydrate_edges.py` intermittently returns 422 `shipments[0] must be an object` under full `pytest -n auto` (reproduces on `main`; file-alone xdist passes). Related residual: VOI/CRN `isinstance` dual-import flakes under xdist (see T-087 verify). Blocks clean verify retries occasionally; not a CAL-01 product defect.

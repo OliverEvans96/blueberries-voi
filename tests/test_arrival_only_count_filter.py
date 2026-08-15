@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import RBPF
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
 from blueberries_voi.model import ModelParams
 
@@ -113,11 +113,11 @@ def _has_pm1_count_rw(fn: ast.AST) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_update_source_does_not_call_mean_field_update() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_source_does_not_call_mean_field_update() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     names = _names_in_function(fn)
     assert "mean_field_update" not in names, (
-        "ADR 0105: production _rbpf_update must not call mean_field_update"
+        "ADR 0105: production _particle_filter_update must not call mean_field_update"
     )
 
 
@@ -138,14 +138,16 @@ def test_p1_unobserved_maps_does_not_invoke_mean_field_update(
     if hasattr(backends, "mean_field_update"):
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
-    rbpf = RBPF(params=ModelParams(), N=24, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=24, K=4, L=2)
     rng = np.random.default_rng(11)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[6, 6]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[6, 6]] * particle_filter.N, dtype=int
+    )
     obs = _p1_unobserved_maps(sales_total=8, waste_total=2)
     assert obs.sales_by_lot is UNOBSERVED
-    rbpf.step(obs, rng)
+    particle_filter.step(obs, rng)
     assert not calls, (
         "mean_field_update must not run on production P1 UNOBSERVED-maps step "
         "(ADR 0105 arrival-only ages)"
@@ -171,8 +173,8 @@ def test_thin_callers_do_not_name_mean_field_update() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_update_weights_use_exact_wor_not_mc_default() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_weights_use_exact_wor_not_mc_default() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     names = _names_in_function(fn)
     wor_markers = names & {
         "log_p_sales_waste_given_ages",
@@ -181,7 +183,7 @@ def test_rbpf_update_weights_use_exact_wor_not_mc_default() -> None:
         "sequential_wor_composition_probs",
     }
     assert wor_markers, (
-        "production _rbpf_update must weight particles with exact sequential WOR "
+        "production _pf_update must weight particles with exact sequential WOR "
         "(log_p_sales_waste_given_ages / sequential_wor_*)"
     )
     assert "observation_loglik_mc" not in names, (
@@ -213,10 +215,10 @@ def test_production_step_calls_wor_likelihood_not_mc(
         monkeypatch.setattr(backends, "log_p_sales_waste_given_ages", _spy_wor)
     monkeypatch.setattr(backends, "observation_loglik_mc", _spy_mc)
 
-    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=20, K=4, L=2)
     rng = np.random.default_rng(3)
-    rbpf.initialize(rng)
-    rbpf.step(_p1_unobserved_maps(), rng)
+    particle_filter.initialize(rng)
+    particle_filter.step(_p1_unobserved_maps(), rng)
     assert wor_calls, "default production step must score via exact WOR likelihood"
     assert not mc_calls, "default production step must not call observation_loglik_mc"
 
@@ -226,28 +228,34 @@ def test_production_step_calls_wor_likelihood_not_mc(
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_sales_likelihood_field_defaults_to_exact_sequential_wor() -> None:
-    field_names = {f.name for f in dataclasses.fields(RBPF)}
+def test_particle_filter_sales_likelihood_field_defaults_to_exact_sequential_wor() -> (
+    None
+):
+    field_names = {f.name for f in dataclasses.fields(ResearchParticleFilter)}
     assert "sales_likelihood" in field_names, (
-        "RBPF must expose sales_likelihood config (ADR 0105)"
+        "particle filter must expose sales_likelihood config (ADR 0105)"
     )
-    field = next(f for f in dataclasses.fields(RBPF) if f.name == "sales_likelihood")
+    field = next(
+        f
+        for f in dataclasses.fields(ResearchParticleFilter)
+        if f.name == "sales_likelihood"
+    )
     assert field.default == "exact_sequential_wor"
-    rbpf = RBPF(params=ModelParams(), N=8, K=4, L=2)
-    assert rbpf.sales_likelihood == "exact_sequential_wor"
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=8, K=4, L=2)
+    assert particle_filter.sales_likelihood == "exact_sequential_wor"
 
 
-def test_rbpf_sales_likelihood_multinomial_selectable() -> None:
-    field_names = {f.name for f in dataclasses.fields(RBPF)}
+def test_particle_filter_sales_likelihood_multinomial_selectable() -> None:
+    field_names = {f.name for f in dataclasses.fields(ResearchParticleFilter)}
     assert "sales_likelihood" in field_names
-    rbpf = RBPF(
+    particle_filter = ResearchParticleFilter(
         params=ModelParams(),
         N=8,
         K=4,
         L=2,
         sales_likelihood="multinomial",
     )
-    assert rbpf.sales_likelihood == "multinomial"
+    assert particle_filter.sales_likelihood == "multinomial"
 
 
 # ---------------------------------------------------------------------------
@@ -255,16 +263,16 @@ def test_rbpf_sales_likelihood_multinomial_selectable() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_update_has_no_pm1_count_random_walk() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_has_no_pm1_count_random_walk() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     assert not _has_pm1_count_rw(fn), (
-        "production _rbpf_update must not use rng.integers(-1, 2, ...) count RW; "
+        "production _pf_update must not use rng.integers(-1, 2, ...) count RW; "
         "count transitions must match day_step / allocate_sales physics (ADR 0105)"
     )
 
 
-def test_rbpf_update_count_path_names_day_step_physics() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_count_path_names_day_step_physics() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     names = _names_in_function(fn) | _attr_names_in_function(fn)
     physics = names & {"day_step", "allocate_sales", "death_prob_survival_ratio"}
     assert physics, (
@@ -280,19 +288,24 @@ def test_rbpf_update_count_path_names_day_step_physics() -> None:
 
 def test_p1_step_keeps_age_post_equal_to_clocked_prior_when_no_births() -> None:
     """With arrivals=0, sales must not rewrite age_post rows (arrival-only)."""
-    rbpf = RBPF(params=ModelParams(), N=30, K=6, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=30, K=6, L=2)
     rng = np.random.default_rng(23)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
-    prior = np.ones_like(rbpf._state.age_post) / rbpf._state.age_post.shape[-1]
-    rbpf._state.age_post[:] = prior
-    age_before = rbpf._state.age_post.copy()
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
+    prior = (
+        np.ones_like(particle_filter._state.age_post)
+        / particle_filter._state.age_post.shape[-1]
+    )
+    particle_filter._state.age_post[:] = prior
+    age_before = particle_filter._state.age_post.copy()
 
     obs = _p1_unobserved_maps(sales_total=12, waste_total=1, arrivals=0)
-    rbpf.step(obs, rng)
-    assert rbpf._state is not None
-    age_after = rbpf._state.age_post
+    particle_filter.step(obs, rng)
+    assert particle_filter._state is not None
+    age_after = particle_filter._state.age_post
     row_sums = age_after.sum(axis=-1)
     assert np.allclose(row_sums, 1.0, atol=_SIMPLEX_TOL)
     tv = _lot_tv(age_before.reshape(-1), age_after.reshape(-1))

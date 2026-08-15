@@ -4,7 +4,7 @@
 
 **Recommendation:** Pass on P1 base + mild path - recommend reopening FIL-04 toward mean-field (C) and parking FIL-12/13 joint machinery (FIL-13 option B). Do not flip ⚑ ADRs until Oliver confirms. (base marg_tv median=0.0050 p95_max=0.0105; joint_tv median=0.0435; action_agree=1.000; stress_fail=False)
 
-Likelihood: named `sequential_wor_pmf` (ADR 0090). Production soft `_rbpf_update` left unchanged. ADR 0049 / 0057 statuses not flipped.
+Likelihood: named `sequential_wor_pmf` (ADR 0090). Production soft `_particle_filter_update` left unchanged. ADR 0049 / 0057 statuses not flipped.
 
 Findings report: `.team/reports/FIL-11-stage-c-mf-findings.md`
 
@@ -31,7 +31,7 @@ Findings report: `.team/reports/FIL-11-stage-c-mf-findings.md`
 | multiday_t8 | 3 | 6 | 0.50 | 0.0128 | 0.0060 | 0.0002 | 0.0015 | 0.0001 | True |
 | multiday_t10 | 3 | 6 | 0.50 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | True |
 
-## Stage 3 - frozen RBPF count path replay
+## Stage 3 - frozen particle filter count path replay
 
 | case | L | K | sigma | joint TV | marg TV max | marg KL max | max MI | SW rel delta | action agree |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

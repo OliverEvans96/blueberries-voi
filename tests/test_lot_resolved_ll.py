@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF lot-resolved LL removed",
+    "T-121 F3: ADR 0127 Wave F supersession — prod PF lot-resolved LL removed",
     allow_module_level=True,
 )
 
 import inspect
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 
@@ -79,14 +79,16 @@ def _weighted_count_mean(counts: np.ndarray, loglik: np.ndarray) -> np.ndarray:
 
 
 def _age_posts_after_step(obs: RichObs, *, seed: int) -> tuple[np.ndarray, np.ndarray]:
-    rbpf = RBPF(params=ModelParams(), N=80, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=80, K=4, L=2)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
+    particle_filter.initialize(rng)
     # Fixed inventory so map terms (not random init) drive the update.
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
-    rbpf.step(obs, rng)
-    return rbpf.age_posterior(0), rbpf.age_posterior(1)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
+    particle_filter.step(obs, rng)
+    return particle_filter.age_posterior(0), particle_filter.age_posterior(1)
 
 
 # ---------------------------------------------------------------------------
@@ -411,21 +413,26 @@ def test_biased_rho_sampler_absent_or_marked_non_gate() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: one RBPF class / one MC LL entrypoint
+# AC: one particle filter class / one MC LL entrypoint
 # ---------------------------------------------------------------------------
 
 
-def test_single_rbpf_class_and_one_mc_ll_entrypoint() -> None:
-    """AC: no rung-specific RBPF subclass; shared observation_loglik_mc only."""
+def test_single_particle_filter_class_and_one_mc_ll_entrypoint() -> None:
+    """AC: no rung-specific PF subclass; shared observation_loglik_mc only."""
     fn = _resolve_observation_loglik_mc()
     assert fn is not None, "observation_loglik_mc missing"
     assert inspect.isfunction(fn)
     # No F1/F1s specialised particle filters.
-    assert RBPF.__subclasses__() == [], (
-        f"rung-specific RBPF subclasses not allowed: {RBPF.__subclasses__()}"
+    assert ResearchParticleFilter.__subclasses__() == [], (
+        f"rung-specific PF subclasses not allowed: {RPF.__subclasses__()}"
     )
     filter_src = Path(filter_pkg.__file__).resolve().parent
-    banned = ("F1RBPF", "F1sRBPF", "LotResolvedRBPF", "ScenarioRBPF")
+    banned = (
+        "F1ParticleFilter",
+        "F1sParticleFilter",
+        "LotResolvedParticleFilter",
+        "ScenarioParticleFilter",
+    )
     found: list[str] = []
     for path in filter_src.rglob("*.py"):
         text = path.read_text(encoding="utf-8")

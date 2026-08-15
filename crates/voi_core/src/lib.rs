@@ -9,7 +9,7 @@ pub mod exact_ll;
 pub mod obs;
 pub mod physics;
 pub mod policy;
-pub mod rbpf;
+pub mod particle_filter;
 pub mod rollout;
 pub mod schedule;
 pub mod session;
@@ -29,7 +29,7 @@ pub use physics::{
     allocate_sales, death_prob_hazard_product, death_prob_survival_ratio, draw_demand,
     picking_weights, q10_age_increment, weibull_survival,
 };
-pub use rbpf::{exact_wor_loglik, filter_step, systematic_resample, ParticleBank};
+pub use particle_filter::{exact_wor_loglik, filter_step, systematic_resample, ParticleBank};
 pub use rollout::{candidate_orders, rollout_order, terminal_salvage_value};
 pub use session::{handle_rpc, DayDelta, EngineSession};
 pub use shipments::ShipmentTrace;

@@ -27,5 +27,5 @@ STATUS: PASS
 
 ## Notes
 
-- Skip: `tests/test_stage_c_generative.py` optional RBPF-vs-brute auxiliary (documented).
+- Skip: `tests/test_stage_c_generative.py` optional ResearchParticleFilter-vs-brute auxiliary (documented).
 - Claimed QA PASS / review APPROVED for T-018 reconfirmed against live toolchain.

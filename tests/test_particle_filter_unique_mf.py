@@ -1,4 +1,4 @@
-"""T-068 / ADR 0105: unique-MF dedup retired from production ``_rbpf_update``.
+"""T-068 / ADR 0105: unique-MF dedup retired from production ``_pf_update``.
 
 T-064 required unique-particle ``mean_field_update`` dedup on the production path.
 ADR 0105 removes production MF; these guards encode the supersession.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: production RBPF removed", allow_module_level=True)
+pytest.skip("T-121 F3: production particle filter removed", allow_module_level=True)
 
 import ast
 from pathlib import Path
@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import RBPF
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
 from blueberries_voi.model import ModelParams
 
@@ -87,8 +87,8 @@ def test_no_new_runtime_deps() -> None:
     assert names <= _RUNTIME_DEPS_LOCKED
 
 
-def test_rbpf_update_does_not_name_mean_field_update() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_does_not_name_mean_field_update() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     assert "mean_field_update" not in _names_in_function(fn)
 
 
@@ -111,25 +111,29 @@ def test_duplicate_particles_do_not_invoke_mean_field_update(
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
     n_particles, k, n_lots = 6, 4, 2
-    rbpf = RBPF(params=ModelParams(), N=n_particles, K=k, L=n_lots)
+    particle_filter = ResearchParticleFilter(
+        params=ModelParams(), N=n_particles, K=k, L=n_lots
+    )
     rng = np.random.default_rng(42)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
 
     counts_a = np.asarray([5, 5], dtype=int)
     counts_b = np.asarray([4, 6], dtype=int)
     post_a = np.ones((n_lots, k), dtype=float) / k
     post_b = np.asarray([[0.7, 0.1, 0.1, 0.1], [0.1, 0.7, 0.1, 0.1]], dtype=float)
-    rbpf._state.counts[:] = np.vstack(
+    particle_filter._state.counts[:] = np.vstack(
         [counts_a, counts_a, counts_a, counts_b, counts_b, counts_a]
     )
-    rbpf._state.age_post[:] = np.stack(
+    particle_filter._state.age_post[:] = np.stack(
         [post_a, post_a, post_a, post_b, post_b, post_a], axis=0
     )
 
-    rbpf.step(_p1_unobserved_maps(sales_total=4, waste_total=1, arrivals=0), rng)
+    particle_filter.step(
+        _p1_unobserved_maps(sales_total=4, waste_total=1, arrivals=0), rng
+    )
     assert not calls, (
-        "unique-MF dedup is retired: production _rbpf_update must not call "
+        "unique-MF dedup is retired: production _particle_filter_update must not call "
         "mean_field_update (ADR 0105)"
     )
 

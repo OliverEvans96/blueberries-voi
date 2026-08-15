@@ -20,10 +20,10 @@ Focused `npx vitest run src/engine/projector.test.ts`: **18 passed** (heatmap-fr
   - `obs::tests::mask_for_f2_has_maps_age_at_receipt_and_lot_ids` — failing: stub.
   - `obs::tests::apply_p0_omits_waste_never_invents_zero` — failing: `apply` returns `FilterObs::default()` (arrivals 0).
   - `obs::tests::apply_f2_keeps_maps_and_age_at_receipt` — failing: `apply` stub.
-  - `rbpf::tests::filter_step_f2_births_dirac_on_age_at_receipt` — failing: birth τ=0, expected 2.25.
-  - `rbpf::tests::filter_step_f2a_gaussian_birth_mean_calendar_sd_075` — failing: mean 0 not 2, SD 0.
-  - `rbpf::tests::filter_step_p0_birth_not_always_zero` — failing: all births τ=0.
-  - `rbpf::tests::filter_step_lot_map_sales_by_changes_weights_vs_totals` — failing: L1 weight distance 0 (maps ignored).
+  - `particle_filter::tests::filter_step_f2_births_dirac_on_age_at_receipt` — failing: birth τ=0, expected 2.25.
+  - `particle_filter::tests::filter_step_f2a_gaussian_birth_mean_calendar_sd_075` — failing: mean 0 not 2, SD 0.
+  - `particle_filter::tests::filter_step_p0_birth_not_always_zero` — failing: all births τ=0.
+  - `particle_filter::tests::filter_step_lot_map_sales_by_changes_weights_vs_totals` — failing: L1 weight distance 0 (maps ignored).
   - `belief_flat::tests::empty_bank_pads_l_by_k_zero_counts` — failing: stub `L=0` / empty arrays.
   - `belief_flat::tests::weighted_lot_counts_and_age_histogram` — failing: stub flatten.
   - `belief_flat::tests::truncates_or_pads_to_l` — failing: stub flatten.

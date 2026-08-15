@@ -1,4 +1,4 @@
-//! Counts-only RBPF batch step (ADR 0105). Full particle bank stays in-Rust.
+//! Counts-only particle-filter batch step (ADR 0105). Full particle bank stays in-Rust.
 
 use rand::Rng;
 use rand_distr::{Binomial, Distribution, Normal};

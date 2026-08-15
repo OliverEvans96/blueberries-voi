@@ -21,7 +21,7 @@ cd web && npx vitest run src/studioScenarios.test.ts
 | `main.ts` passes staged config to `init`/`reset` | `studioScenarios.test.ts` main.ts source asserts | Still bare `adapter.init()` / `adapter.reset()` |
 | `EngineSession` echoes `obs_scenario` (default P1); invalid raises | `tests/test_t089_studio_obs_scenarios.py` session applied_config / default / reset / reject | `applied_config` omits `obs_scenario`; invalid ids accepted |
 | Session forwards scenario into `advance_day` | `test_engine_session_forwards_obs_scenario_into_advance_day` | Kwarg `MISSING` (not passed) |
-| `advance_day` no `P1Obs`; `mask_for` + `rich_obs_from_day_log` | source AST/import tests + `test_advance_day_*` | Still constructs `P1Obs`; no `obs_scenario` kw; passes `P1Obs` to RBPF |
+| `advance_day` no `P1Obs`; `mask_for` + `rich_obs_from_day_log` | source AST/import tests + `test_advance_day_*` | Still constructs `P1Obs`; no `obs_scenario` kw; passes `P1Obs` to ResearchParticleFilter |
 | Mask observability P0/P1/F1/F1s/F2a/F2; no invented 0/`{}` | interactive mask tests | Fail before masks (missing `obs_scenario`) or still fully observed P1Obs fields |
 | HTTP/Pyodide/mock forward scenario; mock drops P2 | `studioScenarios.test.ts` adapter cases | Mock still has `scenario === "P2"` blur; HTTP/Pyodide already forward config keys when provided (may pass) |
 | SCN-P2 stays Out | Python + vitest SCN-P2 guards | Mostly green (backlog/ADR/mask_for already Out); chip P2 still fails on web |

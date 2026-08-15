@@ -16,7 +16,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from blueberries_voi.filter import RBPF, P1Obs
+from blueberries_voi.filter import P1Obs
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments
@@ -94,20 +95,20 @@ def run_stage_a_scenario(
             spread_scale=spread,
             shipments=ships,
         )
-        rbpf = RBPF(params=p, N=N, K=K, L=L_FILTER)
+        particle_filter = ResearchParticleFilter(params=p, N=N, K=K, L=L_FILTER)
         rng = np.random.default_rng(SEED)
-        rbpf.initialize(rng, L=L_FILTER)
-        assert rbpf._state is not None
-        rbpf._state.age_post[:] = prior[None, None, :]
+        particle_filter.initialize(rng, L=L_FILTER)
+        assert particle_filter._state is not None
+        particle_filter._state.age_post[:] = prior[None, None, :]
         for d in ep.scored:
-            rbpf.step(
+            particle_filter.step(
                 P1Obs(d.sales_total, d.waste_total, d.arrivals),
                 rng,
             )
-            if d.arrivals > 0 and rbpf._state is not None:
-                rbpf._state.age_post[:, -1, :] = prior[None, :]
+            if d.arrivals > 0 and particle_filter._state is not None:
+                particle_filter._state.age_post[:, -1, :] = prior[None, :]
         # Stage A baseline reports age_posterior(0) — oldest fixed slot.
-        post = rbpf.age_posterior(0)
+        post = particle_filter.age_posterior(0)
         l_p50, l_max = _l_stats(ep.scored)
         return post, l_p50, l_max
 
@@ -244,7 +245,7 @@ def write_report(results: list[ScenarioResult]) -> None:
         "",
         "**Metric note:** posterior is `age_posterior(0)` (oldest fixed slot), "
         "same as baseline Stage A. No single-cohort-from-birth API in the "
-        "production RBPF; longer_score only lengthens the observation window.",
+        "prod PF; longer_score only lengthens the observation window.",
         "",
         "| scenario | L p50 | L max | prior_sd | post_sd | "
         "Δ% | contracted? | pass/fail |",
@@ -305,7 +306,7 @@ def write_report(results: list[ScenarioResult]) -> None:
             "dwell (μ=15+S=120 together) and sharper Weibull spoilage (β=4.0); "
             "μ or S alone, fresh-bias sigma, uniform picking, cooler store, and a "
             "longer score window do not clear the 5% bar. When empirical L "
-            "exceeds L_filter=3, the RBPF still reports the oldest fixed slot."
+            "exceeds L_filter=3, the PF still reports the oldest fixed slot."
         )
 
     lines.extend(["", f"Figure directory: `{FIG_DIR}`", ""])

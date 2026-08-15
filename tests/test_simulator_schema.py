@@ -72,7 +72,7 @@ def _fixture_shipments() -> list[ShipmentTrace]:
 
 
 def _golden_config(**overrides: Any) -> dict[str, Any]:
-    """Match README recipe: RBPF-on under DEMO_BUDGETS, L=2, K=4, seed 42."""
+    """Match README recipe: filter-on under DEMO_BUDGETS, L=2, K=4, seed 42."""
     cfg: dict[str, Any] = {
         "shipments": _fixture_shipments(),
         "n_particles": int(DEMO_BUDGETS["n_particles"]),
@@ -177,10 +177,12 @@ def test_fixture_directory_and_readme_document_path() -> None:
     )
     assert _FIXTURE_README.is_file(), (
         "tests/fixtures/simulator/README.md must document path, seed, and "
-        "RBPF-on vs oracle choice"
+        "filter-on vs oracle choice"
     )
     text = _FIXTURE_README.read_text(encoding="utf-8").lower()
-    assert "rbpf" in text, "fixture README must record RBPF-on (or oracle) choice"
+    assert "filter-on" in text, (
+        "fixture README must record filter-on (or oracle) choice"
+    )
 
 
 def test_snapshot_and_day_delta_golden_files_exist() -> None:

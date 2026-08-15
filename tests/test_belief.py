@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: shelf_belief_from_rbpf removed", allow_module_level=True)
+pytest.skip(
+    "T-121 F3: shelf_belief_from_filter_REMOVED removed",
+    allow_module_level=True,
+)
 
 import importlib
 import inspect
@@ -19,8 +22,9 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import PRODUCTION_BACKEND, RBPF, P1Obs
+from blueberries_voi.filter import PRODUCTION_BACKEND, P1Obs
 from blueberries_voi.filter.age_likelihood import survival_weighted_on_hand
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams, weibull_survival
 
@@ -106,20 +110,20 @@ def _flat_prior_expected_survival(params: ModelParams, tau_grid: list[float]) ->
     return float(sum(s) / len(s))
 
 
-def _stepped_production_rbpf(*, seed: int = 11) -> RBPF:
+def _stepped_production_particle_filter(*, seed: int = 11) -> ResearchParticleFilter:
     # ADR 0105: production identity is counts-only arrival-age, not age mean-field.
     assert PRODUCTION_BACKEND != "mean_field"
     params = ModelParams()
-    rbpf = RBPF(params=params, N=40, K=6, L=2)
+    particle_filter = ResearchParticleFilter(params=params, N=40, K=6, L=2)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
-    rbpf.step(P1Obs(sales_total=8, waste_total=1, arrivals=0), rng)
-    return rbpf
+    particle_filter.initialize(rng)
+    particle_filter.step(P1Obs(sales_total=8, waste_total=1, arrivals=0), rng)
+    return particle_filter
 
 
-def _weighted_mean_counts(rbpf: RBPF) -> list[float]:
+def _weighted_mean_counts(particle_filter: ResearchParticleFilter) -> list[float]:
     """Test-only expected counts (weight-averaged particles). Not a CTL path."""
-    state = rbpf._state
+    state = particle_filter._state
     assert state is not None
     w = np.asarray(state.weights, dtype=float)
     counts = np.asarray(state.counts, dtype=float)
@@ -142,15 +146,17 @@ def test_shelf_belief_importable_from_filter_package() -> None:
 def test_shelf_belief_module_exports_factories_and_effective_inventory() -> None:
     for name in (
         "ShelfBelief",
-        "shelf_belief_from_rbpf",
+        "shelf_belief_from_filter_REMOVED",
         "shelf_belief_from_oracle",
         "effective_inventory",
     ):
         _resolve(name)
 
 
-def test_controller_consumers_import_belief_from_filter_not_rbpf_state() -> None:
-    """Controller may import ShelfBelief from filter; must not need RBPF._state."""
+def test_controller_consumers_import_belief_from_filter_not_particle_filter_state() -> (
+    None
+):
+    """Controller may import ShelfBelief from filter; must not need RPF._state."""
     ShelfBelief = _resolve("ShelfBelief")
     import blueberries_voi.controller  # noqa: F401 — package exists for CTL imports
 
@@ -172,26 +178,26 @@ def test_shelf_belief_is_frozen_public_type() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: shelf_belief_from_rbpf → ShelfBelief with (L, K) arrival-prior age rows
+# AC: shelf_belief_from_filter_REMOVED → ShelfBelief with (L, K) arrival-prior age rows
 # (ADR 0106 supersedes ADR 0092 MF-posterior reading; T-069)
 # ---------------------------------------------------------------------------
 
 
-def test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values() -> None:
+def test_shelf_belief_removed_matches_arrival_age_rows_shape_and_values() -> None:
     """Nested (L, K) age_marginals match filter-carried arrival ages (not MF docs)."""
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
-    rbpf = _stepped_production_rbpf()
-    belief = from_rbpf(rbpf)
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
+    particle_filter = _stepped_production_particle_filter()
+    belief = from_particle_filter(particle_filter)
 
     assert type(belief).__name__ == "ShelfBelief"
     margs = _as_nested_floats(belief.age_marginals)
-    L, K = int(rbpf.L), int(rbpf.K)
+    L, K = int(particle_filter.L), int(particle_filter.K)
     assert len(margs) == L
     assert all(len(row) == K for row in margs)
 
     for ell in range(L):
         # age_posterior is the filter-carried arrival-age mass (ADR 0105/0106).
-        post = np.asarray(rbpf.age_posterior(ell), dtype=float)
+        post = np.asarray(particle_filter.age_posterior(ell), dtype=float)
         assert post.shape == (K,)
         np.testing.assert_allclose(margs[ell], post, atol=1e-9, rtol=0.0)
         assert abs(sum(margs[ell]) - 1.0) < 1e-6
@@ -199,32 +205,36 @@ def test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values() -> N
     # Guard supersession: factory docs must not still claim MF posteriors.
     import blueberries_voi.filter.belief as belief_mod
 
-    factory_doc = (inspect.getdoc(belief_mod.shelf_belief_from_rbpf) or "").lower()
+    factory_doc = (
+        inspect.getdoc(belief_mod.shelf_belief_from_filter_REMOVED) or ""
+    ).lower()
     assert "mf" not in factory_doc and "mean-field" not in factory_doc, (
-        "shelf_belief_from_rbpf docstring must not claim MF posteriors (ADR 0106)"
+        "shelf_belief_removed docstring must not claim MF posteriors (ADR 0106)"
     )
     assert any(tok in factory_doc for tok in ("arrival", "birth prior", "prior")), (
-        "shelf_belief_from_rbpf docstring must describe arrival-prior age exports"
+        "shelf_belief_removed docstring must describe arrival-prior age exports"
     )
 
 
-def test_shelf_belief_from_rbpf_lot_counts_match_weight_averaged_particles() -> None:
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
-    rbpf = _stepped_production_rbpf(seed=19)
-    belief = from_rbpf(rbpf)
+def test_shelf_belief_removed_lot_counts_match_weight_averaged_particles() -> None:
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
+    particle_filter = _stepped_production_particle_filter(seed=19)
+    belief = from_particle_filter(particle_filter)
     counts = _as_int_list(belief.lot_counts)
-    expected = _weighted_mean_counts(rbpf)
-    assert len(counts) == rbpf.L
+    expected = _weighted_mean_counts(particle_filter)
+    assert len(counts) == particle_filter.L
     # Counts may be rounded ints or float means; allow either public representation.
     got = [float(x) for x in list(belief.lot_counts)]
     np.testing.assert_allclose(got, expected, atol=1e-6, rtol=0.0)
 
 
-def test_shelf_belief_from_rbpf_requires_initialized_rbpf() -> None:
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
-    rbpf = RBPF(params=ModelParams(), N=10, K=4, L=2)
+def test_shelf_belief_from_filter_REMOVED_requires_initialized_particle_filter() -> (
+    None
+):
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=10, K=4, L=2)
     with pytest.raises((RuntimeError, ValueError)):
-        from_rbpf(rbpf)
+        from_particle_filter(particle_filter)
 
 
 # ---------------------------------------------------------------------------
@@ -232,13 +242,13 @@ def test_shelf_belief_from_rbpf_requires_initialized_rbpf() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_shelf_belief_from_oracle_same_public_fields_as_rbpf() -> None:
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
+def test_shelf_belief_from_oracle_same_public_fields_as_particle_filter() -> None:
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
     from_oracle = _resolve("shelf_belief_from_oracle")
-    rbpf = _stepped_production_rbpf(seed=23)
-    from_filter = from_rbpf(rbpf)
+    particle_filter = _stepped_production_particle_filter(seed=23)
+    from_filter = from_particle_filter(particle_filter)
 
-    grid = [float(x) for x in age_grid(rbpf.K)]
+    grid = [float(x) for x in age_grid(particle_filter.K)]
     # Multi-lot B-state: true counts + ages (point beliefs).
     from_truth = from_oracle(
         lot_counts=[4, 2],
@@ -352,12 +362,14 @@ def test_effective_inventory_rejects_negative_pending_quantities() -> None:
         effective_inventory(belief, pending_orders={1: -3}, params=params)
 
 
-def test_effective_inventory_from_rbpf_preserves_fractional_lot_means() -> None:
+def test_effective_inventory_from_particle_filter_preserves_fractional_lot_means() -> (
+    None
+):
     """MF weight-averaged counts are fractional; do not floor before SW (ADR 0092)."""
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
     effective_inventory = _resolve("effective_inventory")
-    rbpf = _stepped_production_rbpf(seed=11)
-    belief = from_rbpf(rbpf)
+    particle_filter = _stepped_production_particle_filter(seed=11)
+    belief = from_particle_filter(particle_filter)
 
     counts = [float(x) for x in list(belief.lot_counts)]
     assert any(c != float(int(c)) for c in counts), (
@@ -369,14 +381,14 @@ def test_effective_inventory_from_rbpf_preserves_fractional_lot_means() -> None:
     on_hand_float = survival_weighted_on_hand(
         counts,
         marg,
-        params=rbpf.params,
+        params=particle_filter.params,
         tau_grid=grid,
         from_marginals=True,
     )
     on_hand_floored = survival_weighted_on_hand(
         [int(c) for c in counts],
         marg,
-        params=rbpf.params,
+        params=particle_filter.params,
         tau_grid=grid,
         from_marginals=True,
     )
@@ -384,12 +396,12 @@ def test_effective_inventory_from_rbpf_preserves_fractional_lot_means() -> None:
     assert float(on_hand_float) > float(on_hand_floored)
 
     pending: PendingOrders = {1: 5}
-    pipeline_w = _flat_prior_expected_survival(rbpf.params, grid)
+    pipeline_w = _flat_prior_expected_survival(particle_filter.params, grid)
     expected = float(on_hand_float + 5.0 * pipeline_w)
     got = effective_inventory(
         belief,
         pending_orders=pending,
-        params=rbpf.params,
+        params=particle_filter.params,
     )
     assert got == pytest.approx(expected, rel=0.0, abs=1e-9)
     assert got != pytest.approx(
@@ -400,22 +412,22 @@ def test_effective_inventory_from_rbpf_preserves_fractional_lot_means() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: CTL path does not need RBPF._state (factory + effective_inventory only)
+# AC: CTL path does not need RPF._state (factory + effective_inventory only)
 # ---------------------------------------------------------------------------
 
 
-def test_ctl_facing_path_does_not_require_rbpf_underscore_state() -> None:
+def test_ctl_facing_path_does_not_require_particle_filter_underscore_state() -> None:
     """Order-relevant inventory via public factory + effective_inventory only."""
-    from_rbpf = _resolve("shelf_belief_from_rbpf")
+    from_particle_filter = _resolve("shelf_belief_from_filter_REMOVED")
     effective_inventory = _resolve("effective_inventory")
-    rbpf = _stepped_production_rbpf(seed=31)
+    particle_filter = _stepped_production_particle_filter(seed=31)
 
-    # CTL-facing code path (this test body): no attribute access to rbpf._state.
-    belief = from_rbpf(rbpf)
+    # CTL-facing path: no attribute access to particle_filter._state.
+    belief = from_particle_filter(particle_filter)
     inv = effective_inventory(
         belief,
         pending_orders={1: 0},
-        params=rbpf.params,
+        params=particle_filter.params,
     )
     assert isinstance(inv, float)
     assert inv >= 0.0

@@ -47,7 +47,7 @@ uv run pytest tests/test_mc_likelihood.py tests/test_filter.py tests/test_rich_o
 
 | Criterion | Status | Evidence |
 |-----------|--------|----------|
-| Soft powers / Gaussian LL off production `_rbpf_update` / BootstrapPF | OK | `test_mc_likelihood` green |
+| Soft powers / Gaussian LL off production `_particle_filter_update` / BootstrapPF | OK | `test_mc_likelihood` green |
 | Weights from `observation_loglik_mc` + shared kernels | OK | same |
 | Skip `UNOBSERVED`; P0 vs P1 divergence | OK | same + `test_rich_obs` / filter |
 | No Wallenius density in production | OK | AST/source tests in mc_likelihood |

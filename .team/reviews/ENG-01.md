@@ -23,7 +23,7 @@ ENG-01 dual-runtime is **complete pending human merge** to `main`. Agents did
 - [x] **Not** a full WASM A rewrite (Option A out of scope).
 - [x] **Not** JS-only physics / Option B as the production engine.
 - [x] **No** matplotlib / pyarrow in the browser path.
-- [x] **No** production-N-in-tab claim (no production-N / N=2000 RBPF + full
+- [x] **No** production-N-in-tab claim (no production-N / N=2000 ResearchParticleFilter + full
       rollout in-tab without dialed demo budgets).
 - [x] Honesty / cadence ⚑ cards (VOI-02 / X-06) still out.
 

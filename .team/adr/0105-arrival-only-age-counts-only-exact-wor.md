@@ -10,7 +10,7 @@ MILESTONE: Arrival-only count filter
 
 ## Context
 
-Production RBPF (ADR 0091) samples lot counts, scores particles with Monte Carlo
+Production ResearchParticleFilter (ADR 0091) samples lot counts, scores particles with Monte Carlo
 `observation_loglik_mc` (ADR 0087), and updates per-lot arrival-age marginals with
 `mean_field_update` under P1 totals (ADR 0090 / 0103 hot path). Count “dynamics” are a
 ±1 random walk, not `day_step` physics. FIL-11 Stage A evidence showed that under default
@@ -54,7 +54,7 @@ We will:
    count RW).
 6. **Keep diagnostic APIs:** `mean_field_update`, `exact_joint_update`, MC LL, and bakeoff
    backends remain importable for experiments / Stage C history; they are **not** on the
-   production closed-loop path (`RBPF.step` / `_rbpf_update` / day_driver / M2 / VOI CRN).
+   production closed-loop path (`ResearchParticleFilter.step` / `_particle_filter_update` / day_driver / M2 / VOI CRN).
 7. **Supersede production use** of ADRs **0046**, **0047**, **0051**, **0087** (MC as
    production weight default), **0091**, the production MF role of **0090**, **0103**
    (MF hot-path speedup as production strategy), and the **MF-sweep production clause** of
@@ -72,7 +72,7 @@ We will:
   weights must match `allocate_sales`. Multinomial stays ablation-only.
 - **Keep ±1 count RW until a later ticket** — rejected: fake counts poison ShelfBelief /
   VOI; this settle requires physics-consistent count transitions in the same rewrite.
-- **Claim “bootstrap PF is simpler than RBPF” as the rationale** — rejected: the locked
+- **Claim “bootstrap PF is simpler tha particle filter” as the rationale** — rejected: the locked
   reason is dropped in-store age learning, not algorithmic taste.
 
 ## Consequences
@@ -81,7 +81,7 @@ We will:
   vs `S·L·K` MF sweeps) and conceptually honest about what is learned.
 - FIL-11 Stage A docs/harness must stop claiming in-store age contraction for P0/P1/F1;
   success on F2a/F2 is via **priors** (T-069).
-- Guard tests that require `mean_field_update` on `_rbpf_update`, ban
+- Guard tests that require `mean_field_update` on `_particle_filter_update`, ban
   `sequential_wor_pmf` in particle weights, or lock `PRODUCTION_BACKEND == "mean_field"`
   as the age-MF settle must be updated **in T-068** (named supersessions in the spec).
 - Cost: we permanently give up citing in-store age posterior learning from sales/waste on

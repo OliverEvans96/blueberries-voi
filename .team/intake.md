@@ -35,7 +35,7 @@ Tracked in [GitHub issue #1](https://github.com/OliverEvans96/blueberries-voi/is
 
 - Production β grid = 10 values from 1.0 to 4.0 inclusive (linspace); CI smoke uses `{1.0, 2.0}`
 - Reuse M2 multi-scenario `ProfitCosts(unit_margin=2.0, waste_cost=1.5, stockout_penalty=3.0)`
-- Wire all ADR 0096 columns through CRN cell; lot-resolved masks use existing `mask_for` + RBPF
+- Wire all ADR 0096 columns through CRN cell; lot-resolved masks use existing `mask_for` + ResearchParticleFilter
 
 ---
 

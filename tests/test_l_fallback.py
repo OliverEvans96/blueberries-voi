@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF L-fallback removed",
+    "T-121 F3: ADR 0127 Wave F supersession — prod PF L-fallback removed",
     allow_module_level=True,
 )
 
@@ -16,7 +16,7 @@ import importlib
 import re
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 import pytest
@@ -53,7 +53,7 @@ def _load_attr(*module_names: str, attr: str) -> Any | None:
 def _resolve_choose_backend() -> Any:
     fn = _load_attr(
         "blueberries_voi.filter",
-        "blueberries_voi.filter.rbpf",
+        "blueberries_voi.filter.constants",
         "blueberries_voi.filter.types",
         "blueberries_voi.filter.l_fallback",
         attr="choose_backend",
@@ -65,7 +65,7 @@ def _resolve_choose_backend() -> Any:
 def _resolve_backend_choice_type() -> Any:
     cls = _load_attr(
         "blueberries_voi.filter",
-        "blueberries_voi.filter.rbpf",
+        "blueberries_voi.filter.constants",
         "blueberries_voi.filter.types",
         "blueberries_voi.filter.l_fallback",
         attr="BackendChoice",
@@ -83,14 +83,14 @@ def _choice_field(choice: Any, name: str) -> Any:
     raise AssertionError(msg)
 
 
-def _rbpf_backend_choice(rbpf: RBPF) -> Any:
+def _particle_filter_backend_choice(particle_filter: ResearchParticleFilter) -> Any:
     for attr in ("backend_choice", "last_backend_choice"):
-        if hasattr(rbpf, attr):
-            value = getattr(rbpf, attr)
+        if hasattr(particle_filter, attr):
+            value = getattr(particle_filter, attr)
             if value is not None:
                 return value
     msg = (
-        "RBPF must expose BackendChoice via backend_choice / "
+        "particle filter must expose BackendChoice via backend_choice / "
         "last_backend_choice after construct or initialize"
     )
     raise AssertionError(msg)
@@ -167,9 +167,9 @@ def test_choose_backend_never_silently_truncates_l() -> None:
     )
 
 
-def test_rbpf_within_budget_uses_production_backend() -> None:
+def test_particle_filter_within_budget_uses_production_backend() -> None:
     try:
-        rbpf = RBPF(
+        particle_filter = ResearchParticleFilter(
             params=ModelParams(),
             K=_PROD_K,
             N=200,
@@ -177,17 +177,19 @@ def test_rbpf_within_budget_uses_production_backend() -> None:
         )
     except MemoryError as exc:
         raise AssertionError(
-            "within-budget RBPF must construct without MemoryError"
+            "within-budget particle filter must construct without MemoryError"
         ) from exc
-    choice = _rbpf_backend_choice(rbpf)
+    choice = _particle_filter_backend_choice(particle_filter)
     _assert_production_backend(_choice_field(choice, "backend"))
-    assert rbpf.L == 3
-    assert getattr(rbpf._backend, "name", None) == filter_pkg.PRODUCTION_BACKEND
+    assert particle_filter.L == 3
+    assert (
+        getattr(particle_filter._backend, "name", None) == filter_pkg.PRODUCTION_BACKEND
+    )
 
 
-def test_rbpf_over_budget_uses_production_without_memory_error() -> None:
+def test_particle_filter_over_budget_uses_production_without_memory_error() -> None:
     try:
-        rbpf = RBPF(
+        particle_filter = ResearchParticleFilter(
             params=ModelParams(),
             K=_PROD_K,
             N=_PROD_N,
@@ -197,25 +199,29 @@ def test_rbpf_over_budget_uses_production_without_memory_error() -> None:
         raise AssertionError(
             "over-budget L must select production backend, not raise MemoryError"
         ) from exc
-    choice = _rbpf_backend_choice(rbpf)
+    choice = _particle_filter_backend_choice(particle_filter)
     _assert_production_backend(_choice_field(choice, "backend"))
-    assert rbpf.L == _L_LONG_DWELL
-    backend = getattr(rbpf, "_backend", None)
+    assert particle_filter.L == _L_LONG_DWELL
+    backend = getattr(particle_filter, "_backend", None)
     assert getattr(backend, "name", None) == filter_pkg.PRODUCTION_BACKEND
 
 
-def test_rbpf_initialize_over_budget_preserves_l_and_uses_production() -> None:
-    rbpf = RBPF(params=ModelParams(), K=_PROD_K, N=_PROD_N, L=3)
+def test_particle_filter_initialize_over_budget_preserves_l_and_uses_production() -> (
+    None
+):
+    particle_filter = ResearchParticleFilter(
+        params=ModelParams(), K=_PROD_K, N=_PROD_N, L=3
+    )
     assert joint_state_count(_PROD_K, 3, _PROD_N) <= MAX_JOINT_FLOATS
     assert joint_state_count(_PROD_K, _L_OVER, _PROD_N) > MAX_JOINT_FLOATS
     try:
-        rbpf.initialize(np.random.default_rng(0), L=_L_OVER)
+        particle_filter.initialize(np.random.default_rng(0), L=_L_OVER)
     except MemoryError as exc:
         raise AssertionError(
             "initialize with over-budget L must use production, not MemoryError"
         ) from exc
-    assert rbpf.L == _L_OVER
-    choice = _rbpf_backend_choice(rbpf)
+    assert particle_filter.L == _L_OVER
+    choice = _particle_filter_backend_choice(particle_filter)
     _assert_production_backend(_choice_field(choice, "backend"))
     assert _choice_field(choice, "L") == _L_OVER
 
@@ -224,7 +230,7 @@ def test_dynamic_l_follows_configured_max_with_production() -> None:
     configured_l = 4
     assert joint_state_count(_PROD_K, configured_l, 200) <= MAX_JOINT_FLOATS
     try:
-        rbpf = RBPF(
+        particle_filter = ResearchParticleFilter(
             params=ModelParams(),
             K=_PROD_K,
             N=200,
@@ -232,11 +238,11 @@ def test_dynamic_l_follows_configured_max_with_production() -> None:
         )
     except MemoryError as exc:
         raise AssertionError("configured L must not MemoryError") from exc
-    assert configured_l == rbpf.L
-    choice = _rbpf_backend_choice(rbpf)
+    assert configured_l == particle_filter.L
+    choice = _particle_filter_backend_choice(particle_filter)
     _assert_production_backend(_choice_field(choice, "backend"))
     assert _choice_field(choice, "L") == configured_l
-    assert rbpf.L != 3 or configured_l == 3
+    assert particle_filter.L != 3 or configured_l == 3
 
 
 def test_production_default_is_not_age_mean_field() -> None:

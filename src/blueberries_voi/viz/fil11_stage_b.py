@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF, P1Obs
-from blueberries_voi.filter.rbpf import PRODUCTION_K, PRODUCTION_L, PRODUCTION_N
+from blueberries_voi.filter import P1Obs
+from blueberries_voi.filter.constants import PRODUCTION_K, PRODUCTION_L, PRODUCTION_N
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments
@@ -71,17 +72,17 @@ def run_fil11_stage_b(
             n_score=n_score,
             shipments=ships,
         )
-        rbpf = RBPF(params=p, N=n_particles, K=K, L=L)
+        particle_filter = ResearchParticleFilter(params=p, N=n_particles, K=K, L=L)
         rng = np.random.default_rng(100 + rep)
-        rbpf.initialize(rng, L=L)
+        particle_filter.initialize(rng, L=L)
         true_age: float | None = None
         for d in ep.scored:
             if d.lots:
                 # Youngest lot current tau (proxy for tracked cohort age).
                 true_age = d.lots[-1].tau
-            rbpf.step(P1Obs(d.sales_total, d.waste_total, d.arrivals), rng)
+            particle_filter.step(P1Obs(d.sales_total, d.waste_total, d.arrivals), rng)
         # Prefer last slot (youngest) when available.
-        post = rbpf.age_posterior(min(L - 1, rbpf.L - 1))
+        post = particle_filter.age_posterior(min(L - 1, particle_filter.L - 1))
         cdf = np.cumsum(post)
         lo = float(grid[int(np.searchsorted(cdf, 0.05))])
         hi = float(grid[min(len(grid) - 1, int(np.searchsorted(cdf, 0.95)))])

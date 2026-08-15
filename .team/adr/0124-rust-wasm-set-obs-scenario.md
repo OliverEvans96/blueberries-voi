@@ -19,7 +19,7 @@ We will:
    gap-only catch-up, CRN keyed by seed and day.
 2. Forward RPC method `set_obs_scenario` through wasm-bindgen `handle_rpc`,
    the wasm worker, `WasmAdapter`, and PyO3 `PyEngineSession`.
-3. Keep class name `RBPF` on the Python side. Rust keeps `ParticleBank`.
+3. Keep class name `ResearchParticleFilter` on the Python side. Rust keeps `ParticleBank`.
 4. Apply the 90-day refuse on the mock adapter so all studio hosts share the
    T-112 horizon.
 

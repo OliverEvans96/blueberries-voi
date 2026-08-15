@@ -12,7 +12,7 @@ Browser A′ itself stays on the [backlog](../backlog.md) until ENG-01 (ADR 0073
 ## Do
 
 1. **Keep `controller/` a pure library.** Policies and rollout take belief + params + RNG (+ optional compute budget) and return order quantities / small result dicts. No matplotlib, no parquet/pyarrow, no repo-relative paths, no writing figures or experiment markdown.
-2. **Public belief in, JSON-friendly out.** Do not have policies reach into `RBPF._state`. Consume an explicit belief/export type that can be built from the filter *or* an oracle, and that round-trips through lists/floats (worker `postMessage` / `pyodide.FFI` later).
+2. **Public belief in, JSON-friendly out.** Do not have policies reach into `ResearchParticleFilter._state`. Consume an explicit belief/export type that can be built from the filter *or* an oracle, and that round-trips through lists/floats (worker `postMessage` / `pyodide.FFI` later).
 3. **Expose compute budgets as first-class knobs** on rollout / candidate evaluation (`n_rollout_paths`, `H`, particle or sample count used inside rollouts, candidate set size). Desktop experiments use full budgets; a future browser demo dials them down without a second API.
 4. **Use existing CRN (`rng.spawn_rng` + named streams).** Add CTL stream constants in `rng.py` as needed. Avoid unseeded global RNG — workers and tests both need bit-stable addressing.
 5. **One physics path.** Rollout forward steps call the same `model.day_step` / sim arrival hooks as closed-loop evaluation. No shadow dynamics that would have to be re-ported for WASM.

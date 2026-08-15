@@ -26,7 +26,7 @@
 - **Park** joint / coarse-joint machinery pressure from **FIL-12 / FIL-13** (treat FIL-13 option **B — mean-field** as the intended production path for age belief, not full joint).
 - ~~⚑ Do not flip ADR 0049 (FIL-04) or ADR 0057 (FIL-12) until Oliver confirms.~~ **Confirmed** via ADR 0091 (see §6 settle addendum).
 
-Production soft `_rbpf_update` was **not** changed in the evidence ticket; Stage C is a fixed-count posterior comparison under a named shared likelihood, not a full RBPF bakeoff. Production wiring is T-021.
+Production soft `_particle_filter_update` was **not** changed in the evidence ticket; Stage C is a fixed-count posterior comparison under a named shared likelihood, not a full ResearchParticleFilter bakeoff. Production wiring is T-021.
 
 ---
 
@@ -38,8 +38,8 @@ Earlier soft `sales_pow` / `waste_pow` Gaussian stubs made “TV vs exact” **t
 
 **This is not:**
 
-- A full RBPF-vs-RBPF bakeoff
-- A claim that production RBPF already uses mean-field
+- A full ResearchParticleFilter-vs-ResearchParticleFilter bakeoff
+- A claim that production particle filter already uses mean-field
 - A flip of ⚑ board ADRs
 
 **This is:** exact joint vs mean-field **induced joint**, on **fixed count paths**, under one shared likelihood — isolating **factorisation risk**.
@@ -67,7 +67,7 @@ Induced joint for comparison: `∏_ℓ q_ℓ` from MF marginals, compared to the
 | **0** (pytest) | Hand-grid / unit checks in `tests/test_age_likelihood.py` (e.g. `L=2,K=2` exact posterior TV ≈ 0); not re-tabulated in the experiment note |
 | **1** | One-step synthetic cases (`L∈{2,3}`, `K=6`): balanced mild σ, age-gap LIFO, near-dead cohort, large waste, weak info, L=3 P1 base, L=3 LIFO+rich stress |
 | **2** | Multi-day open-loop sim count path (`L=3`, `K=6`, `σ=0.5`, `T≈12`); carry exact + MF posteriors as next priors with discrete age shift |
-| **3** | Frozen RBPF-style count trajectory replay (`N=32` RBPF for counts only; joint/MF updates still via Stage C APIs) — see caveat in §5 |
+| **3** | Frozen particle-filter-style count trajectory replay (`N=32` ResearchParticleFilter for counts only; joint/MF updates still via Stage C APIs) — see caveat in §5 |
 | **4** | Decision metric embedded in every case: survival-weighted on-hand relative delta `|E_exact − E_MF| / stock`; myopic order agree on grid `{0, 8, 16, 24}` |
 
 Runner: `uv run python experiments/fil11_stage_c_mf.py`.
@@ -139,7 +139,7 @@ Mean marginal TV stays ~**0.005–0.006** across the three σ values; factorisat
 
 Joint TV **shrinks** over the mild path (0.05 → 0 by t10); action agree remains **True** throughout. (Only even-day / retained rows appear in the note; skipped infeasible `(n,y)` steps are not listed.)
 
-### 4.5 Stage 3 — frozen RBPF count path replay
+### 4.5 Stage 3 — frozen particle filter count path replay
 
 | case | L | K | sigma | joint TV | marg TV max | marg KL max | max MI | SW rel delta | action agree |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -175,7 +175,7 @@ Embedded in every row:
 
 **Stage 3 accumulation caveat:** the particle-path replay **does** show growing joint/marginal TV over time. Treat this as a **diagnostic**, not a freeze-gate failure:
 
-1. Counts come from a production-style RBPF shell, but observations are a **scripted** sales/waste schedule (not the same open-loop sim law as Stage 2).
+1. Counts come from a production-style ResearchParticleFilter shell, but observations are a **scripted** sales/waste schedule (not the same open-loop sim law as Stage 2).
 2. Exact and MF priors are each carried forward independently; small factorisation errors can **compound** without the Stage 2-style sim feedback that drove beliefs toward agreement.
 3. Even at the worst listed Stage 3 step, action still agrees and SW rel delta stays ~**0.6%** of stock.
 
@@ -194,7 +194,7 @@ So: Stage 3 warns that long MF-only rollouts under mismatched obs may drift in j
 
 ### What not to claim
 
-- That production `_rbpf_update` already implements `sequential_wor_pmf` or mean-field (it does **not**; soft stub untouched).
+- That production `_particle_filter_update` already implements `sequential_wor_pmf` or mean-field (it does **not**; soft stub untouched).
 - That Stage C is a full particle-filter accuracy bakeoff (fixed-count joint vs MF only).
 - That joint TV is always small (stress and Stage 3 show otherwise) — only that **gates + decisions** pass on the defined base/mild set.
 - That VOI / multi-step planning is proven insensitive to residual MI (only myopic order on a coarse grid was checked).
@@ -202,7 +202,7 @@ So: Stage 3 warns that long MF-only rollouts under mismatched obs may drift in j
 
 ### Follow-ons (out of this ticket)
 
-- Wire `sequential_wor_pmf` + MF into production RBPF under a later ticket after board settle.
+- Wire `sequential_wor_pmf` + MF into production particle filter under a later ticket after board settle.
 - If belief-sensitive VOI later fails under MF, revisit sliding window / joint with a new ADR — Stage 3 drift is a reason to watch, not to reverse the current gate PASS.
 
 ### Settle addendum (2026-08-12) — confirmed
@@ -213,7 +213,7 @@ Oliver confirmed the §6 settle via ADR [0091](../adr/0091-fil13-production-mean
 - **FIL-13 production = B (`mean_field`)**; ADR 0082 / 0089 production defaults superseded.
 - **FIL-12** (ADR 0057) marked **historical** (joint pressure parked).
 
-Wiring of production RBPF is [T-021](../specs/T-021.md). Claims above that ADR 0049 / 0057 were “not flipped” apply to the *evidence-only* phase of this report; they are settled afterward by 0091.
+Wiring of production particle filter is [T-021](../specs/T-021.md). Claims above that ADR 0049 / 0057 were “not flipped” apply to the *evidence-only* phase of this report; they are settled afterward by 0091.
 
 ---
 

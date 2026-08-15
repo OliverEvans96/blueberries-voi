@@ -2,7 +2,7 @@
 
 | Python | Rust |
 | --- | --- |
-| test_age_likelihood / arrival_only (LL + weights) | exact_ll.rs, rbpf.rs filter_step |
+| test_age_likelihood / arrival_only (LL + weights) | exact_ll.rs, particle_filter.rs filter_step |
 | test_rollout.py (candidates, salvage empty, H<=0, case multiple) | rollout.rs |
 | test_closed_loop_episode.py (n_burn, scored slice) | episode.rs |
 | test_voi_crn.py | voi.rs |

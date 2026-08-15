@@ -71,7 +71,7 @@ uv run pytest tests/test_t071_demo_hydrate_edges.py \
 - Studio vitest / `studioAdapter` default wasm — `qa-studio` shard.
 - `tests/test_t097_act_damped_sw.py` API section removal — separate shard.
 - Live browser smoke or `npm test` — verify / human ship steps.
-- Python RBPF richest-log / per-rung cache internals — superseded by T-121 Wave F
+- Python ResearchParticleFilter richest-log / per-rung cache internals — superseded by T-121 Wave F
   Rust session; not re-tested here.
 
 ## RED summary (2026-08-15)
@@ -87,5 +87,5 @@ retired paths):
 | `test_blueberries_voi_api_not_importable` (t113) | API package importable |
 
 Removed from migrated tests (no longer asserted here): FastAPI init/reset
-hydrate, `session_rpc.handle_rpc`, pyodide worker source grep, Python RBPF
+hydrate, `session_rpc.handle_rpc`, pyodide worker source grep, Python ResearchParticleFilter
 richest-log catch-up (T-121 F3).

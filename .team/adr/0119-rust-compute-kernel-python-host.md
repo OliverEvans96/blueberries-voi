@@ -26,7 +26,7 @@ That kernel lives in Rust `voi_core`; Python implementations stay in-tree.
 1. **Python remains the host** (notebooks, CLI, FastAPI, Abdella I/O, viz, sweep orchestration)
    and the **citeable VOI path** until a later ADR accepts Rust RNG as production.
 2. **Rust `crates/voi_core` is the compute kernel** (physics, sequential-WOR DP, day/episode
-   loops, RBPF counts-only, EngineSession). One crate; no second physics copy for the browser.
+   loops, ResearchParticleFilter counts-only, EngineSession). One crate; no second physics copy for the browser.
 3. **Do not delete** existing Python modules. Opt-in `BLUEBERRIES_VOI_BACKEND=python|rust`
    (default `python` until golden tests and benches land).
 4. **Do not** compile PyO3 for Pyodide (`wasm32-unknown-emscripten`). Browser path is

@@ -48,7 +48,7 @@
 | Static matplotlib VOI figure under `figures/m3/` (ENG-03=A) | Plotly / interactive embeds; browser packaging |
 | ENG-04-style gate: at β=1, VOI vs P0 ≈ 0 within CI smoke tolerance | New runtime deps without ADR; reopen ⚑ without Oliver |
 
-**Policy under each rung:** age-aware **SW + one-step rollout** consuming the belief that rung allows (P1/F* → RBPF+mask; P0 → RBPF with P0 mask; B-state → oracle `ShelfBelief`). Rung 0 / constant-order are **not** VOI columns (ladder already covered in M2).
+**Policy under each rung:** age-aware **SW + one-step rollout** consuming the belief that rung allows (P1/F* → ResearchParticleFilter+mask; P0 → ResearchParticleFilter with P0 mask; B-state → oracle `ShelfBelief`). Rung 0 / constant-order are **not** VOI columns (ladder already covered in M2).
 
 ---
 

@@ -7,7 +7,7 @@ MILESTONE: M1.5 — filter complete across data-availability rungs
 
 ## Context
 
-M1’s `_rbpf_update` scores particles with soft powers on picking/death probabilities plus Gaussian
+M1’s `_particle_filter_update` scores particles with soft powers on picking/death probabilities plus Gaussian
 match terms on sales/waste totals. That is not the law of MOD-08 Wallenius allocation or MOD-04
 binomial deaths. Stage C’s TV-vs-exact check used the same soft likelihood, so TV≈0 was tautological.
 FIL-10=A already chose bootstrap proposal specifically so we never need a Wallenius *density*.

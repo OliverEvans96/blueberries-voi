@@ -34,7 +34,7 @@ non-citeable stub markers; this ticket also corrects hygiene only.
 
 - Case-round unification (T-042)
 - Abdella defaults, `DEFAULT_PROFIT_COSTS`, VOI α-table gate (T-043)
-- Fixing RBPF count ±1 random walk or replacing stub backends with real joint/window filters
+- Fixing ResearchParticleFilter count ±1 random walk or replacing stub backends with real joint/window filters
 - M3 compute-reduction work / production VOI wall-clock
 - Remainder report (Phase 4 on the integration tip)
 
