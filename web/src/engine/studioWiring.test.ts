@@ -1,5 +1,5 @@
 /**
- * T-057 RED: wire D3 studio — prod=PyodideAdapter, dev=HttpAdapter;
+ * T-057 RED: wire D3 studio — prod=PyodideAdapter;
  * fake generate.ts physics off the default path; setEconomics stays local.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -7,7 +7,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EngineAdapter } from "./adapter";
-import { HttpAdapter } from "./httpAdapter";
 import { MockAdapter } from "../mock/adapter";
 import { PyodideAdapter } from "./pyodideAdapter";
 import { WasmAdapter } from "./wasmAdapter";
@@ -78,7 +77,6 @@ const DEV_ENV: StudioEnv = {
   MODE: "development",
   DEV: true,
   PROD: false,
-  VITE_ENGINE_API_BASE_URL: "http://127.0.0.1:8000",
 };
 
 const PROD_ENV: StudioEnv = {
@@ -90,7 +88,7 @@ const PROD_ENV: StudioEnv = {
     "https://example.test/blueberries_voi-0.1.0-py3-none-any.whl",
 };
 
-describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
+describe("T-057 studio adapter selection (dev=Pyodide, prod=Pyodide)", () => {
   beforeEach(() => {
     installFakeWorker();
   });
@@ -99,8 +97,8 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     vi.restoreAllMocks();
   });
 
-  it("dev build with API base URL resolves to HttpAdapter kind", () => {
-    expect(resolveStudioAdapterKind(DEV_ENV)).toBe("http");
+  it("dev build without override resolves to PyodideAdapter kind", () => {
+    expect(resolveStudioAdapterKind(DEV_ENV)).toBe("pyodide");
   });
 
   it("prod/demo build resolves to PyodideAdapter kind", () => {
@@ -141,25 +139,14 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     expect(urlStr).not.toMatch(/github\.com\/oliver/);
   });
 
-  it("explicit VITE_ENGINE_ADAPTER=http selects http", () => {
-    expect(
-      resolveStudioAdapterKind({
-        ...PROD_ENV,
-        VITE_ENGINE_ADAPTER: "http",
-        VITE_ENGINE_API_BASE_URL: "http://127.0.0.1:8000",
-      }),
-    ).toBe("http");
-  });
-
-  it("createStudioAdapter builds HttpAdapter for dev/http kind", () => {
+  it("createStudioAdapter builds PyodideAdapter for dev/pyodide kind", () => {
     const adapter = createStudioAdapter({
       env: DEV_ENV,
-      baseUrl: DEV_ENV.VITE_ENGINE_API_BASE_URL,
-      fetch: vi.fn() as unknown as typeof fetch,
+      workerUrl: "/packaging/pyodide/worker.js",
+      wheelUrl: "https://example.test/pkg.whl",
     });
-    expect(adapter).toBeInstanceOf(HttpAdapter);
-    expect(typeof (adapter as EngineAdapter).init).toBe("function");
-    expect(typeof (adapter as EngineAdapter).step).toBe("function");
+    expect(adapter).toBeInstanceOf(PyodideAdapter);
+    expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
   });
 
   it("createStudioAdapter builds PyodideAdapter for prod/pyodide kind", () => {
@@ -189,14 +176,12 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     expect(src).not.toMatch(/const\s+adapter\s*=\s*new\s+MockAdapter\s*\(/);
   });
 
-  it("react/studioLogic.ts imports HttpAdapter and PyodideAdapter selection (or studioAdapter helper)", () => {
+  it("react/studioLogic.ts imports adapter selection via studioAdapter helper", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     const usesHelper = /from\s+["'](\.\.\/|\.\/)engine\/studioAdapter["']/.test(src);
-    const importsBoth =
-      /HttpAdapter/.test(src) && /PyodideAdapter/.test(src);
     expect(
-      usesHelper || importsBoth,
-      "main must select adapters via studioAdapter helper or direct Http/Pyodide imports",
+      usesHelper,
+      "main must select adapters via studioAdapter helper",
     ).toBe(true);
   });
 
@@ -254,10 +239,11 @@ describe("T-057 default path leaves fake generate.ts physics", () => {
 
       const dev = createStudioAdapter({
         env: DEV_ENV,
-        baseUrl: DEV_ENV.VITE_ENGINE_API_BASE_URL,
-        fetch: vi.fn() as unknown as typeof fetch,
+        workerUrl: "/packaging/pyodide/worker.js",
+        wheelUrl: "https://example.test/pkg.whl",
       });
       expect(dev).not.toBeInstanceOf(MockAdapter);
+      expect(dev).toBeInstanceOf(PyodideAdapter);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -273,7 +259,6 @@ describe("T-057 default path leaves fake generate.ts physics", () => {
     expect(src).not.toMatch(/stepSimulation/);
     expect(src).not.toMatch(/createInitialState/);
     // Default path must construct real adapters (imports, not comments alone).
-    expect(src).toMatch(/from\s+["']\.\/httpAdapter["']/);
     expect(src).toMatch(/from\s+["']\.\/pyodideAdapter["']/);
   });
 });
@@ -310,7 +295,6 @@ describe("T-057 smoke checklist recorded", () => {
       "expected .team/qa/T-057-smoke.md (or mockup README) documenting adapter smoke",
     ).toBeTruthy();
     const text = readFileSync(hit!, "utf8");
-    expect(text).toMatch(/HttpAdapter|http/i);
     expect(text).toMatch(/PyodideAdapter|pyodide/i);
     expect(text).toMatch(/smoke|checklist|pass\s*\/\s*fail/i);
   });
