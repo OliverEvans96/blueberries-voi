@@ -24,19 +24,19 @@ describe("Store chart-stack missed sales (T-116)", () => {
   const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
 
   it("chart-stack order: Units sold, sales, Missed sales, stockout, Lots, history, Units spoiled, spoil", () => {
-    const stack = layoutSrc.match(
-      /className="chart-stack">([\s\S]*?)<\/section>/,
+    const storeSection = layoutSrc.match(
+      /id="linked-charts">([\s\S]*?)<\/main>/,
     )?.[1];
-    expect(stack, "expected .chart-stack markup in StudioLayout.tsx").toBeDefined();
+    expect(storeSection, "expected #linked-charts section in StudioLayout.tsx").toBeDefined();
 
-    const sold = stack!.indexOf("Units sold");
-    const salesId = stack!.indexOf('id="chart-sales"');
-    const missed = stack!.indexOf("Missed sales");
-    const stockoutId = stack!.indexOf('id="chart-stockout"');
-    const lots = stack!.indexOf("Lots");
-    const historyId = stack!.indexOf('id="chart-history"');
-    const spoiled = stack!.indexOf("Units spoiled");
-    const spoilId = stack!.indexOf('id="chart-spoil"');
+    const sold = storeSection!.indexOf("Units sold");
+    const salesId = storeSection!.indexOf('id="chart-sales"');
+    const missed = storeSection!.indexOf("Missed sales");
+    const stockoutId = storeSection!.indexOf('id="chart-stockout"');
+    const lots = storeSection!.indexOf("Lots · day × age");
+    const historyId = storeSection!.indexOf('id="chart-history"');
+    const spoiled = storeSection!.indexOf("Units spoiled");
+    const spoilId = storeSection!.indexOf('id="chart-spoil"');
 
     expect(sold).toBeGreaterThanOrEqual(0);
     expect(salesId).toBeGreaterThan(sold);

@@ -232,7 +232,7 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
   it("onSetObsScenario uses patchEngineState (not applySnapshot) so wasm empty history does not wipe the episode", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     const handler = src.match(
-      /async onSetObsScenario\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/,
+      /onSetObsScenario\s*=\s*async\s*\([^)]*\)\s*=>\s*\{[\s\S]*?\n\s*\};/,
     );
     expect(handler, "expected onSetObsScenario handler in react/studioLogic.ts").toBeTruthy();
     const body = handler![0]!;

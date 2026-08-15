@@ -63,6 +63,7 @@ import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth, truthLots } from "../showTruth";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
+import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
 import { DecisionRail } from "./DecisionRail";
@@ -205,13 +206,20 @@ export function initStudio(app: HTMLElement): () => void {
   };
 
   const insightStripHost = document.querySelector("#insight-strip-host");
+  const chapterTabsHost = document.querySelector("#chapter-tabs-host");
   const decisionRailHost = document.querySelector("#decision-rail-host");
-  const dayInspectorHost = document.querySelector("#day-inspector-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
+  const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
-  const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
+  let dayInspectorPortal = document.getElementById("day-inspector-portal");
+  if (!dayInspectorPortal) {
+    dayInspectorPortal = document.createElement("div");
+    dayInspectorPortal.id = "day-inspector-portal";
+    document.body.appendChild(dayInspectorPortal);
+  }
+  const dayInspectorRoot = createRoot(dayInspectorPortal);
   let spoilageUnavailableRoot: Root | null = null;
 
   function renderInsightStrip(): void {
@@ -222,9 +230,18 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderDayInspector(): void {
-    if (!dayInspectorRoot) return;
     dayInspectorRoot.render(
       createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+    );
+  }
+
+  function renderChapterTabs(): void {
+    if (!chapterTabsRoot) return;
+    chapterTabsRoot.render(
+      createElement(ChapterTabs, {
+        activeSection,
+        onSelectSection: setSection,
+      }),
     );
   }
 
@@ -432,9 +449,7 @@ export function initStudio(app: HTMLElement): () => void {
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
-    document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.section === id);
-    });
+    renderChapterTabs();
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
@@ -459,6 +474,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderChrome();
     renderActiveFocusPlots();
     renderInsightStrip();
+    renderChapterTabs();
     renderDayInspector();
     renderDecisionRailChrome();
     orderQty = snapOrder(orderQty);
@@ -643,44 +659,8 @@ export function initStudio(app: HTMLElement): () => void {
           syncAutopilotChrome();
         }
       },
-      async onSetObsScenario(id: ScenarioId) {
-        const setObs =
-          adapter.setObsScenario?.bind(adapter) ??
-          adapter.set_obs_scenario?.bind(adapter);
-        if (typeof setObs !== "function") {
-          vm = projector.setConfig({ obs_scenario: id });
-          sectionControlsApi.update(controlsState());
-          renderAll();
-          return;
-        }
-        const resumeAfter = autopilot.isRunning();
-        if (resumeAfter) {
-          autopilot.pause();
-          syncAutopilotChrome();
-        }
-        catchingUp = true;
-        sectionControlsApi.update(controlsState());
-        renderDecisionRailChrome();
-        try {
-          const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-          vm = projector.patchEngineState(snap);
-          projector.setConfig({ obs_scenario: id });
-          renderAll();
-        } catch (err) {
-          reportStudioAdapterError(
-            `set_obs_scenario failed: ${formatAdapterError(err)}`,
-            undefined,
-            err,
-          );
-        } finally {
-          catchingUp = false;
-          sectionControlsApi.update(controlsState());
-          renderDecisionRailChrome();
-          if (resumeAfter) {
-            autopilot.play();
-            syncAutopilotChrome();
-          }
-        }
+      onSetObsScenario: (id) => {
+        void railHandlers.onSetObsScenario(id);
       },
       onControllerChange(partial: Partial<ControllerControlsState>) {
         controllerState = { ...controllerState, ...partial };
@@ -706,46 +686,44 @@ export function initStudio(app: HTMLElement): () => void {
   railHandlers.onAutopilotPause = () => {
     els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-pause")?.click();
   };
-  railHandlers.onSetObsScenario = (id) => {
-    void (async () => {
-      const setObs =
-        adapter.setObsScenario?.bind(adapter) ??
-        adapter.set_obs_scenario?.bind(adapter);
-      if (typeof setObs !== "function") {
-        vm = projector.setConfig({ obs_scenario: id });
-        sectionControlsApi.update(controlsState());
-        renderAll();
-        return;
-      }
-      const resumeAfter = autopilot.isRunning();
-      if (resumeAfter) {
-        autopilot.pause();
-        syncAutopilotChrome();
-      }
-      catchingUp = true;
+  railHandlers.onSetObsScenario = async (id: ScenarioId) => {
+    const setObs =
+      adapter.setObsScenario?.bind(adapter) ??
+      adapter.set_obs_scenario?.bind(adapter);
+    if (typeof setObs !== "function") {
+      vm = projector.setConfig({ obs_scenario: id });
+      sectionControlsApi.update(controlsState());
+      renderAll();
+      return;
+    }
+    const resumeAfter = autopilot.isRunning();
+    if (resumeAfter) {
+      autopilot.pause();
+      syncAutopilotChrome();
+    }
+    catchingUp = true;
+    sectionControlsApi.update(controlsState());
+    renderDecisionRailChrome();
+    try {
+      const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+      vm = projector.patchEngineState(snap);
+      projector.setConfig({ obs_scenario: id });
+      renderAll();
+    } catch (err) {
+      reportStudioAdapterError(
+        `set_obs_scenario failed: ${formatAdapterError(err)}`,
+        undefined,
+        err,
+      );
+    } finally {
+      catchingUp = false;
       sectionControlsApi.update(controlsState());
       renderDecisionRailChrome();
-      try {
-        const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-        vm = projector.patchEngineState(snap);
-        projector.setConfig({ obs_scenario: id });
-        renderAll();
-      } catch (err) {
-        reportStudioAdapterError(
-          `set_obs_scenario failed: ${formatAdapterError(err)}`,
-          undefined,
-          err,
-        );
-      } finally {
-        catchingUp = false;
-        sectionControlsApi.update(controlsState());
-        renderDecisionRailChrome();
-        if (resumeAfter) {
-          autopilot.play();
-          syncAutopilotChrome();
-        }
+      if (resumeAfter) {
+        autopilot.play();
+        syncAutopilotChrome();
       }
-    })();
+    }
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;
@@ -753,13 +731,6 @@ export function initStudio(app: HTMLElement): () => void {
     app.classList.toggle("studio--show-truth", show);
     renderAll();
   };
-
-  document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.section as SectionId;
-      setSection(id);
-    });
-  });
 
   window.addEventListener("keydown", (event) => {
     const tag = (event.target as HTMLElement | null)?.tagName;
