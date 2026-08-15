@@ -51,7 +51,7 @@ import {
   type ControllerControlsState,
 } from "../controls";
 import { createAutopilotLoop } from "../autopilotLoop";
-import { attachLinkedHover } from "../hoverLink";
+import { attachLinkedHover, type HoverPoint } from "../hoverLink";
 import {
   STUDIO_SECTIONS,
   loadSection,
@@ -141,6 +141,7 @@ export function initStudio(app: HTMLElement): () => void {
   let orderQty = snapOrder(24);
   let catchingUp = false; // catch-up: pause Autopilot, then resume
   let hoveredDay: HoverDay = null;
+  let hoveredPoint: HoverPoint = null;
   let activeSection: SectionId = loadSection();
   let controllerState: ControllerControlsState = {
     ...DEFAULT_CONTROLLER_CONTROLS,
@@ -223,7 +224,7 @@ export function initStudio(app: HTMLElement): () => void {
   function renderDayInspector(): void {
     if (!dayInspectorRoot) return;
     dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, vm }),
+      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
     );
   }
 
@@ -269,9 +270,17 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
-  function onHoverDay(day: HoverDay): void {
-    if (hoveredDay === day) return;
+  function onHoverDay(day: HoverDay, point: HoverPoint): void {
+    const sameDay = hoveredDay === day;
+    const samePoint =
+      (point === null && hoveredPoint === null) ||
+      (point !== null &&
+        hoveredPoint !== null &&
+        point.clientX === hoveredPoint.clientX &&
+        point.clientY === hoveredPoint.clientY);
+    if (sameDay && samePoint) return;
     hoveredDay = day;
+    hoveredPoint = point;
     els.hoverNote.textContent =
       day == null
         ? "Hover a day to highlight it everywhere"
@@ -500,7 +509,7 @@ export function initStudio(app: HTMLElement): () => void {
               const completed = deltas[deltas.length - 1]!.episode_day;
               vm = { ...vm, episode_day: completed + 1 };
             }
-            onHoverDay(null);
+            onHoverDay(null, null);
             renderAll();
           } catch (err) {
             reportStudioAdapterError(
@@ -523,7 +532,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm = projector.applySnapshot(snap);
             projector.markConfigApplied();
             orderQty = snapOrder(orderQty);
-            onHoverDay(null);
+            onHoverDay(null, null);
             renderAll();
           } catch (err) {
             reportStudioAdapterError(
@@ -577,7 +586,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (vm.episode_day >= EPISODE_HORIZON) {
         autopilot.pause();
       }
-      onHoverDay(null);
+      onHoverDay(null, null);
       renderAll();
     },
     getOpts: controllerToActOpts,
