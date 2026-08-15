@@ -2,6 +2,33 @@ import * as d3 from "d3";
 import type { DayPnL, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 
+/** Running totals of daily PnL — presentation-only; ViewModel stays daily. */
+export function cumulativePnLSeries(series: DayPnL[]): DayPnL[] {
+  let rev = 0;
+  let purchase = 0;
+  let waste = 0;
+  let stockout = 0;
+  let cost = 0;
+  let profit = 0;
+  return series.map((d) => {
+    rev += d.revenue;
+    purchase += d.cost_purchase;
+    waste += d.cost_waste;
+    stockout += d.cost_stockout;
+    cost += d.cost_total;
+    profit += d.profit;
+    return {
+      day: d.day,
+      revenue: rev,
+      cost_purchase: purchase,
+      cost_waste: waste,
+      cost_stockout: stockout,
+      cost_total: cost,
+      profit,
+    };
+  });
+}
+
 function rootG(
   container: HTMLElement,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
@@ -39,12 +66,13 @@ export function setPnLHover(
   rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
 }
 
-/** Data join only — stroke-only revenue / cost / profit lines. */
+/** Data join only — stroke-only cumulative revenue / cost / profit lines. */
 export function renderPnLTimeseries(
   container: HTMLElement,
   series: DayPnL[],
   height = 140,
 ): void {
+  const plotSeries = cumulativePnLSeries(series);
   const width = container.clientWidth || 720;
   const margin = {
     top: 16,
@@ -63,24 +91,23 @@ export function renderPnLTimeseries(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Revenue, cost, and profit over days");
+    .attr("aria-label", "Cumulative revenue, cost, and profit over days");
 
   const g = svg
     .append("g")
     .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  if (series.length === 0) return;
+  if (plotSeries.length === 0) return;
 
-  const days = series.map((d) => d.day);
+  const days = plotSeries.map((d) => d.day);
   const step = innerW / days.length;
   const xCenter = (day: number): number => {
     const i = days.indexOf(day);
     return i * step + step / 2;
   };
-
   const yExtent = d3.extent(
-    series.flatMap((d) => [d.revenue, d.cost_total, d.profit]),
+    plotSeries.flatMap((d) => [d.revenue, d.cost_total, d.profit]),
   ) as [number, number];
   const pad = Math.max(2, (yExtent[1] - yExtent[0]) * 0.08);
   const y = d3
@@ -131,7 +158,7 @@ export function renderPnLTimeseries(
     .attr("class", "day-hits")
     .attr("pointer-events", "none")
     .selectAll("rect")
-    .data(series, (d) => String((d as DayPnL).day))
+    .data(plotSeries, (d) => String((d as DayPnL).day))
     .join("rect")
     .attr("class", "day-hit")
     .attr("data-day", (d) => d.day)
@@ -155,7 +182,7 @@ export function renderPnLTimeseries(
 
   for (const s of seriesSpec) {
     g.append("path")
-      .datum(series)
+      .datum(plotSeries)
       .attr("class", `pnl-line ${s.cls}`)
       .attr("fill", "none")
       .attr("stroke-linejoin", "round")
@@ -172,7 +199,7 @@ export function renderPnLTimeseries(
     .attr("pointer-events", "none");
 
   g.selectAll(".pnl-day")
-    .data(series, (d) => String((d as DayPnL).day))
+    .data(plotSeries, (d) => String((d as DayPnL).day))
     .join("g")
     .attr("class", "pnl-day")
     .attr("data-day", (d) => d.day)
@@ -190,7 +217,7 @@ export function renderPnLTimeseries(
           .attr("stroke-width", 1.5);
       }
       gg.append("title").text(
-        `Day ${d.day}\nRev $${d.revenue.toFixed(0)} · Cost $${d.cost_total.toFixed(0)} · Profit $${d.profit.toFixed(0)}`,
+        `Day ${d.day}\nCum rev $${d.revenue.toFixed(0)} · Cum cost $${d.cost_total.toFixed(0)} · Cum profit $${d.profit.toFixed(0)}`,
       );
     });
 

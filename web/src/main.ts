@@ -129,7 +129,7 @@ app.innerHTML = `
           <div id="play-chrome"></div>
           <div class="pnl-chrome">
             <div id="chart-pnl-totals"></div>
-            <div class="chart-caption impact-caption">Profit sparkline</div>
+            <div class="chart-caption impact-caption">Cumulative PnL</div>
             <div id="chart-pnl-spark" class="chart"></div>
           </div>
         </section>
@@ -156,7 +156,7 @@ app.innerHTML = `
                 <div id="chart-sales-demand" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-pnl" hidden>
-                <div class="chart-caption impact-caption">Revenue · cost · profit</div>
+                <div class="chart-caption impact-caption">Cumulative revenue · cost · profit</div>
                 <div id="chart-pnl-series" class="chart"></div>
               </div>
               <div class="focus-plot" data-plot="plot-survival" hidden>
