@@ -1,10 +1,11 @@
-"""T-044 packaging extras + CI 3.14 deferral (RED).
+"""T-044 packaging extras + T-125 WASM-only studio cleanup (RED).
 
-Locks ADR 0101 optional-dependency split and the T-044 CI checklist item:
+Locks ADR 0101 optional-dependency split after T-125 retires Pyodide/browser and
+HTTP API extras (ADR 0129):
 
-* ``[browser]`` (or equivalent) free of pyarrow / matplotlib
-* ``[data]`` (or equivalent) retains pyarrow for desktop Gate 0 / Parquet
-* ``[viz]`` (or equivalent) may own matplotlib
+* ``[data]`` retains pyarrow for desktop Gate 0 / Parquet
+* ``[viz]`` owns matplotlib
+* no ``[browser]``, ``[api]``, or Pyodide alias extras
 * Python 3.14 CI matrix job landed **or** explicitly deferred to T-046
 """
 
@@ -17,6 +18,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _CI_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
+
+_RETIRED_EXTRAS = frozenset({"browser", "api", "slim", "pyodide"})
 
 
 def _dep_names(specs: list[str]) -> set[str]:
@@ -40,8 +43,6 @@ def _find_extra(*candidates: str) -> tuple[str, list[str]]:
     for name in candidates:
         if name in extras:
             return name, extras[name]
-    # Allow rename aliases documented in the extra's own list comments — still
-    # require one of the ADR 0101 / T-044 names to exist as a table key.
     msg = (
         f"pyproject optional-dependencies missing one of {candidates}; "
         f"have {sorted(extras)}"
@@ -49,11 +50,13 @@ def _find_extra(*candidates: str) -> tuple[str, list[str]]:
     raise AssertionError(msg)
 
 
-def test_browser_extra_exists_and_omits_pyarrow_and_matplotlib() -> None:
-    name, specs = _find_extra("browser", "slim", "pyodide")
-    names = _dep_names(specs)
-    assert "pyarrow" not in names, f"[{name}] must omit pyarrow (ADR 0101)"
-    assert "matplotlib" not in names, f"[{name}] must omit matplotlib (ADR 0101)"
+def test_retired_browser_and_api_extras_absent() -> None:
+    extras = _optional_extras()
+    present = sorted(_RETIRED_EXTRAS & set(extras))
+    assert not present, (
+        "T-125 requires retiring browser/api/pyodide extras; still present: "
+        + ", ".join(present)
+    )
 
 
 def test_data_extra_retains_pyarrow_for_desktop_parquet() -> None:
@@ -64,28 +67,15 @@ def test_data_extra_retains_pyarrow_for_desktop_parquet() -> None:
     )
 
 
-def test_viz_extra_owns_matplotlib_or_browser_core_omits_it() -> None:
-    extras = _optional_extras()
-    if "viz" in extras or "plot" in extras:
-        name, specs = _find_extra("viz", "plot")
-        assert "matplotlib" in _dep_names(specs), (
-            f"[{name}] should own matplotlib when present"
-        )
-        return
-    # If no viz extra yet, hard runtime deps must not be the only story —
-    # browser extra must exist (previous test) and core should be on a path
-    # toward shedding matplotlib (assert browser extra key exists).
-    assert "browser" in extras or "slim" in extras or "pyodide" in extras
+def test_viz_extra_owns_matplotlib() -> None:
+    name, specs = _find_extra("viz", "plot")
+    assert "matplotlib" in _dep_names(specs), (
+        f"[{name}] must own matplotlib for static figures (ADR 0084)"
+    )
 
 
-def test_core_runtime_dependencies_document_split_or_shed_heavy_deps() -> None:
-    """Core install must not be the only place pyarrow+matplotlib live forever.
-
-    After T-044, either they move behind extras, or core stays temporarily
-    while ``[browser]`` documents the slim graph — but ``[browser]`` / ``[data]``
-    keys must exist (see sibling tests). This test locks that the extras table
-    is non-empty beyond legacy ``dev`` / ``notebooks``.
-    """
+def test_eng01_extras_are_data_and_viz_only() -> None:
+    """After T-125, ENG-01 packaging extras are data + viz (no browser/api)."""
     extras = _optional_extras()
     eng_keys = {
         k
@@ -98,22 +88,14 @@ def test_core_runtime_dependencies_document_split_or_shed_heavy_deps() -> None:
             "tests",
             "typing",
             "types",
+            "rust",
+            "freshnet",
         }
     }
-    assert eng_keys, (
-        "T-044 requires ENG-01 extras (browser/data/viz or equivalents) in "
-        "pyproject optional-dependencies"
+    assert eng_keys == {"data", "viz"}, (
+        "T-125 locks ENG-01 extras to data + viz only; "
+        f"have {sorted(eng_keys)}"
     )
-    assert eng_keys & {
-        "browser",
-        "slim",
-        "pyodide",
-        "data",
-        "parquet",
-        "abdella",
-        "viz",
-        "plot",
-    }, f"ENG-01 extras missing expected names; have {sorted(eng_keys)}"
 
 
 def test_python_314_ci_matrix_or_explicit_deferral_to_t046() -> None:
@@ -122,7 +104,6 @@ def test_python_314_ci_matrix_or_explicit_deferral_to_t046() -> None:
     if has_314:
         return
 
-    # Explicit deferral checklist pointing at T-046 (spec allows this).
     deferral_candidates = [
         _REPO_ROOT / ".team" / "checklists" / "T-044-ci-314-deferred.md",
         _REPO_ROOT / ".team" / "qa" / "T-044-ci-314-deferred.md",
