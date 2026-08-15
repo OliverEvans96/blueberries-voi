@@ -199,9 +199,12 @@ export function createStudioAdapter(
   }
 
   if (kind === "wasm") {
+    const fromOpts = opts.workerUrl;
+    const optsLooksPyodide =
+      typeof fromOpts === "string" && /pyodide/i.test(fromOpts);
     const workerUrl =
-      opts.workerUrl
-      ?? env.VITE_WASM_WORKER_URL
+      env.VITE_WASM_WORKER_URL
+      ?? (fromOpts && !optsLooksPyodide ? fromOpts : undefined)
       ?? DEFAULT_WASM_WORKER_URL;
     const pkgUrl = env.VITE_WASM_PKG_URL ?? DEFAULT_WASM_PKG_URL;
     return new WasmAdapter({ workerUrl, pkgUrl });

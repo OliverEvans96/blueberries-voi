@@ -202,9 +202,7 @@ export async function runPyodideAdapterSmoke(opts?: {
 }): Promise<{ ok: true; snapshot: Snapshot; delta: DayDelta }> {
   const workerUrl = opts?.workerUrl ?? "/packaging/pyodide/worker.js";
   const wheelUrl =
-    opts?.wheelUrl ??
-    "https://github.com/oliver/blueberries-voi/releases/download/v0.1.0/" +
-      "blueberries_voi-0.1.0-py3-none-any.whl";
+    opts?.wheelUrl ?? "/wheels/blueberries_voi-0.1.0-py3-none-any.whl";
   const adapter = new PyodideAdapter({ workerUrl, wheelUrl });
   try {
     const snapshot = await adapter.init({});
