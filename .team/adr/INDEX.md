@@ -25,6 +25,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Studio Autopilot Mode (2026-08-13): **[0117](./0117-studio-autopilot-mode.md)** (`adapter.act` play loop; `damped_sw` default; SW-based rollout base; Controller section; cadence 1–2 act/s). User plan T-076–T-081 → **T-091 + T-097–T-101**; Autopilot ADR renumbered **0112→0117** at merge with CAL-01 (CAL-01 keeps 0112–0116).
 - Behavior-frozen structure refactor (2026-08-13): provisional **[0118](./0118-behavior-frozen-module-splits.md)** (T-102) — internal module splits behind re-export façades; existing suite is AC; no semantic unification of order-gate/ceil/Policy forks.
 - Rust compute kernel (2026-08-14): **[0119](./0119-rust-compute-kernel-python-host.md)–[0121](./0121-rust-workspace-pyo3-wasm-deps.md)** (Python host + citeable; Rust `voi_core`; wasm studio adapter; pyo3/wasm-bindgen deps). **[0009](./0009-x-09-language-and-stack.md)** superseded for compute; **[0099](./0099-eng-01-dual-runtime-ap.md)** amended (Pyodide retained).
+- Studio 90-day episode (2026-08-14): **[0122](./0122-studio-episode-horizon-90.md)**. Lazy obs_scenario catch-up (Python): **[0123](./0123-lazy-obs-scenario-filter-caches.md)**. Rust/wasm `set_obs_scenario` parity: **[0124](./0124-rust-wasm-set-obs-scenario.md)**.
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -154,3 +155,6 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0119](./0119-rust-compute-kernel-python-host.md) | `X-09` | Rust compute kernel; Python host + citeable | ACCEPTED |
 | [0120](./0120-studio-wasm-adapter-third-host.md) | `ENG-01` | Studio adapter `wasm`; Pyodide retained | ACCEPTED |
 | [0121](./0121-rust-workspace-pyo3-wasm-deps.md) | *(repo)* | Cargo workspace + pyo3/wasm-bindgen/rand | ACCEPTED |
+| [0122](./0122-studio-episode-horizon-90.md) | ENG | Studio episode horizon is 90 days | ACCEPTED |
+| [0123](./0123-lazy-obs-scenario-filter-caches.md) | ENG | Live obs_scenario via lazy per-rung catch-up | ACCEPTED |
+| [0124](./0124-rust-wasm-set-obs-scenario.md) | ENG | Rust/wasm `set_obs_scenario` parity with 0123 | ACCEPTED |

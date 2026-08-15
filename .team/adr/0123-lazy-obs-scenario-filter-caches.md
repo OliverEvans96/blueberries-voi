@@ -56,4 +56,4 @@ UI must disable chips and show progress. Memory up to one demo `N=200` cloud per
 **Locked in:** catch-up protocol; `set_obs_scenario`; Autopilot follows the chip; no in-place
 mask swap.
 
-**Revisit if:** Rust/wasm must implement the same method, or a rename of `RBPF`.
+**Revisit if:** a rename of `RBPF`. Rust/wasm method: ADR [0124](./0124-rust-wasm-set-obs-scenario.md).
