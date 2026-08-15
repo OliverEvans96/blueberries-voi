@@ -1,0 +1,150 @@
+ticket: T-124
+parent_tip: main
+max_parallel: 4
+description: Studio UX revamp — T-119 audit remediation + IA + comprehension + polish
+
+tasks:
+  - id: architect
+    role: architect
+    files: [.team/specs/T-124.md, .team/adr/]
+    deps: []
+
+  - id: qa-avail
+    role: qa
+    files: [web/src/scenarioAvailability.test.ts, .team/qa/T-124-tests.md]
+    deps: [architect]
+
+  - id: qa-ia
+    role: qa
+    files: [web/src/react/InsightStrip.test.tsx, web/src/react/DecisionRail.test.tsx]
+    deps: [architect]
+
+  - id: qa-demand
+    role: qa
+    files: [web/src/engine/demandPreview.test.ts]
+    deps: [architect]
+
+  - id: qa-charts
+    role: qa
+    files: [web/src/react/ChartUnavailable.test.tsx]
+    deps: [architect]
+
+  - id: impl-W1-A
+    role: implement
+    shard: W1-A
+    files: [web/src/scenarioAvailability.ts]
+    deps: [qa-avail]
+
+  - id: impl-W1-B
+    role: implement
+    shard: W1-B
+    files: [web/src/engine/projector.ts]
+    deps: [qa-demand]
+
+  - id: impl-W1-C
+    role: implement
+    shard: W1-C
+    files:
+      - web/src/charts/marginals.ts
+      - web/src/charts/arrivalPrior.ts
+      - web/src/react/studioLogic.ts
+      - web/src/react/D3ChartHost.tsx
+      - web/src/controls.ts
+      - web/src/react/SectionControls.tsx
+    deps: [qa-avail, qa-charts, impl-W1-A]
+    file_owner:
+      web/src/react/studioLogic.ts: impl-W1-C
+      web/src/react/D3ChartHost.tsx: impl-W1-C
+      web/src/controls.ts: impl-W1-C
+
+  - id: impl-W2-D
+    role: implement
+    shard: W2-D
+    files: [web/src/react/InsightStrip.tsx, web/src/react/DecisionRail.tsx]
+    deps: [qa-ia, impl-W1-C]
+
+  - id: impl-W2-E
+    role: implement
+    shard: W2-E
+    files:
+      - web/src/react/StudioLayout.tsx
+      - web/src/styles.css
+      - web/src/sections.ts
+    deps: [qa-ia, impl-W1-C, impl-W2-F]
+    file_owner:
+      web/src/react/StudioLayout.tsx: impl-W2-E
+      web/src/styles.css: impl-W2-E
+
+  - id: impl-W2-F
+    role: implement
+    shard: W2-F
+    files: [web/src/chapters.ts, web/src/sections.ts]
+    deps: [qa-ia, impl-W1-C]
+    file_owner:
+      web/src/sections.ts: impl-W2-F
+
+  - id: impl-W3-G
+    role: implement
+    shard: W3-G
+    files:
+      - web/src/react/GlossaryDrawer.tsx
+      - web/src/paramLabels.ts
+      - web/src/controls.ts
+    deps: [impl-W2-D, impl-W2-E, impl-W2-F]
+
+  - id: impl-W3-H
+    role: implement
+    shard: W3-H
+    files: [web/src/react/DayInspector.tsx, web/src/react/studioLogic.ts]
+    deps: [impl-W2-D, impl-W2-E, impl-W2-F]
+    file_owner:
+      web/src/react/studioLogic.ts: impl-W3-H
+
+  - id: impl-W3-I
+    role: implement
+    shard: W3-I
+    files: [web/public/voi-reference.json, web/src/react/VoiReferencePanel.tsx]
+    deps: [impl-W2-D, impl-W2-E, impl-W2-F]
+
+  - id: impl-W3-J
+    role: implement
+    shard: W3-J
+    files: [web/src/react/GuidedPaths.tsx]
+    deps: [impl-W2-D, impl-W2-E, impl-W2-F]
+
+  - id: impl-W4-K
+    role: implement
+    shard: W4-K
+    files: [web/src/styles.css]
+    deps: [impl-W3-G, impl-W3-H, impl-W3-I, impl-W3-J]
+    file_owner:
+      web/src/styles.css: impl-W4-K
+
+  - id: impl-W4-L
+    role: implement
+    shard: W4-L
+    files: [web/src/react/ShortcutHelp.tsx]
+    deps: [impl-W3-G, impl-W3-H, impl-W3-I, impl-W3-J]
+
+  - id: impl-W4-M
+    role: implement
+    shard: W4-M
+    files: [web/src/react/D3ChartHost.tsx, web/src/charts/]
+    deps: [impl-W3-G, impl-W3-H, impl-W3-I, impl-W3-J]
+    file_owner:
+      web/src/react/D3ChartHost.tsx: impl-W4-M
+
+  - id: integration-merge
+    role: merge
+    merge_last: true
+    deps: [impl-W4-K, impl-W4-L, impl-W4-M]
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-124.md]
+    deps: [integration-merge]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-124.md]
+    deps: [integration-merge]
