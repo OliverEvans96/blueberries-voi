@@ -8,6 +8,8 @@
   --muted: #6d766f;
   --sales: #3d7ea6;
   --sales-strong: #1f5f86;
+  --missed: #c43a3a;
+  --missed-strong: #9a2020;
   --spoil: #c46a3a;
   --spoil-strong: #9a4520;
   --profit: #2f6b4f;
@@ -390,6 +392,12 @@ body {
   border-color: rgba(196, 106, 58, 0.28);
 }
 
+.chip-missed {
+  color: var(--missed-strong);
+  background: rgba(196, 58, 58, 0.12);
+  border-color: rgba(196, 58, 58, 0.28);
+}
+
 .chip-lots {
   color: var(--accent);
   background: rgba(47, 107, 79, 0.1);
@@ -478,12 +486,20 @@ body {
   fill: var(--sales);
 }
 
+.bar--stockout {
+  fill: var(--missed);
+}
+
 .bar--spoilage {
   fill: var(--spoil);
 }
 
 .bar--sales.bar--active {
   fill: var(--sales-strong);
+}
+
+.bar--stockout.bar--active {
+  fill: var(--missed-strong);
 }
 
 .bar--spoilage.bar--active {

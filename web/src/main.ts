@@ -12,7 +12,11 @@ import {
   type StudioEnv,
 } from "./engine/studioAdapter";
 import { renderHistory, setHistoryHover } from "./charts/history";
-import { renderMarginal, setMarginalHover } from "./charts/marginals";
+import {
+  marginalYMax,
+  renderMarginal,
+  setMarginalHover,
+} from "./charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "./charts/pnlTimeseries";
 import { renderPnLTotals } from "./charts/pnlTotals";
 import { renderBeliefAgeCount } from "./charts/beliefAgeCount";
@@ -105,10 +109,13 @@ app.innerHTML = `
             <span class="chip chip-sales">Sales</span>
             <span class="chip chip-lots">Lots (size ∝ qty)</span>
             <span class="chip chip-spoil">Spoilage</span>
+            <span class="chip chip-missed">Missed</span>
           </div>
           <div class="chart-stack">
             <div class="chart-caption">Units sold</div>
             <div id="chart-sales" class="chart"></div>
+            <div class="chart-caption">Missed sales</div>
+            <div id="chart-stockout" class="chart"></div>
             <div class="chart-caption">Lots · day × age</div>
             <div id="chart-history" class="chart"></div>
             <div class="chart-caption">Units spoiled</div>
@@ -296,6 +303,7 @@ function syncAutopilotChrome(): void {
 const els = {
   linked: document.querySelector("#linked-charts") as HTMLElement,
   sales: document.querySelector("#chart-sales") as HTMLElement,
+  stockout: document.querySelector("#chart-stockout") as HTMLElement,
   history: document.querySelector("#chart-history") as HTMLElement,
   spoil: document.querySelector("#chart-spoil") as HTMLElement,
   pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
@@ -327,6 +335,7 @@ const els = {
 
 function applyHoverStyles(day: HoverDay): void {
   setMarginalHover(els.sales, day);
+  setMarginalHover(els.stockout, day);
   setHistoryHover(els.history, day);
   setMarginalHover(els.spoil, day);
   if (!els.pnlSeries.closest(".focus-plot")?.hasAttribute("hidden")) {
@@ -379,8 +388,10 @@ function plotVisible(plotId: string): boolean {
   return !!node && !node.hidden;
 }
 
-function renderStore(): void {
-  renderMarginal(els.sales, vm.history, "sales", 72);
+function renderStore() {
+  const yMax = marginalYMax(vm.history, vm.ghost);
+  renderMarginal(els.sales, vm.history, "sales", 72, vm.ghost, yMax);
+  renderMarginal(els.stockout, vm.history, "stockout", 72, vm.ghost, yMax);
   renderHistory(els.history, historyForCharts(), { height: 220 });
   renderMarginal(els.spoil, vm.history, "spoilage", 86, vm.ghost);
   applyHoverStyles(hoveredDay);

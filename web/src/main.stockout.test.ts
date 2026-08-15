@@ -1,0 +1,136 @@
+/**
+ * T-116 RED: missed-sales store chart — source contracts on main.ts +
+ * styles.css (stack order, caption, legend chip, hover, shared yMax).
+ * Node vitest has no jsdom.
+ */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const MAIN_TS = join(HERE, "main.ts");
+const STYLES_CSS = join(HERE, "styles.css");
+const SALES_DEMAND_TS = join(HERE, "charts/salesDemand.ts");
+
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+describe("Store chart-stack missed sales (T-116)", () => {
+  const src = stripComments(readFileSync(MAIN_TS, "utf8"));
+
+  it("chart-stack order: Units sold, sales, Missed sales, stockout, Lots, history, Units spoiled, spoil", () => {
+    const stack = src.match(
+      /<div class="chart-stack">([\s\S]*?)<\/div>\s*<\/section>/,
+    )?.[1];
+    expect(stack, "expected .chart-stack markup in main.ts").toBeDefined();
+
+    const sold = stack!.indexOf("Units sold");
+    const salesId = stack!.indexOf('id="chart-sales"');
+    const missed = stack!.indexOf("Missed sales");
+    const stockoutId = stack!.indexOf('id="chart-stockout"');
+    const lots = stack!.indexOf("Lots");
+    const historyId = stack!.indexOf('id="chart-history"');
+    const spoiled = stack!.indexOf("Units spoiled");
+    const spoilId = stack!.indexOf('id="chart-spoil"');
+
+    expect(sold).toBeGreaterThanOrEqual(0);
+    expect(salesId).toBeGreaterThan(sold);
+    expect(missed).toBeGreaterThan(salesId);
+    expect(stockoutId).toBeGreaterThan(missed);
+    expect(lots).toBeGreaterThan(stockoutId);
+    expect(historyId).toBeGreaterThan(lots);
+    expect(spoiled).toBeGreaterThan(historyId);
+    expect(spoilId).toBeGreaterThan(spoiled);
+  });
+
+  it('caption text is exactly "Missed sales"', () => {
+    expect(src).toMatch(
+      /<div class="chart-caption">Missed sales<\/div>/,
+    );
+    expect(src).not.toMatch(
+      /<div class="chart-caption">Stockout<\/div>/,
+    );
+  });
+
+  it("store legend includes chip-missed alongside Sales / Lots / Spoilage", () => {
+    const legend = src.match(
+      /<div class="legend-inline store-legend">([\s\S]*?)<\/div>/,
+    )?.[1];
+    expect(legend, "expected store-legend").toBeDefined();
+    expect(legend).toMatch(/chip-sales/);
+    expect(legend).toMatch(/>Sales</);
+    expect(legend).toMatch(/chip-lots/);
+    expect(legend).toMatch(/chip-spoil/);
+    expect(legend).toMatch(/Spoilage/);
+    expect(legend).toMatch(/chip-missed/);
+    expect(legend).toMatch(/>Missed</);
+  });
+
+  it("els.stockout binds #chart-stockout", () => {
+    expect(src).toMatch(/stockout:\s*document\.querySelector\(\s*"#chart-stockout"/);
+  });
+
+  it("applyHoverStyles calls setMarginalHover(els.stockout, day)", () => {
+    const fn = src.match(
+      /function applyHoverStyles\s*\(\s*day[\s\S]*?\n\}/,
+    )?.[0];
+    expect(fn, "expected applyHoverStyles").toBeDefined();
+    expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
+    expect(fn).toMatch(/setMarginalHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
+  });
+
+  it("renderStore shares marginalYMax / yMax for sales and stockout", () => {
+    const fn = src.match(/function renderStore\s*\(\s*\)\s*\{[\s\S]*?\n\}/)?.[0];
+    expect(fn, "expected renderStore").toBeDefined();
+    expect(fn).toMatch(/marginalYMax\s*\(/);
+    expect(fn).toMatch(/yMax/);
+    expect(fn).toMatch(
+      /renderMarginal\(\s*els\.sales[\s\S]*,\s*"sales"[\s\S]*yMax/,
+    );
+    expect(fn).toMatch(
+      /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
+    );
+    expect(fn).toMatch(
+      /renderMarginal\(\s*els\.spoil[\s\S]*,\s*"spoilage"/,
+    );
+  });
+
+  it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {
+    expect(src).toMatch(/Sales vs demand/);
+    expect(src).toMatch(/id="chart-sales-demand"/);
+    expect(src).toMatch(/renderSalesDemand\(\s*els\.salesDemand/);
+    expect(existsSync(SALES_DEMAND_TS)).toBe(true);
+    const sd = stripComments(readFileSync(SALES_DEMAND_TS, "utf8"));
+    expect(sd).toMatch(/export\s+function\s+renderSalesDemand/);
+    expect(sd).toMatch(/lineSales|lineDemand/);
+    expect(sd).toMatch(/sales-demand-gap/);
+    expect(sd).not.toMatch(/bar--stockout/);
+  });
+});
+
+describe("Missed-sales CSS tokens (T-116)", () => {
+  const css = readFileSync(STYLES_CSS, "utf8");
+
+  it("defines --missed and --missed-strong", () => {
+    expect(css).toMatch(/--missed\s*:/);
+    expect(css).toMatch(/--missed-strong\s*:/);
+  });
+
+  it(".bar--stockout uses --missed; active uses --missed-strong", () => {
+    expect(css).toMatch(
+      /\.bar--stockout\s*\{[\s\S]*?fill:\s*var\(\s*--missed\s*\)/,
+    );
+    expect(css).toMatch(
+      /\.bar--stockout\.bar--active\s*\{[\s\S]*?fill:\s*var\(\s*--missed-strong\s*\)/,
+    );
+  });
+
+  it("defines .chip-missed", () => {
+    expect(css).toMatch(/\.chip-missed\s*\{/);
+  });
+});
