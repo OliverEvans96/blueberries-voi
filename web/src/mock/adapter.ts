@@ -102,6 +102,8 @@ export function generateFlatBelief(
  * Mock engine speaking Snapshot / DayDelta (EngineAdapter). Presentation
  * (PnL / economics / ghost / heatmap) stays in ViewModelProjector.
  */
+const EPISODE_HORIZON = 90;
+
 export class MockAdapter implements EngineAdapter {
   private state: SimState;
   private config: SimConfig;
@@ -139,10 +141,12 @@ export class MockAdapter implements EngineAdapter {
   }
 
   async step(order_qty: number): Promise<DayDelta> {
+    this.refuseIfEpisodeEnded(1);
     return this.stepOnce(order_qty);
   }
 
   async step_n(orders: number[]): Promise<DayDelta[]> {
+    this.refuseIfEpisodeEnded(orders.length);
     const out: DayDelta[] = [];
     for (const qty of orders) {
       out.push(this.stepOnce(qty));
@@ -157,6 +161,7 @@ export class MockAdapter implements EngineAdapter {
    * Python `rollout_order` / `DampedSurvivalWeightedPolicy` (≠ Python).
    */
   async act(opts?: ActOpts): Promise<DayDelta> {
+    this.refuseIfEpisodeEnded(1);
     return this.stepOnce(this.chooseActOrder(opts));
   }
 
@@ -272,10 +277,17 @@ export class MockAdapter implements EngineAdapter {
     return this.snapOrder(gap * alpha);
   }
 
-  private stepOnce(orderQty: number): DayDelta {
-    if (this.state.day >= 90) {
-      throw new Error("episode ended at day 90; Reset to start a new episode");
+  private refuseIfEpisodeEnded(nDays: number): void {
+    if (nDays <= 0) return;
+    const day = this.state.day;
+    if (day >= EPISODE_HORIZON || day + nDays > EPISODE_HORIZON) {
+      throw new Error(
+        `episode ended at day ${EPISODE_HORIZON}; Reset to start a new episode`,
+      );
     }
+  }
+
+  private stepOnce(orderQty: number): DayDelta {
     const { state, dayRecord, completedDay } = stepSimulation(
       this.state,
       orderQty,

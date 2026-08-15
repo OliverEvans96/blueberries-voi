@@ -5,11 +5,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { MockAdapter } from "../mock/adapter";
+import { MockAdapter } from "./mock/adapter";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const WEB_SRC = join(HERE, "..");
-const WASM_ADAPTER = join(HERE, "wasmAdapter.ts");
+const WEB_SRC = HERE;
+const WASM_ADAPTER = join(HERE, "engine/wasmAdapter.ts");
 const WASM_WORKER = join(WEB_SRC, "../../packaging/wasm/worker.js");
 
 describe("T-114 WasmAdapter forwards set_obs_scenario", () => {

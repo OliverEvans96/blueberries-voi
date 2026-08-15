@@ -8,6 +8,7 @@ Ticket A chart rebin is out of scope (not asserted here).
 from __future__ import annotations
 
 import ast
+import importlib
 import inspect
 from datetime import date
 from pathlib import Path
@@ -122,6 +123,10 @@ def _capture_obs(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
         return real_step(self, obs, rng)
 
     monkeypatch.setattr(RBPF, "step", _spy)
+    session_mod = importlib.import_module("blueberries_voi.simulator.session")
+    session_rbpf = getattr(session_mod, "RBPF", None)
+    if session_rbpf is not None and session_rbpf is not RBPF:
+        monkeypatch.setattr(session_rbpf, "step", _spy)
     return captured
 
 
@@ -387,7 +392,6 @@ def test_engine_session_forwards_obs_scenario_into_advance_day(
     """Session must pass stored obs_scenario into advance_day (not hardcode P1)."""
     seen: list[str] = []
     import blueberries_voi.simulator.day_driver as day_driver_mod
-    import blueberries_voi.simulator.session as session_mod
 
     real = day_driver_mod.advance_day
 
@@ -397,7 +401,7 @@ def test_engine_session_forwards_obs_scenario_into_advance_day(
         )
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(session_mod, "advance_day", _spy)
+    monkeypatch.setitem(EngineSession._advance.__globals__, "advance_day", _spy)
     session = EngineSession()
     session.init(_minimal_config(obs_scenario="F1s"), seed=5)
     session.step(16)
