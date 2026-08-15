@@ -224,7 +224,11 @@ class EngineSession:
             raise ValueError(msg)
 
     def _require_rust(self) -> Any:
-        from blueberries_voi.backend import rust_available, rust_core, warn_fallback_once
+        from blueberries_voi.backend import (
+            rust_available,
+            rust_core,
+            warn_fallback_once,
+        )
 
         warn_fallback_once()
         if not rust_available() or rust_core is None:
