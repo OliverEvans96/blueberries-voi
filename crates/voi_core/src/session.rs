@@ -575,13 +575,91 @@ fn validate_scenario(id: &str) -> Result<(), String> {
     }
 }
 
+fn rpc_field<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
+    params
+        .get(key)
+        .or_else(|| params.get("config").and_then(|c| c.get(key)))
+}
+
 fn rpc_u64(params: &serde_json::Value, key: &str) -> Option<u64> {
-    params.get(key).and_then(|v| v.as_u64()).or_else(|| {
-        params
-            .get("config")
-            .and_then(|c| c.get(key))
-            .and_then(|v| v.as_u64())
-    })
+    rpc_field(params, key).and_then(|v| v.as_u64())
+}
+
+fn rpc_i64(params: &serde_json::Value, key: &str) -> Option<i64> {
+    rpc_field(params, key).and_then(|v| v.as_i64())
+}
+
+fn rpc_bool(params: &serde_json::Value, key: &str) -> Option<bool> {
+    rpc_field(params, key).and_then(|v| v.as_bool())
+}
+
+fn rpc_str<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    rpc_field(params, key).and_then(|v| v.as_str())
+}
+
+fn f64_array(value: &serde_json::Value) -> Vec<f64> {
+    value
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default()
+}
+
+fn parse_shipments_from_rpc(params: &serde_json::Value) -> Vec<ShipmentTrace> {
+    if let Some(arr) = rpc_field(params, "shipments").and_then(|v| v.as_array()) {
+        let ships: Vec<ShipmentTrace> = arr
+            .iter()
+            .filter_map(|item| {
+                let times = item.get("times_d")?;
+                let temps = item.get("temps_c")?;
+                Some(ShipmentTrace {
+                    times_d: f64_array(times),
+                    temps_c: f64_array(temps),
+                })
+            })
+            .collect();
+        if !ships.is_empty() {
+            return ships;
+        }
+    }
+    let times_outer = rpc_field(params, "times").and_then(|v| v.as_array());
+    let temps_outer = rpc_field(params, "temps").and_then(|v| v.as_array());
+    if let (Some(times), Some(temps)) = (times_outer, temps_outer) {
+        let ships: Vec<ShipmentTrace> = times
+            .iter()
+            .zip(temps.iter())
+            .map(|(t, m)| ShipmentTrace {
+                times_d: f64_array(t),
+                temps_c: f64_array(m),
+            })
+            .filter(|s| s.times_d.len() >= 2 && s.temps_c.len() >= 2)
+            .collect();
+        if !ships.is_empty() {
+            return ships;
+        }
+    }
+    Vec::new()
+}
+
+impl EngineSession {
+    fn apply_rpc_configure(&mut self, params: &serde_json::Value) {
+        let lead_time = rpc_u64(params, "lead_time").unwrap_or(1) as u32;
+        let enable_filter = rpc_bool(params, "enable_filter").unwrap_or(true);
+        let h = rpc_u64(params, "H").unwrap_or(7) as u32;
+        let n_paths = rpc_u64(params, "n_rollout_paths").unwrap_or(2) as u32;
+        let radius = rpc_i64(params, "candidate_case_radius").unwrap_or(1) as i32;
+        let n_particles = rpc_u64(params, "n_particles").unwrap_or(200) as usize;
+        let shipments = parse_shipments_from_rpc(params);
+        self.configure(
+            lead_time,
+            enable_filter,
+            h,
+            n_paths,
+            radius,
+            shipments,
+            n_particles,
+        );
+        self.schedule.lead_time_days = self.lead_time;
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -626,12 +704,8 @@ pub fn handle_rpc(request_json: &str) -> String {
                 let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
-                if let Some(sc) = req
-                    .params
-                    .get("obs_scenario")
-                    .or_else(|| req.params.get("config").and_then(|c| c.get("obs_scenario")))
-                    .and_then(|v| v.as_str())
-                {
+                sess.apply_rpc_configure(&req.params);
+                if let Some(sc) = rpc_str(&req.params, "obs_scenario") {
                     let _ = sess.set_obs_scenario(sc);
                 }
                 sess.snapshot_value()
@@ -771,6 +845,114 @@ mod tests {
         assert_eq!(belief["K"], 4);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
+    }
+
+    #[test]
+    fn rpc_init_includes_schedule_and_demand_summary() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let schedule = &v["result"]["schedule"];
+        assert!(schedule["delivery_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
+        assert!(schedule["order_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
+        assert_eq!(schedule["epoch"], SCHEDULE_EPOCH);
+        let summary = &v["result"]["demand_summary"];
+        assert!(summary["scale_mu"].as_f64().is_some_and(|x| x > 0.0));
+        assert_eq!(summary["dow_means"].as_array().map(Vec::len), Some(7));
+    }
+
+    #[test]
+    fn rpc_init_belief_lot_counts_positive_mass() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":1,"config":{"enable_filter":true}}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let age_mass: f64 = v["result"]["belief"]["age_marginals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .sum();
+        assert!(
+            age_mass > 0.0,
+            "filter-enabled init must expose non-zero age marginal mass"
+        );
+    }
+
+    #[test]
+    fn rpc_init_accepts_nested_config_shipments() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[5.0,5.0,5.0]}],"n_particles":64,"H":5,"lead_time":2,"L":2,"K":4,"enable_filter":true,"n_rollout_paths":3,"candidate_case_radius":2,"obs_scenario":"P1"}}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let cfg = &v["result"]["applied_config"];
+        assert_eq!(cfg["n_particles"], 64);
+        assert_eq!(cfg["H"], 5);
+        assert_eq!(cfg["lead_time"], 2);
+        assert_eq!(cfg["n_rollout_paths"], 3);
+        assert_eq!(cfg["candidate_case_radius"], 2);
+        assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
+        let warm = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
+        let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
+        let tau_warm = warm_last["live_lots"][0]["tau"]
+            .as_f64()
+            .expect("warm shipment arrival must populate live_lots");
+        let smoke = handle_rpc(
+            r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        assert_eq!(smoke.contains("\"ok\":true"), true);
+        let cool = handle_rpc(
+            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
+        let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
+        let tau_smoke = cool_last["live_lots"][0]["tau"]
+            .as_f64()
+            .expect("smoke shipment arrival must populate live_lots");
+        assert!(
+            tau_warm > tau_smoke + 1e-6,
+            "configured warm shipments must raise arrival age vs cool default ({tau_warm} vs {tau_smoke})"
+        );
+    }
+
+    #[test]
+    fn rpc_init_reset_sync_schedule_lead_time() {
+        for method in ["init", "reset"] {
+            let req = format!(
+                r#"{{"id":"1","method":"{method}","params":{{"seed":9,"config":{{"lead_time":4,"shipments":[{{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}}]}}}}}}"#
+            );
+            let out = handle_rpc(&req);
+            let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+            assert_eq!(v["ok"], true, "{method}: {out}");
+            assert_eq!(v["result"]["applied_config"]["lead_time"], 4);
+            assert_eq!(
+                v["result"]["schedule"]["lead_time_days"], 4,
+                "{method} must sync schedule lead time"
+            );
+        }
+    }
+
+    #[test]
+    fn rpc_step_live_lots_nonempty_after_arrival() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        let out = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let last = v["result"].as_array().unwrap().last().unwrap();
+        let lots = last["live_lots"].as_array().expect("live_lots array");
+        assert!(!lots.is_empty(), "arrival after lead_time must surface live_lots");
+        assert!(lots[0]["lot_id"].is_number());
+        assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
+        assert!(lots[0]["tau"].is_number());
     }
 
     #[test]
