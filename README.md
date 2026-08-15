@@ -1,8 +1,9 @@
 # blueberries-voi
 
 Simulation, filtering, ordering, and value-of-information (VOI) analysis for a
-perishable blueberry store — a typed Python package and an interactive D3 studio
-that runs the same Rust engine in the browser.
+perishable blueberry store — a typed Python package for notebooks and batch
+studies, plus an interactive D3 studio that runs the same Rust engine in the
+browser via WebAssembly.
 
 The default store orders for **Monday / Wednesday / Friday** deliveries with a
 calendar-shaped weekly demand pattern (not every-day i.i.d. sales). Citeable VOI
@@ -29,7 +30,7 @@ Optional extras if you are not installing everything:
 | `data` | pyarrow (Abdella Parquet / Gate 0) |
 | `viz` | matplotlib (static figures) |
 | `freshnet` | Hugging Face `datasets` ingest/fit only |
-| `rust` | maturin (native PyO3 extension builds) |
+| `rust` | maturin (PyO3 extension builds) |
 
 ## Interactive studio
 
@@ -37,11 +38,13 @@ The studio (`web/`) is a Vite + D3 store simulator. You can step day by day,
 choose among six observation levels (books-only through age at receipt), and
 Autopilot-play with controller policy knobs.
 
-The browser studio runs the **Rust WASM kernel** — the same native engine used
-from Python notebooks and batch studies, compiled for the browser. Open the UI
-at **http://127.0.0.1:5173** after Vite starts. The footer says “Live WASM
-studio”; the header chip is Loading / Ready / Error. `mock` is debug-only
-(`VITE_ENGINE_ADAPTER=mock`) and is never selected silently.
+The live engine runs in a **Web Worker** with the wasm-pack kernel at `/wasm/`
+(ADR 0129). There is no in-browser Python path and no local HTTP session API —
+notebooks and CLI still use the native PyO3 `EngineSession`.
+
+Open the UI at **http://127.0.0.1:5173** after Vite starts. The footer says
+“Live WASM studio”; the header chip is Loading / Ready / Error. `mock` is
+debug-only (`VITE_ENGINE_ADAPTER=mock`) and is never selected silently.
 
 One-time frontend install (from the repo root):
 
@@ -51,26 +54,27 @@ cp .env.example .env.local   # optional; launcher sets WASM URLs without this
 npm install
 ```
 
-Build the WASM kernel (needs `rustc` and `wasm-pack`), then launch the studio:
+Build the Rust kernel (needs `rustc` and `wasm-pack`), then launch the studio:
 
 ```bash
 ./scripts/build-wasm.sh
 ./scripts/studio.sh
 ```
 
-From `web/` you can also run `npm run studio` (thin alias for the same script).
+From `web/` you can use `npm run studio` (thin alias for the same script).
 
 Vite serves the worker at `/packaging/wasm/worker.js` and the wasm-pack output
 at `/wasm/` from `packaging/wasm/pkg/` (dev middleware; no `web/public`
-symlinks). Rebuild after Rust crate changes. Smoke the kernel with
-`./scripts/smoke-wasm.sh` (see
+symlinks). If `packaging/wasm/pkg/` is missing, the launcher reminds you to run
+`./scripts/build-wasm.sh`. Rebuild after Rust crate changes. Smoke the kernel
+with `./scripts/smoke-wasm.sh` (see
 [`packaging/wasm/README.md`](packaging/wasm/README.md)).
 
 ### Env flags
 
 `web/.env.example` and `./scripts/studio.sh` document the same keys. The
-launcher sets `VITE_ENGINE_ADAPTER=wasm` and the WASM worker/pkg URLs.
-`mock` is debug-only and is never selected by the launcher.
+launcher sets `VITE_ENGINE_ADAPTER=wasm` plus `VITE_WASM_WORKER_URL` and
+`VITE_WASM_PKG_URL`. `mock` is debug-only and is never selected by the launcher.
 
 ## Quality gates
 
@@ -133,15 +137,19 @@ Reusable code lives under `src/blueberries_voi/`:
 | `simulator/` | Interactive `EngineSession` (Snapshot / DayDelta) |
 | `viz/` | Static figures (desktop; not the browser charts) |
 
-JS owns studio charts and economics projection; the Rust kernel owns the engine
-in the browser; Python owns orchestration for notebooks, CLI, and batch studies.
+JS owns studio charts and economics projection; the Rust kernel owns hot
+compute in the browser; Python owns notebooks, sweep, and CLI orchestration.
 
 ## Browser packaging
 
-The studio’s sole browser host is the Rust WASM kernel under
-[`packaging/wasm/`](packaging/wasm/). See
-[`packaging/README.md`](packaging/README.md) for the packaging layout and
-workflow-copy notes.
+The sole browser host is the WASM kernel under `packaging/wasm/`. See
+[`packaging/README.md`](packaging/README.md) and
+[`packaging/wasm/README.md`](packaging/wasm/README.md) for build/smoke steps and
+the note about copying canonical workflows from `packaging/github-workflows/`
+into the live GitHub Actions workflows directory.
+
+Quality CI on GitHub is Python **3.11** only. Rust kernel tests run via
+`cargo test -p voi_core -p voi_wasm`.
 
 ## Team workflow
 
