@@ -1,13 +1,25 @@
 /**
  * T-124 RED (qa-charts): unavailable chart placeholder — P0 spoilage gate.
+ * T-126 RED (qa-hatch): hatch overlay containment — position + pointer-events CSS.
  */
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import type { ScenarioId } from "../types";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
+
+const STYLES_CSS = join(dirname(fileURLToPath(import.meta.url)), "../styles.css");
+
+/** Extract the declaration block for a simple top-level CSS rule (no nested braces). */
+function cssRuleBlock(selector: string, css: string): string | undefined {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1];
+}
 
 describe("ChartUnavailable (T-124 AC-avail spoilage placeholder)", () => {
   it("renders role=img, muted hatch, and unavailable caption", () => {
@@ -55,5 +67,40 @@ describe("store spoilage slot gating (T-124)", () => {
       const slot = resolveStoreSpoilageSlot({ scenario, showTruth: false });
       expect(slot.kind, scenario).toBe("series");
     }
+  });
+});
+
+describe("ChartUnavailable hatch containment (T-126 AC-hatch)", () => {
+  const css = readFileSync(STYLES_CSS, "utf8");
+
+  it("renders unchanged DOM markers for chartSlots consumers", () => {
+    render(
+      createElement(ChartUnavailable, {
+        plotId: "store-spoilage",
+        caption: "Daily waste is not observed at this knowledge rung.",
+      }),
+    );
+    const host = screen.getByRole("img", {
+      name: /not observed|unavailable/i,
+    });
+    expect(host).toHaveAttribute("data-plot-id", "store-spoilage");
+    expect(host).toHaveAttribute("data-unavailable", "true");
+    expect(host).toHaveAttribute("aria-label", "Daily waste is not observed at this knowledge rung.");
+    const hatch = host.querySelector("[data-unavailable-hatch]");
+    expect(hatch).not.toBeNull();
+    expect(hatch).toHaveAttribute("aria-hidden", "true");
+    expect(hatch?.className).toBe("chart-unavailable-hatch");
+  });
+
+  it(".chart-unavailable rule declares position: relative so hatch absolute inset is scoped", () => {
+    const block = cssRuleBlock(".chart-unavailable", css);
+    expect(block, "expected .chart-unavailable rule in styles.css").toBeDefined();
+    expect(block).toMatch(/position\s*:\s*relative\b/);
+  });
+
+  it(".chart-unavailable-hatch rule declares pointer-events: none so overlay cannot intercept clicks", () => {
+    const block = cssRuleBlock(".chart-unavailable-hatch", css);
+    expect(block, "expected .chart-unavailable-hatch rule in styles.css").toBeDefined();
+    expect(block).toMatch(/pointer-events\s*:\s*none\b/);
   });
 });
