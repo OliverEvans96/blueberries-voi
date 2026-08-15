@@ -330,7 +330,12 @@ def test_voi_package_remains_stub() -> None:
 
 
 def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
-    """Changelog + plan + DoD note must not claim Pyodide/ENG-01/WASM shipped."""
+    """M2 close-out must not falsely claim Pyodide/ENG-01/WASM shipped in M2.
+
+    Post T-125 / ADR 0129 the browser studio is WASM-only; changelog guards no
+    longer require ongoing Pyodide packaging non-claim phrases — only that M2
+    artifacts do not assert those paths shipped during M2.
+    """
     blobs: list[tuple[str, str]] = []
     entry = _changelog_m2_closeout_entry()
     if entry:
@@ -341,29 +346,8 @@ def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
         blobs.append((path.name, path.read_text(encoding="utf-8")))
 
     assert blobs, (
-        "Need M2 changelog summary and/or plan/DoD note before asserting "
-        "non-claims for Pyodide packaging"
-    )
-
-    # Require an explicit non-claim somewhere in close-out surface.
-    joined = "\n".join(text for _, text in blobs)
-    has_explicit_nonclaim = bool(
-        re.search(
-            r"(?:no|not|without|non-goal|parked|out of scope).{0,40}"
-            r"(?:pyodide|eng-?01|browser\s+packag|wasm|browser\s+demo)",
-            joined,
-            re.I | re.S,
-        )
-        or re.search(
-            r"(?:pyodide|eng-?01|browser\s+packag|wasm|browser\s+demo).{0,40}"
-            r"(?:not\s+(?:in\s+)?(?:scope|m2)|parked|non-goal|not\s+ship)",
-            joined,
-            re.I | re.S,
-        )
-    )
-    assert has_explicit_nonclaim, (
-        "Close-out checklist / changelog / plan must explicitly assert no "
-        "Pyodide packaging / ENG-01 browser demo / WASM ship in M2"
+        "Need M2 changelog summary and/or plan/DoD note before scanning for "
+        "false Pyodide / ENG-01 / WASM ship claims"
     )
 
     for label, text in blobs:
@@ -375,29 +359,18 @@ def test_closeout_asserts_no_pyodide_packaging_ship_claims() -> None:
             )
 
 
-# Relative to ``src/blueberries_voi/``. T-044 slim interactive entry (ADR 0099);
-# Pyodide worker / wheel packaging modules remain T-046 / T-047.
-_ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
-
-
 def test_no_browser_or_pyodide_packaging_modules_in_src() -> None:
-    """No premature Pyodide/WASM/ENG-01 host modules; T-044 browser.py allowed."""
+    """No browser/Pyodide/WASM Python host modules under src/ (ADR 0129 / T-125)."""
     hits = (
         list(_SRC.rglob("*browser*"))
         + list(_SRC.rglob("*pyodide*"))
         + list(_SRC.rglob("*eng01*"))
         + list(_SRC.rglob("*wasm*"))
     )
-    hits = [
-        p
-        for p in hits
-        if p.is_file()
-        and p.suffix == ".py"
-        and str(p.relative_to(_SRC)) not in _ALLOWED_BROWSER_MODULES
-    ]
+    hits = [p for p in hits if p.is_file() and p.suffix == ".py"]
     assert not hits, (
-        "M2 non-goal: no Pyodide/WASM packaging or premature ENG-01 host "
-        f"modules (allowed: {sorted(_ALLOWED_BROWSER_MODULES)}); found "
+        "M2 non-goal / T-125: no browser/Pyodide/WASM Python host modules under "
+        "src/blueberries_voi/; browser studio lives in packaging/wasm/ only; found "
         + ", ".join(str(p.relative_to(_REPO_ROOT)) for p in hits)
     )
 

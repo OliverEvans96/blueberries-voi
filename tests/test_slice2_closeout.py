@@ -43,12 +43,14 @@ _APPROVED = re.compile(
 # Non-goal / contract themes required on the Slice-2 close-out checklist.
 _CHECKLIST_THEMES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
-        "API responses share Snapshot/DayDelta with Pyodide",
+        "hosts share Snapshot/DayDelta (WASM / native / historical Pyodide)",
         (
             "snapshot",
             "daydelta",
             "day delta",
             "pyodide",
+            "wasm",
+            "native",
             "same",
             "share",
             "parity",
@@ -230,13 +232,13 @@ def _closeout_checklist_candidates() -> list[Path]:
 
 
 def _changelog_slice2_entry() -> str | None:
-    """Return the changelog block that looks like the Slice-2 / API close-out."""
+    """Return the changelog block that looks like the Slice-2 / dev-host close-out."""
     if not _CHANGELOG.is_file():
         return None
     text = _CHANGELOG.read_text(encoding="utf-8")
     heading = re.search(
         r"^##\s+.*(Slice\s*2|local\s+HTTP|HTTP\s+API|ASGI|API\s+\(dev\)|"
-        r"developers?\s+can).*$",
+        r"developers?\s+can|wasm|simulator\s+engine).*$",
         text,
         re.I | re.M,
     )
@@ -329,17 +331,18 @@ def test_slice2_ticket_review_approved(ticket: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: changelog plain-English local HTTP API entry (client voice)
+# AC: changelog plain-English dev-host entry (client voice; HTTP optional post T-125)
 # ---------------------------------------------------------------------------
 
 
 def test_changelog_has_slice2_client_voice_entry() -> None:
-    """Changelog: developers drive the same simulator engine over a local HTTP API."""
+    """Changelog: developers drive the simulator via local HTTP or native/WASM paths."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
     entry = _changelog_slice2_entry()
     assert entry is not None, (
         ".team/changelog.md must include a plain-English Slice-2 entry "
-        "(developers / local HTTP API / same simulator engine; T-052)"
+        "(developers / simulator engine; historical local HTTP API OK — not required "
+        "post T-125 / ADR 0129 WASM-only studio)"
     )
     lowered = entry.lower()
     assert any(
@@ -357,8 +360,17 @@ def test_changelog_has_slice2_client_voice_entry() -> None:
             "http",
             "api",
             "asgi",
+            "wasm",
+            "native",
+            "python",
+            "rust",
+            "simulator",
+            "engine",
         )
-    ), "Slice-2 changelog entry must mention the local HTTP / API path"
+    ), (
+        "Slice-2 changelog entry must mention a dev or browser engine path "
+        "(local HTTP/ASGI historical OK; WASM/native acceptable post T-125)"
+    )
     assert any(
         tok in lowered
         for tok in (
@@ -391,6 +403,8 @@ def test_changelog_has_slice2_client_voice_entry() -> None:
             "iterate",
             "iteration",
             "simulator",
+            "wasm",
+            "native",
         )
     )
     assert not jargon_only, (
@@ -410,7 +424,7 @@ def test_slice2_closeout_contract_checklist() -> None:
     assert candidates, (
         "Add a Slice-2 close-out checklist under .team/reviews/ "
         "(e.g. ENG-01-slice2.md / T-052.md) asserting Snapshot/DayDelta parity "
-        "with Pyodide and no production multi-tenant hosting claim"
+        "across browser/native hosts and no production multi-tenant hosting claim"
     )
 
     best: Path | None = None
@@ -430,16 +444,25 @@ def test_slice2_closeout_contract_checklist() -> None:
     assert best is not None and best_text, "no close-out candidate readable"
     lowered = best_text.lower()
 
-    # Theme 1: shared Snapshot / DayDelta with Pyodide (positive parity claim).
+    # Theme 1: shared Snapshot / DayDelta across browser/native hosts.
     has_snapshot = "snapshot" in lowered
     has_day_delta = "daydelta" in lowered or "day delta" in lowered
-    has_pyodide_or_share = any(
+    has_host_parity = any(
         tok in lowered
-        for tok in ("pyodide", "share", "same", "parity", "both runtimes", "0100")
+        for tok in (
+            "pyodide",
+            "wasm",
+            "native",
+            "share",
+            "same",
+            "parity",
+            "both runtimes",
+            "0100",
+        )
     )
-    assert has_snapshot and has_day_delta and has_pyodide_or_share, (
-        f"{best} must assert API responses share Snapshot/DayDelta with Pyodide "
-        "(name both schemas and the shared / Pyodide parity)"
+    assert has_snapshot and has_day_delta and has_host_parity, (
+        f"{best} must assert hosts share Snapshot/DayDelta "
+        "(name both schemas and WASM/native/Pyodide parity)"
     )
 
     # Theme 2: explicit non-claim for production multi-tenant hosting.

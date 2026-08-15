@@ -227,7 +227,7 @@ def _changelog_slice1_entry() -> str | None:
         return None
     text = _CHANGELOG.read_text(encoding="utf-8")
     heading = re.search(
-        r"^##\s+.*(Slice\s*1|ENG-01|Pyodide|browser\s+worker|interactive).*$",
+        r"^##\s+.*(Slice\s*1|ENG-01|browser\s+worker|interactive|wasm).*$",
         text,
         re.I | re.M,
     )
@@ -237,7 +237,7 @@ def _changelog_slice1_entry() -> str | None:
         block = rest if nxt is None else rest[: nxt.start() + 3]
         # Prefer blocks that mention browser / worker / demo budget themes.
         if re.search(
-            r"browser|worker|demo\s+budget|interactive|python\s+engine",
+            r"browser|worker|demo\s+budget|interactive|wasm|simulator|engine",
             block,
             re.I,
         ):
@@ -247,7 +247,7 @@ def _changelog_slice1_entry() -> str | None:
     for line in text.splitlines():
         if re.search(
             r"(?:Slice\s*1|browser\s+worker|demo\s+budget|interactive.{0,40}engine|"
-            r"python.{0,40}browser|T-048)",
+            r"(?:wasm|python).{0,40}browser|T-048)",
             line,
             re.I,
         ):
@@ -325,12 +325,12 @@ def test_slice1_ticket_review_approved(ticket: str) -> None:
 
 
 def test_changelog_has_slice1_client_voice_entry() -> None:
-    """Changelog: interactive Python engine runs in a browser worker under budgets."""
+    """Changelog: interactive engine in browser (worker or WASM) under budgets."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
     entry = _changelog_slice1_entry()
     assert entry is not None, (
         ".team/changelog.md must include a plain-English Slice-1 entry "
-        "(interactive Python engine / browser worker / demo budgets; T-048)"
+        "(interactive engine / browser worker or WASM / demo budgets; T-048)"
     )
     lowered = entry.lower()
     assert any(
@@ -340,8 +340,9 @@ def test_changelog_has_slice1_client_voice_entry() -> None:
             "worker",
             "in the browser",
             "browser tab",
+            "wasm",
         )
-    ), "Slice-1 changelog entry must mention the browser / worker host"
+    ), "Slice-1 changelog entry must mention the browser / worker / WASM host"
     assert any(
         tok in lowered
         for tok in (
@@ -349,8 +350,14 @@ def test_changelog_has_slice1_client_voice_entry() -> None:
             "engine",
             "simulator",
             "interactive",
+            "wasm",
+            "native",
+            "rust",
         )
-    ), "Slice-1 changelog entry must mention the interactive Python / simulator engine"
+    ), (
+        "Slice-1 changelog entry must mention the interactive engine "
+        "(Python worker or WASM-native path; post T-125 / ADR 0129)"
+    )
     assert any(
         tok in lowered
         for tok in (
@@ -364,7 +371,7 @@ def test_changelog_has_slice1_client_voice_entry() -> None:
     ), "Slice-1 changelog entry must mention demo / dialed budgets (not jargon-only)"
     # Client-voice: avoid a jargon-only bullet (paths / RPC / micropip alone).
     jargon_only = bool(
-        re.search(r"\b(?:rpc|micropip|pyodide|asgi|wasm)\b", entry, re.I)
+        re.search(r"\b(?:rpc|micropip|pyodide|asgi)\b", entry, re.I)
     ) and not any(
         tok in lowered
         for tok in (
@@ -377,7 +384,7 @@ def test_changelog_has_slice1_client_voice_entry() -> None:
     )
     assert not jargon_only, (
         "Slice-1 changelog must be client-voice (what someone can do), "
-        "not jargon-only (RPC/micropip/Pyodide alone)"
+        "not jargon-only (RPC/micropip/Pyodide alone; WASM is OK)"
     )
 
 

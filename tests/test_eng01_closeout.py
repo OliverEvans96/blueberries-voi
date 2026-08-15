@@ -268,13 +268,13 @@ def _closeout_nongoal_candidates() -> list[Path]:
 
 
 def _changelog_eng01_closeout_entry() -> str | None:
-    """Return the changelog block for ENG-01 / Slice-3 dual-runtime close-out."""
+    """Return the changelog block for ENG-01 / Slice-3 browser studio close-out."""
     if not _CHANGELOG.is_file():
         return None
     text = _CHANGELOG.read_text(encoding="utf-8")
     heading = re.search(
         r"^##\s+.*(ENG-01|Slice\s*3|dual[- ]runtime|live simulator|"
-        r"interactive simulator|browser).*$",
+        r"interactive simulator|browser|wasm).*$",
         text,
         re.I | re.M,
     )
@@ -366,17 +366,18 @@ def test_slice3_ticket_review_approved(ticket: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: changelog client voice - browser interact + local API iterate
+# AC: changelog client voice - browser interact + native / WASM dev path
 # ---------------------------------------------------------------------------
 
 
 def test_changelog_has_eng01_client_voice_entry() -> None:
-    """Changelog: interact in browser (demo budgets) + iterate via local API."""
+    """Changelog: interact in browser (demo budgets) + native PyO3 / WASM dev path."""
     assert _CHANGELOG.is_file(), f"missing {_CHANGELOG}"
     entry = _changelog_eng01_closeout_entry()
     assert entry is not None, (
         ".team/changelog.md must include a plain-English ENG-01 / Slice-3 entry "
-        "(live simulator in the browser under demo budgets; local API for developers)"
+        "(live simulator in the browser under demo budgets; native Python or WASM "
+        "for developers — post T-125 / ADR 0129, not a local HTTP API requirement)"
     )
     lowered = entry.lower()
     assert any(
@@ -410,21 +411,27 @@ def test_changelog_has_eng01_client_voice_entry() -> None:
     assert any(
         tok in lowered
         for tok in (
-            "local api",
-            "local http",
-            "http api",
+            "wasm",
+            "native",
+            "rust",
+            "python",
+            "notebook",
+            "cli",
             "developers",
             "developer",
             "iterate",
             "iteration",
+            "local api",
+            "local http",
+            "http api",
         )
     ), (
-        "ENG-01 changelog must mention developers iterating via the local API "
-        "(client voice)"
+        "ENG-01 changelog must mention developers using native Python / WASM paths "
+        "(local HTTP API acceptable as historical Slice-2 narrative only)"
     )
     # Client-voice: avoid a jargon-only bullet (paths / RPC / micropip alone).
     jargon_only = bool(
-        re.search(r"\b(?:rpc|micropip|pyodide|asgi|wasm|vite)\b", entry, re.I)
+        re.search(r"\b(?:rpc|micropip|pyodide|asgi|vite)\b", entry, re.I)
     ) and not any(
         tok in lowered
         for tok in (
@@ -439,7 +446,7 @@ def test_changelog_has_eng01_client_voice_entry() -> None:
     )
     assert not jargon_only, (
         "ENG-01 changelog must be client-voice (what someone can do), "
-        "not jargon-only (RPC/micropip/Pyodide/ASGI alone)"
+        "not jargon-only (RPC/micropip/Pyodide/ASGI alone; WASM is OK)"
     )
 
 
