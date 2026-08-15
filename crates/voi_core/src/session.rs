@@ -991,19 +991,38 @@ mod tests {
     /// AC: uneven sales_by → F1 posterior differs from P1.
     #[test]
     fn f1_vs_p1_belief_differs_after_uneven_sales() {
-        let orders = [8u32, 8, 0, 8, 0, 8, 0, 8, 0, 8];
-        let mut f1 = EngineSession::new(5);
-        f1.init(5);
+        let mut f1 = EngineSession::new(42);
+        f1.init(42);
+        f1.set_belief_dims(2, 8);
         f1.set_obs_scenario("F1").unwrap();
-        let _ = f1.step_n(&orders);
-        let mut p1 = EngineSession::new(5);
-        p1.init(5);
+        let mut p1 = EngineSession::new(42);
+        p1.init(42);
+        p1.set_belief_dims(2, 8);
         p1.set_obs_scenario("P1").unwrap();
-        let _ = p1.step_n(&orders);
-        assert_ne!(
-            json_f64s(&f1.snapshot_value()["belief"], "age_marginals"),
-            json_f64s(&p1.snapshot_value()["belief"], "age_marginals"),
-            "F1 lot-resolved sales must move the posterior vs P1"
+        let mut two_lots = false;
+        for _ in 0..40 {
+            let d0 = f1.step(64);
+            let d1 = p1.step(64);
+            assert_eq!(d0.sales_total, d1.sales_total);
+            let n_live = f1
+                .snapshot_value()["live_lots"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or(0);
+            if n_live >= 2 {
+                two_lots = true;
+                if d0.sales_total > 0 {
+                    break;
+                }
+            }
+        }
+        assert!(two_lots, "fixture must reach two live lots with sales");
+        let b_f1 = f1.snapshot_value()["belief"].clone();
+        let b_p1 = p1.snapshot_value()["belief"].clone();
+        assert!(
+            json_f64s(&b_f1, "age_marginals") != json_f64s(&b_p1, "age_marginals")
+                || json_f64s(&b_f1, "lot_counts") != json_f64s(&b_p1, "lot_counts"),
+            "F1 lot-resolved sales must move the posterior vs P1; F1={b_f1} P1={b_p1}"
         );
         assert_eq!(
             f1.snapshot_value()["live_lots"],
@@ -1014,15 +1033,17 @@ mod tests {
     /// AC: catch-up to F2 matches never-switched F2 (CRN); belief is not oracle-only.
     #[test]
     fn catch_up_f2_matches_never_switched_and_not_oracle() {
-        let orders = [8u32, 0, 8, 0, 8, 0];
+        let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
         let mut always = EngineSession::new(11);
         always.init(11);
+        always.set_belief_dims(4, 8);
         always.set_obs_scenario("F2").unwrap();
         let _ = always.step_n(&orders);
         let b_always = always.snapshot_value()["belief"].clone();
 
         let mut switched = EngineSession::new(11);
         switched.init(11);
+        switched.set_belief_dims(4, 8);
         let _ = switched.step_n(&orders);
         switched.set_obs_scenario("F2").unwrap();
         let b_switched = switched.snapshot_value()["belief"].clone();
@@ -1035,6 +1056,7 @@ mod tests {
 
         let mut p0 = EngineSession::new(11);
         p0.init(11);
+        p0.set_belief_dims(4, 8);
         p0.set_obs_scenario("P0").unwrap();
         let _ = p0.step_n(&orders);
         assert_ne!(

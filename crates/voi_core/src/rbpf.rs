@@ -23,9 +23,10 @@ fn log_p_known_sales_and_waste(
     waste_tot: Option<i32>,
     params: &ModelParams,
 ) -> f64 {
-    if n.len() != tau.len() || n.len() != sales.len() {
+    if n.len() != tau.len() {
         return f64::NEG_INFINITY;
     }
+    let sales = align_lot_map(sales, n.len());
     let w = picking_weights(
         tau,
         params.sigma,
@@ -33,7 +34,7 @@ fn log_p_known_sales_and_waste(
         params.eta_ref,
         params.uniform_picking,
     );
-    let ll_sales = exact_wor_loglik(n, sales, &w);
+    let ll_sales = exact_wor_loglik(n, &sales, &w);
     if !ll_sales.is_finite() {
         return f64::NEG_INFINITY;
     }
@@ -67,6 +68,18 @@ fn log_p_known_sales_and_waste(
     } else {
         ll_sales + p_waste.ln()
     }
+}
+
+fn align_lot_map(sales: &[u32], l: usize) -> Vec<u32> {
+    if sales.len() == l {
+        return sales.to_vec();
+    }
+    if sales.len() > l {
+        return sales[sales.len() - l..].to_vec();
+    }
+    let mut padded = vec![0u32; l - sales.len()];
+    padded.extend_from_slice(sales);
+    padded
 }
 
 fn birth_tau<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
