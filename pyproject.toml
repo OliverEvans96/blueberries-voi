@@ -145,6 +145,23 @@ addopts = [
 branch = true
 source_pkgs = ["blueberries_voi"]
 disable_warnings = ["module-not-measured"]
+# ADR 0127 Wave F: research viz, bakeoff backends, and superseded Python episode
+# loops are retained for diagnostics but not Tier-2 hot-path coverage scope.
+omit = [
+    "*/blueberries_voi/viz/*",
+    "*/blueberries_voi/sim/m2_multi_scenario.py",
+    "*/blueberries_voi/sim/m2_ladder.py",
+    "*/blueberries_voi/sim/alpha_tune.py",
+    "*/blueberries_voi/sim/bakeoff_rollout.py",
+    "*/blueberries_voi/sim/bakeoff_ordering.py",
+    "*/blueberries_voi/sim/open_loop.py",
+    "*/blueberries_voi/sim/episode.py",
+    "*/blueberries_voi/sim/day_tick.py",
+    "*/blueberries_voi/filter/backends.py",
+    "*/blueberries_voi/filter/particle/mc_likelihood.py",
+    "*/blueberries_voi/filter/age_likelihood/exact_likelihood.py",
+    "*/blueberries_voi/voi/sweep.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
