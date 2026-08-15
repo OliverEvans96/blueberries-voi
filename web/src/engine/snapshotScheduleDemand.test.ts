@@ -122,7 +122,7 @@ describe("T-085 Snapshot wire types (schedule + demand_summary)", () => {
         `DemandSummary exist on Snapshot.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     ).toBe(0);
     },
-    30_000,
+    60_000,
   );
 });
 

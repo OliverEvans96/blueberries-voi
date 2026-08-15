@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
 import { MockAdapter } from "./mock/adapter";
-import { PyodideAdapter } from "./engine/pyodideAdapter";
+import { WasmAdapter } from "./engine/wasmAdapter";
 import { ViewModelProjector } from "./engine/projector";
 import type { DayDelta, Snapshot } from "./engine/types";
 
@@ -224,8 +224,8 @@ describe("T-089 react/studioLogic.ts passes staged config into adapter.init/rese
   });
 });
 
-describe("T-089 HTTP / Pyodide / mock forward obs_scenario; mock drops P2", () => {
-  it("PyodideAdapter init/reset RPC params include obs_scenario in config", async () => {
+describe("T-089 WASM / mock forward obs_scenario; mock drops P2", () => {
+  it("WasmAdapter init/reset RPC params include obs_scenario in config", async () => {
     class FakeWorker {
       static instances: FakeWorker[] = [];
       posted: unknown[] = [];
@@ -267,9 +267,9 @@ describe("T-089 HTTP / Pyodide / mock forward obs_scenario; mock drops P2", () =
       },
     );
     try {
-      const adapter = new PyodideAdapter({
-        workerUrl: "/worker.js",
-        wheelUrl: "https://example.test/pkg.whl",
+      const adapter = new WasmAdapter({
+        workerUrl: "/packaging/wasm/worker.js",
+        pkgUrl: "/wasm/",
       });
       await adapter.init({ obs_scenario: "F1s" });
       await adapter.reset({ obs_scenario: "F2" });

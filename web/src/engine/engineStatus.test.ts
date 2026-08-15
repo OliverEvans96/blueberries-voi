@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PyodideAdapter } from "./pyodideAdapter";
+import { WasmAdapter } from "./wasmAdapter";
 import {
   applyEngineStatusChip,
   createEngineStatusTracker,
@@ -21,7 +21,7 @@ const WEB_SRC = join(HERE, "..");
 const LOGIC_TS = join(WEB_SRC, "react/studioLogic.ts");
 const LAYOUT_TS = join(WEB_SRC, "react/StudioLayout.tsx");
 const STYLES_CSS = join(WEB_SRC, "styles.css");
-const PYODIDE_ADAPTER_TS = join(HERE, "pyodideAdapter.ts");
+const WASM_ADAPTER_TS = join(HERE, "wasmAdapter.ts");
 
 const SAMPLE_SNAPSHOT = {
   seq: 0,
@@ -80,7 +80,7 @@ class HoldInitWorker {
     /* no-op */
   }
 
-  releaseInit(ok: boolean, message = "micropip failed"): void {
+  releaseInit(ok: boolean, message = "wasm init failed"): void {
     if (!this.heldInit) throw new Error("no held init");
     const { id } = this.heldInit;
     this.heldInit = null;
@@ -155,11 +155,10 @@ describe("engine status chip copy + dots", () => {
     expect(chip.dot).toBe("red");
   });
 
-  it("http/mock loading copy may say Connecting; pyodide stays Loading", () => {
-    expect(engineStatusChip("loading", "pyodide").label).toBe("Loading");
-    expect(engineStatusChip("loading", "http").label).toMatch(/Connecting|Loading/);
+  it("mock loading copy may say Connecting; wasm stays Loading", () => {
+    expect(engineStatusChip("loading", "wasm").label).toBe("Loading");
     expect(engineStatusChip("loading", "mock").label).toMatch(/Connecting|Loading/);
-    expect(engineStatusChip("ready", "http").label).toBe("Ready");
+    expect(engineStatusChip("ready", "wasm").label).toBe("Ready");
   });
 });
 
@@ -171,13 +170,13 @@ describe("engine status tracker follows init, not Worker construction", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stays loading after new Worker / PyodideAdapter until init RPC succeeds", async () => {
+  it("stays loading after new Worker / WasmAdapter until init RPC succeeds", async () => {
     const tracker = createEngineStatusTracker("loading");
     expect(tracker.get()).toBe("loading");
 
-    const adapter = new PyodideAdapter({
-      workerUrl: "/packaging/pyodide/worker.js",
-      wheelUrl: "/wheels/blueberries_voi-0.1.0-py3-none-any.whl",
+    const adapter = new WasmAdapter({
+      workerUrl: "/packaging/wasm/worker.js",
+      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
     });
     expect(HoldInitWorker.instances.length).toBeGreaterThanOrEqual(1);
     expect(tracker.get()).toBe("loading");
@@ -190,15 +189,15 @@ describe("engine status tracker follows init, not Worker construction", () => {
     expect(tracker.get()).toBe("ready");
   });
 
-  it("turns error when init rejects (wheel / micropip / bind failure)", async () => {
+  it("turns error when init rejects (wasm bind / worker failure)", async () => {
     const tracker = createEngineStatusTracker("loading");
-    const adapter = new PyodideAdapter({
-      workerUrl: "/packaging/pyodide/worker.js",
-      wheelUrl: "/wheels/blueberries_voi-0.1.0-py3-none-any.whl",
+    const adapter = new WasmAdapter({
+      workerUrl: "/packaging/wasm/worker.js",
+      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
     });
     const pending = tracker.follow(adapter.init({}));
-    HoldInitWorker.instances[0]!.releaseInit(false, "No matching distribution found for numpy");
-    await expect(pending).rejects.toThrow(/numpy|micropip|InitError/i);
+    HoldInitWorker.instances[0]!.releaseInit(false, "Failed to fetch wasm module");
+    await expect(pending).rejects.toThrow(/wasm|InitError/i);
     expect(tracker.get()).toBe("error");
   });
 
@@ -272,10 +271,11 @@ describe("studio wires the chip in the header and follows bootstrap init", () =>
     expect(css).toMatch(/#c46a3a|--spoil/i);
   });
 
-  it("pyodideAdapter install path is not rewritten by the status module", () => {
-    const adapterSrc = readFileSync(PYODIDE_ADAPTER_TS, "utf8");
+  it("wasmAdapter init path is not rewritten by the status module", () => {
+    const adapterSrc = readFileSync(WASM_ADAPTER_TS, "utf8");
     const statusSrc = readFileSync(join(HERE, "engineStatus.ts"), "utf8");
-    expect(statusSrc).not.toMatch(/micropip|loadPyodide|numpy/);
+    expect(statusSrc).not.toMatch(/micropip|loadPyodide|pyodide/i);
+    expect(statusSrc).not.toMatch(/importScripts/);
     expect(adapterSrc).toMatch(/\binit\b/);
   });
 });

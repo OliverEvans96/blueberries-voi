@@ -1,7 +1,7 @@
 /**
  * Studio engine ready-chip: loading until adapter.init() settles.
  *
- * Ready means a finished WASM worker init (wasm-pack bind) — not merely
+ * Ready means a finished WASM worker init — not merely
  * `new Worker()`. Failure is a red Failed chip;
  * `#studio-error` still carries the long message.
  */

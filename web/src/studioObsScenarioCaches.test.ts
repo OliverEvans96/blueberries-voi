@@ -5,14 +5,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { PyodideAdapter } from "./engine/pyodideAdapter";
+import { WasmAdapter } from "./engine/wasmAdapter";
 import type { Snapshot } from "./engine/types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTROLS_TS = join(HERE, "controls.ts");
 const MAIN_TS = join(HERE, "react/studioLogic.ts");
 const ADAPTER_TS = join(HERE, "engine/adapter.ts");
-const PYODIDE_ADAPTER_TS = join(HERE, "engine/pyodideAdapter.ts");
+const WASM_ADAPTER_TS = join(HERE, "engine/wasmAdapter.ts");
 
 const FLAT_BELIEF = {
   L: 2,
@@ -78,8 +78,8 @@ describe("T-113 catch-up progress and chips disabled", () => {
   });
 });
 
-describe("T-113 PyodideAdapter forward set_obs_scenario", () => {
-  it("PyodideAdapter RPC method is set_obs_scenario", async () => {
+describe("T-113 WasmAdapter forward set_obs_scenario", () => {
+  it("WasmAdapter RPC method is set_obs_scenario", async () => {
     class FakeWorker {
       static instances: FakeWorker[] = [];
       posted: unknown[] = [];
@@ -118,9 +118,9 @@ describe("T-113 PyodideAdapter forward set_obs_scenario", () => {
       },
     );
     try {
-      const adapter = new PyodideAdapter({
-        workerUrl: "/worker.js",
-        wheelUrl: "https://example.test/pkg.whl",
+      const adapter = new WasmAdapter({
+        workerUrl: "/packaging/wasm/worker.js",
+        pkgUrl: "/wasm/",
       });
       const fn =
         (adapter as unknown as { setObsScenario?: (id: string) => Promise<Snapshot> })
@@ -141,7 +141,7 @@ describe("T-113 PyodideAdapter forward set_obs_scenario", () => {
     }
   });
 
-  it("pyodideAdapter.ts mentions set_obs_scenario", () => {
-    expect(readFileSync(PYODIDE_ADAPTER_TS, "utf8")).toMatch(/set_obs_scenario/);
+  it("wasmAdapter.ts mentions set_obs_scenario", () => {
+    expect(readFileSync(WASM_ADAPTER_TS, "utf8")).toMatch(/set_obs_scenario/);
   });
 });
