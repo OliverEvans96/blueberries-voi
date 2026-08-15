@@ -2,6 +2,11 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-14
+
+- **Studio charts now keep the whole store run, then stop at day 90 and ask you to Reset — including the offline mock engine, not only the live Python session** (T-112).
+- **Knowledge chips now retarget what the store can see on the current run without Reset; Autopilot’s next order follows that choice, while physics and past orders stay the same** (T-113).
+
 ## 2026-08-13
 
 - **Internal structure was cleaned up without changing scores or how the simulator, filter, or studio behave** (T-102).

@@ -373,7 +373,6 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
     Pre-T-082 production ``day_step`` may lack the kwarg; the test installs a
     compatible wrapper so the ADR 0116 shim obligation is observable now.
     """
-    import blueberries_voi.sim.episode as episode_mod
     from blueberries_voi.model import day_step as real_day_step
 
     recorded: list[int | None] = []
@@ -387,7 +386,9 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
         recorded.append(day)
         return real_day_step(cohorts, **kwargs)
 
-    monkeypatch.setattr(episode_mod, "day_step", day_step_with_day)
+    monkeypatch.setitem(
+        run_closed_loop_episode.__globals__, "day_step", day_step_with_day
+    )
 
     n_score = 7
     run_closed_loop_episode(
@@ -408,7 +409,6 @@ def test_closed_loop_forwards_day_kw_to_day_step_when_supported(
 def test_advance_day_forwards_day_kw_to_day_step_when_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import blueberries_voi.simulator.day_driver as driver_mod
     from blueberries_voi.model import day_step as real_day_step
 
     recorded: list[int | None] = []
@@ -422,7 +422,7 @@ def test_advance_day_forwards_day_kw_to_day_step_when_supported(
         recorded.append(day)
         return real_day_step(cohorts, **kwargs)
 
-    monkeypatch.setattr(driver_mod, "day_step", day_step_with_day)
+    monkeypatch.setitem(advance_day.__globals__, "day_step", day_step_with_day)
 
     state = DayDriverState(
         cohorts=[],

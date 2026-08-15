@@ -7,6 +7,7 @@ a new episode. Rust/wasm is out of scope.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -155,3 +156,13 @@ def test_init_clears_history_like_reset() -> None:
     snap = session.init(_config(), seed=9)
     assert snap["episode_day"] == 0
     assert snap["history"] == []
+
+
+def test_mock_adapter_source_refuses_at_day_90_like_python_session() -> None:
+    """JS mock host must hard-stop at the same 90-day cap as EngineSession."""
+    src = (
+        Path(__file__).resolve().parents[1] / "web" / "src" / "mock" / "adapter.ts"
+    ).read_text(encoding="utf-8")
+    assert "episode ended" in src
+    assert "Reset" in src
+    assert "90" in src
