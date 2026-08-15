@@ -228,6 +228,17 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     expect(body).not.toMatch(/\.postMessage\s*\(/);
     expect(body).not.toMatch(/adapter\.(init|step|reset|act)\s*\(/);
   });
+
+  it("onSetObsScenario uses patchEngineState (not applySnapshot) so wasm empty history does not wipe the episode", () => {
+    const src = readFileSync(MAIN_TS, "utf8");
+    const handler = src.match(
+      /async onSetObsScenario\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/,
+    );
+    expect(handler, "expected onSetObsScenario handler in main.ts").toBeTruthy();
+    const body = handler![0]!;
+    expect(body).toMatch(/projector\.patchEngineState\s*\(/);
+    expect(body).not.toMatch(/projector\.applySnapshot\s*\(/);
+  });
 });
 
 describe("T-057 default path leaves fake generate.ts physics", () => {

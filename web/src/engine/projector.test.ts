@@ -608,6 +608,91 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
       before.belief.count_edges.length,
     );
   });
+
+  it("patchEngineState after deltas: preserves history (wasm empty-history snapshot)", () => {
+    const projector = new ViewModelProjector();
+    projector.applySnapshot(
+      sampleSnapshot({
+        belief: peakedBelief(0),
+        live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+      }),
+    );
+    projector.applyDelta(
+      sampleDelta({
+        seq: 1,
+        episode_day: 1,
+        day: sampleDay(0),
+        belief: peakedBelief(0),
+      }),
+    );
+    projector.applyDelta(
+      sampleDelta({
+        seq: 2,
+        episode_day: 2,
+        day: sampleDay(1),
+        belief: peakedBelief(1),
+      }),
+    );
+    const before = projector.getViewModel();
+    expect(before.history).toHaveLength(2);
+
+    // Mimic wasm set_obs_scenario: real belief, empty history omitted from patch.
+    const vm = projector.patchEngineState({
+      belief: peakedBelief(3),
+      live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+      pipeline: [],
+      episode_day: 2,
+    });
+
+    expect(vm.history).toHaveLength(2);
+    expect(vm.history.map((d) => d.day)).toEqual(before.history.map((d) => d.day));
+    expect(vm.episode_day).toBe(2);
+    expect(ageMass(vm.belief.density)[3]!).toBeCloseTo(10);
+    expect(vm.belief_history).toHaveLength(2);
+    // Last-day belief trail updated to the new rung; earlier days unchanged.
+    expect(vm.belief_history[1]!.flatBelief.age_marginals[3]).toBe(1);
+    expect(vm.belief_history[0]!.flatBelief.age_marginals[0]).toBe(1);
+  });
+
+  it("patchEngineState skips belief_history update for empty stub belief", () => {
+    const projector = new ViewModelProjector();
+    projector.applySnapshot(
+      sampleSnapshot({
+        belief: peakedBelief(0),
+        live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+      }),
+    );
+    projector.applyDelta(
+      sampleDelta({
+        seq: 1,
+        episode_day: 1,
+        day: sampleDay(0),
+        belief: peakedBelief(0),
+      }),
+    );
+    const beforeCounts = projector
+      .getViewModel()
+      .belief_history.map((b) => [...b.flatBelief.lot_counts]);
+
+    projector.patchEngineState({
+      belief: {
+        L: 0,
+        K: 0,
+        lot_counts: [],
+        age_marginals: [],
+        tau_grid: [],
+      },
+      live_lots: [],
+      pipeline: [],
+      episode_day: 1,
+    });
+
+    const after = projector.getViewModel();
+    expect(after.history).toHaveLength(1);
+    expect(after.belief_history.map((b) => b.flatBelief.lot_counts)).toEqual(
+      beforeCounts,
+    );
+  });
 });
 
 describe("stockoutFromDayFields (missed sales wire gap)", () => {

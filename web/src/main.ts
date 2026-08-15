@@ -697,7 +697,9 @@ const sectionControlsApi = mountSectionControls(
       sectionControlsApi.update(controlsState());
       try {
         const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-        vm = projector.applySnapshot(snap);
+        // Mid-episode catch-up: wasm/Rust snapshots omit history ([]); do not
+        // replace the client-accumulated episode via applySnapshot.
+        vm = projector.patchEngineState(snap);
         projector.setConfig({ obs_scenario: id });
         renderAll();
       } catch (err) {

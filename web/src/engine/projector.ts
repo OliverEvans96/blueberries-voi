@@ -367,6 +367,21 @@ export class ViewModelProjector {
         age_marginals: [...snapshot.belief.age_marginals],
         tau_grid: [...snapshot.belief.tau_grid],
       };
+      // Mid-episode scenario switch: update the current / last-day belief trail
+      // entry. Skip empty stubs (e.g. incomplete PyO3 responses with L<=0).
+      if (snapshot.belief.L > 0 && snapshot.belief.K > 0) {
+        const cloned = cloneFlat(this.flatBelief);
+        const lastBh = this.beliefHistory[this.beliefHistory.length - 1];
+        if (lastBh != null && lastBh.day === this.episodeDay) {
+          lastBh.flatBelief = cloned;
+        } else if (this.history.length > 0) {
+          const lastDay = this.history[this.history.length - 1]!;
+          const idx = this.beliefHistory.findIndex((b) => b.day === lastDay.day);
+          if (idx >= 0) {
+            this.beliefHistory[idx]!.flatBelief = cloned;
+          }
+        }
+      }
     }
     if (snapshot.live_lots) {
       this.liveLots = snapshot.live_lots.map((l) => ({ ...l }));
