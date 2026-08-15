@@ -57,15 +57,105 @@ impl Default for FilterObs {
     }
 }
 
-/// Scenario → mask. Stub always returns an empty mask so field-table tests stay RED.
-pub fn mask_for(_id: &str) -> Result<ObsMask, String> {
-    Ok(ObsMask::default())
+/// Scenario → mask. Matches Python ADR 0086 / `mask_for`.
+pub fn mask_for(id: &str) -> Result<ObsMask, String> {
+    if id == "B-state" {
+        return Err("SCN-B-state is a verification bypass, not an ObsMask; \
+             do not fabricate observations via mask_for"
+            .into());
+    }
+    let m = match id {
+        "P0" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            ..ObsMask::default()
+        },
+        "P1" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            waste_total: true,
+            ..ObsMask::default()
+        },
+        "F1" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            waste_total: true,
+            sales_by_lot: true,
+            lot_ids_live: true,
+            ..ObsMask::default()
+        },
+        "F1s" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            waste_total: true,
+            waste_by_lot: true,
+            lot_ids_live: true,
+            ..ObsMask::default()
+        },
+        "F2a" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            waste_total: true,
+            pack_date: true,
+            ..ObsMask::default()
+        },
+        "F2" => ObsMask {
+            arrivals: true,
+            sales_total: true,
+            waste_total: true,
+            sales_by_lot: true,
+            waste_by_lot: true,
+            age_at_receipt: true,
+            lot_ids_live: true,
+            ..ObsMask::default()
+        },
+        _ => return Err(format!("Unknown scenario for ObsMask: {id:?}")),
+    };
+    Ok(m)
 }
 
 impl ObsMask {
-    /// Apply this mask to a richest day. Stub returns `FilterObs::default()`.
-    pub fn apply(self, _rich: &RichDay) -> FilterObs {
-        FilterObs::default()
+    /// Keep present fields from `rich`; absent = `None` (never invent 0).
+    /// `arrivals` is always copied (u32 on every rung).
+    pub fn apply(self, rich: &RichDay) -> FilterObs {
+        FilterObs {
+            sales_tot: if self.sales_total {
+                Some(rich.sales_total as i32)
+            } else {
+                None
+            },
+            waste_tot: if self.waste_total {
+                Some(rich.waste_total as i32)
+            } else {
+                None
+            },
+            arrivals: rich.arrivals,
+            sales_by: if self.sales_by_lot {
+                Some(rich.sales_by.clone())
+            } else {
+                None
+            },
+            waste_by: if self.waste_by_lot {
+                Some(rich.waste_by.clone())
+            } else {
+                None
+            },
+            lot_ids_live: if self.lot_ids_live {
+                Some(rich.lot_ids.clone())
+            } else {
+                None
+            },
+            pack_date_days: if self.pack_date {
+                rich.pack_date_days
+            } else {
+                None
+            },
+            age_at_receipt: if self.age_at_receipt {
+                rich.age_at_receipt
+            } else {
+                None
+            },
+        }
     }
 }
 

@@ -1,16 +1,98 @@
 //! Counts-only RBPF batch step (ADR 0105). Full particle bank stays in-Rust.
 
 use rand::Rng;
-use rand_distr::{Binomial, Distribution};
+use rand_distr::{Binomial, Distribution, Normal};
 
-use crate::exact_ll::log_p_sales_waste_given_ages;
+use crate::exact_ll::{binom_pmf, iter_compositions, log_p_sales_waste_given_ages};
 use crate::physics::{
     allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment,
 };
+use crate::shipments::{shipment_arrival_age, ShipmentTrace};
 use crate::wor::sequential_wor_composition_prob;
 use crate::ModelParams;
 
 pub use crate::obs::FilterObs;
+
+const F2A_BIRTH_SD: f64 = 0.75;
+
+/// Log-likelihood of a known sales composition (plus waste total when present).
+fn log_p_known_sales_and_waste(
+    n: &[u32],
+    tau: &[f64],
+    sales: &[u32],
+    waste_tot: Option<i32>,
+    params: &ModelParams,
+) -> f64 {
+    if n.len() != tau.len() || n.len() != sales.len() {
+        return f64::NEG_INFINITY;
+    }
+    let w = picking_weights(
+        tau,
+        params.sigma,
+        params.beta,
+        params.eta_ref,
+        params.uniform_picking,
+    );
+    let ll_sales = exact_wor_loglik(n, sales, &w);
+    if !ll_sales.is_finite() {
+        return f64::NEG_INFINITY;
+    }
+    let Some(wt) = waste_tot else {
+        return ll_sales;
+    };
+    let remaining: Vec<u32> = n
+        .iter()
+        .zip(sales.iter())
+        .map(|(ni, si)| ni.saturating_sub(*si))
+        .collect();
+    let on_rem: i32 = remaining.iter().map(|&x| x as i32).sum();
+    if wt < 0 || wt > on_rem {
+        return f64::NEG_INFINITY;
+    }
+    let dtau = q10_age_increment(1.0, params.t_store_c, params.t_ref_c, params.q10);
+    let p_die: Vec<f64> = tau
+        .iter()
+        .map(|&t| death_prob_survival_ratio(t, dtau, params.beta, params.eta_ref))
+        .collect();
+    let mut p_waste = 0.0;
+    for waste in iter_compositions(&remaining, wt) {
+        let mut term = 1.0;
+        for j in 0..remaining.len() {
+            term *= binom_pmf(waste[j] as i32, remaining[j] as i32, p_die[j]);
+        }
+        p_waste += term;
+    }
+    if p_waste <= 0.0 {
+        f64::NEG_INFINITY
+    } else {
+        ll_sales + p_waste.ln()
+    }
+}
+
+fn birth_tau<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
+    if let Some(age) = obs.age_at_receipt {
+        return age;
+    }
+    if let Some(pack) = obs.pack_date_days {
+        let dist = Normal::new(f64::from(pack), F2A_BIRTH_SD).expect("sd > 0");
+        return dist.sample(rng).max(0.0);
+    }
+    mix_arrival_age(rng, params)
+}
+
+/// Same mix as `generate_arrival_age` with `smoke_cool()`, one filter rng.
+fn mix_arrival_age<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
+    let ships = [ShipmentTrace::smoke_cool()];
+    let idx = rng.random_range(0..ships.len());
+    let _: f64 = rng.random();
+    let ages: Vec<f64> = ships
+        .iter()
+        .map(|s| shipment_arrival_age(s, params.q10, params.t_ref_c))
+        .collect();
+    let mean: f64 = ages.iter().sum::<f64>() / ages.len() as f64;
+    let age = ages[idx];
+    mean + (age - mean)
+}
 
 /// Log-likelihood of a sales composition under sequential WOR (exact LL).
 pub fn exact_wor_loglik(counts: &[u32], sales: &[u32], weights: &[f64]) -> f64 {
@@ -75,17 +157,28 @@ pub fn filter_step<R: Rng + ?Sized>(
         .collect();
     let mut log_like = vec![0.0; n];
     for i in 0..n {
-        match (obs.sales_tot, obs.waste_tot) {
-            (None, None) => log_like[i] = 0.0,
-            (Some(s), Some(w)) => {
-                let ll = log_p_sales_waste_given_ages(&bank.counts[i], &taus[i], s, w, params);
-                log_like[i] = if ll.is_finite() { ll } else { -1e300 };
+        if let Some(ref sales_by) = obs.sales_by {
+            let ll = log_p_known_sales_and_waste(
+                &bank.counts[i],
+                &taus[i],
+                sales_by,
+                obs.waste_tot,
+                params,
+            );
+            log_like[i] = if ll.is_finite() { ll } else { -1e300 };
+        } else {
+            match (obs.sales_tot, obs.waste_tot) {
+                (None, None) => log_like[i] = 0.0,
+                (Some(s), Some(w)) => {
+                    let ll = log_p_sales_waste_given_ages(&bank.counts[i], &taus[i], s, w, params);
+                    log_like[i] = if ll.is_finite() { ll } else { -1e300 };
+                }
+                (Some(s), None) => {
+                    let on_hand: i32 = bank.counts[i].iter().map(|&c| c as i32).sum();
+                    log_like[i] = if s >= 0 && s <= on_hand { 0.0 } else { -1e300 };
+                }
+                (None, Some(_)) => log_like[i] = 0.0,
             }
-            (Some(s), None) => {
-                let on_hand: i32 = bank.counts[i].iter().map(|&c| c as i32).sum();
-                log_like[i] = if s >= 0 && s <= on_hand { 0.0 } else { -1e300 };
-            }
-            (None, Some(_)) => log_like[i] = 0.0,
         }
     }
     let mut log_w: Vec<f64> = bank
@@ -146,7 +239,7 @@ pub fn filter_step<R: Rng + ?Sized>(
                 taus[i].remove(0);
             }
             counts[i].push(obs.arrivals);
-            taus[i].push(0.0);
+            taus[i].push(birth_tau(obs, params, rng));
         }
     }
 
