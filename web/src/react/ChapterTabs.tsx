@@ -31,12 +31,14 @@ export function ChapterTabs({ activeSection, onSelectSection }: ChapterTabsProps
                 onClick={() => onSelectSection(section.id)}
               >
                 <span className="chapter-tabs-index">{sectionIndex(section.id)}</span>
-                <span className="chapter-tabs-label">{section.label}</span>
-                <span
-                  className="chapter-tabs-blurb"
-                  hidden={section.id !== activeSection}
-                >
-                  {section.blurb}
+                <span className="chapter-tabs-text">
+                  <span className="chapter-tabs-label">{section.label}</span>
+                  <span
+                    className="chapter-tabs-blurb"
+                    hidden={section.id !== activeSection}
+                  >
+                    {section.blurb}
+                  </span>
                 </span>
               </button>
             );

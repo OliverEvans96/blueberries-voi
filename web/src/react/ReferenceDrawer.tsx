@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SCENARIO_COPY } from "../scenarioCopy";
 import type { ScenarioId } from "../types";
 import "../styles/referenceDrawer.css";
@@ -109,6 +110,7 @@ export function ReferenceDrawer() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReferenceTab>("glossary");
   const [voiMounted, setVoiMounted] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const openDrawer = (tab: ReferenceTab) => {
     if (tab === "voi") setVoiMounted(true);
@@ -117,6 +119,20 @@ export function ReferenceDrawer() {
   };
 
   const closeDrawer = () => setOpen(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    try {
+      if (typeof dialog.showModal === "function" && !dialog.open) {
+        dialog.showModal();
+      } else if (!dialog.hasAttribute("open")) {
+        dialog.setAttribute("open", "");
+      }
+    } catch {
+      dialog.setAttribute("open", "");
+    }
+  }, [open]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -170,66 +186,78 @@ export function ReferenceDrawer() {
         Shortcuts
       </button>
 
-      {open ? (
-        <dialog className="reference-drawer" open aria-label="Studio reference">
-          <header className="reference-drawer-head">
-            <nav role="tablist" aria-label="Reference sections" className="reference-drawer-tabs">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "glossary"}
-                onClick={() => selectTab("glossary")}
-              >
-                Glossary
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "voi"}
-                onClick={() => selectTab("voi")}
-              >
-                VOI reference
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === "shortcuts"}
-                onClick={() => selectTab("shortcuts")}
-              >
-                Shortcuts
-              </button>
-            </nav>
-            <button type="button" onClick={closeDrawer} aria-label="Close">
-              ×
-            </button>
-          </header>
+      {open
+        ? createPortal(
+            <dialog
+              ref={dialogRef}
+              className="reference-drawer"
+              aria-label="Studio reference"
+              onClose={() => setOpen(false)}
+            >
+              <header className="reference-drawer-head">
+                <nav
+                  role="tablist"
+                  aria-label="Reference sections"
+                  className="reference-drawer-tabs"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === "glossary"}
+                    onClick={() => selectTab("glossary")}
+                  >
+                    Glossary
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === "voi"}
+                    onClick={() => selectTab("voi")}
+                  >
+                    VOI reference
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === "shortcuts"}
+                    onClick={() => selectTab("shortcuts")}
+                  >
+                    Shortcuts
+                  </button>
+                </nav>
+                <button type="button" onClick={closeDrawer} aria-label="Close">
+                  ×
+                </button>
+              </header>
 
-          <div className="reference-drawer-panel">
-            {activeTab === "glossary" ? (
-              <dl className="glossary-list">
-                {GLOSSARY_ENTRIES.map((e) => (
-                  <div key={e.term} className="glossary-entry">
-                    <dt>{e.term}</dt>
-                    <dd>{e.body}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
+              <div className="reference-drawer-panel">
+                {activeTab === "glossary" ? (
+                  <dl className="glossary-list">
+                    {GLOSSARY_ENTRIES.map((e) => (
+                      <div key={e.term} className="glossary-entry">
+                        <dt>{e.term}</dt>
+                        <dd>{e.body}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
 
-            {activeTab === "voi" && voiMounted ? <VoiReferenceContent /> : null}
+                {activeTab === "voi" && voiMounted ? <VoiReferenceContent /> : null}
 
-            {activeTab === "shortcuts" ? (
-              <ul className="shortcut-list">
-                {SHORTCUTS.map((s) => (
-                  <li key={s.keys}>
-                    <kbd>{s.keys}</kbd> {s.action}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </dialog>
-      ) : null}
+                {activeTab === "shortcuts" ? (
+                  <ul className="shortcut-list">
+                    {SHORTCUTS.map((s) => (
+                      <li key={s.keys}>
+                        <kbd>{s.keys}</kbd> {s.action}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </dialog>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

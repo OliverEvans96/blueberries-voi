@@ -3,23 +3,29 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px 16px;
-  padding: 8px 10px;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
 }
 
 .chapter-tabs-group {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
+  padding: 10px 14px;
+  border-right: 1px solid rgba(28, 36, 32, 0.1);
+}
+
+.chapter-tabs-group:last-child {
+  border-right: none;
 }
 
 .chapter-tabs-chapter-title {
   flex: 0 0 auto;
   align-self: center;
-  margin-right: 4px;
+  margin-right: 8px;
   font-size: 0.68rem;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -30,13 +36,13 @@
 .chapter-tabs-tab {
   appearance: none;
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 2px;
+  gap: 8px;
   border: 1px solid transparent;
   background: transparent;
   border-radius: 10px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   cursor: pointer;
   color: inherit;
   font: inherit;
@@ -54,10 +60,12 @@
 }
 
 .chapter-tabs-index {
+  flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
   width: 1.35rem;
   height: 1.35rem;
+  margin-top: 1px;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 600;
@@ -70,10 +78,18 @@
   color: #f4f7f4;
 }
 
+.chapter-tabs-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .chapter-tabs-label {
   font-family: var(--font-display);
   font-weight: 650;
   font-size: 0.9rem;
+  line-height: 1.2;
 }
 
 .chapter-tabs-blurb {
@@ -85,4 +101,16 @@
 
 .chapter-tabs-blurb[hidden] {
   display: none;
+}
+
+@media (max-width: 720px) {
+  .chapter-tabs-group {
+    flex: 1 1 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(28, 36, 32, 0.08);
+  }
+
+  .chapter-tabs-group:last-child {
+    border-bottom: none;
+  }
 }
