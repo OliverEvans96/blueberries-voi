@@ -110,6 +110,7 @@ fn run_voi_crn_cell_py(
         n_rollout_paths,
         lead_time,
         alpha: 0.9,
+        candidate_case_radius: 1,
     };
     let demand_profile = match demand_profile_json {
         Some(json) => Some(
