@@ -28,9 +28,9 @@ from typing import Any
 
 import pytest
 
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.model import ModelParams, q10_age_increment
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTROLLER_DIR = _REPO_ROOT / "src" / "blueberries_voi" / "controller"

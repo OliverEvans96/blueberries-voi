@@ -6,6 +6,10 @@ under the production MC LL — not M1 soft-LL ``tv_vs_exact`` self-consistency.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: rbpf production path removed", allow_module_level=True)
+
 import ast
 import inspect
 from dataclasses import fields

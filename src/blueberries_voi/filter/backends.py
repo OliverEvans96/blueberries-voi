@@ -24,7 +24,7 @@ from blueberries_voi.filter.particle.bakeoff import (
 from blueberries_voi.filter.particle.bakeoff import (
     SlidingWindowBackend as SlidingWindowBackend,
 )
-from blueberries_voi.filter.particle.counts_update import _rbpf_update_impl
+from blueberries_voi.filter.particle.bakeoff_counts_update import _rbpf_update_impl
 from blueberries_voi.filter.particle.mc_likelihood import (
     _cohorts_from_counts_ages as _cohorts_from_counts_ages,
 )
@@ -67,9 +67,7 @@ from blueberries_voi.model import (
     draw_demand,
     q10_age_increment,
 )
-from blueberries_voi.model import (
-    day_step as day_step,
-)
+from blueberries_voi.sim.rust_bridge import day_step as day_step
 
 # Bound in module globals for T-011 ENG-02 shared-kernel checks that inspect
 # this module (MC LL itself binds the same kernels in particle.mc_likelihood).

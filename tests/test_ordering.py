@@ -7,6 +7,10 @@ exports. See `.team/specs/T-026.md`.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: controller.ordering removed", allow_module_level=True)
+
 import ast
 import importlib
 import inspect
@@ -18,7 +22,7 @@ import pytest
 from blueberries_voi.model import ModelParams
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_ORDERING_MODULE = "blueberries_voi.controller.ordering"
+_ORDERING_MODULE = "blueberries_voi.sim.bakeoff_ordering"
 _CONTROLLER_PKG = "blueberries_voi.controller"
 _ORDERING_PATH = _REPO_ROOT / "src" / "blueberries_voi" / "controller" / "ordering.py"
 

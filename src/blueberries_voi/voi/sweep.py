@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from blueberries_voi.controller.rollout import (
+from blueberries_voi.controller.constants import (
     DEFAULT_ROLLOUT_H,
     DEFAULT_ROLLOUT_HORIZONS,
 )

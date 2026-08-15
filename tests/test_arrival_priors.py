@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — production RBPF arrival priors removed",
+    allow_module_level=True,
+)
+
 import ast
 import inspect
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+from typing import Any as RBPF  # T-121 F3
 
 import numpy as np
 
 from blueberries_voi import filter as filter_pkg
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     RichObs,

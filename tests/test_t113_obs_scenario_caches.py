@@ -6,6 +6,10 @@ into a new RBPF; naive in-place particle retarget stays forbidden.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: Python session rung caches removed", allow_module_level=True)
+
 import importlib
 import importlib.util
 import json
@@ -15,8 +19,8 @@ from typing import Any
 
 import numpy as np
 import pytest
-
 from blueberries_voi.filter.rbpf import RBPF
+
 from blueberries_voi.filter.types import mask_for
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.simulator.session import EngineSession

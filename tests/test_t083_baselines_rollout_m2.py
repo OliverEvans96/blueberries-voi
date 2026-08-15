@@ -23,7 +23,7 @@ import pytest
 from blueberries_voi._type_compat import is_same_package_type
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
-_ROLLOUT_MOD = "blueberries_voi.controller.rollout"
+_ROLLOUT_MOD = "blueberries_voi.sim.bakeoff_rollout"
 _TOY_MOD = "blueberries_voi.controller.toy_dp"
 _GATES_MOD = "blueberries_voi.sim.m2_gates"
 _LADDER_MOD = "blueberries_voi.sim.m2_ladder"

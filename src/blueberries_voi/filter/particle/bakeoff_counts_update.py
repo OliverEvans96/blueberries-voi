@@ -1,4 +1,4 @@
-"""Production counts-only RBPF update (exact WOR + day_step physics)."""
+"""Bakeoff-only counts RBPF update (research; not production hot path — ADR 0127)."""
 
 from __future__ import annotations
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 
-from blueberries_voi.model import q10_age_increment
+from blueberries_voi.model.constitutive import q10_age_increment
 
 SENSOR_COLUMNS: tuple[str, ...] = (
     "Front_Top",

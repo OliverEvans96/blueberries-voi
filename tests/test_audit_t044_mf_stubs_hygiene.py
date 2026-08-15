@@ -5,17 +5,24 @@ See `.team/specs/T-044-audit-remediation.md` and ADR 0104.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — production RBPF MF hygiene audit removed",
+    allow_module_level=True,
+)
+
 import ast
 import importlib
 import inspect
 import re
 from pathlib import Path
 from typing import Any
+from typing import Any as RBPF  # T-121 F3
 
 import numpy as np
 import pytest
 
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
 from blueberries_voi.model import ModelParams
 

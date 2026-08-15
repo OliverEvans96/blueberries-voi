@@ -4,10 +4,13 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::belief_flat::{belief_mean_from_bank, BeliefMean};
 use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::physics::draw_demand;
-use crate::policy::{case_round_ceil, damped_sw_order};
+use crate::physics::{draw_demand, draw_demand_spawn};
+use crate::spawn_rng::SpawnRng;
+use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
 use crate::rbpf::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
@@ -112,6 +115,10 @@ impl EngineSession {
         self.crossings += 1;
     }
 
+    pub fn set_demand_profile(&mut self, profile: DemandProfile) {
+        apply_demand_profile(&mut self.params, profile);
+    }
+
     pub fn configure(
         &mut self,
         lead_time: u32,
@@ -121,6 +128,7 @@ impl EngineSession {
         radius: i32,
         shipments: Vec<ShipmentTrace>,
         n_particles: usize,
+        demand_profile: Option<DemandProfile>,
     ) {
         self.lead_time = lead_time.max(1);
         self.enable_filter = enable_filter;
@@ -137,6 +145,39 @@ impl EngineSession {
         if !shipments.is_empty() {
             self.shipments = shipments;
         }
+        if let Some(profile) = demand_profile {
+            apply_demand_profile(&mut self.params, profile);
+        } else if self.params.demand_profile.is_none() {
+            apply_demand_profile(&mut self.params, committed_demand_profile());
+        }
+        if self.enable_filter {
+            self.seed_particle_bank();
+        }
+    }
+
+    fn seed_particle_bank(&mut self) {
+        use rand::Rng;
+
+        let n = self._n_particles.max(1);
+        let l = self.l_dim;
+        let k = self.k_dim.max(1);
+        let grid = tau_grid(k);
+        let mut rng = Pcg64::seed_from_u64(self.seed.wrapping_add(0xF117_0000));
+        let mut counts = vec![vec![0u32; l]; n];
+        let mut taus = vec![vec![0.0; l]; n];
+        for i in 0..n {
+            for slot in 0..l {
+                counts[i][slot] = rng.random_range(0..8);
+                let bin = rng.random_range(0..k);
+                taus[i][slot] = grid[bin];
+            }
+        }
+        self.bank = ParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            counts,
+            taus,
+        };
+        self.bank_init = self.bank.clone();
     }
 
     pub fn episode_day(&self) -> u32 {
@@ -182,12 +223,14 @@ impl EngineSession {
         } else {
             self.state.delivery_n = 0;
         }
-        let mut rng_d = stream_rng(self.seed, self.day, 1);
-        self.state.demand = Some(draw_demand(
-            &mut rng_d,
-            self.params.demand_mu,
-            self.params.demand_vm,
-        ));
+        if self.params.demand_profile.is_some() {
+            let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
+            self.state.demand =
+                Some(draw_demand_spawn(&mut rng_d, &self.params, Some(self.day)));
+        } else {
+            let mut rng_d = stream_rng(self.seed, self.day, 1);
+            self.state.demand = Some(draw_demand(&mut rng_d, &self.params, None));
+        }
         self.state.spoil_by = None;
         let mut rng_a = stream_rng(self.seed, self.day, 2);
         let mut rng_s = stream_rng(self.seed, self.day, 3);
@@ -267,11 +310,11 @@ impl EngineSession {
                 "seed": self.seed,
             },
             "schedule": schedule_wire(&self.schedule),
-            "demand_summary": demand_summary_wire(),
+            "demand_summary": demand_summary_wire(&self.params),
         })
     }
 
-    fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
+    pub fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
         serde_json::json!({
             "seq": self.seq,
             "episode_day": d.episode_day,
@@ -333,38 +376,109 @@ impl EngineSession {
         orders.iter().map(|&q| self.advance_one(q)).collect()
     }
 
-    pub fn act_rollout(&mut self) -> DayDelta {
+    fn belief_for_policy(&self) -> BeliefMean {
+        if self.enable_filter {
+            belief_mean_from_bank(&self.bank, self.l_dim, self.k_dim)
+        } else {
+            BeliefMean::empty(self.l_dim, self.k_dim)
+        }
+    }
+
+    fn rollout_state_from_belief(belief: &BeliefMean) -> (Vec<u32>, Vec<f64>, Vec<i64>) {
+        let k = belief.tau_grid.len();
+        let mut counts = Vec::new();
+        let mut taus = Vec::new();
+        let mut ids = Vec::new();
+        for (i, &n_raw) in belief.lot_counts.iter().enumerate() {
+            let n = n_raw.round().max(0.0) as u32;
+            if n == 0 {
+                continue;
+            }
+            let mut tau = 0.0;
+            if k > 0 && (i + 1) * k <= belief.age_marginals.len() {
+                let row = &belief.age_marginals[i * k..(i + 1) * k];
+                tau = row
+                    .iter()
+                    .zip(belief.tau_grid.iter())
+                    .map(|(&p, &t)| p * t)
+                    .sum();
+            }
+            counts.push(n);
+            taus.push(tau);
+            ids.push((i + 1) as i64);
+        }
+        (counts, taus, ids)
+    }
+
+    /// Select an order via policy dispatch on belief mean (filter on) or empty shelf.
+    pub fn act(
+        &mut self,
+        policy: Option<&str>,
+        order_qty: Option<u32>,
+        alpha: Option<f64>,
+        rho: Option<f64>,
+        h: Option<u32>,
+        n_rollout_paths: Option<u32>,
+        candidate_case_radius: Option<i32>,
+    ) -> DayDelta {
         self.require_init();
         let pending_sum: u32 = self.pending.values().copied().sum();
-        let base = damped_sw_order(
-            &self.state.counts,
-            &self.state.taus,
-            pending_sum,
-            self.day,
-            &self.params,
-            0.9,
-            0.8,
-            Some(&self.schedule),
-        );
-        let ids = self.state.lot_ids.clone();
-        let q = if self.state.counts.iter().any(|&n| n > 0) {
-            rollout_order(
-                &self.state.counts,
-                &self.state.taus,
-                &ids,
-                base,
+        let belief = self.belief_for_policy();
+        let alpha = alpha.unwrap_or(0.9);
+        let rho = rho.unwrap_or(0.8);
+        let h = h.unwrap_or(self.h);
+        let n_paths = n_rollout_paths.unwrap_or(self.n_paths);
+        let radius = candidate_case_radius.unwrap_or(self.radius);
+        let name = policy.unwrap_or("rollout").to_ascii_lowercase();
+        let q = match name.as_str() {
+            "constant" | "const" | "fixed" => {
+                constant_order(order_qty.unwrap_or(0), self.params.case_size)
+            }
+            "damped_sw" | "sw" => damped_sw_order_belief(
+                &belief.lot_counts,
+                &belief.age_marginals,
+                &belief.tau_grid,
+                pending_sum,
+                self.day,
                 &self.params,
-                self.seed,
-                self.h,
-                self.n_paths,
-                self.radius,
-            )
-            .unwrap_or(base)
-        } else {
-            base
+                alpha,
+                rho,
+                Some(&self.schedule),
+            ),
+            "rollout" | "ctl" | "rollout_order" => {
+                let base = damped_sw_order_belief(
+                    &belief.lot_counts,
+                    &belief.age_marginals,
+                    &belief.tau_grid,
+                    pending_sum,
+                    self.day,
+                    &self.params,
+                    alpha,
+                    rho,
+                    Some(&self.schedule),
+                );
+                let (counts, taus, ids) = Self::rollout_state_from_belief(&belief);
+                rollout_order(
+                    &counts,
+                    &taus,
+                    &ids,
+                    base,
+                    &self.params,
+                    self.seed,
+                    h,
+                    n_paths,
+                    radius,
+                )
+                .unwrap_or(base)
+            }
+            other => panic!("unknown policy {other:?}; use 'constant', 'damped_sw', or 'rollout'"),
         };
         self.crossings += 1;
         self.advance_one(q)
+    }
+
+    pub fn act_rollout(&mut self) -> DayDelta {
+        self.act(Some("rollout"), None, None, None, None, None, None)
     }
 
     pub fn reset(&mut self, seed: u64) {
@@ -428,6 +542,17 @@ impl EngineSession {
 const AGE_GRID_LO: f64 = 0.0;
 const AGE_GRID_HI: f64 = 8.0;
 const SCHEDULE_EPOCH: &str = "2024-01-01";
+const EMBEDDED_DEMAND_PROFILE: &str =
+    include_str!("../../../data/freshnet/demand_profile.json");
+
+fn committed_demand_profile() -> DemandProfile {
+    DemandProfile::from_json(EMBEDDED_DEMAND_PROFILE).expect("embedded demand profile")
+}
+
+fn apply_demand_profile(params: &mut ModelParams, profile: DemandProfile) {
+    params.demand_vm = profile.demand_vm();
+    params.demand_profile = Some(profile);
+}
 
 fn tau_grid(k: usize) -> Vec<f64> {
     if k == 0 {
@@ -523,15 +648,32 @@ fn schedule_wire(sched: &OrderSchedule) -> serde_json::Value {
     })
 }
 
-fn demand_summary_wire() -> serde_json::Value {
-    let scale = 30.0;
-    let factors = [
-        0.97076, 1.00837, 0.928811, 0.860509, 0.925391, 1.12922, 1.176938,
-    ];
+fn demand_summary_wire(params: &ModelParams) -> serde_json::Value {
+    let profile = params
+        .demand_profile
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(committed_demand_profile);
+    let scale = profile.scale_target_mu();
     serde_json::json!({
         "scale_mu": scale,
-        "dow_means": factors.map(|f| scale * f),
+        "dow_means": profile.dow_means(),
     })
+}
+
+fn parse_demand_profile_from_rpc(params: &serde_json::Value) -> Option<DemandProfile> {
+    if let Some(json) = rpc_str(params, "demand_profile_json") {
+        return DemandProfile::from_json(json).ok();
+    }
+    if let Some(value) = rpc_field(params, "demand_profile") {
+        if let Some(json) = value.as_str() {
+            return DemandProfile::from_json(json).ok();
+        }
+        if value.is_object() {
+            return DemandProfile::from_json(&value.to_string()).ok();
+        }
+    }
+    None
 }
 
 fn validate_scenario(id: &str) -> Result<(), String> {
@@ -547,13 +689,93 @@ fn validate_scenario(id: &str) -> Result<(), String> {
     }
 }
 
+fn rpc_field<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
+    params
+        .get(key)
+        .or_else(|| params.get("config").and_then(|c| c.get(key)))
+}
+
 fn rpc_u64(params: &serde_json::Value, key: &str) -> Option<u64> {
-    params.get(key).and_then(|v| v.as_u64()).or_else(|| {
-        params
-            .get("config")
-            .and_then(|c| c.get(key))
-            .and_then(|v| v.as_u64())
-    })
+    rpc_field(params, key).and_then(|v| v.as_u64())
+}
+
+fn rpc_i64(params: &serde_json::Value, key: &str) -> Option<i64> {
+    rpc_field(params, key).and_then(|v| v.as_i64())
+}
+
+fn rpc_bool(params: &serde_json::Value, key: &str) -> Option<bool> {
+    rpc_field(params, key).and_then(|v| v.as_bool())
+}
+
+fn rpc_str<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    rpc_field(params, key).and_then(|v| v.as_str())
+}
+
+fn f64_array(value: &serde_json::Value) -> Vec<f64> {
+    value
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default()
+}
+
+fn parse_shipments_from_rpc(params: &serde_json::Value) -> Vec<ShipmentTrace> {
+    if let Some(arr) = rpc_field(params, "shipments").and_then(|v| v.as_array()) {
+        let ships: Vec<ShipmentTrace> = arr
+            .iter()
+            .filter_map(|item| {
+                let times = item.get("times_d")?;
+                let temps = item.get("temps_c")?;
+                Some(ShipmentTrace {
+                    times_d: f64_array(times),
+                    temps_c: f64_array(temps),
+                })
+            })
+            .collect();
+        if !ships.is_empty() {
+            return ships;
+        }
+    }
+    let times_outer = rpc_field(params, "times").and_then(|v| v.as_array());
+    let temps_outer = rpc_field(params, "temps").and_then(|v| v.as_array());
+    if let (Some(times), Some(temps)) = (times_outer, temps_outer) {
+        let ships: Vec<ShipmentTrace> = times
+            .iter()
+            .zip(temps.iter())
+            .map(|(t, m)| ShipmentTrace {
+                times_d: f64_array(t),
+                temps_c: f64_array(m),
+            })
+            .filter(|s| s.times_d.len() >= 2 && s.temps_c.len() >= 2)
+            .collect();
+        if !ships.is_empty() {
+            return ships;
+        }
+    }
+    Vec::new()
+}
+
+impl EngineSession {
+    fn apply_rpc_configure(&mut self, params: &serde_json::Value) {
+        let lead_time = rpc_u64(params, "lead_time").unwrap_or(1) as u32;
+        let enable_filter = rpc_bool(params, "enable_filter").unwrap_or(true);
+        let h = rpc_u64(params, "H").unwrap_or(7) as u32;
+        let n_paths = rpc_u64(params, "n_rollout_paths").unwrap_or(2) as u32;
+        let radius = rpc_i64(params, "candidate_case_radius").unwrap_or(1) as i32;
+        let n_particles = rpc_u64(params, "n_particles").unwrap_or(200) as usize;
+        let shipments = parse_shipments_from_rpc(params);
+        let demand_profile = parse_demand_profile_from_rpc(params);
+        self.configure(
+            lead_time,
+            enable_filter,
+            h,
+            n_paths,
+            radius,
+            shipments,
+            n_particles,
+            demand_profile,
+        );
+        self.schedule.lead_time_days = self.lead_time;
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -598,12 +820,8 @@ pub fn handle_rpc(request_json: &str) -> String {
                 let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
-                if let Some(sc) = req
-                    .params
-                    .get("obs_scenario")
-                    .or_else(|| req.params.get("config").and_then(|c| c.get("obs_scenario")))
-                    .and_then(|v| v.as_str())
-                {
+                sess.apply_rpc_configure(&req.params);
+                if let Some(sc) = rpc_str(&req.params, "obs_scenario") {
                     let _ = sess.set_obs_scenario(sc);
                 }
                 sess.snapshot_value()
@@ -640,7 +858,40 @@ pub fn handle_rpc(request_json: &str) -> String {
                 serde_json::Value::Array(deltas)
             }
             "act" => {
-                let d = sess.act_rollout();
+                let policy = req.params.get("policy").and_then(|v| v.as_str());
+                let order_qty = req
+                    .params
+                    .get("order_qty")
+                    .or_else(|| req.params.get("q"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let alpha = req.params.get("alpha").and_then(|v| v.as_f64());
+                let rho = req.params.get("rho").and_then(|v| v.as_f64());
+                let h = req
+                    .params
+                    .get("H")
+                    .or_else(|| req.params.get("h"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let n_paths = req
+                    .params
+                    .get("n_rollout_paths")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let radius = req
+                    .params
+                    .get("candidate_case_radius")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32);
+                let d = sess.act(
+                    policy,
+                    order_qty,
+                    alpha,
+                    rho,
+                    h,
+                    n_paths,
+                    radius,
+                );
                 sess.day_delta_value(&d)
             }
             "set_obs_scenario" => {
@@ -675,6 +926,25 @@ pub fn handle_rpc(request_json: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::policy::damped_sw_order_belief;
+
+    fn t121b_shipment() -> ShipmentTrace {
+        ShipmentTrace {
+            times_d: vec![0.0, 1.0, 2.0],
+            temps_c: vec![1.0, 1.0, 1.0],
+        }
+    }
+
+    fn warm_t121b_session(seed: u64) -> EngineSession {
+        let mut s = EngineSession::new(seed);
+        s.init(seed);
+        s.set_belief_dims(2, 4);
+        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None);
+        for _ in 0..6 {
+            s.step(0);
+        }
+        s
+    }
 
     #[test]
     fn step_n_is_one_crossing() {
@@ -743,6 +1013,114 @@ mod tests {
         assert_eq!(belief["K"], 4);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
+    }
+
+    #[test]
+    fn rpc_init_includes_schedule_and_demand_summary() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let schedule = &v["result"]["schedule"];
+        assert!(schedule["delivery_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
+        assert!(schedule["order_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
+        assert_eq!(schedule["epoch"], SCHEDULE_EPOCH);
+        let summary = &v["result"]["demand_summary"];
+        assert!(summary["scale_mu"].as_f64().is_some_and(|x| x > 0.0));
+        assert_eq!(summary["dow_means"].as_array().map(Vec::len), Some(7));
+    }
+
+    #[test]
+    fn rpc_init_belief_lot_counts_positive_mass() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":1,"config":{"enable_filter":true}}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let age_mass: f64 = v["result"]["belief"]["age_marginals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .sum();
+        assert!(
+            age_mass > 0.0,
+            "filter-enabled init must expose non-zero age marginal mass"
+        );
+    }
+
+    #[test]
+    fn rpc_init_accepts_nested_config_shipments() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[5.0,5.0,5.0]}],"n_particles":64,"H":5,"lead_time":2,"L":2,"K":4,"enable_filter":true,"n_rollout_paths":3,"candidate_case_radius":2,"obs_scenario":"P1"}}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let cfg = &v["result"]["applied_config"];
+        assert_eq!(cfg["n_particles"], 64);
+        assert_eq!(cfg["H"], 5);
+        assert_eq!(cfg["lead_time"], 2);
+        assert_eq!(cfg["n_rollout_paths"], 3);
+        assert_eq!(cfg["candidate_case_radius"], 2);
+        assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
+        let warm = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
+        let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
+        let tau_warm = warm_last["live_lots"][0]["tau"]
+            .as_f64()
+            .expect("warm shipment arrival must populate live_lots");
+        let smoke = handle_rpc(
+            r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        assert_eq!(smoke.contains("\"ok\":true"), true);
+        let cool = handle_rpc(
+            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
+        let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
+        let tau_smoke = cool_last["live_lots"][0]["tau"]
+            .as_f64()
+            .expect("smoke shipment arrival must populate live_lots");
+        assert!(
+            tau_warm > tau_smoke + 1e-6,
+            "configured warm shipments must raise arrival age vs cool default ({tau_warm} vs {tau_smoke})"
+        );
+    }
+
+    #[test]
+    fn rpc_init_reset_sync_schedule_lead_time() {
+        for method in ["init", "reset"] {
+            let req = format!(
+                r#"{{"id":"1","method":"{method}","params":{{"seed":9,"config":{{"lead_time":4,"shipments":[{{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}}]}}}}}}"#
+            );
+            let out = handle_rpc(&req);
+            let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+            assert_eq!(v["ok"], true, "{method}: {out}");
+            assert_eq!(v["result"]["applied_config"]["lead_time"], 4);
+            assert_eq!(
+                v["result"]["schedule"]["lead_time_days"], 4,
+                "{method} must sync schedule lead time"
+            );
+        }
+    }
+
+    #[test]
+    fn rpc_step_live_lots_nonempty_after_arrival() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        let out = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let last = v["result"].as_array().unwrap().last().unwrap();
+        let lots = last["live_lots"].as_array().expect("live_lots array");
+        assert!(!lots.is_empty(), "arrival after lead_time must surface live_lots");
+        assert!(lots[0]["lot_id"].is_number());
+        assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
+        assert!(lots[0]["tau"].is_number());
     }
 
     #[test]
@@ -857,8 +1235,49 @@ mod tests {
     fn configure_sets_particle_count() {
         let mut s = EngineSession::new(1);
         s.init(1);
-        s.configure(1, true, 7, 2, 1, vec![], 200);
+        s.configure(1, true, 7, 2, 1, vec![], 200, None);
         assert_eq!(s.n_particles(), 200);
+    }
+
+    #[test]
+    fn demand_summary_wire_matches_committed_profile() {
+        let profile = committed_demand_profile();
+        let mut params = ModelParams::default();
+        apply_demand_profile(&mut params, profile.clone());
+        let wire = demand_summary_wire(&params);
+        assert!((wire["scale_mu"].as_f64().unwrap() - profile.scale_target_mu()).abs() <= 1e-9);
+        let dow: Vec<f64> = wire["dow_means"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .collect();
+        assert_eq!(dow.len(), 7);
+        for (got, want) in dow.iter().zip(profile.dow_means()) {
+            assert!((got - want).abs() <= 1e-9, "{got} vs {want}");
+        }
+    }
+
+    #[test]
+    fn session_configure_loads_calendar_profile_and_uses_day_in_demand() {
+        let mut s = EngineSession::new(0);
+        s.init(0);
+        s.configure(1, false, 3, 1, 0, vec![], 16, None);
+        let d0 = s.step(0);
+        assert_eq!(d0.demand, 21, "day-0 demand must match Python calendar reference");
+        let mut s2 = EngineSession::new(0);
+        s2.init(0);
+        s2.configure(1, false, 3, 1, 0, vec![], 16, None);
+        let mut demands = Vec::new();
+        for _ in 0..90 {
+            let d = s2.step(0);
+            demands.push(d.demand);
+        }
+        let mean: f64 = demands.iter().map(|&d| f64::from(d)).sum::<f64>() / 90.0;
+        assert!(
+            (mean - 28.655_555_555_555_555).abs() <= 1.0,
+            "90-day session mean {mean} must track Python calendar reference (~28.66)"
+        );
     }
 
     fn shannon(p: &[f64]) -> f64 {
@@ -1075,4 +1494,72 @@ mod tests {
         let b = s.set_obs_scenario("B-state").unwrap_err();
         assert!(b.contains("bypass") || b.contains("B-state"), "{b}");
     }
+
+    #[test]
+    fn act_rollout_uses_belief_not_truth_counts() {
+        let s = warm_t121b_session(_SEED);
+        let belief = belief_mean_from_bank(&s.bank, s.l_dim, s.k_dim);
+        assert!(
+            belief.lot_counts.iter().any(|&x| x > 0.0),
+            "fixture must seed nontrivial belief mean"
+        );
+        let pending_sum: u32 = s.pending.values().copied().sum();
+        let belief_rollout = {
+            let (counts, taus, ids) = EngineSession::rollout_state_from_belief(&belief);
+            let base = damped_sw_order_belief(
+                &belief.lot_counts,
+                &belief.age_marginals,
+                &belief.tau_grid,
+                pending_sum,
+                s.day,
+                &s.params,
+                0.9,
+                0.8,
+                Some(&s.schedule),
+            );
+            rollout_order(
+                &counts,
+                &taus,
+                &ids,
+                base,
+                &s.params,
+                s.seed,
+                s.h,
+                s.n_paths,
+                s.radius,
+            )
+            .unwrap_or(base)
+        };
+        let mut live = warm_t121b_session(_SEED);
+        let d = live.act(Some("rollout"), None, None, None, None, None, None);
+        assert_eq!(d.order_qty, belief_rollout);
+    }
+
+    #[test]
+    fn act_damped_sw_differs_from_rollout_when_belief_nontrivial() {
+        let sw = warm_t121b_session(_SEED)
+            .act(Some("damped_sw"), None, None, None, None, None, None)
+            .order_qty;
+        let roll = warm_t121b_session(_SEED)
+            .act(Some("rollout"), None, None, None, None, None, None)
+            .order_qty;
+        assert_ne!(sw, roll, "damped_sw and rollout must dispatch separately");
+    }
+
+    #[test]
+    fn act_alpha_budget_changes_damped_sw_order() {
+        let mut low = warm_t121b_session(17);
+        let q_low = low
+            .act(Some("damped_sw"), None, Some(0.5), None, None, None, None)
+            .order_qty;
+
+        let mut high = warm_t121b_session(17);
+        let q_high = high
+            .act(Some("damped_sw"), None, Some(0.99), None, None, None, None)
+            .order_qty;
+
+        assert!(q_high >= q_low, "higher alpha should not reduce damped_sw order");
+    }
+
+    const _SEED: u64 = 99;
 }

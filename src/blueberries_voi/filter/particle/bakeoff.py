@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from blueberries_voi.filter.particle.counts_update import _rbpf_update_impl
+from blueberries_voi.filter.particle.bakeoff_counts_update import _rbpf_update_impl
 from blueberries_voi.filter.particle.state import (
     FilterBackend,
     ParticleState,

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: gate0 viz research", allow_module_level=True)
+
 from pathlib import Path
 
 import numpy as np

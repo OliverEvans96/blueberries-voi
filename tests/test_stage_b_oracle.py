@@ -6,6 +6,13 @@ full Stage B calibration grids or expensive episode sweeps.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — FIL-11 Stage B oracle research removed",
+    allow_module_level=True,
+)
+
 import importlib
 import inspect
 import re

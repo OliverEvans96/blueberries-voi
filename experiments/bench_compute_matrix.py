@@ -31,6 +31,7 @@ def main() -> None:
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     from blueberries_voi.model.day_step import day_step
+
     from blueberries_voi.model.params import Cohort, ModelParams
     from blueberries_voi.rng import STREAM_ALLOC, STREAM_SPOIL, spawn_rng
     from blueberries_voi.sim.shipments import smoke_cool_shipments

@@ -27,8 +27,27 @@ fn nearest_bin(tau: f64, grid: &[f64]) -> usize {
         .unwrap_or(0)
 }
 
-/// Weighted lot counts + age histograms on a fixed `L×K` grid (`tau` in `[0, 8]`).
-pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
+/// Weighted MF lot counts + age marginals on the snapshot `L×K` grid.
+#[derive(Clone, Debug)]
+pub struct BeliefMean {
+    pub lot_counts: Vec<f64>,
+    pub age_marginals: Vec<f64>,
+    pub tau_grid: Vec<f64>,
+}
+
+impl BeliefMean {
+    pub fn empty(l: usize, k: usize) -> Self {
+        let grid = tau_grid_k(k);
+        let uniform = if k > 0 { 1.0 / k as f64 } else { 0.0 };
+        Self {
+            lot_counts: vec![0.0; l],
+            age_marginals: vec![uniform; l.saturating_mul(k.max(1))],
+            tau_grid: grid,
+        }
+    }
+}
+
+pub fn belief_mean_from_bank(bank: &ParticleBank, l: usize, k: usize) -> BeliefMean {
     let grid = tau_grid_k(k);
     let n = bank.weights.len();
     let w_sum: f64 = bank.weights.iter().sum();
@@ -53,11 +72,7 @@ pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
     let mut age_hist = vec![0.0; l.saturating_mul(k)];
     if k > 0 {
         for i in 0..n {
-            let w = if w_sum > 0.0 {
-                bank.weights[i]
-            } else {
-                0.0
-            };
+            let w = if w_sum > 0.0 { bank.weights[i] } else { 0.0 };
             if w == 0.0 {
                 continue;
             }
@@ -93,13 +108,50 @@ pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
         }
     }
 
+    BeliefMean {
+        lot_counts,
+        age_marginals: age_hist,
+        tau_grid: grid,
+    }
+}
+
+/// Weighted lot counts + age histograms on a fixed `L×K` grid (`tau` in `[0, 8]`).
+pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
+    let mean = belief_mean_from_bank(bank, l, k);
     serde_json::json!({
-        "lot_counts": lot_counts,
-        "age_marginals": age_hist,
-        "tau_grid": grid,
+        "lot_counts": mean.lot_counts,
+        "age_marginals": mean.age_marginals,
+        "tau_grid": mean.tau_grid,
         "L": l,
         "K": k,
     })
+}
+
+/// Weighted mean lot counts and ages across particles (policy / ordering belief).
+pub fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
+    if bank.counts.is_empty() {
+        return (vec![], vec![]);
+    }
+    let l = bank.counts[0].len();
+    let mean = belief_mean_from_bank(bank, l, 1);
+    let taus: Vec<f64> = (0..l)
+        .map(|slot| {
+            let mut acc = 0.0;
+            for (i, w) in bank.weights.iter().enumerate() {
+                if slot < bank.taus[i].len() {
+                    acc += w * bank.taus[i][slot];
+                }
+            }
+            acc
+        })
+        .collect();
+    (
+        mean.lot_counts
+            .iter()
+            .map(|x| x.round().max(0.0) as u32)
+            .collect(),
+        taus,
+    )
 }
 
 #[cfg(test)]
@@ -183,6 +235,31 @@ mod tests {
         if counts[1] > 0.0 {
             assert!(ages[k + bin8] > 0.5);
         }
+    }
+
+    #[test]
+    fn mean_bank_empty_returns_empty_vecs() {
+        let bank = ParticleBank {
+            weights: vec![],
+            counts: vec![],
+            taus: vec![],
+        };
+        let (counts, taus) = mean_bank(&bank);
+        assert!(counts.is_empty());
+        assert!(taus.is_empty());
+    }
+
+    #[test]
+    fn mean_bank_weighted_mean_rounds_counts() {
+        let bank = ParticleBank {
+            weights: vec![0.25, 0.75],
+            counts: vec![vec![4, 0], vec![0, 8]],
+            taus: vec![vec![0.0, 8.0], vec![0.0, 8.0]],
+        };
+        let (counts, taus) = mean_bank(&bank);
+        assert_eq!(counts, vec![1, 6]);
+        assert!((taus[0] - 0.0).abs() < 1e-9);
+        assert!((taus[1] - 8.0).abs() < 1e-9);
     }
 
     #[test]

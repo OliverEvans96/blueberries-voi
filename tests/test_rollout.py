@@ -15,6 +15,10 @@ Fixture locks (frozen here + ``.team/qa/T-030.md``):
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip("T-121 F3: Python rollout compute removed", allow_module_level=True)
+
 import ast
 import importlib
 import inspect
@@ -26,18 +30,18 @@ import numpy as np
 import pytest
 
 from blueberries_voi import model as model_pkg
-from blueberries_voi.controller.damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.filter.belief import shelf_belief_from_oracle
 from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import STREAM_DEMAND, STREAM_SPOIL, spawn_rng
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.sim.profit import ProfitCosts, episode_profit
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTROLLER_PKG = "blueberries_voi.controller"
 _ROLLOUT_ATTR = "rollout_order"
 _ROLLOUT_MODULE_CANDIDATES = (
-    "blueberries_voi.controller.rollout",
+    "blueberries_voi.sim.bakeoff_rollout",
     "blueberries_voi.controller",
 )
 

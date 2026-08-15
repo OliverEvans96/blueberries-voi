@@ -369,6 +369,7 @@ def _shift_age_prior(
 def stage3_particle_path(*, T: int = 12) -> list[CaseResult]:
     """Freeze a production-style count trajectory and replay Stage 2 logic."""
     from blueberries_voi.filter.rbpf import RBPF
+
     from blueberries_voi.rng import STREAM_FILTER_RESAMPLE
 
     params = ModelParams(sigma=0.5)
