@@ -11,7 +11,7 @@ from blueberries_voi.controller.ordering import ConstantOrderPolicy, invoke_orde
 from blueberries_voi.controller.rollout import rollout_order
 from blueberries_voi.filter.belief import ShelfBelief, shelf_belief_from_rbpf
 from blueberries_voi.filter.rbpf import RBPF
-from blueberries_voi.filter.types import mask_for
+from blueberries_voi.filter.types import mask_for, rich_obs_from_day_log
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
 from blueberries_voi.rng import STREAM_FILTER_RESAMPLE, spawn_rng
@@ -106,6 +106,8 @@ class EngineSession:
         self._n_rollout_paths: int = int(DEMO_BUDGETS["n_rollout_paths"])
         self._candidate_case_radius: int = int(DEMO_BUDGETS["candidate_case_radius"])
         self._history: list[dict[str, Any]] = []
+        self._richest_log: list[Any] = []
+        self._rung_caches: dict[str, tuple[RBPF, int]] = {}
         self._state = DayDriverState(
             cohorts=[],
             pending={},
@@ -126,6 +128,8 @@ class EngineSession:
         self._initialized = True
         self._seq = 0
         self._history = []
+        self._richest_log = []
+        self._rung_caches = {}
         return self._snapshot()
 
     def reset(
@@ -171,6 +175,37 @@ class EngineSession:
         self._refuse_if_episode_ended(n_days=1)
         order_qty = self._select_order(policy=policy, **budget_overrides)
         return self._advance(int(order_qty))
+
+    def set_obs_scenario(self, obs_scenario: ScenarioId | str) -> Snapshot:
+        """Catch-up the selected observation rung and return a Snapshot.
+
+        Initializes a distinct ``RBPF`` on first select and replays the richest
+        log; does not retarget the live particle cloud in place.
+        """
+        self._require_init()
+        mask_for(obs_scenario)
+        scenario = str(obs_scenario)
+        if scenario == str(self._obs_scenario) and self._state.rbpf is not None:
+            return self._snapshot()
+        self._stash_active_rung()
+        self._obs_scenario = obs_scenario
+        self._config["obs_scenario"] = obs_scenario
+        if self._enable_filter:
+            rbpf, last_synced = self._rung_for(scenario)
+            now = int(self._state.episode_day) - 1
+            for day_idx in range(last_synced + 1, now + 1):
+                day_like = self._richest_log[day_idx]
+                obs = rich_obs_from_day_log(day_like, mask_for(obs_scenario))
+                step_rng = spawn_rng(
+                    int(self._seed),
+                    run_id="session",
+                    day=int(day_idx),
+                    stream=STREAM_FILTER_RESAMPLE,
+                )
+                rbpf.step(obs, step_rng)
+            self._rung_caches[scenario] = (rbpf, now)
+            self._state.rbpf = rbpf
+        return self._snapshot()
 
     def _require_init(self) -> None:
         if not self._initialized:
@@ -234,6 +269,7 @@ class EngineSession:
                 stream=STREAM_FILTER_RESAMPLE,
             )
             rbpf.initialize(init_rng, L=int(self._L))
+        self._rung_caches = {}
         self._state = DayDriverState(
             cohorts=[],
             pending={},
@@ -255,6 +291,37 @@ class EngineSession:
             "obs_scenario": self._obs_scenario,
             "seed": int(self._seed),
         }
+
+    def _new_rbpf(self) -> RBPF:
+        rbpf = RBPF(
+            params=self._params,
+            N=int(self._n_particles),
+            K=int(self._K),
+            L=int(self._L),
+        )
+        rbpf._root_seed = int(self._seed)
+        rbpf._run_id = "session"
+        init_rng = spawn_rng(
+            int(self._seed),
+            run_id="session",
+            day=0,
+            stream=STREAM_FILTER_RESAMPLE,
+        )
+        rbpf.initialize(init_rng, L=int(self._L))
+        return rbpf
+
+    def _stash_active_rung(self) -> None:
+        rbpf = self._state.rbpf
+        if rbpf is None:
+            return
+        last = int(self._state.episode_day) - 1
+        self._rung_caches[str(self._obs_scenario)] = (rbpf, last)
+
+    def _rung_for(self, scenario: str) -> tuple[RBPF, int]:
+        cached = self._rung_caches.get(scenario)
+        if cached is not None:
+            return cached
+        return self._new_rbpf(), -1
 
     def _belief_for_snapshot(self) -> dict[str, Any]:
         return dict(
@@ -294,7 +361,28 @@ class EngineSession:
         )
         self._state = result.state
         self._seq += 1
-        self._history.append(dict(result.day))
+        rich = result.day.get("_rich")
+        if rich is not None:
+            self._richest_log.append(rich)
+        thin: dict[str, Any] = {
+            k: result.day[k]
+            for k in (
+                "day",
+                "order_qty",
+                "arrivals",
+                "sales_total",
+                "waste_total",
+                "demand",
+                "L",
+            )
+            if k in result.day
+        }
+        self._history.append(thin)
+        if self._state.rbpf is not None:
+            self._rung_caches[str(self._obs_scenario)] = (
+                self._state.rbpf,
+                int(self._state.episode_day) - 1,
+            )
         return build_day_delta(
             seq=self._seq,
             episode_day=completed_day,

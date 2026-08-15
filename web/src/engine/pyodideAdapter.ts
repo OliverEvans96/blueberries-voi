@@ -181,6 +181,14 @@ export class PyodideAdapter implements EngineAdapter {
     return (await this.call("act", toFlatActParams(opts))) as DayDelta;
   }
 
+  async setObsScenario(obs_scenario: string): Promise<Snapshot> {
+    return (await this.call("set_obs_scenario", { obs_scenario })) as Snapshot;
+  }
+
+  async set_obs_scenario(obs_scenario: string): Promise<Snapshot> {
+    return this.setObsScenario(obs_scenario);
+  }
+
   /** Tear down the worker (optional for hosts / smoke). */
   terminate(): void {
     this.worker.removeEventListener("message", this.onMessage);

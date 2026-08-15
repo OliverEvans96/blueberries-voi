@@ -175,6 +175,27 @@ export class MockAdapter implements EngineAdapter {
     return this.toSnapshot();
   }
 
+  async setObsScenario(obs_scenario: string): Promise<Snapshot> {
+    this.config = {
+      ...this.config,
+      obs_scenario: obs_scenario as ScenarioId,
+    };
+    this.appliedConfig = {
+      ...this.appliedConfig,
+      obs_scenario: obs_scenario as ScenarioId,
+    };
+    this.flatBelief = generateFlatBelief(
+      this.state.lots,
+      this.state.rng,
+      this.config.obs_scenario,
+    );
+    return this.toSnapshot();
+  }
+
+  async set_obs_scenario(obs_scenario: string): Promise<Snapshot> {
+    return this.setObsScenario(obs_scenario);
+  }
+
   /**
    * Studio helper: stage knobs on the mock physics. Returns a Snapshot of the
    * current engine fields (no presentation keys) so the projector can patch.

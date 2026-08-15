@@ -55,6 +55,8 @@ export type ControlsCallbacks = {
   onAutopilotPause?: () => void;
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
+  onSetObsScenario?: (id: ScenarioId) => void;
+  onObsScenario?: (id: ScenarioId) => void;
   onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
 };
 
@@ -63,6 +65,7 @@ export type ControlsState = {
   economics: Economics;
   config: SimConfig;
   configDirty: boolean;
+  catchingUp?: boolean;
   episodeDay: number;
   pendingOrder: number;
   /** Snapshot schedule for weekday / pipeline chrome (T-086). */
@@ -341,7 +344,11 @@ export function mountSectionControls(
   initial: ControlsState,
   cb: Pick<
     ControlsCallbacks,
-    "onEconomicsChange" | "onConfigChange" | "onControllerChange"
+    | "onEconomicsChange"
+    | "onConfigChange"
+    | "onControllerChange"
+    | "onSetObsScenario"
+    | "onObsScenario"
   >,
   onCaseSizeChange?: (caseSize: number) => void,
   initialController: ControllerControlsState = DEFAULT_CONTROLLER_CONTROLS,
@@ -388,7 +395,9 @@ export function mountSectionControls(
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="belief" hidden>
-        <p class="hint">Observation richness changes belief blur vs truth lots.</p>
+        <p class="hint">
+          Knowledge changes what the store sees, so future orders can change.
+        </p>
         <div class="field">
           <span class="field-label">Observation scenario</span>
           <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
@@ -399,6 +408,9 @@ export function mountSectionControls(
             <button type="button" class="obs-chip" data-obs="F2a" title="Pack date on ASN">F2a</button>
             <button type="button" class="obs-chip" data-obs="F2" title="Age at receipt">F2</button>
           </div>
+          <p class="obs-catchup-progress" id="obs-catchup-progress" hidden>
+            Catch-up in progress…
+          </p>
           <div class="obs-scenario-copy" id="obs-scenario-copy">
             <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
             <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
@@ -463,7 +475,15 @@ export function mountSectionControls(
     for (const spec of PRICE_SLIDERS) syncSlider(spec, e[spec.id as keyof Economics]);
   }
 
-  function syncConfig(c: SimConfig): void {
+  function syncObsCatchup(catchingUp: boolean): void {
+    const progress = root.querySelector("#obs-catchup-progress") as HTMLElement | null;
+    if (progress) progress.hidden = !catchingUp;
+    root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
+      btn.disabled = catchingUp;
+    });
+  }
+
+  function syncConfig(c: SimConfig, catchingUp = false): void {
     for (const spec of CONFIG_SLIDERS) {
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
@@ -479,6 +499,7 @@ export function mountSectionControls(
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
+    syncObsCatchup(catchingUp);
   }
 
   function syncController(s: ControllerControlsState): void {
@@ -531,7 +552,9 @@ export function mountSectionControls(
 
   root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      cb.onConfigChange({ obs_scenario: btn.dataset.obs as ScenarioId });
+      const id = btn.dataset.obs as ScenarioId;
+      cb.onSetObsScenario?.(id);
+      cb.onObsScenario?.(id);
     });
   });
 
@@ -595,7 +618,7 @@ export function mountSectionControls(
   return {
     update(s) {
       syncEconomics(s.economics);
-      syncConfig(s.config);
+      syncConfig(s.config, Boolean(s.catchingUp));
     },
     updateController(s) {
       syncController(s);

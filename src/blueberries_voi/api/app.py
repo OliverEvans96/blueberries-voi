@@ -80,6 +80,12 @@ class ActRequest(BaseModel):
     budgets: dict[str, Any] = Field(default_factory=dict)
 
 
+class SetObsScenarioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    obs_scenario: str
+
+
 class FlatBelief(BaseModel):
     """Flat L / L*K / K belief buffers on the wire (ADR 0100)."""
 
@@ -268,3 +274,12 @@ def reset_session(session_id: str, body: ResetRequest) -> dict[str, Any]:
 def act_session(session_id: str, body: ActRequest) -> dict[str, Any]:
     session = _get_session(session_id)
     return dict(session.act(policy=body.policy, **dict(body.budgets)))
+
+
+@app.post("/sessions/{session_id}/set_obs_scenario", response_model=Snapshot)
+def set_obs_scenario_session(
+    session_id: str,
+    body: SetObsScenarioRequest,
+) -> dict[str, Any]:
+    session = _get_session(session_id)
+    return dict(session.set_obs_scenario(body.obs_scenario))

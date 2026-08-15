@@ -46,8 +46,8 @@ import {
   saveSection,
   type SectionId,
 } from "./sections";
-import type { Economics, HoverDay, SimConfig, ViewModel } from "./types";
-import type { ActOpts, ScheduleWire } from "./engine/types";
+import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "./types";
+import type { ActOpts, ScheduleWire, Snapshot } from "./engine/types";
 import { buildStepNOrders } from "./calendar/nextOrderAdvance";
 
 const app = document.querySelector("#app");
@@ -243,10 +243,11 @@ function captureSchedule(snap: { schedule?: ScheduleWire }): void {
 }
 
 function controlsState() {
-  return controlsFromVm(vm, orderQty, schedule);
+  return { ...controlsFromVm(vm, orderQty, schedule), catchingUp };
 }
 
 let orderQty = snapOrder(24);
+let catchingUp = false; // catch-up: pause Autopilot, then resume
 let hoveredDay: HoverDay = null;
 let activeSection: SectionId = loadSection();
 let controllerState: ControllerControlsState = {
@@ -591,6 +592,43 @@ const sectionControlsApi = mountSectionControls(
       if (vm.config_dirty && autopilot.isRunning()) {
         autopilot.pause();
         syncAutopilotChrome();
+      }
+    },
+    async onSetObsScenario(id: ScenarioId) {
+      const setObs =
+        adapter.setObsScenario?.bind(adapter) ??
+        adapter.set_obs_scenario?.bind(adapter);
+      if (typeof setObs !== "function") {
+        vm = projector.setConfig({ obs_scenario: id });
+        sectionControlsApi.update(controlsState());
+        renderAll();
+        return;
+      }
+      const resumeAfter = autopilot.isRunning();
+      if (resumeAfter) {
+        autopilot.pause();
+        syncAutopilotChrome();
+      }
+      catchingUp = true;
+      sectionControlsApi.update(controlsState());
+      try {
+        const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+        vm = projector.applySnapshot(snap);
+        projector.setConfig({ obs_scenario: id });
+        renderAll();
+      } catch (err) {
+        reportStudioAdapterError(
+          `set_obs_scenario failed: ${formatAdapterError(err)}`,
+          undefined,
+          err,
+        );
+      } finally {
+        catchingUp = false;
+        sectionControlsApi.update(controlsState());
+        if (resumeAfter) {
+          autopilot.play();
+          syncAutopilotChrome();
+        }
       }
     },
     onControllerChange(partial: Partial<ControllerControlsState>) {

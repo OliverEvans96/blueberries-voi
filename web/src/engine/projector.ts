@@ -422,7 +422,9 @@ export class ViewModelProjector {
   }
 
   private configsEqual(a: SimConfig, b: SimConfig): boolean {
-    return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
+    return (Object.keys(a) as (keyof SimConfig)[]).every((k) =>
+      k === "obs_scenario" ? true : a[k] === b[k],
+    );
   }
 
   private buildViewModel(): ViewModel {

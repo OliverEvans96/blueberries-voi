@@ -123,6 +123,18 @@ export class HttpAdapter implements EngineAdapter {
     );
   }
 
+  async setObsScenario(obs_scenario: string): Promise<Snapshot> {
+    await this.ensureSession();
+    return this.postJson<Snapshot>(
+      `/sessions/${this.sessionId}/set_obs_scenario`,
+      { obs_scenario },
+    );
+  }
+
+  async set_obs_scenario(obs_scenario: string): Promise<Snapshot> {
+    return this.setObsScenario(obs_scenario);
+  }
+
   /** Destroy the server session (`DELETE /sessions/{id}` → 204). */
   async dispose(): Promise<void> {
     if (this.disposed || this.sessionId === null) {

@@ -17,4 +17,6 @@ export interface EngineAdapter {
   step_n(orders: number[]): Promise<DayDelta[]>;
   reset(config?: EngineConfig): Promise<Snapshot>;
   act?(opts?: ActOpts): Promise<DayDelta>;
+  setObsScenario?(obs_scenario: string): Promise<Snapshot>;
+  set_obs_scenario?(obs_scenario: string): Promise<Snapshot>;
 }

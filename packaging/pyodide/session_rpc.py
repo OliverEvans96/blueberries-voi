@@ -17,7 +17,7 @@ from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 if TYPE_CHECKING:
     from blueberries_voi.model.abdella import ShipmentTrace
 
-_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act"})
+_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act", "set_obs_scenario"})
 
 # Single bound session — mirrors the one EngineSession held by the worker.
 _SESSION = EngineSession()
@@ -82,6 +82,8 @@ def _dispatch(method: str, params: dict[str, Any]) -> Any:
         policy = params.get("policy")
         overrides = {k: v for k, v in params.items() if k not in {"policy"}}
         return _SESSION.act(policy=policy, **overrides)
+    if method == "set_obs_scenario":
+        return _SESSION.set_obs_scenario(params["obs_scenario"])
     msg = f"unknown method {method!r}"
     raise ValueError(msg)
 

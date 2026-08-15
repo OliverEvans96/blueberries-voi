@@ -67,7 +67,7 @@ from blueberries_voi.sim.shipments import ensure_demo_shipments
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _SESSION = EngineSession()
-_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act"})
+_RPC_METHODS = frozenset({"init", "step", "step_n", "reset", "act", "set_obs_scenario"})
 
 def dumps_payload(obj):
     return json.dumps(obj)
@@ -103,6 +103,8 @@ def _dispatch(method, params):
         policy = params.get("policy")
         overrides = {k: v for k, v in params.items() if k != "policy"}
         return _SESSION.act(policy=policy, **overrides)
+    if method == "set_obs_scenario":
+        return _SESSION.set_obs_scenario(params["obs_scenario"])
     raise ValueError(f"unknown method {method!r}")
 
 def handle_rpc(request):
