@@ -30,8 +30,8 @@ def warn_fallback_once() -> None:
     global _WARNED
     if _backend() == "rust" and rust_core is None and not _WARNED:
         warnings.warn(
-            "BLUEBERRIES_VOI_BACKEND=rust but blueberries_voi._core extension "
-            "is missing",
+            "BLUEBERRIES_VOI_BACKEND=rust but blueberries_voi._core is missing; "
+            "using Python",
             stacklevel=2,
         )
         _WARNED = True
