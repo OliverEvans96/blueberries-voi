@@ -4,6 +4,7 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-14
 
+- **The store now shows a red missed-sales chart under units sold so lost sales line up with the rest of the day hover** (T-116).
 - **The live store simulator can use the native engine when that option is switched on, with the original simulator still the default** (T-110).
 - **Studio charts now keep the whole store run, then stop at day 90 and ask you to Reset — including the offline mock engine, not only the live Python session** (T-112).
 - **Knowledge chips now retarget what the store can see on the current run without Reset; Autopilot’s next order follows that choice, while physics and past orders stay the same** (T-113).
