@@ -116,7 +116,7 @@ app.innerHTML = `
             <div id="chart-sales" class="chart"></div>
             <div class="chart-caption">Missed sales</div>
             <div id="chart-stockout" class="chart"></div>
-            <div class="chart-caption">Lots · day × age</div>
+            <div class="chart-caption" data-truth-caption="lots">Lots · day × age</div>
             <div id="chart-history" class="chart"></div>
             <div class="chart-caption">Units spoiled</div>
             <div id="chart-spoil" class="chart"></div>
@@ -371,6 +371,12 @@ function syncTruthCaptions(): void {
     const kind = el.dataset.truthCaption;
     if (kind === "belief" || kind === "belief-lg") {
       el.textContent = showTruth ? "Belief vs truth" : "Belief";
+    }
+    if (kind === "lots") {
+      el.textContent =
+        !showTruth && vm.history.length > 0
+          ? "Lots · day × age (turn on Sim truth overlay to see lot ages)"
+          : "Lots · day × age";
     }
   });
   const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");

@@ -9,6 +9,7 @@ import type { EngineAdapter } from "./adapter";
 import {
   ViewModelProjector,
   beliefGridFromFlat,
+  stockoutFromDayFields,
 } from "./projector";
 import * as projectorMod from "./projector";
 import type { DayDelta, FlatBelief, Snapshot } from "./types";
@@ -553,6 +554,71 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
     expect(vm.belief_history?.[0]?.flatBelief.lot_counts).toEqual([1, 1]);
     expect(vm.belief_history?.[1]?.flatBelief.lot_counts).toEqual([2, 2]);
     expect(vm.belief_history?.[2]?.flatBelief.lot_counts).toEqual([3, 3]);
+  });
+});
+
+describe("stockoutFromDayFields (missed sales wire gap)", () => {
+  it("derives max(0, demand - sales) when stockout is omitted", () => {
+    expect(stockoutFromDayFields(12, 10)).toBe(2);
+    expect(stockoutFromDayFields(8, 8)).toBe(0);
+  });
+
+  it("explicit stockout wins over derived value", () => {
+    expect(stockoutFromDayFields(12, 10, 5)).toBe(5);
+    expect(stockoutFromDayFields(12, 10, 0)).toBe(0);
+  });
+
+  it("demand < sales yields stockout 0", () => {
+    expect(stockoutFromDayFields(8, 12)).toBe(0);
+  });
+
+  it("applyDelta without stockout derives missed sales for chart + PnL", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS, c_stockout: 3 },
+      window_days: 14,
+    });
+    projector.applySnapshot(sampleSnapshot());
+    const vm = projector.applyDelta(
+      sampleDelta({
+        day: {
+          day: 0,
+          sales_total: 10,
+          waste_total: 0,
+          demand: 15,
+          order_qty: 8,
+          arrivals: 0,
+          lots: [{ lot_id: 1, n: 8, tau: 2 }],
+        },
+      }),
+    );
+
+    expect(vm.history[0]!.stockout).toBe(5);
+    expect(vm.pnl_series[0]!.cost_stockout).toBe(5 * 3);
+  });
+
+  it("applySnapshot hydrates history stockout from demand and sales", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+    });
+    const vm = projector.applySnapshot(
+      sampleSnapshot({
+        history: [
+          {
+            day: 0,
+            lots: [],
+            sales_total: 7,
+            waste_total: 0,
+            demand: 10,
+            order_qty: 0,
+            arrivals: 0,
+            stockout: undefined as unknown as number,
+            age_at_receipt: null,
+          },
+        ],
+      }),
+    );
+
+    expect(vm.history[0]!.stockout).toBe(3);
   });
 });
 
