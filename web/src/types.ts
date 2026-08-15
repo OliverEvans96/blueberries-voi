@@ -1,6 +1,11 @@
 /** Shared domain types for the mock grocery-inventory simulator. */
 
-import type { DemandSummary, ScheduleWire } from "./engine/types";
+import type { DemandSummary, FlatBelief, ScheduleWire } from "./engine/types";
+
+export type BeliefHistoryDay = {
+  day: number;
+  flatBelief: FlatBelief;
+};
 
 export type Lot = {
   lot_id: number;
@@ -143,6 +148,8 @@ export type ViewModel = {
   belief: BeliefGrid;
   /** Live truth lots (latest day). */
   live_lots: Lot[];
+  /** Rolling FlatBelief per history day (same window as `history`). */
+  belief_history: BeliefHistoryDay[];
   on_hand: number;
   effective_inv: number;
   pipeline: PipelineOrder[];

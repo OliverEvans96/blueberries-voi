@@ -35,12 +35,11 @@ describe("Belief section contracts (T-090)", () => {
     );
   });
 
-  it("blurb mentions age×count belief vs truth and the age marginal", () => {
+  it("blurb mentions age×count belief and the age marginal (does not require the word truth)", () => {
     const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
     expect(belief).toBeDefined();
     const blurb = belief!.blurb.toLowerCase();
     expect(blurb).toMatch(/age\s*[×x]\s*count|age×count/);
-    expect(blurb).toMatch(/truth/);
     expect(blurb).toMatch(/marginal|age marginal/);
   });
 

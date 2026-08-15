@@ -480,3 +480,79 @@ describe("ageMarginalFromFlat (T-090)", () => {
     }
   });
 });
+
+describe("ViewModelProjector belief_history rolling window (T-115)", () => {
+  it("belief_history length tracks history after applySnapshot + applyDelta; payloads omit showTruth", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+      window_days: 2,
+    });
+    const snap = sampleSnapshot();
+    expect(Object.prototype.hasOwnProperty.call(snap, "showTruth")).toBe(
+      false,
+    );
+    projector.applySnapshot(snap);
+
+    const b1: FlatBelief = {
+      ...FLAT_BELIEF,
+      lot_counts: [1, 1],
+      age_marginals: [...FLAT_BELIEF.age_marginals],
+    };
+    const b2: FlatBelief = {
+      ...FLAT_BELIEF,
+      lot_counts: [2, 2],
+      age_marginals: [...FLAT_BELIEF.age_marginals],
+    };
+    const b3: FlatBelief = {
+      ...FLAT_BELIEF,
+      lot_counts: [3, 3],
+      age_marginals: [...FLAT_BELIEF.age_marginals],
+    };
+
+    const d1 = sampleDelta({
+      seq: 1,
+      episode_day: 0,
+      day: sampleDay(0),
+      drop_oldest: false,
+      belief: b1,
+    });
+    const d2 = sampleDelta({
+      seq: 2,
+      episode_day: 1,
+      day: sampleDay(1),
+      drop_oldest: false,
+      belief: b2,
+    });
+    const d3 = sampleDelta({
+      seq: 3,
+      episode_day: 2,
+      day: sampleDay(2),
+      drop_oldest: true,
+      belief: b3,
+    });
+    expect(Object.prototype.hasOwnProperty.call(d1, "showTruth")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(d2, "showTruth")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(d3, "showTruth")).toBe(false);
+
+    projector.applyDelta(d1);
+    projector.applyDelta(d2);
+    projector.applyDelta(d3);
+
+    const vm = projector.getViewModel() as ReturnType<
+      ViewModelProjector["getViewModel"]
+    > & {
+      belief_history?: Array<{ day: number; flatBelief: FlatBelief }>;
+    };
+
+    expect(vm.history).toHaveLength(3);
+    expect(Array.isArray(vm.belief_history)).toBe(true);
+    expect(vm.belief_history).toHaveLength(vm.history.length);
+    expect(vm.belief_history?.map((b) => b.day)).toEqual(
+      vm.history.map((h) => h.day),
+    );
+    expect(vm.belief_history?.[0]?.flatBelief.lot_counts).toEqual([1, 1]);
+    expect(vm.belief_history?.[1]?.flatBelief.lot_counts).toEqual([2, 2]);
+    expect(vm.belief_history?.[2]?.flatBelief.lot_counts).toEqual([3, 3]);
+  });
+});
+
