@@ -175,11 +175,15 @@ def test_rust_step_delta_belief_nonempty() -> None:
 
 
 def test_rust_step_delta_live_lots_nonempty_after_arrival() -> None:
-    """After lead_time, an order must surface lots on the wire (seed 42, order 8)."""
+    """After lead_time, an order must surface lots on the wire (seed 42, order 8).
+
+    MWF schedule: day 0 is Monday (not an order day). step(8) on day 1 (Tuesday)
+    places the order; lead_time=1 → arrival on day 2; step(0) observes live_lots.
+    """
     session = EngineSession()
     session.init(_cfg(), seed=42)
     session.step(8)
-    session.step(0)
+    session.step(8)
     delta = session.step(0)
     _assert_belief_populated(delta["belief"], l_dim=2, k_dim=4, label="DayDelta")
     _assert_live_lots_populated(delta["live_lots"], label="DayDelta")
@@ -220,8 +224,8 @@ def test_pyo3_step_delta_live_lots_nonempty_after_arrival() -> None:
     times = [[0.0, 1.0, 2.0]]
     temps = [[1.0, 1.0, 1.0]]
     sess.init(42, 1, True, 3, 1, 1, times, temps, 32)
-    sess.step(8)
-    sess.step(0)
+    sess.step(8)  # day 0 Mon — no order day
+    sess.step(8)  # day 1 Tue — order 8, arrival day 2
     delta = sess.step(0)
     assert isinstance(delta, Mapping)
     _assert_belief_populated(delta["belief"], l_dim=2, k_dim=4, label="PyO3 DayDelta")

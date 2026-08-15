@@ -13,11 +13,11 @@ prove PyO3 stub gaps; Rust RPC expectations below are **documented for implement
 - Init Snapshot exposes demand_summary → `tests/test_rust_session_wire.py::test_rust_init_snapshot_demand_summary_nonempty` — currently passing via Python `_coerce_snapshot` backfill
 - Init Snapshot exposes `live_lots` list key → `tests/test_rust_session_wire.py::test_rust_init_snapshot_live_lots_key_present` — currently passing (empty list at day 0 is valid)
 - DayDelta after step has populated belief → `tests/test_rust_session_wire.py::test_rust_step_delta_belief_nonempty` — currently failing: stub `py_delta` belief empty
-- DayDelta after arrival has non-empty `live_lots` → `tests/test_rust_session_wire.py::test_rust_step_delta_live_lots_nonempty_after_arrival` — currently failing: stub always returns `live_lots=[]`
+- DayDelta after arrival has non-empty `live_lots` → `tests/test_rust_session_wire.py::test_rust_step_delta_live_lots_nonempty_after_arrival` — fixture `step(8), step(8), step(0)` (Mon skip → Tue order → Wed arrival); currently failing: stub always returns `live_lots=[]`
 - DayDelta `seq` is session counter → `tests/test_rust_session_wire.py::test_rust_step_delta_seq_is_session_counter_not_episode_day` — currently failing: stub sets `seq=episode_day`
 - PyO3 init native wire includes schedule + demand_summary → `tests/test_rust_session_wire.py::test_pyo3_init_includes_schedule_and_demand_summary` — currently failing: `py_snapshot` omits keys
 - PyO3 init native belief from session bank → `tests/test_rust_session_wire.py::test_pyo3_init_belief_delegates_to_session_bank` — currently failing: stub `py_belief`
-- PyO3 step native live_lots after arrival → `tests/test_rust_session_wire.py::test_pyo3_step_delta_live_lots_nonempty_after_arrival` — currently failing: stub `py_delta`
+- PyO3 step native live_lots after arrival → `tests/test_rust_session_wire.py::test_pyo3_step_delta_live_lots_nonempty_after_arrival` — same `step(8), step(8), step(0)` MWF fixture; currently failing: stub `py_delta`
 
 ### A2 — RPC init parses full config (Rust unit tests — implementer adds)
 
@@ -29,7 +29,7 @@ Expectations for new/extended tests in `crates/voi_core/src/session.rs` `mod tes
 | `rpc_init_belief_lot_counts_positive_mass` | `sum(lot_counts) > 0` with filter enabled after init | Belief wired in core — likely **green**; guards regression vs PyO3 stub |
 | `rpc_init_accepts_nested_config_shipments` | `params.config.shipments` + budgets configure session (`n_particles`, `H`, lead_time sync) | **RED**: init only reads top-level `seed`/`L`/`K`/`obs_scenario`, not nested config |
 | `rpc_init_reset_sync_schedule_lead_time` | `result.schedule.lead_time_days == config.lead_time` | **RED**: schedule lead time drifts from `configure` |
-| `rpc_step_live_lots_nonempty_after_arrival` | step×3 with order 8 → delta `live_lots` non-empty | Core physics wired — likely **green** via `day_delta_value` |
+| `rpc_step_live_lots_nonempty_after_arrival` | `step(8), step(8), step(0)` (MWF: Tue order → day-2 arrival) → delta `live_lots` non-empty | Core physics wired — likely **green** via `day_delta_value` |
 
 Existing RPC tests that partially cover A2 today:
 
