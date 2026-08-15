@@ -11,7 +11,7 @@ import type { Snapshot } from "./engine/types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTROLS_TS = join(HERE, "controls.ts");
-const MAIN_TS = join(HERE, "react/studioLogic.ts");
+const MAIN_TS = join(HERE, "main.ts");
 const ADAPTER_TS = join(HERE, "engine/adapter.ts");
 const HTTP_ADAPTER_TS = join(HERE, "engine/httpAdapter.ts");
 const PYODIDE_ADAPTER_TS = join(HERE, "engine/pyodideAdapter.ts");
@@ -46,7 +46,7 @@ describe("T-113 chips call set_obs_scenario (not config_dirty for obs_scenario a
     expect(src).toMatch(/set_obs_scenario|onObsScenario|onSetObsScenario/);
   });
 
-  it("react/studioLogic.ts / adapter surface forwards set_obs_scenario", () => {
+  it("main.ts / adapter surface forwards set_obs_scenario", () => {
     const main = readFileSync(MAIN_TS, "utf8");
     const adapter = readFileSync(ADAPTER_TS, "utf8");
     expect(adapter).toMatch(/set_obs_scenario|setObsScenario/);

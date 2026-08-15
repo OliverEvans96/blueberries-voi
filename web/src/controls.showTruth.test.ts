@@ -24,10 +24,7 @@ const noopCb = {
   onReset: () => undefined,
 };
 
-let destroyMount: (() => void) | undefined;
 afterEach(() => {
-  destroyMount?.();
-  destroyMount = undefined;
   document.body.replaceChildren();
   document.body.classList.remove("studio--show-truth");
 });
@@ -41,11 +38,10 @@ describe("play chrome show-truth switch (T-115)", () => {
     document.body.appendChild(root);
 
     const onShowTruthChange = vi.fn();
-    const api = mountPlayChrome(root, sampleState(), {
+    mountPlayChrome(root, sampleState(), {
       ...noopCb,
       onShowTruthChange,
     }, { showTruth: false, truthClassTarget: app });
-    destroyMount = () => api.destroy();
 
     const sw = root.querySelector('[role="switch"]');
     expect(sw, "expected role=switch in play chrome").not.toBeNull();
@@ -63,11 +59,10 @@ describe("play chrome show-truth switch (T-115)", () => {
     const root = document.createElement("div");
     document.body.appendChild(root);
 
-    const api = mountPlayChrome(root, sampleState(), noopCb, {
+    mountPlayChrome(root, sampleState(), noopCb, {
       showTruth: true,
       truthClassTarget: app,
     });
-    destroyMount = () => api.destroy();
 
     const sw = root.querySelector('[role="switch"]');
     expect(sw).not.toBeNull();

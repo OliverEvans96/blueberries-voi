@@ -22,7 +22,7 @@ import { DEFAULT_ECONOMICS } from "../mock/generate";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
 const REPO_ROOT = join(WEB_ROOT, "..");
-const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
+const MAIN_TS = join(WEB_ROOT, "src/main.ts");
 const STUDIO_ADAPTER_TS = join(HERE, "studioAdapter.ts");
 
 class FakeWorker {
@@ -182,16 +182,16 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
 });
 
 describe("T-057 studio chrome wires projector + selected adapter", () => {
-  it("react/studioLogic.ts constructs the studio adapter via createStudioAdapter (not bare MockAdapter default)", () => {
+  it("main.ts constructs the studio adapter via createStudioAdapter (not bare MockAdapter default)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).toMatch(/createStudioAdapter/);
     // Unconditional `new MockAdapter()` is the pre-T-057 default path — must go.
     expect(src).not.toMatch(/const\s+adapter\s*=\s*new\s+MockAdapter\s*\(/);
   });
 
-  it("react/studioLogic.ts imports HttpAdapter and PyodideAdapter selection (or studioAdapter helper)", () => {
+  it("main.ts imports HttpAdapter and PyodideAdapter selection (or studioAdapter helper)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
-    const usesHelper = /from\s+["'](\.\.\/|\.\/)engine\/studioAdapter["']/.test(src);
+    const usesHelper = /from\s+["']\.\/engine\/studioAdapter["']/.test(src);
     const importsBoth =
       /HttpAdapter/.test(src) && /PyodideAdapter/.test(src);
     expect(
@@ -221,7 +221,7 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     const economicsHandler = src.match(
       /onEconomicsChange\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/,
     );
-    expect(economicsHandler, "expected onEconomicsChange handler in react/studioLogic.ts").toBeTruthy();
+    expect(economicsHandler, "expected onEconomicsChange handler in main.ts").toBeTruthy();
     const body = economicsHandler![0]!;
     expect(body).toMatch(/projector\.setEconomics/);
     expect(body).not.toMatch(/\bfetch\s*\(/);
@@ -234,7 +234,7 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     const handler = src.match(
       /async onSetObsScenario\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/,
     );
-    expect(handler, "expected onSetObsScenario handler in react/studioLogic.ts").toBeTruthy();
+    expect(handler, "expected onSetObsScenario handler in main.ts").toBeTruthy();
     const body = handler![0]!;
     expect(body).toMatch(/projector\.patchEngineState\s*\(/);
     expect(body).not.toMatch(/projector\.applySnapshot\s*\(/);

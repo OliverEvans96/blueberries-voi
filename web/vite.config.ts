@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Connect, Plugin } from "vite";
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -99,7 +98,7 @@ function servePackagingAndWheels(): Plugin {
 
 export default defineConfig({
   root: ".",
-  plugins: [react(), servePackagingAndWheels()],
+  plugins: [servePackagingAndWheels()],
   server: {
     port: 5173,
     open: false,
