@@ -280,26 +280,49 @@ impl PyEngineSession {
         wire_day_delta(py, &self.inner, &d)
     }
 
-    #[pyo3(signature = (policy=None))]
+    #[pyo3(signature = (
+        policy=None,
+        order_qty=None,
+        q=None,
+        alpha=None,
+        rho=None,
+        H=None,
+        h=None,
+        n_rollout_paths=None,
+        candidate_case_radius=None,
+        n_particles=None,
+    ))]
+    #[allow(non_snake_case)]
     fn act<'py>(
         &mut self,
         py: Python<'py>,
         policy: Option<String>,
+        order_qty: Option<u32>,
+        q: Option<u32>,
+        alpha: Option<f64>,
+        rho: Option<f64>,
+        H: Option<u32>,
+        h: Option<u32>,
+        n_rollout_paths: Option<u32>,
+        candidate_case_radius: Option<i32>,
+        n_particles: Option<usize>,
     ) -> PyResult<Bound<'py, PyDict>> {
+        let _ = n_particles;
         let d = self.inner.act(
             policy.as_deref(),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            order_qty.or(q),
+            alpha,
+            rho,
+            H.or(h),
+            n_rollout_paths,
+            candidate_case_radius,
         );
         wire_day_delta(py, &self.inner, &d)
     }
 
     fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        self.act(py, Some("rollout".into()))
+        let d = self.inner.act(Some("rollout"), None, None, None, None, None, None);
+        py_delta(py, &d)
     }
 
     fn set_obs_scenario<'py>(
