@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-08-15T00:00:00Z",
+  "disclaimer": "Demo run only — static reference stub, not live VOI computation.",
+  "rows": [
+    { "scenario": "P0", "metric": "episode_profit_delta", "value": 0.0 },
+    { "scenario": "P1", "metric": "episode_profit_delta", "value": 12.4 },
+    { "scenario": "F1", "metric": "episode_profit_delta", "value": 28.1 },
+    { "scenario": "F2", "metric": "episode_profit_delta", "value": 41.7 }
+  ]
+}

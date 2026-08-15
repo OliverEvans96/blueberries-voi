@@ -17,7 +17,6 @@ export type SectionControlsViewProps = {
     | "onConfigChange"
     | "onControllerChange"
     | "onSetObsScenario"
-    | "onObsScenario"
   >;
   onCaseSizeChange?: (caseSize: number) => void;
 };

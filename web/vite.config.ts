@@ -115,5 +115,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "scripts/smoke-autopilot-mock.ts"],
+    setupFiles: ["./src/testSetup.ts"],
   },
 });

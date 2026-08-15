@@ -112,6 +112,7 @@ export function renderDemandDist(
     .data(series)
     .join("rect")
     .attr("class", "dow-bar pmf-bar")
+    .attr("data-dow-mean", (d) => String(d))
     .attr("x", (_d, i) => x(DOW_LABELS[i]!) ?? 0)
     .attr("y", (d) => y(d))
     .attr("width", x.bandwidth())

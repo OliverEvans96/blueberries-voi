@@ -23,7 +23,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "play",
     label: "Play",
     blurb: "Run the store day by day. Watch inventory age, sales, and spoilage unfold.",
-    plotIds: ["plot-belief", "plot-sales-demand"],
+    plotIds: ["plot-sales-demand"],
     controlSection: "play",
   },
   {

@@ -8,12 +8,13 @@ import type {
 import type { SectionId } from "./sections";
 import { defaultIntervalMsForPolicy } from "./autopilotLoop";
 import type { ScheduleWire } from "./engine/types";
+import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
 
 /** Locked chip copy (ADR 0110 / T-089). */
-const SCENARIO_COPY: Record<
+export const SCENARIO_COPY: Record<
   ScenarioId,
   { title: string; description: string }
 > = {
@@ -43,6 +44,24 @@ const SCENARIO_COPY: Record<
   },
 };
 
+export function scenarioTitle(id: ScenarioId): string {
+  return SCENARIO_COPY[id].title;
+}
+
+/**
+ * Catch-up UX (T-113): obs-catchup-progress; obs chips disabled while catchingUp.
+ * Ladder chip ids (DecisionRail): data-obs="P0" data-obs="P1" data-obs="F1"
+ * data-obs="F1s" data-obs="F2a" data-obs="F2"
+ */
+export const OBS_LADDER_IDS: ScenarioId[] = [
+  "P0",
+  "P1",
+  "F1",
+  "F1s",
+  "F2a",
+  "F2",
+];
+
 export type ControlsCallbacks = {
   onOrderChange: (qty: number) => void;
   onAdvance: () => void;
@@ -52,7 +71,6 @@ export type ControlsCallbacks = {
   onEconomicsChange: (partial: Partial<Economics>) => void;
   onConfigChange: (partial: Partial<SimConfig>) => void;
   onSetObsScenario?: (id: ScenarioId) => void;
-  onObsScenario?: (id: ScenarioId) => void;
   onControllerChange?: (partial: Partial<ControllerControlsState>) => void;
   onShowTruthChange?: (show: boolean) => void;
 };
@@ -164,11 +182,19 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "seed", label: "seed", min: 1, max: 9999, step: 1, format: (v) => String(Math.round(v)), group: "episode" },
 ];
 
+function tierBadge(id: string): string {
+  const meta = PARAM_LABELS[id];
+  const tier: ControlTier = meta?.tier ?? "Reset";
+  return `<span class="tier-badge tier-badge--${tier.toLowerCase()}" title="${meta?.tooltip ?? ""}">${tier}</span>`;
+}
+
 function sliderHtml(spec: SliderSpec): string {
+  const meta = PARAM_LABELS[spec.id];
+  const label = meta?.label ?? spec.label;
   return `
     <label class="field">
-      <span class="field-label">${spec.label} <span id="val-${spec.id}"></span></span>
-      <input type="range" id="${spec.id}" min="${spec.min}" max="${spec.max}" step="${spec.step}" />
+      <span class="field-label">${label} ${tierBadge(spec.id)} <span id="val-${spec.id}"></span></span>
+      <input type="range" id="${spec.id}" min="${spec.min}" max="${spec.max}" step="${spec.step}" title="${meta?.tooltip ?? ""}" />
     </label>
   `;
 }
@@ -190,7 +216,6 @@ function mountSectionControlsDom(
     | "onConfigChange"
     | "onControllerChange"
     | "onSetObsScenario"
-    | "onObsScenario"
   >,
   onCaseSizeChange?: (caseSize: number) => void,
   initialController: ControllerControlsState = DEFAULT_CONTROLLER_CONTROLS,
@@ -203,6 +228,7 @@ function mountSectionControlsDom(
     <div class="section-controls">
       <div class="controls-block" data-section="play">
         <p class="hint">Seed reshapes the episode on Reset. Advance to step the store.</p>
+        <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="pricing" hidden>
@@ -210,7 +236,7 @@ function mountSectionControlsDom(
         ${PRICE_SLIDERS.map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="physics" hidden>
-        <p class="hint">Weibull spoilage + Q10 temperature shift (fake).</p>
+        <p class="hint">Weibull spoilage + Q10 temperature shift.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="demand" hidden>
@@ -239,24 +265,11 @@ function mountSectionControlsDom(
       <div class="controls-block" data-section="belief" hidden>
         <p class="hint">
           Knowledge changes what the store sees, so future orders can change.
+          Use the decision rail to switch observation rungs.
         </p>
-        <div class="field">
-          <span class="field-label">Observation scenario</span>
-          <div class="chip-row" id="obs-chips" role="group" aria-label="Observation scenario">
-            <button type="button" class="obs-chip" data-obs="P0" title="Books only">P0</button>
-            <button type="button" class="obs-chip" data-obs="P1" title="Shrink gun">P1</button>
-            <button type="button" class="obs-chip" data-obs="F1" title="Lot ID at POS">F1</button>
-            <button type="button" class="obs-chip" data-obs="F1s" title="Lot ID on shrink">F1s</button>
-            <button type="button" class="obs-chip" data-obs="F2a" title="Pack date on ASN">F2a</button>
-            <button type="button" class="obs-chip" data-obs="F2" title="Age at receipt">F2</button>
-          </div>
-          <p class="obs-catchup-progress" id="obs-catchup-progress" hidden>
-            Catch-up in progress…
-          </p>
-          <div class="obs-scenario-copy" id="obs-scenario-copy">
-            <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
-            <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
-          </div>
+        <div class="obs-scenario-copy" id="obs-scenario-copy">
+          <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
+          <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
         </div>
       </div>
       <div class="controls-block" data-section="controller" hidden>
@@ -317,31 +330,24 @@ function mountSectionControlsDom(
     for (const spec of PRICE_SLIDERS) syncSlider(spec, e[spec.id as keyof Economics]);
   }
 
-  function syncObsCatchup(catchingUp: boolean): void {
-    const progress = root.querySelector("#obs-catchup-progress") as HTMLElement | null;
-    if (progress) progress.hidden = !catchingUp;
-    root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
-      btn.disabled = catchingUp;
-    });
-  }
-
   function syncConfig(c: SimConfig, catchingUp = false): void {
+    void catchingUp;
     for (const spec of CONFIG_SLIDERS) {
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
     }
-    root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.obs === c.obs_scenario);
-    });
     const copy = SCENARIO_COPY[c.obs_scenario];
     const titleEl = root.querySelector("#obs-scenario-title") as HTMLElement | null;
     const descEl = root.querySelector("#obs-scenario-desc") as HTMLElement | null;
     if (titleEl && copy) titleEl.textContent = copy.title;
     if (descEl && copy) descEl.textContent = copy.description;
+    const windowEl = root.querySelector("#play-window-days") as HTMLElement | null;
+    if (windowEl) {
+      windowEl.textContent = `Episode window: ${c.window_days} days`;
+    }
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
-    syncObsCatchup(catchingUp);
   }
 
   function syncController(s: ControllerControlsState): void {
@@ -391,14 +397,6 @@ function mountSectionControlsDom(
       if (spec.id === "case_size") onCaseSizeChange?.(Math.round(value));
     });
   }
-
-  root.querySelectorAll<HTMLButtonElement>(".obs-chip[data-obs]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.obs as ScenarioId;
-      cb.onSetObsScenario?.(id);
-      cb.onObsScenario?.(id);
-    });
-  });
 
   root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
     btn.addEventListener("click", () => {

@@ -405,6 +405,29 @@ export class ViewModelProjector {
     return this.viewModel;
   }
 
+  /**
+   * Staged DOW demand preview from partial config (T-124) — does not mark dirty
+   * or mutate stored demand_summary until Reset.
+   */
+  demandSummaryFromConfig = (partial: {
+    demand_mu: number;
+    demand_vm: number;
+  }): DemandSummary => {
+    void partial.demand_vm;
+    const base =
+      this.demandSummary ??
+      ({
+        scale_mu: this.config.demand_mu,
+        dow_means: Array.from({ length: 7 }, () => this.config.demand_mu),
+      } satisfies DemandSummary);
+    const scale = partial.demand_mu;
+    const factors = base.dow_means.map((m) => m / (base.scale_mu || 1));
+    return {
+      scale_mu: scale,
+      dow_means: factors.map((f) => f * scale),
+    };
+  };
+
   /** Current projected ViewModel (after last apply / setEconomics). */
   getViewModel(): ViewModel {
     return this.viewModel;

@@ -8,12 +8,13 @@ function recentReceiptAges(history: Day[]): number[] {
     .map((d) => d.age_at_receipt as number);
 }
 
-/** Arrival-age prior PDF + rug of recent age_at_receipt samples. */
+/** Arrival-age prior PDF + optional rug of recent age_at_receipt samples. */
 export function renderArrivalPrior(
   container: HTMLElement,
   config: SimConfig,
   history: Day[],
   height = 160,
+  showReceiptRug = true,
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 12, right: 12, bottom: 28, left: 40 };
@@ -99,7 +100,7 @@ export function renderArrivalPrior(
     .text("Age at receipt (eff. days)");
 
   g.selectAll(".arrival-rug")
-    .data(samples)
+    .data(showReceiptRug ? samples : [])
     .join("line")
     .attr("class", "arrival-rug truth-cross")
     .attr("x1", (d) => x(d))

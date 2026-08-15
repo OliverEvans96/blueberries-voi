@@ -17,7 +17,6 @@ export function mountSectionControls(
     | "onConfigChange"
     | "onControllerChange"
     | "onSetObsScenario"
-    | "onObsScenario"
   >,
   onCaseSizeChange?: (caseSize: number) => void,
   initialController: ControllerControlsState = DEFAULT_CONTROLLER_CONTROLS,

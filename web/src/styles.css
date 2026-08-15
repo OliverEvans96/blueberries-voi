@@ -871,6 +871,109 @@ input[type="number"] {
   color: var(--spoil-strong);
 }
 
+/* T-124 studio UX — insight strip, decision rail, responsive layout */
+.insight-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  font-size: 0.88rem;
+}
+
+.decision-rail {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+}
+
+.studio-layout--three-zone {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(280px, 320px);
+}
+
+.chart-unavailable {
+  display: grid;
+  place-items: center;
+  min-height: 86px;
+  background: var(--paper);
+  border: 1px dashed var(--paper-edge);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.chart-unavailable-hatch {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--muted),
+    var(--muted) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
+
+.tier-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  background: var(--bg-deep);
+  color: var(--ink-soft);
+}
+
+.chapter-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+
+.day-inspector {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+  .studio-layout--three-zone {
+    grid-template-columns: 1fr;
+  }
+  .decision-rail-column {
+    order: 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .studio-layout--three-zone {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .engine-status[data-status="loading"] .engine-status-dot {
+    animation: none;
+  }
+}
+
 .pnl-divider {
   height: 1px;
   background: rgba(28, 36, 32, 0.12);

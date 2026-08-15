@@ -1,4 +1,9 @@
 /** Studio runtime (T-121) — logic migrated from main.ts; shell in StudioLayout.tsx. */
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { bindDemandSliderPreview } from "../engine/demandPreview";
+import { arrivalRugAvailable } from "../scenarioAvailability";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -57,6 +62,11 @@ import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "../t
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth, truthLots } from "../showTruth";
+import { resolveStoreSpoilageSlot } from "./chartSlots";
+import { ChartUnavailable } from "./ChartUnavailable";
+import { DayInspector } from "./DayInspector";
+import { DecisionRail } from "./DecisionRail";
+import { InsightStrip } from "./InsightStrip";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
 export function initStudio(app: HTMLElement): () => void {
@@ -158,6 +168,7 @@ export function initStudio(app: HTMLElement): () => void {
 
   function syncAutopilotChrome(): void {
     playChromeApi.setAutopilotRunning(autopilot.isRunning());
+    renderDecisionRailChrome();
   }
 
   const els = {
@@ -192,6 +203,62 @@ export function initStudio(app: HTMLElement): () => void {
     focusPane: document.querySelector("#focus-pane") as HTMLElement,
   };
 
+  const insightStripHost = document.querySelector("#insight-strip-host");
+  const decisionRailHost = document.querySelector("#decision-rail-host");
+  const dayInspectorHost = document.querySelector("#day-inspector-host");
+  const insightStripRoot = insightStripHost
+    ? createRoot(insightStripHost)
+    : null;
+  const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
+  const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
+  let spoilageUnavailableRoot: Root | null = null;
+
+  function renderInsightStrip(): void {
+    if (!insightStripRoot || !schedule) return;
+    insightStripRoot.render(
+      createElement(InsightStrip, { vm, schedule }),
+    );
+  }
+
+  function renderDayInspector(): void {
+    if (!dayInspectorRoot) return;
+    dayInspectorRoot.render(
+      createElement(DayInspector, { day: hoveredDay, vm }),
+    );
+  }
+
+  function renderDecisionRailChrome(): void {
+    if (!decisionRailRoot) return;
+    decisionRailRoot.render(
+      createElement(DecisionRail, {
+        vm,
+        showTruth,
+        catchingUp,
+        autopilotRunning: autopilot?.isRunning() ?? false,
+        orderQty,
+        activeSection,
+        onAdvance: () => railHandlers.onAdvance(),
+        onReset: () => railHandlers.onReset(),
+        onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
+        onAutopilotPause: () => railHandlers.onAutopilotPause(),
+        onSetObsScenario: (id) => railHandlers.onSetObsScenario(id),
+        onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
+        onOrderChange: (qty) => {
+          orderQty = snapOrder(qty);
+        },
+      }),
+    );
+  }
+
+  const railHandlers = {
+    onAdvance: () => {},
+    onReset: () => {},
+    onAutopilotPlay: () => {},
+    onAutopilotPause: () => {},
+    onSetObsScenario: (_id: ScenarioId) => {},
+    onShowTruthChange: (_on: boolean) => {},
+  };
+
   function applyHoverStyles(day: HoverDay): void {
     setMarginalHover(els.sales, day);
     setMarginalHover(els.stockout, day);
@@ -210,6 +277,7 @@ export function initStudio(app: HTMLElement): () => void {
         ? "Hover a day to highlight it everywhere"
         : `Day ${day} highlighted`;
     applyHoverStyles(day);
+    renderDayInspector();
   }
 
   attachLinkedHover(els.linked, () => vm.history.map((d) => d.day), {
@@ -258,7 +326,26 @@ export function initStudio(app: HTMLElement): () => void {
     renderMarginal(els.sales, vm.history, "sales", 72, yMax);
     renderMarginal(els.stockout, vm.history, "stockout", 72, yMax);
     renderHistory(els.history, historyForCharts(), { height: 220 });
-    renderMarginal(els.spoil, vm.history, "spoilage", 86);
+    const spoilSlot = resolveStoreSpoilageSlot({
+      scenario: vm.config.obs_scenario,
+      showTruth,
+    });
+    if (spoilSlot.kind === "unavailable") {
+      if (!spoilageUnavailableRoot) {
+        spoilageUnavailableRoot = createRoot(els.spoil);
+      }
+      flushSync(() => {
+        spoilageUnavailableRoot!.render(
+          createElement(ChartUnavailable, {
+            plotId: "store-spoilage",
+            caption: "Daily waste is not observed at this knowledge rung.",
+          }),
+        );
+      });
+    } else {
+      spoilageUnavailableRoot?.render(null);
+      renderMarginal(els.spoil, vm.history, "spoilage", 86);
+    }
     applyHoverStyles(hoveredDay);
   }
 
@@ -268,14 +355,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderActiveFocusPlots(): void {
-    if (plotVisible("plot-belief")) {
-      renderBeliefAgeCount(
-        els.belief,
-        vm.belief,
-        truthLots(showTruth, vm.live_lots),
-        200,
-      );
-    }
     if (plotVisible("plot-belief-age-marginal")) {
       renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 72);
     }
@@ -323,7 +402,13 @@ export function initStudio(app: HTMLElement): () => void {
       );
     }
     if (plotVisible("plot-arrival-prior")) {
-      renderArrivalPrior(els.arrivalPrior, vm.config, historyForCharts(), 160);
+      renderArrivalPrior(
+        els.arrivalPrior,
+        vm.config,
+        historyForCharts(),
+        160,
+        arrivalRugAvailable(vm.config.obs_scenario, showTruth),
+      );
     }
     if (plotVisible("plot-arrival-shift")) {
       renderArrivalShift(els.arrivalShift, vm.config, 150);
@@ -364,10 +449,26 @@ export function initStudio(app: HTMLElement): () => void {
     renderStore();
     renderChrome();
     renderActiveFocusPlots();
+    renderInsightStrip();
+    renderDayInspector();
+    renderDecisionRailChrome();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
     playChromeApi.update(state);
     sectionControlsApi.update(state);
+    wireDemandPreview();
+  }
+
+  function wireDemandPreview(): void {
+    const slider = document.querySelector("#demand_mu") as HTMLInputElement | null;
+    if (!slider || slider.dataset.previewBound === "1") return;
+    slider.dataset.previewBound = "1";
+    bindDemandSliderPreview({
+      chartHost: els.demand,
+      slider,
+      projector,
+      schedule,
+    });
   }
 
   playChromeApi = mountPlayChrome(
@@ -395,8 +496,6 @@ export function initStudio(app: HTMLElement): () => void {
             for (const delta of deltas) {
               vm = projector.applyDelta(delta);
             }
-            // DayDelta.episode_day is the completed day; next act cursor is +1
-            // (EngineSession state.episode_day after advance_day).
             if (deltas.length > 0) {
               const completed = deltas[deltas.length - 1]!.episode_day;
               vm = { ...vm, episode_day: completed + 1 };
@@ -436,17 +535,10 @@ export function initStudio(app: HTMLElement): () => void {
         })();
       },
       onAutopilotPlay() {
-        if (vm.episode_day >= EPISODE_HORIZON) {
-          autopilot.pause();
-          syncAutopilotChrome();
-          return;
-        }
-        autopilot.play();
-        syncAutopilotChrome();
+        railHandlers.onAutopilotPlay();
       },
       onAutopilotPause() {
-        autopilot.pause();
-        syncAutopilotChrome();
+        railHandlers.onAutopilotPause();
       },
       onShowTruthChange(show) {
         showTruth = show;
@@ -510,7 +602,9 @@ export function initStudio(app: HTMLElement): () => void {
     },
   });
 
-  const sectionControlsApi = mountSectionControls(
+  let sectionControlsApi!: ReturnType<typeof mountSectionControls>;
+
+  sectionControlsApi = mountSectionControls(
     els.sectionControls,
     controlsState(),
     {
@@ -557,10 +651,9 @@ export function initStudio(app: HTMLElement): () => void {
         }
         catchingUp = true;
         sectionControlsApi.update(controlsState());
+        renderDecisionRailChrome();
         try {
           const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-          // Mid-episode catch-up: wasm/Rust snapshots omit history ([]); do not
-          // replace the client-accumulated episode via applySnapshot.
           vm = projector.patchEngineState(snap);
           projector.setConfig({ obs_scenario: id });
           renderAll();
@@ -573,6 +666,7 @@ export function initStudio(app: HTMLElement): () => void {
         } finally {
           catchingUp = false;
           sectionControlsApi.update(controlsState());
+          renderDecisionRailChrome();
           if (resumeAfter) {
             autopilot.play();
             syncAutopilotChrome();
@@ -590,6 +684,66 @@ export function initStudio(app: HTMLElement): () => void {
     },
     controllerState,
   );
+
+  railHandlers.onAdvance = () => {
+    els.playChrome.querySelector<HTMLButtonElement>("#btn-advance")?.click();
+  };
+  railHandlers.onReset = () => {
+    els.playChrome.querySelector<HTMLButtonElement>("#btn-reset")?.click();
+  };
+  railHandlers.onAutopilotPlay = () => {
+    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-play")?.click();
+  };
+  railHandlers.onAutopilotPause = () => {
+    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-pause")?.click();
+  };
+  railHandlers.onSetObsScenario = (id) => {
+    void (async () => {
+      const setObs =
+        adapter.setObsScenario?.bind(adapter) ??
+        adapter.set_obs_scenario?.bind(adapter);
+      if (typeof setObs !== "function") {
+        vm = projector.setConfig({ obs_scenario: id });
+        sectionControlsApi.update(controlsState());
+        renderAll();
+        return;
+      }
+      const resumeAfter = autopilot.isRunning();
+      if (resumeAfter) {
+        autopilot.pause();
+        syncAutopilotChrome();
+      }
+      catchingUp = true;
+      sectionControlsApi.update(controlsState());
+      renderDecisionRailChrome();
+      try {
+        const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+        vm = projector.patchEngineState(snap);
+        projector.setConfig({ obs_scenario: id });
+        renderAll();
+      } catch (err) {
+        reportStudioAdapterError(
+          `set_obs_scenario failed: ${formatAdapterError(err)}`,
+          undefined,
+          err,
+        );
+      } finally {
+        catchingUp = false;
+        sectionControlsApi.update(controlsState());
+        renderDecisionRailChrome();
+        if (resumeAfter) {
+          autopilot.play();
+          syncAutopilotChrome();
+        }
+      }
+    })();
+  };
+  railHandlers.onShowTruthChange = (show) => {
+    showTruth = show;
+    saveShowTruth(show);
+    app.classList.toggle("studio--show-truth", show);
+    renderAll();
+  };
 
   document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
     btn.addEventListener("click", () => {
