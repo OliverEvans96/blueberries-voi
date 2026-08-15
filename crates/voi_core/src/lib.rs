@@ -15,7 +15,7 @@ pub mod shipments;
 pub mod voi;
 pub mod wor;
 
-pub use belief_flat::particle_bank_to_flat;
+pub use belief_flat::{mean_bank, particle_bank_to_flat};
 pub use day_step::{advance_days, day_step, DayStepIn, DayStepOut, ModelParams};
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use exact_ll::log_p_sales_waste_given_ages;

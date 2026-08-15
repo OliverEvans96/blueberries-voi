@@ -53,11 +53,7 @@ pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
     let mut age_hist = vec![0.0; l.saturating_mul(k)];
     if k > 0 {
         for i in 0..n {
-            let w = if w_sum > 0.0 {
-                bank.weights[i]
-            } else {
-                0.0
-            };
+            let w = if w_sum > 0.0 { bank.weights[i] } else { 0.0 };
             if w == 0.0 {
                 continue;
             }
@@ -100,6 +96,25 @@ pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
         "L": l,
         "K": k,
     })
+}
+
+/// Weighted mean lot counts and ages across particles (policy / ordering belief).
+pub fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
+    if bank.counts.is_empty() {
+        return (vec![], vec![]);
+    }
+    let l = bank.counts[0].len();
+    let mut c = vec![0.0; l];
+    let mut t = vec![0.0; l];
+    for (i, w) in bank.weights.iter().enumerate() {
+        for j in 0..l.min(bank.counts[i].len()) {
+            c[j] += w * f64::from(bank.counts[i][j]);
+            if j < bank.taus[i].len() {
+                t[j] += w * bank.taus[i][j];
+            }
+        }
+    }
+    (c.iter().map(|x| x.round().max(0.0) as u32).collect(), t)
 }
 
 #[cfg(test)]
@@ -183,6 +198,31 @@ mod tests {
         if counts[1] > 0.0 {
             assert!(ages[k + bin8] > 0.5);
         }
+    }
+
+    #[test]
+    fn mean_bank_empty_returns_empty_vecs() {
+        let bank = ParticleBank {
+            weights: vec![],
+            counts: vec![],
+            taus: vec![],
+        };
+        let (counts, taus) = mean_bank(&bank);
+        assert!(counts.is_empty());
+        assert!(taus.is_empty());
+    }
+
+    #[test]
+    fn mean_bank_weighted_mean_rounds_counts() {
+        let bank = ParticleBank {
+            weights: vec![0.25, 0.75],
+            counts: vec![vec![4, 0], vec![0, 8]],
+            taus: vec![vec![0.0, 8.0], vec![0.0, 8.0]],
+        };
+        let (counts, taus) = mean_bank(&bank);
+        assert_eq!(counts, vec![1, 6]);
+        assert!((taus[0] - 0.0).abs() < 1e-9);
+        assert!((taus[1] - 8.0).abs() < 1e-9);
     }
 
     #[test]

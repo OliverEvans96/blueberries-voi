@@ -3,6 +3,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use crate::belief_flat::mean_bank;
 use crate::day_step::{day_step, DayStepIn, ModelParams};
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order;
@@ -63,24 +64,6 @@ fn mask_obs(scenario: &str, sales: u32, waste: u32, arrivals: u32) -> FilterObs 
             ..Default::default()
         },
     }
-}
-
-fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
-    if bank.counts.is_empty() {
-        return (vec![], vec![]);
-    }
-    let l = bank.counts[0].len();
-    let mut c = vec![0.0; l];
-    let mut t = vec![0.0; l];
-    for (i, w) in bank.weights.iter().enumerate() {
-        for j in 0..l.min(bank.counts[i].len()) {
-            c[j] += w * f64::from(bank.counts[i][j]);
-            if j < bank.taus[i].len() {
-                t[j] += w * bank.taus[i][j];
-            }
-        }
-    }
-    (c.iter().map(|x| x.round().max(0.0) as u32).collect(), t)
 }
 
 pub struct CrnBudgets {
