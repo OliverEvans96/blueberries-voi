@@ -2,6 +2,10 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-14
+
+- **Studio now defaults to manager beliefs and a Show true state switch reveals sim truth in a consistent style** (T-115).
+
 ## 2026-08-13
 
 - **Internal structure was cleaned up without changing scores or how the simulator, filter, or studio behave** (T-102).
