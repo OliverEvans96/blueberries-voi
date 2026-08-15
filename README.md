@@ -55,14 +55,26 @@ One-time frontend install (from the repo root):
 
 ```bash
 cd web
-cp .env.example .env.local   # optional; see flags below
+cp .env.example .env.local   # optional; launcher sets mode without this
 npm install
 ```
 
+Pick a mode with **one** flag. With no flag, the launcher prints usage and
+exits (it does not silently choose an engine). Same Vite config for all three.
+
+```bash
+./scripts/studio.sh --http      # FastAPI
+./scripts/studio.sh --pyodide   # in-browser Python
+./scripts/studio.sh --wasm      # in-browser Rust
+```
+
+From `web/` you can use `npm run studio:http` / `studio:pyodide` / `studio:wasm`
+(thin aliases for the same script).
+
 ### HTTP / API mode
 
-Two processes: the FastAPI session host, then Vite. CORS allows only the Vite
-origins `http://127.0.0.1:5173` and `http://localhost:5173`.
+Two processes: the FastAPI session host, then the studio. CORS allows only the
+Vite origins `http://127.0.0.1:5173` and `http://localhost:5173`.
 
 Terminal 1 — API:
 
@@ -70,36 +82,34 @@ Terminal 1 — API:
 uv sync --extra api
 uv run --with uvicorn python -m uvicorn blueberries_voi.api.app:app \
   --host 127.0.0.1 --port 8000
-# If :8000 is already taken (OpenHands, etc.), use --port 8001 and set
-# VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8001 before starting Vite.
+# If :8000 is already taken (OpenHands, etc.), use --port 8001 and
+# VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8001 (matches web/.env.example).
 ```
 
 Terminal 2 — studio:
 
 ```bash
-cd web
-VITE_ENGINE_ADAPTER=http VITE_ENGINE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+./scripts/studio.sh --http
 ```
 
-If you copied `web/.env.example` to `.env.local` with those same keys set, you
-can run `npm run dev` without the inline env. Restart Vite after changing
-`VITE_*` values.
+The launcher sets `VITE_ENGINE_ADAPTER=http` and uses `$VITE_ENGINE_API_BASE_URL`
+or `http://127.0.0.1:8000`. Restart Vite after changing `VITE_*` values.
 
 The API is a **development host** (in-process sessions, localhost CORS). It is
 not a production multi-tenant service. If the chip stays on Connecting / Error,
-confirm port 8000 is up and that you opened the studio on port 5173 (not
+confirm the API port is up and that you opened the studio on port 5173 (not
 another origin).
 
 ### Pyodide mode
 
 Vite serves the worker at `/packaging/pyodide/worker.js` and the slim wheel at
-`/wheels/*.whl` from repo `dist/`. Build the wheel first (first load downloads
-Pyodide **314.0.4** and can take a minute):
+`/wheels/*.whl` from repo `dist/` (local URL so GitHub Release CORS does not
+bite). Build the wheel first (first load downloads Pyodide **314.0.4** and can
+take a minute):
 
 ```bash
 uv run python scripts/build_slim_wheel.py
-cd web
-VITE_ENGINE_ADAPTER=pyodide npm run dev
+./scripts/studio.sh --pyodide
 ```
 
 No FastAPI process is required. If the worker fails to install the package,
@@ -115,29 +125,19 @@ symlinks). Build the crate first (needs `rustc` and `wasm-pack`):
 
 ```bash
 ./scripts/build-wasm.sh
-cd web
-VITE_ENGINE_ADAPTER=wasm \
-  VITE_WASM_WORKER_URL=/packaging/wasm/worker.js \
-  VITE_WASM_PKG_URL=/wasm/ \
-  npm run dev
+./scripts/studio.sh --wasm
 ```
 
-No FastAPI process is required. Rebuild after Rust crate changes. Smoke the
-kernel with `./scripts/smoke-wasm.sh` (see
+No FastAPI process is required. If `packaging/wasm/pkg/` is missing, the
+launcher reminds you to run `./scripts/build-wasm.sh`. Rebuild after Rust crate
+changes. Smoke the kernel with `./scripts/smoke-wasm.sh` (see
 [`packaging/wasm/README.md`](packaging/wasm/README.md)).
 
 ### Env flags
 
-`web/.env.example` documents:
-
-| Variable | Role |
-|----------|------|
-| `VITE_ENGINE_ADAPTER` | `http` \| `pyodide` \| `wasm` \| `mock` (explicit wins) |
-| `VITE_ENGINE_API_BASE_URL` | FastAPI base (`http://127.0.0.1:8000`) |
-| `VITE_PYODIDE_WORKER_URL` | default `/packaging/pyodide/worker.js` |
-| `VITE_PYODIDE_WHEEL_URL` | default `/wheels/blueberries_voi-0.1.0-py3-none-any.whl` |
-| `VITE_WASM_WORKER_URL` | default `/packaging/wasm/worker.js` |
-| `VITE_WASM_PKG_URL` | default `/wasm/` |
+`web/.env.example` and `./scripts/studio.sh` document the same keys. The
+launcher is the usual way to set `VITE_ENGINE_ADAPTER` (`http` \| `pyodide` \|
+`wasm`). `mock` is debug-only and is never selected by the launcher.
 
 Without `VITE_ENGINE_ADAPTER`, development with an API base URL selects HTTP;
 otherwise the studio prefers Pyodide (including production builds). For the
