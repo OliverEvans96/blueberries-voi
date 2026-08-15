@@ -15,7 +15,11 @@ import pytest
 
 from blueberries_voi.backend import rust_core as _maybe_core
 from blueberries_voi.model.abdella import ShipmentTrace
-from blueberries_voi.simulator.session import EngineSession, demand_summary_wire, schedule_wire
+from blueberries_voi.simulator.session import (
+    EngineSession,
+    demand_summary_wire,
+    schedule_wire,
+)
 
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
@@ -23,7 +27,9 @@ if _maybe_core is None:
 rust_core = _maybe_core
 
 _FLAT_BELIEF_KEYS = frozenset({"lot_counts", "age_marginals", "tau_grid", "L", "K"})
-_SCHEDULE_KEYS = frozenset({"delivery_weekdays", "order_weekdays", "lead_time_days", "epoch"})
+_SCHEDULE_KEYS = frozenset(
+    {"delivery_weekdays", "order_weekdays", "lead_time_days", "epoch"}
+)
 _DEMAND_SUMMARY_KEYS = frozenset({"scale_mu", "dow_means"})
 
 
@@ -70,7 +76,9 @@ def _pyo3_init_raw(*, seed: int = 42) -> Mapping[str, Any]:
     return raw
 
 
-def _assert_belief_populated(belief: Any, *, l_dim: int, k_dim: int, label: str) -> None:
+def _assert_belief_populated(
+    belief: Any, *, l_dim: int, k_dim: int, label: str
+) -> None:
     assert isinstance(belief, Mapping), f"{label}.belief must be a mapping"
     missing = _FLAT_BELIEF_KEYS - set(belief)
     assert not missing, f"{label}.belief missing flat fields {sorted(missing)}"
@@ -89,7 +97,8 @@ def _assert_belief_populated(belief: Any, *, l_dim: int, k_dim: int, label: str)
     assert len(age_marginals) == l_dim * k_dim
     assert len(tau_grid) == k_dim
     assert any(float(x) != 0.0 for x in lot_counts), (
-        f"{label}.belief.lot_counts must be non-empty (filter bank wired), got {lot_counts!r}"
+        f"{label}.belief.lot_counts must be non-empty "
+        f"(filter bank wired), got {lot_counts!r}"
     )
     assert any(float(x) != 0.0 for x in age_marginals), (
         f"{label}.belief.age_marginals must be non-empty, got stub zeros"
@@ -206,7 +215,9 @@ def test_rust_step_delta_seq_is_session_counter_not_episode_day() -> None:
 
 def test_pyo3_init_includes_schedule_and_demand_summary() -> None:
     raw = _pyo3_init_raw()
-    assert "schedule" in raw, "PyO3 init must include schedule (delegate snapshot_value)"
+    assert "schedule" in raw, (
+        "PyO3 init must include schedule (delegate snapshot_value)"
+    )
     assert "demand_summary" in raw, (
         "PyO3 init must include demand_summary (delegate snapshot_value)"
     )

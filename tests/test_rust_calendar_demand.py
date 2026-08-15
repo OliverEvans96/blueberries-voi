@@ -136,8 +136,7 @@ def test_rust_demand_profile_mu_matches_python_golden(day: int) -> None:
     py_mu = _committed_profile().mu(day)
     rust_mu = _rust_demand_profile_mu(day)
     assert math.isclose(rust_mu, py_mu, rel_tol=0.0, abs_tol=_MU_ABS_TOL), (
-        f"Rust μ({day})={rust_mu} must match Python {py_mu} "
-        f"(|Δ| ≤ {_MU_ABS_TOL})"
+        f"Rust μ({day})={rust_mu} must match Python {py_mu} (|Δ| ≤ {_MU_ABS_TOL})"
     )
 
 

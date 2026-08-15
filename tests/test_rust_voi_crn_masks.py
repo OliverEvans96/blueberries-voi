@@ -8,6 +8,7 @@ Proves ``crates/voi_core/src/voi.rs`` applies full ``obs::mask_for`` ladders
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 
@@ -37,7 +38,7 @@ def rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
 
 
-def _crn_cell_kwargs() -> dict[str, object]:
+def _crn_cell_kwargs() -> dict[str, Any]:
     return {
         "beta": _BETA,
         "root_seed": _ROOT_SEED,
