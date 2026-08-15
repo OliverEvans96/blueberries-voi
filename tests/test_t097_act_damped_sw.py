@@ -18,14 +18,15 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.simulator.schema import validate_day_delta
 
 
 @pytest.fixture(autouse=True)
 def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DAY_DELTA_TOP_KEYS = frozenset({"seq", "episode_day", "day"})

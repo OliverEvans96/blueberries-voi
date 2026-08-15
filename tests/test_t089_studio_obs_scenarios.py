@@ -20,8 +20,9 @@ from typing import Any, get_args
 
 import numpy as np
 import pytest
-
 from blueberries_voi.filter.rbpf import RBPF
+from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
+
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     P1Obs,
@@ -33,7 +34,6 @@ from blueberries_voi.filter.types import (
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.sim.order_schedule import OrderSchedule
-from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 from blueberries_voi.simulator.session import EngineSession
 
 _REPO = Path(__file__).resolve().parents[1]

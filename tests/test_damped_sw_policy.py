@@ -30,9 +30,9 @@ if TYPE_CHECKING:
 import pytest
 from scipy.stats import nbinom
 
-from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.filter.belief import effective_inventory, shelf_belief_from_oracle
 from blueberries_voi.model import ModelParams, q10_age_increment
+from blueberries_voi.sim.bakeoff_ordering import case_round
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONTROLLER_PKG = "blueberries_voi.controller"

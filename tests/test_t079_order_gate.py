@@ -22,15 +22,15 @@ from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
-import pytest  # noqa: TC002
+import pytest
+from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 
-from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.model import ModelParams, draw_demand
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
-from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 from blueberries_voi.simulator.session import EngineSession
 
 _EPOCH = date(2024, 1, 1)

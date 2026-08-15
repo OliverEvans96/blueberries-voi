@@ -12,9 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from blueberries_voi.sim.case_round import case_round
 from blueberries_voi.model import Cohort, ModelParams
-from blueberries_voi.sim.rust_bridge import day_step
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -23,6 +21,7 @@ from blueberries_voi.rng import (
     STREAM_SPOIL,
     spawn_rng,
 )
+from blueberries_voi.sim.case_round import case_round
 from blueberries_voi.sim.day_tick import (
     enqueue_pending_order,
     lot_states_from_cohorts,
@@ -33,6 +32,7 @@ from blueberries_voi.sim.day_tick import (
 )
 from blueberries_voi.sim.open_loop import generate_arrival_age
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
+from blueberries_voi.sim.rust_bridge import day_step
 from blueberries_voi.sim.types_log import DayLog, EpisodeLog
 
 if TYPE_CHECKING:
@@ -89,20 +89,14 @@ def _invoke_order(
     belief: object,
     pending_orders: Mapping[int, int],
 ) -> int:
-    """Dispatch policy.order with belief-first or day-first signatures."""
-    import inspect
-
-    sig = inspect.signature(policy.order)
-    params = sig.parameters
-    if "belief" in params:
-        return int(
-            policy.order(
-                day,
-                belief,
-                pending_orders=tuple(pending_orders.items()),
-            )
+    """Dispatch ``Policy.order`` (day-first CTL surface)."""
+    return int(
+        policy.order(
+            day,
+            belief,
+            pending_orders=pending_orders,
         )
-    return int(policy.order(belief, day=day, pending_orders=tuple(pending_orders.items())))
+    )
 
 
 def run_closed_loop_episode(

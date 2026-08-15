@@ -583,8 +583,8 @@ def test_simulator_modules_have_no_matplotlib_or_pyarrow_imports() -> None:
         )
 
 
-@pytest.mark.skip(reason='T-121 F3: day_driver removed')
-@pytest.mark.skip(reason='T-121 F3: day_driver removed')
+@pytest.mark.skip(reason="T-121 F3: day_driver removed")
+@pytest.mark.skip(reason="T-121 F3: day_driver removed")
 def test_shared_day_driver_symbol_exists() -> None:
     """Session must use a shared closed-loop day driver (name may vary)."""
     mod = _resolve_simulator_module()

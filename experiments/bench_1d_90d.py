@@ -168,6 +168,7 @@ def _bench_physics(backend: str) -> dict[str, Any]:
     """Filter-off day_step 1 vs 90 (clarifies physics vs RBPF cost)."""
     os.environ["BLUEBERRIES_VOI_BACKEND"] = backend
     from blueberries_voi.model.day_step import day_step
+
     from blueberries_voi.model.params import Cohort, ModelParams
     from blueberries_voi.rng import STREAM_ALLOC, STREAM_SPOIL, spawn_rng
 

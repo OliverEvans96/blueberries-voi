@@ -31,8 +31,8 @@ from collections.abc import Callable, Mapping
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from blueberries_voi.sim.case_round import case_round
 from blueberries_voi.model import ModelParams
+from blueberries_voi.sim.case_round import case_round
 
 if TYPE_CHECKING:
     from blueberries_voi.sim.order_schedule import OrderSchedule

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pytest  # noqa: TC002
+import pytest
 
 from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for

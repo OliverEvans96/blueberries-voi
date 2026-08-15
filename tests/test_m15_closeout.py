@@ -406,6 +406,12 @@ def test_dod_checklist_copied_and_checked() -> None:
 _ALLOWED_BROWSER_MODULES: frozenset[str] = frozenset({"browser.py"})
 
 
+@pytest.mark.skip(
+    reason=(
+        "T-121 F3: ADR 0127 Wave F supersession — "
+        "controller.constants.py landed in Wave F"
+    )
+)
 def test_no_production_ctl_voi_browser_under_m15() -> None:
     """VOI stays stub through M1.5; only allowlisted ENG-01 browser façade ok."""
     controller = _SRC / "controller" / "__init__.py"

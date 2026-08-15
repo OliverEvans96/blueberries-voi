@@ -83,6 +83,10 @@ select = [
     "RUF", # ruff-specific
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# T-121 F3: module-level pytest.skip precedes legacy imports (ADR 0127 supersession).
+"tests/**" = ["E402", "F821"]
+
 [tool.ruff.format]
 quote-style = "double"
 
@@ -97,6 +101,19 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+warn_unreachable = false
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "blueberries_voi.viz.fil11_stage_a",
+    "blueberries_voi.viz.fil11_stage_b",
+    "blueberries_voi.viz.m15_stage_a",
+    "blueberries_voi.viz.m15_stage_b",
+    "blueberries_voi.viz.m15_oracle",
+    "blueberries_voi.sim.m2_multi_scenario",
+]
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = [

@@ -322,6 +322,12 @@ def test_load_demand_profile_source_has_no_hf_imports() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(
+    reason=(
+        "T-121 F3: ADR 0127 Wave F supersession — "
+        "Python day_step calendar demand removed"
+    )
+)
 def test_day_step_uses_day_indexed_demand_when_day_and_profile_supplied() -> None:
     """CRN / episode can supply episode day; demand follows profile μ(day).
 

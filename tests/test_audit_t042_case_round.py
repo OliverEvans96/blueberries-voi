@@ -8,6 +8,14 @@ See `.team/specs/T-042-audit-remediation.md`.
 
 from __future__ import annotations
 
+import pytest
+
+_F3_SKIP_CASE_ROUND = (
+    "T-121 F3: ADR 0127 Wave F supersession — "
+    "closed-loop case_round audit uses removed paths"
+)
+pytest.skip(_F3_SKIP_CASE_ROUND, allow_module_level=True)
+
 import ast
 import importlib
 import inspect
@@ -17,9 +25,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from blueberries_voi.sim.bakeoff_ordering import case_round as controller_case_round
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.bakeoff_ordering import case_round as controller_case_round
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 
 if TYPE_CHECKING:

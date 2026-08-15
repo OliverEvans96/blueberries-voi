@@ -6,12 +6,16 @@ from datetime import date
 from pathlib import Path
 
 import numpy as np
+import pytest
 
-from blueberries_voi import filter as filter_pkg
 from blueberries_voi import model, sim
-from blueberries_voi.model import ModelParams
+from blueberries_voi.model import ModelParams, day_step
 from blueberries_voi.model.abdella import load_abdella_shipments
 from blueberries_voi.sim import EpisodeLog, open_loop_order, run_episode
+
+_F3_OPEN_LOOP = (
+    "T-121 F3: ADR 0127 Wave F supersession — Python open-loop day_step removed"
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 ABDELLA = ROOT / "data" / "abdella"
@@ -20,7 +24,7 @@ ABDELLA = ROOT / "data" / "abdella"
 def test_sim_shares_day_step() -> None:
     """ENG-02: filter and sim import the shared model.day_step (T-009 AC)."""
     assert sim.day_step is model.day_step
-    assert day_step.__module__ == 'blueberries_voi.sim.rust_bridge'
+    assert day_step.__module__ == "blueberries_voi.sim.rust_bridge"
 
 
 def test_open_loop_base_stock() -> None:
@@ -29,6 +33,7 @@ def test_open_loop_base_stock() -> None:
     assert open_loop_order(70, S=60) == 0
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_episode_smoke_finite() -> None:
     ships = load_abdella_shipments(ABDELLA)
     ep = run_episode(
@@ -49,6 +54,7 @@ def test_episode_smoke_finite() -> None:
     assert max(Ls) >= 1
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_spread_scale_tightens() -> None:
     ships = load_abdella_shipments(ABDELLA)
     full = run_episode(
@@ -78,6 +84,7 @@ def test_spread_scale_tightens() -> None:
     assert float(np.std(af)) > float(np.std(at))
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_p1_obs_fields_present() -> None:
     ships = load_abdella_shipments(ABDELLA)
     ep = run_episode(n_burn=2, n_score=5, shipments=ships, root_seed=3)
@@ -103,6 +110,7 @@ def _short_episode(*, root_seed: int = 11, run_id: str = "t009") -> EpisodeLog:
     )
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_daylog_sales_waste_by_lot_maps() -> None:
     """Each DayLog exposes per-lot sales/waste maps keyed by lot_id."""
     ep = _short_episode()
@@ -120,6 +128,7 @@ def test_daylog_sales_waste_by_lot_maps() -> None:
             assert int(qty) >= 0
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_daylog_lots_keep_n_tau_lot_id() -> None:
     """End-of-day live lots still carry n, tau, and lot_id."""
     ep = _short_episode()
@@ -135,6 +144,7 @@ def test_daylog_lots_keep_n_tau_lot_id() -> None:
     assert seen_live, "expected at least one live lot across the episode"
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_daylog_receipt_metadata_delivery_vs_none() -> None:
     """Delivery days expose age_at_receipt; non-delivery leave receipt fields None."""
     ep = _short_episode(root_seed=12)
@@ -166,6 +176,7 @@ def test_daylog_receipt_metadata_delivery_vs_none() -> None:
     assert saw_non_delivery, "fixture episode must include a non-delivery day"
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_daylog_totals_match_by_lot_sums() -> None:
     """sales_total / waste_total equal the sum of per-lot maps; empty when zero."""
     ep = _short_episode(root_seed=13)
@@ -188,6 +199,7 @@ def test_daylog_totals_match_by_lot_sums() -> None:
     assert saw_zero_sales, "expected some day with zero sales (empty map)"
 
 
+@pytest.mark.skip(reason=_F3_OPEN_LOOP)
 def test_daylog_crn_scored_aggregates_stable() -> None:
     """Identical (root_seed, run_id, params) → identical scored aggregates (CRN)."""
     ships = load_abdella_shipments(ABDELLA)

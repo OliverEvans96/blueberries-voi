@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip(
-    "T-121 F3: Python EngineSession history/horizon internals removed; Rust owns session",
-    allow_module_level=True,
+_F3_SKIP_HORIZON = (
+    "T-121 F3: Python EngineSession history/horizon internals removed; "
+    "Rust owns session"
 )
+pytest.skip(_F3_SKIP_HORIZON, allow_module_level=True)
 
 from pathlib import Path
 from typing import Any

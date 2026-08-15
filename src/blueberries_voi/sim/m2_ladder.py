@@ -16,8 +16,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
-from blueberries_voi.sim.bakeoff_rollout import RolloutPolicy
 from blueberries_voi.controller.toy_dp import solve_toy_dp
 from blueberries_voi.filter import PRODUCTION_BACKEND
 from blueberries_voi.model import ModelParams
@@ -26,6 +24,8 @@ from blueberries_voi.sim.alpha_tune import (
     evaluate_alpha_episode_profit,
     require_tuned_alpha_table,
 )
+from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
+from blueberries_voi.sim.bakeoff_rollout import RolloutPolicy
 from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit

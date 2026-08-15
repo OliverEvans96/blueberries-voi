@@ -189,6 +189,5 @@ def test_damped_sw_and_rollout_are_distinct_when_reference_differs() -> None:
     rust_sw = _policy_order("damped_sw", backend="rust")
     rust_roll = _policy_order("rollout", backend="rust")
     assert rust_sw != rust_roll, (
-        "Rust must dispatch damped_sw and rollout separately "
-        f"(both returned {rust_sw})"
+        f"Rust must dispatch damped_sw and rollout separately (both returned {rust_sw})"
     )

@@ -22,10 +22,10 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.bakeoff_ordering import case_round
 from blueberries_voi.sim.profit import ProfitCosts, episode_profit
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -493,6 +493,9 @@ def _fixture_shipments() -> list[ShipmentTrace]:
     ]
 
 
+@pytest.mark.skip(
+    reason="T-121 F3: ADR 0127 Wave F supersession — Python closed-loop episode removed"
+)
 def test_rung0_closed_loop_smoke_with_profit_scores() -> None:
     """Short T-024 closed-loop + T-025 episode_profit runs without error."""
     from blueberries_voi.sim.episode import run_closed_loop_episode

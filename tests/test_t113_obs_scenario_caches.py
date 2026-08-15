@@ -19,8 +19,8 @@ from typing import Any
 
 import numpy as np
 import pytest
-
 from blueberries_voi.filter.rbpf import RBPF
+
 from blueberries_voi.filter.types import mask_for
 from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.simulator.session import EngineSession

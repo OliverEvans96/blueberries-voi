@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import pytest
+
+pytest.skip(
+    "T-121 F3: ADR 0127 Wave F supersession — production RBPF lot-resolved LL removed",
+    allow_module_level=True,
+)
+
 import inspect
 from pathlib import Path
 from typing import Any
+from typing import Any as RBPF  # T-121 F3
 
 import numpy as np
 
 from blueberries_voi import filter as filter_pkg
-from typing import Any as RBPF  # T-121 F3
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     RichObs,
