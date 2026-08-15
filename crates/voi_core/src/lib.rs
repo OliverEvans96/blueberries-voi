@@ -14,6 +14,7 @@ pub mod rollout;
 pub mod schedule;
 pub mod session;
 pub mod shipments;
+pub mod spawn_rng;
 pub mod voi;
 pub mod wor;
 

@@ -88,6 +88,15 @@ impl DemandProfile {
     pub fn demand_vm(&self) -> f64 {
         self.demand_vm
     }
+
+    pub fn scale_target_mu(&self) -> f64 {
+        self.scale_target_mu
+    }
+
+    /// Chart-ready DOW means (scale × dow factor); week factors omitted.
+    pub fn dow_means(&self) -> [f64; 7] {
+        std::array::from_fn(|i| self.scale_target_mu * self.dow_factors[i])
+    }
 }
 
 #[cfg(test)]

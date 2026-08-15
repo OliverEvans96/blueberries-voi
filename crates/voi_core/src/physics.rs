@@ -4,6 +4,7 @@ use rand::Rng;
 use rand_distr::{Distribution, Gamma, Poisson};
 
 use crate::params::ModelParams;
+use crate::spawn_rng::SpawnRng;
 
 const SURV_FLOOR: f64 = 1e-300;
 
@@ -153,6 +154,21 @@ fn draw_demand_from_mu<R: Rng + ?Sized>(rng: &mut R, mu: f64, demand_vm: f64) ->
     pois.sample(rng) as u32
 }
 
+/// Calendar/session demand draw using NumPy `spawn_rng` + `negative_binomial` parity.
+pub fn draw_demand_spawn(rng: &mut SpawnRng, params: &ModelParams, day: Option<u32>) -> u32 {
+    let mu = if params.demand_profile.is_some() {
+        params.demand_mu_for_day(day.unwrap_or(0))
+    } else {
+        params.demand_mu
+    };
+    if params.demand_vm <= 1.0 {
+        panic!("demand_vm must be > 1 for overdispersed NB");
+    }
+    let r = mu / (params.demand_vm - 1.0);
+    let p = r / (r + mu);
+    rng.negative_binomial(r, p)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +287,39 @@ mod tests {
         }
         let mean = acc / f64::from(n);
         assert!(mean > 20.0 && mean < 40.0, "mean={mean}");
+    }
+
+    #[test]
+    fn session_stream_rng_calendar_mean_seed0() {
+        use crate::demand_profile::DemandProfile;
+        use crate::spawn_rng::SpawnRng;
+
+        let profile =
+            DemandProfile::from_json(include_str!("../../../data/freshnet/demand_profile.json"))
+                .expect("embedded profile");
+        let params_cal = ModelParams {
+            demand_profile: Some(profile),
+            ..ModelParams::default()
+        };
+        let params_flat = ModelParams::default();
+        let mut sum_cal = 0u64;
+        let mut sum_flat = 0u64;
+        for day in 0..90u32 {
+            let mut rng_cal = SpawnRng::spawn_rng(0, "session", day, ":demand");
+            let mut rng_flat = SpawnRng::spawn_rng(0, "session", day, ":demand");
+            sum_cal += u64::from(draw_demand_spawn(&mut rng_cal, &params_cal, Some(day)));
+            sum_flat += u64::from(draw_demand_spawn(&mut rng_flat, &params_flat, None));
+        }
+        let mean_cal = f64::from(sum_cal as u32) / 90.0;
+        let mean_flat = f64::from(sum_flat as u32) / 90.0;
+        assert!(
+            (mean_cal - 28.655_555_555_555_555).abs() <= 1.0,
+            "calendar mean {mean_cal} must track Python reference (~28.66)"
+        );
+        assert!(
+            (mean_cal - mean_flat).abs() > 0.1 || (mean_cal - 30.0).abs() > 0.5,
+            "calendar mean {mean_cal} must differ from flat baseline ({mean_flat})"
+        );
     }
 
     #[test]

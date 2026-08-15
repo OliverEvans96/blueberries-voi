@@ -7,15 +7,22 @@ use serde_json::Value;
 use voi_core::{
     crate_name, day_step, filter_step, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
     sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayDelta, DayStepIn,
-    DemandProfile, EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
+    EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
+    DemandProfile,
 };
 
 #[pyfunction]
-#[pyo3(signature = (json, day))]
-fn demand_profile_mu_from_json_py(json: &str, day: u32) -> PyResult<f64> {
+#[pyo3(signature = (day, json))]
+fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
     let profile = DemandProfile::from_json(json)
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
     Ok(profile.mu(day))
+}
+
+#[pyfunction]
+#[pyo3(name = "demand_profile_mu_py", signature = (day, json))]
+fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
+    demand_profile_mu_from_json_py(day, json)
 }
 
 #[pyfunction]
@@ -234,7 +241,7 @@ impl PyEngineSession {
         }
     }
 
-    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None))]
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None))]
     fn init<'py>(
         &mut self,
         py: Python<'py>,
@@ -250,9 +257,13 @@ impl PyEngineSession {
         l: usize,
         k: usize,
         obs_scenario: Option<String>,
+        demand_profile_json: Option<String>,
     ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
         self.inner.set_belief_dims(l, k.max(1));
+        let demand_profile = demand_profile_json
+            .as_deref()
+            .and_then(|json| DemandProfile::from_json(json).ok());
         self.inner.configure(
             lead_time,
             enable_filter,
@@ -261,6 +272,7 @@ impl PyEngineSession {
             radius,
             ships_from(times, temps),
             n_particles,
+            demand_profile,
         );
         if let Some(scenario) = obs_scenario {
             self.inner
@@ -271,7 +283,22 @@ impl PyEngineSession {
     }
 
     fn reset<'py>(&mut self, py: Python<'py>, seed: u64) -> PyResult<Bound<'py, PyDict>> {
-        self.init(py, seed, 1, true, 7, 2, 1, vec![], vec![], 200, 2, 4, None)
+        self.init(
+            py,
+            seed,
+            1,
+            true,
+            7,
+            2,
+            1,
+            vec![],
+            vec![],
+            200,
+            2,
+            4,
+            None,
+            None,
+        )
     }
 
     fn step_n<'py>(&mut self, py: Python<'py>, orders: Vec<u32>) -> PyResult<Bound<'py, PyList>> {
@@ -330,7 +357,7 @@ impl PyEngineSession {
 
     fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = self.inner.act(Some("rollout"), None, None, None, None, None, None);
-        py_delta(py, &d)
+        wire_day_delta(py, &self.inner, &d)
     }
 
     fn set_obs_scenario<'py>(
@@ -354,6 +381,7 @@ impl PyEngineSession {
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("VOI_CORE", crate_name())?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
+    m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
     m.add_function(wrap_pyfunction!(weibull_survival_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(day_step_injected, m)?)?;

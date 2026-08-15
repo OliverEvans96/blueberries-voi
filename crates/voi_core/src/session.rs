@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_mean_from_bank, BeliefMean};
 use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::physics::draw_demand;
+use crate::physics::{draw_demand, draw_demand_spawn};
+use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
 use crate::rbpf::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
@@ -113,6 +115,10 @@ impl EngineSession {
         self.crossings += 1;
     }
 
+    pub fn set_demand_profile(&mut self, profile: DemandProfile) {
+        apply_demand_profile(&mut self.params, profile);
+    }
+
     pub fn configure(
         &mut self,
         lead_time: u32,
@@ -122,6 +128,7 @@ impl EngineSession {
         radius: i32,
         shipments: Vec<ShipmentTrace>,
         n_particles: usize,
+        demand_profile: Option<DemandProfile>,
     ) {
         self.lead_time = lead_time.max(1);
         self.enable_filter = enable_filter;
@@ -137,6 +144,11 @@ impl EngineSession {
         };
         if !shipments.is_empty() {
             self.shipments = shipments;
+        }
+        if let Some(profile) = demand_profile {
+            apply_demand_profile(&mut self.params, profile);
+        } else if self.params.demand_profile.is_none() {
+            apply_demand_profile(&mut self.params, committed_demand_profile());
         }
         if self.enable_filter {
             self.seed_particle_bank();
@@ -211,8 +223,14 @@ impl EngineSession {
         } else {
             self.state.delivery_n = 0;
         }
-        let mut rng_d = stream_rng(self.seed, self.day, 1);
-        self.state.demand = Some(draw_demand(&mut rng_d, &self.params, None));
+        if self.params.demand_profile.is_some() {
+            let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
+            self.state.demand =
+                Some(draw_demand_spawn(&mut rng_d, &self.params, Some(self.day)));
+        } else {
+            let mut rng_d = stream_rng(self.seed, self.day, 1);
+            self.state.demand = Some(draw_demand(&mut rng_d, &self.params, None));
+        }
         self.state.spoil_by = None;
         let mut rng_a = stream_rng(self.seed, self.day, 2);
         let mut rng_s = stream_rng(self.seed, self.day, 3);
@@ -292,7 +310,7 @@ impl EngineSession {
                 "seed": self.seed,
             },
             "schedule": schedule_wire(&self.schedule),
-            "demand_summary": demand_summary_wire(),
+            "demand_summary": demand_summary_wire(&self.params),
         })
     }
 
@@ -524,6 +542,17 @@ impl EngineSession {
 const AGE_GRID_LO: f64 = 0.0;
 const AGE_GRID_HI: f64 = 8.0;
 const SCHEDULE_EPOCH: &str = "2024-01-01";
+const EMBEDDED_DEMAND_PROFILE: &str =
+    include_str!("../../../data/freshnet/demand_profile.json");
+
+fn committed_demand_profile() -> DemandProfile {
+    DemandProfile::from_json(EMBEDDED_DEMAND_PROFILE).expect("embedded demand profile")
+}
+
+fn apply_demand_profile(params: &mut ModelParams, profile: DemandProfile) {
+    params.demand_vm = profile.demand_vm();
+    params.demand_profile = Some(profile);
+}
 
 fn tau_grid(k: usize) -> Vec<f64> {
     if k == 0 {
@@ -619,15 +648,32 @@ fn schedule_wire(sched: &OrderSchedule) -> serde_json::Value {
     })
 }
 
-fn demand_summary_wire() -> serde_json::Value {
-    let scale = 30.0;
-    let factors = [
-        0.97076, 1.00837, 0.928811, 0.860509, 0.925391, 1.12922, 1.176938,
-    ];
+fn demand_summary_wire(params: &ModelParams) -> serde_json::Value {
+    let profile = params
+        .demand_profile
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(committed_demand_profile);
+    let scale = profile.scale_target_mu();
     serde_json::json!({
         "scale_mu": scale,
-        "dow_means": factors.map(|f| scale * f),
+        "dow_means": profile.dow_means(),
     })
+}
+
+fn parse_demand_profile_from_rpc(params: &serde_json::Value) -> Option<DemandProfile> {
+    if let Some(json) = rpc_str(params, "demand_profile_json") {
+        return DemandProfile::from_json(json).ok();
+    }
+    if let Some(value) = rpc_field(params, "demand_profile") {
+        if let Some(json) = value.as_str() {
+            return DemandProfile::from_json(json).ok();
+        }
+        if value.is_object() {
+            return DemandProfile::from_json(&value.to_string()).ok();
+        }
+    }
+    None
 }
 
 fn validate_scenario(id: &str) -> Result<(), String> {
@@ -717,6 +763,7 @@ impl EngineSession {
         let radius = rpc_i64(params, "candidate_case_radius").unwrap_or(1) as i32;
         let n_particles = rpc_u64(params, "n_particles").unwrap_or(200) as usize;
         let shipments = parse_shipments_from_rpc(params);
+        let demand_profile = parse_demand_profile_from_rpc(params);
         self.configure(
             lead_time,
             enable_filter,
@@ -725,6 +772,7 @@ impl EngineSession {
             radius,
             shipments,
             n_particles,
+            demand_profile,
         );
         self.schedule.lead_time_days = self.lead_time;
     }
@@ -891,7 +939,7 @@ mod tests {
         let mut s = EngineSession::new(seed);
         s.init(seed);
         s.set_belief_dims(2, 4);
-        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32);
+        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None);
         for _ in 0..6 {
             s.step(0);
         }
@@ -1187,8 +1235,49 @@ mod tests {
     fn configure_sets_particle_count() {
         let mut s = EngineSession::new(1);
         s.init(1);
-        s.configure(1, true, 7, 2, 1, vec![], 200);
+        s.configure(1, true, 7, 2, 1, vec![], 200, None);
         assert_eq!(s.n_particles(), 200);
+    }
+
+    #[test]
+    fn demand_summary_wire_matches_committed_profile() {
+        let profile = committed_demand_profile();
+        let mut params = ModelParams::default();
+        apply_demand_profile(&mut params, profile.clone());
+        let wire = demand_summary_wire(&params);
+        assert!((wire["scale_mu"].as_f64().unwrap() - profile.scale_target_mu()).abs() <= 1e-9);
+        let dow: Vec<f64> = wire["dow_means"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .collect();
+        assert_eq!(dow.len(), 7);
+        for (got, want) in dow.iter().zip(profile.dow_means()) {
+            assert!((got - want).abs() <= 1e-9, "{got} vs {want}");
+        }
+    }
+
+    #[test]
+    fn session_configure_loads_calendar_profile_and_uses_day_in_demand() {
+        let mut s = EngineSession::new(0);
+        s.init(0);
+        s.configure(1, false, 3, 1, 0, vec![], 16, None);
+        let d0 = s.step(0);
+        assert_eq!(d0.demand, 21, "day-0 demand must match Python calendar reference");
+        let mut s2 = EngineSession::new(0);
+        s2.init(0);
+        s2.configure(1, false, 3, 1, 0, vec![], 16, None);
+        let mut demands = Vec::new();
+        for _ in 0..90 {
+            let d = s2.step(0);
+            demands.push(d.demand);
+        }
+        let mean: f64 = demands.iter().map(|&d| f64::from(d)).sum::<f64>() / 90.0;
+        assert!(
+            (mean - 28.655_555_555_555_555).abs() <= 1.0,
+            "90-day session mean {mean} must track Python calendar reference (~28.66)"
+        );
     }
 
     fn shannon(p: &[f64]) -> f64 {
