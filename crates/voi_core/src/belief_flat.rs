@@ -1,18 +1,104 @@
 //! Flatten a `ParticleBank` onto the Snapshot `L×K` belief wire (ADR 0106 / 0126).
-//! Production flattening is T-117 I2 — stub returns an empty grid so tests stay RED.
 
 use serde_json::Value;
 
 use crate::rbpf::ParticleBank;
 
+const AGE_GRID_LO: f64 = 0.0;
+const AGE_GRID_HI: f64 = 8.0;
+
+fn tau_grid_k(k: usize) -> Vec<f64> {
+    if k == 0 {
+        return Vec::new();
+    }
+    if k == 1 {
+        return vec![AGE_GRID_LO];
+    }
+    (0..k)
+        .map(|i| AGE_GRID_LO + (AGE_GRID_HI - AGE_GRID_LO) * (i as f64) / ((k - 1) as f64))
+        .collect()
+}
+
+fn nearest_bin(tau: f64, grid: &[f64]) -> usize {
+    grid.iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| (*a - tau).abs().partial_cmp(&(*b - tau).abs()).unwrap())
+        .map(|(i, _)| i)
+        .unwrap_or(0)
+}
+
 /// Weighted lot counts + age histograms on a fixed `L×K` grid (`tau` in `[0, 8]`).
-pub fn particle_bank_to_flat(_bank: &ParticleBank, _l: usize, _k: usize) -> Value {
+pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
+    let grid = tau_grid_k(k);
+    let n = bank.weights.len();
+    let w_sum: f64 = bank.weights.iter().sum();
+
+    let mut lot_counts = vec![0.0; l];
+    if w_sum > 0.0 {
+        for slot in 0..l {
+            let mut acc = 0.0;
+            for i in 0..n {
+                let c = bank
+                    .counts
+                    .get(i)
+                    .and_then(|row| row.get(slot))
+                    .copied()
+                    .unwrap_or(0);
+                acc += bank.weights[i] * f64::from(c);
+            }
+            lot_counts[slot] = acc / w_sum;
+        }
+    }
+
+    let mut age_hist = vec![0.0; l.saturating_mul(k)];
+    if k > 0 {
+        for i in 0..n {
+            let w = if w_sum > 0.0 {
+                bank.weights[i]
+            } else {
+                0.0
+            };
+            if w == 0.0 {
+                continue;
+            }
+            let taus = bank.taus.get(i).map(Vec::as_slice).unwrap_or(&[]);
+            for slot in 0..l {
+                let Some(&tau) = taus.get(slot) else {
+                    continue;
+                };
+                let bin = nearest_bin(tau, &grid);
+                age_hist[slot * k + bin] += w;
+            }
+        }
+        for slot in 0..l {
+            let row = &mut age_hist[slot * k..(slot + 1) * k];
+            if lot_counts[slot] > 0.0 {
+                let z: f64 = row.iter().sum();
+                if z > 0.0 {
+                    for x in row.iter_mut() {
+                        *x /= z;
+                    }
+                } else {
+                    let u = 1.0 / k as f64;
+                    for x in row.iter_mut() {
+                        *x = u;
+                    }
+                }
+            } else {
+                let u = 1.0 / k as f64;
+                for x in row.iter_mut() {
+                    *x = u;
+                }
+            }
+        }
+    }
+
     serde_json::json!({
-        "lot_counts": [],
-        "age_marginals": [],
-        "tau_grid": [],
-        "L": 0,
-        "K": 0,
+        "lot_counts": lot_counts,
+        "age_marginals": age_hist,
+        "tau_grid": grid,
+        "L": l,
+        "K": k,
     })
 }
 
