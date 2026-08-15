@@ -1,10 +1,8 @@
 import { STUDIO_CHAPTERS } from "../chapters";
 import { STUDIO_SECTIONS } from "../sections";
 import { D3ChartHost } from "./D3ChartHost";
-import { GlossaryDrawer } from "./GlossaryDrawer";
 import { GuidedPaths } from "./GuidedPaths";
-import { ShortcutHelp } from "./ShortcutHelp";
-import { VoiReferencePanel } from "./VoiReferencePanel";
+import { ReferenceDrawer } from "./ReferenceDrawer";
 
 /** Static studio shell — three-zone layout (T-124 / ADR 0128). */
 export function StudioLayout() {
@@ -14,8 +12,7 @@ export function StudioLayout() {
         <div className="hero-top">
           <div className="brand">Cold Case Ledger</div>
           <div className="hero-tools">
-            <GlossaryDrawer />
-            <ShortcutHelp />
+            <ReferenceDrawer />
             <span
               id="engine-status"
               className="engine-status"
@@ -233,9 +230,6 @@ export function StudioLayout() {
                     ariaLabel="Controller order quantities"
                   />
                 </div>
-              </div>
-              <div className="voi-reference-host">
-                <VoiReferencePanel />
               </div>
             </section>
           </div>
