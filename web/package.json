@@ -5,9 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "studio:wasm": "../scripts/studio.sh --wasm",
-    "studio:http": "../scripts/studio.sh --http",
-    "studio:pyodide": "../scripts/studio.sh --pyodide",
+    "studio": "../scripts/studio.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",

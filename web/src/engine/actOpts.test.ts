@@ -415,7 +415,7 @@ describe("Shared normalize surface (T-098)", () => {
     const pySrc = readFileSync(PYODIDE_ADAPTER_SRC, "utf8");
     // Either a shared helper import or explicit normalize call sites.
     const sharedHelper =
-      /normalizeActOpts|actOptsToHttp|actOptsToFlat|toHttpActBody|toFlatActParams/.test(
+      /normalizeActOpts|normalizeActBudgets|actOptsToHttp|actOptsToFlat|toFlatActParams/.test(
         httpSrc + pySrc,
       );
     const httpNests = /budgets/.test(httpSrc) && /act\s*\(/.test(httpSrc);
