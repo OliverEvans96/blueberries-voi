@@ -1,0 +1,146 @@
+ticket: T-125
+parent_tip: main
+optimize: balanced
+batch_below:
+  max_files: 2
+  max_prod_loc: 50
+max_parallel: 4
+description: Retire Pyodide + HTTP API; WASM-only browser studio (ADR 0129)
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-125.md
+      - .team/adr/0129-retire-pyodide-http-wasm-only-studio.md
+    deps: []
+
+  - id: qa-guards
+    role: qa
+    files:
+      - tests/test_t125_runtime_guards.py
+      - tests/test_t044_packaging_extras.py
+      - .team/qa/T-125-tests.md
+    deps: [architect]
+
+  - id: qa-studio
+    role: qa
+    files:
+      - web/src/engine/studioWiring.test.ts
+      - web/src/engine/studioFooterEnv.test.ts
+      - web/src/engine/studioAdapter.test.ts
+      - .team/qa/T-125-studio-tests.md
+    deps: [architect]
+
+  - id: qa-hydrate-obs
+    role: qa
+    files:
+      - tests/test_t071_demo_hydrate_edges.py
+      - tests/test_t113_obs_scenario_caches.py
+      - .team/qa/T-125-hydrate-tests.md
+    deps: [architect]
+
+  - id: impl-pyodide
+    role: implement
+    shard: pyodide
+    files:
+      - packaging/pyodide/
+      - scripts/build_slim_wheel.py
+      - scripts/smoke_slim_wheel.py
+      - scripts/smoke_pyodide_local_wheel.mjs
+      - experiments/bench_1d_90d_pyodide.mjs
+      - src/blueberries_voi/browser.py
+      - src/blueberries_voi/slim_wheel_metadata.py
+      - tests/test_t047_pyodide_worker_rpc.py
+      - tests/test_t092_pyodide_module_worker.py
+      - tests/test_pyodide_slim_numpy_compat.py
+      - tests/test_t046_slim_wheel_release.py
+      - tests/test_t072_vite_wheel_url.py
+      - web/src/engine/pyodideAdapter.ts
+      - web/src/engine/pyodideAdapter.test.ts
+      - web/src/engine/viteWheelUrl.test.ts
+      - packaging/github-workflows/release-slim-wheel.yml
+    deps: [qa-guards]
+
+  - id: impl-api
+    role: implement
+    shard: api
+    files:
+      - src/blueberries_voi/api/
+      - web/src/engine/httpAdapter.ts
+      - web/src/engine/httpAdapter.test.ts
+      - tests/test_t050_asgi_api.py
+      - tests/test_t051_api_contract.py
+      - tests/test_t073_api_cors.py
+    deps: [qa-guards]
+
+  - id: impl-studio
+    role: implement
+    shard: studio
+    files:
+      - web/src/engine/studioAdapter.ts
+      - web/src/engine/actOpts.ts
+      - web/src/engine/actOpts.test.ts
+      - web/vite.config.ts
+      - web/.env.example
+      - web/package.json
+      - scripts/studio.sh
+      - web/src/engine/engineStatus.test.ts
+      - web/src/studioScenarios.test.ts
+      - web/src/react/studioLogic.ts
+    deps: [qa-studio]
+    file_owner:
+      web/src/react/studioLogic.ts: impl-studio
+
+  - id: impl-config
+    role: implement
+    shard: config
+    files:
+      - pyproject.toml
+      - packaging/github-workflows/ci.yml
+      - src/blueberries_voi/backend.py
+      - tests/test_t097_act_damped_sw.py
+    deps: [qa-guards]
+
+  - id: impl-hydrate-obs
+    role: implement
+    shard: hydrate-obs
+    files:
+      - tests/test_t071_demo_hydrate_edges.py
+      - tests/test_t113_obs_scenario_caches.py
+    deps: [impl-pyodide, impl-api, qa-hydrate-obs]
+
+  - id: impl-closeout
+    role: implement
+    shard: closeout
+    files:
+      - tests/test_m2_closeout.py
+      - tests/test_eng01_closeout.py
+      - tests/test_slice1_closeout.py
+      - tests/test_slice2_closeout.py
+    deps: [impl-pyodide, impl-api, qa-guards]
+
+  - id: impl-docs
+    role: implement
+    shard: docs
+    files:
+      - README.md
+      - packaging/README.md
+      - packaging/wasm/README.md
+      - .team/changelog.md
+    deps: [impl-pyodide, impl-api, impl-studio, impl-config]
+
+  - id: integration-merge
+    role: merge
+    merge_last: true
+    deps: [impl-hydrate-obs, impl-closeout, impl-docs]
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-125.md]
+    deps: [integration-merge]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-125.md]
+    deps: [integration-merge]
