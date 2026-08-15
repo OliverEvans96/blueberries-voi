@@ -3,7 +3,7 @@
 **Run:** 2 (re-audit)  
 **Date:** 2026-08-15  
 **Branch / worktree:** `audit/truth-vs-belief-2026-08-15` @ `.worktrees/truth-belief-audit-2026-08-15`  
-**Tip audited:** `558236e` (`main`)  
+**Tip audited:** `558236e` (`main`); synced with `main` @ `db9bbc5` (T-119 audit artifacts)  
 **Scope:** Backlog “Frontend truth vs belief audit” (ADR [0125](../adr/0125-studio-show-truth-js-only.md), T-115).  
 **Method:** Three concurrent explore subagents + `npm test` in worktree.
 
@@ -42,7 +42,7 @@
 | 3 | JS-only presentation gate | **PASS** | No backend show-truth flag |
 | 4 | `localStorage` + `studio--show-truth` on `#app` | **PASS** | `controls.ts`, `main.ts` |
 | 5 | Rolling `belief_history` for inventory / age bands | **PASS** | `projector.ts`; delta + patch paths |
-| 6 | Defer knowledge-scenario-specific chrome | **Deferred** | Backlog: *Frontend knowledge-scenario UI audit* |
+| 6 | Defer knowledge-scenario-specific chrome | **Done separately (T-119)** | [studio-knowledge-scenario-audit.md](./studio-knowledge-scenario-audit.md) on `main`; `scenarioAvailability` gating recommended |
 
 ---
 
@@ -125,10 +125,10 @@
 6. Belief heatmap count axis from truth `n` (`projector.ts` ~419)
 7. `vm.on_hand` / `effective_inv` always truth-derived (latent)
 
-### Deferred
+### Deferred / follow-on (post T-119 on `main`)
 
-8. **Frontend knowledge-scenario UI audit** (substantive remainder)
-9. **Frontend controls/plots audit**
+8. **T-119 remediation** — `scenarioAvailability` gating + controls/plots fixes per [T-119.md](../specs/T-119.md) (human approval pending; implement e.g. T-120)
+9. **Frontend controls/plots remediation** — per [studio-controls-plots-audit.md](./studio-controls-plots-audit.md)
 
 ### Optional
 
@@ -140,8 +140,8 @@
 ## Recommended actions
 
 - Human accept ADR 0125 (`PROPOSED` → `ACCEPTED`).
-- Proceed with **Frontend knowledge-scenario UI audit** as the substantive follow-on.
-- Optional: T-110 rust wire/policy parity; studio polish bundle; `main.ts` integration test.
+- T-119 audit reports landed on `main`; truth-vs-belief thread closed except optional polish + T-119 implement follow-on.
+- Optional: T-110 rust wire/policy parity; studio truth polish bundle; `main.ts` integration test.
 
 ---
 
