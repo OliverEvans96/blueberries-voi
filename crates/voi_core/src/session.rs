@@ -212,11 +212,7 @@ impl EngineSession {
             self.state.delivery_n = 0;
         }
         let mut rng_d = stream_rng(self.seed, self.day, 1);
-        self.state.demand = Some(draw_demand(
-            &mut rng_d,
-            self.params.demand_mu,
-            self.params.demand_vm,
-        ));
+        self.state.demand = Some(draw_demand(&mut rng_d, &self.params, None));
         self.state.spoil_by = None;
         let mut rng_a = stream_rng(self.seed, self.day, 2);
         let mut rng_s = stream_rng(self.seed, self.day, 3);

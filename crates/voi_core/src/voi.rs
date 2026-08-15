@@ -178,7 +178,7 @@ fn run_scenario_episode(
             state.delivery_n = 0;
         }
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
-        let demand = draw_demand(&mut rng_d, params.demand_mu, params.demand_vm);
+        let demand = draw_demand(&mut rng_d, params, None);
         state.demand = Some(demand);
         state.spoil_by = None;
         let mut rng_a = rng(root_seed, phys, day, STREAM_ALLOC);

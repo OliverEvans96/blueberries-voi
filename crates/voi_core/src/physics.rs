@@ -3,6 +3,8 @@
 use rand::Rng;
 use rand_distr::{Distribution, Gamma, Poisson};
 
+use crate::params::ModelParams;
+
 const SURV_FLOOR: f64 = 1e-300;
 
 pub fn weibull_survival(tau: f64, beta: f64, eta: f64) -> f64 {
@@ -125,7 +127,16 @@ pub fn allocate_sales<R: Rng + ?Sized>(
 }
 
 /// Negative binomial demand (numpy `negative_binomial(r, p)` failures-before-r-successes).
-pub fn draw_demand<R: Rng + ?Sized>(rng: &mut R, mu: f64, demand_vm: f64) -> u32 {
+pub fn draw_demand<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams, day: Option<u32>) -> u32 {
+    let mu = if params.demand_profile.is_some() {
+        params.demand_mu_for_day(day.unwrap_or(0))
+    } else {
+        params.demand_mu
+    };
+    draw_demand_from_mu(rng, mu, params.demand_vm)
+}
+
+fn draw_demand_from_mu<R: Rng + ?Sized>(rng: &mut R, mu: f64, demand_vm: f64) -> u32 {
     if demand_vm <= 1.0 {
         panic!("demand_vm must be > 1 for overdispersed NB");
     }
@@ -252,13 +263,43 @@ mod tests {
     #[test]
     fn demand_negative_binomial_mean_in_band() {
         let mut rng = Pcg64::seed_from_u64(99);
+        let params = ModelParams::default();
         let mut acc = 0.0;
         let n = 2000u32;
         for _ in 0..n {
-            acc += f64::from(draw_demand(&mut rng, 30.0, 2.0));
+            acc += f64::from(draw_demand(&mut rng, &params, None));
         }
         let mean = acc / f64::from(n);
         assert!(mean > 20.0 && mean < 40.0, "mean={mean}");
+    }
+
+    #[test]
+    fn draw_demand_profile_day7_mean_differs_from_flat_mu() {
+        use crate::demand_profile::DemandProfile;
+
+        let profile =
+            DemandProfile::from_json(include_str!("../../../data/freshnet/demand_profile.json"))
+                .expect("embedded profile");
+        let flat_params = ModelParams::default();
+        let profile_params = ModelParams {
+            demand_profile: Some(profile),
+            ..ModelParams::default()
+        };
+        let mut rng_flat = Pcg64::seed_from_u64(42);
+        let mut rng_prof = Pcg64::seed_from_u64(42);
+        let n = 10_000u32;
+        let mut acc_flat = 0.0;
+        let mut acc_prof = 0.0;
+        for _ in 0..n {
+            acc_flat += f64::from(draw_demand(&mut rng_flat, &flat_params, None));
+            acc_prof += f64::from(draw_demand(&mut rng_prof, &profile_params, Some(7)));
+        }
+        let mean_flat = acc_flat / f64::from(n);
+        let mean_prof = acc_prof / f64::from(n);
+        assert!(
+            (mean_prof - mean_flat).abs() > 1.0,
+            "flat={mean_flat} profile_day7={mean_prof}"
+        );
     }
 
     #[test]

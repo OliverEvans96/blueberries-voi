@@ -7,36 +7,7 @@ use crate::physics::{
     allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment,
 };
 
-#[derive(Clone, Debug)]
-pub struct ModelParams {
-    pub beta: f64,
-    pub eta_ref: f64,
-    pub q10: f64,
-    pub t_ref_c: f64,
-    pub t_store_c: f64,
-    pub sigma: f64,
-    pub demand_mu: f64,
-    pub demand_vm: f64,
-    pub case_size: u32,
-    pub uniform_picking: bool,
-}
-
-impl Default for ModelParams {
-    fn default() -> Self {
-        Self {
-            beta: 2.0,
-            eta_ref: 14.0,
-            q10: 3.0,
-            t_ref_c: 0.0,
-            t_store_c: 4.0,
-            sigma: 0.5,
-            demand_mu: 30.0,
-            demand_vm: 2.0,
-            case_size: 8,
-            uniform_picking: false,
-        }
-    }
-}
+pub use crate::params::ModelParams;
 
 #[derive(Clone, Debug)]
 pub struct Cohort {
