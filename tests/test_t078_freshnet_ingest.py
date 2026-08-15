@@ -186,7 +186,8 @@ def test_core_and_eng01_extras_do_not_require_freshnet_hf_deps() -> None:
     )
 
     extras = _optional_extras()
-    # Post T-125 / ADR 0129: browser/pyodide extras retired; ENG-01 extras are data + viz.
+    # Post T-125 / ADR 0129: browser/pyodide extras retired;
+    # ENG-01 extras are data + viz.
     for key in ("data", "viz"):
         assert key in extras, (
             f"ENG-01 extras must include [{key}] after T-125; have {sorted(extras)}"
