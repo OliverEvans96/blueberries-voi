@@ -221,14 +221,22 @@ export function mountPlayChrome(
         <button type="button" class="btn-autopilot" id="btn-autopilot-play" aria-label="Autopilot Play">Autopilot Play</button>
         <button type="button" class="btn-autopilot" id="btn-autopilot-pause" aria-label="Autopilot Pause" disabled>Autopilot Pause</button>
         <button type="button" class="btn-reset" id="btn-reset">Reset episode</button>
+      </div>
+      <div class="truth-toggle-row">
+        <span class="truth-toggle-label">Sim truth overlay</span>
         <button
           type="button"
-          class="btn-show-truth"
+          class="truth-toggle"
           id="btn-show-truth"
           role="switch"
+          aria-checked="false"
           aria-label="Show true state"
-          aria-pressed="false"
-        >Show true state</button>
+        >
+          <span class="truth-toggle-track" aria-hidden="true">
+            <span class="truth-toggle-thumb"></span>
+          </span>
+          <span class="truth-toggle-text">Off</span>
+        </button>
       </div>
       <p class="hint" id="autopilot-hint">
         While Autopilot is running, Advance is disabled — pause Autopilot to step manually.
@@ -352,7 +360,10 @@ export function mountPlayChrome(
 
   function setShowTruth(on: boolean): void {
     showTruth = on;
-    btnShowTruth.setAttribute("aria-pressed", on ? "true" : "false");
+    btnShowTruth.setAttribute("aria-checked", on ? "true" : "false");
+    btnShowTruth.classList.toggle("truth-toggle--on", on);
+    const textEl = btnShowTruth.querySelector(".truth-toggle-text");
+    if (textEl) textEl.textContent = on ? "On" : "Off";
     applyShowTruthClass(on);
     saveShowTruth(on);
     cb.onShowTruthChange?.(on);
@@ -361,8 +372,7 @@ export function mountPlayChrome(
   btnShowTruth.addEventListener("click", () => {
     setShowTruth(!showTruth);
   });
-  btnShowTruth.setAttribute("aria-pressed", showTruth ? "true" : "false");
-  applyShowTruthClass(showTruth);
+  setShowTruth(showTruth);
 
   return {
     update(s) {

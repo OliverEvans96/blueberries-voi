@@ -1,5 +1,5 @@
 /**
- * T-115 RED: Play chrome switch “Show true state” + studio--show-truth class.
+ * T-115: Play chrome switch “Show true state” + studio--show-truth class.
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("play chrome show-truth switch (T-115)", () => {
-  it("mounts a switch named /show true state/i with aria-pressed from the flag", () => {
+  it("mounts a switch named /show true state/i with aria-checked from the flag", () => {
     const app = document.createElement("div");
     app.id = "app";
     document.body.appendChild(app);
@@ -47,7 +47,7 @@ describe("play chrome show-truth switch (T-115)", () => {
     expect(sw, "expected role=switch in play chrome").not.toBeNull();
     const name = `${sw!.getAttribute("aria-label") ?? ""} ${sw!.textContent ?? ""}`;
     expect(name).toMatch(/show true state/i);
-    expect(sw!.getAttribute("aria-pressed")).toBe("false");
+    expect(sw!.getAttribute("aria-checked")).toBe("false");
     expect(app.classList.contains("studio--show-truth")).toBe(false);
     expect(document.body.classList.contains("studio--show-truth")).toBe(false);
   });
@@ -66,7 +66,7 @@ describe("play chrome show-truth switch (T-115)", () => {
 
     const sw = root.querySelector('[role="switch"]');
     expect(sw).not.toBeNull();
-    expect(sw!.getAttribute("aria-pressed")).toBe("true");
+    expect(sw!.getAttribute("aria-checked")).toBe("true");
     expect(app.classList.contains("studio--show-truth")).toBe(true);
   });
 });
