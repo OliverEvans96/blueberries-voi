@@ -8,6 +8,8 @@ from blueberries_voi.voi.metric import VoIMetric, voi_vs_p0
 from blueberries_voi.voi.sweep import (
     DEFAULT_VOI_SMOKE_REPORT,
     PRODUCTION_BETAS,
+    PRODUCTION_N_BURN,
+    PRODUCTION_ROLLOUT_H,
     SMOKE_BETAS,
     VoIArmResult,
     VoISweepResult,
@@ -20,6 +22,8 @@ __all__ = [
     "DEFAULT_VOI_SMOKE_REPORT",
     "PHYSICS_RUN_ID",
     "PRODUCTION_BETAS",
+    "PRODUCTION_N_BURN",
+    "PRODUCTION_ROLLOUT_H",
     "SMOKE_BETAS",
     "VOI_SCENARIOS",
     "BootstrapCI",
