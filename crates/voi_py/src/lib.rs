@@ -286,8 +286,15 @@ impl PyEngineSession {
         py: Python<'py>,
         policy: Option<String>,
     ) -> PyResult<Bound<'py, PyDict>> {
-        let _ = policy;
-        let d = self.inner.act_rollout();
+        let d = self.inner.act(
+            policy.as_deref(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         wire_day_delta(py, &self.inner, &d)
     }
 

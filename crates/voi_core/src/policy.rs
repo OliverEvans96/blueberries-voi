@@ -66,6 +66,29 @@ pub fn effective_inventory(
     on_hand + f64::from(pending_sum) * pipeline_w
 }
 
+pub fn effective_inventory_belief(
+    lot_counts: &[f64],
+    age_marginals: &[f64],
+    tau_grid: &[f64],
+    pending_sum: u32,
+    params: &ModelParams,
+) -> f64 {
+    let l = lot_counts.len();
+    let k = tau_grid.len();
+    let mut on_hand = 0.0;
+    for ell in 0..l {
+        let mut e_s = 0.0;
+        for bin in 0..k {
+            let s = weibull_survival(tau_grid[bin], params.beta, params.eta_ref);
+            let p = age_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
+            e_s += p * s;
+        }
+        on_hand += lot_counts[ell] * e_s;
+    }
+    let pipeline_w = weibull_survival(0.0, params.beta, params.eta_ref);
+    on_hand + f64::from(pending_sum) * pipeline_w
+}
+
 pub fn damped_sw_order(
     counts: &[u32],
     taus: &[f64],
@@ -83,6 +106,35 @@ pub fn damped_sw_order(
     }
     let n_days = schedule.map(|s| s.protection_days(day)).unwrap_or(2);
     let i_tilde = effective_inventory(counts, taus, pending_sum, params);
+    let d_star = protection_demand_quantile(alpha, params, n_days);
+    let raw = rho * (d_star - i_tilde).max(0.0);
+    case_round(raw, params.case_size)
+}
+
+pub fn damped_sw_order_belief(
+    lot_counts: &[f64],
+    age_marginals: &[f64],
+    tau_grid: &[f64],
+    pending_sum: u32,
+    day: u32,
+    params: &ModelParams,
+    alpha: f64,
+    rho: f64,
+    schedule: Option<&OrderSchedule>,
+) -> u32 {
+    if let Some(s) = schedule {
+        if !s.can_order(day) {
+            return 0;
+        }
+    }
+    let n_days = schedule.map(|s| s.protection_days(day)).unwrap_or(2);
+    let i_tilde = effective_inventory_belief(
+        lot_counts,
+        age_marginals,
+        tau_grid,
+        pending_sum,
+        params,
+    );
     let d_star = protection_demand_quantile(alpha, params, n_days);
     let raw = rho * (d_star - i_tilde).max(0.0);
     case_round(raw, params.case_size)

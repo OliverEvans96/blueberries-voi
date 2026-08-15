@@ -27,8 +27,27 @@ fn nearest_bin(tau: f64, grid: &[f64]) -> usize {
         .unwrap_or(0)
 }
 
-/// Weighted lot counts + age histograms on a fixed `L×K` grid (`tau` in `[0, 8]`).
-pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
+/// Weighted MF lot counts + age marginals on the snapshot `L×K` grid.
+#[derive(Clone, Debug)]
+pub struct BeliefMean {
+    pub lot_counts: Vec<f64>,
+    pub age_marginals: Vec<f64>,
+    pub tau_grid: Vec<f64>,
+}
+
+impl BeliefMean {
+    pub fn empty(l: usize, k: usize) -> Self {
+        let grid = tau_grid_k(k);
+        let uniform = if k > 0 { 1.0 / k as f64 } else { 0.0 };
+        Self {
+            lot_counts: vec![0.0; l],
+            age_marginals: vec![uniform; l.saturating_mul(k.max(1))],
+            tau_grid: grid,
+        }
+    }
+}
+
+pub fn belief_mean_from_bank(bank: &ParticleBank, l: usize, k: usize) -> BeliefMean {
     let grid = tau_grid_k(k);
     let n = bank.weights.len();
     let w_sum: f64 = bank.weights.iter().sum();
@@ -89,10 +108,20 @@ pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
         }
     }
 
+    BeliefMean {
+        lot_counts,
+        age_marginals: age_hist,
+        tau_grid: grid,
+    }
+}
+
+/// Weighted lot counts + age histograms on a fixed `L×K` grid (`tau` in `[0, 8]`).
+pub fn particle_bank_to_flat(bank: &ParticleBank, l: usize, k: usize) -> Value {
+    let mean = belief_mean_from_bank(bank, l, k);
     serde_json::json!({
-        "lot_counts": lot_counts,
-        "age_marginals": age_hist,
-        "tau_grid": grid,
+        "lot_counts": mean.lot_counts,
+        "age_marginals": mean.age_marginals,
+        "tau_grid": mean.tau_grid,
         "L": l,
         "K": k,
     })
@@ -104,17 +133,25 @@ pub fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
         return (vec![], vec![]);
     }
     let l = bank.counts[0].len();
-    let mut c = vec![0.0; l];
-    let mut t = vec![0.0; l];
-    for (i, w) in bank.weights.iter().enumerate() {
-        for j in 0..l.min(bank.counts[i].len()) {
-            c[j] += w * f64::from(bank.counts[i][j]);
-            if j < bank.taus[i].len() {
-                t[j] += w * bank.taus[i][j];
+    let mean = belief_mean_from_bank(bank, l, 1);
+    let taus: Vec<f64> = (0..l)
+        .map(|slot| {
+            let mut acc = 0.0;
+            for (i, w) in bank.weights.iter().enumerate() {
+                if slot < bank.taus[i].len() {
+                    acc += w * bank.taus[i][slot];
+                }
             }
-        }
-    }
-    (c.iter().map(|x| x.round().max(0.0) as u32).collect(), t)
+            acc
+        })
+        .collect();
+    (
+        mean.lot_counts
+            .iter()
+            .map(|x| x.round().max(0.0) as u32)
+            .collect(),
+        taus,
+    )
 }
 
 #[cfg(test)]

@@ -4,10 +4,11 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::belief_flat::{belief_mean_from_bank, BeliefMean};
 use crate::day_step::{day_step, DayStepIn, ModelParams};
 use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
-use crate::policy::{case_round_ceil, damped_sw_order};
+use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
 use crate::rbpf::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
@@ -361,38 +362,109 @@ impl EngineSession {
         orders.iter().map(|&q| self.advance_one(q)).collect()
     }
 
-    pub fn act_rollout(&mut self) -> DayDelta {
+    fn belief_for_policy(&self) -> BeliefMean {
+        if self.enable_filter {
+            belief_mean_from_bank(&self.bank, self.l_dim, self.k_dim)
+        } else {
+            BeliefMean::empty(self.l_dim, self.k_dim)
+        }
+    }
+
+    fn rollout_state_from_belief(belief: &BeliefMean) -> (Vec<u32>, Vec<f64>, Vec<i64>) {
+        let k = belief.tau_grid.len();
+        let mut counts = Vec::new();
+        let mut taus = Vec::new();
+        let mut ids = Vec::new();
+        for (i, &n_raw) in belief.lot_counts.iter().enumerate() {
+            let n = n_raw.round().max(0.0) as u32;
+            if n == 0 {
+                continue;
+            }
+            let mut tau = 0.0;
+            if k > 0 && (i + 1) * k <= belief.age_marginals.len() {
+                let row = &belief.age_marginals[i * k..(i + 1) * k];
+                tau = row
+                    .iter()
+                    .zip(belief.tau_grid.iter())
+                    .map(|(&p, &t)| p * t)
+                    .sum();
+            }
+            counts.push(n);
+            taus.push(tau);
+            ids.push((i + 1) as i64);
+        }
+        (counts, taus, ids)
+    }
+
+    /// Select an order via policy dispatch on belief mean (filter on) or empty shelf.
+    pub fn act(
+        &mut self,
+        policy: Option<&str>,
+        order_qty: Option<u32>,
+        alpha: Option<f64>,
+        rho: Option<f64>,
+        h: Option<u32>,
+        n_rollout_paths: Option<u32>,
+        candidate_case_radius: Option<i32>,
+    ) -> DayDelta {
         self.require_init();
         let pending_sum: u32 = self.pending.values().copied().sum();
-        let base = damped_sw_order(
-            &self.state.counts,
-            &self.state.taus,
-            pending_sum,
-            self.day,
-            &self.params,
-            0.9,
-            0.8,
-            Some(&self.schedule),
-        );
-        let ids = self.state.lot_ids.clone();
-        let q = if self.state.counts.iter().any(|&n| n > 0) {
-            rollout_order(
-                &self.state.counts,
-                &self.state.taus,
-                &ids,
-                base,
+        let belief = self.belief_for_policy();
+        let alpha = alpha.unwrap_or(0.9);
+        let rho = rho.unwrap_or(0.8);
+        let h = h.unwrap_or(self.h);
+        let n_paths = n_rollout_paths.unwrap_or(self.n_paths);
+        let radius = candidate_case_radius.unwrap_or(self.radius);
+        let name = policy.unwrap_or("rollout").to_ascii_lowercase();
+        let q = match name.as_str() {
+            "constant" | "const" | "fixed" => {
+                constant_order(order_qty.unwrap_or(0), self.params.case_size)
+            }
+            "damped_sw" | "sw" => damped_sw_order_belief(
+                &belief.lot_counts,
+                &belief.age_marginals,
+                &belief.tau_grid,
+                pending_sum,
+                self.day,
                 &self.params,
-                self.seed,
-                self.h,
-                self.n_paths,
-                self.radius,
-            )
-            .unwrap_or(base)
-        } else {
-            base
+                alpha,
+                rho,
+                Some(&self.schedule),
+            ),
+            "rollout" | "ctl" | "rollout_order" => {
+                let base = damped_sw_order_belief(
+                    &belief.lot_counts,
+                    &belief.age_marginals,
+                    &belief.tau_grid,
+                    pending_sum,
+                    self.day,
+                    &self.params,
+                    alpha,
+                    rho,
+                    Some(&self.schedule),
+                );
+                let (counts, taus, ids) = Self::rollout_state_from_belief(&belief);
+                rollout_order(
+                    &counts,
+                    &taus,
+                    &ids,
+                    base,
+                    &self.params,
+                    self.seed,
+                    h,
+                    n_paths,
+                    radius,
+                )
+                .unwrap_or(base)
+            }
+            other => panic!("unknown policy {other:?}; use 'constant', 'damped_sw', or 'rollout'"),
         };
         self.crossings += 1;
         self.advance_one(q)
+    }
+
+    pub fn act_rollout(&mut self) -> DayDelta {
+        self.act(Some("rollout"), None, None, None, None, None, None)
     }
 
     pub fn reset(&mut self, seed: u64) {
@@ -742,7 +814,40 @@ pub fn handle_rpc(request_json: &str) -> String {
                 serde_json::Value::Array(deltas)
             }
             "act" => {
-                let d = sess.act_rollout();
+                let policy = req.params.get("policy").and_then(|v| v.as_str());
+                let order_qty = req
+                    .params
+                    .get("order_qty")
+                    .or_else(|| req.params.get("q"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let alpha = req.params.get("alpha").and_then(|v| v.as_f64());
+                let rho = req.params.get("rho").and_then(|v| v.as_f64());
+                let h = req
+                    .params
+                    .get("H")
+                    .or_else(|| req.params.get("h"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let n_paths = req
+                    .params
+                    .get("n_rollout_paths")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let radius = req
+                    .params
+                    .get("candidate_case_radius")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32);
+                let d = sess.act(
+                    policy,
+                    order_qty,
+                    alpha,
+                    rho,
+                    h,
+                    n_paths,
+                    radius,
+                );
                 sess.day_delta_value(&d)
             }
             "set_obs_scenario" => {
@@ -777,6 +882,25 @@ pub fn handle_rpc(request_json: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::policy::damped_sw_order_belief;
+
+    fn t121b_shipment() -> ShipmentTrace {
+        ShipmentTrace {
+            times_d: vec![0.0, 1.0, 2.0],
+            temps_c: vec![1.0, 1.0, 1.0],
+        }
+    }
+
+    fn warm_t121b_session(seed: u64) -> EngineSession {
+        let mut s = EngineSession::new(seed);
+        s.init(seed);
+        s.set_belief_dims(2, 4);
+        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32);
+        for _ in 0..6 {
+            s.step(0);
+        }
+        s
+    }
 
     #[test]
     fn step_n_is_one_crossing() {
@@ -1285,4 +1409,72 @@ mod tests {
         let b = s.set_obs_scenario("B-state").unwrap_err();
         assert!(b.contains("bypass") || b.contains("B-state"), "{b}");
     }
+
+    #[test]
+    fn act_rollout_uses_belief_not_truth_counts() {
+        let s = warm_t121b_session(_SEED);
+        let belief = belief_mean_from_bank(&s.bank, s.l_dim, s.k_dim);
+        assert!(
+            belief.lot_counts.iter().any(|&x| x > 0.0),
+            "fixture must seed nontrivial belief mean"
+        );
+        let pending_sum: u32 = s.pending.values().copied().sum();
+        let belief_rollout = {
+            let (counts, taus, ids) = EngineSession::rollout_state_from_belief(&belief);
+            let base = damped_sw_order_belief(
+                &belief.lot_counts,
+                &belief.age_marginals,
+                &belief.tau_grid,
+                pending_sum,
+                s.day,
+                &s.params,
+                0.9,
+                0.8,
+                Some(&s.schedule),
+            );
+            rollout_order(
+                &counts,
+                &taus,
+                &ids,
+                base,
+                &s.params,
+                s.seed,
+                s.h,
+                s.n_paths,
+                s.radius,
+            )
+            .unwrap_or(base)
+        };
+        let mut live = warm_t121b_session(_SEED);
+        let d = live.act(Some("rollout"), None, None, None, None, None, None);
+        assert_eq!(d.order_qty, belief_rollout);
+    }
+
+    #[test]
+    fn act_damped_sw_differs_from_rollout_when_belief_nontrivial() {
+        let sw = warm_t121b_session(_SEED)
+            .act(Some("damped_sw"), None, None, None, None, None, None)
+            .order_qty;
+        let roll = warm_t121b_session(_SEED)
+            .act(Some("rollout"), None, None, None, None, None, None)
+            .order_qty;
+        assert_ne!(sw, roll, "damped_sw and rollout must dispatch separately");
+    }
+
+    #[test]
+    fn act_alpha_budget_changes_damped_sw_order() {
+        let mut low = warm_t121b_session(17);
+        let q_low = low
+            .act(Some("damped_sw"), None, Some(0.5), None, None, None, None)
+            .order_qty;
+
+        let mut high = warm_t121b_session(17);
+        let q_high = high
+            .act(Some("damped_sw"), None, Some(0.99), None, None, None, None)
+            .order_qty;
+
+        assert!(q_high >= q_low, "higher alpha should not reduce damped_sw order");
+    }
+
+    const _SEED: u64 = 99;
 }
