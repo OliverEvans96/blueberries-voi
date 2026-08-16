@@ -295,8 +295,8 @@ export function initStudio(app: HTMLElement): () => void {
       if (kind === "lots") {
         el.textContent =
           !showTruth && vm.history.length > 0
-            ? "Lots · day × age (turn on Sim truth overlay to see lot ages)"
-            : "Lots · day × age";
+            ? "Lots · day × freshness (turn on Sim truth overlay to see lot freshness)"
+            : "Lots · day × freshness";
       }
     });
     const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
@@ -372,7 +372,13 @@ export function initStudio(app: HTMLElement): () => void {
       const ageRows = showTruth
         ? ageCompositionSeries(vm.history)
         : ageCompositionSeriesFromBelief(vm.belief_history);
-      renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
+      renderAgeComposition(
+        els.ageComp,
+        vm.history,
+        140,
+        ageRows,
+        showTruth ? "age" : "freshness",
+      );
     }
     if (plotVisible("plot-pnl")) {
       renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);

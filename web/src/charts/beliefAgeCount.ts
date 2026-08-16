@@ -1,7 +1,20 @@
 import * as d3 from "d3";
+import { beliefHeatmapAxisLabels } from "../engine/projector";
 import type { BeliefGrid, Lot } from "../types";
 
-/** Belief age×count heatmap with truth lot overlays. */
+function freshnessEdges(belief: BeliefGrid): number[] {
+  return belief.f_edges ?? belief.freshness_edges ?? belief.tau_edges;
+}
+
+function isFreshnessGrid(belief: BeliefGrid): boolean {
+  return belief.f_edges != null || belief.freshness_edges != null;
+}
+
+function formatAxisValue(value: number, freshness: boolean): string {
+  return freshness ? value.toFixed(2) : value.toFixed(0);
+}
+
+/** Belief freshness×count heatmap with truth lot overlays. */
 export function renderBeliefAgeCount(
   container: HTMLElement,
   belief: BeliefGrid,
@@ -12,6 +25,9 @@ export function renderBeliefAgeCount(
   const margin = { top: 12, right: 12, bottom: 36, left: 44 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
+  const freshness = isFreshnessGrid(belief);
+  const xEdges = freshnessEdges(belief);
+  const axisLabels = beliefHeatmapAxisLabels();
 
   container.replaceChildren();
   const svg = d3
@@ -20,7 +36,12 @@ export function renderBeliefAgeCount(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Belief heatmap with truth lot overlay");
+    .attr(
+      "aria-label",
+      freshness
+        ? "Belief freshness heatmap with truth lot overlay"
+        : "Belief heatmap with truth lot overlay",
+    );
 
   const g = svg
     .append("g")
@@ -32,7 +53,7 @@ export function renderBeliefAgeCount(
 
   const x = d3
     .scaleLinear()
-    .domain([belief.tau_edges[0]!, belief.tau_edges[belief.tau_edges.length - 1]!])
+    .domain([xEdges[0]!, xEdges[xEdges.length - 1]!])
     .range([0, innerW]);
   const y = d3
     .scaleLinear()
@@ -50,10 +71,11 @@ export function renderBeliefAgeCount(
   for (let ti = 0; ti < nTau; ti++) {
     for (let ci = 0; ci < nCount; ci++) {
       const v = belief.density[ti]![ci]!;
-      const x0 = x(belief.tau_edges[ti]!);
-      const x1 = x(belief.tau_edges[ti + 1]!);
+      const x0 = x(xEdges[ti]!);
+      const x1 = x(xEdges[ti + 1]!);
       const y0 = y(belief.count_edges[ci]!);
       const y1 = y(belief.count_edges[ci + 1]!);
+      const xLabel = freshness ? "freshness" : "age";
       g.append("rect")
         .attr("x", x0)
         .attr("y", y1)
@@ -62,7 +84,7 @@ export function renderBeliefAgeCount(
         .attr("fill", color(v))
         .append("title")
         .text(
-          `age ${belief.tau_edges[ti]!.toFixed(0)}–${belief.tau_edges[ti + 1]!.toFixed(0)}, count ${belief.count_edges[ci]!.toFixed(0)}–${belief.count_edges[ci + 1]!.toFixed(0)}: ${(v * 100).toFixed(2)}%`,
+          `${xLabel} ${formatAxisValue(xEdges[ti]!, freshness)}–${formatAxisValue(xEdges[ti + 1]!, freshness)}, count ${belief.count_edges[ci]!.toFixed(0)}–${belief.count_edges[ci + 1]!.toFixed(0)}: ${(v * 100).toFixed(2)}%`,
         );
     }
   }
@@ -97,7 +119,11 @@ export function renderBeliefAgeCount(
         .attr("class", "truth-circle")
         .attr("r", rad)
         .attr("fill", "none");
-      gg.append("title").text(`truth lot ${d.lot_id}: age ${d.tau}, n=${d.n}`);
+      gg.append("title").text(
+        freshness
+          ? `truth lot ${d.lot_id}: n=${d.n}`
+          : `truth lot ${d.lot_id}: age ${d.tau}, n=${d.n}`,
+      );
     });
 
   g.append("g")
@@ -116,7 +142,7 @@ export function renderBeliefAgeCount(
     .attr("x", innerW / 2)
     .attr("y", innerH + 30)
     .attr("text-anchor", "middle")
-    .text("Age (days)");
+    .text(axisLabels.x);
 
   g.append("text")
     .attr("class", "axis-label")
@@ -124,5 +150,5 @@ export function renderBeliefAgeCount(
     .attr("y", -34)
     .attr("transform", "rotate(-90)")
     .attr("text-anchor", "middle")
-    .text("Count");
+    .text(axisLabels.y);
 }

@@ -58,7 +58,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "arrival",
     label: "Arrival",
     blurb:
-      "Transit assumptions set age at receipt — the identification signal for relative freshness.",
+      "Transit assumptions set freshness at receipt — the identification signal for relative quality.",
     plotIds: ["plot-arrival-prior", "plot-arrival-shift"],
     controlSection: "arrival",
   },
@@ -66,7 +66,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "belief",
     label: "Belief",
     blurb:
-      "Age×count belief density, with a top age marginal on the shared age axis.",
+      "Freshness×count belief density, with a top f marginal on the shared freshness axis.",
     plotIds: ["plot-belief-age-marginal", "plot-belief-lg"],
     controlSection: "belief",
   },

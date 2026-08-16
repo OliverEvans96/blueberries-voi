@@ -17,33 +17,100 @@ export type AgeCompositionRow = {
   old: number;
 };
 
+export type FreshnessCompositionRow = {
+  day: number;
+  fresh: number;
+  mid: number;
+  stale: number;
+};
+
 export type InventorySeriesOpts = {
   from: "lots" | "belief";
   belief_history?: BeliefHistoryDay[];
 };
 
-function expectedLotsFromFlat(flat: FlatBelief): { lot_id: number; n: number; tau: number }[] {
-  const lots: { lot_id: number; n: number; tau: number }[] = [];
-  for (let l = 0; l < flat.L; l++) {
-    let tau = 0;
-    for (let k = 0; k < flat.K; k++) {
-      tau += (flat.age_marginals[l * flat.K + k] ?? 0) * (flat.tau_grid[k] ?? 0);
-    }
-    lots.push({ lot_id: l, n: flat.lot_counts[l] ?? 0, tau });
+/** Legacy τ-wire fields (mock fixtures only). */
+type LegacyFlatBeliefFields = {
+  age_marginals?: number[];
+  tau_grid?: number[];
+};
+
+function asLegacyFlat(flat: FlatBelief): FlatBelief & LegacyFlatBeliefFields {
+  return flat as FlatBelief & LegacyFlatBeliefFields;
+}
+
+function isLegacyFlatBelief(flat: FlatBelief): boolean {
+  const legacy = asLegacyFlat(flat);
+  return (
+    Array.isArray(legacy.tau_grid) &&
+    legacy.tau_grid.length > 0 &&
+    Array.isArray(legacy.age_marginals)
+  );
+}
+
+function gridAndMarginals(flat: FlatBelief): {
+  grid: number[];
+  marginals: number[];
+} {
+  const legacy = asLegacyFlat(flat);
+  if (isLegacyFlatBelief(flat)) {
+    return {
+      grid: legacy.tau_grid!,
+      marginals: legacy.age_marginals!,
+    };
   }
-  return lots;
+  return {
+    grid: flat.f_grid,
+    marginals: flat.f_marginals,
+  };
+}
+
+/** E[f]-weighted on-hand: Σ_l n_l Σ_k p(l,k) f_k (ADR 0130). */
+export function effectiveInventoryFromFlatBelief(flat: FlatBelief): number {
+  const { grid, marginals } = gridAndMarginals(flat);
+  let sum = 0;
+  for (let l = 0; l < flat.L; l++) {
+    const n = flat.lot_counts[l] ?? 0;
+    for (let k = 0; k < flat.K; k++) {
+      sum += n * (marginals[l * flat.K + k] ?? 0) * (grid[k] ?? 0);
+    }
+  }
+  return sum;
+}
+
+export function expectedFreshnessBands(
+  flat: FlatBelief,
+): Pick<FreshnessCompositionRow, "fresh" | "mid" | "stale"> {
+  const { grid, marginals } = gridAndMarginals(flat);
+  const bands = { fresh: 0, mid: 0, stale: 0 };
+  for (let l = 0; l < flat.L; l++) {
+    const n = flat.lot_counts[l] ?? 0;
+    for (let k = 0; k < flat.K; k++) {
+      const mass = n * (marginals[l * flat.K + k] ?? 0);
+      const f = grid[k] ?? 0;
+      if (f >= 2 / 3) bands.fresh += mass;
+      else if (f >= 1 / 3) bands.mid += mass;
+      else bands.stale += mass;
+    }
+  }
+  return bands;
 }
 
 export function expectedAgeBands(flat: FlatBelief): Pick<
   AgeCompositionRow,
   "young" | "mid" | "old"
 > {
+  if (!isLegacyFlatBelief(flat)) {
+    const bands = expectedFreshnessBands(flat);
+    return { young: bands.fresh, mid: bands.mid, old: bands.stale };
+  }
+  const legacy = asLegacyFlat(flat);
   const row = { young: 0, mid: 0, old: 0 };
   for (let l = 0; l < flat.L; l++) {
     const n = flat.lot_counts[l] ?? 0;
     for (let k = 0; k < flat.K; k++) {
-      const mass = n * (flat.age_marginals[l * flat.K + k] ?? 0);
-      const tau = flat.tau_grid[k] ?? 0;
+      const mass = n * (legacy.age_marginals![l * flat.K + k] ?? 0);
+      const tau = legacy.tau_grid![k] ?? 0;
       if (tau <= 2) row.young += mass;
       else if (tau <= 5) row.mid += mass;
       else row.old += mass;
@@ -69,16 +136,13 @@ export function inventorySeries(
 
 export function inventorySeriesFromBelief(
   beliefHistory: BeliefHistoryDay[],
-  config: SimConfig,
+  _config: SimConfig,
 ): InventoryPoint[] {
-  return beliefHistory.map((b) => {
-    const lots = expectedLotsFromFlat(b.flatBelief);
-    return {
-      day: b.day,
-      on_hand: b.flatBelief.lot_counts.reduce((s, n) => s + n, 0),
-      effective: survivalWeightedInventory(lots, config),
-    };
-  });
+  return beliefHistory.map((b) => ({
+    day: b.day,
+    on_hand: b.flatBelief.lot_counts.reduce((s, n) => s + n, 0),
+    effective: effectiveInventoryFromFlatBelief(b.flatBelief),
+  }));
 }
 
 export function ageCompositionSeries(
@@ -105,6 +169,15 @@ export function ageCompositionSeriesFromBelief(
   return beliefHistory.map((b) => ({
     day: b.day,
     ...expectedAgeBands(b.flatBelief),
+  }));
+}
+
+export function freshnessCompositionSeriesFromBelief(
+  beliefHistory: BeliefHistoryDay[],
+): FreshnessCompositionRow[] {
+  return beliefHistory.map((b) => ({
+    day: b.day,
+    ...expectedFreshnessBands(b.flatBelief),
   }));
 }
 
@@ -238,6 +311,7 @@ export function renderAgeComposition(
   history: Day[],
   height = 140,
   rowsOverride?: AgeCompositionRow[],
+  bandMode: "age" | "freshness" = "age",
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 10, right: 12, bottom: 28, left: 40 };
@@ -247,11 +321,18 @@ export function renderAgeComposition(
   container.replaceChildren();
   if (history.length === 0 && !rowsOverride?.length) return;
 
-  const bands = [
-    { key: "young", label: "0–2d", lo: 0, hi: 2, cls: "age-young" },
-    { key: "mid", label: "3–5d", lo: 3, hi: 5, cls: "age-mid" },
-    { key: "old", label: "6d+", lo: 6, hi: 999, cls: "age-old" },
-  ] as const;
+  const bands =
+    bandMode === "freshness"
+      ? ([
+          { key: "young", label: "≥⅔ f", lo: 0, hi: 0, cls: "age-young" },
+          { key: "mid", label: "[⅓,⅔) f", lo: 0, hi: 0, cls: "age-mid" },
+          { key: "old", label: "<⅓ f", lo: 0, hi: 0, cls: "age-old" },
+        ] as const)
+      : ([
+          { key: "young", label: "0–2d", lo: 0, hi: 2, cls: "age-young" },
+          { key: "mid", label: "3–5d", lo: 3, hi: 5, cls: "age-mid" },
+          { key: "old", label: "6d+", lo: 6, hi: 999, cls: "age-old" },
+        ] as const);
 
   type Row = AgeCompositionRow;
   const rows: Row[] = rowsOverride ?? ageCompositionSeries(history);
@@ -262,7 +343,12 @@ export function renderAgeComposition(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "On-hand inventory composition by age band");
+    .attr(
+      "aria-label",
+      bandMode === "freshness"
+        ? "On-hand inventory composition by freshness band"
+        : "On-hand inventory composition by age band",
+    );
 
   const g = svg
     .append("g")
