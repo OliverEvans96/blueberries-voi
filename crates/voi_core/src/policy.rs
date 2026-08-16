@@ -153,14 +153,18 @@ pub fn effective_inventory_f_belief(
     pending_sum: u32,
     f_pipeline_default: f64,
 ) -> f64 {
-    let _ = (
-        lot_counts,
-        f_marginals,
-        f_grid,
-        pending_sum,
-        f_pipeline_default,
-    );
-    unimplemented!("effective_inventory_f_belief")
+    let l = lot_counts.len();
+    let k = f_grid.len();
+    let mut on_hand = 0.0;
+    for ell in 0..l {
+        let mut e_f = 0.0;
+        for bin in 0..k {
+            let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
+            e_f += p * f_grid[bin];
+        }
+        on_hand += lot_counts[ell] * e_f;
+    }
+    on_hand + f64::from(pending_sum) * f_pipeline_default
 }
 
 /// Damped survival-weighted order from f-belief (mirrors `damped_sw_order_belief`).
@@ -176,19 +180,22 @@ pub fn damped_sw_order_f_belief(
     schedule: Option<&OrderSchedule>,
     f_pipeline_default: f64,
 ) -> u32 {
-    let _ = (
+    if let Some(s) = schedule {
+        if !s.can_order(day) {
+            return 0;
+        }
+    }
+    let n_days = schedule.map(|s| s.protection_days(day)).unwrap_or(2);
+    let i_tilde = effective_inventory_f_belief(
         lot_counts,
         f_marginals,
         f_grid,
         pending_sum,
-        day,
-        params,
-        alpha,
-        rho,
-        schedule,
         f_pipeline_default,
     );
-    unimplemented!("damped_sw_order_f_belief")
+    let d_star = protection_demand_quantile(alpha, params, n_days);
+    let raw = rho * (d_star - i_tilde).max(0.0);
+    case_round(raw, params.case_size)
 }
 
 #[cfg(test)]

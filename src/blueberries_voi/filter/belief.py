@@ -140,10 +140,97 @@ def effective_inventory(
     return float(on_hand + pipeline)
 
 
+@dataclass(frozen=True)
+class FreshShelfBelief:
+    """Frozen f-native shelf summary: lot counts, (L, K) f marginals, f grid."""
+
+    lot_counts: list[float]
+    f_marginals: list[list[float]]
+    f_grid: list[float]
+
+    def to_export(self) -> dict[str, Any]:
+        """JSON-friendly list/float payload (no numpy handles)."""
+        flat_marginals = [float(p) for row in self.f_marginals for p in row]
+        return {
+            "lot_counts": [float(x) for x in self.lot_counts],
+            "f_marginals": flat_marginals,
+            "f_grid": [float(f) for f in self.f_grid],
+            "L": len(self.lot_counts),
+            "K": len(self.f_grid),
+        }
+
+    @classmethod
+    def from_export(cls, payload: Mapping[str, Any]) -> FreshShelfBelief:
+        counts = [float(x) for x in payload["lot_counts"]]
+        grid = [float(f) for f in payload["f_grid"]]
+        k = len(grid)
+        flat = [float(x) for x in payload["f_marginals"]]
+        margs = [flat[i * k : (i + 1) * k] for i in range(len(counts))]
+        return cls(lot_counts=counts, f_marginals=margs, f_grid=grid)
+
+
+def shelf_belief_from_f_oracle(
+    *,
+    lot_counts: Sequence[int | float],
+    f_marginals: Sequence[Sequence[float]],
+    f_grid: Sequence[float],
+) -> FreshShelfBelief:
+    """Build FreshShelfBelief from oracle lot counts and row f-marginals."""
+    counts = [float(x) for x in lot_counts]
+    grid = [float(f) for f in f_grid]
+    margs = [[float(x) for x in row] for row in f_marginals]
+    if len(counts) != len(margs):
+        msg = f"lot_counts length {len(counts)} != f_marginals rows {len(margs)}"
+        raise ValueError(msg)
+    k = len(grid)
+    if k < 1:
+        msg = "f_grid must be non-empty"
+        raise ValueError(msg)
+    for row in margs:
+        if len(row) != k:
+            msg = f"each f_marginal row must have length K={k}"
+            raise ValueError(msg)
+    return FreshShelfBelief(lot_counts=counts, f_marginals=margs, f_grid=grid)
+
+
+def empty_f_shelf_belief(*, f_grid: Sequence[float]) -> FreshShelfBelief:
+    """Empty shelf with an explicit f grid."""
+    return FreshShelfBelief(
+        lot_counts=[],
+        f_marginals=[],
+        f_grid=[float(f) for f in f_grid],
+    )
+
+
+def effective_inventory_f_belief(
+    belief: FreshShelfBelief,
+    *,
+    pending_orders: PendingOrders,
+    f_pipeline_default: float,
+) -> float:
+    """E[f]-weighted on-hand from f-marginals plus pipeline term."""
+    for qty in pending_orders.values():
+        if int(qty) < 0:
+            msg = "pending_orders quantities must be non-negative"
+            raise ValueError(msg)
+
+    k = len(belief.f_grid)
+    on_hand = 0.0
+    for ell, n_lot in enumerate(belief.lot_counts):
+        e_f = sum(belief.f_marginals[ell][b] * belief.f_grid[b] for b in range(k))
+        on_hand += float(n_lot) * e_f
+    pipeline = sum(float(qty) * f_pipeline_default for qty in pending_orders.values())
+    return float(on_hand + pipeline)
+
+
 __all__ = [
+    "FreshShelfBelief",
     "ShelfBelief",
     "effective_inventory",
+    "effective_inventory_f_belief",
+    "empty_f_shelf_belief",
     "empty_shelf_belief",
     "shelf_belief_from_cohorts_oracle",
+    "shelf_belief_from_f_oracle",
     "shelf_belief_from_oracle",
 ]
