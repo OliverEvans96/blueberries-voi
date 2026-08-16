@@ -652,15 +652,27 @@ body {
 
 .order-row {
   display: grid;
-  grid-template-columns: 1fr 72px;
+  grid-template-columns: 1fr 76px;
   gap: 8px;
   align-items: center;
+}
+
+.order-row input[type="number"] {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+}
+
+.order-row input[type="range"] {
+  height: 10px;
 }
 
 .btn-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .btn-row-play {
@@ -688,10 +700,11 @@ input[type="number"] {
   appearance: none;
   border: none;
   border-radius: 10px;
-  padding: 11px 12px;
+  padding: 14px 14px;
   font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 700;
+  font-size: 0.98rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: transform 0.12s ease, filter 0.12s ease;
 }
@@ -699,19 +712,20 @@ input[type="number"] {
 .btn-advance {
   background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
   color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
+  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.32);
 }
 
 .btn-autopilot {
   background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
   color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.22);
+  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.26);
 }
 
 .btn-reset {
   background: #fffdf8;
   color: var(--ink);
   border: 1px solid var(--paper-edge);
+  font-weight: 600;
 }
 
 .btn-advance:hover,
@@ -932,6 +946,34 @@ input[type="number"] {
   background: var(--paper);
   border: 1px solid var(--paper-edge);
   box-shadow: var(--shadow);
+}
+
+/* Operator controls — order quantity + Advance/Autopilot/Reset — are the
+ * primary "you are in control" action zone, so they get a distinct
+ * highlighted card instead of blending into the rest of the decision rail. */
+.decision-rail-run {
+  padding: 14px 14px 16px;
+  margin: -14px -14px 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: linear-gradient(180deg, rgba(184, 134, 11, 0.1), rgba(184, 134, 11, 0.03));
+  border-bottom: 2px solid rgba(184, 134, 11, 0.35);
+}
+
+.decision-rail-heading {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.decision-rail-heading::before {
+  content: "\25B6";
+  font-size: 0.7rem;
+  color: var(--focus);
 }
 
 .chart-unavailable {
