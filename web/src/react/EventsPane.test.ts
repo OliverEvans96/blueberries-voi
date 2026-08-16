@@ -125,8 +125,92 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
         events: [F2_DAY],
       }),
     );
-    expect(screen.getByText(/101|lot/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lot 101: 4 units/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lot 102: 1 units/i)).toBeInTheDocument();
     expect(screen.getByText(/waste/i)).toBeInTheDocument();
+    expect(screen.getByText(/1\.5/)).toBeInTheDocument();
+  });
+
+  it("sorts day cards latest-first", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: baseVm(),
+        showTruth: false,
+        events: [P0_DAY, F2_DAY],
+      }),
+    );
+    const cards = container.querySelectorAll(".events-day-card");
+    expect(cards.length).toBe(2);
+    expect(cards[0]?.getAttribute("data-day")).toBe("2");
+    expect(cards[1]?.getAttribute("data-day")).toBe("1");
+    expect(container.querySelectorAll(".events-day-divider").length).toBe(1);
+  });
+
+  it("F2a shows pack date but not age at receipt", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const f2aDay: MaskedDayWire = {
+      day: 3,
+      arrivals: 12,
+      sales_total: 8,
+      waste_total: 1,
+      sales_by: null,
+      waste_by: null,
+      lot_ids: null,
+      pack_date_days: 4,
+      age_at_receipt: null,
+    };
+    render(
+      createElement(EventsPane, {
+        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2a" } },
+        showTruth: false,
+        events: [f2aDay],
+      }),
+    );
+    expect(screen.getByText(/4 days/i)).toBeInTheDocument();
+    expect(screen.queryByText(/age at receipt/i)).toBeNull();
+    expect(screen.queryByText(/1\.5/)).toBeNull();
+  });
+
+  it("F2 shows age at receipt but not pack date row", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    render(
+      createElement(EventsPane, {
+        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
+        showTruth: false,
+        events: [F2_DAY],
+      }),
+    );
+    expect(screen.getByText(/age at receipt/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^pack date$/i)).toBeNull();
+  });
+
+  it("delivery day shows illustrative temp chart", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: baseVm(),
+        showTruth: false,
+        events: [F2_DAY],
+      }),
+    );
+    expect(screen.getByText(/temp\. history \(illustrative\)/i)).toBeInTheDocument();
+    expect(container.querySelector(".events-temp-chart-host svg")).not.toBeNull();
+    expect(
+      container.querySelector(".delivery-temp-line, [data-series='temp']"),
+    ).not.toBeNull();
+  });
+
+  it("P0 hides per-lot breakdown without lot_ids", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: baseVm(),
+        showTruth: false,
+        events: [P0_DAY],
+      }),
+    );
+    expect(container.querySelector(".events-breakdown")).toBeNull();
   });
 
   it("stockout row hidden when showTruth=false", async () => {
