@@ -143,8 +143,10 @@ def main() -> None:
     for row in accuracy:
         lines.append(accuracy_row(row))
 
-  # standard errors from first/last non-trivial rows
-    se_rows = [r for r in accuracy if r["mean_f_mae_se"] > 0 or r["hist_tv_belief_wire_se"] > 0]
+    # standard errors from first/last non-trivial rows
+    se_rows = [
+        r for r in accuracy if r["mean_f_mae_se"] > 0 or r["hist_tv_belief_wire_se"] > 0
+    ]
     if se_rows:
         mf_se = max(r["mean_f_mae_se"] for r in se_rows)
         wire_se = max(r["hist_tv_belief_wire_se"] for r in se_rows)
@@ -163,14 +165,11 @@ def main() -> None:
         "",
         "| Metric @ L=20 | Inline bench | Production `unit_pf` |",
         "|---------------|-------------:|-------------------:|",
-        "| mean ms/day | 11.6 | "
-        f"**{l20_timing['mean_ms']:.1f}** |",
-        "| mean_f MAE | 0.0014 | "
-        f"**{fmt(l20_m['mean_f_mae'])}** |",
+        f"| mean ms/day | 11.6 | **{l20_timing['mean_ms']:.1f}** |",
+        f"| mean_f MAE | 0.0014 | **{fmt(l20_m['mean_f_mae'])}** |",
         "| hist TV (particle) | 0.515 | "
         f"**{fmt(l20_m['hist_tv_particle_mean'], 3)}** |",
-        "| ESS_final | 92 | "
-        f"**{fmt(l20_m['ess_final'], 0)}** |",
+        f"| ESS_final | 92 | **{fmt(l20_m['ess_final'], 0)}** |",
         "",
         "Production path is faster (systematic resample, shared `apply_gamma_aging`) and "
         "tracks lot-mean freshness with near-zero MAE on scripted seeds.",

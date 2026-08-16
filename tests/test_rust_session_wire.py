@@ -302,7 +302,7 @@ def test_voi_core_session_production_uses_filter_step_unit() -> None:
 
 
 def test_voi_core_voi_production_uses_filter_step_unit() -> None:
-    """AC-session: run_voi_crn_cell must score via unit_pf, not ParticleBank::filter_step."""
+    """AC-session: run_voi_crn_cell must score via unit_pf, not filter_step."""
     text = _rust_source_before_tests(_VOI_RS)
     assert "filter_step_unit" in text, (
         "voi.rs production path must call filter_step_unit (T-C2-A AC-session)"
@@ -353,7 +353,7 @@ def test_voi_core_session_tests_use_f_marginals_not_age_marginals() -> None:
 def test_rust_set_obs_scenario_f2_vs_p1_f_marginals_differ_live_lots_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-session: catch-up path — F2 vs P1 differ in f_marginals; live_lots identical."""
+    """AC-session: F2 vs P1 differ in f_marginals; live_lots identical."""
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
     orders = [8, 0, 8, 0, 8, 0, 8, 0]
 

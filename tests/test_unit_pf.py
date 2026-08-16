@@ -90,7 +90,7 @@ def _hand_sequential_kernel_path_logprob(
     params: ModelParams | None = None,
     seed: int = 0,
 ) -> float:
-    """Bench-aligned sequential kernel on unit freshness (τ = (1−f)·η_ref)."""
+    """Bench-aligned sequential kernel on unit freshness (tau = (1-f)*eta_ref)."""
     import random
 
     p = params or ModelParams()

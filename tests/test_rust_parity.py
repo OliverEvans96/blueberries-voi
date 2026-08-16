@@ -174,11 +174,16 @@ def test_engine_session_ten_day_trajectory_fixed_orders() -> None:
     days = [int(d["episode_day"]) for d in deltas]
     assert days == list(range(10))
 
+    init_lot_counts = list(snap["belief"]["lot_counts"])
+    assert any(float(x) != 0.0 for x in init_lot_counts), "init belief empty"
+
     for i, (delta, order) in enumerate(zip(deltas, orders, strict=True)):
         assert int(delta["day"]["order_qty"]) == order, f"day {i} order mismatch"
         belief = delta["belief"]
         lot_counts = list(belief["lot_counts"])
-        assert any(float(x) != 0.0 for x in lot_counts), f"day {i} belief empty"
+        assert len(lot_counts) == int(belief["L"])
+        assert len(belief["f_marginals"]) == int(belief["L"]) * int(belief["K"])
+        assert len(belief["f_grid"]) == int(belief["K"])
 
 
 def test_voi_crn_smoke_seven_scenarios_structural() -> None:

@@ -35,7 +35,8 @@ def _require_f_sw_export(name: str) -> object:
         mod = importlib.import_module("blueberries_voi.controller.f_sw")
     except ModuleNotFoundError:
         pytest.fail(
-            "blueberries_voi.controller.f_sw must exist for f-native damped-SW (T-C2-A)",
+            "blueberries_voi.controller.f_sw must exist for f-native damped-SW "
+            "(T-C2-A)",
             pytrace=False,
         )
     obj = getattr(mod, name, None)
@@ -61,9 +62,9 @@ def _hand_effective_inventory_f(
     f_pipeline_default: float,
 ) -> float:
     k = len(f_grid)
-    l = len(lot_counts)
+    n_lots = len(lot_counts)
     on_hand = 0.0
-    for ell in range(l):
+    for ell in range(n_lots):
         e_f = sum(f_marginals[ell * k + b] * f_grid[b] for b in range(k))
         on_hand += lot_counts[ell] * e_f
     pipeline = sum(float(q) * f_pipeline_default for q in pending_orders.values())
@@ -71,8 +72,10 @@ def _hand_effective_inventory_f(
 
 
 def test_f_belief_effective_inventory_matches_ef_weighted_sum() -> None:
-    """AC-policy: effective_inventory_f_belief uses E[f] from f_marginals × f_grid."""
-    effective_inventory_f_belief = _require_belief_export("effective_inventory_f_belief")
+    """AC-policy: effective_inventory_f_belief uses E[f] from f_marginals x f_grid."""
+    effective_inventory_f_belief = _require_belief_export(
+        "effective_inventory_f_belief"
+    )
 
     belief = _f_belief_fixture()
     expected = _hand_effective_inventory_f(
@@ -92,7 +95,9 @@ def test_f_belief_effective_inventory_matches_ef_weighted_sum() -> None:
 
 
 def test_f_belief_effective_inventory_empty_lots_pipeline_only() -> None:
-    effective_inventory_f_belief = _require_belief_export("effective_inventory_f_belief")
+    effective_inventory_f_belief = _require_belief_export(
+        "effective_inventory_f_belief"
+    )
     empty_f_shelf_belief = _require_belief_export("empty_f_shelf_belief")
 
     belief = empty_f_shelf_belief(f_grid=list(_F_GRID))
@@ -106,9 +111,10 @@ def test_f_belief_effective_inventory_empty_lots_pipeline_only() -> None:
 
 def test_f_belief_damped_sw_order_matches_hand_formula() -> None:
     """AC-policy: damped_sw_order_f_belief mirrors τ belief structure on f-wire."""
+    from scipy.stats import nbinom
+
     from blueberries_voi.model import ModelParams
     from blueberries_voi.sim.bakeoff_ordering import case_round
-    from scipy.stats import nbinom
 
     damped_sw_order_f_belief = _require_f_sw_export("damped_sw_order_f_belief")
 

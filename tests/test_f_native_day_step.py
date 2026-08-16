@@ -47,8 +47,12 @@ def ref_picking_weights_f(
 
 def alive_by_lot(freshness: list[float], lot_offsets: list[int]) -> list[int]:
     return [
-        sum(1 for f in freshness[lot_offsets[l] : lot_offsets[l + 1]] if f > 0.0)
-        for l in range(len(lot_offsets) - 1)
+        sum(
+            1
+            for f in freshness[lot_offsets[lot_idx] : lot_offsets[lot_idx + 1]]
+            if f > 0.0
+        )
+        for lot_idx in range(len(lot_offsets) - 1)
     ]
 
 

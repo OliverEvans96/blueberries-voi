@@ -19,8 +19,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.backend import rust_core as _maybe_core
+from blueberries_voi.model.abdella import ShipmentTrace
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -167,18 +167,14 @@ def _assert_flat_belief_lengths(belief: Mapping[str, Any], *, label: str) -> Non
     assert len(f_marginals) == l_dim * k_dim, (
         f"{label}: len(f_marginals)={len(f_marginals)} != L*K={l_dim * k_dim}"
     )
-    assert len(f_grid) == k_dim, (
-        f"{label}: len(f_grid)={len(f_grid)} != K={k_dim}"
-    )
+    assert len(f_grid) == k_dim, f"{label}: len(f_grid)={len(f_grid)} != K={k_dim}"
     for i, x in enumerate(f_marginals):
         assert not isinstance(x, (list, tuple)), (
             f"{label}.f_marginals[{i}] is nested; wire requires flat L*K"
         )
     for i, f_val in enumerate(f_grid):
         fv = float(f_val)
-        assert 0.0 <= fv <= 1.0, (
-            f"{label}.f_grid[{i}]={fv} outside freshness [0, 1]"
-        )
+        assert 0.0 <= fv <= 1.0, f"{label}.f_grid[{i}]={fv} outside freshness [0, 1]"
 
 
 # ---------------------------------------------------------------------------

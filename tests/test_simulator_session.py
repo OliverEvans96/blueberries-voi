@@ -55,7 +55,8 @@ _DEMO_H_CAP = 7
 _DEMO_N_ROLLOUT_PATHS_CAP = 2
 _DEMO_CANDIDATE_RADIUS_CAP = 1
 
-_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "age_marginals", "tau_grid", "L", "K"})
+_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "f_marginals", "f_grid", "L", "K"})
+_LEGACY_BELIEF_KEYS = frozenset({"age_marginals", "tau_grid"})
 _SNAPSHOT_TOP_KEYS = frozenset({"seq", "episode_day", "belief"})
 _DAY_DELTA_TOP_KEYS = frozenset({"seq", "episode_day", "day"})
 
@@ -166,33 +167,35 @@ def _assert_flat_belief(belief: Any, *, label: str) -> Mapping[str, Any]:
     assert not missing, (
         f"{label}.belief missing flat fields {sorted(missing)} (ADR 0100)"
     )
+    legacy = _LEGACY_BELIEF_KEYS & set(bel)
+    assert not legacy, (
+        f"{label}.belief must not expose legacy τ-wire keys {sorted(legacy)} (T-C2-A)"
+    )
     lot_counts = list(bel["lot_counts"])
-    age_marginals = list(bel["age_marginals"])
-    tau_grid = list(bel["tau_grid"])
+    f_marginals = list(bel["f_marginals"])
+    f_grid = list(bel["f_grid"])
     l_dim = int(bel["L"])
     k_dim = int(bel["K"])
     assert l_dim >= 0 and k_dim >= 0
     assert len(lot_counts) == l_dim, (
         f"{label}: lot_counts length {len(lot_counts)} != L={l_dim}"
     )
-    assert len(age_marginals) == l_dim * k_dim, (
-        f"{label}: age_marginals length {len(age_marginals)} != L*K={l_dim * k_dim} "
+    assert len(f_marginals) == l_dim * k_dim, (
+        f"{label}: f_marginals length {len(f_marginals)} != L*K={l_dim * k_dim} "
         "(flat row-major)"
     )
-    assert len(tau_grid) == k_dim, (
-        f"{label}: tau_grid length {len(tau_grid)} != K={k_dim}"
-    )
-    # Flat wire: age_marginals must be 1-D list of floats, not nested rows.
-    for i, x in enumerate(age_marginals):
+    assert len(f_grid) == k_dim, f"{label}: f_grid length {len(f_grid)} != K={k_dim}"
+    for i, x in enumerate(f_marginals):
         assert not isinstance(x, (list, tuple)), (
-            f"{label}.belief.age_marginals[{i}] is nested; wire requires flat L*K "
+            f"{label}.belief.f_marginals[{i}] is nested; wire requires flat L*K "
             "(ADR 0100)"
         )
         float(x)
     for x in lot_counts:
         float(x)
-    for t in tau_grid:
-        float(t)
+    for f_val in f_grid:
+        fv = float(f_val)
+        assert 0.0 <= fv <= 1.0, f"{label}.f_grid value {fv} outside [0, 1]"
     return bel
 
 
