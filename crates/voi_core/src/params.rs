@@ -2,6 +2,9 @@
 
 use crate::demand_profile::DemandProfile;
 
+/// Default virtual lot slots on the f-native `L×U` filter grid (ADR 0130).
+pub const DEFAULT_L_DIM: usize = 10;
+
 /// Default virtual units per lot on the f-native `L×U` grid (ADR 0130).
 pub const DEFAULT_UNITS_PER_LOT: usize = 15;
 

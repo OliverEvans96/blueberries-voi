@@ -80,7 +80,7 @@ class EngineSession:
         self._lead_time: int = 1
         self._enable_filter: bool = True
         self._obs_scenario: ScenarioId | str = "P1"
-        self._L: int = 2
+        self._L: int = 10
         self._K: int = 4
         self._n_particles: int = int(DEMO_BUDGETS["n_particles"])
         self._H: int = int(DEMO_BUDGETS["H"])

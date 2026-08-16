@@ -8,7 +8,7 @@ use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::params::DEFAULT_UNITS_PER_LOT;
+use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, f_to_age};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
@@ -90,7 +90,7 @@ impl EngineSession {
             },
             next_lot: 1,
             seq: 0,
-            l_dim: 2,
+            l_dim: DEFAULT_L_DIM,
             k_dim: 4,
             obs_scenario: "P1".to_string(),
             richest_log: Vec::new(),
@@ -799,7 +799,7 @@ pub fn handle_rpc(request_json: &str) -> String {
         let result = match req.method.as_str() {
             "init" | "reset" => {
                 let seed = rpc_u64(&req.params, "seed").unwrap_or(0);
-                let l = rpc_u64(&req.params, "L").unwrap_or(2) as usize;
+                let l = rpc_u64(&req.params, "L").unwrap_or(DEFAULT_L_DIM as u64) as usize;
                 let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
@@ -994,7 +994,7 @@ mod tests {
         assert!(belief["lot_counts"].is_array(), "{out}");
         assert!(belief["f_marginals"].is_array());
         assert!(belief["f_grid"].is_array());
-        assert_eq!(belief["L"], 2);
+        assert_eq!(belief["L"], DEFAULT_L_DIM);
         assert_eq!(belief["K"], 4);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
