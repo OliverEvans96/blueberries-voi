@@ -34,8 +34,10 @@ export function dayFromClientX(
   return days[i] ?? null;
 }
 
+export type HoverPoint = { clientX: number; clientY: number } | null;
+
 export type LinkedHoverHandlers = {
-  onDay: (day: HoverDay) => void;
+  onDay: (day: HoverDay, point: HoverPoint) => void;
 };
 
 /**
@@ -56,13 +58,18 @@ export function attachLinkedHover(
 
     const day = dayFromClientX(svg, event.clientX, getDays());
     // Keep prior day while over y-axis gutter / legend; only set when resolved
-    if (day != null) handlers.onDay(day);
+    if (day != null) {
+      handlers.onDay(day, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    }
   };
 
   const onLeave = (event: PointerEvent): void => {
     const next = event.relatedTarget as Node | null;
     if (next && root.contains(next)) return;
-    handlers.onDay(null);
+    handlers.onDay(null, null);
   };
 
   root.addEventListener("pointermove", onMove);
