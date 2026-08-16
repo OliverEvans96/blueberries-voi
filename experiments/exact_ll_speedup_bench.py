@@ -60,6 +60,7 @@ def bench_dp() -> list[dict[str, Any]]:
 
 def bench_mf() -> list[dict[str, Any]]:
     from blueberries_voi.filter.age_likelihood import mean_field_update
+
     from blueberries_voi.filter.types import P1Obs, age_grid
     from blueberries_voi.model import ModelParams
 
@@ -114,6 +115,7 @@ def uniqueness_probe() -> dict[str, Any]:
     import blueberries_voi.filter.age_likelihood as age_likelihood
     import blueberries_voi.filter.backends as backends
     from blueberries_voi.filter.particle.research import ResearchParticleFilter
+
     from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
     from blueberries_voi.model import ModelParams
 

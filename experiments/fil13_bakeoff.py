@@ -6,8 +6,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from blueberries_voi.filter.backends import BACKENDS, run_microbench
+
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments
 from blueberries_voi.sim import run_episode

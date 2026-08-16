@@ -13,10 +13,7 @@ import numpy as np
 import pytest
 
 from blueberries_voi.backend import rust_core as _maybe_core
-from blueberries_voi.model import Cohort, ModelParams, day_step
 from blueberries_voi.model.abdella import ShipmentTrace
-from blueberries_voi.model.constitutive import weibull_survival
-from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.simulator.session import EngineSession
 from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
@@ -59,78 +56,15 @@ def test_backend_default_is_rust_when_env_unset(
 
 
 def test_weibull_matches_python() -> None:
-    py = weibull_survival(3.0, beta=2.0, eta=14.0)
-    rs = float(rust_core.weibull_survival_py(3.0, 2.0, 14.0))
-    assert math.isclose(py, rs, rel_tol=0.0, abs_tol=1e-12)
+    pytest.skip("T-TAU-RETIRE: rust_core.weibull_survival_py removed")
 
 
 def test_day_step_injected_smoke() -> None:
-    """Injected demand path: Rust ``day_step_injected`` vs ``sim.rust_bridge`` shim."""
-    counts_in = [20, 15]
-    taus_in = [1.0, 3.0]
-    lot_ids_in = [1, 2]
-    demand = 12
-    delivery_n, delivery_tau, delivery_lot = 8, 0.5, 3
-
-    rs_counts, _rs_taus, _rs_lots, rs_dem, rs_sales, rs_waste = (
-        rust_core.day_step_injected(
-            counts_in,
-            taus_in,
-            lot_ids_in,
-            demand,
-            delivery_n,
-            delivery_tau,
-            delivery_lot,
-            _DAY_STEP_SEED,
-        )
-    )
-
-    assert int(rs_dem) == demand
-    assert all(int(n) >= 0 for n in rs_counts)
-    assert int(rs_sales) + int(rs_waste) <= sum(counts_in) + delivery_n
-
-    cohorts = [
-        Cohort(n=n, tau=t, lot_id=i)
-        for n, t, i in zip(counts_in, taus_in, lot_ids_in, strict=True)
-    ]
-    delivery = Cohort(n=delivery_n, tau=delivery_tau, lot_id=delivery_lot)
-    rng_d = spawn_rng(_DAY_STEP_SEED, run_id="parity", day=0, stream=STREAM_DEMAND)
-    rng_a = spawn_rng(_DAY_STEP_SEED, run_id="parity", day=0, stream=STREAM_ALLOC)
-    rng_s = spawn_rng(_DAY_STEP_SEED, run_id="parity", day=0, stream=STREAM_SPOIL)
-    shim_result = day_step(
-        cohorts,
-        params=ModelParams(),
-        demand=demand,
-        delivery=delivery,
-        rng_demand=rng_d,
-        rng_alloc=rng_a,
-        rng_spoil=rng_s,
-    )
-
-    assert int(shim_result.demand) == demand
-    assert math.isclose(
-        float(shim_result.sales_total), float(rs_sales), abs_tol=_STRUCTURAL_ATOL
-    )
-    shim_final = sum(c.n for c in shim_result.cohorts)
-    rs_final = sum(int(n) for n in rs_counts)
-    assert shim_final >= 0 and rs_final >= 0
+    pytest.skip("T-TAU-RETIRE: rust_core.day_step_injected removed")
 
 
 def test_filter_step_one_day_smoke() -> None:
-    """One-day filter update: normalized weights from Rust ``filter_step_py``."""
-    counts = [[10, 5], [12, 3], [8, 7], [15, 2]]
-    taus = [[1.0, 2.0], [0.5, 1.5], [2.0, 3.0], [1.5, 2.5]]
-    sales, waste = 8, 1
-    n = len(counts)
-    uniform = 1.0 / n
-
-    rs_weights = list(
-        rust_core.filter_step_py(counts, taus, sales, waste, _FILTER_SEED)
-    )
-    assert len(rs_weights) == n
-    assert all(w >= 0.0 for w in rs_weights)
-    assert math.isclose(sum(rs_weights), 1.0, abs_tol=1e-9)
-    assert any(not math.isclose(w, uniform, abs_tol=1e-12) for w in rs_weights)
+    pytest.skip("T-TAU-RETIRE: rust_core.filter_step_py removed")
 
 
 def test_engine_session_ten_day_trajectory_fixed_orders() -> None:

@@ -5,33 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import numpy as np
-
-from blueberries_voi.filter.types import (
-    ScenarioId,
-    age_grid,
-    mask_for,
-    rich_obs_from_day_log,
-)
-from blueberries_voi.model import ModelParams
-from blueberries_voi.model.abdella import ShipmentTrace, load_abdella_shipments
-from blueberries_voi.sim import run_episode
-from blueberries_voi.viz.m15_common import (
-    _SMOKE_K,
-    _SMOKE_L,
-    _SMOKE_N,
-    _SMOKE_N_BURN,
-    _SMOKE_N_SCORE,
-    _SMOKE_ORACLE_REPS,
-    FIG_M15,
-    ORACLE_GAP_F2_VS_P1_MAX_RATIO,
-    ROOT,
-    _validate_rungs,
-)
+from blueberries_voi.viz.m15_common import ORACLE_GAP_F2_VS_P1_MAX_RATIO
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
+
+    from blueberries_voi.filter.types import ScenarioId
 
 
 @dataclass
@@ -117,81 +97,32 @@ def assert_oracle_gap_f2_ll_p1(rows: Sequence[OracleGapRow]) -> None:
         raise AssertionError(msg)
 
 
-def _mean_abs_age_error_for_scenario(
-    *,
-    scenario: ScenarioId,
-    params: ModelParams,
-    ships: list[ShipmentTrace],
-    root_seed: int,
-    n_reps: int,
-    n_particles: int,
-    K: int,
-    L: int,
-    n_burn: int,
-    n_score: int,
-) -> float:
-    """Birth-lot age error under shared CRN (newest slot vs true arrival τ).
-
-    Evaluated on delivery days after the filter applies the scenario birth
-    prior — the information gap F2 (Dirac age-at-receipt) vs P1 (cold mix)
-    is visible without requiring long post-birth tracking.
-    """
-    grid = age_grid(K)
-    mask = mask_for(scenario)
-    errs: list[float] = []
-    for rep in range(n_reps):
-        seed = int(root_seed) + rep
-        ep = run_episode(
-            params,
-            root_seed=seed,
-            run_id=f"m15_oracle_{scenario}_{rep}",
-            n_burn=n_burn,
-            n_score=n_score,
-            shipments=ships,
-        )
-        particle_filter = ResearchParticleFilter(params=params, N=n_particles, K=K, L=L)
-        particle_filter._root_seed = seed
-        particle_filter._run_id = f"m15_oracle_{scenario}_{rep}"
-        rng = np.random.default_rng(seed + 23)
-        particle_filter.initialize(rng, L=L)
-
-        for d in ep.scored:
-            obs = rich_obs_from_day_log(d, mask)
-            particle_filter.step(obs, rng)
-            if d.arrivals <= 0 or not d.lots:
-                continue
-            post = particle_filter.age_posterior(L - 1)
-            true_age = float(d.lots[-1].tau)
-            post_mean = float(np.sum(grid * post))
-            errs.append(abs(post_mean - true_age))
-
-    return float(np.mean(errs)) if errs else 0.0
-
-
-def _validate_oracle_compare(compare: Sequence[str]) -> tuple[ScenarioId, ...]:
-    if len(compare) == 0:
-        msg = "compare must be non-empty"
-        raise ValueError(msg)
-    return _validate_rungs([str(c) for c in compare])
-
-
 def run_m15_oracle_ladder(
     *,
     root_seed: int,
     compare: Sequence[ScenarioId] = ("P1", "F2"),
-    n_particles: int = _SMOKE_N,
-    n_reps: int = _SMOKE_ORACLE_REPS,
-    n_burn: int = _SMOKE_N_BURN,
-    n_score: int = _SMOKE_N_SCORE,
+    n_particles: int = 32,
+    n_reps: int = 2,
+    n_burn: int = 1,
+    n_score: int = 2,
     figures_dir: Path | None = None,
     write_figure: bool = True,
     write_md: bool = False,
 ) -> list[OracleGapRow]:
     """Shared-CRN age-error ladder vs B-state (belief ≡ true ``(n, τ)``).
 
-    Default ``compare`` is P1 vs F2. B-state age error is zero by construction;
-    each row's ``vs_b_state`` is the scenario error minus that ceiling.
+    Retired with τ research particle filter (T-TAU-RETIRE).
     """
+    _ = (
+        root_seed,
+        compare,
+        n_particles,
+        n_reps,
+        n_burn,
+        n_score,
+        figures_dir,
+        write_figure,
+        write_md,
+    )
     msg = "research particle filter removed (T-TAU-RETIRE)"
     raise NotImplementedError(msg)
-

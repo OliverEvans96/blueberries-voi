@@ -14,13 +14,13 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from blueberries_voi.filter.backends import (
     SlidingWindowBackend,
     get_backend,
     run_microbench,
     tv_vs_exact,
 )
+
 from blueberries_voi.filter.types import (
     MAX_JOINT_FLOATS,
     P1Obs,

@@ -265,16 +265,11 @@ def test_scripted_l20_mean_f_mae_under_threshold() -> None:
 
 
 def test_bench_c2_a_totals_study_uses_production_unit_ll() -> None:
-    bench = _read(BENCH_RS)
-    assert "fn p1_totals_loglik(" not in bench or "voi_core::unit_ll" in bench, (
-        "bench_c2_a_totals_study must delegate to unit_ll::p1_totals_loglik, "
-        "not keep a private inline copy"
-    )
+    pytest.skip("T-TAU-RETIRE: bench_c2_a_totals_study binary removed")
 
 
 def test_bench_c2_a_totals_study_registered_in_cargo_toml() -> None:
-    cargo = _read(VOI_CORE / "Cargo.toml")
-    assert "bench_c2_a_totals_study" in cargo
+    pytest.skip("T-TAU-RETIRE: bench_c2_a_totals_study binary removed")
 
 
 def test_cargo_unit_pf_ac_integration_suite_green() -> None:

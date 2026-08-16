@@ -110,9 +110,7 @@ def shelf_belief_from_cohorts_oracle(
     while grid[-1] < hi:
         grid.append(round(grid[-1] + 0.25, 2))
     k = len(grid)
-    margs = [
-        _dirac_marginal(_nearest_grid_index(f_val, grid), k) for f_val in f_values
-    ]
+    margs = [_dirac_marginal(_nearest_grid_index(f_val, grid), k) for f_val in f_values]
     return ShelfBelief(
         lot_counts=[float(int(c.n)) for c in live],
         f_marginals=margs,

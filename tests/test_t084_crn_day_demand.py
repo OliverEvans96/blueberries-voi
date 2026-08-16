@@ -22,8 +22,8 @@ from typing import Any
 
 import numpy as np
 import pytest
-
 from blueberries_voi.filter.backends import observation_loglik_mc
+
 from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
 from blueberries_voi.model import ModelParams, draw_demand, load_demand_profile
 from blueberries_voi.rng import STREAM_DEMAND, spawn_rng

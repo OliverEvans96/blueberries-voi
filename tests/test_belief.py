@@ -21,10 +21,10 @@ from typing import Any
 
 import numpy as np
 import pytest
-
-from blueberries_voi.filter import PRODUCTION_BACKEND, P1Obs
 from blueberries_voi.filter.age_likelihood import survival_weighted_on_hand
 from blueberries_voi.filter.particle.research import ResearchParticleFilter
+
+from blueberries_voi.filter import PRODUCTION_BACKEND, P1Obs
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams, weibull_survival
 

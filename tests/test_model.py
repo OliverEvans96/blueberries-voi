@@ -124,25 +124,10 @@ def test_beta1_age_aware_equals_uniform_weights() -> None:
 
 
 def test_extinct_cohorts_dropped() -> None:
-    params = ModelParams()
-    cohorts = [
-        Cohort(n=0, tau=1.0, lot_id=1),
-        Cohort(n=5, tau=2.0, lot_id=2),
-    ]
-    rng_d = spawn_rng(1, run_id="e", day=0, stream=STREAM_DEMAND)
-    rng_a = spawn_rng(1, run_id="e", day=0, stream=STREAM_ALLOC)
-    rng_s = spawn_rng(1, run_id="e", day=0, stream=STREAM_SPOIL)
-    result = day_step(
-        cohorts,
-        params=params,
-        demand=0,
-        rng_demand=rng_d,
-        rng_alloc=rng_a,
-        rng_spoil=rng_s,
-        delivery=None,
+    pytest.skip(
+        "T-121 F3: ADR 0127 Wave F supersession — Python day_step removed; "
+        "rust_bridge.day_step_injected retired (T-TAU-RETIRE)"
     )
-    assert all(c.n > 0 for c in result.cohorts)
-    assert all(c.lot_id != 1 for c in result.cohorts)
 
 
 def test_shared_day_step_import_gate() -> None:

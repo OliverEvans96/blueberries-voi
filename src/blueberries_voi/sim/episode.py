@@ -75,9 +75,7 @@ def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
     """B-state ShelfBelief for CTL policies (ADR 0092 oracle path)."""
     from blueberries_voi.filter.belief import shelf_belief_from_cohorts_oracle
 
-    return shelf_belief_from_cohorts_oracle(
-        cohorts, empty_f_grid=_EMPTY_ORACLE_F_GRID
-    )
+    return shelf_belief_from_cohorts_oracle(cohorts, empty_f_grid=_EMPTY_ORACLE_F_GRID)
 
 
 def _invoke_order(

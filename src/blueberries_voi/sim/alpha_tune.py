@@ -85,7 +85,7 @@ __all__ = [
 def _empty_shelf_belief(_params: ModelParams) -> ShelfBelief:
     """Empty-shelf fallback when order() receives a non-ShelfBelief belief."""
     grid = [0.0, 2.0, 4.0, 6.0, 8.0]
-    return ShelfBelief(lot_counts=[], age_marginals=[], tau_grid=grid)
+    return ShelfBelief(lot_counts=[], f_marginals=[], f_grid=grid)
 
 
 class _ClosedLoopPolicyAdapter:

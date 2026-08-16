@@ -17,10 +17,10 @@ from typing import Any
 
 import numpy as np
 import pytest
-
-from blueberries_voi import filter as filter_pkg
 from blueberries_voi.filter.backends import BACKENDS, get_backend
 from blueberries_voi.filter.particle.research import ResearchParticleFilter
+
+from blueberries_voi import filter as filter_pkg
 from blueberries_voi.filter.types import (
     MAX_JOINT_FLOATS,
     UNOBSERVED,

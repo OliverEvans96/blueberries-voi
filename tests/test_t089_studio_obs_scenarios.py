@@ -20,9 +20,9 @@ from typing import Any, get_args
 
 import numpy as np
 import pytest
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 
-from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     P1Obs,

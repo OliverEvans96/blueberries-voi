@@ -5,44 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import numpy as np
-
-from blueberries_voi.filter.types import (
-    ScenarioId,
-    age_grid,
-    mask_for,
-    rich_obs_from_day_log,
-)
-from blueberries_voi.model import ModelParams
-from blueberries_voi.model.abdella import ShipmentTrace, load_abdella_shipments
-from blueberries_voi.sim import run_episode
 from blueberries_voi.viz.fil11 import STAGE_B_COVERAGE_HI, STAGE_B_COVERAGE_LO
 from blueberries_voi.viz.m15_common import (
-    _SMOKE_B_REPS,
-    _SMOKE_K,
-    _SMOKE_L,
-    _SMOKE_N,
-    _SMOKE_N_BURN,
-    _SMOKE_N_SCORE,
-    _SMOKE_ORACLE_REPS,
-    FIG_M15,
     ORACLE_GAP_F2_VS_P1_MAX_RATIO,
-    ROOT,
     STAGE_B_DEFAULT_RUNGS,
     STAGE_B_DIAGNOSTIC_ONLY_LABEL,
     STAGE_B_PASS_FAIL_NARRATIVE,
     STAGE_B_RANK_FLATNESS_RULE,
-    _validate_rungs,
 )
 from blueberries_voi.viz.m15_oracle import (
     OracleGapRow,
     assert_oracle_gap_f2_ll_p1,
-    run_m15_oracle_ladder,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from pathlib import Path
+
+    from blueberries_voi.filter.types import ScenarioId
 
 
 @dataclass
@@ -67,102 +47,6 @@ def _resolve_stage_a_pass(
     for r in rung_ids:
         out[r] = bool(stage_a_pass.get(str(r), False))
     return out
-
-
-def _calibrate_rung(
-    *,
-    scenario: ScenarioId,
-    params: ModelParams,
-    ships: list[ShipmentTrace],
-    root_seed: int,
-    n_reps: int,
-    n_particles: int,
-    K: int,
-    L: int,
-    n_burn: int,
-    n_score: int,
-    figure_dir: Path,
-    write_figure: bool,
-) -> tuple[float, Path]:
-    """90% CI coverage + rank histogram for one observation mask."""
-    import matplotlib.pyplot as plt
-
-    grid = age_grid(K)
-    covers: list[bool] = []
-    ranks: list[float] = []
-    mask = mask_for(scenario)
-
-    for rep in range(n_reps):
-        seed = int(root_seed) + rep
-        ep = run_episode(
-            params,
-            root_seed=seed,
-            run_id=f"m15_b_{scenario}_{rep}",
-            n_burn=n_burn,
-            n_score=n_score,
-            shipments=ships,
-        )
-        particle_filter = ResearchParticleFilter(params=params, N=n_particles, K=K, L=L)
-        particle_filter._root_seed = seed
-        particle_filter._run_id = f"m15_b_{scenario}_{rep}"
-        rng = np.random.default_rng(seed + 19)
-        particle_filter.initialize(rng, L=L)
-
-        tracked_slot: int | None = None
-        tracked_lot_id: int | None = None
-        true_age: float | None = None
-        last_post: np.ndarray | None = None
-        for d in ep.scored:
-            obs = rich_obs_from_day_log(d, mask)
-            particle_filter.step(obs, rng)
-            if d.arrivals > 0:
-                if tracked_slot is None:
-                    tracked_slot = L - 1
-                else:
-                    tracked_slot -= 1
-                if tracked_slot is not None and tracked_slot < 0:
-                    tracked_slot = L - 1
-                if d.lots:
-                    tracked_lot_id = int(d.lots[-1].lot_id)
-                    true_age = float(d.lots[-1].tau)
-            elif tracked_slot is not None:
-                last_post = particle_filter.age_posterior(tracked_slot)
-                if tracked_lot_id is not None:
-                    for lot in d.lots:
-                        if int(lot.lot_id) == tracked_lot_id:
-                            true_age = float(lot.tau)
-                            break
-
-        if last_post is None:
-            idx = L - 1 if tracked_slot is None else max(tracked_slot, 0)
-            last_post = particle_filter.age_posterior(idx)
-        if true_age is None:
-            true_age = float(np.sum(grid * last_post))
-
-        cdf = np.cumsum(last_post)
-        lo = float(grid[int(np.searchsorted(cdf, 0.05))])
-        hi = float(grid[min(len(grid) - 1, int(np.searchsorted(cdf, 0.95)))])
-        true_clip = float(np.clip(true_age, grid[0], grid[-1]))
-        covers.append(lo <= true_clip <= hi)
-        ranks.append(float(np.interp(true_clip, grid, cdf)))
-
-    coverage = float(np.mean(covers)) if covers else 0.0
-    figure_dir.mkdir(parents=True, exist_ok=True)
-    path = figure_dir / f"m15_stage_b_{scenario}_rank.png"
-    if write_figure:
-        fig, ax = plt.subplots(figsize=(6.0, 4.0))
-        ax.hist(ranks, bins=10, range=(0, 1), color="#2a6f97", edgecolor="white")
-        ax.axhline(max(n_reps, 1) / 10.0, color="k", ls="--", lw=1, label="uniform")
-        ax.set_xlabel("Posterior rank of true age")
-        ax.set_title(
-            f"M1.5 Stage B {scenario} — 90% CI coverage={coverage:.2f} "
-            f"(N={n_particles}, K={K}, R={n_reps})"
-        )
-        ax.legend(fontsize=8)
-        fig.tight_layout()
-        fig.savefig(path, dpi=120)
-        plt.close(fig)
-    return coverage, path
 
 
 def _write_stage_b_md(
@@ -245,19 +129,28 @@ def run_m15_stage_b(
     rungs: Sequence[ScenarioId] = STAGE_B_DEFAULT_RUNGS,
     stage_a_pass: Mapping[str, bool] | None = None,
     figures_dir: Path | None = None,
-    n_particles: int = _SMOKE_N,
-    n_reps: int = _SMOKE_B_REPS,
-    n_burn: int = _SMOKE_N_BURN,
-    n_score: int = _SMOKE_N_SCORE,
+    n_particles: int = 32,
+    n_reps: int = 2,
+    n_burn: int = 1,
+    n_score: int = 2,
     write_figure: bool = True,
     write_md: bool = False,
 ) -> list[StageBRungResult]:
     """Per-rung FIL-11 Stage B under shared CRN (SIM-05 ``root_seed``).
 
-    A-passing rungs are full Stage B; A-failing / unmarked rungs are labeled
-    ``diagnostic_only`` (M1 post-A-fail pattern). Does not implement foresight
-    oracles beyond the separate B-state ladder helper.
+    Retired with τ research particle filter (T-TAU-RETIRE).
     """
+    _ = (
+        root_seed,
+        rungs,
+        stage_a_pass,
+        figures_dir,
+        n_particles,
+        n_reps,
+        n_burn,
+        n_score,
+        write_figure,
+        write_md,
+    )
     msg = "research particle filter removed (T-TAU-RETIRE)"
     raise NotImplementedError(msg)
-

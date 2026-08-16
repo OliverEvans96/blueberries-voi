@@ -15,9 +15,9 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 
 from blueberries_voi.filter import P1Obs
-from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments

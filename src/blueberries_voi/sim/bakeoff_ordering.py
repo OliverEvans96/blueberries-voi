@@ -63,8 +63,8 @@ def _empty_shelf_belief() -> object:
 
     return ShelfBelief(
         lot_counts=[],
-        age_marginals=[],
-        tau_grid=[0.0, 2.0, 4.0, 6.0],
+        f_marginals=[],
+        f_grid=[0.0, 2.0, 4.0, 6.0],
     )
 
 

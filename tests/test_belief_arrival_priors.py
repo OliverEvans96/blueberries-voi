@@ -24,8 +24,8 @@ from typing import (
 )  # T-121 F3, shelf_belief_from_filter_REMOVED
 
 import numpy as np
-
 from blueberries_voi.filter.age_likelihood import mean_field_update
+
 from blueberries_voi.filter.arrival_priors import (
     arrival_age_prior_f2,
     delivery_birth_age_prior,
