@@ -161,7 +161,7 @@ def _assert_live_lots_populated(live_lots: Any, *, label: str) -> None:
     )
     first = live_lots[0]
     assert isinstance(first, Mapping), f"{label}.live_lots[0] must be a lot mapping"
-    for key in ("lot_id", "n", "tau"):
+    for key in ("lot_id", "n", "mean_f"):
         assert key in first, f"{label}.live_lots[0] missing {key!r}"
 
 
