@@ -25,6 +25,10 @@ path = "src/bin/bench_c2_algorithms.rs"
 name = "bench_c2_accuracy"
 path = "src/bin/bench_c2_accuracy.rs"
 
+[[bin]]
+name = "bench_c2_a_totals_study"
+path = "src/bin/bench_c2_a_totals_study.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
