@@ -1,0 +1,180 @@
+/**
+ * T-127 tuning-dock: section controls data-section rename + content.
+ */
+// @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
+import {
+  controlsFromVm,
+  DEFAULT_CONTROLLER_CONTROLS,
+  mountSectionControlsDom,
+  type ControlsState,
+} from "./controls";
+import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
+import { STUDIO_SECTIONS } from "./sections";
+import type { SectionId } from "./sections";
+import type { ViewModel } from "./types";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const CONTROLS_TS = join(HERE, "controls.ts");
+
+/** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
+const TUNING_DOCK_SECTIONS: SectionId[] = [
+  "demand",
+  "observation",
+  "arrival",
+  "physics",
+  "logistics",
+  "autopilot",
+];
+
+function baseState(): ControlsState {
+  return {
+    orderQty: 16,
+    economics: { ...DEFAULT_ECONOMICS },
+    config: { ...DEFAULT_SIM_CONFIG },
+    configDirty: false,
+    episodeDay: 3,
+    pendingOrder: 0,
+    schedule: {
+      delivery_weekdays: [0, 2, 4],
+      order_weekdays: [6, 1, 3],
+      lead_time_days: 1,
+      epoch: "2024-01-01",
+    },
+    demand_summary: {
+      scale_mu: 30,
+      dow_means: [29, 30, 28, 26, 28, 34, 35],
+    },
+  };
+}
+
+function minimalVm(): ViewModel {
+  const state = baseState();
+  return {
+    episode_day: state.episodeDay,
+    window_days: 90,
+    history: [],
+    economics: state.economics,
+    config: state.config,
+    config_dirty: false,
+    pnl_series: [],
+    pnl_totals: {
+      revenue: 0,
+      cost: 0,
+      profit: 0,
+      today_revenue: 0,
+      today_cost: 0,
+      today_profit: 0,
+    },
+    belief: { f_edges: [], count_edges: [], density: [] },
+    live_lots: [],
+    belief_history: [],
+    on_hand: 0,
+    effective_inv: 0,
+    pipeline: [],
+    case_size: 8,
+    pending_order: 0,
+    demand_summary: state.demand_summary,
+    schedule: state.schedule,
+  };
+}
+
+describe("T-127 controls data-section rename", () => {
+  it("uses new section ids and removes legacy play/belief/controller blocks", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/data-section=["']play["']/);
+    expect(src).not.toMatch(/data-section=["']belief["']/);
+    expect(src).not.toMatch(/data-section=["']controller["']/);
+    expect(src).toMatch(/data-section=["']observation["']/);
+    expect(src).toMatch(/data-section=["']autopilot["']/);
+  });
+
+  it("STUDIO_SECTIONS controlSection ids match mounted controls-block data-section values", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    for (const section of STUDIO_SECTIONS) {
+      if (section.controlSection === "economics") continue;
+      expect(
+        src,
+        `missing controls-block for ${section.id}`,
+      ).toMatch(
+        new RegExp(`data-section=["']${section.controlSection}["']`),
+      );
+    }
+  });
+
+  it("showSection reveals exactly the matching tuning-dock controls block", () => {
+    const host = document.createElement("div");
+    const api = mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+      undefined,
+      DEFAULT_CONTROLLER_CONTROLS,
+    );
+
+    for (const id of TUNING_DOCK_SECTIONS) {
+      api.showSection(id);
+      const blocks = host.querySelectorAll<HTMLElement>(".controls-block");
+      for (const block of blocks) {
+        const visible = block.dataset.section === id;
+        expect(block.hidden, `${id} vs ${block.dataset.section}`).toBe(!visible);
+      }
+      expect(
+        host.querySelector(`.controls-block[data-section="${id}"]:not([hidden])`),
+      ).not.toBeNull();
+    }
+  });
+});
+
+describe("T-127 tuning-dock content", () => {
+  it("moves sigma picking slider to demand and adds lead_time to logistics", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/id: "sigma"[\s\S]*group: "demand"/);
+    expect(src).not.toMatch(/id: "sigma"[\s\S]*group: "physics"/);
+    expect(src).toMatch(/id: "lead_time"[\s\S]*group: "logistics"/);
+    expect(src).toMatch(/id="\$\{spec\.id\}"/);
+  });
+
+  it("physics block notes no separate gamma shape knob", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/No separate gamma shape knob post f-native migration/i);
+  });
+
+  it("autopilot block uses alpha-rho drag pad instead of separate sliders", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/id=["']alpha-rho-pad["']/);
+    expect(src).not.toMatch(/id=["']alpha["'][\s\S]*type="range"/);
+    expect(src).not.toMatch(/id=["']rho["'][\s\S]*type="range"/);
+  });
+
+  it("controlsFromVm passes demand_summary for projected-demand preview", () => {
+    const vm = minimalVm();
+    const state = controlsFromVm(vm, 16, vm.schedule);
+    expect(state.demand_summary).toEqual(vm.demand_summary);
+  });
+
+  it("renders projected demand preview and schedule weekdays in DOM", () => {
+    const host = document.createElement("div");
+    mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+    );
+    const preview = host.querySelector("#demand-preview-list");
+    expect(preview?.textContent).toMatch(/μ≈/);
+    const sched = host.querySelector("#schedule-weekdays-readonly");
+    expect(sched?.textContent).toMatch(/Delivery Mon, Wed, Fri/);
+    expect(sched?.textContent).toMatch(/Order Sun, Tue, Thu/);
+  });
+});

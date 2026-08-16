@@ -85,7 +85,7 @@ describe("DecisionRail (T-124 AC-ia)", () => {
     const chips = document.querySelectorAll("[data-obs]");
     expect(chips.length).toBe(LADDER.length);
     expect(
-      document.querySelector('.controls-block[data-section="belief"] [data-obs]'),
+      document.querySelector('.controls-block[data-section="observation"] [data-obs]'),
     ).toBeNull();
 
     const f2 = document.querySelector('[data-obs="F2"]') as HTMLButtonElement;
