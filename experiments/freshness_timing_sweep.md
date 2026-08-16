@@ -16,11 +16,11 @@
 
 | path | mean ms | p95 ms | vs 500 ms |
 |------|--------:|-------:|:---------:|
-| step | 0.43 | 0.63 | PASS |
-| act(damped_sw) | 0.46 | 0.77 | PASS |
-| act(rollout) | 0.42 | 0.59 | PASS |
+| step | 0.43 | 0.59 | PASS |
+| act(damped_sw) | 0.40 | 0.54 | PASS |
+| act(rollout) | 0.37 | 0.46 | PASS |
 
-Measured WASM/native p95 ratio (step @ N=200,K=4): **1.96×**  
+Measured WASM/native p95 ratio (step @ N=200,K=4): **1.85×**  
 Planning estimate uses **1.5×** when WASM not re-measured per cell.
 
 ## Current model — `step(order)` vs N × K
@@ -222,7 +222,7 @@ Planning estimate uses **1.5×** when WASM not re-measured per cell.
 - **Current E2E:** `step` N=400 K=32 H=7 paths=2 radius=1 → **0.704 ms** (WASM @1.5× → 1.057 ms)
 - **C proxy combined:** C3 N=400 L=8 K=64 units=0 → **8.842 ms** (WASM @1.5× → 13.264 ms)
 
-All measured native and extrapolated WASM @1.5× cells in this sweep are **PASS** vs 500 ms.
+All cells in this sweep are **PASS** vs 500 ms (worst native combined proxy **~8.8 ms** at C3 N=400 L=8 K=64; worst WASM @1.5× extrapolation **~13 ms**).
 
 ## Reproduce
 
