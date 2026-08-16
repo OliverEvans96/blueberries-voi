@@ -15,6 +15,7 @@ pub mod schedule;
 pub mod session;
 pub mod shipments;
 pub mod spawn_rng;
+pub mod tradeoff;
 pub mod voi;
 pub mod wor;
 
@@ -36,6 +37,7 @@ pub use physics::{
     weibull_survival,
 };
 pub use rollout::{candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief};
+pub use tradeoff::{full_tradeoff_q_candidates, tradeoff_forecast};
 pub use session::{handle_rpc, DayDelta, EngineSession};
 pub use shipments::ShipmentTrace;
 pub use voi::{run_voi_crn_cell, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};

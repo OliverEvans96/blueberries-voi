@@ -14,6 +14,7 @@ use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::rollout_order;
+use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 use rand::SeedableRng;
@@ -539,6 +540,54 @@ impl EngineSession {
         Ok(self.snapshot_value())
     }
 
+    pub fn tradeoff_forecast_value(
+        &self,
+        n_paths: Option<u32>,
+        protection_days: Option<u32>,
+    ) -> serde_json::Value {
+        self.require_init();
+        let n_paths = n_paths.unwrap_or(self.n_paths).max(1);
+        tradeoff_forecast(
+            &self.bank,
+            self.l_dim,
+            &self.params,
+            &self.schedule,
+            self.day,
+            self.seed,
+            n_paths,
+            protection_days,
+        )
+    }
+
+    pub fn events_value(&self, since_day: u32) -> serde_json::Value {
+        self.require_init();
+        let mask = mask_for(&self.obs_scenario).expect("validated at init");
+        if since_day > self.day {
+            return serde_json::json!({ "days": [] });
+        }
+        let start = since_day as usize;
+        let end = self.day as usize;
+        let days: Vec<serde_json::Value> = self.richest_log[start..end.min(self.richest_log.len())]
+            .iter()
+            .enumerate()
+            .map(|(i, log)| {
+                let obs = mask.apply(log);
+                serde_json::json!({
+                    "day": start as u32 + i as u32,
+                    "arrivals": obs.arrivals,
+                    "sales_total": obs.sales_tot,
+                    "waste_total": obs.waste_tot,
+                    "sales_by": obs.sales_by,
+                    "waste_by": obs.waste_by,
+                    "lot_ids": obs.lot_ids_live,
+                    "pack_date_days": obs.pack_date_days,
+                    "age_at_receipt": obs.age_at_receipt,
+                })
+            })
+            .collect();
+        serde_json::json!({ "days": days })
+    }
+
     pub fn bank_weights(&self) -> Vec<f64> {
         self.bank.weights.clone()
     }
@@ -863,6 +912,31 @@ pub fn handle_rpc(request_json: &str) -> String {
                         );
                     }
                 }
+            }
+            "tradeoff_forecast" => {
+                let n_paths = req
+                    .params
+                    .get("n_paths")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                let protection_days = req
+                    .params
+                    .get("protection_days")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
+                sess.tradeoff_forecast_value(n_paths, protection_days)
+            }
+            "events" => {
+                let since_day = match req.params.get("since_day").and_then(|v| v.as_u64()) {
+                    Some(n) => n as u32,
+                    None => {
+                        return format!(
+                            "{{\"id\":{},\"ok\":false,\"error\":{{\"type\":\"ValidationError\",\"message\":\"since_day required\"}}}}",
+                            req.id
+                        );
+                    }
+                };
+                sess.events_value(since_day)
             }
             other => {
                 return format!(
