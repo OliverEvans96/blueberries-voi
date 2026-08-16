@@ -255,13 +255,15 @@ mod tests {
                 src.contains("pub fn unit_day_step"),
                 "RED: unit_day_step not implemented"
             );
+            const FORBIDDEN_WEIBULL_SPOIL: &str = concat!("death_prob", "_survival_ratio");
             assert!(
-                !src.contains("death_prob_survival_ratio"),
+                !src.contains(FORBIDDEN_WEIBULL_SPOIL),
                 "RED: production day_step must not use Weibull spoil"
             );
+            const FORBIDDEN_TAU_BUMP: &str = concat!("q10", "_age_increment");
             assert!(
-                !src.contains("q10_age_increment"),
-                "RED: production day_step must not bump tau via q10_age_increment"
+                !src.contains(FORBIDDEN_TAU_BUMP),
+                "RED: production day_step must not bump tau via q10 age increment"
             );
         }
 
