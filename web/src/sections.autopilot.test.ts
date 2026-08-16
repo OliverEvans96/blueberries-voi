@@ -83,10 +83,11 @@ describe("Autopilot section registration (T-127 shell)", () => {
   });
 });
 
-describe("Autopilot controls (T-099 legacy controller block)", () => {
-  it("controls.ts mounts a controller block with policy / alpha / rho / budgets / interval", () => {
+describe("Autopilot controls (T-127 autopilot block)", () => {
+  it("controls.ts mounts an autopilot block with policy chips, alpha-rho pad, budgets / interval", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
-    expect(src).toMatch(/data-section=["']controller["']/);
+    expect(src).toMatch(/data-section=["']autopilot["']/);
+    expect(src).not.toMatch(/data-section=["']controller["']/);
 
     for (const policy of ["damped_sw", "rollout", "constant"] as const) {
       expect(
@@ -95,9 +96,9 @@ describe("Autopilot controls (T-099 legacy controller block)", () => {
       ).toMatch(new RegExp(`data-policy=["']${policy}["']`));
     }
 
+    expect(src).toMatch(/id=["']alpha-rho-pad["']/);
+
     for (const id of [
-      "alpha",
-      "rho",
       "H",
       "n_rollout_paths",
       "candidate_case_radius",

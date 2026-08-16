@@ -3,6 +3,16 @@ import type { DemandSummary, ScheduleWire } from "../engine/types";
 
 const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
+export const WEEKDAY_LABELS_MONDAY0 = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun",
+] as const;
+
 const ORDER_WD_LABEL: Record<number, string> = {
   0: "Mon",
   1: "Tue",
@@ -12,6 +22,142 @@ const ORDER_WD_LABEL: Record<number, string> = {
   5: "Sat",
   6: "Sun",
 };
+
+export function formatWeekdayList(weekdays: number[]): string {
+  return weekdays
+    .map((w) => ORDER_WD_LABEL[w] ?? `wd${w}`)
+    .join(", ");
+}
+
+export type ProjectedDemandRow = {
+  day: number;
+  weekday: string;
+  mean: number;
+};
+
+/** Next N episode days of expected demand from DOW profile (monday0 weekdays). */
+export function projectedDemandDays(
+  episodeDay: number,
+  summary: DemandSummary,
+  days = 5,
+): ProjectedDemandRow[] {
+  const series = dowSeriesFromDemandSummary(summary);
+  const rows: ProjectedDemandRow[] = [];
+  for (let offset = 0; offset < days; offset += 1) {
+    const day = episodeDay + offset;
+    const wd = day % 7;
+    rows.push({
+      day,
+      weekday: WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`,
+      mean: series[wd] ?? summary.scale_mu,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Picking weights on freshness bins — mirrors `physics::picking_weights_f`
+ * (`w_i ∝ max(f_i, 0)^σ`, normalized).
+ */
+export function pickingWeightsF(freshness: number[], sigma: number): number[] {
+  const n = freshness.length;
+  if (n === 0) return [];
+  if (sigma <= 0) {
+    return Array.from({ length: n }, () => 1 / n);
+  }
+  const raw = freshness.map((fi) => Math.max(fi, 0) ** sigma);
+  const total = raw.reduce((sum, w) => sum + w, 0);
+  if (total <= 0) {
+    return Array.from({ length: n }, () => 1 / n);
+  }
+  return raw.map((w) => w / total);
+}
+
+/** Unnormalized w(f) = f^σ on [0, 1] for illustrative σ curve. */
+export function pickingWeightCurve(
+  sigma: number,
+  steps = 40,
+): { f: number; w: number }[] {
+  const pts: { f: number; w: number }[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const f = i / steps;
+    pts.push({ f, w: f ** Math.max(0, sigma) });
+  }
+  const total = pts.reduce((sum, p) => sum + p.w, 0);
+  return pts.map((p) => ({
+    f: p.f,
+    w: total > 0 ? p.w / total : 0,
+  }));
+}
+
+/** Small inline chart: how σ shapes lot picking weights across freshness. */
+export function renderPickingVariability(
+  container: HTMLElement,
+  sigma: number,
+  height = 72,
+): void {
+  const curve = pickingWeightCurve(sigma);
+  const width = container.clientWidth || 200;
+  const margin = { top: 8, right: 8, bottom: 20, left: 28 };
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  container.replaceChildren();
+
+  const svg = d3
+    .select(container)
+    .append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("width", "100%")
+    .attr("height", height)
+    .attr("aria-label", "Picking weight curve w proportional to freshness sigma");
+
+  const g = svg
+    .append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleLinear().domain([0, 1]).range([0, innerW]);
+  const y = d3
+    .scaleLinear()
+    .domain([0, d3.max(curve, (d) => d.w) ?? 1])
+    .nice()
+    .range([innerH, 0]);
+
+  const area = d3
+    .area<{ f: number; w: number }>()
+    .x((d) => x(d.f))
+    .y0(innerH)
+    .y1((d) => y(d.w))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .attr("class", "picking-var-area")
+    .attr("d", area(curve) ?? "");
+
+  g.append("path")
+    .attr("class", "picking-var-line")
+    .attr("fill", "none")
+    .attr(
+      "d",
+      d3
+        .line<{ f: number; w: number }>()
+        .x((d) => x(d.f))
+        .y((d) => y(d.w))
+        .curve(d3.curveMonotoneX)(curve) ?? "",
+    );
+
+  g.append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(d3.axisBottom(x).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", 0)
+    .attr("y", -2)
+    .text(`w ∝ f^σ (σ=${sigma.toFixed(2)})`);
+}
 
 export type ProtectionCoverageRow = {
   order_weekday: number;
