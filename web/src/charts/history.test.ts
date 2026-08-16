@@ -34,7 +34,7 @@ afterEach(() => {
 describe("history lot circles (T-115)", () => {
   it("draws zero .lot circles when history days have empty lots arrays", () => {
     const el = host();
-    renderHistory(el, [sampleDay(0, []), sampleDay(1, [])], {
+    renderHistory(el, [sampleDay(0, []), sampleDay(1, [])], undefined, [], {
       width: 720,
       height: 220,
     });
@@ -49,6 +49,8 @@ describe("history lot circles (T-115)", () => {
         sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 0.857 }]),
         sampleDay(1, [{ lot_id: 2, n: 4, mean_f: 0.643 }]),
       ],
+      undefined,
+      [],
       { width: 720, height: 220 },
     );
     const circles = el.querySelectorAll("circle.lot");

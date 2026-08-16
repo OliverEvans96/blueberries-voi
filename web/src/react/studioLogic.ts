@@ -453,7 +453,13 @@ export function initStudio(app: HTMLElement): () => void {
     const yMax = marginalYMax(vm.history);
     renderMarginal(els.sales, vm.history, "sales", 72, yMax);
     renderMarginal(els.stockout, vm.history, "stockout", 72, yMax);
-    renderHistory(els.history, historyForCharts(), { height: 220 });
+    renderHistory(
+      els.history, 
+      historyForCharts(), 
+      vm.belief,
+      truthLots(showTruth, vm.live_lots),
+      { height: 220 }
+    );
     const spoilSlot = resolveStoreSpoilageSlot({
       scenario: vm.config.obs_scenario,
       showTruth,

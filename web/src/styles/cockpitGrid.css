@@ -6,11 +6,28 @@
   gap: 1rem;
   overflow: auto;
   min-height: 0;
+  height: calc(100vh - 280px); /* Reserve space for header, adjust based on viewport */
 }
 
 .cockpit-row {
   display: grid;
   gap: 1rem;
+  min-height: 0;
+}
+
+.cockpit-row--charts {
+  flex: 2; /* Take more space for primary charts */
+  min-height: 280px;
+}
+
+.cockpit-row--operations {
+  flex: 2; /* Balanced with charts */
+  min-height: 240px;
+}
+
+.cockpit-row--tuning {
+  flex: 1; /* Allow tuning dock to be smaller but still accessible */
+  min-height: 200px;
 }
 
 .cockpit-row--charts {
@@ -18,7 +35,7 @@
 }
 
 .cockpit-row--operations {
-  grid-template-columns: 1fr 1fr 1.2fr;
+  grid-template-columns: minmax(300px, 1fr) minmax(250px, 1fr) minmax(280px, 1.2fr);
 }
 
 .cockpit-row--tuning {
@@ -28,6 +45,29 @@
 .cockpit-pane {
   min-width: 0;
   overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+.cockpit-pane--primary,
+.cockpit-pane--secondary {
+  min-height: 280px;
+}
+
+.cockpit-pane--economics,
+.cockpit-pane--events {
+  min-height: 240px;
+}
+
+.cockpit-pane--run {
+  min-height: 240px;
+  max-width: none; /* Prevent run rail from being crushed */
+}
+
+.tuning-dock {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .tuning-dock-tabs {
@@ -35,6 +75,15 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: flex-end;
+  flex-shrink: 0; /* Prevent tabs from shrinking */
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--paper-edge);
+}
+
+.tuning-dock-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 1rem;
 }
 
 .tuning-cluster {
