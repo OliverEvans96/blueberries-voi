@@ -6,7 +6,7 @@
   gap: 1rem;
   overflow: auto;
   min-height: 0;
-  height: calc(100vh - 280px); /* Reserve space for header, adjust based on viewport */
+  height: calc(100vh - 320px); /* Reserve more space for header and footer on desktop */
 }
 
 .cockpit-row {
@@ -44,7 +44,7 @@
 
 .cockpit-pane {
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }

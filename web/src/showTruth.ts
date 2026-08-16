@@ -5,9 +5,10 @@ export const SHOW_TRUTH_STORAGE_KEY = "blueberries-voi-studio-show-truth";
 export function loadShowTruth(): boolean {
   try {
     const raw = localStorage.getItem(SHOW_TRUTH_STORAGE_KEY);
-    return raw === "true";
+    // Default to true for cockpit grid to show truth overlay by default
+    return raw !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 

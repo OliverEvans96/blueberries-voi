@@ -94,7 +94,6 @@ export function renderHistory(
   
   // Sub-day resolution: interpolate between days for smoother transitions
   const daySpan = Math.max(1, maxDay - minDay);
-  const subDaySteps = Math.max(daySpan * 2, 20); // 2x interpolation minimum
   const x = d3.scaleLinear()
     .domain([minDay - 0.5, maxDay + 0.5])
     .range([0, innerW]);
@@ -162,16 +161,14 @@ export function renderHistory(
     .domain([0, maxN])
     .range([3, Math.min(14, dayWidth * 0.35)]);
 
-  const color = d3
-    .scaleSequential(d3.interpolateRgbBasis(["#7a9e7e", "#2f6b4f", "#1a3d32"]))
-    .domain([0, 1]);
+  // Color scale removed - using fixed blue color for truth overlay dots
 
   const points: LotPoint[] = history.flatMap((d) =>
     d.lots.map((lot) => ({ day: d.day, ...lot })),
   );
 
   // Group lots by lot_id for connection lines
-  const lotGroups = d3.group(points, (d) => d.lot_id);
+  const lotGroups = d3.group(points, (d) => String(d.lot_id));
   
   // Render lot connection lines (thin lines connecting same lot across days)
   if (truthLots.length > 0) {
@@ -192,10 +189,10 @@ export function renderHistory(
           .attr("cx", (d) => x(d.day))
           .attr("cy", (d) => y(d.mean_f))
           .attr("r", 0)
-          .attr("fill", (d) => color(d.mean_f))
-          .attr("fill-opacity", 0.88)
-          .attr("stroke", "#0f241c")
-          .attr("stroke-opacity", 0.18)
+          .attr("fill", "#1f5f86")
+          .attr("fill-opacity", 0.9)
+          .attr("stroke", "#0f3f66")
+          .attr("stroke-opacity", 0.8)
           .call((s) =>
             s
               .append("title")
@@ -212,7 +209,7 @@ export function renderHistory(
           ),
       (update) =>
         update
-          .attr("fill", (d) => color(d.mean_f))
+          .attr("fill", "#1f5f86")
           .attr("data-day", (d) => d.day)
           .transition()
           .duration(280)
@@ -227,7 +224,7 @@ export function renderHistory(
 function renderBeliefHeatmapBackground(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   belief: BeliefGrid,
-  xScale: d3.ScaleLinear<number, number>,
+  _xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>,
   innerW: number,
   innerH: number,
@@ -238,38 +235,58 @@ function renderBeliefHeatmapBackground(
   
   if (nF === 0 || nCount === 0 || fEdges.length < 2) return;
 
-  const maxD = d3.max(belief.density, (row) => d3.max(row)) ?? 1;
-  const color = d3
-    .scaleSequential(d3.interpolateRgbBasis(["transparent", "#9bbf9a55", "#2f5d4a55"]))
-    .domain([0, maxD]);
-
+  // Create a smooth gradient-based histogram background instead of discrete rectangles
   const heatmapG = g.append("g").attr("class", "belief-heatmap-bg");
   
+  // Create vertical gradient based on freshness marginal distribution
+  const gradientId = `belief-gradient-${Math.random().toString(36).substr(2, 9)}`;
+  const gradient = heatmapG
+    .append("defs")
+    .append("linearGradient")
+    .attr("id", gradientId)
+    .attr("gradientUnits", "userSpaceOnUse")
+    .attr("x1", 0)
+    .attr("x2", 0)
+    .attr("y1", 0)
+    .attr("y2", innerH);
+
+  // Calculate marginal density across freshness for smoother visualization
+  const fMarginal = new Array(nF).fill(0);
   for (let fi = 0; fi < nF; fi++) {
     for (let ci = 0; ci < nCount; ci++) {
-      const density = belief.density[fi]![ci]!;
-      if (density < 0.01) continue; // Skip very low density cells
-      
-      const f0 = fEdges[fi]!;
-      const f1 = fEdges[fi + 1]!;
-      const c0 = belief.count_edges[ci]!;
-      const c1 = belief.count_edges[ci + 1]!;
-      
-      // Map count to freshness (assuming belief shows freshness vs count)
-      const y0 = yScale(f0);
-      const y1 = yScale(f1);
-      
-      heatmapG
-        .append("rect")
-        .attr("x", 0)
-        .attr("y", Math.min(y0, y1))
-        .attr("width", innerW)
-        .attr("height", Math.abs(y1 - y0))
-        .attr("fill", color(density))
-        .attr("opacity", 0.4)
-        .attr("pointer-events", "none");
+      fMarginal[fi] += belief.density[fi]![ci]!;
     }
   }
+  
+  const maxMarginal = Math.max(...fMarginal);
+  
+  // Add gradient stops based on freshness marginal
+  for (let fi = 0; fi < nF; fi++) {
+    const f0 = fEdges[fi]!;
+    const f1 = fEdges[fi + 1] ?? f0;
+    const fMid = (f0 + f1) / 2;
+    const density = fMarginal[fi] / maxMarginal;
+    
+    const offset = ((yScale.domain()[1] - fMid) / (yScale.domain()[1] - yScale.domain()[0])) * 100;
+    const alpha = Math.max(0.1, density * 0.6);
+    
+    gradient
+      .append("stop")
+      .attr("offset", `${Math.max(0, Math.min(100, offset))}%`)
+      .attr("stop-color", "#4a7c59")
+      .attr("stop-opacity", alpha);
+  }
+  
+  // Render smooth background rectangle with gradient
+  heatmapG
+    .append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", innerW)
+    .attr("height", innerH)
+    .attr("fill", `url(#${gradientId})`)
+    .attr("opacity", 0.3)
+    .attr("pointer-events", "none");
 }
 
 /** Render thin lines connecting same lot across days */
