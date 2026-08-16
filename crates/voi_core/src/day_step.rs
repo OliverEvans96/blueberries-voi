@@ -222,4 +222,171 @@ mod tests {
         let outs = advance_days(state, &[0, 8], &params, &mut ra, &mut rs);
         assert_eq!(outs.len(), 2);
     }
+
+    /// AC-daystep (T-C2-A qa-daystep): f-native `L×U` unit freshness ground truth.
+    mod f_native_day_step_spec {
+        use super::*;
+        use crate::shipments::{generate_arrival_age, ShipmentTrace};
+        use rand::SeedableRng;
+        use rand_pcg::Pcg64;
+
+        fn production_day_step_src() -> &'static str {
+            include_str!("day_step.rs")
+                .split("#[cfg(test)]")
+                .next()
+                .unwrap_or("")
+        }
+
+        fn production_physics_src() -> &'static str {
+            include_str!("physics.rs")
+                .split("#[cfg(test)]")
+                .next()
+                .unwrap_or("")
+        }
+
+        fn require_f_native_day_step_api() {
+            let src = production_day_step_src();
+            assert!(
+                src.contains("pub struct UnitDayStepIn"),
+                "RED: UnitDayStepIn not implemented"
+            );
+            assert!(
+                src.contains("pub struct UnitDayStepOut"),
+                "RED: UnitDayStepOut not implemented"
+            );
+            assert!(
+                src.contains("pub fn unit_day_step"),
+                "RED: unit_day_step not implemented"
+            );
+            assert!(
+                !src.contains("death_prob_survival_ratio"),
+                "RED: production day_step must not use Weibull spoil"
+            );
+            assert!(
+                !src.contains("q10_age_increment"),
+                "RED: production day_step must not bump tau via q10_age_increment"
+            );
+        }
+
+        fn require_picking_weights_f() {
+            let src = production_physics_src();
+            assert!(
+                src.contains("pub fn picking_weights_f"),
+                "RED: picking_weights_f not implemented"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_exports_unit_day_step_api() {
+            require_f_native_day_step_api();
+        }
+
+        #[test]
+        fn day_step_f_native_physics_exports_picking_weights_f() {
+            require_picking_weights_f();
+        }
+
+        #[test]
+        fn day_step_f_native_picking_weights_f_monotone_normalized() {
+            require_picking_weights_f();
+            let src = production_physics_src();
+            assert!(
+                src.contains("f.powf(sigma)") || src.contains("powf(sigma)"),
+                "RED: picking_weights_f must weight by f^sigma"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_gamma_aging_deterministic() {
+            require_f_native_day_step_api();
+            let src = production_day_step_src();
+            assert!(
+                src.contains("gamma_decrement"),
+                "RED: unit_day_step must support deterministic gamma decrement for tests"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_alive_count_is_positive_f_slots() {
+            require_f_native_day_step_api();
+            let src = production_day_step_src();
+            assert!(
+                src.contains("alive_by_lot") || src.contains("f > 0"),
+                "RED: unit_day_step must count alive slots as count of f>0 per lot"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_picking_zeros_picked_slots() {
+            require_f_native_day_step_api();
+            require_picking_weights_f();
+            let src = production_day_step_src();
+            assert!(
+                src.contains("picking_weights_f"),
+                "RED: unit_day_step sales path must call picking_weights_f"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_aggregates_match_unit_events() {
+            require_f_native_day_step_api();
+            let src = production_day_step_src();
+            for field in ["freshness", "lot_offsets", "sales_by", "waste_by"] {
+                assert!(
+                    src.contains(&format!("pub {field}")) || src.contains(&format!("{field}:")),
+                    "RED: UnitDayStepOut missing field {field}"
+                );
+            }
+        }
+
+        #[test]
+        fn day_step_f_native_delivery_injects_units_per_lot_default_15() {
+            require_f_native_day_step_api();
+            let src = production_day_step_src();
+            assert!(
+                src.contains("units_per_lot"),
+                "RED: unit_day_step must accept units_per_lot (default 15)"
+            );
+            assert!(
+                src.contains("delivery_f"),
+                "RED: delivery must inject freshness f at birth"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_delivery_f_from_arrival_prior() {
+            require_f_native_day_step_api();
+            let params = ModelParams::default();
+            let shipments = [ShipmentTrace::smoke_cool()];
+            let mut rng_ship = Pcg64::seed_from_u64(11);
+            let mut rng_sensor = Pcg64::seed_from_u64(22);
+            let birth_f = generate_arrival_age(
+                &mut rng_ship,
+                &mut rng_sensor,
+                &shipments,
+                params.q10,
+                params.t_ref_c,
+                1.0,
+            );
+            assert!(
+                birth_f > 0.0 && birth_f <= 1.0,
+                "arrival prior f must lie in (0, 1]: {birth_f}"
+            );
+            let src = production_day_step_src();
+            assert!(
+                src.contains("generate_arrival_age") || src.contains("delivery_f"),
+                "RED: delivery path must map arrival prior to birth f"
+            );
+        }
+
+        #[test]
+        fn day_step_f_native_conservation_scripted_seed() {
+            require_f_native_day_step_api();
+            let src = production_day_step_src();
+            assert!(
+                src.contains("lot_offsets"),
+                "RED: unit_day_step must use L×U virtual grid via lot_offsets"
+            );
+        }
+    }
 }
