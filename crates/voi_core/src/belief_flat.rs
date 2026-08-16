@@ -154,6 +154,32 @@ pub fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
     )
 }
 
+/// Unit-level particle bank (`unit_pf::UnitParticleBank` when that shard lands).
+#[derive(Clone, Debug)]
+pub struct UnitParticleBank {
+    pub weights: Vec<f64>,
+    pub freshness: Vec<Vec<f64>>,
+}
+
+/// Freshness bin centers in `[0, 1]` for wire dimension `K`.
+pub fn f_grid_k(k: usize) -> Vec<f64> {
+    if k == 0 {
+        return Vec::new();
+    }
+    if k == 1 {
+        return vec![0.0];
+    }
+    (0..k)
+        .map(|i| i as f64 / ((k - 1) as f64))
+        .collect()
+}
+
+/// Flatten `UnitParticleBank` onto the f-native `L×K` belief wire (ADR 0130).
+pub fn belief_flat_from_unit_bank(bank: &UnitParticleBank, l: usize, k: usize) -> Value {
+    let _ = (bank, l, k);
+    unimplemented!("belief_flat_from_unit_bank")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,5 +305,148 @@ mod tests {
         assert_eq!(long["lot_counts"].as_array().unwrap().len(), 5);
         let pad = long["lot_counts"][4].as_f64().unwrap();
         assert_eq!(pad, 0.0);
+    }
+
+    // --- T-C2-A AC-belief: f_grid / f_marginals / lot_counts from unit bank ---
+
+    fn unit_bank_fixture() -> UnitParticleBank {
+        // L=2, U=3: lot0 [1,1,0], lot1 [1,0.5,0] → alive counts 2 and 2.
+        UnitParticleBank {
+            weights: vec![1.0],
+            freshness: vec![vec![1.0, 1.0, 0.0, 1.0, 0.5, 0.0]],
+        }
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_exports_f_wire_keys() {
+        let bank = unit_bank_fixture();
+        let v = belief_flat_from_unit_bank(&bank, 2, 3);
+        assert!(v.get("f_grid").is_some(), "production wire must export f_grid");
+        assert!(
+            v.get("f_marginals").is_some(),
+            "production wire must export f_marginals"
+        );
+        assert!(
+            v.get("tau_grid").is_none(),
+            "f-native wire must not export tau_grid"
+        );
+        assert!(
+            v.get("age_marginals").is_none(),
+            "f-native wire must not export age_marginals"
+        );
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_f_grid_in_unit_interval() {
+        let bank = unit_bank_fixture();
+        let k = 4usize;
+        let v = belief_flat_from_unit_bank(&bank, 2, k);
+        let grid: Vec<f64> = v["f_grid"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        assert_eq!(grid.len(), k);
+        assert!((grid[0] - 0.0).abs() < 1e-12);
+        assert!((grid[k - 1] - 1.0).abs() < 1e-12);
+        for &f in &grid {
+            assert!((0.0..=1.0).contains(&f), "f_grid[{f}] out of [0,1]");
+        }
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_lot_counts_are_alive_only() {
+        let bank = unit_bank_fixture();
+        let v = belief_flat_from_unit_bank(&bank, 2, 3);
+        let counts: Vec<f64> = v["lot_counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        assert_eq!(counts.len(), 2);
+        assert!((counts[0] - 2.0).abs() < 1e-9);
+        assert!((counts[1] - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_marginals_row_major_and_normalized() {
+        let bank = unit_bank_fixture();
+        let k = 3usize;
+        let v = belief_flat_from_unit_bank(&bank, 2, k);
+        let margs: Vec<f64> = v["f_marginals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        assert_eq!(margs.len(), 2 * k);
+        for ell in 0..2 {
+            let row: f64 = margs[ell * k..(ell + 1) * k].iter().sum();
+            assert!((row - 1.0).abs() < 1e-9, "lot {ell} marginal must sum to 1");
+        }
+        // lot0: both alive units at f=1 → last bin.
+        assert!((margs[2] - 1.0).abs() < 1e-9);
+        // lot1: f=1 and f=0.5 → bins 2 and 1 on grid [0, 0.5, 1].
+        assert!((margs[3 + 1] - 0.5).abs() < 1e-9);
+        assert!((margs[3 + 2] - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_empty_bank_zero_counts_uniform_marginals() {
+        let bank = UnitParticleBank {
+            weights: vec![],
+            freshness: vec![],
+        };
+        let k = 4usize;
+        let v = belief_flat_from_unit_bank(&bank, 2, k);
+        assert_eq!(v["L"], 2);
+        assert_eq!(v["K"], k);
+        for c in v["lot_counts"].as_array().unwrap() {
+            assert_eq!(c.as_f64().unwrap(), 0.0);
+        }
+        let margs: Vec<f64> = v["f_marginals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        assert_eq!(margs.len(), 2 * k);
+        let u = 1.0 / k as f64;
+        for x in margs {
+            assert!((x - u).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_weighted_particles() {
+        let bank = UnitParticleBank {
+            weights: vec![0.25, 0.75],
+            freshness: vec![
+                vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            ],
+        };
+        let v = belief_flat_from_unit_bank(&bank, 2, 3);
+        let counts: Vec<f64> = v["lot_counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect();
+        assert!((counts[0] - (0.25 * 2.0 + 0.75 * 0.0)).abs() < 1e-9);
+        assert!((counts[1] - (0.25 * 0.0 + 0.75 * 3.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn belief_flat_from_unit_bank_k_matches_session_k_dim() {
+        let bank = unit_bank_fixture();
+        for k in [1usize, 4, 8] {
+            let v = belief_flat_from_unit_bank(&bank, 2, k);
+            assert_eq!(v["K"].as_u64().unwrap() as usize, k);
+            assert_eq!(v["f_grid"].as_array().unwrap().len(), k);
+            assert_eq!(v["f_marginals"].as_array().unwrap().len(), 2 * k);
+        }
     }
 }
