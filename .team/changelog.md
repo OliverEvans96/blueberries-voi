@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-16
+- **The studio now uses a fixed cockpit grid with always-visible belief, economics, events, and run panes, plus tradeoff forecast charts and a masked event log for your observation rung** (T-127).
 
 - **The production freshness filter (C2 Algorithm A) now has a published timing and accuracy study wired to the real engine code — about 5.7 ms per day at a 20-lot store, well under the 500 ms budget, with near-perfect order recommendations on scripted tests** (T-C2-A).
 
