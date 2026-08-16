@@ -17,6 +17,14 @@ path = "src/bin/bench_day_timing.rs"
 name = "bench_freshness_sweep"
 path = "src/bin/bench_freshness_sweep.rs"
 
+[[bin]]
+name = "bench_c2_algorithms"
+path = "src/bin/bench_c2_algorithms.rs"
+
+[[bin]]
+name = "bench_c2_accuracy"
+path = "src/bin/bench_c2_accuracy.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
