@@ -949,14 +949,57 @@ input[type="number"] {
 }
 
 /* Operator controls — order quantity + Advance/Autopilot/Reset — are the
- * primary "you are in control" action zone, so they get a distinct
- * highlighted card instead of blending into the rest of the decision rail. */
-.decision-rail-run {
-  padding: 14px 14px 16px;
-  margin: -14px -14px 0;
-  border-radius: var(--radius) var(--radius) 0 0;
+ * primary "you are in control" action zone. T-127 layout v2 promotes them
+ * out of the tall third operations-row column into a compact, full-width
+ * bar right under the header/chapter-tabs — visible without scrolling —
+ * instead of requiring a scroll past the Primary/Secondary charts row. */
+.operator-bar-host {
+  margin-top: 12px;
+}
+
+.operator-bar {
+  padding: 10px 16px;
   background: linear-gradient(180deg, rgba(184, 134, 11, 0.1), rgba(184, 134, 11, 0.03));
-  border-bottom: 2px solid rgba(184, 134, 11, 0.35);
+  border-color: rgba(184, 134, 11, 0.35);
+}
+
+.operator-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.operator-bar-heading {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.operator-bar-field {
+  flex: 1 1 260px;
+  max-width: 420px;
+  margin: 0;
+}
+
+.operator-bar-buttons {
+  flex: 2 1 440px;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .operator-bar-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .operator-bar-field {
+    max-width: none;
+  }
+
+  .operator-bar-buttons {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .decision-rail-heading {
@@ -974,6 +1017,30 @@ input[type="number"] {
   content: "\25B6";
   font-size: 0.7rem;
   color: var(--focus);
+}
+
+/* Tradeoff curve + joint histogram side-by-side instead of stacked — halves
+ * the vertical footprint of the decision rail, which was a big contributor
+ * to the third operations-row column dwarfing Economics/Events beside it. */
+.tradeoff-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tradeoff-charts > div {
+  flex: 1 1 130px;
+  min-width: 120px;
+}
+
+.tradeoff-charts .chart-caption {
+  margin-left: 0;
+}
+
+.tradeoff-chart-host svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .chart-unavailable {

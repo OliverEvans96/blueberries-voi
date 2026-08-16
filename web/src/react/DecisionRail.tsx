@@ -14,95 +14,25 @@ export type DecisionRailProps = {
   vm: Pick<ViewModel, "episode_day" | "window_days" | "config">;
   showTruth: boolean;
   catchingUp?: boolean;
-  onAdvance: () => void;
-  onReset: () => void;
-  onAutopilotPlay: () => void;
-  onAutopilotPause: () => void;
   onSetObsScenario: (id: ScenarioId) => void;
   onShowTruthChange: (show: boolean) => void;
   orderQty: number;
-  onOrderChange: (qty: number) => void;
   activeSection: SectionId;
-  autopilotRunning?: boolean;
   tradeoffForecasts?: QForecastEntry[];
 };
 
 export function DecisionRail({
-  vm,
   showTruth,
-  onAdvance,
-  onReset,
-  onAutopilotPlay,
-  onAutopilotPause,
   onSetObsScenario,
   onShowTruthChange,
+  vm,
   orderQty,
-  onOrderChange,
-  autopilotRunning = false,
   catchingUp = false,
   tradeoffForecasts = [],
 }: DecisionRailProps) {
-  const atEnd = vm.episode_day >= vm.window_days;
-
   return (
     <aside className="decision-rail sticky">
-      <section className="decision-rail-run">
-        <h2 className="decision-rail-heading">Run</h2>
-        <label className="field">
-          <span className="field-label">
-            Order quantity <em>(case {vm.config.case_size})</em>
-          </span>
-          <div className="order-row">
-            <input
-              type="range"
-              id="order-range"
-              min={0}
-              max={Math.max(160, vm.config.case_size * 20)}
-              step={vm.config.case_size}
-              value={orderQty}
-              onInput={(e) => onOrderChange(Number(e.currentTarget.value))}
-            />
-            <input
-              type="number"
-              id="order-num"
-              min={0}
-              max={320}
-              step={vm.config.case_size}
-              value={orderQty}
-              onChange={(e) => onOrderChange(Number(e.currentTarget.value))}
-            />
-          </div>
-        </label>
-        <div className="btn-row">
-          <button
-            type="button"
-            className="btn-advance"
-            id="btn-advance"
-            disabled={autopilotRunning || atEnd}
-            onClick={onAdvance}
-          >
-            Advance
-          </button>
-          <button
-            type="button"
-            className="btn-autopilot"
-            disabled={autopilotRunning || atEnd}
-            onClick={onAutopilotPlay}
-          >
-            Autopilot Play
-          </button>
-          <button
-            type="button"
-            className="btn-autopilot"
-            disabled={!autopilotRunning}
-            onClick={onAutopilotPause}
-          >
-            Autopilot Pause
-          </button>
-          <button type="button" className="btn-reset" id="btn-reset" onClick={onReset}>
-            Reset
-          </button>
-        </div>
+      <section className="decision-rail-tradeoffs">
         <div className="tradeoff-charts" data-testid="tradeoff-charts">
           <div>
             <div className="chart-caption">Tradeoff curve</div>

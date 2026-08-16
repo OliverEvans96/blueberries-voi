@@ -17,6 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_SRC = join(HERE, "..");
 const CONTROLS_TS = join(WEB_SRC, "controls.ts");
 const DECISION_RAIL_TS = join(WEB_SRC, "react/DecisionRail.tsx");
+const OPERATOR_BAR_TS = join(WEB_SRC, "react/OperatorBar.tsx");
 const MAIN_TS = join(WEB_SRC, "react/studioLogic.ts");
 const AUTOPILOT_TS = join(WEB_SRC, "autopilotLoop.ts");
 const PNL_TOTALS_TS = join(WEB_SRC, "charts/pnlTotals.ts");
@@ -106,8 +107,12 @@ describe("T-112 studio UI episode complete + PnL episode totals", () => {
   });
 
   it("at day 90 Advance is disabled and copy tells the user to Reset", () => {
+    // T-127 layout v2: the Advance button + its disabled={...} guard moved
+    // from DecisionRail into the dedicated OperatorBar component.
     const controls =
-      readFileSync(CONTROLS_TS, "utf8") + readFileSync(DECISION_RAIL_TS, "utf8");
+      readFileSync(CONTROLS_TS, "utf8") +
+      readFileSync(DECISION_RAIL_TS, "utf8") +
+      readFileSync(OPERATOR_BAR_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
     const combined = `${controls}\n${main}`;
     expect(combined).toMatch(/90/);

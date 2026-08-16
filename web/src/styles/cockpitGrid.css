@@ -35,8 +35,8 @@
 }
 
 .cockpit-row--operations {
-  grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr) minmax(340px, 1.3fr);
-  align-items: start;
+  grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr) minmax(320px, 1.1fr);
+  align-items: stretch;
 }
 
 .cockpit-row--tuning {
@@ -99,9 +99,21 @@
   cursor: not-allowed;
 }
 
+/* Today strip packs 4 small charts into a 2x2 grid instead of a tall single
+ * column — this pane was the biggest contributor to the "Tetris" mismatch
+ * against the shorter Economics/Events panes beside it. */
 .run-today-charts {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.75rem;
+}
+
+.run-today-charts .chart-caption {
+  margin: 2px 0 0;
+}
+
+.run-today-charts .chart--compact {
+  min-height: 64px;
 }
 
 @media (max-width: 1100px) {

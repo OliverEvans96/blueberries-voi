@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "../mock/generate";
@@ -60,14 +60,9 @@ function baseProps() {
       },
     },
     showTruth: false,
-    onAdvance: vi.fn(),
-    onReset: vi.fn(),
-    onAutopilotPlay: vi.fn(),
-    onAutopilotPause: vi.fn(),
     onSetObsScenario: vi.fn(),
     onShowTruthChange: vi.fn(),
     orderQty: 16,
-    onOrderChange: vi.fn(),
     activeSection: "physics" as const,
     tradeoffForecasts: FIXTURE_CANDIDATES,
   };
@@ -100,13 +95,24 @@ describe("DecisionRail tradeoff charts (T-127 AC-tradeoff-ui)", () => {
     expect(hist?.querySelector("svg")).not.toBeNull();
   });
 
-  it("slider drag updates marker via lookup only — no adapter refetch prop", () => {
+  it("order-q-marker follows the orderQty prop via lookup only — no adapter refetch prop", () => {
+    // T-127 layout v2: the order-quantity slider itself moved to OperatorBar
+    // (see OperatorBar.test.ts "updates order quantity when the slider
+    // moves"); DecisionRail only needs to re-render its marker/lookup from
+    // the orderQty prop it's given, with no extra refetch side channel.
     const onFetch = vi.fn();
     const props = { ...baseProps(), onTradeoffRefetch: onFetch };
-    render(createElement(DecisionRail, props));
-    const slider = document.querySelector("#order-range") as HTMLInputElement;
-    fireEvent.input(slider, { target: { value: "32" } });
-    expect(props.onOrderChange).toHaveBeenCalled();
+    const { rerender } = render(createElement(DecisionRail, props));
+    const markerBefore = document
+      .querySelector("#tradeoff-curve-host .order-q-marker")
+      ?.getAttribute("data-order-q");
+    expect(markerBefore).toBe("16");
+
+    rerender(createElement(DecisionRail, { ...props, orderQty: 32 }));
+    const markerAfter = document
+      .querySelector("#tradeoff-curve-host .order-q-marker")
+      ?.getAttribute("data-order-q");
+    expect(markerAfter).toBe("32");
     expect(onFetch).not.toHaveBeenCalled();
   });
 

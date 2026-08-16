@@ -77,6 +77,7 @@ import { EconomicsPane } from "./EconomicsPane";
 import { EventsPane } from "./EventsPane";
 import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
+import { OperatorBar } from "./OperatorBar";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
 export function initStudio(app: HTMLElement): () => void {
@@ -213,12 +214,14 @@ export function initStudio(app: HTMLElement): () => void {
   const guidedPathsHost = document.querySelector("#guided-paths-host");
   const chapterTabsHost = document.querySelector("#chapter-tabs-host");
   const decisionRailHost = document.querySelector("#decision-rail-host");
+  const operatorBarHost = document.querySelector("#operator-bar-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
   const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
   const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
+  const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
 
   async function fetchTradeoffForecast(): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
@@ -327,29 +330,39 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderDecisionRailChrome(): void {
-    if (!decisionRailRoot) return;
-    decisionRailRoot.render(
-      createElement(DecisionRail, {
-        vm,
-        showTruth,
-        catchingUp,
-        autopilotRunning: autopilot?.isRunning() ?? false,
-        orderQty,
-        activeSection,
-        onAdvance: () => railHandlers.onAdvance(),
-        onReset: () => railHandlers.onReset(),
-        onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
-        onAutopilotPause: () => railHandlers.onAutopilotPause(),
-        onSetObsScenario: (id) => railHandlers.onSetObsScenario(id),
-        onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
-        onOrderChange: (qty) => {
-          orderQty = snapOrder(qty);
-          sectionControlsApi.update(controlsState());
-          renderDecisionRailChrome();
-        },
-        tradeoffForecasts,
-      }),
-    );
+    if (decisionRailRoot) {
+      decisionRailRoot.render(
+        createElement(DecisionRail, {
+          vm,
+          showTruth,
+          catchingUp,
+          orderQty,
+          activeSection,
+          onSetObsScenario: (id) => railHandlers.onSetObsScenario(id),
+          onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
+          tradeoffForecasts,
+        }),
+      );
+    }
+    if (operatorBarRoot) {
+      operatorBarRoot.render(
+        createElement(OperatorBar, {
+          vm,
+          catchingUp,
+          autopilotRunning: autopilot?.isRunning() ?? false,
+          orderQty,
+          onAdvance: () => railHandlers.onAdvance(),
+          onReset: () => railHandlers.onReset(),
+          onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
+          onAutopilotPause: () => railHandlers.onAutopilotPause(),
+          onOrderChange: (qty) => {
+            orderQty = snapOrder(qty);
+            sectionControlsApi.update(controlsState());
+            renderDecisionRailChrome();
+          },
+        }),
+      );
+    }
   }
 
   const railHandlers = {

@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import { DecisionRail } from "./DecisionRail";
+import { OperatorBar } from "./OperatorBar";
 import { StudioLayout } from "./StudioLayout";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -123,12 +124,21 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
   });
 
   it("renders run controls exactly once (no hidden PlayChrome duplicate)", () => {
+    // T-127 layout v2: Advance/Reset/order-qty controls moved into the
+    // dedicated OperatorBar, mounted into #operator-bar-host above the
+    // cockpit grid; DecisionRail (mounted into #decision-rail-host) keeps
+    // the tradeoff charts/ladder/truth toggle. Mount both, as studioLogic.ts
+    // does, and confirm the static shell doesn't already duplicate any ids.
     const { container } = render(createElement(StudioLayout));
-    const host = container.querySelector("#decision-rail-host");
-    expect(host).not.toBeNull();
-    const root = createRoot(host!);
+    const decisionRailHost = container.querySelector("#decision-rail-host");
+    const operatorBarHost = container.querySelector("#operator-bar-host");
+    expect(decisionRailHost).not.toBeNull();
+    expect(operatorBarHost).not.toBeNull();
+
+    const decisionRailRoot = createRoot(decisionRailHost!);
+    const operatorBarRoot = createRoot(operatorBarHost!);
     flushSync(() => {
-      root.render(
+      decisionRailRoot.render(
         createElement(DecisionRail, {
           vm: {
             episode_day: 1,
@@ -138,12 +148,22 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
           showTruth: false,
           orderQty: 24,
           activeSection: "demand",
+          onSetObsScenario: () => undefined,
+          onShowTruthChange: () => undefined,
+        }),
+      );
+      operatorBarRoot.render(
+        createElement(OperatorBar, {
+          vm: {
+            episode_day: 1,
+            window_days: 90,
+            config: DEFAULT_SIM_CONFIG,
+          },
+          orderQty: 24,
           onAdvance: () => undefined,
           onReset: () => undefined,
           onAutopilotPlay: () => undefined,
           onAutopilotPause: () => undefined,
-          onSetObsScenario: () => undefined,
-          onShowTruthChange: () => undefined,
           onOrderChange: () => undefined,
         }),
       );
@@ -155,6 +175,7 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     }
 
     expect(container.querySelector("#play-chrome")).toBeNull();
-    root.unmount();
+    decisionRailRoot.unmount();
+    operatorBarRoot.unmount();
   });
 });

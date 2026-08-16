@@ -48,6 +48,8 @@ export function StudioLayout() {
         <div id="chapter-tabs-host" className="chapter-tabs-host" />
       </header>
 
+      <div id="operator-bar-host" className="operator-bar-host" />
+
       <div className="cockpit-grid" data-testid="cockpit-grid">
         <section
           className="cockpit-row cockpit-row--charts"

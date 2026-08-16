@@ -14,6 +14,7 @@ const WEB_ROOT = join(HERE, "../..");
 const REPO_ROOT = join(WEB_ROOT, "..");
 const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
 const DECISION_RAIL_TS = join(WEB_ROOT, "src/react/DecisionRail.tsx");
+const OPERATOR_BAR_TS = join(WEB_ROOT, "src/react/OperatorBar.tsx");
 const CONTROLS_TS = join(WEB_ROOT, "src/controls.ts");
 const CALENDAR_TS = join(WEB_ROOT, "src/calendar/nextOrderAdvance.ts");
 
@@ -37,7 +38,10 @@ describe("T-086 primary play advances via step_n to next order day", () => {
   });
 
   it("decision rail primary button exposes advance control (not plain Advance day)", () => {
-    const src = readFileSync(DECISION_RAIL_TS, "utf8");
+    // T-127 layout v2: the Advance button moved from DecisionRail into the
+    // dedicated OperatorBar component (compact, above-the-fold control bar).
+    const src =
+      readFileSync(DECISION_RAIL_TS, "utf8") + readFileSync(OPERATOR_BAR_TS, "utf8");
     expect(src).toMatch(/btn-advance|onAdvance/);
     expect(src).not.toMatch(/>\s*Advance day\s*</);
     expect(src).toMatch(/Advance/);

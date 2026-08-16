@@ -42,9 +42,9 @@ export function renderTradeoffCurve(
   data: QForecastEntry[],
   currentQ: number,
 ): void {
-  const width = 280;
-  const height = 120;
-  const margin = { top: 8, right: 8, bottom: 24, left: 32 };
+  const width = 300;
+  const height = 160;
+  const margin = { top: 16, right: 10, bottom: 32, left: 40 };
   const root = d3.select(svg);
   root.selectAll("*").remove();
   root.attr("viewBox", `0 0 ${width} ${height}`);
@@ -124,4 +124,30 @@ export function renderTradeoffCurve(
     .attr("y2", innerH)
     .attr("stroke", "#333")
     .attr("stroke-width", 2);
+
+  g.append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(d3.axisBottom(x).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  g.append("g")
+    .attr("class", "axis axis-y")
+    .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove());
+
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", innerW / 2)
+    .attr("y", innerH + 26)
+    .attr("text-anchor", "middle")
+    .text("Order quantity (units)");
+
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", -innerH / 2)
+    .attr("y", -30)
+    .attr("transform", "rotate(-90)")
+    .attr("text-anchor", "middle")
+    .text("Expected units");
 }

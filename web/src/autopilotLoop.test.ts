@@ -12,6 +12,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const AUTOPILOT_LOOP_TS = join(HERE, "autopilotLoop.ts");
 const CONTROLS_TS = join(HERE, "controls.ts");
 const DECISION_RAIL_TS = join(HERE, "react/DecisionRail.tsx");
+const OPERATOR_BAR_TS = join(HERE, "react/OperatorBar.tsx");
 const MAIN_TS = join(HERE, "react/studioLogic.ts");
 
 function sampleDelta(orderQty: number, episodeDay = 1): DayDelta {
@@ -376,7 +377,12 @@ describe("createAutopilotLoop pause on error / config_dirty + order sync (T-100)
 
 describe("Decision rail Autopilot Play/Pause (T-100)", () => {
   it("DecisionRail exposes Autopilot Play and Autopilot Pause labels", () => {
-    const src = readFileSync(DECISION_RAIL_TS, "utf8") + readFileSync(MAIN_TS, "utf8");
+    // T-127 layout v2: Advance/Autopilot Play/Pause controls moved from
+    // DecisionRail into the dedicated OperatorBar component/control bar.
+    const src =
+      readFileSync(DECISION_RAIL_TS, "utf8") +
+      readFileSync(OPERATOR_BAR_TS, "utf8") +
+      readFileSync(MAIN_TS, "utf8");
     expect(
       src,
       "expected Autopilot Play accessible name/label in decision rail",
