@@ -1,39 +1,40 @@
-//! Packed MOD-12 day transition (Python `model.day_step`).
+//! f-native `L×U` unit freshness day transition (ADR 0130 production ground truth).
 
 use rand::Rng;
-use rand_distr::{Binomial, Distribution};
-
-use crate::physics::{
-    allocate_sales, death_prob_survival_ratio, picking_weights, q10_age_increment,
-};
 
 pub use crate::params::ModelParams;
+use crate::physics::{
+    apply_gamma_aging, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
+};
+use crate::shipments::{delivery_birth_f, ShipmentTrace};
 
-#[derive(Clone, Debug)]
-pub struct Cohort {
-    pub n: u32,
-    pub tau: f64,
-    pub lot_id: i64,
-}
+pub use crate::day_step_legacy::{advance_days, day_step, Cohort, DayStepIn, DayStepOut};
 
+/// Input for one f-native day on the virtual `L×U` grid.
 #[derive(Clone, Debug)]
-pub struct DayStepIn {
-    pub counts: Vec<u32>,
-    pub taus: Vec<f64>,
-    pub lot_ids: Vec<i64>,
+pub struct UnitDayStepIn {
+    pub freshness: Vec<f64>,
+    pub lot_offsets: Vec<usize>,
     pub demand: Option<u32>,
-    /// Injected waste counts (same length as live cohorts after age). Skips binomial.
-    pub spoil_by: Option<Vec<u32>>,
-    pub delivery_n: u32,
-    pub delivery_tau: f64,
-    pub delivery_lot_id: i64,
+    /// Fixed gamma decrement (deterministic tests); else stochastic draw from params.
+    pub gamma_decrement: Option<f64>,
+    /// Deliver a new lot this day.
+    pub deliver: bool,
+    /// Birth freshness for delivered units (`delivery_birth_f` when `None`).
+    pub delivery_f: Option<f64>,
+    /// Units injected per delivery (default `params.units_per_lot`, typically 15).
+    pub units_per_lot: Option<usize>,
+    /// F2 Dirac birth from measured age at receipt (τ days).
+    pub age_at_receipt: Option<f64>,
+    /// F2a Gaussian pack-date transit age mean (τ days).
+    pub pack_age_mean: Option<f64>,
 }
 
+/// Output state and [`RichDay`]-shaped aggregates from one f-native day.
 #[derive(Clone, Debug)]
-pub struct DayStepOut {
-    pub counts: Vec<u32>,
-    pub taus: Vec<f64>,
-    pub lot_ids: Vec<i64>,
+pub struct UnitDayStepOut {
+    pub freshness: Vec<f64>,
+    pub lot_offsets: Vec<usize>,
     pub demand: u32,
     pub sales_total: u32,
     pub sales_by: Vec<u32>,
@@ -41,91 +42,166 @@ pub struct DayStepOut {
     pub waste_by: Vec<u32>,
 }
 
-pub fn day_step<R: Rng + ?Sized>(
-    input: &DayStepIn,
-    params: &ModelParams,
-    rng_alloc: Option<&mut R>,
-    rng_spoil: Option<&mut R>,
-) -> DayStepOut {
-    let mut live: Vec<Cohort> = input
-        .counts
-        .iter()
-        .zip(input.taus.iter())
-        .zip(input.lot_ids.iter())
-        .filter_map(|((&n, &tau), &lot_id)| {
-            if n > 0 {
-                Some(Cohort { n, tau, lot_id })
-            } else {
-                None
-            }
+/// Alive unit count per lot: `#{f > 0}` in each lot segment.
+pub fn alive_by_lot(freshness: &[f64], lot_offsets: &[usize]) -> Vec<u32> {
+    let l = lot_offsets.len().saturating_sub(1);
+    (0..l)
+        .map(|ell| {
+            freshness[lot_offsets[ell]..lot_offsets[ell + 1]]
+                .iter()
+                .filter(|&&f| f > 0.0)
+                .count() as u32
         })
-        .collect();
+        .collect()
+}
 
-    let dtau = q10_age_increment(1.0, params.t_store_c, params.t_ref_c, params.q10);
-    for c in &mut live {
-        c.tau += dtau;
-    }
-
-    let demand = input.demand.expect("injected demand required in v1 kernel");
-
-    let (sales_by, sales_total) = if live.is_empty() || demand == 0 {
-        (vec![0u32; live.len()], 0u32)
-    } else {
-        let taus: Vec<f64> = live.iter().map(|c| c.tau).collect();
-        let counts: Vec<u32> = live.iter().map(|c| c.n).collect();
-        let weights = picking_weights(
-            &taus,
-            params.sigma,
-            params.beta,
-            params.eta_ref,
-            params.uniform_picking,
-        );
-        let rng = rng_alloc.expect("rng_alloc required when cohorts are live");
-        let sales = allocate_sales(&counts, demand, &weights, rng);
-        let tot: u32 = sales.iter().sum();
-        for (c, s) in live.iter_mut().zip(sales.iter()) {
-            c.n -= *s;
+fn lot_index(lot_offsets: &[usize], unit_idx: usize) -> usize {
+    let l = lot_offsets.len() - 1;
+    for ell in 0..l {
+        if unit_idx >= lot_offsets[ell] && unit_idx < lot_offsets[ell + 1] {
+            return ell;
         }
-        (sales, tot)
-    };
+    }
+    l.saturating_sub(1)
+}
 
-    let mut waste_by = vec![0u32; live.len()];
-    if !live.is_empty() {
-        if let Some(inj) = &input.spoil_by {
-            waste_by = inj.clone();
-            for (c, w) in live.iter_mut().zip(waste_by.iter()) {
-                c.n = c.n.saturating_sub(*w);
-            }
-        } else {
-            let rng = rng_spoil.expect("rng_spoil required when cohorts are live");
-            for (i, c) in live.iter_mut().enumerate() {
-                if c.n == 0 {
-                    continue;
-                }
-                let p_die = death_prob_survival_ratio(c.tau, dtau, params.beta, params.eta_ref);
-                let p = p_die.clamp(0.0, 1.0);
-                let dist = Binomial::new(u64::from(c.n), p).expect("binomial");
-                let waste = dist.sample(rng) as u32;
-                waste_by[i] = waste;
-                c.n -= waste;
-            }
+fn apply_gamma_step<R: Rng + ?Sized>(
+    freshness: &mut [f64],
+    gamma_decrement: Option<f64>,
+    params: &ModelParams,
+    rng_gamma: Option<&mut R>,
+) {
+    if let Some(dec) = gamma_decrement {
+        apply_gamma_decrement(freshness, dec);
+    } else if let Some(rng) = rng_gamma {
+        apply_gamma_aging(freshness, rng, params);
+    } else {
+        apply_gamma_decrement(freshness, gamma_decrement_for_store(params));
+    }
+}
+
+fn count_spoil_by_lot(
+    before: &[f64],
+    after: &[f64],
+    lot_offsets: &[usize],
+) -> (u32, Vec<u32>) {
+    let l = lot_offsets.len() - 1;
+    let mut waste_by = vec![0u32; l];
+    for i in 0..before.len() {
+        if before[i] > 0.0 && after[i] <= 0.0 {
+            waste_by[lot_index(lot_offsets, i)] += 1;
         }
     }
     let waste_total: u32 = waste_by.iter().sum();
-    live.retain(|c| c.n > 0);
+    (waste_total, waste_by)
+}
 
-    if input.delivery_n > 0 {
-        live.push(Cohort {
-            n: input.delivery_n,
-            tau: input.delivery_tau,
-            lot_id: input.delivery_lot_id,
+fn pick_units_f<R: Rng + ?Sized>(
+    freshness: &mut [f64],
+    lot_offsets: &[usize],
+    demand: u32,
+    params: &ModelParams,
+    rng: &mut R,
+) -> (u32, Vec<u32>) {
+    let l = lot_offsets.len() - 1;
+    let mut sales_by = vec![0u32; l];
+    let to_sell = demand.min(
+        freshness
+            .iter()
+            .filter(|&&f| f > 0.0)
+            .count() as u32,
+    );
+    for _ in 0..to_sell {
+        let alive_idx: Vec<usize> = freshness
+            .iter()
+            .enumerate()
+            .filter(|(_, &f)| f > 0.0)
+            .map(|(i, _)| i)
+            .collect();
+        if alive_idx.is_empty() {
+            break;
+        }
+        let alive_f: Vec<f64> = alive_idx.iter().map(|&i| freshness[i]).collect();
+        let weights = picking_weights_f(&alive_f, params.sigma, params.uniform_picking);
+        let total: f64 = weights.iter().sum();
+        let picked_pos = if total <= 0.0 {
+            rng.random_range(0..alive_idx.len())
+        } else {
+            let draw = rng.random::<f64>() * total;
+            let mut acc = 0.0;
+            let mut pos = alive_idx.len() - 1;
+            for (i, &w) in weights.iter().enumerate() {
+                acc += w;
+                if draw < acc {
+                    pos = i;
+                    break;
+                }
+            }
+            pos
+        };
+        let idx = alive_idx[picked_pos];
+        freshness[idx] = 0.0;
+        sales_by[lot_index(lot_offsets, idx)] += 1;
+    }
+    let sales_total: u32 = sales_by.iter().sum();
+    (sales_total, sales_by)
+}
+
+/// Advance one calendar day on the unit-freshness grid.
+pub fn unit_day_step<R: Rng + ?Sized>(
+    input: &UnitDayStepIn,
+    params: &ModelParams,
+    shipments: &[ShipmentTrace],
+    rng_gamma: Option<&mut R>,
+    rng_alloc: Option<&mut R>,
+    rng_ship: Option<&mut R>,
+    rng_sensor: Option<&mut R>,
+) -> UnitDayStepOut {
+    let mut freshness = input.freshness.clone();
+    let mut lot_offsets = input.lot_offsets.clone();
+    let l = lot_offsets.len().saturating_sub(1);
+
+    let before = freshness.clone();
+    apply_gamma_step(
+        &mut freshness,
+        input.gamma_decrement,
+        params,
+        rng_gamma,
+    );
+    let (waste_total, waste_by) = count_spoil_by_lot(&before, &freshness, &lot_offsets);
+
+    let demand = input.demand.unwrap_or(0);
+    let (sales_total, sales_by) = if demand == 0 || l == 0 {
+        (0u32, vec![0u32; l])
+    } else {
+        let rng = rng_alloc.expect("rng_alloc required when demand > 0 and lots are live");
+        pick_units_f(&mut freshness, &lot_offsets, demand, params, rng)
+    };
+
+    if input.deliver {
+        let units_per_lot = input
+            .units_per_lot
+            .unwrap_or(params.units_per_lot)
+            .max(1);
+        let birth_f = input.delivery_f.unwrap_or_else(|| {
+            delivery_birth_f(
+                rng_ship.expect("rng_ship required for delivery birth f"),
+                rng_sensor.expect("rng_sensor required for delivery birth f"),
+                shipments,
+                params,
+                1.0,
+                input.age_at_receipt,
+                input.pack_age_mean,
+            )
         });
+        let start = freshness.len();
+        freshness.extend(vec![birth_f; units_per_lot]);
+        lot_offsets.push(start + units_per_lot);
     }
 
-    DayStepOut {
-        counts: live.iter().map(|c| c.n).collect(),
-        taus: live.iter().map(|c| c.tau).collect(),
-        lot_ids: live.iter().map(|c| c.lot_id).collect(),
+    UnitDayStepOut {
+        freshness,
+        lot_offsets,
         demand,
         sales_total,
         sales_by,
@@ -134,101 +210,16 @@ pub fn day_step<R: Rng + ?Sized>(
     }
 }
 
-pub fn advance_days<R: Rng + ?Sized>(
-    mut state: DayStepIn,
-    orders: &[u32],
-    params: &ModelParams,
-    rng_alloc: &mut R,
-    rng_spoil: &mut R,
-) -> Vec<DayStepOut> {
-    let mut outs = Vec::with_capacity(orders.len());
-    for &order in orders {
-        state.delivery_n = order;
-        let out = day_step(&state, params, Some(rng_alloc), Some(rng_spoil));
-        state.counts = out.counts.clone();
-        state.taus = out.taus.clone();
-        state.lot_ids = out.lot_ids.clone();
-        state.spoil_by = None;
-        outs.push(out);
-    }
-    outs
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::physics::q10_age_increment;
-
-    #[test]
-    fn injected_demand_and_zero_spoil_exact() {
-        let params = ModelParams::default();
-        let dtau = q10_age_increment(1.0, params.t_store_c, params.t_ref_c, params.q10);
-        let input = DayStepIn {
-            counts: vec![10, 5],
-            taus: vec![0.0, 2.0],
-            lot_ids: vec![1, 2],
-            demand: Some(0),
-            spoil_by: Some(vec![0, 0]),
-            delivery_n: 8,
-            delivery_tau: 0.0,
-            delivery_lot_id: 99,
-        };
-        let out = day_step::<rand_pcg::Pcg64>(&input, &params, None, None);
-        assert_eq!(out.demand, 0);
-        assert_eq!(out.sales_total, 0);
-        assert_eq!(out.waste_total, 0);
-        assert_eq!(out.counts, vec![10, 5, 8]);
-        assert!((out.taus[0] - dtau).abs() < 1e-12);
-        assert!((out.taus[1] - (2.0 + dtau)).abs() < 1e-12);
-        assert_eq!(out.lot_ids, vec![1, 2, 99]);
-    }
-
-    /// Mirrors `test_extinct_cohorts_dropped`.
-    #[test]
-    fn extinct_cohorts_dropped() {
-        let params = ModelParams::default();
-        let input = DayStepIn {
-            counts: vec![0, 5],
-            taus: vec![1.0, 2.0],
-            lot_ids: vec![1, 2],
-            demand: Some(0),
-            spoil_by: Some(vec![0]),
-            delivery_n: 0,
-            delivery_tau: 0.0,
-            delivery_lot_id: 0,
-        };
-        let out = day_step::<rand_pcg::Pcg64>(&input, &params, None, None);
-        assert!(out.counts.iter().all(|&n| n > 0));
-        assert!(out.lot_ids.iter().all(|&id| id != 1));
-    }
-
-    #[test]
-    fn advance_days_one_host_loop() {
-        use rand::SeedableRng;
-        use rand_pcg::Pcg64;
-        let params = ModelParams::default();
-        let state = DayStepIn {
-            counts: vec![8],
-            taus: vec![0.0],
-            lot_ids: vec![1],
-            demand: Some(0),
-            spoil_by: Some(vec![0]),
-            delivery_n: 0,
-            delivery_tau: 0.0,
-            delivery_lot_id: 0,
-        };
-        let mut ra = Pcg64::seed_from_u64(1);
-        let mut rs = Pcg64::seed_from_u64(2);
-        let outs = advance_days(state, &[0, 8], &params, &mut ra, &mut rs);
-        assert_eq!(outs.len(), 2);
-    }
+    use crate::shipments::{generate_arrival_age, ShipmentTrace};
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
 
     /// AC-daystep (T-C2-A qa-daystep): f-native `L×U` unit freshness ground truth.
     mod f_native_day_step_spec {
         use super::*;
-        use crate::shipments::{generate_arrival_age, ShipmentTrace};
-        use rand::SeedableRng;
-        use rand_pcg::Pcg64;
 
         fn production_day_step_src() -> &'static str {
             include_str!("day_step.rs")
@@ -389,5 +380,68 @@ mod tests {
                 "RED: unit_day_step must use L×U virtual grid via lot_offsets"
             );
         }
+    }
+
+    #[test]
+    fn unit_day_step_gamma_and_picking_conserves_slots() {
+        let params = ModelParams::default();
+        let upl = 15;
+        let input = UnitDayStepIn {
+            freshness: vec![0.85; upl * 2],
+            lot_offsets: vec![0, upl, upl * 2],
+            demand: Some(5),
+            gamma_decrement: Some(0.05),
+            deliver: false,
+            delivery_f: None,
+            units_per_lot: None,
+            age_at_receipt: None,
+            pack_age_mean: None,
+        };
+        let mut rng = Pcg64::seed_from_u64(42);
+        let out = unit_day_step(
+            &input,
+            &params,
+            &[],
+            None,
+            Some(&mut rng),
+            None,
+            None,
+        );
+        assert_eq!(out.sales_total, 5);
+        assert_eq!(out.sales_by.iter().sum::<u32>(), 5);
+        let picked = input
+            .freshness
+            .iter()
+            .zip(out.freshness.iter())
+            .filter(|(&b, &a)| b > 0.0 && a == 0.0)
+            .count();
+        assert_eq!(picked, 5);
+        assert_eq!(
+            alive_by_lot(&out.freshness, &out.lot_offsets).iter().sum::<u32>(),
+            (upl * 2) as u32 - 5
+        );
+    }
+
+    #[test]
+    fn unit_day_step_delivery_injects_units_per_lot() {
+        let params = ModelParams::default();
+        let upl = 15;
+        let input = UnitDayStepIn {
+            freshness: vec![0.85; upl],
+            lot_offsets: vec![0, upl],
+            demand: Some(0),
+            gamma_decrement: Some(0.0),
+            deliver: true,
+            delivery_f: Some(0.92),
+            units_per_lot: None,
+            age_at_receipt: None,
+            pack_age_mean: None,
+        };
+        let out = unit_day_step::<rand_pcg::Pcg64>(
+            &input, &params, &[], None, None, None, None,
+        );
+        assert_eq!(out.lot_offsets.len(), 3);
+        assert_eq!(out.freshness.len(), upl * 2);
+        assert!(out.freshness[upl..].iter().all(|&f| (f - 0.92).abs() < 1e-12));
     }
 }

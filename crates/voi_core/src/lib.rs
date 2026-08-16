@@ -4,6 +4,7 @@ pub mod belief_flat;
 pub mod demand_profile;
 pub mod params;
 pub mod day_step;
+mod day_step_legacy;
 pub mod episode;
 pub mod exact_ll;
 pub mod obs;
@@ -20,7 +21,10 @@ pub mod wor;
 
 pub use belief_flat::{mean_bank, particle_bank_to_flat};
 pub use demand_profile::{DemandProfile, DemandProfileError};
-pub use day_step::{advance_days, day_step, DayStepIn, DayStepOut};
+pub use day_step::{
+    advance_days, alive_by_lot, day_step, unit_day_step, Cohort, DayStepIn, DayStepOut,
+    UnitDayStepIn, UnitDayStepOut,
+};
 pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use exact_ll::log_p_sales_waste_given_ages;
