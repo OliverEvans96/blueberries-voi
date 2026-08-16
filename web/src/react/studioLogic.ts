@@ -23,7 +23,6 @@ import {
   setMarginalHover,
 } from "../charts/marginals";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
-import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderBeliefAgeCount } from "../charts/beliefAgeCount";
 import { renderBeliefAgeMarginal } from "../charts/beliefAgeMarginal";
 import { renderSurvival } from "../charts/survival";
@@ -51,7 +50,7 @@ import {
   type ControllerControlsState,
 } from "../controls";
 import { createAutopilotLoop } from "../autopilotLoop";
-import { attachLinkedHover } from "../hoverLink";
+import { attachLinkedHover, type HoverPoint } from "../hoverLink";
 import {
   STUDIO_SECTIONS,
   loadSection,
@@ -63,9 +62,11 @@ import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth, truthLots } from "../showTruth";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
+import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
 import { DecisionRail } from "./DecisionRail";
+import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
@@ -134,6 +135,7 @@ export function initStudio(app: HTMLElement): () => void {
   let orderQty = snapOrder(24);
   let catchingUp = false; // catch-up: pause Autopilot, then resume
   let hoveredDay: HoverDay = null;
+  let hoveredPoint: HoverPoint = null;
   let activeSection: SectionId = loadSection();
   let controllerState: ControllerControlsState = {
     ...DEFAULT_CONTROLLER_CONTROLS,
@@ -172,7 +174,6 @@ export function initStudio(app: HTMLElement): () => void {
     spoil: document.querySelector("#chart-spoil") as HTMLElement,
     pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
     pnlSpark: document.querySelector("#chart-pnl-spark") as HTMLElement,
-    pnlTotals: document.querySelector("#chart-pnl-totals") as HTMLElement,
     belief: document.querySelector("#chart-belief") as HTMLElement,
     beliefAgeMarginal: document.querySelector(
       "#chart-belief-age-marginal",
@@ -197,13 +198,22 @@ export function initStudio(app: HTMLElement): () => void {
   };
 
   const insightStripHost = document.querySelector("#insight-strip-host");
+  const guidedPathsHost = document.querySelector("#guided-paths-host");
+  const chapterTabsHost = document.querySelector("#chapter-tabs-host");
   const decisionRailHost = document.querySelector("#decision-rail-host");
-  const dayInspectorHost = document.querySelector("#day-inspector-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
+  const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
+  const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
-  const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
+  let dayInspectorPortal = document.getElementById("day-inspector-portal");
+  if (!dayInspectorPortal) {
+    dayInspectorPortal = document.createElement("div");
+    dayInspectorPortal.id = "day-inspector-portal";
+    document.body.appendChild(dayInspectorPortal);
+  }
+  const dayInspectorRoot = createRoot(dayInspectorPortal);
   let spoilageUnavailableRoot: Root | null = null;
 
   function renderInsightStrip(): void {
@@ -214,9 +224,40 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderDayInspector(): void {
-    if (!dayInspectorRoot) return;
     dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, vm }),
+      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+    );
+  }
+
+  function hintAutoplay(): void {
+    const playBtn = document.querySelector<HTMLButtonElement>("#btn-autopilot-play");
+    if (!playBtn) return;
+    playBtn.classList.add("autopilot-hint");
+    window.setTimeout(() => playBtn.classList.remove("autopilot-hint"), 2400);
+  }
+
+  function onGuidedPathSelect(path: GuidedPath): void {
+    void railHandlers.onSetObsScenario(path.scenario);
+    setSection(path.section);
+    if (path.autoplayHint) {
+      hintAutoplay();
+    }
+  }
+
+  function renderGuidedPaths(): void {
+    if (!guidedPathsRoot) return;
+    guidedPathsRoot.render(
+      createElement(GuidedPaths, { onSelect: onGuidedPathSelect }),
+    );
+  }
+
+  function renderChapterTabs(): void {
+    if (!chapterTabsRoot) return;
+    chapterTabsRoot.render(
+      createElement(ChapterTabs, {
+        activeSection,
+        onSelectSection: setSection,
+      }),
     );
   }
 
@@ -238,6 +279,8 @@ export function initStudio(app: HTMLElement): () => void {
         onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
         onOrderChange: (qty) => {
           orderQty = snapOrder(qty);
+          playChromeApi.update(controlsState());
+          renderDecisionRailChrome();
         },
       }),
     );
@@ -262,9 +305,17 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
-  function onHoverDay(day: HoverDay): void {
-    if (hoveredDay === day) return;
+  function onHoverDay(day: HoverDay, point: HoverPoint): void {
+    const sameDay = hoveredDay === day;
+    const samePoint =
+      (point === null && hoveredPoint === null) ||
+      (point !== null &&
+        hoveredPoint !== null &&
+        point.clientX === hoveredPoint.clientX &&
+        point.clientY === hoveredPoint.clientY);
+    if (sameDay && samePoint) return;
     hoveredDay = day;
+    hoveredPoint = point;
     els.hoverNote.textContent =
       day == null
         ? "Hover a day to highlight it everywhere"
@@ -343,7 +394,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderChrome(): void {
-    renderPnLTotals(els.pnlTotals, vm);
     renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
   }
 
@@ -422,9 +472,7 @@ export function initStudio(app: HTMLElement): () => void {
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
-    document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.section === id);
-    });
+    renderChapterTabs();
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
@@ -449,6 +497,8 @@ export function initStudio(app: HTMLElement): () => void {
     renderChrome();
     renderActiveFocusPlots();
     renderInsightStrip();
+    renderGuidedPaths();
+    renderChapterTabs();
     renderDayInspector();
     renderDecisionRailChrome();
     orderQty = snapOrder(orderQty);
@@ -476,6 +526,7 @@ export function initStudio(app: HTMLElement): () => void {
     {
       onOrderChange(qty) {
         orderQty = qty;
+        renderDecisionRailChrome();
       },
       onAdvance() {
         void (async () => {
@@ -499,7 +550,7 @@ export function initStudio(app: HTMLElement): () => void {
               const completed = deltas[deltas.length - 1]!.episode_day;
               vm = { ...vm, episode_day: completed + 1 };
             }
-            onHoverDay(null);
+            onHoverDay(null, null);
             renderAll();
           } catch (err) {
             reportStudioAdapterError(
@@ -522,7 +573,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm = projector.applySnapshot(snap);
             projector.markConfigApplied();
             orderQty = snapOrder(orderQty);
-            onHoverDay(null);
+            onHoverDay(null, null);
             renderAll();
           } catch (err) {
             reportStudioAdapterError(
@@ -534,10 +585,17 @@ export function initStudio(app: HTMLElement): () => void {
         })();
       },
       onAutopilotPlay() {
-        railHandlers.onAutopilotPlay();
+        if (vm.episode_day >= EPISODE_HORIZON) {
+          autopilot.pause();
+          syncAutopilotChrome();
+          return;
+        }
+        autopilot.play();
+        syncAutopilotChrome();
       },
       onAutopilotPause() {
-        railHandlers.onAutopilotPause();
+        autopilot.pause();
+        syncAutopilotChrome();
       },
       onShowTruthChange(show) {
         showTruth = show;
@@ -576,7 +634,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (vm.episode_day >= EPISODE_HORIZON) {
         autopilot.pause();
       }
-      onHoverDay(null);
+      onHoverDay(null, null);
       renderAll();
     },
     getOpts: controllerToActOpts,
@@ -633,44 +691,8 @@ export function initStudio(app: HTMLElement): () => void {
           syncAutopilotChrome();
         }
       },
-      async onSetObsScenario(id: ScenarioId) {
-        const setObs =
-          adapter.setObsScenario?.bind(adapter) ??
-          adapter.set_obs_scenario?.bind(adapter);
-        if (typeof setObs !== "function") {
-          vm = projector.setConfig({ obs_scenario: id });
-          sectionControlsApi.update(controlsState());
-          renderAll();
-          return;
-        }
-        const resumeAfter = autopilot.isRunning();
-        if (resumeAfter) {
-          autopilot.pause();
-          syncAutopilotChrome();
-        }
-        catchingUp = true;
-        sectionControlsApi.update(controlsState());
-        renderDecisionRailChrome();
-        try {
-          const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-          vm = projector.patchEngineState(snap);
-          projector.setConfig({ obs_scenario: id });
-          renderAll();
-        } catch (err) {
-          reportStudioAdapterError(
-            `set_obs_scenario failed: ${formatAdapterError(err)}`,
-            undefined,
-            err,
-          );
-        } finally {
-          catchingUp = false;
-          sectionControlsApi.update(controlsState());
-          renderDecisionRailChrome();
-          if (resumeAfter) {
-            autopilot.play();
-            syncAutopilotChrome();
-          }
-        }
+      onSetObsScenario: (id) => {
+        void railHandlers.onSetObsScenario(id);
       },
       onControllerChange(partial: Partial<ControllerControlsState>) {
         controllerState = { ...controllerState, ...partial };
@@ -691,51 +713,56 @@ export function initStudio(app: HTMLElement): () => void {
     els.playChrome.querySelector<HTMLButtonElement>("#btn-reset")?.click();
   };
   railHandlers.onAutopilotPlay = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-play")?.click();
+    if (vm.episode_day >= EPISODE_HORIZON) {
+      autopilot.pause();
+      syncAutopilotChrome();
+      return;
+    }
+    autopilot.play();
+    syncAutopilotChrome();
   };
   railHandlers.onAutopilotPause = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-autopilot-pause")?.click();
+    autopilot.pause();
+    syncAutopilotChrome();
   };
-  railHandlers.onSetObsScenario = (id) => {
-    void (async () => {
-      const setObs =
-        adapter.setObsScenario?.bind(adapter) ??
-        adapter.set_obs_scenario?.bind(adapter);
-      if (typeof setObs !== "function") {
-        vm = projector.setConfig({ obs_scenario: id });
-        sectionControlsApi.update(controlsState());
-        renderAll();
-        return;
-      }
-      const resumeAfter = autopilot.isRunning();
-      if (resumeAfter) {
-        autopilot.pause();
-        syncAutopilotChrome();
-      }
-      catchingUp = true;
+  railHandlers.onSetObsScenario = async (id: ScenarioId) => {
+    const setObs =
+      adapter.setObsScenario?.bind(adapter) ??
+      adapter.set_obs_scenario?.bind(adapter);
+    if (typeof setObs !== "function") {
+      vm = projector.setConfig({ obs_scenario: id });
+      sectionControlsApi.update(controlsState());
+      renderAll();
+      return;
+    }
+    const resumeAfter = autopilot.isRunning();
+    if (resumeAfter) {
+      autopilot.pause();
+      syncAutopilotChrome();
+    }
+    catchingUp = true;
+    sectionControlsApi.update(controlsState());
+    renderDecisionRailChrome();
+    try {
+      const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+      vm = projector.patchEngineState(snap);
+      projector.setConfig({ obs_scenario: id });
+      renderAll();
+    } catch (err) {
+      reportStudioAdapterError(
+        `set_obs_scenario failed: ${formatAdapterError(err)}`,
+        undefined,
+        err,
+      );
+    } finally {
+      catchingUp = false;
       sectionControlsApi.update(controlsState());
       renderDecisionRailChrome();
-      try {
-        const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
-        vm = projector.patchEngineState(snap);
-        projector.setConfig({ obs_scenario: id });
-        renderAll();
-      } catch (err) {
-        reportStudioAdapterError(
-          `set_obs_scenario failed: ${formatAdapterError(err)}`,
-          undefined,
-          err,
-        );
-      } finally {
-        catchingUp = false;
-        sectionControlsApi.update(controlsState());
-        renderDecisionRailChrome();
-        if (resumeAfter) {
-          autopilot.play();
-          syncAutopilotChrome();
-        }
+      if (resumeAfter) {
+        autopilot.play();
+        syncAutopilotChrome();
       }
-    })();
+    }
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;
@@ -743,13 +770,6 @@ export function initStudio(app: HTMLElement): () => void {
     app.classList.toggle("studio--show-truth", show);
     renderAll();
   };
-
-  document.querySelectorAll<HTMLButtonElement>(".section-nav-item").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.section as SectionId;
-      setSection(id);
-    });
-  });
 
   window.addEventListener("keydown", (event) => {
     const tag = (event.target as HTMLElement | null)?.tagName;

@@ -47,15 +47,29 @@ export function DecisionRail({
       <section className="decision-rail-run">
         <h2 className="decision-rail-heading">Run</h2>
         <label className="field">
-          <span className="field-label">Order quantity</span>
-          <input
-            type="range"
-            min={0}
-            max={160}
-            step={vm.config.case_size}
-            value={orderQty}
-            onChange={(e) => onOrderChange(Number(e.currentTarget.value))}
-          />
+          <span className="field-label">
+            Order quantity <em>(case {vm.config.case_size})</em>
+          </span>
+          <div className="order-row">
+            <input
+              type="range"
+              id="order-range"
+              min={0}
+              max={Math.max(160, vm.config.case_size * 20)}
+              step={vm.config.case_size}
+              value={orderQty}
+              onInput={(e) => onOrderChange(Number(e.currentTarget.value))}
+            />
+            <input
+              type="number"
+              id="order-num"
+              min={0}
+              max={320}
+              step={vm.config.case_size}
+              value={orderQty}
+              onChange={(e) => onOrderChange(Number(e.currentTarget.value))}
+            />
+          </div>
         </label>
         <div className="btn-row">
           <button

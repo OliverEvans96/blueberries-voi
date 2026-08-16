@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { SectionId } from "../sections";
 import type { ScenarioId } from "../types";
 
@@ -47,23 +48,57 @@ export type GuidedPathsProps = {
 };
 
 export function GuidedPaths({ onSelect }: GuidedPathsProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  const pick = (path: GuidedPath) => {
+    setOpen(false);
+    onSelect(path);
+  };
+
   return (
-    <div className="guided-paths" role="navigation" aria-label="Guided paths">
-      <h3 className="guided-paths-title">Guided paths</h3>
-      <ul className="guided-paths-list">
-        {GUIDED_PATHS.map((path) => (
-          <li key={path.id}>
-            <button
-              type="button"
-              className="guided-path-btn"
-              onClick={() => onSelect(path)}
-            >
-              <span className="guided-path-name">{path.title}</span>
-              <span className="guided-path-desc">{path.description}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div ref={rootRef} className="guided-paths">
+      <button
+        type="button"
+        className="guided-paths-trigger"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+      >
+        Start here
+      </button>
+      {open ? (
+        <div
+          className="guided-paths-popover"
+          role="navigation"
+          aria-label="Guided paths"
+        >
+          <ul className="guided-paths-list">
+            {GUIDED_PATHS.map((path) => (
+              <li key={path.id}>
+                <button
+                  type="button"
+                  className="guided-path-btn"
+                  onClick={() => pick(path)}
+                >
+                  <span className="guided-path-name">{path.title}</span>
+                  <span className="guided-path-desc">{path.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

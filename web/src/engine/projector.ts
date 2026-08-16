@@ -461,6 +461,12 @@ export class ViewModelProjector {
         ...this.appliedConfig,
         ...snapshot.applied_config,
       } as SimConfig;
+      if (snapshot.applied_config.obs_scenario !== undefined) {
+        this.config = {
+          ...this.config,
+          obs_scenario: snapshot.applied_config.obs_scenario,
+        };
+      }
     }
     this.viewModel = this.buildViewModel();
     return this.viewModel;

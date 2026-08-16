@@ -1,0 +1,136 @@
+ticket: T-126
+parent_tip: team/T-124/implement
+optimize: balanced
+description: >
+  Follow-up UX redesign of the studio web app: replace the vertical
+  chapter/section nav column with a horizontal command bar, consolidate
+  Glossary/VOI-reference/Shortcut-help into one reference drawer, convert the
+  Day Inspector into a floating hover tooltip, tab the four stacked store
+  charts into two views, and fix two interaction defects found during visual
+  QA (chart-unavailable hatch blocking clicks; observation-ladder chip
+  active-state not syncing). Web-only (web/src); no Python/wire changes.
+batch_below:
+  max_files: 2
+  max_prod_loc: 50
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/adr/0129-studio-cockpit-redesign.md
+      - .team/specs/T-126.md
+    deps: []
+
+  - id: qa-hatch
+    role: qa
+    files:
+      - web/src/react/ChartUnavailable.test.ts
+    deps: [architect]
+
+  - id: qa-obschip
+    role: qa
+    files:
+      - web/src/engine/projector.obsScenarioSync.test.ts
+    deps: [architect]
+
+  - id: qa-tabs
+    role: qa
+    files:
+      - web/src/react/ChapterTabs.test.ts
+    deps: [architect]
+
+  - id: qa-refdrawer
+    role: qa
+    files:
+      - web/src/react/ReferenceDrawer.test.ts
+    deps: [architect]
+
+  - id: qa-dayinspector
+    role: qa
+    files:
+      - web/src/react/DayInspector.test.ts
+      - web/src/hoverLink.test.ts
+    deps: [architect]
+
+  - id: qa-storetabs
+    role: qa
+    files:
+      - web/src/react/StoreChartTabs.test.ts
+    deps: [architect]
+
+  - id: impl-hatch
+    role: implement
+    shard: hatch
+    files:
+      - web/src/react/ChartUnavailable.tsx
+      - web/src/styles.css
+    deps: [qa-hatch]
+
+  - id: impl-obschip
+    role: implement
+    shard: obschip
+    files:
+      - web/src/engine/projector.ts
+    deps: [qa-obschip]
+
+  - id: impl-tabs
+    role: implement
+    shard: tabs
+    files:
+      - web/src/react/ChapterTabs.tsx
+      - web/src/styles/chapterTabs.css
+    deps: [qa-tabs]
+
+  - id: impl-refdrawer
+    role: implement
+    shard: refdrawer
+    files:
+      - web/src/react/ReferenceDrawer.tsx
+      - web/src/react/GlossaryDrawer.tsx
+      - web/src/react/ShortcutHelp.tsx
+      - web/src/react/VoiReferencePanel.tsx
+      - web/src/styles/referenceDrawer.css
+    deps: [qa-refdrawer]
+
+  - id: impl-dayinspector
+    role: implement
+    shard: dayinspector
+    files:
+      - web/src/react/DayInspector.tsx
+      - web/src/hoverLink.ts
+      - web/src/styles/dayInspector.css
+    deps: [qa-dayinspector]
+
+  - id: impl-storetabs
+    role: implement
+    shard: storetabs
+    files:
+      - web/src/react/StoreChartTabs.tsx
+      - web/src/styles/storeTabs.css
+    deps: [qa-storetabs]
+
+  - id: merge
+    role: merge
+    shard: merge
+    merge_last: true
+    files:
+      - web/src/react/StudioLayout.tsx
+      - web/src/styles.css
+      - web/src/react/studioLogic.ts
+      - web/src/chapters.ts
+    deps:
+      - impl-hatch
+      - impl-obschip
+      - impl-tabs
+      - impl-refdrawer
+      - impl-dayinspector
+      - impl-storetabs
+
+  - id: review
+    role: review
+    files: []
+    deps: [merge]
+
+  - id: verify
+    role: verify
+    files: []
+    deps: [merge]
