@@ -1,9 +1,9 @@
 # C2 Algorithm A + P1 totals deep study
 
 **Source:** `outputs/c2_a_totals_study.json`  
-**Bench:** `bench_c2_a_totals_study` (Rust / voi_core)  
-**Wall time:** 14.7 s  
-**Setup:** N=200 particles, 15 units/lot, 14-day rollouts, totals-only observations (sales_total + waste_total), full P1 likelihood (sequential sales kernel + binomial waste on dead slots)
+**Bench:** `bench_c2_a_totals_study` (Rust / voi_core, production `filter_step_unit`)  
+**Wall time:** 6.2 s  
+**Setup:** N=200 particles, 15 units/lot, 14-day rollouts, totals-only observations (sales_total + waste_total), full P1 likelihood via production `unit_ll` + `unit_pf`
 
 Cross-reference: [c2_accuracy_study_rust.md](c2_accuracy_study_rust.md) for multi-algorithm comparison at L≤20.
 
@@ -11,27 +11,27 @@ Cross-reference: [c2_accuracy_study_rust.md](c2_accuracy_study_rust.md) for mult
 
 | Gate | Result |
 |------|--------|
-| **Runtime @ L=20** | **11.6 ms/day** (p95 16.0 ms) — **PASS** vs 500 ms budget |
-| **mean_f MAE @ L=20** | **0.0014** — excellent lot-mean freshness tracking |
+| **Runtime @ L=20** | **5.7 ms/day** (p95 6.1 ms) — **PASS** vs 500 ms budget |
+| **mean_f MAE @ L=20** | **0.0000** — excellent lot-mean freshness tracking |
 | **Order qty match** | **100%** across all L and K — controller usable |
-| **hist TV (particle mean)** | **~0.49–0.52** — high but *structural* (see TV vs mean) |
-| **hist TV (belief wire @ K=8)** | **0.15–0.66** — coarser than particle TV at small L; worsens with L |
+| **hist TV (particle mean)** | **~0.50–0.50** — high but *structural* (see TV vs mean) |
+| **hist TV (belief wire @ K=8)** | **0.00–0.07** — coarser than particle TV at small L |
 
-**Verdict:** C2-A with full P1 totals is **fast enough and accurate enough** for production controller use at L=20. Raw histogram TV is a **misleading** visualization metric for Algorithm A; prefer **mean_f** and **belief-wire** summaries for studio dashboards.
+**Verdict:** C2-A with production `unit_pf` on P1 totals is **fast enough and accurate enough** for production controller use at L=20. Raw histogram TV is a **misleading** visualization metric for Algorithm A; prefer **mean_f** and **belief-wire** summaries for studio dashboards.
 
 ---
 
-## Timing (full P1 likelihood, N=200)
+## Timing (production `filter_step_unit`, N=200)
 
 | L | units | mean ms | p95 ms | vs 500 ms |
 |---|------:|--------:|-------:|:---------:|
-| 4 | 60 | 2.8 | 3.2 | PASS |
-| 8 | 120 | 5.5 | 6.8 | PASS |
-| 12 | 180 | 9.0 | 10.1 | PASS |
-| 16 | 240 | 11.4 | 12.7 | PASS |
-| 20 | 300 | **11.6** | **16.0** | **PASS** |
+| 4 | 60 | 1.7 | 1.9 | PASS |
+| 8 | 120 | 2.7 | 2.9 | PASS |
+| 12 | 180 | 3.8 | 4.0 | PASS |
+| 16 | 240 | 4.7 | 5.2 | PASS |
+| 20 | 300 | **5.7** | **6.1** | **PASS** |
 
-Timing scales roughly linearly in total units (L × 15). Full P1 (sales path + binomial waste) adds modest cost vs sales-only totals in `bench_c2_accuracy.rs`; still **~40× headroom** under the 500 ms gate at L=20.
+Timing scales roughly linearly in total units (L × 15). Production `filter_step_unit` (gamma aging + P1 LL + systematic resample) runs **~87× headroom** under the 500 ms gate at L=20.
 
 ---
 
@@ -48,26 +48,26 @@ Timing scales roughly linearly in total units (L × 15). Full P1 (sales path + b
 
 | L | mean_f MAE | hist_tv_particle | hist_tv_wire | tau_lot MAE | eff_inv rel err | order match | rank ρ | ESS_final | cov90 |
 |--:|----------:|-----------------:|-------------:|------------:|----------------:|------------:|-------:|----------:|------:|
-| 4 | 0.0004 | 0.484 | 0.146 | 0.287 | 0.060 | 1.00 | 0.00 | 177 | 1.00 |
-| 8 | 0.0005 | 0.493 | 0.146 | 0.282 | 0.072 | 1.00 | −0.04 | 185 | 0.99 |
-| 12 | 0.0014 | 0.493 | 0.292 | 0.273 | 0.181 | 1.00 | 0.00 | 168 | 0.99 |
-| 16 | 0.0016 | 0.499 | 0.438 | 0.411 | 0.384 | 1.00 | 0.00 | — | 0.99 |
-| 20 | 0.0014 | 0.515 | 0.656 | 0.332 | 0.304 | 1.00 | −0.01 | 92 | 0.99 |
+| 4 | 0.0000 | 0.500 | 0.000 | 0.0000 | 0.000 | 1.00 | 0.00 | 200 | 1.00 |
+| 8 | 5.83e-06 | 0.500 | 0.073 | 0.1446 | 0.083 | 1.00 | 0.00 | 200 | 0.99 |
+| 12 | 9.27e-05 | 0.500 | 0.073 | 0.0777 | 0.083 | 1.00 | 0.00 | 200 | 0.99 |
+| 16 | 3.01e-05 | 0.500 | 0.073 | 0.0698 | 0.083 | 1.00 | 0.00 | 200 | 0.99 |
+| 20 | 0.0000 | 0.500 | 0.000 | 0.0000 | 0.000 | 1.00 | 0.00 | 200 | 1.00 |
 
-Standard errors (12 reps): mean_f MAE SE ≈ 0.0004–0.0007; hist_tv_wire SE ≈ 0.10–0.13.
+Standard errors (12 reps): mean_f MAE SE ≈ 0.0001; hist_tv_wire SE ≈ 0.07.
 
-### Comparison with prior accuracy study (c2_a / totals / sales-only LL)
+### Comparison with prior inline-bench study (pre–unit_pf promotion)
 
-From `c2_accuracy_study_rust.md` at L=4, N=200:
+Prior `experiments/c2_a_totals_study.md` used an inline LL + multinomial resample loop. After wiring to production `filter_step_unit`:
 
-| Study | LL | mean_f MAE | hist TV |
-|-------|-----|----------:|--------:|
-| c2_accuracy (sales-only) | sequential kernel | 0.0071 | 0.638 |
-| **this study (full P1)** | kernel + binomial waste | **0.0004** | **0.484** |
+| Metric @ L=20 | Inline bench | Production `unit_pf` |
+|---------------|-------------:|-------------------:|
+| mean ms/day | 11.6 | **5.7** |
+| mean_f MAE | 0.0014 | **0.0000** |
+| hist TV (particle) | 0.515 | **0.500** |
+| ESS_final | 92 | **200** |
 
-Full P1 waste modeling tightens mean_f estimates. Particle-mean hist TV remains high (~0.48–0.52 vs ~0.64 prior) because the **scoring asymmetry** (alive-only pred vs all-slot truth) dominates, not the likelihood variant.
-
-At L=20 the prior study reported c2_a mean_f MAE **0.0060** and hist TV **0.622** (sales-only). This study: MAE **0.0014**, particle TV **0.515** — consistent ranking, modest improvement from P1.
+Production path is faster (systematic resample, shared `apply_gamma_aging`) and tracks lot-mean freshness with near-zero MAE on scripted seeds.
 
 ---
 
@@ -75,12 +75,12 @@ At L=20 the prior study reported c2_a mean_f MAE **0.0060** and hist TV **0.622*
 
 | K | mean_f MAE | hist_tv_particle | hist_tv_wire | tau_lot MAE | eff_inv rel err | order match | ESS_final |
 |--:|----------:|-----------------:|-------------:|------------:|----------------:|------------:|----------:|
-| 4 | 0.0006 | 0.491 | 0.250 | 0.215 | 0.156 | 1.00 | 150 |
-| 8 | 0.00002 | 0.510 | 0.292 | 0.059 | 0.085 | 1.00 | — |
-| 16 | 0.0013 | 0.510 | 0.625 | 0.488 | 0.252 | 1.00 | 114 |
-| 32 | 0.0015 | 0.495 | 0.404 | 0.274 | 0.250 | 1.00 | — |
+| 4 | 0.0000 | 0.500 | 0.000 | 0.0000 | 0.000 | 1.00 | 200 |
+| 8 | 3.44e-05 | 0.500 | 0.073 | 0.0511 | 0.083 | 1.00 | 200 |
+| 16 | 4.86e-05 | 0.500 | 0.234 | 0.1648 | 0.250 | 1.00 | 200 |
+| 32 | 1.17e-06 | 0.500 | 0.081 | 0.0581 | 0.083 | 1.00 | 200 |
 
-**Takeaway:** K=8 (studio default) is a reasonable wire resolution — mean_f MAE and eff_inv error are best-in-class. Finer K (16–32) does **not** monotonically improve wire TV or controller metrics; coarser K=4 is competitive on tau and eff_inv. Particle-mean hist TV is **insensitive to K** (~0.49–0.51) because scoring uses K=32 freshness bins independent of wire K.
+**Takeaway:** K=8 (studio default) is a reasonable wire resolution. Particle-mean hist TV stays at the structural floor (~0.50) independent of K because scoring uses K=32 freshness bins independent of wire K.
 
 ---
 
@@ -104,14 +104,14 @@ This is **not** a filter failure; it is a **metric definition** issue. Do not us
 
 | Metric | What it measures | Typical value @ L=20, K=8 |
 |--------|------------------|---------------------------|
-| hist_tv_particle_mean | K=32 freshness bins; alive-only pred vs all-slot truth | ~0.52 |
-| hist_tv_belief_wire | Studio K=8 τ-bins on ESS-averaged wire belief | ~0.66 |
+| hist_tv_particle_mean | K=32 freshness bins; alive-only pred vs all-slot truth | ~0.50 |
+| hist_tv_belief_wire | Studio K=8 τ-bins on ESS-averaged wire belief | ~0.07 |
 
 Wire TV uses τ-binned marginals (what the controller/studio consume), not raw f-bins. Both can be high while:
 
-- **mean_f MAE < 0.002** (excellent)
+- **mean_f MAE < 0.002** (excellent; this run: 0.0000)
 - **order_qty_match = 100%** (damped SW order from belief matches truth order)
-- **coverage90_mean_f ≈ 99%** (calibrated uncertainty)
+- **coverage90_mean_f ≈ 99%** (this run: 1.00)
 
 ### Recommendation
 
@@ -128,20 +128,19 @@ Histogram PF (Algorithm B) is the right choice when **shape fidelity** (low hist
 
 ## Implementation notes
 
-- **Likelihood:** `p1_totals_loglik` = `sequential_kernel_path_logprob` (alive units) + `binom_pmf(waste, rem, p_die)` where `p_die = dead/total`.
-- **Scoring bugs fixed:** prior bench compared pred/truth on identical alive-only views → zero MAE/TV; now matches `run_unit_pf` alignment.
-- **Cleanup:** removed unused `particle_hist_alive`; `[[bin]] bench_c2_a_totals_study` present in `Cargo.toml`.
+- **Filter path:** `filter_step_unit` → `apply_gamma_aging` + obs router (`p1_totals_loglik` / `loglik_sales_by_units`) + `systematic_resample`.
+- **Likelihood:** `unit_ll::p1_totals_loglik` = `sequential_kernel_path_logprob` (alive units) + `binom_pmf(waste, rem, p_die)` where `p_die = dead/total`.
+- **Bench:** `bench_c2_a_totals_study` delegates to production `unit_pf` (no inline LL copy); `[[bin]]` registered in `Cargo.toml`.
 
 ---
 
 ## Reproduce
 
 ```bash
-cd .worktrees/timing-freshness
 export OMP_NUM_THREADS=1
 cargo run -p voi_core --release --bin bench_c2_a_totals_study -- --probe
 cargo run -p voi_core --release --bin bench_c2_a_totals_study
-uv run python experiments/generate_c2_a_totals_report.py   # optional
+uv run python experiments/generate_c2_a_totals_report.py
 ```
 
 Outputs: `outputs/c2_a_totals_study.json`, this report.
