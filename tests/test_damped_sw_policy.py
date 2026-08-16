@@ -320,17 +320,19 @@ def test_damped_sw_rho_override_is_honoured() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: never reads RBPF._state; beliefs via shelf_belief_from_* / fixtures
+# AC: never reads RPF._state; beliefs via shelf_belief_from_* / fixtures
 # ---------------------------------------------------------------------------
 
 
-def test_damped_sw_policy_module_does_not_reference_rbpf_private_state() -> None:
+def test_damped_sw_policy_module_does_not_reference_particle_filter_private_state() -> (
+    None
+):
     cls = _resolve_policy_class()
     mod = _policy_defining_module(cls)
     source_path = Path(inspect.getsourcefile(mod) or "")
     assert source_path.is_file(), f"missing source for {mod.__name__}"
     source = source_path.read_text(encoding="utf-8")
-    assert "RBPF._state" not in source
+    assert "ResearchParticleFilter._state" not in source
     tree = ast.parse(source, filename=str(source_path))
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr == "_state":
@@ -340,7 +342,7 @@ def test_damped_sw_policy_module_does_not_reference_rbpf_private_state() -> None
             )
 
 
-def test_damped_sw_order_accepts_oracle_shelf_belief_without_rbpf() -> None:
+def test_damped_sw_order_accepts_oracle_shelf_belief_without_particle_filter() -> None:
     """CTL path constructs beliefs via shelf_belief_from_oracle / fixtures only."""
     cls = _resolve_policy_class()
     belief, params = _table_belief_and_params()

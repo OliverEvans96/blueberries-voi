@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF, P1Obs
+from blueberries_voi.filter import P1Obs
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import age_grid
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.abdella import load_abdella_shipments
@@ -62,20 +63,20 @@ def run_fil11_stage_a(
             spread_scale=spread,
             shipments=ships,
         )
-        rbpf = RBPF(params=p, N=500, K=K, L=3)
+        particle_filter = ResearchParticleFilter(params=p, N=500, K=K, L=3)
         rng = np.random.default_rng(seed)
-        rbpf.initialize(rng, L=3)
-        assert rbpf._state is not None
-        rbpf._state.age_post[:] = prior[None, None, :]
+        particle_filter.initialize(rng, L=3)
+        assert particle_filter._state is not None
+        particle_filter._state.age_post[:] = prior[None, None, :]
         for d in ep.scored:
-            rbpf.step(
+            particle_filter.step(
                 P1Obs(d.sales_total, d.waste_total, d.arrivals),
                 rng,
             )
             # Re-seed new arrivals with the mix prior (not flat).
-            if d.arrivals > 0 and rbpf._state is not None:
-                rbpf._state.age_post[:, -1, :] = prior[None, :]
-        return rbpf.age_posterior(0)
+            if d.arrivals > 0 and particle_filter._state is not None:
+                particle_filter._state.age_post[:, -1, :] = prior[None, :]
+        return particle_filter.age_posterior(0)
 
     post_full = filter_with_prior(spread_full, prior_full, 21)
     post_tight = filter_with_prior(spread_tight, prior_tight, 21)

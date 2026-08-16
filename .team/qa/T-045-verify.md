@@ -15,7 +15,7 @@ STATUS: PASS
 - [x] Schema tests assert absence of forbidden presentation keys — same suite + validators in `blueberries_voi.simulator.schema`
 - [x] Live `EngineSession` under fixed seed validates via same schema helpers — live init/step tests in `test_simulator_schema.py` passed under full pytest
 - [x] Flat belief: `len(age_marginals)==L*K`, `len(lot_counts)==L`, `len(tau_grid)==K` on goldens and live output — schema tests + manual golden check (L=2, K=4, age_marginals=8)
-- [x] `uv run pytest` passes — 535 passed, 1 skipped (unrelated optional RBPF aux), coverage gate met
+- [x] `uv run pytest` passes — 535 passed, 1 skipped (unrelated optional ResearchParticleFilter aux), coverage gate met
 
 ## Incomplete
 - (none)

@@ -13,7 +13,7 @@ still matter for state dimension; the joint float gate is not a production selec
 
 FIL-12=B (⚑) locks coarse-grid **full joint** age posteriors; do not reopen without Oliver.
 FIL-13=E accepted full joint at **measured** M1 L (p50≈2, max≈3) with `MAX_JOINT_FLOATS` guard that
-raises rather than silently truncating L. Production RBPF still hard-codes `PRODUCTION_L=3`.
+raises rather than silently truncating L. Production ResearchParticleFilter still hard-codes `PRODUCTION_L=3`.
 Long-dwell verification cells push empirical live cohorts to L≈7–8, which trips `K^L·N` against the
 budget. Sliding-window (bakeoff backend A) is already implemented and was named in ADR 0082 as the
 fallback if a future regime raises L — but M1 only **raises** on budget trip; it does not auto-select

@@ -18,7 +18,7 @@ need an explicit dep lock. Python package layout stays `src/blueberries_voi` (AD
 
 | Crate | Kind | Role |
 | --- | --- | --- |
-| `crates/voi_core` | `rlib` | Physics, WOR DP, day_step, RBPF, episode, VOI cell, session. No Python/JS types. |
+| `crates/voi_core` | `rlib` | Physics, WOR DP, day_step, ResearchParticleFilter, episode, VOI cell, session. No Python/JS types. |
 | `crates/voi_py` | `cdylib` | PyO3 module **`blueberries_voi._core`**. |
 | `crates/voi_wasm` | `cdylib` (wasm) | wasm-bindgen EngineSession RPC. |
 

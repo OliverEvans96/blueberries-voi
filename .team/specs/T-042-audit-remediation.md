@@ -30,7 +30,7 @@ VOI / closed-loop cannot silently re-round with a different rule.
 - Abdella / cool shipment defaults (T-043)
 - `DEFAULT_PROFIT_COSTS` and VOI α-table gating (T-043)
 - MF sweep count / bakeoff stub markers / backlog wording (T-044)
-- RBPF count physics, Stage A honesty, M3 compute reduction
+- ResearchParticleFilter count physics, Stage A honesty, M3 compute reduction
 
 ## Interfaces
 

@@ -8,7 +8,6 @@ import warnings
 import numpy as np
 import pytest
 
-from blueberries_voi.backend import rust_available, warn_fallback_once
 from blueberries_voi.model.constitutive import (
     allocate_sales,
     death_prob_hazard_product,
@@ -60,7 +59,7 @@ def test_backend_warn_fallback_once(monkeypatch: pytest.MonkeyPatch) -> None:
     backend_mod.rust_core = None
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        warn_fallback_once()
-        warn_fallback_once()
+        backend_mod.warn_fallback_once()
+        backend_mod.warn_fallback_once()
     assert len(caught) == 1
-    assert rust_available() is False
+    assert backend_mod.rust_available() is False

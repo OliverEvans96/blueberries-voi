@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF MC likelihood removed",
+    "T-121 F3: ADR 0127 Wave F supersession — prod PF MC likelihood removed",
     allow_module_level=True,
 )
 
@@ -13,7 +13,7 @@ import ast
 import inspect
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 import pytest
@@ -47,10 +47,10 @@ def _backends_source() -> str:
     return Path(backends.__file__).read_text(encoding="utf-8")
 
 
-def _rbpf_source() -> str:
-    import blueberries_voi.filter.rbpf as rbpf_mod
+def _particle_filter_source() -> str:
+    import blueberries_voi.filter.constants as particle_filter_mod
 
-    return Path(rbpf_mod.__file__).read_text(encoding="utf-8")
+    return Path(particle_filter_mod.__file__).read_text(encoding="utf-8")
 
 
 def _ast_function(source: str, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
@@ -98,33 +98,35 @@ def _full_rich(
 
 
 def _weights_after_one_step(obs: RichObs, *, seed: int = 0) -> np.ndarray:
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
-    rbpf.step(obs, rng)
-    assert rbpf._state is not None
-    return np.asarray(rbpf._state.weights, dtype=float).copy()
+    particle_filter.initialize(rng)
+    particle_filter.step(obs, rng)
+    assert particle_filter._state is not None
+    return np.asarray(particle_filter._state.weights, dtype=float).copy()
 
 
-def test_production_rbpf_update_has_no_soft_pow_or_gaussian_ll_symbols() -> None:
-    """AC: production `_rbpf_update` must not use soft powers / Gaussian toy LL."""
+def test_production_particle_filter_update_has_no_soft_pow_or_gaussian_ll_symbols() -> (
+    None
+):
+    """AC: production `_pf_update` must not use soft powers / Gaussian toy LL."""
     src = _backends_source()
-    fn = _ast_function(src, "_rbpf_update")
+    fn = _ast_function(src, "_particle_filter_update")
     names = _names_in_function(fn)
     soft_present = sorted(names & _SOFT_LL_SYMBOLS)
     assert soft_present == [], (
-        "production _rbpf_update still references soft-LL symbols: "
+        "production _particle_filter_update still references soft-LL symbols: "
         f"{soft_present}; replace with observation_loglik_mc (ADR 0087)"
     )
 
 
-def test_production_rbpf_update_does_not_default_to_observation_loglik_mc() -> None:
+def test_production_pf_update_does_not_default_to_observation_loglik_mc() -> None:
     """ADR 0105: MC LL remains for diagnostics; production weights are exact WOR."""
     src = _backends_source()
-    fn = _ast_function(src, "_rbpf_update")
+    fn = _ast_function(src, "_particle_filter_update")
     names = _names_in_function(fn)
     assert "observation_loglik_mc" not in names, (
-        "production _rbpf_update must not default to observation_loglik_mc (ADR 0105)"
+        "production _pf_update must not default to observation_loglik_mc (ADR 0105)"
     )
     wor = names & {
         "log_p_sales_waste_given_ages",
@@ -214,25 +216,31 @@ def test_unobserved_waste_not_scored_like_observed_zero(
     if hasattr(backends, "log_p_sales_waste_given_ages"):
         monkeypatch.setattr(backends, "log_p_sales_waste_given_ages", _spy)
 
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng = np.random.default_rng(11)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
 
     calls.clear()
-    rbpf.step(_full_rich(waste_total=UNOBSERVED, sales_total=4, arrivals=0), rng)
+    particle_filter.step(
+        _full_rich(waste_total=UNOBSERVED, sales_total=4, arrivals=0), rng
+    )
     assert 0 not in calls, (
         "UNOBSERVED waste must not invoke WOR scorer with waste_tot=0 (no soft coerce)"
     )
 
     calls.clear()
-    rbpf2 = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter2 = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng2 = np.random.default_rng(11)
-    rbpf2.initialize(rng2)
-    assert rbpf2._state is not None
-    rbpf2._state.counts[:] = np.asarray([[8, 8]] * rbpf2.N, dtype=int)
-    rbpf2.step(_full_rich(waste_total=0, sales_total=4, arrivals=0), rng2)
+    particle_filter2.initialize(rng2)
+    assert particle_filter2._state is not None
+    particle_filter2._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter2.N, dtype=int
+    )
+    particle_filter2.step(_full_rich(waste_total=0, sales_total=4, arrivals=0), rng2)
     assert calls and all(w == 0 for w in calls), (
         "observed waste=0 must score via WOR scorer with waste_tot=0"
     )
@@ -245,7 +253,7 @@ def test_p0_vs_p1_weight_divergence_when_waste_differs(
     import blueberries_voi.filter.age_likelihood as age_likelihood
     import blueberries_voi.filter.backends as backends
 
-    update = _ast_function(_backends_source(), "_rbpf_update")
+    update = _ast_function(_backends_source(), "_particle_filter_update")
     soft_present = sorted(_names_in_function(update) & _SOFT_LL_SYMBOLS)
     assert soft_present == [], (
         "P0/P1 divergence under soft LL is not the acceptance gate; "
@@ -275,22 +283,26 @@ def test_p0_vs_p1_weight_divergence_when_waste_differs(
     assert obs_p0.waste_total is UNOBSERVED
     assert obs_p1.waste_total == 4
 
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng = np.random.default_rng(21)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
     calls.clear()
-    rbpf.step(obs_p0, rng)
+    particle_filter.step(obs_p0, rng)
     p0_wastes = list(calls)
 
-    rbpf2 = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter2 = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng2 = np.random.default_rng(21)
-    rbpf2.initialize(rng2)
-    assert rbpf2._state is not None
-    rbpf2._state.counts[:] = np.asarray([[8, 8]] * rbpf2.N, dtype=int)
+    particle_filter2.initialize(rng2)
+    assert particle_filter2._state is not None
+    particle_filter2._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter2.N, dtype=int
+    )
     calls.clear()
-    rbpf2.step(obs_p1, rng2)
+    particle_filter2.step(obs_p1, rng2)
     p1_wastes = list(calls)
 
     assert not p0_wastes, (
@@ -303,7 +315,7 @@ def test_p0_vs_p1_weight_divergence_when_waste_differs(
 
 def test_no_wallenius_density_in_production_filter_code() -> None:
     """AC: bootstrap simulates allocation; no Wallenius density in filter code."""
-    sources = (_backends_source() + "\n" + _rbpf_source()).lower()
+    sources = (_backends_source() + "\n" + _particle_filter_source()).lower()
     hits = [m for m in _WALLENIUS_DENSITY_MARKERS if m in sources]
     assert hits == [], (
         f"Wallenius density markers in production filter code: {hits} "
@@ -313,10 +325,10 @@ def test_no_wallenius_density_in_production_filter_code() -> None:
 
 def test_filter_summary_exposes_ess() -> None:
     """AC: ESS available on FilterSummary so collapse is observable."""
-    rbpf = RBPF(params=ModelParams(), N=30, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=30, K=4, L=2)
     rng = np.random.default_rng(3)
-    rbpf.initialize(rng)
-    summary = rbpf.step(RichObs.from_p1(P1Obs(12, 1, 8)), rng)
+    particle_filter.initialize(rng)
+    summary = particle_filter.step(RichObs.from_p1(P1Obs(12, 1, 8)), rng)
     assert isinstance(summary, FilterSummary)
     assert hasattr(summary, "ess")
     assert isinstance(summary.ess, float)
@@ -335,10 +347,10 @@ def test_soft_ll_symbols_absent_from_production_update_path() -> None:
     production weight update so Stage C cannot stay a soft self-check.
     """
     src = _backends_source()
-    update = _ast_function(src, "_rbpf_update")
+    update = _ast_function(src, "_particle_filter_update")
     soft_in_update = sorted(_names_in_function(update) & _SOFT_LL_SYMBOLS)
     assert soft_in_update == [], (
-        f"soft LL symbols still in _rbpf_update: {soft_in_update}"
+        f"soft LL symbols still in _particle_filter_update: {soft_in_update}"
     )
     # Bootstrap PF bakeoff path must not keep Gaussian sales_ll either if still
     # used as a production-facing weight update.

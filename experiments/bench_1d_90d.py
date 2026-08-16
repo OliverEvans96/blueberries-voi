@@ -165,7 +165,7 @@ def _bench_engine(backend: str) -> dict[str, Any]:
 
 
 def _bench_physics(backend: str) -> dict[str, Any]:
-    """Filter-off day_step 1 vs 90 (clarifies physics vs RBPF cost)."""
+    """Filter-off day_step 1 vs 90 (clarifies physics vs particle filter cost)."""
     os.environ["BLUEBERRIES_VOI_BACKEND"] = backend
     from blueberries_voi.model.day_step import day_step
 

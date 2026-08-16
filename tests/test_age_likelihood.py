@@ -345,7 +345,7 @@ def test_mean_field_update_rows_sum_to_one_and_distinct_from_exact() -> None:
     assert np.allclose(arr.sum(axis=1), 1.0, atol=1e-9)
 
 
-def test_production_rbpf_update_uses_exact_wor_not_mc_ll() -> None:
+def test_production_particle_filter_update_uses_exact_wor_not_mc_ll() -> None:
     """ADR 0105: production weights are exact WOR; MC LL is diagnostic-only."""
     backends_path = (
         Path(__file__).resolve().parents[1]
@@ -355,14 +355,14 @@ def test_production_rbpf_update_uses_exact_wor_not_mc_ll() -> None:
         / "backends.py"
     )
     src = backends_path.read_text(encoding="utf-8")
-    start = src.index("def _rbpf_update(")
+    start = src.index("def _particle_filter_update(")
     rest = src[start + 4 :]
     next_def = rest.find("\ndef ")
     body = rest[: next_def if next_def != -1 else len(rest)]
     assert "sales_pow" not in body
     assert "waste_pow" not in body
     assert "observation_loglik_mc" not in body, (
-        "production _rbpf_update must not default to observation_loglik_mc (ADR 0105)"
+        "production _pf_update must not default to observation_loglik_mc (ADR 0105)"
     )
     assert (
         "log_p_sales_waste_given_ages" in body

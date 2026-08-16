@@ -75,13 +75,13 @@ UI → Projector  ──►  EngineSession ← slim wheel ← worker
 - Full WASM rewrite (not A)
 - JS-only physics as production engine (not B)
 - Matplotlib / pyarrow in browser
-- Production-N RBPF + full rollout in-tab without budget dials
+- Production-N ResearchParticleFilter + full rollout in-tab without budget dials
 - Honesty / cadence ⚑ cards
 - Merging to parent branches (human)
 
 ## Key library touchpoints
 
-- `model.day_step`, `filter` RBPF / `ShelfBelief`, `controller.rollout_order` / policies via `act`
+- `model.day_step`, `filter` ResearchParticleFilter / `ShelfBelief`, `controller.rollout_order` / policies via `act`
 - Extract shared closed-loop day driver into `simulator/`
 - Break eager Abdella parquet imports on browser path (`model/abdella.py`)
 - Mock reference: web mockup `web/src/types.ts`, `web/src/mock/adapter.ts`

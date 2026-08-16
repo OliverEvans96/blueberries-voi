@@ -12,7 +12,7 @@
   — currently failing: same (thin `_history` is not the richest log)
 
 - `EngineSession.set_obs_scenario(id)` catch-up-steps only the selected rung:
-  first select at day t initializes a new `RBPF` and steps `0…t-1`; switch-back
+  first select at day t initializes a new `ResearchParticleFilter` and steps `0…t-1`; switch-back
   steps only `last_synced+1 … now`; returns a Snapshot with
   `applied_config.obs_scenario` updated without Reset; invalid ids raise like
   `mask_for`
@@ -41,8 +41,8 @@
   — currently failing: method missing before init wipe check
 
 - Naive retarget of the current particles without replay remains forbidden
-  (catch-up creates a distinct `RBPF`, does not mutate weights in place)
-  → `…::test_set_obs_scenario_creates_a_distinct_rbpf_not_in_place_weights`
+  (catch-up creates a distinct `ResearchParticleFilter`, does not mutate weights in place)
+  → `…::test_set_obs_scenario_creates_a_distinct_particle_filter_not_in_place_weights`
   — currently failing: method missing
   → `…::test_session_source_does_not_retarget_particle_obs_scenario_in_place`
   — currently failing: `set_obs_scenario` not in `session.py`
@@ -77,6 +77,6 @@
 ## Not covered by tests
 
 - Rust/wasm `set_obs_scenario` — out of scope (later parity ticket)
-- Renaming `RBPF` — out of scope
+- Renaming `ResearchParticleFilter` — out of scope
 - Parallel live filters every Advance (6× step) — out of scope
 - Editing `.github/workflows/` — out of scope

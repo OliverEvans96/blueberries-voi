@@ -17,7 +17,7 @@ At production **K=8, N=2000**: `joint_state_count` ≤ `MAX_JOINT_FLOATS` for **
 
 ## Fallback behaviour
 
-`choose_backend(K, L, N)` / RBPF construct + `initialize(L=…)`:
+`choose_backend(K, L, N)` / ResearchParticleFilter construct + `initialize(L=…)`:
 
 1. **Within budget** → keep **`full_joint`**, use the configured / empirical **L**
    (dynamic L; not clamped to legacy `PRODUCTION_L=3` when a larger L is safe).

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.arrival_priors import cold_abdella_arrival_age_prior
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -70,7 +70,7 @@ def _filter_rung(
     L: int,
     reseeds_birth_with_prior: bool,
 ) -> np.ndarray:
-    """Run RBPF on a shared episode; only the observation mask differs by rung.
+    """Run particle filter on shared episode; observation mask differs by rung.
 
     Cohort-from-birth: track the first scored delivery's slot as arrivals shift
     the window left. Report that cohort's age marginal after it has lived at
@@ -78,39 +78,39 @@ def _filter_rung(
     oldest-slot-only).
     """
     mask = mask_for(scenario)
-    rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
-    rbpf._root_seed = root_seed
-    rbpf._run_id = f"m15_a_{scenario}"
+    particle_filter = ResearchParticleFilter(params=params, N=n_particles, K=K, L=L)
+    particle_filter._root_seed = root_seed
+    particle_filter._run_id = f"m15_a_{scenario}"
     rng = np.random.default_rng(root_seed + 17)
-    rbpf.initialize(rng, L=L)
-    assert rbpf._state is not None
-    rbpf._state.age_post[:] = prior[None, None, :]
+    particle_filter.initialize(rng, L=L)
+    assert particle_filter._state is not None
+    particle_filter._state.age_post[:] = prior[None, None, :]
 
     tracked_slot: int | None = None
     last_post: np.ndarray | None = None
     for d in ep.scored:
         obs = rich_obs_from_day_log(d, mask)
-        rbpf.step(obs, rng)
+        particle_filter.step(obs, rng)
         if d.arrivals > 0:
             if tracked_slot is None:
                 tracked_slot = L - 1
             else:
                 tracked_slot -= 1
-            if reseeds_birth_with_prior and rbpf._state is not None:
+            if reseeds_birth_with_prior and particle_filter._state is not None:
                 # Tight-control path: keep birth belief collapsed (ignore F2/F2a).
-                rbpf._state.age_post[:, -1, :] = prior[None, :]
+                particle_filter._state.age_post[:, -1, :] = prior[None, :]
             if tracked_slot is not None and tracked_slot < 0:
                 # Birth fell off the L-window; re-anchor to newest birth.
                 tracked_slot = L - 1
         elif tracked_slot is not None:
             # Post-birth observation day: cohort-from-birth posterior is meaningful.
-            last_post = rbpf.age_posterior(tracked_slot)
+            last_post = particle_filter.age_posterior(tracked_slot)
 
     if last_post is not None:
         return last_post
     # Fallback: newest live slot (still not oldest-slot-only).
     idx = L - 1 if tracked_slot is None else max(tracked_slot, 0)
-    return rbpf.age_posterior(idx)
+    return particle_filter.age_posterior(idx)
 
 
 def _write_rung_map_figure(

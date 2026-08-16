@@ -1,6 +1,6 @@
 """T-033 multi-scenario closed-loop + empirical L remeasure (outside ``controller/``).
 
-Primary eval beliefs: **P1** (RBPF → ``shelf_belief_from_rbpf``), **B-state**
+Primary eval beliefs: **P1** (removed — use Rust VOI/session), **B-state**
 (oracle → ``shelf_belief_from_oracle``), and **Rung 0** (age-blind). Other M1.5
 masks get interface smoke only. Empirical live-cohort **L** is remeasured under
 SW+rollout and written under ``experiments/`` (never ``controller/``). Production
@@ -133,10 +133,10 @@ def _oracle_belief(cohorts: Sequence[Cohort]) -> ShelfBelief:
     return shelf_belief_from_cohorts_oracle(cohorts, empty_tau_grid=_EMPTY_TAU_GRID)
 
 
-def _p1_belief(rbpf: Any) -> ShelfBelief:
-    """P1 path removed with production RBPF (T-121 Wave F)."""
-    del rbpf
-    msg = "P1 RBPF closed-loop removed in T-121 Wave F; use Rust VOI/session"
+def _p1_belief(particle_filter: Any) -> ShelfBelief:
+    """P1 path removed with production particle filter (T-121 Wave F)."""
+    del particle_filter
+    msg = "P1 particle-filter closed-loop removed in T-121 Wave F; use Rust VOI/session"
     raise RuntimeError(msg)
 
 
@@ -179,16 +179,19 @@ def _run_closed_loop(
     horizon = n_burn + n_score
 
     if mode == "P1":
-        msg = "P1 RBPF closed-loop removed in T-121 Wave F; use Rust VOI/session"
+        msg = (
+            "P1 particle-filter closed-loop removed in T-121 Wave F; "
+            "use Rust VOI/session"
+        )
         raise RuntimeError(msg)
 
-    rbpf: Any | None = None
+    particle_filter: Any | None = None
 
     for day in range(horizon):
         pending_view: Mapping[int, int] = dict(pending)
         if mode == "P1":
-            assert rbpf is not None
-            belief: ShelfBelief | object | None = _p1_belief(rbpf)
+            assert particle_filter is not None
+            belief: ShelfBelief | object | None = _p1_belief(particle_filter)
         elif mode == "B-state":
             belief = _oracle_belief(cohorts)
         else:
@@ -259,7 +262,7 @@ def _run_closed_loop(
         )
         log.days.append(day_log)
 
-        if mode == "P1" and rbpf is not None:
+        if mode == "P1" and particle_filter is not None:
             obs = P1Obs(
                 sales_total=int(result.sales_total),
                 waste_total=int(result.waste_total),
@@ -271,7 +274,7 @@ def _run_closed_loop(
                 day=day,
                 stream=STREAM_FILTER_RESAMPLE,
             )
-            rbpf.step(obs, step_rng)
+            particle_filter.step(obs, step_rng)
 
     return log
 
@@ -384,7 +387,7 @@ def run_m2_multi_scenario(
     )
 
     profits: dict[str, float] = {}
-    # P1: SW policy sees RBPF MF belief.
+    # P1: SW policy sees particle-filter MF belief.
     ep_p1 = _run_closed_loop(
         mode="P1",
         policy=sw,

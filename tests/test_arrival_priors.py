@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF arrival priors removed",
+    "T-121 F3: ADR 0127 Wave F supersession — prod PF arrival priors removed",
     allow_module_level=True,
 )
 
@@ -14,7 +14,7 @@ import inspect
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 
@@ -139,20 +139,20 @@ def _new_lot_prior_after_step(
     obs: RichObs, *, seed: int = 0, K: int = 8, L: int = 3
 ) -> np.ndarray:
     """Marginal age prior on the newly injected delivery lot (last slot)."""
-    rbpf = RBPF(params=ModelParams(), N=40, K=K, L=L)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=K, L=L)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
-    rbpf.step(obs, rng)
-    return np.asarray(rbpf.age_posterior(L - 1), dtype=float)
+    particle_filter.initialize(rng)
+    particle_filter.step(obs, rng)
+    return np.asarray(particle_filter.age_posterior(L - 1), dtype=float)
 
 
 def _weights_after_step(obs: RichObs, *, seed: int = 0) -> np.ndarray:
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
-    rbpf.step(obs, rng)
-    assert rbpf._state is not None
-    return np.asarray(rbpf._state.weights, dtype=float).copy()
+    particle_filter.initialize(rng)
+    particle_filter.step(obs, rng)
+    assert particle_filter._state is not None
+    return np.asarray(particle_filter._state.weights, dtype=float).copy()
 
 
 def test_arrival_age_prior_f2a_exists_and_returns_normalized_weights() -> None:
@@ -343,7 +343,7 @@ def test_no_new_soft_sales_waste_terms_tied_to_pack_or_receipt() -> None:
     update = None
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {
-            "_rbpf_update",
+            "_particle_filter_update",
             "observation_loglik_mc",
         }:
             names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}

@@ -34,7 +34,7 @@ Rust) is explicitly out of scope — orchestration cost is negligible vs CRN cel
 Structural RNG parity is acceptable: Rust PCG matches NumPy PCG64 *family*, not
 bit-identical streams (per 0119). Policy parity tests compare **order quantities** and
 scenario differentiation under tolerance, not identical belief histograms (Rust
-`particle_bank_to_flat` vs Python `shelf_belief_from_rbpf` semantics differ).
+`particle_bank_to_flat` vs Python `shelf_belief_from_particle_filter_REMOVED` semantics differ).
 
 ADR [0118](./0118-behavior-frozen-module-splits.md) case-rounding owners remain frozen:
 session driver **ceil** vs SW policy **nearest** — do not unify in T-121.
@@ -59,7 +59,7 @@ session driver **ceil** vs SW policy **nearest** — do not unify in T-121.
    claim bit-identical CRN vs NumPy.
 5. **Modules safe to delete in Wave F** (after Wave E PASS — not before):
    - `model/physics.py`, `model/day_step.py` compute paths
-   - `filter/rbpf.py`, `filter/particle/counts_update.py` production path
+   - `filter/particle_filter.py`, `filter/particle/counts_update.py` production path
    - `controller/damped_sw.py`, `controller/rollout.py`, `controller/ordering.py`
    - `simulator/day_driver.py`
    - Python body of `voi/crn.py` (episode loop only; keep Abdella/alpha orchestration)

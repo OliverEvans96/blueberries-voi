@@ -11,7 +11,7 @@ MILESTONE: ENG-01 — interactive dual-runtime simulator
 ## Context
 
 ADR [0073](./0073-eng-01-browser-simulator-scope.md) locked **C — static figures only**, parking
-live browser inference because production-N RBPF plus full rollout is not interactive in a tab.
+live browser inference because production-N ResearchParticleFilter plus full rollout is not interactive in a tab.
 That lock blocked packaging, façade, and D3 integration even after M1–M3 left a library shaped for
 handoff ([M2 controller brief](../plans/M2-controller-agent-brief.md)).
 
@@ -29,7 +29,7 @@ We will:
    **Pyodide worker = prod** interactive path; **ASGI API = dev** path; D3 mockup
    (`web/d3-simulator-mockup`) is the presentation consumer in a later slice.
 2. **Ship order (binding):** Slice 1 common + Pyodide → Slice 2 API → Slice 3 D3 mockup wiring.
-3. **Browser v1 compute:** live `day_step` + RBPF + controller `act` with first-class budget knobs
+3. **Browser v1 compute:** live `day_step` + ResearchParticleFilter + controller `act` with first-class budget knobs
    (e.g. demo presets such as `N≤200`, `H≤7`, `n_rollout_paths≤2`, candidate radius 1). Desktop /
    CI retain full budgets via the same API.
 4. **Pin runtimes:** document **Pyodide 314.0.4** / **CPython 3.14.2** for the browser wheel ABI;

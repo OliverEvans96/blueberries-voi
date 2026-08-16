@@ -368,23 +368,22 @@ def _shift_age_prior(
 
 def stage3_particle_path(*, T: int = 12) -> list[CaseResult]:
     """Freeze a production-style count trajectory and replay Stage 2 logic."""
-    from blueberries_voi.filter.rbpf import RBPF
-
+    from blueberries_voi.filter.particle.research import ResearchParticleFilter
     from blueberries_voi.rng import STREAM_FILTER_RESAMPLE
 
     params = ModelParams(sigma=0.5)
     K = 6
     L = 3
     grid = [float(x) for x in np.linspace(0.5, 7.0, K)]
-    rbpf = RBPF(params=params, N=32, K=K, L=L)
+    particle_filter = ResearchParticleFilter(params=params, N=32, K=K, L=L)
     rng0 = spawn_rng(7, run_id="fil11c-s3", day=0, stream=STREAM_FILTER_RESAMPLE)
-    rbpf.initialize(rng0)
-    assert rbpf._state is not None
+    particle_filter.initialize(rng0)
+    assert particle_filter._state is not None
     pj = _uniform_joint(L, K)
     pm = _uniform_marginals(L, K)
     out: list[CaseResult] = []
     for t in range(T):
-        state = rbpf._state
+        state = particle_filter._state
         assert state is not None
         n_mean = np.maximum(1, np.round(state.counts.mean(axis=0)).astype(int))
         n_t = [int(x) for x in n_mean.tolist()]
@@ -406,7 +405,7 @@ def stage3_particle_path(*, T: int = 12) -> list[CaseResult]:
         rng_t = spawn_rng(
             7, run_id="fil11c-s3", day=t + 1, stream=STREAM_FILTER_RESAMPLE
         )
-        rbpf.step(y, rng_t)
+        particle_filter.step(y, rng_t)
     return out
 
 
@@ -541,7 +540,7 @@ def main() -> None:
         f"**Recommendation:** {rec}",
         "",
         "Likelihood: named `sequential_wor_pmf` (ADR 0090). Production soft "
-        "`_rbpf_update` left unchanged. ADR 0049 / 0057 statuses not flipped.",
+        "`_pf_update` left unchanged. ADR 0049 / 0057 statuses not flipped.",
         "",
         "## Stage 1 - one-step synthetic",
         "",
@@ -551,7 +550,7 @@ def main() -> None:
         "",
         _md_table(s2),
         "",
-        "## Stage 3 - frozen RBPF count path replay",
+        "## Stage 3 - frozen particle filter count path replay",
         "",
         _md_table(s3),
         "",

@@ -25,11 +25,11 @@ make production-facing entry points disagree with the controller contract or wit
 5. **MF sweeps:** `age_likelihood` defaults to **5** sweeps; the production P1 path in
    `filter/backends.py` hard-codes **2** for CI tractability — a silent production under-iteration.
 6. **Bakeoff backends:** `SlidingWindowBackend` / `FullJointBackend` still share the factorized
-   `_rbpf_update` path and are easy to mistake for citeable production filters after ADR 0091
+   `_particle_filter_update` path and are easy to mistake for citeable production filters after ADR 0091
    settled mean-field.
 
 Oliver locked: **nearest** case rounding everywhere; production shipment defaults **Abdella**; cool
-fixtures **smoke/test-only** under an explicit name. Deep science gaps (RBPF count physics, Stage A
+fixtures **smoke/test-only** under an explicit name. Deep science gaps (ResearchParticleFilter count physics, Stage A
 honesty, compute reduction) stay out of this ADR and land in a later remainder report.
 
 ## Decision

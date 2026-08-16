@@ -14,4 +14,4 @@ TIP: b92a2defa24d54906f63b82e3562171419fb03a3 (`team/audit-remediation-integ`)
 
 ## Summary
 
-Shared `MF_MAX_SWEEPS=5` wired through age_likelihood default and production P1 `_rbpf_update`. SlidingWindow/FullJoint marked non-citeable stubs; MeanField not a stub. Controller docstring, α-tune belief comment, and backlog M2+M3-on-main wording updated. T-044 audit tests green.
+Shared `MF_MAX_SWEEPS=5` wired through age_likelihood default and production P1 `_particle_filter_update`. SlidingWindow/FullJoint marked non-citeable stubs; MeanField not a stub. Controller docstring, α-tune belief comment, and backlog M2+M3-on-main wording updated. T-044 audit tests green.

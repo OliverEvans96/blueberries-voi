@@ -1,4 +1,4 @@
-# 0091. Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C
+# 0091. Production ResearchParticleFilter age backend is mean-field (FIL-13=B); FIL-04 → C
 
 STATUS: SUPERSEDED BY 0105
 DATE: 2026-08-12
@@ -32,7 +32,7 @@ needs lot-map age updates at F1/F1s (T-014). Age *belief* updates under P1 total
 We will:
 
 1. Set **production FIL-13 = B (`mean_field`)**. `PRODUCTION_BACKEND == "mean_field"`; a default
-   `RBPF()` constructs / names the `mean_field` backend.
+   `ResearchParticleFilter()` constructs / names the `mean_field` backend.
 2. **Reopen FIL-04 to C — mean-field, validated by brute-force Stage C** (ADR 0049 superseded by
    this settle). Card recommendation and Stage C evidence now agree.
 3. Treat **FIL-12 (ADR 0057)** as **historical**: joint / coarse-joint tractability pressure is

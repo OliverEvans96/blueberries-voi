@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from blueberries_voi.filter.particle.bakeoff_counts_update import _rbpf_update_impl
+from blueberries_voi.filter.particle.bakeoff_counts_update import (
+    _particle_filter_update_impl,
+)
 from blueberries_voi.filter.particle.state import (
     FilterBackend,
     ParticleState,
@@ -53,7 +55,7 @@ class CountsOnlyBackend:
         params: ModelParams,
         rng: np.random.Generator,
     ) -> ParticleState:
-        return _rbpf_update_impl(
+        return _particle_filter_update_impl(
             state,
             obs,
             params,
@@ -89,12 +91,14 @@ class SlidingWindowBackend:
         params: ModelParams,
         rng: np.random.Generator,
     ) -> ParticleState:
-        return _rbpf_update_impl(state, obs, params, rng, backend_name=self.name)
+        return _particle_filter_update_impl(
+            state, obs, params, rng, backend_name=self.name
+        )
 
 
 @dataclass
 class MeanFieldBackend:
-    """Bakeoff registry arm B (name retained); uses counts-only ``_rbpf_update``.
+    """Bakeoff registry arm B; uses counts-only ``_particle_filter_update``.
 
     Production identity is ``CountsOnlyBackend`` / ``counts_only`` (ADR 0105).
     Diagnostic ``mean_field_update`` remains in ``age_likelihood`` only.
@@ -123,7 +127,7 @@ class MeanFieldBackend:
         params: ModelParams,
         rng: np.random.Generator,
     ) -> ParticleState:
-        return _rbpf_update_impl(
+        return _particle_filter_update_impl(
             state,
             obs,
             params,
@@ -156,7 +160,9 @@ class BoundLBackend:
         params: ModelParams,
         rng: np.random.Generator,
     ) -> ParticleState:
-        return _rbpf_update_impl(state, obs, params, rng, backend_name=self.name)
+        return _particle_filter_update_impl(
+            state, obs, params, rng, backend_name=self.name
+        )
 
 
 @dataclass
@@ -186,7 +192,9 @@ class FullJointBackend:
         rng: np.random.Generator,
     ) -> ParticleState:
         guard_joint_memory(state.age_post.shape[-1], state.L, len(state.weights))
-        return _rbpf_update_impl(state, obs, params, rng, backend_name=self.name)
+        return _particle_filter_update_impl(
+            state, obs, params, rng, backend_name=self.name
+        )
 
 
 def get_backend(name: str) -> FilterBackend:

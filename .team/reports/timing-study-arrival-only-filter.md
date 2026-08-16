@@ -13,8 +13,8 @@
 |-------|--------|
 | SHA | `6b76c5fb82dffdd780a520fa66df9cf29afac34d` |
 | ADR 0105 present | yes |
-| Production RBPF backend | `CountsOnlyBackend` / `counts_only` |
-| `mean_field_update` on `_rbpf_update` body | **absent** (diagnostic-only in `age_likelihood`) |
+| Production ResearchParticleFilter backend | `CountsOnlyBackend` / `counts_only` |
+| `mean_field_update` on `_particle_filter_update` body | **absent** (diagnostic-only in `age_likelihood`) |
 
 ## Machine knobs
 
@@ -104,8 +104,8 @@ uv run python /tmp/timing_stream_b_pyodide.py
 | Component | Mean | p95 | Notes |
 |-----------|-----:|----:|-------|
 | `day_step` alone | **0.29 ms** | 0.36 ms | physics only |
-| Filter delta (`step` filter on − off) | **~84 ms** | — | arrival-only counts-only RBPF @ N=200 |
-| Belief export (`shelf_belief_from_rbpf`) | **0.08 ms** | 0.14 ms | negligible |
+| Filter delta (`step` filter on − off) | **~84 ms** | — | arrival-only counts-only ResearchParticleFilter @ N=200 |
+| Belief export (`shelf_belief_from_particle_filter_REMOVED`) | **0.08 ms** | 0.14 ms | negligible |
 | `EngineSession.step(order)` | **87 ms** | 120 ms | physics + filter + export |
 | Controller rollout (approx) | **~45 ms** | — | `act(rollout) − step` |
 | `EngineSession.act(policy="rollout")` | **132 ms** | 202 ms | **primary interactive day** |
@@ -128,7 +128,7 @@ Default `act()` without `policy="rollout"` uses constant order (~10 ms) — **no
 ## Top 3 bottlenecks / next actions
 
 1. **Offline VOI nested rollout** (`H=28 × paths=8 × 90 days × 7 scenarios` per CRN cell) — drives ~20 min/cell and ~67 h 1-box. **Next:** implement Modal (or local) fanout on `(rep, β)` cells; optionally publish a “fast headline” budget ADR if citeable numbers can use smaller H/paths.
-2. **Browser filter update** (counts-only RBPF @ N=200 ≈ 84 ms/day native) — dominates `step`. **Next:** keep N≤200 in demos; profile WOR weight loop if Pyodide factor &gt;5×.
+2. **Browser filter update** (counts-only ResearchParticleFilter @ N=200 ≈ 84 ms/day native) — dominates `step`. **Next:** keep N≤200 in demos; profile WOR weight loop if Pyodide factor &gt;5×.
 3. **Browser controller rollout** (`H=7`, paths=2 ≈ 45 ms native on top of step). **Next:** default demo `act` to `policy="rollout"` only when UI needs it; otherwise `step`/`step_n`.
 
 ---

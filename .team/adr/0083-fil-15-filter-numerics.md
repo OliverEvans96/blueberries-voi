@@ -16,7 +16,7 @@ or threshold. FIL-13 settled on **full joint (E)** because empirical L≤3 makes
 
 ## Decision
 
-Production numerics for M1 RBPF (full_joint at measured L):
+Production numerics for M1 ResearchParticleFilter (full_joint at measured L):
 
 | Parameter | Production value | Note |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ If L grows and the memory guard fires, revisit toward sliding_window and possibl
 
 ## Consequences
 
-- `blueberries_voi.filter.rbpf` exports matching `PRODUCTION_*` constants.
+- `blueberries_voi.filter.constants` exports matching `PRODUCTION_*` constants.
 - Boundary-pile tests should watch mass at 0 and 8.
 
 **Depends on:** `FIL-03`, `FIL-05`, `FIL-13`

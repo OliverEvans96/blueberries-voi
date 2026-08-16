@@ -20,7 +20,7 @@ changelog, and factory wording so the RED assertions pass.
 uv sync --extra dev
 uv run pytest \
   tests/test_belief_arrival_priors.py \
-  tests/test_belief.py::test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values \
+  tests/test_belief.py::test_shelf_belief_from_particle_filter_REMOVED_matches_arrival_age_rows_shape_and_values \
   -v --tb=short --no-cov
 ```
 
@@ -28,22 +28,22 @@ Result: **5 failed, 6 passed** on the focused set above.
 
 ## Coverage of acceptance criteria
 
-- `shelf_belief_from_rbpf` exports `age_marginals` derived from arrival belief
+- `shelf_belief_from_particle_filter_REMOVED` exports `age_marginals` derived from arrival belief
   (not MF posteriors); nested `(L,K)` unchanged
-  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf`
+  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_particle_filter_REMOVED_docs_state_arrival_prior_not_mf`
   — currently failing: factory/module still describe MF posteriors / ADR 0092
-  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_rbpf_f2_dirac_matches_birth_prior_shape`
+  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_particle_filter_REMOVED_f2_dirac_matches_birth_prior_shape`
   — currently **passing** (T-068 age_post already carries F2 Dirac birth prior)
-  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update`
+  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_particle_filter_REMOVED_ages_differ_from_mean_field_update`
   — currently **passing** (export ≠ diagnostic `mean_field_update`)
-  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_rbpf_f2a_path_matches_delivery_birth_prior`
+  → `tests/test_belief_arrival_priors.py::test_shelf_belief_from_particle_filter_REMOVED_f2a_path_matches_delivery_birth_prior`
   — currently **passing** (F2a pack-date birth prior path)
-  → `tests/test_belief.py::test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values`
+  → `tests/test_belief.py::test_shelf_belief_from_particle_filter_REMOVED_matches_arrival_age_rows_shape_and_values`
   — currently failing: supersedes MF-named guard; docstring still claims MF
     (shape/value match vs `age_posterior` already holds)
 
 - ENG-01 flatten / Snapshot–DayDelta path remains wire-compatible (flat `L·K`)
-  → `tests/test_belief_arrival_priors.py::test_flatten_shelf_belief_from_rbpf_is_wire_compatible_l_times_k`
+  → `tests/test_belief_arrival_priors.py::test_flatten_shelf_belief_from_particle_filter_REMOVED_is_wire_compatible_l_times_k`
   — currently **passing** (field names + length `L*K`)
   → `tests/test_belief_arrival_priors.py::test_flatten_shelf_belief_row_major_matches_nested_arrival_rows`
   — currently **passing** (row-major flatten preserves F2 Dirac slice)
@@ -79,7 +79,7 @@ Result: **5 failed, 6 passed** on the focused set above.
 ## Guard supersession
 
 - Renamed/replaced
-  `tests/test_belief.py::test_shelf_belief_from_rbpf_matches_mf_age_posterior_shape_and_values`
+  `tests/test_belief.py::test_shelf_belief_from_particle_filter_REMOVED_matches_mf_age_posterior_shape_and_values`
   with
-  `test_shelf_belief_from_rbpf_matches_arrival_age_rows_shape_and_values`
+  `test_shelf_belief_from_particle_filter_REMOVED_matches_arrival_age_rows_shape_and_values`
   (ADR 0106 supersedes ADR 0092 MF reading of `age_marginals`).

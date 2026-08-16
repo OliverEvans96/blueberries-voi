@@ -38,7 +38,7 @@ Controller belief = **MF marginals** `age_post` shape `(N, L, K)` via **`ShelfBe
 
 | In M2 | Out (M3 / locked out) |
 |-------|------------------------|
-| Belief API for CTL (`ShelfBelief` → \(\tilde I_t\)) on MF RBPF + B-state oracle | Full VOI sweep (scenario × β), VOI-01–04 headlines |
+| Belief API for CTL (`ShelfBelief` → \(\tilde I_t\)) on MF ResearchParticleFilter + B-state oracle | Full VOI sweep (scenario × β), VOI-01–04 headlines |
 | CTL-01 damped SW base-stock; CTL-02/04 one-step rollout + H/salvage | Out / parked: no browser packaging, no ENG-01; Plotly (ENG-03) |
 | CTL-03 α tuned by sim for **every** ladder arm | Misspecification / CE arms (VOI-02=A) |
 | CTL-05 full ladder + CTL-06 toy exact DP gap | Cull/markdown sequencing (X-04=A); SCN-B-clair |
@@ -65,21 +65,21 @@ closed-loop, not WASM.
 flowchart LR
   dayLog[Rich DayLog]
   mask[mask_for scenario]
-  rbpf[RBPF MeanFieldBackend]
+  particle_filter[ResearchParticleFilter MeanFieldBackend]
   mc[observation_loglik_mc]
   mf[mean_field_update age_post]
   bel[ShelfBelief API NEW]
   pol[controller policy]
-  dayLog --> mask --> rbpf
-  rbpf --> mc
-  rbpf --> mf
-  rbpf --> bel
+  dayLog --> mask --> particle_filter
+  particle_filter --> mc
+  particle_filter --> mf
+  particle_filter --> bel
   oracle[Oracle / B-state] --> bel
   bel --> pol
   pol -->|order qty only| sim[day_step closed loop]
 ```
 
-- Public today: `RBPF.step` → `FilterSummary`; `age_posterior(lot)`; private `ParticleState` / `_state`.
+- Public today: `ResearchParticleFilter.step` → `FilterSummary`; `age_posterior(lot)`; private `ParticleState` / `_state`.
 - M2 adds controller-facing **`ShelfBelief`**: particle-weighted counts + MF age marginals → \(\tilde I_t\), plus pipeline term \(\sum_j q_{t-j}\mathbb E_g[w_j]\).
 - Prefer `survival_weighted_on_hand(..., from_marginals=True)` (already in `filter/age_likelihood.py`).
 - Do **not** assume joint tensors or production `choose_backend` → `sliding_window`.
@@ -90,7 +90,7 @@ flowchart LR
 
 | Lock | Choice |
 |------|--------|
-| **Belief API** | ADR **0092**: `ShelfBelief`, `shelf_belief_from_rbpf` (MF `age_post`), `shelf_belief_from_oracle`, `effective_inventory(...)`. Controller never reads `RBPF._state`. Prefer list/float-friendly fields. |
+| **Belief API** | ADR **0092**: `ShelfBelief`, `shelf_belief_from_particle_filter_REMOVED` (MF `age_post`), `shelf_belief_from_oracle`, `effective_inventory(...)`. Controller never reads `ResearchParticleFilter._state`. Prefer list/float-friendly fields. |
 | **Day profit** | ADR **0093**: extract SIM-01=B (margin − waste − stockout) into `sim/profit.py`; no I/O; M3 owns VOI aggregation. |
 | **Action space** | Order quantity only (X-04); `case_round` to `ModelParams.case_size` (8). |
 | **Base policy** | CTL-01=C: \(q_t=\mathrm{caseRound}(\rho[F^{-1}_{D_{t:t+L}}(\alpha)-\tilde I_t]^+)\). Default **ρ=0.8** until CTL-06/CRN says retune; α from CTL-03. |
@@ -140,7 +140,7 @@ Belief wording for all tickets: **MF marginals** / `from_marginals=True` — not
 
 ## 5. Definition of done (M2)
 
-1. **Belief API** stable; CTL never touches `RBPF._state`; works with MF marginals and B-state oracle.
+1. **Belief API** stable; CTL never touches `ResearchParticleFilter._state`; works with MF marginals and B-state oracle.
 2. **CTL-01** damped SW + **CTL-02/04** one-step rollout with CRN and documented H/\(V_T\).
 3. **CTL-03** tuned α artifact for every ladder arm.
 4. **CTL-05** full five-point ladder runnable; **CTL-06** toy DP gap reported.

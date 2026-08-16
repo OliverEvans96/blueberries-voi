@@ -23,7 +23,7 @@ Reviewer non-blocking residuals from those tickets are listed under **Reviewer n
 
 ### Filter physics and beliefs
 
-- **RBPF lot counts** still follow a **±1 random walk**, not `day_step` inventory physics (`filter/backends.py`). Shelf beliefs that feed survival-weighted / VOI paths therefore use **fake counts**.
+- **ResearchParticleFilter lot counts** still follow a **±1 random walk**, not `day_step` inventory physics (`filter/backends.py`). Shelf beliefs that feed survival-weighted / VOI paths therefore use **fake counts**.
 - Beliefs derived from those counts inherit the same fiction whenever the live filter (not B-state oracle) is the information source.
 
 ### Closed-loop information default
@@ -73,7 +73,7 @@ Still agent-/convention-assumed (keep + sensitivity; do not claim blueberry fit)
 
 ### Board ⚑ risks and Wave-0 ADR locks
 
-- Board **⚑** risks called out in the audit still stand: order-quantity-only VOI channel (X-04), RBPF-first complexity (FIL-01) compounded by MF + MC LL, fine β grid compute (VOI-04), ENG-01 static-vs-Pyodide tension.
+- Board **⚑** risks called out in the audit still stand: order-quantity-only VOI channel (X-04), ResearchParticleFilter-first complexity (FIL-01) compounded by MF + MC LL, fine β grid compute (VOI-04), ENG-01 static-vs-Pyodide tension.
 - **Wave-0 ADRs** (especially implementer-filled budgets / package layout / scenario columns around **0094–0096**, and historical “Oliver unavailable” notes such as **0082**) still need **personal Oliver lock** before treating them as board-grade.
 
 ### Reviewer non-blocking (T-042 / T-043)

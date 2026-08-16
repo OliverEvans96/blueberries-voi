@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF RichObs stepping removed",
+    "T-121 F3: ADR 0127 Wave F supersession — prod PF RichObs stepping removed",
     allow_module_level=True,
 )
 
@@ -13,7 +13,7 @@ import dataclasses
 from datetime import date
 from types import SimpleNamespace
 from typing import Any, Union, get_args, get_origin, get_type_hints
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 import pytest
@@ -322,24 +322,24 @@ def test_rich_obs_from_day_log_does_not_invent_missing_delivery_metadata() -> No
 
 
 # ---------------------------------------------------------------------------
-# AC7: RBPF.step accepts RichObs (type boundary)
+# AC7: ResearchParticleFilter.step accepts RichObs (type boundary)
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_step_type_boundary_accepts_rich_obs() -> None:
+def test_particle_filter_step_type_boundary_accepts_rich_obs() -> None:
     rich_obs_cls = _require("RichObs")
     mask_for = _require("mask_for")
-    hints = get_type_hints(RBPF.step)
+    hints = get_type_hints(ResearchParticleFilter.step)
     assert "obs" in hints
     assert _type_includes(hints["obs"], rich_obs_cls), (
-        f"RBPF.step obs annotation must accept RichObs; got {hints['obs']!r}"
+        f"RPF.step obs annotation must accept RichObs; got {hints['obs']!r}"
     )
 
-    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=20, K=4, L=2)
     rng = np.random.default_rng(0)
-    rbpf.initialize(rng)
+    particle_filter.initialize(rng)
     obs = mask_for("P1").apply(_full_rich_obs(waste_total=1))
-    summary = rbpf.step(obs, rng)
+    summary = particle_filter.step(obs, rng)
     assert summary.ess > 0
 
 

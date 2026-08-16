@@ -60,13 +60,6 @@ def _flat_prior_expected_survival(
     return float(sum(s) / len(s))
 
 
-def shelf_belief_from_rbpf(rbpf: Any) -> ShelfBelief:
-    """Removed with production RBPF (T-121 Wave F); use Rust belief wire."""
-    del rbpf
-    msg = "shelf_belief_from_rbpf removed in T-121 Wave F (use Rust session belief)"
-    raise RuntimeError(msg)
-
-
 def shelf_belief_from_oracle(
     *,
     lot_counts: Sequence[int | float],
@@ -153,5 +146,4 @@ __all__ = [
     "empty_shelf_belief",
     "shelf_belief_from_cohorts_oracle",
     "shelf_belief_from_oracle",
-    "shelf_belief_from_rbpf",
 ]

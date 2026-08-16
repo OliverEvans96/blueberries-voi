@@ -1,46 +1,35 @@
-# Packaging (slim / browser wheel)
+# Packaging
 
-ADR [0101](../.team/adr/0101-eng-01-packaging-pyodide-wheels.md) locks the
-browser install story: a **slim wheel** without hard `pyarrow` / `matplotlib`,
-distributed via **GitHub Release** for `micropip.install` (**not PyPI**).
+ADR [0129](../.team/adr/0129-retire-pyodide-http-wasm-only-studio.md) locks the
+browser studio to a **single host**: the Rust WASM kernel under
+`packaging/wasm/`. There is no slim Pyodide wheel, no `micropip` install path,
+and no FastAPI session API for the studio.
 
-## Runtime pins
+## Browser studio (WASM)
 
-| Component | Pin |
-|-----------|-----|
-| Pyodide | **314.0.4** |
-| CPython (Pyodide) | **3.14.2** |
+| Piece | Location |
+|-------|----------|
+| Worker RPC | `packaging/wasm/worker.js` |
+| wasm-pack output | `packaging/wasm/pkg/` (served at `/wasm/` in dev) |
+| Build | `./scripts/build-wasm.sh` |
+| Smoke | `./scripts/smoke-wasm.sh` |
+| Launch | `./scripts/studio.sh` |
 
-Native CI also covers Python **3.11**, **3.12**, and **3.14** (see
-`packaging/github-workflows/ci.yml`).
-
-## Install in Pyodide (`micropip`)
-
-Use the GitHub Release download URL for the slim wheel (replace tag / asset
-name as published):
-
-```python
-import micropip
-
-await micropip.install(
-    "https://github.com/<org>/blueberries-voi/releases/download/v0.1.0/"
-    "blueberries_voi-0.1.0-py3-none-any.whl"
-)
-```
-
-Do **not** install the browser artifact from PyPI; the production path is the
-Release URL pattern above.
+Details: [`packaging/wasm/README.md`](wasm/README.md).
 
 Derived Abdella arrival ages ship as package data
-(`blueberries_voi/data/abdella_arrival_ages.npz`) and may also appear as a
-Release asset.
+(`blueberries_voi/data/abdella_arrival_ages.npz`) for native Python workflows.
 
-## Build + METADATA smoke (local)
+## Native Python (notebooks / CLI)
 
-```bash
-python scripts/build_slim_wheel.py
-python scripts/smoke_slim_wheel.py
-```
+Notebooks, sweep, bootstrap, and CLI continue to use the PyO3 `EngineSession`
+in `src/blueberries_voi/simulator/`. Optional extras in `pyproject.toml`:
+
+| Extra | Use |
+|-------|-----|
+| `data` | pyarrow (Abdella Parquet / Gate 0) |
+| `viz` | matplotlib (static figures) |
+| `rust` | maturin (PyO3 extension builds) |
 
 ## Human: copy workflows into `.github/`
 
@@ -49,6 +38,6 @@ Agent protocol forbids writing live `.github/workflows/`. Canonical sources:
 | Canonical | Live destination |
 |-----------|------------------|
 | `packaging/github-workflows/ci.yml` | `.github/workflows/ci.yml` |
-| `packaging/github-workflows/release-slim-wheel.yml` | `.github/workflows/release-slim-wheel.yml` |
+| `packaging/github-workflows/rust-kernel.yml` | `.github/workflows/rust-kernel.yml` |
 
-Copy or symlink those files before CI/Release jobs run on GitHub.
+Copy or symlink those files before CI jobs run on GitHub.

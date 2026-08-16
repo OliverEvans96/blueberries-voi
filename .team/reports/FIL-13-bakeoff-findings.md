@@ -9,7 +9,7 @@
 
 > **Settle note (ADR 0091, 2026-08-12):** production is now **B — `mean_field`**, not E. See § Settle addendum. Body below is the bakeoff-era lock.
 
-- Board worry was **L ≈ 12–20** under MOD-13=C + daily delivery, which would make FIL-12=B’s joint `K^L` infeasible. FIL-13 ran an in-repo bakeoff before locking production RBPF shape.
+- Board worry was **L ≈ 12–20** under MOD-13=C + daily delivery, which would make FIL-12=B’s joint `K^L` infeasible. FIL-13 ran an in-repo bakeoff before locking production particle filter shape.
 - Under **M1 open-loop defaults** (σ=0.5, S=60, MOD-26 demand/case, FIL-14 extinction), empirical live-cohort count **L is small**: roughly **p50≈2, p90≈3, max≈3–4**. Fast ~2-day inventory turn explains why.
 - Per settle rule (prefer **A** if L large; **E** if L small enough), production locks **E — `full_joint`** (ADR **0082** ACCEPTED). Code: `PRODUCTION_BACKEND = "full_joint"`.
 - FIL-15 locks production numerics (ADR **0083**): age grid **[0, 8]**, **K=8**, **N=2000**, ESS threshold **N/2**.
@@ -25,7 +25,7 @@
 
 ### FIL-12 = B (coarse joint)
 
-ADR **0057** (FIL-12) chose **B — coarse age grid, joint** against the card’s recommendation (sliding window). Motivation: FIL-01 RBPF + FIL-04 joint age + FIL-03 fixed grid + MOD-13=C (no live-cohort bound) make `K^L` per particle per day explode unless K is small. Worked example assumed **L ≈ 4**.
+ADR **0057** (FIL-12) chose **B — coarse age grid, joint** against the card’s recommendation (sliding window). Motivation: FIL-01 ResearchParticleFilter + FIL-04 joint age + FIL-03 fixed grid + MOD-13=C (no live-cohort bound) make `K^L` per particle per day explode unless K is small. Worked example assumed **L ≈ 4**.
 
 ### Board worry: L ≈ 12–20
 
@@ -98,7 +98,7 @@ Highest max L among regimes: **combo → max=13**. At forced L=13, K=8, N=200: `
 
 ### Stage A link (only as it touches L)
 
-FIL-11 Stage A failed under defaults (posterior did not contract). Scenario sweeps show **long dwell** (μ=15 + S=120) can restore contraction under the soft-LL Stage A metric, but those cells push empirical **L≈7–8** while the production RBPF still tracks **`PRODUCTION_L=3`** slots and reports `age_posterior(0)` (oldest fixed slot). That is a **verification / dynamic-L** issue for later work — not a reason to reopen FIL-13’s E-at-measured-L lock without new L evidence under the intended controller.
+FIL-11 Stage A failed under defaults (posterior did not contract). Scenario sweeps show **long dwell** (μ=15 + S=120) can restore contraction under the soft-LL Stage A metric, but those cells push empirical **L≈7–8** while the production particle filter still tracks **`PRODUCTION_L=3`** slots and reports `age_posterior(0)` (oldest fixed slot). That is a **verification / dynamic-L** issue for later work — not a reason to reopen FIL-13’s E-at-measured-L lock without new L evidence under the intended controller.
 
 ---
 
@@ -143,7 +143,7 @@ FIL-11 Stage A failed under defaults (posterior did not contract). Scenario swee
 | full_joint | 2–4 | ~0.01–0.016 | ok | 1.28e4 … 8.19e5 |
 | full_joint | ≥6 | 0 | **skip/oom (guard)** | ≥5.24e7 |
 
-Runtime differences among RBPF-style stubs are **small**; **memory formulas** are the decision surface.
+Runtime differences among particle-filter-style stubs are **small**; **memory formulas** are the decision surface.
 
 ### Production frontier (K=8, N=2000)
 
@@ -159,7 +159,7 @@ Other K/N highlights (first fail): K=4 N=2000 fails at L=8; K=6 N=2000 fails at 
 
 - Code: `guard_joint_memory(K, L, N)` in `filter/types.py` raises **`MemoryError`** if `K^L·N > 5e7`, with message to escalate FIL-13 — **no silent L truncation**.
 - Bakeoff/scaling “oom” / `skip` flags mean **this guard or the soft floats-proxy skip**, not the Linux OOM killer.
-- `FullJointBackend.predict_update` calls the guard; production `RBPF.__post_init__` / `initialize` also call it.
+- `FullJointBackend.predict_update` calls the guard; production `ResearchParticleFilter.__post_init__` / `initialize` also call it.
 - Do **not** interpret “OOM at L≥6” as “the process blew RAM allocating a dense `K^L` tensor” — the dense joint is **not** materialized in the current stub.
 
 ---
@@ -172,7 +172,7 @@ TV vs exact one-step and pairwise TV among `full_joint` / `sliding_window` / `me
 
 ### Critical stub caveats (do not ignore)
 
-1. **Shared factorized update:** RBPF-style backends store `age_post` as shape `(N, L, K)` and share essentially the same **per-cohort** predict/update (`_rbpf_update`). They do **not** currently implement distinct joint vs window vs mean-field *inference* semantics.
+1. **Shared factorized update:** particle-filter-style backends store `age_post` as shape `(N, L, K)` and share essentially the same **per-cohort** predict/update (`_particle_filter_update`). They do **not** currently implement distinct joint vs window vs mean-field *inference* semantics.
 2. **`full_joint` distinction today:** mainly the **`K^L·N` memory guard**. True dense joint tensor is **not** allocated.
 3. **`sliding_window.window`:** accepted on the backend object but **not yet used** to change the update (W=2 vs W=3 timing cells note “window unused in stub”).
 4. **Near-zero TV is expected and uninformative** under a shared stub — it does **not** prove joint fidelity, window approximation quality, or mean-field error.
@@ -197,7 +197,7 @@ TV vs exact one-step and pairwise TV among `full_joint` / `sliding_window` / `me
 | **ADR 0082** (ACCEPTED) | FIL-13 = **E — full_joint** at measured L |
 | **ADR 0083** (ACCEPTED) | FIL-15 numerics: grid **[0,8]**, **K=8**, **N=2000**, ESS **N/2** |
 | Fallback | **A — sliding_window** kept implemented; reopen 0082 toward A if guard trips under a new policy regime |
-| Code constants | `PRODUCTION_BACKEND="full_joint"`, `PRODUCTION_K=8`, `PRODUCTION_N=2000`, `PRODUCTION_ESS_FRACTION=0.5`, `PRODUCTION_L=3` in `src/blueberries_voi/filter/rbpf.py` |
+| Code constants | `PRODUCTION_BACKEND="full_joint"`, `PRODUCTION_K=8`, `PRODUCTION_N=2000`, `PRODUCTION_ESS_FRACTION=0.5`, `PRODUCTION_L=3` in `src/blueberries_voi/filter/particle_filter.py` |
 | FIL-12 (ADR 0057) | Still **B — coarse joint**; FIL-13 confirmed that choice is tractable at *measured* L, not at the old 12–20 estimate |
 
 ---
@@ -241,7 +241,7 @@ Once a **real** joint (and real W / mean-field) update exists, do **not** reuse 
 | `figures/m1/fil13_runtime.png` | Bakeoff runtime figure |
 | `figures/m1/fil13_scaling.png` | Scaling figure |
 | `figures/m1/README.md` | Figure regen map |
-| `src/blueberries_voi/filter/rbpf.py` | `PRODUCTION_BACKEND` / K / N / L / ESS |
+| `src/blueberries_voi/filter/particle_filter.py` | `PRODUCTION_BACKEND` / K / N / L / ESS |
 | `src/blueberries_voi/filter/types.py` | `MAX_JOINT_FLOATS`, `guard_joint_memory` |
 | `src/blueberries_voi/filter/backends.py` | Bakeoff backends + shared update stub |
 | `tests/test_filter.py` | Asserts `PRODUCTION_BACKEND == "full_joint"` |

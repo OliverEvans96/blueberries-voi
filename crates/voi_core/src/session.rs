@@ -1,4 +1,4 @@
-//! EngineSession JSON RPC — order schedule + RBPF + rollout (Python day_driver).
+//! EngineSession JSON RPC — order schedule + particle filter + rollout (Python day_driver).
 
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ use crate::obs::{mask_for, RichDay};
 use crate::physics::{draw_demand, draw_demand_spawn};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
-use crate::rbpf::{filter_step, ParticleBank};
+use crate::particle_filter::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{generate_arrival_age, ShipmentTrace};

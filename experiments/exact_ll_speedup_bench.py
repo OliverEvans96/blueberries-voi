@@ -113,7 +113,7 @@ def uniqueness_probe() -> dict[str, Any]:
     """Estimate unique-key hit rate on a short P1 episode (N=16)."""
     import blueberries_voi.filter.age_likelihood as age_likelihood
     import blueberries_voi.filter.backends as backends
-    from blueberries_voi.filter import RBPF
+    from blueberries_voi.filter.particle.research import ResearchParticleFilter
     from blueberries_voi.filter.types import UNOBSERVED, RichObs, mask_for
     from blueberries_voi.model import ModelParams
 
@@ -131,9 +131,9 @@ def uniqueness_probe() -> dict[str, Any]:
     age_likelihood.mean_field_update = _spy  # type: ignore[assignment]
     backends.mean_field_update = _spy  # type: ignore[attr-defined]
 
-    rbpf = RBPF(params=ModelParams(), N=16, K=8, L=3)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=16, K=8, L=3)
     rng = np.random.default_rng(0)
-    rbpf.initialize(rng)
+    particle_filter.initialize(rng)
     obs = mask_for("P1").apply(
         RichObs(
             arrivals=0,
@@ -149,9 +149,9 @@ def uniqueness_probe() -> dict[str, Any]:
     # Several days to accumulate resample duplicates.
     particle_days = 0
     for _ in range(6):
-        assert rbpf._state is not None
-        particle_days += rbpf.N
-        rbpf.step(obs, rng)
+        assert particle_filter._state is not None
+        particle_days += particle_filter.N
+        particle_filter.step(obs, rng)
 
     return {
         "mf_calls": calls,

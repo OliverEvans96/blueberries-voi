@@ -40,7 +40,7 @@ We will:
    | Concern | Owner | Crosses boundary? |
    |---------|--------|-------------------|
    | Physics, arrivals, CRN, lots, pipeline | Python | Yes (`init`/`step`/`reset`) |
-   | RBPF / shelf belief | Python | Yes when filter advances |
+   | ResearchParticleFilter / shelf belief | Python | Yes when filter advances |
    | History window append / drop | Python emits; JS mirrors | Delta only |
    | Economics → PnL / totals / ghost | **JS** | **Never** |
    | Heatmap from marginals | **JS** | No |

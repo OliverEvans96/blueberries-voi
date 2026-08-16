@@ -597,7 +597,7 @@ def main() -> None:
         "| `bootstrap_pf` | `N * L` (age indices; no grid posterior) |",
         "",
         "**Implementation note:** the current bakeoff stubs store "
-        "`age_post` as shape `(N, L, K)` for RBPF-style backends and share "
+        "`age_post` as shape `(N, L, K)` for particle-filter-style backends and share "
         "the same per-cohort update. `full_joint`'s distinctive behavior in "
         "this repo is the **`K^L*N` memory guard** (true dense joint tensor "
         "is not materialized). Sliding-window `window` is accepted but not "
@@ -751,7 +751,7 @@ def main() -> None:
             "### Bootstrap PF",
             "",
             "Theory: putting age in the particle (no Rao-Blackwell grid) needs "
-            "**much larger N** to match marginal age accuracy of an RBPF - "
+            "**much larger N** to match marginal age accuracy of a particle filter - "
             "variance scales like sampling a discrete age per cohort without "
             "marginalising. Quick ESS smoke (same toy obs):",
             "",

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: production RBPF removed", allow_module_level=True)
+pytest.skip("T-121 F3: production particle filter removed", allow_module_level=True)
 
 import ast
 import re
@@ -19,8 +19,8 @@ import numpy as np
 import pytest
 
 from blueberries_voi import filter as filter_pkg
-from blueberries_voi.filter import RBPF
 from blueberries_voi.filter.backends import BACKENDS, get_backend
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     MAX_JOINT_FLOATS,
     UNOBSERVED,
@@ -156,11 +156,11 @@ def test_production_backend_constant_is_not_mean_field() -> None:
     }
 
 
-def test_default_rbpf_matches_production_backend_not_age_mf() -> None:
+def test_default_particle_filter_matches_production_backend_not_age_mf() -> None:
     assert filter_pkg.PRODUCTION_BACKEND != "mean_field"
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
-    choice = getattr(rbpf, "backend_choice", None)
-    assert choice is not None, "RBPF must expose backend_choice"
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
+    choice = getattr(particle_filter, "backend_choice", None)
+    assert choice is not None, "particle filter must expose backend_choice"
     backend_name = getattr(choice, "backend", None)
     assert backend_name == filter_pkg.PRODUCTION_BACKEND
     assert backend_name not in {"sliding_window", "full_joint", "mean_field"}
@@ -171,8 +171,8 @@ def test_default_rbpf_matches_production_backend_not_age_mf() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_update_source_does_not_call_mean_field_update() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_source_does_not_call_mean_field_update() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     names = _names_in_function(fn)
     assert "mean_field_update" not in names
 
@@ -194,33 +194,40 @@ def test_p1_unobserved_maps_does_not_invoke_mean_field_update(
     if hasattr(backends, "mean_field_update"):
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
-    rbpf = RBPF(params=ModelParams(), N=24, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=24, K=4, L=2)
     rng = np.random.default_rng(11)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[6, 6]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[6, 6]] * particle_filter.N, dtype=int
+    )
     obs = _p1_unobserved_maps(sales_total=8, waste_total=2)
-    rbpf.step(obs, rng)
+    particle_filter.step(obs, rng)
     assert not calls, "mean_field_update must not run on production P1 path"
 
 
 def test_p1_age_rows_stay_simplex_and_do_not_move_under_sales_ll() -> None:
     """Arrival-only: non-flat P1 sales must not rewrite age_post (no in-store LL)."""
-    rbpf = RBPF(params=ModelParams(), N=30, K=6, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=30, K=6, L=2)
     rng = np.random.default_rng(23)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
-    prior = np.ones_like(rbpf._state.age_post) / rbpf._state.age_post.shape[-1]
-    rbpf._state.age_post[:] = prior
-    prior_lot0 = rbpf.age_posterior(0).copy()
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
+    prior = (
+        np.ones_like(particle_filter._state.age_post)
+        / particle_filter._state.age_post.shape[-1]
+    )
+    particle_filter._state.age_post[:] = prior
+    prior_lot0 = particle_filter.age_posterior(0).copy()
 
     obs = _p1_unobserved_maps(sales_total=12, waste_total=1, arrivals=0)
-    rbpf.step(obs, rng)
-    assert rbpf._state is not None
-    post = rbpf._state.age_post
+    particle_filter.step(obs, rng)
+    assert particle_filter._state is not None
+    post = particle_filter._state.age_post
     assert np.allclose(post.sum(axis=-1), 1.0, atol=_SIMPLEX_TOL)
-    post_lot0 = rbpf.age_posterior(0)
+    post_lot0 = particle_filter.age_posterior(0)
     tv = _lot_tv(prior_lot0, post_lot0)
     assert tv <= _TV_TOL, (
         f"lot-0 age marginal TV={tv:.3g} — sales must not rewrite arrival ages"
@@ -233,7 +240,7 @@ def test_p1_age_rows_stay_simplex_and_do_not_move_under_sales_ll() -> None:
 
 
 def test_production_weights_use_exact_wor_not_observation_loglik_mc() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     names = _names_in_function(fn)
     assert "observation_loglik_mc" not in names, (
         "particle weights must not default to observation_loglik_mc (ADR 0105)"
@@ -260,10 +267,10 @@ def test_production_step_does_not_call_observation_loglik_mc(
         return real(*args, **kwargs)
 
     monkeypatch.setattr(backends, "observation_loglik_mc", _spy)
-    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=20, K=4, L=2)
     rng = np.random.default_rng(3)
-    rbpf.initialize(rng)
-    rbpf.step(_p1_unobserved_maps(), rng)
+    particle_filter.initialize(rng)
+    particle_filter.step(_p1_unobserved_maps(), rng)
     assert not calls, "default production step must not call observation_loglik_mc"
 
 
@@ -287,13 +294,15 @@ def test_lot_map_path_does_not_invoke_apply_lot_map_age_update(
         return real(*args, **kwargs)
 
     monkeypatch.setattr(backends, "_apply_lot_map_age_update", _spy)
-    rbpf = RBPF(params=ModelParams(), N=40, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=40, K=4, L=2)
     rng = np.random.default_rng(17)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[8, 8]] * particle_filter.N, dtype=int
+    )
     obs = _f1_lot_maps(sales_by_lot={1: 10, 2: 2})
-    rbpf.step(obs, rng)
+    particle_filter.step(obs, rng)
     assert not calls, (
         "ADR 0105: production path must not apply in-store lot-map age LL updates"
     )
@@ -303,15 +312,20 @@ def test_lot_map_excess_does_not_move_target_lot_age_marginal() -> None:
     def _posts(
         sales_by_lot: dict[int, int], *, seed: int
     ) -> tuple[np.ndarray, np.ndarray]:
-        rbpf = RBPF(params=ModelParams(), N=60, K=4, L=2)
+        particle_filter = ResearchParticleFilter(params=ModelParams(), N=60, K=4, L=2)
         rng = np.random.default_rng(seed)
-        rbpf.initialize(rng)
-        assert rbpf._state is not None
-        rbpf._state.counts[:] = np.asarray([[8, 8]] * rbpf.N, dtype=int)
-        flat = np.ones_like(rbpf._state.age_post) / rbpf._state.age_post.shape[-1]
-        rbpf._state.age_post[:] = flat
-        rbpf.step(_f1_lot_maps(sales_by_lot=sales_by_lot), rng)
-        return rbpf.age_posterior(0), rbpf.age_posterior(1)
+        particle_filter.initialize(rng)
+        assert particle_filter._state is not None
+        particle_filter._state.counts[:] = np.asarray(
+            [[8, 8]] * particle_filter.N, dtype=int
+        )
+        flat = (
+            np.ones_like(particle_filter._state.age_post)
+            / particle_filter._state.age_post.shape[-1]
+        )
+        particle_filter._state.age_post[:] = flat
+        particle_filter.step(_f1_lot_maps(sales_by_lot=sales_by_lot), rng)
+        return particle_filter.age_posterior(0), particle_filter.age_posterior(1)
 
     base_a, _base_b = _posts({1: 6, 2: 6}, seed=19)
     excess_a, _excess_b = _posts({1: 10, 2: 2}, seed=19)
@@ -326,8 +340,8 @@ def test_lot_map_excess_does_not_move_target_lot_age_marginal() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_rbpf_update_has_no_pm1_count_random_walk() -> None:
-    fn = _ast_function(_backends_source(), "_rbpf_update")
+def test_particle_filter_update_has_no_pm1_count_random_walk() -> None:
+    fn = _ast_function(_backends_source(), "_particle_filter_update")
     assert not _has_pm1_count_rw(fn)
 
 
@@ -347,10 +361,12 @@ def test_choose_backend_preserves_long_dwell_l_no_silent_truncation() -> None:
     assert choice.backend not in {"sliding_window", "full_joint"}
 
 
-def test_production_rbpf_over_budget_constructs_without_memory_error() -> None:
+def test_production_particle_filter_over_budget_constructs_without_memory_error() -> (
+    None
+):
     assert joint_state_count(_PROD_K, _L_LONG, _PROD_N) > MAX_JOINT_FLOATS
     try:
-        rbpf = RBPF(
+        particle_filter = ResearchParticleFilter(
             params=ModelParams(),
             K=_PROD_K,
             N=_PROD_N,
@@ -360,8 +376,11 @@ def test_production_rbpf_over_budget_constructs_without_memory_error() -> None:
         raise AssertionError(
             "production path must not raise MemoryError on over-budget (K,L,N)"
         ) from exc
-    assert rbpf.L == _L_LONG
-    assert rbpf.backend_choice.backend not in {"sliding_window", "full_joint"}
+    assert particle_filter.L == _L_LONG
+    assert particle_filter.backend_choice.backend not in {
+        "sliding_window",
+        "full_joint",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -387,8 +406,11 @@ def test_full_joint_bakeoff_arm_still_guards_memory_production_does_not() -> Non
     assert joint_state_count(k, ell, n) > MAX_JOINT_FLOATS
     choice = filter_pkg.choose_backend(k, ell, n)
     assert choice.backend not in {"sliding_window", "full_joint"}
-    rbpf = RBPF(params=ModelParams(), K=k, N=n, L=ell)
-    assert rbpf.backend_choice.backend not in {"sliding_window", "full_joint"}
+    particle_filter = ResearchParticleFilter(params=ModelParams(), K=k, N=n, L=ell)
+    assert particle_filter.backend_choice.backend not in {
+        "sliding_window",
+        "full_joint",
+    }
 
     be = get_backend("full_joint")
     rng = np.random.default_rng(0)
@@ -444,8 +466,8 @@ def test_no_new_runtime_dependencies_for_t068() -> None:
 
 
 def test_legacy_p1obs_step_still_accepted_on_production_path() -> None:
-    rbpf = RBPF(params=ModelParams(), N=16, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=16, K=4, L=2)
     rng = np.random.default_rng(5)
-    rbpf.initialize(rng)
-    summary = rbpf.step(P1Obs(10, 1, 0), rng)
+    particle_filter.initialize(rng)
+    summary = particle_filter.step(P1Obs(10, 1, 0), rng)
     assert summary.ess > 0

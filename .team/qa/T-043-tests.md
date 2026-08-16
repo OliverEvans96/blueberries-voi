@@ -53,7 +53,7 @@
   — currently failing: missing demo preset export
 
 - Shared day driver (order → pending/arrival → `day_step` → obs → optional
-  RBPF → belief → DayDelta) without matplotlib / pyarrow
+  ResearchParticleFilter → belief → DayDelta) without matplotlib / pyarrow
   → `tests/test_simulator_session.py::test_shared_day_driver_symbol_exists` —
   currently failing: missing day driver symbol
   → `tests/test_simulator_session.py::test_simulator_modules_have_no_matplotlib_or_pyarrow_imports`

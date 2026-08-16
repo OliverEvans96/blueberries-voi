@@ -10,7 +10,7 @@ use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::physics::{draw_demand, weibull_survival};
 use crate::policy::{case_round, damped_sw_order, protection_demand_quantile};
-use crate::rbpf::{filter_step, ParticleBank};
+use crate::particle_filter::{filter_step, ParticleBank};
 use crate::rollout::{day_profit, rollout_order};
 use crate::shipments::{generate_arrival_age, ShipmentTrace};
 

@@ -1,7 +1,7 @@
 """FIL-13 bakeoff backends behind one predict/update interface.
 
 Façade over ``filter.particle``: re-exports the public surface and keeps a real
-``def _rbpf_update`` in this file so AST hygiene scanners that parse
+``def _particle_filter_update`` in this file so AST hygiene scanners that parse
 ``backends.__file__`` remain green (ADR 0118 / T-102).
 """
 
@@ -24,7 +24,9 @@ from blueberries_voi.filter.particle.bakeoff import (
 from blueberries_voi.filter.particle.bakeoff import (
     SlidingWindowBackend as SlidingWindowBackend,
 )
-from blueberries_voi.filter.particle.bakeoff_counts_update import _rbpf_update_impl
+from blueberries_voi.filter.particle.bakeoff_counts_update import (
+    _particle_filter_update_impl,
+)
 from blueberries_voi.filter.particle.mc_likelihood import (
     _cohorts_from_counts_ages as _cohorts_from_counts_ages,
 )
@@ -77,7 +79,7 @@ _SHARED_MC_KERNELS = (day_step, allocate_sales, death_prob_survival_ratio, draw_
 _ = (ParticleState, FilterBackend, P1Obs, RichObs, ModelParams, np)
 
 
-def _rbpf_update(
+def _particle_filter_update(
     state: ParticleState,
     obs: RichObs | P1Obs,
     params: ModelParams,
@@ -103,7 +105,7 @@ def _rbpf_update(
         death_prob_survival_ratio,
         day_step,
     )
-    return _rbpf_update_impl(
+    return _particle_filter_update_impl(
         state,
         obs,
         params,
@@ -113,8 +115,11 @@ def _rbpf_update(
     )
 
 
-def _rbpf_update_end_marker() -> str:
-    """Terminator for source scanners that slice from ``_rbpf_update`` to next def."""
+def _particle_filter_update_end_marker() -> str:
+    """Terminator for source scanners that slice from ``_particle_filter_update``.
+
+    Returns the next top-level def name after the update body.
+    """
     return "log_p_sales_waste_given_ages"
 
 

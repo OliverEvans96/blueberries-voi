@@ -1,6 +1,6 @@
 /**
  * WasmAdapter — VITE_ENGINE_ADAPTER=wasm (ADR 0120).
- * Module worker + JSON RPC only (mirrors PyodideAdapter; no main-thread physics).
+ * Module worker + JSON RPC only (no main-thread physics).
  */
 
 import type { EngineAdapter } from "./adapter";

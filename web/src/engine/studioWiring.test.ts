@@ -1,5 +1,5 @@
 /**
- * T-057 RED: wire D3 studio — prod=PyodideAdapter, dev=HttpAdapter;
+ * T-057 / T-125 RED: wire D3 studio — WASM-only default (WasmAdapter);
  * fake generate.ts physics off the default path; setEconomics stays local.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -7,9 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EngineAdapter } from "./adapter";
-import { HttpAdapter } from "./httpAdapter";
 import { MockAdapter } from "../mock/adapter";
-import { PyodideAdapter } from "./pyodideAdapter";
 import { WasmAdapter } from "./wasmAdapter";
 import { ViewModelProjector } from "./projector";
 import {
@@ -85,12 +83,11 @@ const PROD_ENV: StudioEnv = {
   MODE: "production",
   DEV: false,
   PROD: true,
-  VITE_PYODIDE_WORKER_URL: "/worker.js",
-  VITE_PYODIDE_WHEEL_URL:
-    "https://example.test/blueberries_voi-0.1.0-py3-none-any.whl",
+  VITE_WASM_WORKER_URL: "/packaging/wasm/worker.js",
+  VITE_WASM_PKG_URL: "/wasm/",
 };
 
-describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
+describe("T-125 studio adapter selection (wasm default)", () => {
   beforeEach(() => {
     installFakeWorker();
   });
@@ -99,12 +96,12 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     vi.restoreAllMocks();
   });
 
-  it("dev build with API base URL resolves to HttpAdapter kind", () => {
-    expect(resolveStudioAdapterKind(DEV_ENV)).toBe("http");
+  it("dev build with API base URL still resolves to wasm kind", () => {
+    expect(resolveStudioAdapterKind(DEV_ENV)).toBe("wasm");
   });
 
-  it("prod/demo build resolves to PyodideAdapter kind", () => {
-    expect(resolveStudioAdapterKind(PROD_ENV)).toBe("pyodide");
+  it("prod/demo build resolves to wasm kind (not pyodide)", () => {
+    expect(resolveStudioAdapterKind(PROD_ENV)).toBe("wasm");
   });
 
   it("explicit VITE_ENGINE_ADAPTER=mock keeps Mock as a debug option", () => {
@@ -141,35 +138,28 @@ describe("T-057 studio adapter selection (dev=HTTP, prod=Pyodide)", () => {
     expect(urlStr).not.toMatch(/github\.com\/oliver/);
   });
 
-  it("explicit VITE_ENGINE_ADAPTER=http selects http", () => {
-    expect(
-      resolveStudioAdapterKind({
-        ...PROD_ENV,
-        VITE_ENGINE_ADAPTER: "http",
-        VITE_ENGINE_API_BASE_URL: "http://127.0.0.1:8000",
-      }),
-    ).toBe("http");
-  });
-
-  it("createStudioAdapter builds HttpAdapter for dev/http kind", () => {
+  it("createStudioAdapter builds WasmAdapter for dev default kind", () => {
     const adapter = createStudioAdapter({
       env: DEV_ENV,
-      baseUrl: DEV_ENV.VITE_ENGINE_API_BASE_URL,
-      fetch: vi.fn() as unknown as typeof fetch,
     });
-    expect(adapter).toBeInstanceOf(HttpAdapter);
+    expect(adapter).toBeInstanceOf(WasmAdapter);
     expect(typeof (adapter as EngineAdapter).init).toBe("function");
     expect(typeof (adapter as EngineAdapter).step).toBe("function");
+    expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
+    const urlStr = String(FakeWorker.instances[0]!.url);
+    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).not.toMatch(/pyodide/);
   });
 
-  it("createStudioAdapter builds PyodideAdapter for prod/pyodide kind", () => {
+  it("createStudioAdapter builds WasmAdapter for prod default kind", () => {
     const adapter = createStudioAdapter({
       env: PROD_ENV,
-      workerUrl: PROD_ENV.VITE_PYODIDE_WORKER_URL,
-      wheelUrl: PROD_ENV.VITE_PYODIDE_WHEEL_URL,
     });
-    expect(adapter).toBeInstanceOf(PyodideAdapter);
+    expect(adapter).toBeInstanceOf(WasmAdapter);
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
+    const urlStr = String(FakeWorker.instances[0]!.url);
+    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).not.toMatch(/pyodide/);
   });
 
   it("createStudioAdapter builds MockAdapter only when kind is mock", () => {
@@ -189,15 +179,13 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     expect(src).not.toMatch(/const\s+adapter\s*=\s*new\s+MockAdapter\s*\(/);
   });
 
-  it("react/studioLogic.ts imports HttpAdapter and PyodideAdapter selection (or studioAdapter helper)", () => {
+  it("react/studioLogic.ts selects adapters via studioAdapter helper (no Http/Pyodide imports)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
-    const usesHelper = /from\s+["'](\.\.\/|\.\/)engine\/studioAdapter["']/.test(src);
-    const importsBoth =
-      /HttpAdapter/.test(src) && /PyodideAdapter/.test(src);
-    expect(
-      usesHelper || importsBoth,
-      "main must select adapters via studioAdapter helper or direct Http/Pyodide imports",
-    ).toBe(true);
+    expect(src).toMatch(/from\s+["'](\.\.\/|\.\/)engine\/studioAdapter["']/);
+    expect(src).not.toMatch(/from\s+["']\.\/engine\/httpAdapter["']/);
+    expect(src).not.toMatch(/from\s+["']\.\/engine\/pyodideAdapter["']/);
+    expect(src).not.toMatch(/\bHttpAdapter\b/);
+    expect(src).not.toMatch(/\bPyodideAdapter\b/);
   });
 
   it("Advance / Reset / bootstrap go through adapter.step_n (primary) / reset / init + projector", () => {
@@ -241,22 +229,20 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
   });
 });
 
-describe("T-057 default path leaves fake generate.ts physics", () => {
-  it("studioAdapter default (no explicit mock) is not MockAdapter", () => {
+describe("T-125 default path leaves fake generate.ts physics", () => {
+  it("studioAdapter default (no explicit mock) is WasmAdapter not MockAdapter", () => {
     installFakeWorker();
     try {
       const prod = createStudioAdapter({
         env: PROD_ENV,
-        workerUrl: PROD_ENV.VITE_PYODIDE_WORKER_URL,
-        wheelUrl: PROD_ENV.VITE_PYODIDE_WHEEL_URL,
       });
+      expect(prod).toBeInstanceOf(WasmAdapter);
       expect(prod).not.toBeInstanceOf(MockAdapter);
 
       const dev = createStudioAdapter({
         env: DEV_ENV,
-        baseUrl: DEV_ENV.VITE_ENGINE_API_BASE_URL,
-        fetch: vi.fn() as unknown as typeof fetch,
       });
+      expect(dev).toBeInstanceOf(WasmAdapter);
       expect(dev).not.toBeInstanceOf(MockAdapter);
     } finally {
       vi.unstubAllGlobals();
@@ -268,13 +254,13 @@ describe("T-057 default path leaves fake generate.ts physics", () => {
     expect(resolveStudioAdapterKind(PROD_ENV)).not.toBe("mock");
   });
 
-  it("studioAdapter module does not import generate.ts day-loop helpers for defaults", () => {
+  it("studioAdapter module wires WasmAdapter only (no http/pyodide imports)", () => {
     const src = readFileSync(STUDIO_ADAPTER_TS, "utf8");
     expect(src).not.toMatch(/stepSimulation/);
     expect(src).not.toMatch(/createInitialState/);
-    // Default path must construct real adapters (imports, not comments alone).
-    expect(src).toMatch(/from\s+["']\.\/httpAdapter["']/);
-    expect(src).toMatch(/from\s+["']\.\/pyodideAdapter["']/);
+    expect(src).toMatch(/from\s+["']\.\/wasmAdapter["']/);
+    expect(src).not.toMatch(/from\s+["']\.\/httpAdapter["']/);
+    expect(src).not.toMatch(/from\s+["']\.\/pyodideAdapter["']/);
   });
 });
 
@@ -310,8 +296,9 @@ describe("T-057 smoke checklist recorded", () => {
       "expected .team/qa/T-057-smoke.md (or mockup README) documenting adapter smoke",
     ).toBeTruthy();
     const text = readFileSync(hit!, "utf8");
-    expect(text).toMatch(/HttpAdapter|http/i);
-    expect(text).toMatch(/PyodideAdapter|pyodide/i);
+    expect(text).toMatch(/WasmAdapter|wasm/i);
+    expect(text).not.toMatch(/PyodideAdapter|pyodide/i);
+    expect(text).not.toMatch(/HttpAdapter|http\s+studio/i);
     expect(text).toMatch(/smoke|checklist|pass\s*\/\s*fail/i);
   });
 });

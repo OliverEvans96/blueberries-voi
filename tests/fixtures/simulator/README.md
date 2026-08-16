@@ -8,16 +8,16 @@ Frozen JSON examples of the Python → host wire contract:
 | `day_delta_seed42_step0.json` | First `step(16)` **DayDelta** after that init |
 | `step_n_seed42.json` | Framed `{ "deltas": [DayDelta, ...] }` from `step_n([0, 16, 0])` |
 
-## Generation recipe (RBPF-on)
+## Generation recipe (filter-on)
 
-- **Filter:** RBPF-on (`enable_filter=True`) under ADR 0099 / `DEMO_BUDGETS`
+- **Filter:** filter-on (`enable_filter=True`) under ADR 0099 / `DEMO_BUDGETS`
   (`n_particles=200`, `H=7`, `n_rollout_paths=2`, `candidate_case_radius=1`).
 - **Shelf:** `L=2`, `K=4` (flat `age_marginals` length `L*K=8`).
 - **Seed:** `42`
 - **Shipments:** two in-memory `ShipmentTrace` values (no parquet / Abdella FS).
 - **Order:** first delta uses `order_qty=16`; `step_n` uses `[0, 16, 0]`.
 
-Oracle-filter goldens were not needed — RBPF-on under demo budgets is stable enough
+Oracle-filter goldens were not needed — filter-on under demo budgets is stable enough
 for schema/shape contract tests (exact live byte equality is optional per T-045).
 
 ## Contract reminders

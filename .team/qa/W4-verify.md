@@ -25,9 +25,9 @@ Artifacts claimed APPROVED present:
 
 ## Acceptance criteria (T-015)
 
-- [x] RBPF (or factory) selects **`full_joint`** when `joint_state_count(K, L, N) ≤ MAX_JOINT_FLOATS` — verified by `tests/test_l_fallback.py` (`test_choose_backend_selects_full_joint_*`, `test_rbpf_within_budget_uses_full_joint`)
-- [x] When L would exceed the budget, backend becomes **`sliding_window`** and a structured return field records `{K, L, N, joint_floats, backend="sliding_window", reason=...}` — verified by `test_choose_backend_falls_back_*`, `test_fallback_choice_records_structured_reason_fields`, `test_rbpf_over_budget_*`, `test_rbpf_initialize_over_budget_*`
-- [x] Silent L truncation impossible on production path; L used equals requested/empirical L (or fallback backend) — verified by `test_choose_backend_never_silently_truncates_l`, initialize/over-budget RBPF tests
+- [x] ResearchParticleFilter (or factory) selects **`full_joint`** when `joint_state_count(K, L, N) ≤ MAX_JOINT_FLOATS` — verified by `tests/test_l_fallback.py` (`test_choose_backend_selects_full_joint_*`, `test_particle_filter_within_budget_uses_full_joint`)
+- [x] When L would exceed the budget, backend becomes **`sliding_window`** and a structured return field records `{K, L, N, joint_floats, backend="sliding_window", reason=...}` — verified by `test_choose_backend_falls_back_*`, `test_fallback_choice_records_structured_reason_fields`, `test_particle_filter_over_budget_*`, `test_particle_filter_initialize_over_budget_*`
+- [x] Silent L truncation impossible on production path; L used equals requested/empirical L (or fallback backend) — verified by `test_choose_backend_never_silently_truncates_l`, initialize/over-budget ResearchParticleFilter tests
 - [x] Dynamic L: filter track length follows configured max under joint when within budget — verified by `test_dynamic_l_follows_configured_max_when_joint_fits`
 - [x] Short bakeoff / note addendum under `experiments/` documents re-measured L + fallback — verified by `test_m15_l_remeasure_experiment_note_documents_fallback` + file present
 - [x] FIL-12=B not reopened; sliding_window is FIL-13 fallback — verified by `test_production_default_remains_full_joint_fil12_not_reopened`

@@ -1,4 +1,4 @@
-"""Bakeoff-only counts RBPF update (research; not production hot path — ADR 0127)."""
+"""Bakeoff-only counts particle-filter update (research; ADR 0127)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from blueberries_voi.model import (
 )
 
 
-def _rbpf_update_impl(
+def _particle_filter_update_impl(
     state: ParticleState,
     obs: RichObs | P1Obs,
     params: ModelParams,

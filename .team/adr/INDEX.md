@@ -126,7 +126,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0088](./0088-m15-stage-c-generative-check.md) | `FIL-11` (M1.5) | Stage C generative check vs day_step | ACCEPTED |
 | [0089](./0089-m15-dynamic-l-sliding-window-fallback.md) | `FIL-13` (M1.5) | Dynamic L + joint→sliding_window fallback | SUPERSEDED BY 0091 |
 | [0090](./0090-fil11-stage-c-sequential-wor-pmf-exact-vs-mf.md) | `FIL-11` / `FIL-04` evidence | Filter age likelihood (`sequential_wor_pmf`) — exact joint vs mean-field | SUPERSEDED BY 0105 |
-| [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production RBPF age backend is mean-field (FIL-13=B); FIL-04 → C | SUPERSEDED BY 0105 |
+| [0091](./0091-fil13-production-mean-field.md) | `FIL-13` / `FIL-04` | Production ResearchParticleFilter age backend is mean-field (FIL-13=B); FIL-04 → C | SUPERSEDED BY 0105 |
 | [0092](./0092-controller-belief-api.md) | `CTL` / M2 | Controller belief API is ShelfBelief over MF marginals and oracle | SUPERSEDED BY 0106 |
 | [0093](./0093-day-profit-helper.md) | `SIM-01` (M2 extract) | Day profit helper lives in sim/profit.py (SIM-01 extract for CTL) | ACCEPTED |
 | [0094](./0094-voi-package-layout.md) | `VOI` / M3 | VOI package layout and public API under `voi/` | ACCEPTED |

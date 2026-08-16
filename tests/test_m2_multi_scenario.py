@@ -613,15 +613,15 @@ def test_multi_scenario_belief_path_uses_shelf_belief_factories() -> None:
     source = Path(mod.__file__).read_text(encoding="utf-8")
     assert "ShelfBelief" in source or "shelf_belief_from_" in source, (
         "belief path must use ShelfBelief factories "
-        "(shelf_belief_from_rbpf / shelf_belief_from_oracle)"
+        "(shelf_belief_from_filter_REMOVED / shelf_belief_from_oracle)"
     )
-    # P1 → RBPF factory; B-state → oracle factory (Rung 0 may be policy-side).
-    has_rbpf = "shelf_belief_from_rbpf" in source
+    # P1 → PF factory; B-state → oracle factory (Rung 0 may be policy-side).
+    has_particle_filter = "shelf_belief_from_filter_REMOVED" in source
     has_oracle = "shelf_belief_from_oracle" in source
-    assert has_rbpf and has_oracle, (
-        "multi-scenario module must reference shelf_belief_from_rbpf (P1) and "
+    assert has_particle_filter and has_oracle, (
+        "multi-scenario module must reference shelf_belief_removed (P1) and "
         "shelf_belief_from_oracle (B-state); "
-        f"rbpf={has_rbpf}, oracle={has_oracle}"
+        f"particle_filter={has_particle_filter}, oracle={has_oracle}"
     )
 
 

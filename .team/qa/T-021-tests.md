@@ -1,4 +1,4 @@
-# T-021 QA — Production RBPF → mean-field (Phase 1 RED)
+# T-021 QA — Production ResearchParticleFilter → mean-field (Phase 1 RED)
 
 DATE: 2026-08-12
 STATUS: RED — failing for missing production mean-field wiring / defaults (not import errors)
@@ -14,33 +14,33 @@ uv run pytest \
   tests/test_production_mean_field.py \
   tests/test_filter.py::test_production_backend_is_mean_field \
   tests/test_l_fallback.py \
-  tests/test_age_likelihood.py::test_production_rbpf_update_still_uses_mc_ll \
+  tests/test_age_likelihood.py::test_production_particle_filter_update_still_uses_mc_ll \
   tests/test_age_likelihood.py::test_adr_0049_fil04_c_and_0057_historical_after_0091 \
   -v --tb=short --no-cov
 ```
 
 Result: **22 failed, 12 passed**. Failures are `AssertionError` on
 `PRODUCTION_BACKEND` / `choose_backend` still returning `full_joint` or
-`sliding_window`, missing `mean_field_update` in `_rbpf_update`, P1 age TV≈0,
+`sliding_window`, missing `mean_field_update` in `_particle_filter_update`, P1 age TV≈0,
 or missing changelog entry — not import/typo failures.
 
 ## Coverage of acceptance criteria
 
-- `PRODUCTION_BACKEND == "mean_field"` and default `RBPF` backend identity
+- `PRODUCTION_BACKEND == "mean_field"` and default `ResearchParticleFilter` backend identity
   `mean_field`
   → `tests/test_filter.py::test_production_backend_is_mean_field` — failing:
   `PRODUCTION_BACKEND` still `"full_joint"`
   → `tests/test_production_mean_field.py::test_production_backend_constant_is_mean_field`
   — failing: same
-  → `tests/test_production_mean_field.py::test_default_rbpf_backend_identity_is_mean_field`
+  → `tests/test_production_mean_field.py::test_default_particle_filter_backend_identity_is_mean_field`
   — failing: `backend_choice.backend == "full_joint"`
   → `tests/test_l_fallback.py::test_production_default_is_mean_field_fil04_c`
   — failing: production default still `"full_joint"`
 
 - P1 fixture (totals observed, lot maps `UNOBSERVED`) invokes
   `mean_field_update`; posterior rows simplex; TV moves under non-flat LL
-  → `tests/test_production_mean_field.py::test_rbpf_update_source_calls_mean_field_update`
-  — failing: `mean_field_update` not in `_rbpf_update`
+  → `tests/test_production_mean_field.py::test_particle_filter_update_source_calls_mean_field_update`
+  — failing: `mean_field_update` not in `_particle_filter_update`
   → `tests/test_production_mean_field.py::test_p1_unobserved_maps_invokes_mean_field_update`
   — failing: spy call list empty
   → `tests/test_production_mean_field.py::test_p1_mean_field_age_rows_are_simplex_and_move_under_nonflat_ll`
@@ -51,7 +51,7 @@ or missing changelog entry — not import/typo failures.
   — currently **passing** (MC LL already wired)
   → `tests/test_production_mean_field.py::test_production_step_calls_observation_loglik_mc`
   — currently **passing**
-  → `tests/test_age_likelihood.py::test_production_rbpf_update_still_uses_mc_ll`
+  → `tests/test_age_likelihood.py::test_production_particle_filter_update_still_uses_mc_ll`
   — currently **passing** (rewritten: keeps MC LL; allows `mean_field_update`)
 
 - Lot maps present → `_apply_lot_map_age_update`; excess lot moves
@@ -72,11 +72,11 @@ or missing changelog entry — not import/typo failures.
   — failing: backend still `"sliding_window"`
   → `tests/test_l_fallback.py::test_choose_backend_never_silently_truncates_l`
   — failing: backend `"sliding_window"` (L already preserved)
-  → `tests/test_l_fallback.py::test_rbpf_within_budget_uses_mean_field` — failing:
+  → `tests/test_l_fallback.py::test_particle_filter_within_budget_uses_mean_field` — failing:
   `"full_joint"`
-  → `tests/test_l_fallback.py::test_rbpf_over_budget_uses_mean_field_without_memory_error`
+  → `tests/test_l_fallback.py::test_particle_filter_over_budget_uses_mean_field_without_memory_error`
   — failing: `"sliding_window"`
-  → `tests/test_l_fallback.py::test_rbpf_initialize_over_budget_preserves_l_and_uses_mean_field`
+  → `tests/test_l_fallback.py::test_particle_filter_initialize_over_budget_preserves_l_and_uses_mean_field`
   — failing: `"sliding_window"`
   → `tests/test_l_fallback.py::test_dynamic_l_follows_configured_max_with_mean_field`
   — failing: `"full_joint"`
@@ -84,7 +84,7 @@ or missing changelog entry — not import/typo failures.
   — failing: `"sliding_window"`
   → `tests/test_production_mean_field.py::test_choose_backend_preserves_long_dwell_l_no_silent_truncation`
   — failing: `"sliding_window"`
-  → `tests/test_production_mean_field.py::test_production_rbpf_over_budget_constructs_mean_field_without_memory_error`
+  → `tests/test_production_mean_field.py::test_production_particle_filter_over_budget_constructs_mean_field_without_memory_error`
   — failing: `"sliding_window"`
 
 - Bakeoff A–E still exposed; `full_joint` guard for that arm only
@@ -130,7 +130,7 @@ or missing changelog entry — not import/typo failures.
   verify by `uv run ruff check . && uv run mypy src tests && uv run pytest`
 - Replacing MC weights with `sequential_wor_pmf` — out of scope; tests only
   guard against accidental replacement
-- Full RBPF-vs-RBPF re-bakeoff / VOI — out of scope
+- Full ResearchParticleFilter-vs-ResearchParticleFilter re-bakeoff / VOI — out of scope
 - Removing bakeoff A–E arms — out of scope; registry test locks retention
 - Re-running FIL-11 Stage C experiment gates — evidence already accepted
 
@@ -142,10 +142,10 @@ or missing changelog entry — not import/typo failures.
 | `test_production_default_remains_full_joint_fil12_not_reopened` | `test_production_default_is_mean_field_fil04_c` |
 | `test_choose_backend_selects_full_joint_when_within_budget` | `…_mean_field_when_within_budget` |
 | `test_choose_backend_selects_full_joint_at_exact_budget_edge` | `…_mean_field_at_exact_budget_edge` |
-| `test_rbpf_within_budget_uses_full_joint` | `test_rbpf_within_budget_uses_mean_field` |
+| `test_particle_filter_within_budget_uses_full_joint` | `test_particle_filter_within_budget_uses_mean_field` |
 | `test_dynamic_l_follows_configured_max_when_joint_fits` | `…_with_mean_field` |
 | `test_choose_backend_falls_back_to_sliding_window_when_over_budget` | `test_choose_backend_selects_mean_field_when_over_budget` |
-| `test_rbpf_over_budget_falls_back_without_memory_error` | `test_rbpf_over_budget_uses_mean_field_without_memory_error` |
-| `test_rbpf_initialize_over_budget_preserves_l_and_falls_back` | `…_preserves_l_and_uses_mean_field` |
-| `test_production_rbpf_update_still_uses_mc_ll` (`mean_field_update not in`) | keeps MC LL; allows MF wiring; forbids `sequential_wor_pmf` |
+| `test_particle_filter_over_budget_falls_back_without_memory_error` | `test_particle_filter_over_budget_uses_mean_field_without_memory_error` |
+| `test_particle_filter_initialize_over_budget_preserves_l_and_falls_back` | `…_preserves_l_and_uses_mean_field` |
+| `test_production_particle_filter_update_still_uses_mc_ll` (`mean_field_update not in`) | keeps MC LL; allows MF wiring; forbids `sequential_wor_pmf` |
 | `test_adr_0049_and_0057_status_still_accepted` | `test_adr_0049_fil04_c_and_0057_historical_after_0091` |

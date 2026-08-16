@@ -619,5 +619,5 @@ def test_shared_day_driver_symbol_exists() -> None:
     assert found is not None, (
         "simulator must expose a shared day driver callable "
         f"(tried {candidates} on package / day_driver|driver|loop|session) "
-        "performing order→pending/arrival→day_step→obs→optional RBPF→belief→DayDelta"
+        "performing order→pending/arrival→day_step→obs→optional PF→belief→DayDelta"
     )

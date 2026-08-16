@@ -178,7 +178,7 @@ def test_pyproject_declares_freshnet_optional_extra_with_hf_deps() -> None:
     )
 
 
-def test_core_and_browser_extras_do_not_require_freshnet_hf_deps() -> None:
+def test_core_and_eng01_extras_do_not_require_freshnet_hf_deps() -> None:
     core = _core_dep_names()
     leaking_core = core & _HF_DEP_MARKERS
     assert not leaking_core, (
@@ -186,10 +186,12 @@ def test_core_and_browser_extras_do_not_require_freshnet_hf_deps() -> None:
     )
 
     extras = _optional_extras()
-    assert "browser" in extras or "slim" in extras or "pyodide" in extras
-    for key in ("browser", "slim", "pyodide"):
-        if key not in extras:
-            continue
+    # Post T-125 / ADR 0129: browser/pyodide extras retired;
+    # ENG-01 extras are data + viz.
+    for key in ("data", "viz"):
+        assert key in extras, (
+            f"ENG-01 extras must include [{key}] after T-125; have {sorted(extras)}"
+        )
         names = _dep_names(extras[key])
         leaking = names & _HF_DEP_MARKERS
         assert not leaking, (

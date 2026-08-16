@@ -16,7 +16,7 @@ historical context; arms A–E stay implemented for bakeoff.
 
 FIL-12=B chose a coarse joint age grid so `K^L` stays small, on a worked example with **L ≈ 4**.
 Board numbers previously suggested **L ≈ 12–20** under MOD-13=C + daily delivery, which would make
-`K^L` infeasible. FIL-13 required an in-repo bakeoff before locking production RBPF shape.
+`K^L` infeasible. FIL-13 required an in-repo bakeoff before locking production particle filter shape.
 
 ## Decision
 
@@ -48,7 +48,7 @@ choice so T-006 can proceed.
 
 ## Consequences
 
-**Historical (pre-0091):** Production `RBPF` used full-joint at measured L; guard fired rather than
+**Historical (pre-0091):** Production `ResearchParticleFilter` used full-joint at measured L; guard fired rather than
 silently truncating L; FIL-15 locked K/N/ESS for that path.
 
 **Active (ADR 0091):** Production uses `mean_field`; joint guard remains for the bakeoff

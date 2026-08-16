@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — shelf_belief_from_rbpf removed",
+    "T-121 F3: ADR 0127 Wave F supersession — shelf_belief_from_filter_REMOVED removed",
     allow_module_level=True,
 )
 
@@ -19,7 +19,9 @@ import inspect
 import re
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3, shelf_belief_from_rbpf
+from typing import (
+    Any as ResearchParticleFilter,
+)  # T-121 F3, shelf_belief_from_filter_REMOVED
 
 import numpy as np
 
@@ -59,7 +61,7 @@ def _lot_tv(a: np.ndarray, b: np.ndarray) -> float:
     )
 
 
-def _f2_delivery_rbpf(
+def _f2_delivery_particle_filter(
     *,
     K: int = 6,
     L: int = 2,
@@ -67,8 +69,8 @@ def _f2_delivery_rbpf(
     seed: int = 7,
     sales_total: int = 10,
     waste_total: int = 1,
-) -> tuple[RBPF, np.ndarray, float]:
-    """RBPF after an F2 delivery that injects a Dirac birth prior on the newest lot."""
+) -> tuple[ResearchParticleFilter, np.ndarray, float]:
+    """PF after an F2 delivery that injects a Dirac birth prior on the newest lot."""
     params = ModelParams()
     grid = age_grid(K)
     tau = float(grid[2])
@@ -84,12 +86,12 @@ def _f2_delivery_rbpf(
     )
     obs = mask_for("F2").apply(full)
     assert obs.age_at_receipt == tau
-    rbpf = RBPF(params=params, N=N, K=K, L=L)
+    particle_filter = ResearchParticleFilter(params=params, N=N, K=K, L=L)
     rng = np.random.default_rng(seed)
-    rbpf.initialize(rng)
-    rbpf.step(obs, rng)
+    particle_filter.initialize(rng)
+    particle_filter.step(obs, rng)
     birth = arrival_age_prior_f2(tau, grid=grid)
-    return rbpf, birth, tau
+    return particle_filter, birth, tau
 
 
 def _stage_a_doc_text() -> str:
@@ -113,11 +115,11 @@ def _changelog_t069_entry() -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# AC: shelf_belief_from_rbpf exports arrival-derived age_marginals (not MF)
+# AC: shelf_belief_from_filter_REMOVED exports arrival-derived age_marginals (not MF)
 # ---------------------------------------------------------------------------
 
 
-def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
+def test_shelf_belief_from_filter_REMOVED_docs_state_arrival_prior_not_mf() -> None:
     """ADR 0106: factory/module docs must describe arrival-prior age rows, not MF."""
     src = _BELIEF_PY.read_text(encoding="utf-8")
     tree = ast.parse(src)
@@ -125,17 +127,19 @@ def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
     for node in tree.body:
         if (
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == "shelf_belief_from_rbpf"
+            and node.name == "shelf_belief_from_filter_REMOVED"
         ):
             factory = node
             break
-    assert factory is not None, "shelf_belief_from_rbpf must exist in filter/belief.py"
+    assert factory is not None, (
+        "shelf_belief_from_filter_REMOVED must exist in filter/belief.py"
+    )
     factory_doc = ast.get_docstring(factory) or ""
     module_doc = ast.get_docstring(tree) or ""
     joined = f"{module_doc}\n{factory_doc}\n{src[:800]}".lower()
 
     assert "0106" in src or "arrival" in factory_doc.lower(), (
-        "shelf_belief_from_rbpf docs must cite ADR 0106 or arrival-prior age exports"
+        "shelf_belief_removed docs must cite ADR 0106 or arrival-prior exports"
     )
     assert any(
         tok in joined
@@ -153,7 +157,7 @@ def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
     assert (
         "mf " not in factory_doc.lower() and "mean-field" not in factory_doc.lower()
     ), (
-        "shelf_belief_from_rbpf docstring must not claim MF / mean-field posteriors "
+        "shelf_belief_removed docstring must not claim MF / mean-field posteriors "
         "(superseded by ADR 0106)"
     )
     assert "mean field" not in factory_doc.lower()
@@ -164,12 +168,12 @@ def test_shelf_belief_from_rbpf_docs_state_arrival_prior_not_mf() -> None:
     )
 
 
-def test_shelf_belief_from_rbpf_f2_dirac_matches_birth_prior_shape() -> None:
+def test_shelf_belief_from_filter_REMOVED_f2_dirac_matches_birth_prior_shape() -> None:
     """AC: F2 Dirac birth path → newest-lot age_marginals match arrival prior; (L,K)."""
-    rbpf, birth, _tau = _f2_delivery_rbpf()
-    belief = shelf_belief_from_rbpf(rbpf)
+    particle_filter, birth, _tau = _f2_delivery_particle_filter()
+    belief = shelf_belief_from_filter_REMOVED(particle_filter)
     margs = _as_nested(belief.age_marginals)
-    L, K = int(rbpf.L), int(rbpf.K)
+    L, K = int(particle_filter.L), int(particle_filter.K)
     assert len(margs) == L
     assert all(len(row) == K for row in margs)
     newest = np.asarray(margs[-1], dtype=float)
@@ -180,11 +184,13 @@ def test_shelf_belief_from_rbpf_f2_dirac_matches_birth_prior_shape() -> None:
     assert float(newest[nearest]) >= _F2_NEAREST_BIN_MASS_MIN
 
 
-def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
+def test_shelf_belief_from_filter_REMOVED_ages_differ_from_mean_field_update() -> None:
     """AC: exported ages are not sales-updated MF posteriors (diagn
     ostic MF ≠ export)."""
-    rbpf, birth, _tau = _f2_delivery_rbpf(sales_total=12, waste_total=2)
-    belief = shelf_belief_from_rbpf(rbpf)
+    particle_filter, birth, _tau = _f2_delivery_particle_filter(
+        sales_total=12, waste_total=2
+    )
+    belief = shelf_belief_from_filter_REMOVED(particle_filter)
     margs = _as_nested(belief.age_marginals)
     newest = np.asarray(margs[-1], dtype=float)
 
@@ -201,7 +207,7 @@ def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
             counts,
             prior_rows,
             y,
-            rbpf.params,
+            particle_filter.params,
             tau_grid=list(belief.tau_grid),
         ),
         dtype=float,
@@ -220,7 +226,9 @@ def test_shelf_belief_from_rbpf_ages_differ_from_mean_field_update() -> None:
     )
 
 
-def test_shelf_belief_from_rbpf_f2a_path_matches_delivery_birth_prior() -> None:
+def test_shelf_belief_from_filter_REMOVED_f2a_path_matches_delivery_birth_prior() -> (
+    None
+):
     """AC: F2a pack-date birth path → newest-lot export matches del
     ivery_birth_age_prior."""
     from datetime import date, timedelta
@@ -242,13 +250,13 @@ def test_shelf_belief_from_rbpf_f2a_path_matches_delivery_birth_prior() -> None:
     )
     obs = mask_for("F2a").apply(full)
     assert obs.pack_date == pack
-    rbpf = RBPF(params=params, N=N, K=K, L=L)
+    particle_filter = ResearchParticleFilter(params=params, N=N, K=K, L=L)
     rng = np.random.default_rng(11)
-    rbpf.initialize(rng)
-    rbpf.step(obs, rng)
+    particle_filter.initialize(rng)
+    particle_filter.step(obs, rng)
     expected = np.asarray(delivery_birth_age_prior(obs, grid, params), dtype=float)
 
-    belief = shelf_belief_from_rbpf(rbpf)
+    belief = shelf_belief_from_filter_REMOVED(particle_filter)
     margs = _as_nested(belief.age_marginals)
     assert len(margs) == L
     assert all(len(row) == K for row in margs)
@@ -261,17 +269,19 @@ def test_shelf_belief_from_rbpf_f2a_path_matches_delivery_birth_prior() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_flatten_shelf_belief_from_rbpf_is_wire_compatible_l_times_k() -> None:
+def test_flatten_shelf_belief_from_filter_REMOVED_is_wire_compatible_l_times_k() -> (
+    None
+):
     """AC: flatten_shelf_belief keeps ENG-01 field names and flat age length L·K."""
-    rbpf, _birth, _tau = _f2_delivery_rbpf()
-    belief = shelf_belief_from_rbpf(rbpf)
+    particle_filter, _birth, _tau = _f2_delivery_particle_filter()
+    belief = shelf_belief_from_filter_REMOVED(particle_filter)
     flat = flatten_shelf_belief(belief)
 
     assert set(flat) >= _FLAT_BELIEF_KEYS
     l_dim = int(flat["L"])
     k_dim = int(flat["K"])
-    assert l_dim == int(rbpf.L)
-    assert k_dim == int(rbpf.K)
+    assert l_dim == int(particle_filter.L)
+    assert k_dim == int(particle_filter.K)
     assert len(list(flat["lot_counts"])) == l_dim
     age_flat = list(flat["age_marginals"])
     assert len(age_flat) == l_dim * k_dim
@@ -286,8 +296,8 @@ def test_flatten_shelf_belief_from_rbpf_is_wire_compatible_l_times_k() -> None:
 
 def test_flatten_shelf_belief_row_major_matches_nested_arrival_rows() -> None:
     """Flat buffer is row-major concatenation of nested (L, K) arrival age rows."""
-    rbpf, birth, _tau = _f2_delivery_rbpf()
-    belief = shelf_belief_from_rbpf(rbpf)
+    particle_filter, birth, _tau = _f2_delivery_particle_filter()
+    belief = shelf_belief_from_filter_REMOVED(particle_filter)
     nested = _as_nested(belief.age_marginals)
     flat = flatten_shelf_belief(belief)
     expected = [float(x) for row in nested for x in row]
@@ -420,9 +430,9 @@ def test_changelog_states_rb_age_removed_because_instore_learning_dropped() -> N
         )
 
 
-def test_shelf_belief_from_rbpf_still_exported_for_ctl_path() -> None:
+def test_shelf_belief_from_filter_REMOVED_still_exported_for_ctl_path() -> None:
     """Sanity: factory remains the CTL/ENG-01 entry point (shape co
     ntract lives here)."""
-    assert callable(shelf_belief_from_rbpf)
-    sig = inspect.signature(shelf_belief_from_rbpf)
+    assert callable(shelf_belief_from_filter_REMOVED)
+    sig = inspect.signature(shelf_belief_from_filter_REMOVED)
     assert len(sig.parameters) >= 1

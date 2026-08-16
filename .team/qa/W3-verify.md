@@ -83,7 +83,7 @@ uv run mypy src/blueberries_voi/filter/arrival_priors.py \
 | `waste_by_lot` scored; analogous leakage | OK | waste LL + leakage tests |
 | UNOBSERVED maps = totals-only; `{}` ≠ UNOBSERVED | OK | unobserved + empty-map tests |
 | F1 ρ=1 complete maps; biased-ρ absent/non-gate | OK | rho-one + biased-sampler tests |
-| One RBPF / one `observation_loglik_mc` | OK | `test_single_rbpf_class_and_one_mc_ll_entrypoint` |
+| One ResearchParticleFilter / one `observation_loglik_mc` | OK | `test_single_particle_filter_class_and_one_mc_ll_entrypoint` |
 | Quality gates green (owned paths) | OK | scoped ruff/mypy/pytest above |
 | Quality gates green (full repo) | **FAIL** | sibling T-016/T-017 only |
 

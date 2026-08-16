@@ -15,7 +15,7 @@ mean-field age updates. Evidence and ranked shortlist:
 
 | Ticket | Work |
 |--------|------|
-| **T-064** | Unique-particle MF dedup in `_rbpf_update` |
+| **T-064** | Unique-particle MF dedup in `_particle_filter_update` |
 | **T-065** | NumPy rewrite of `sequential_wor_composition_probs` (same DP) |
 | **T-066** | Re-bench → `.team/reports/M3-exact-ll-speedup-bench.md` |
 

@@ -30,7 +30,7 @@ In the full suite, `tests/test_sim.py` (10) and `tests/test_rich_obs.py` (15) al
 ## Failures / blockers (out of Wave 1)
 
 1. **`experiments/fil11_a_scenarios.py` (pre-existing)** — RUF001 ambiguous unicode (`σ`, `×`) and E501 / format drift. Not under `src`/`tests`. Do not weaken ruff config. Tracked in `.team/backlog.md`.
-2. **`tests/test_mc_likelihood.py` (T-011 RED)** — 9 failures: missing `observation_loglik_mc`, soft-LL symbols still in `_rbpf_update`, UNOBSERVED waste still scored like zero. Expected until T-011 lands; not Wave 1 scope.
+2. **`tests/test_mc_likelihood.py` (T-011 RED)** — 9 failures: missing `observation_loglik_mc`, soft-LL symbols still in `_particle_filter_update`, UNOBSERVED waste still scored like zero. Expected until T-011 lands; not Wave 1 scope.
 
 ## Coverage
 
@@ -54,7 +54,7 @@ Full `uv run pytest`: **86.02%** total (required ≥80%). Gate number met; suite
 - [x] `mask_for` P0–F2 + P0/P1 waste — parametrized + `test_mask_for_p0_hides_waste_total_p1_presents_it`
 - [x] P0 + waste=0 → `UNOBSERVED` — `test_p0_mask_turns_observed_zero_waste_into_unobserved`
 - [x] `rich_obs_from_day_log` — project + no invented delivery metadata tests
-- [x] `RBPF.step` accepts `RichObs` — `test_rbpf_step_type_boundary_accepts_rich_obs`
+- [x] `ResearchParticleFilter.step` accepts `RichObs` — `test_particle_filter_step_type_boundary_accepts_rich_obs`
 - [x] B-state not a fabricating mask — `test_mask_for_rejects_b_state_scenario`
 - [ ] Quality gates green (`ruff` / `mypy` / `pytest` ≥80%) — **partial**: mypy green; src/tests ruff green; coverage 86%; full `ruff check .` and full pytest still fail (out-of-wave)
 

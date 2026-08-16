@@ -8,7 +8,7 @@ MILESTONE: M1.5 — filter complete across data-availability rungs
 ## Context
 
 FIL-11=D stages A (contraction) → B (calibration) → C (exact comparison). M1 implemented Stage C as
-TV between the RBPF posterior and an “exact” update that used the **same soft likelihood** as the
+TV between the particle filter posterior and an “exact” update that used the **same soft likelihood** as the
 filter, so TV≈0 did not validate generative agreement with the simulator. After ADR 0087 replaces
 soft LL with MC-from-`day_step` scoring, Stage C must be redefined so it **fails** if soft powers
 return while the sim stays Wallenius/binomial, and **passes** when filter observation probabilities
@@ -23,7 +23,7 @@ as TV against a soft-LL exact path.
 tolerance X (TV/KL on discrete masked observations, and/or paired CRN match rate under identical
 seeds).
 
-**Optional auxiliary:** at small L/K, compare RBPF marginals to a brute-force filter that uses the
+**Optional auxiliary:** at small L/K, compare ResearchParticleFilter marginals to a brute-force filter that uses the
 **same** MC/closed-form LL (non-tautological vs physics). That auxiliary does not restore the old
 soft-LL self-check.
 

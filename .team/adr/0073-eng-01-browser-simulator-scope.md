@@ -22,7 +22,7 @@ about what the reader can explore). B satisfies the second without attempting th
 
 **Why A is not free.**
 
-A $10^4$-particle RBPF plus a rollout controller (§CTL-02's own accounting: ~24k day-steps per
+A $10^4$-particle ResearchParticleFilter plus a rollout controller (§CTL-02's own accounting: ~24k day-steps per
 decision, 0.1–0.5s **in Julia/Python**) does not run interactively in a browser tab. Porting the
 inference layer to WASM is real engineering — a different language runtime, a different debugging
 loop, and no reuse of [X-09](X-09%20Language%20and%20stack.md)'s Python stack — for a payoff (live

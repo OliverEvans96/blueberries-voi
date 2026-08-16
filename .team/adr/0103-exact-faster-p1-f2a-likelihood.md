@@ -14,7 +14,7 @@ Production M3 VOI wall-clock is dominated by the **exact** ADR 0090 density insi
 `mean_field_update` for **P1** and **F2a** (totals MF path). Profiling and closed-loop
 probes (`.team/reports/M3-compute-reduction-brainstorm.md`, plain-language companion)
 put ~99% of that hot path in `sequential_wor_composition_probs` called repeatedly from
-per-particle MF in `_rbpf_update`. After resampling, many particles share identical
+per-particle MF in `_particle_filter_update`. After resampling, many particles share identical
 `(counts, age_post)` and today each still pays a full MF update.
 
 ADR 0090 locks the named sequential-WOR density; ADR 0091 wires real MF into production;
@@ -26,7 +26,7 @@ and Numba/Cython would change fidelity or the dep surface and are **not** this d
 We will keep the **exact** ADR 0090 sequential-WOR composition density and speed the
 P1/F2a MF path **only** by:
 
-1. **Unique-particle MF dedup** in `_rbpf_update`: group particles with identical
+1. **Unique-particle MF dedup** in `_particle_filter_update`: group particles with identical
    `(counts[i], age_post[i])` (fingerprint: `tuple(counts[i].tolist())` +
    `age_post[i].tobytes()`), run `mean_field_update` once per unique key, broadcast
    posteriors to duplicates.

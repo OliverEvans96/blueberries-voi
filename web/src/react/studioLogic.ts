@@ -92,13 +92,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
   const adapter = createStudioAdapter({
     env: studioEnv,
-    baseUrl: studioEnv.VITE_ENGINE_API_BASE_URL ?? studioEnv.VITE_API_BASE_URL,
-    // Never pass the Pyodide worker URL into wasm (that boots micropip + GitHub wheel).
-    workerUrl:
-      adapterKind === "wasm"
-        ? studioEnv.VITE_WASM_WORKER_URL
-        : studioEnv.VITE_PYODIDE_WORKER_URL,
-    wheelUrl: studioEnv.VITE_PYODIDE_WHEEL_URL,
   });
   const engineStatus = createEngineStatusTracker("loading");
   const engineStatusEl = document.querySelector<HTMLElement>("#engine-status");

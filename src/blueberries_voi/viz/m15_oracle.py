@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter import RBPF
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -150,18 +150,18 @@ def _mean_abs_age_error_for_scenario(
             n_score=n_score,
             shipments=ships,
         )
-        rbpf = RBPF(params=params, N=n_particles, K=K, L=L)
-        rbpf._root_seed = seed
-        rbpf._run_id = f"m15_oracle_{scenario}_{rep}"
+        particle_filter = ResearchParticleFilter(params=params, N=n_particles, K=K, L=L)
+        particle_filter._root_seed = seed
+        particle_filter._run_id = f"m15_oracle_{scenario}_{rep}"
         rng = np.random.default_rng(seed + 23)
-        rbpf.initialize(rng, L=L)
+        particle_filter.initialize(rng, L=L)
 
         for d in ep.scored:
             obs = rich_obs_from_day_log(d, mask)
-            rbpf.step(obs, rng)
+            particle_filter.step(obs, rng)
             if d.arrivals <= 0 or not d.lots:
                 continue
-            post = rbpf.age_posterior(L - 1)
+            post = particle_filter.age_posterior(L - 1)
             true_age = float(d.lots[-1].tau)
             post_mean = float(np.sum(grid * post))
             errs.append(abs(post_mean - true_age))

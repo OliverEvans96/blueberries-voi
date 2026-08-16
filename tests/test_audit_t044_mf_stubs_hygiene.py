@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 pytest.skip(
-    "T-121 F3: ADR 0127 Wave F supersession — production RBPF MF hygiene audit removed",
+    "T-121 F3: ADR 0127 Wave F — prod PF MF hygiene audit removed",
     allow_module_level=True,
 )
 
@@ -18,7 +18,7 @@ import inspect
 import re
 from pathlib import Path
 from typing import Any
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 import pytest
@@ -105,19 +105,22 @@ def test_age_likelihood_mean_field_default_uses_mf_max_sweeps() -> None:
     )
 
 
-def test_production_rbpf_update_does_not_call_mean_field_update() -> None:
-    """ADR 0105 / T-068: retire production MF-sweep=5 requirements on _rbpf_update."""
+def test_production_particle_filter_update_does_not_call_mean_field_update() -> None:
+    """ADR 0105 / T-068: retire production MF-sweep=5 requirements on _pf_update."""
     source = _BACKENDS.read_text(encoding="utf-8")
     tree = ast.parse(source)
     fn: ast.FunctionDef | None = None
     for body_node in tree.body:
-        if isinstance(body_node, ast.FunctionDef) and body_node.name == "_rbpf_update":
+        if (
+            isinstance(body_node, ast.FunctionDef)
+            and body_node.name == "_particle_filter_update"
+        ):
             fn = body_node
             break
-    assert fn is not None, "_rbpf_update missing in backends.py"
+    assert fn is not None, "_particle_filter_update missing in backends.py"
     names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
     assert "mean_field_update" not in names, (
-        "production _rbpf_update must not call mean_field_update (ADR 0105)"
+        "production _particle_filter_update must not call mean_field_update (ADR 0105)"
     )
 
 
@@ -138,14 +141,16 @@ def test_production_p1_does_not_invoke_mean_field_update(
     if hasattr(backends, "mean_field_update"):
         monkeypatch.setattr(backends, "mean_field_update", _spy)
 
-    rbpf = RBPF(params=ModelParams(), N=24, K=4, L=2)
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=24, K=4, L=2)
     rng = np.random.default_rng(11)
-    rbpf.initialize(rng)
-    assert rbpf._state is not None
-    rbpf._state.counts[:] = np.asarray([[6, 6]] * rbpf.N, dtype=int)
+    particle_filter.initialize(rng)
+    assert particle_filter._state is not None
+    particle_filter._state.counts[:] = np.asarray(
+        [[6, 6]] * particle_filter.N, dtype=int
+    )
     obs = _p1_unobserved_maps(sales_total=8, waste_total=2)
     assert obs.sales_by_lot is UNOBSERVED
-    rbpf.step(obs, rng)
+    particle_filter.step(obs, rng)
     assert not calls, "production P1 path must not invoke mean_field_update (ADR 0105)"
 
 

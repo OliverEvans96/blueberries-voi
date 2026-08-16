@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: voi sweep uses removed rbpf imports", allow_module_level=True)
+pytest.skip(
+    "T-121 F3: voi sweep uses removed particle_filter imports", allow_module_level=True
+)
 
 from typing import TYPE_CHECKING
 

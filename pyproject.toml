@@ -15,8 +15,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Slim / Pyodide interactive path (ADR 0099): no pyarrow or matplotlib.
-browser = []
 # Desktop Gate 0 / Abdella Parquet (ADR 0085).
 data = [
     "pyarrow>=25.0.1",
@@ -35,16 +33,10 @@ dev = [
     # Native/CI tests exercise desktop Gate 0 + viz (not on the browser wheel).
     "pyarrow>=25.0.1",
     "matplotlib>=3.11.1",
-    "fastapi>=0.115.0",
-    "httpx>=0.27.0",
 ]
 notebooks = [
     "jupyter>=1.0.0",
     "ipykernel>=6.29.0",
-]
-api = [
-    "fastapi>=0.115.0",
-    "httpx>=0.27.0",
 ]
 rust = [
     "maturin>=1.8.0",

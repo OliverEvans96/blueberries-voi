@@ -80,7 +80,7 @@ S(\mathbb{E}[\tau]) \neq \mathbb{E}[S(\tau)].
 | Item | Choice |
 |------|--------|
 | Machine | Same class as prior study (i7-8550U, 8 logical CPUs, Linux, Python 3.11.13) |
-| Filter stub | From a fixed pre-state, call full `_rbpf_update` **K** times (conservative ≈`K×` on entire update, not only the age collapse) |
+| Filter stub | From a fixed pre-state, call full `_particle_filter_update` **K** times (conservative ≈`K×` on entire update, not only the age collapse) |
 | Rollout stub | Each rollout `day_step` repeated **K** times (last kept) |
 | Combined | Both stubs on |
 | `K` sweep | `{4, 8, 16}` (production default `K≈8`) |
@@ -150,7 +150,7 @@ Attribution: **filter ~46%**, **rollout ~39%**, other ~15% — both sites matter
 ### Preferable realizations (same accuracy intent, better cost)
 
 1. **Rollouts (site B):** sample **once** (or few times) per lot per path from the birth histogram — restores outcome uncertainty at ~`1×` physics cost.
-2. **Filter (site A):** per-lot `E[f(τ)]` for picking weights / death probs (and optionally likelihood), vectorized over `K`, **not** `K` full `_rbpf_update` passes. Avoid joint `K^L` unless `L` is tiny.
+2. **Filter (site A):** per-lot `E[f(τ)]` for picking weights / death probs (and optionally likelihood), vectorized over `K`, **not** `K` full `_particle_filter_update` passes. Avoid joint `K^L` unless `L` is tiny.
 3. **Demo path:** keep `N≤200`; do not enable full-mix histogram scoring in interactive `act(rollout)`.
 4. **Keep** `effective_inventory`’s histogram survival average; optionally align pipeline weight with the cold arrival prior instead of a flat grid mean (separate, cheap).
 

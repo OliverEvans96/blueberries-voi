@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any as RBPF  # T-121 F3
+from typing import Any as ResearchParticleFilter  # T-121 F3
 
 import numpy as np
 import pytest
@@ -49,14 +49,14 @@ def test_full_joint_memory_guard() -> None:
         guard_joint_memory(K=8, L=12, N=2000)
 
 
-@pytest.mark.skip(reason="T-121 F3: production RBPF removed")
-def test_rbpf_step_and_posterior() -> None:
-    rbpf = RBPF(params=ModelParams(), N=50, K=6, L=3)
+@pytest.mark.skip(reason="T-121 F3: production particle filter removed")
+def test_particle_filter_step_and_posterior() -> None:
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=50, K=6, L=3)
     rng = np.random.default_rng(3)
-    rbpf.initialize(rng)
-    summary = rbpf.step(P1Obs(12, 1, 8), rng)
+    particle_filter.initialize(rng)
+    summary = particle_filter.step(P1Obs(12, 1, 8), rng)
     assert summary.ess > 0
-    post = rbpf.age_posterior(0)
+    post = particle_filter.age_posterior(0)
     assert post.shape == (6,)
     assert abs(float(post.sum()) - 1.0) < 1e-6
 
@@ -74,24 +74,26 @@ def test_microbench_row() -> None:
     assert not row.oom
 
 
-@pytest.mark.skip(reason="T-121 F3: production RBPF removed")
-def test_rbpf_requires_initialize() -> None:
-    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
+@pytest.mark.skip(reason="T-121 F3: production particle filter removed")
+def test_particle_filter_requires_initialize() -> None:
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=20, K=4, L=2)
     with pytest.raises(RuntimeError, match="initialize"):
-        rbpf.step(P1Obs(1, 0, 0))
+        particle_filter.step(P1Obs(1, 0, 0))
     with pytest.raises(RuntimeError, match="initialize"):
-        rbpf.age_posterior()
+        particle_filter.age_posterior()
 
 
-@pytest.mark.skip(reason="T-121 F3: production RBPF removed")
+@pytest.mark.skip(reason="T-121 F3: production particle filter removed")
 def test_production_backend_is_not_age_mean_field() -> None:
     """T-068 / ADR 0105: production identity is not the age mean-field settle."""
     assert filter_pkg.PRODUCTION_BACKEND != "mean_field"
-    rbpf = RBPF(params=ModelParams(), N=20, K=4, L=2)
-    assert rbpf.backend_choice.backend == filter_pkg.PRODUCTION_BACKEND
-    assert rbpf.backend_choice.backend not in {
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=20, K=4, L=2)
+    assert particle_filter.backend_choice.backend == filter_pkg.PRODUCTION_BACKEND
+    assert particle_filter.backend_choice.backend not in {
         "mean_field",
         "sliding_window",
         "full_joint",
     }
-    assert getattr(rbpf._backend, "name", None) == filter_pkg.PRODUCTION_BACKEND
+    assert (
+        getattr(particle_filter._backend, "name", None) == filter_pkg.PRODUCTION_BACKEND
+    )

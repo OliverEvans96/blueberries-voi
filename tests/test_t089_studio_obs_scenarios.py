@@ -20,9 +20,9 @@ from typing import Any, get_args
 
 import numpy as np
 import pytest
-from blueberries_voi.filter.rbpf import RBPF
 from blueberries_voi.simulator.day_driver import DayDriverState, advance_day
 
+from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     UNOBSERVED,
     P1Obs,
@@ -74,12 +74,12 @@ def _minimal_config(**overrides: Any) -> dict[str, Any]:
     return cfg
 
 
-def _boot_rbpf(*, seed: int = 7) -> RBPF:
-    rbpf = RBPF(params=ModelParams(), N=24, K=4, L=2)
-    rbpf._root_seed = seed
-    rbpf._run_id = "t089"
-    rbpf.initialize(np.random.default_rng(seed), L=2)
-    return rbpf
+def _boot_particle_filter(*, seed: int = 7) -> ResearchParticleFilter:
+    particle_filter = ResearchParticleFilter(params=ModelParams(), N=24, K=4, L=2)
+    particle_filter._root_seed = seed
+    particle_filter._run_id = "t089"
+    particle_filter.initialize(np.random.default_rng(seed), L=2)
+    return particle_filter
 
 
 def _fresh_state(*, seed: int = 7) -> DayDriverState:
@@ -88,7 +88,7 @@ def _fresh_state(*, seed: int = 7) -> DayDriverState:
         pending={},
         next_lot_id=1,
         episode_day=0,
-        rbpf=_boot_rbpf(seed=seed),
+        particle_filter=_boot_particle_filter(seed=seed),
     )
 
 
@@ -118,19 +118,22 @@ def _advance(
 
 
 def _capture_obs(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Capture the observation object passed into ``rbpf.step``."""
+    """Capture the observation object passed into ``particle_filter.step``."""
     captured: list[Any] = []
-    real_step = RBPF.step
+    real_step = ResearchParticleFilter.step
 
-    def _spy(self: RBPF, obs: Any, rng: Any = None) -> Any:
+    def _spy(self: ResearchParticleFilter, obs: Any, rng: Any = None) -> Any:
         captured.append(obs)
         return real_step(self, obs, rng)
 
-    monkeypatch.setattr(RBPF, "step", _spy)
+    monkeypatch.setattr(ResearchParticleFilter, "step", _spy)
     session_mod = importlib.import_module("blueberries_voi.simulator.session")
-    session_rbpf = getattr(session_mod, "RBPF", None)
-    if session_rbpf is not None and session_rbpf is not RBPF:
-        monkeypatch.setattr(session_rbpf, "step", _spy)
+    session_particle_filter = getattr(session_mod, "ResearchParticleFilter", None)
+    if (
+        session_particle_filter is not None
+        and session_particle_filter is not ResearchParticleFilter
+    ):
+        monkeypatch.setattr(session_particle_filter, "step", _spy)
     return captured
 
 
@@ -213,7 +216,7 @@ def test_advance_day_accepts_obs_scenario_kwarg() -> None:
     assert default == "P1" or default == inspect.Parameter.empty
 
 
-def test_advance_day_passes_rich_obs_not_p1obs_to_rbpf(
+def test_advance_day_passes_rich_obs_not_p1obs_to_particle_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured = _capture_obs(monkeypatch)
@@ -228,10 +231,10 @@ def test_advance_day_passes_rich_obs_not_p1obs_to_rbpf(
         enable_filter=True,
         obs_scenario="P1",
     )
-    assert captured, "rbpf.step must run when enable_filter"
+    assert captured, "particle_filter.step must run when enable_filter"
     obs = captured[-1]
     assert isinstance(obs, RichObs), (
-        f"interactive path must pass RichObs to rbpf.step, got {type(obs)!r}"
+        f"interactive path must pass RichObs to particle_filter.step, got {type(obs)!r}"
     )
     assert not isinstance(obs, P1Obs)
 
@@ -266,7 +269,7 @@ def _run_until_filter_obs(
             obs_scenario=obs_scenario,
         )
         state = result.state
-    assert captured, f"expected rbpf.step under scenario {obs_scenario!r}"
+    assert captured, f"expected particle_filter.step under scenario {obs_scenario!r}"
     return captured[-1]
 
 

@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 
-use crate::rbpf::ParticleBank;
+use crate::particle_filter::ParticleBank;
 
 const AGE_GRID_LO: f64 = 0.0;
 const AGE_GRID_HI: f64 = 8.0;

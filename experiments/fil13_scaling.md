@@ -43,7 +43,7 @@ That matches intuition: a fast-turning berry facing with daily truck arrivals ra
 | `bound_L` (max_L=4) | `K^{min(L,4)} * N` |
 | `bootstrap_pf` | `N * L` (age indices; no grid posterior) |
 
-**Implementation note:** the current bakeoff stubs store `age_post` as shape `(N, L, K)` for RBPF-style backends and share the same per-cohort update. `full_joint`'s distinctive behavior in this repo is the **`K^L*N` memory guard** (true dense joint tensor is not materialized). Sliding-window `window` is accepted but not yet used to change the update. Treat runtime differences among `full_joint` / `sliding_window` / `mean_field` as small; treat **memory formulas** as the decision surface for FIL-13.
+**Implementation note:** the current bakeoff stubs store `age_post` as shape `(N, L, K)` for particle-filter-style backends and share the same per-cohort update. `full_joint`'s distinctive behavior in this repo is the **`K^L*N` memory guard** (true dense joint tensor is not materialized). Sliding-window `window` is accepted but not yet used to change the update. Treat runtime differences among `full_joint` / `sliding_window` / `mean_field` as small; treat **memory formulas** as the decision surface for FIL-13.
 
 Soft skip if floats proxy > `2e+08`; per-cell timeout ~ `8` s; `3` predict/update steps.
 
@@ -175,7 +175,7 @@ Near-zero TV among `full_joint` / `sliding_window` / `mean_field` is expected wi
 
 ### Bootstrap PF
 
-Theory: putting age in the particle (no Rao-Blackwell grid) needs **much larger N** to match marginal age accuracy of an RBPF - variance scales like sampling a discrete age per cohort without marginalising. Quick ESS smoke (same toy obs):
+Theory: putting age in the particle (no Rao-Blackwell grid) needs **much larger N** to match marginal age accuracy of a particle filter - variance scales like sampling a discrete age per cohort without marginalising. Quick ESS smoke (same toy obs):
 
 - N=200: ESS after 10 steps ~ 188.1 (94.0% of N)
 - N=2000: ESS after 10 steps ~ 1831.2 (91.6% of N)
