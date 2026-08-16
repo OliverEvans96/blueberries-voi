@@ -2,6 +2,7 @@
 @import "./styles/referenceDrawer.css";
 @import "./styles/dayInspector.css";
 @import "./styles/storeTabs.css";
+@import "./styles/cockpitGrid.css";
 
 :root {
   --bg: #e8e2d4;
