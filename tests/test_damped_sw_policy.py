@@ -3,13 +3,8 @@
 Locks ADR 0058 (CTL-01=C), ADR 0092 (`ShelfBelief` only), and `.team/specs/T-028.md`
 before production policy code exists.
 
-Formula under test (ADR 0058 / T-028):
-
-    q_t = case_round(rho · [F^{-1}_{D_{t:t+L}}(alpha) - Ĩ_t]⁺)
-
-with default rho=0.8, Ĩ_t from T-023 ``effective_inventory`` (MF marginals /
-``from_marginals=True``). Legacy no-schedule path uses R+L=2 under daily LT=1;
-CAL-01 / ADR 0112 base case is MWF day-indexed protection (T-081 / T-083).
+T-C2-A f-native policy contracts live in ``test_damped_sw_f_policy.py`` (production
+f-wire path); this module retains legacy τ-belief skip per T-121 F3.
 """
 
 from __future__ import annotations
