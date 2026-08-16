@@ -4,7 +4,11 @@ import type {
   ActOpts,
   DayDelta,
   EngineConfig,
+  EventsResult,
+  EventsWire,
   Snapshot,
+  TradeoffForecastResult,
+  TradeoffForecastWire,
 } from "./types";
 
 /**
@@ -19,4 +23,10 @@ export interface EngineAdapter {
   act?(opts?: ActOpts): Promise<DayDelta>;
   setObsScenario?(obs_scenario: string): Promise<Snapshot>;
   set_obs_scenario?(obs_scenario: string): Promise<Snapshot>;
+  tradeoffForecast?(params?: {
+    n_paths?: number;
+    protection_days?: number;
+  }): Promise<TradeoffForecastResult>;
+  /** Events RPC envelope: `{ days: EventDayWire[] }`. */
+  events?(params: { since_day: number }): Promise<EventsResult>;
 }

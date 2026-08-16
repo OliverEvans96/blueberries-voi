@@ -102,4 +102,47 @@ export type ActOpts = {
   budgets?: ActBudgets;
 } & ActBudgets;
 
+/** T-127 tradeoff forecast RPC result. */
+export type QForecastEntry = {
+  q: number;
+  waste_mean: number;
+  waste_p10: number;
+  waste_p50: number;
+  waste_p90: number;
+  missed_mean: number;
+  missed_p10: number;
+  missed_p50: number;
+  missed_p90: number;
+  joint_hist: {
+    waste_bins: number[];
+    missed_bins: number[];
+    counts: number[][];
+  };
+};
+
+export type TradeoffForecastWire = {
+  candidates: QForecastEntry[];
+};
+
+export type TradeoffForecastResult = TradeoffForecastWire;
+
+export type EventDayWire = {
+  day: number;
+  arrivals: number;
+  sales_total: number | null;
+  waste_total: number | null;
+  sales_by: number[] | null;
+  waste_by: number[] | null;
+  lot_ids: number[] | null;
+  pack_date_days: number | null;
+  age_at_receipt: number | null;
+};
+
+export type EventsResult = {
+  since_day: number;
+  days: EventDayWire[];
+};
+
+export type EventsWire = EventsResult;
+
 export type { Economics };
