@@ -1,10 +1,10 @@
-"""T-045 golden Snapshot / DayDelta fixtures + schema validators — RED.
+"""T-045 / T-C2-A golden Snapshot / DayDelta fixtures + schema validators — RED.
 
-Locks `.team/specs/T-045.md` and ADR 0100: committed goldens under
-``tests/fixtures/simulator/``, public ``validate_snapshot`` /
+Locks `.team/specs/T-045.md`, ADR 0100, and T-C2-A f-native wire: committed
+goldens under ``tests/fixtures/simulator/``, public ``validate_snapshot`` /
 ``validate_day_delta``, forbidden presentation keys absent, flat belief
-``L`` / ``L*K`` / ``K`` lengths, and live ``EngineSession`` payloads sharing
-the same helpers (schema + shape; byte equality optional).
+``L`` / ``L*K`` / ``K`` lengths with ``f_grid`` / ``f_marginals``, and live
+``EngineSession`` payloads sharing the same helpers (schema + shape).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.backend import rust_core as _maybe_core
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,10 @@ _FIXTURE_README = _FIXTURE_DIR / "README.md"
 
 _SCHEMA_MOD = "blueberries_voi.simulator.schema"
 _FIXED_SEED = 42
+_RUST_RUNTIME = pytest.mark.skipif(
+    _maybe_core is None,
+    reason="blueberries_voi._core not built",
+)
 
 _FORBIDDEN_PAYLOAD_KEYS = frozenset(
     {
@@ -46,7 +51,8 @@ _FORBIDDEN_PAYLOAD_KEYS = frozenset(
     }
 )
 
-_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "age_marginals", "tau_grid", "L", "K"})
+_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "f_marginals", "f_grid", "L", "K"})
+_LEGACY_BELIEF_KEYS = frozenset({"age_marginals", "tau_grid"})
 _SNAPSHOT_REQUIRED = frozenset({"seq", "episode_day", "belief"})
 _DAY_DELTA_REQUIRED = frozenset({"seq", "episode_day", "day", "drop_oldest"})
 
@@ -146,23 +152,32 @@ def _assert_no_forbidden_keys(obj: Any, *, label: str) -> None:
 def _assert_flat_belief_lengths(belief: Mapping[str, Any], *, label: str) -> None:
     missing = _FLAT_BELIEF_KEYS - set(belief)
     assert not missing, f"{label} missing flat belief fields {sorted(missing)}"
+    legacy = _LEGACY_BELIEF_KEYS & set(belief)
+    assert not legacy, (
+        f"{label} must not expose legacy τ-wire keys {sorted(legacy)} (T-C2-A)"
+    )
     l_dim = int(belief["L"])
     k_dim = int(belief["K"])
     lot_counts = list(belief["lot_counts"])
-    age_marginals = list(belief["age_marginals"])
-    tau_grid = list(belief["tau_grid"])
+    f_marginals = list(belief["f_marginals"])
+    f_grid = list(belief["f_grid"])
     assert len(lot_counts) == l_dim, (
         f"{label}: len(lot_counts)={len(lot_counts)} != L={l_dim}"
     )
-    assert len(age_marginals) == l_dim * k_dim, (
-        f"{label}: len(age_marginals)={len(age_marginals)} != L*K={l_dim * k_dim}"
+    assert len(f_marginals) == l_dim * k_dim, (
+        f"{label}: len(f_marginals)={len(f_marginals)} != L*K={l_dim * k_dim}"
     )
-    assert len(tau_grid) == k_dim, (
-        f"{label}: len(tau_grid)={len(tau_grid)} != K={k_dim}"
+    assert len(f_grid) == k_dim, (
+        f"{label}: len(f_grid)={len(f_grid)} != K={k_dim}"
     )
-    for i, x in enumerate(age_marginals):
+    for i, x in enumerate(f_marginals):
         assert not isinstance(x, (list, tuple)), (
-            f"{label}.age_marginals[{i}] is nested; wire requires flat L*K"
+            f"{label}.f_marginals[{i}] is nested; wire requires flat L*K"
+        )
+    for i, f_val in enumerate(f_grid):
+        fv = float(f_val)
+        assert 0.0 <= fv <= 1.0, (
+            f"{label}.f_grid[{i}]={fv} outside freshness [0, 1]"
         )
 
 
@@ -212,6 +227,17 @@ def test_schema_module_exports_validators() -> None:
         assert callable(fn), f"{_SCHEMA_MOD}.{name} must be callable"
         sig = inspect.signature(fn)
         assert len(sig.parameters) >= 1, f"{name} must accept a Mapping payload"
+
+
+def test_schema_module_flat_belief_keys_f_native() -> None:
+    """AC-python-wire: schema._FLAT_BELIEF_KEYS matches f-native wire contract."""
+    mod = _resolve_schema_module()
+    keys = getattr(mod, "_FLAT_BELIEF_KEYS", None)
+    assert keys is not None, f"{_SCHEMA_MOD} must export _FLAT_BELIEF_KEYS"
+    assert set(keys) == _FLAT_BELIEF_KEYS, (
+        f"{_SCHEMA_MOD}._FLAT_BELIEF_KEYS must be "
+        f"{set(_FLAT_BELIEF_KEYS)!r}, got {set(keys)!r}"
+    )
 
 
 def test_golden_snapshot_validates_required_keys_and_flat_belief() -> None:
@@ -327,28 +353,74 @@ def test_golden_flat_belief_lengths_match_l_and_k() -> None:
     _assert_flat_belief_lengths(delta["belief"], label="DayDelta golden")
     assert int(snap["belief"]["L"]) == 2
     assert int(snap["belief"]["K"]) == 4
-    assert len(snap["belief"]["age_marginals"]) == 8
+    assert len(snap["belief"]["f_marginals"]) == 8
 
 
-def test_validate_snapshot_rejects_wrong_age_marginals_length() -> None:
+def _synthetic_f_native_belief(*, l_dim: int = 2, k_dim: int = 4) -> dict[str, Any]:
+    """Minimal valid f-native flat belief for validator edge-case tests."""
+    f_grid = [i / max(k_dim - 1, 1) for i in range(k_dim)]
+    uniform = [1.0 / k_dim] * k_dim
+    return {
+        "lot_counts": [1.0] * l_dim,
+        "f_marginals": uniform * l_dim,
+        "f_grid": f_grid,
+        "L": l_dim,
+        "K": k_dim,
+    }
+
+
+def _synthetic_snapshot(**overrides: Any) -> dict[str, Any]:
     snap = _load_json(_SNAPSHOT_GOLDEN)
+    belief = _synthetic_f_native_belief()
+    out = dict(snap)
+    out["belief"] = belief
+    out.update(overrides)
+    return out
+
+
+def test_golden_fixtures_use_f_native_belief_wire() -> None:
+    """AC-guards: committed goldens must be regenerated under f-native wire."""
+    for path in (_SNAPSHOT_GOLDEN, _DAY_DELTA_GOLDEN, _STEP_N_GOLDEN):
+        payload = _load_json(path)
+        if "belief" in payload:
+            _assert_flat_belief_lengths(payload["belief"], label=path.name)
+        elif "deltas" in payload:
+            for i, delta in enumerate(payload["deltas"]):
+                if delta.get("belief") is not None:
+                    _assert_flat_belief_lengths(
+                        delta["belief"], label=f"{path.name} deltas[{i}]"
+                    )
+
+
+def test_validate_snapshot_rejects_wrong_f_marginals_length() -> None:
+    snap = _synthetic_snapshot()
     dirty = dict(snap)
     belief = dict(dirty["belief"])
-    belief["age_marginals"] = list(belief["age_marginals"])[:-1]
+    belief["f_marginals"] = list(belief["f_marginals"])[:-1]
     dirty["belief"] = belief
-    with pytest.raises((ValueError, TypeError, AssertionError)):
+    with pytest.raises(ValueError, match=r"f_marginals"):
         _validate_snapshot(dirty)
 
 
-def test_validate_snapshot_rejects_nested_age_marginals_rows() -> None:
-    snap = _load_json(_SNAPSHOT_GOLDEN)
+def test_validate_snapshot_rejects_nested_f_marginals_rows() -> None:
+    snap = _synthetic_snapshot()
     dirty = dict(snap)
     belief = dict(dirty["belief"])
     k_dim = int(belief["K"])
-    flat = list(belief["age_marginals"])
-    belief["age_marginals"] = [flat[i : i + k_dim] for i in range(0, len(flat), k_dim)]
+    flat = list(belief["f_marginals"])
+    belief["f_marginals"] = [flat[i : i + k_dim] for i in range(0, len(flat), k_dim)]
     dirty["belief"] = belief
-    with pytest.raises((ValueError, TypeError, AssertionError)):
+    with pytest.raises(TypeError, match=r"nested|flat"):
+        _validate_snapshot(dirty)
+
+
+def test_validate_snapshot_rejects_legacy_tau_wire_keys() -> None:
+    snap = _synthetic_snapshot()
+    dirty = dict(snap)
+    belief = dict(dirty["belief"])
+    belief["tau_grid"] = [0.0, 1.0]
+    dirty["belief"] = belief
+    with pytest.raises(ValueError, match=r"legacy|tau_grid|forbidden"):
         _validate_snapshot(dirty)
 
 
@@ -378,6 +450,7 @@ def test_validate_day_delta_rejects_non_mapping_day() -> None:
 # ---------------------------------------------------------------------------
 
 
+@_RUST_RUNTIME
 def test_live_init_snapshot_validates_like_golden() -> None:
     session = EngineSession()
     snap = session.init(_golden_config(), seed=_FIXED_SEED)
@@ -393,6 +466,7 @@ def test_live_init_snapshot_validates_like_golden() -> None:
     assert int(snap["belief"]["K"]) == int(golden["belief"]["K"])
 
 
+@_RUST_RUNTIME
 def test_live_step_day_delta_validates_like_golden() -> None:
     session = EngineSession()
     session.init(_golden_config(), seed=_FIXED_SEED)
@@ -409,6 +483,7 @@ def test_live_step_day_delta_validates_like_golden() -> None:
     assert set(delta.keys()) == set(golden.keys()) or set(delta) >= _DAY_DELTA_REQUIRED
 
 
+@_RUST_RUNTIME
 def test_live_step_n_deltas_validate_with_same_helpers() -> None:
     session = EngineSession()
     session.init(_golden_config(), seed=_FIXED_SEED)
@@ -428,6 +503,7 @@ def test_live_step_n_deltas_validate_with_same_helpers() -> None:
         assert "drop_oldest" in delta
 
 
+@_RUST_RUNTIME
 def test_live_snapshot_json_round_trip_excludes_presentation_keys() -> None:
     session = EngineSession()
     snap = session.init(_golden_config(), seed=_FIXED_SEED)
