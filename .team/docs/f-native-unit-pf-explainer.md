@@ -169,6 +169,77 @@ So “distribution per lot” means: **per-slot histogram across particles**, bu
 
 ---
 
+## 8. Effective inventory
+
+Ordering policy (damped survival-weighted baseline, ADR 0058) needs a scalar **quality-weighted on-hand** \(\tilde I_t\), not raw case counts. Retiring τ / Weibull from production does **not** remove effective inventory — it replaces the old “integrate Weibull survival over τ bins” path with a **freshness-native** definition aligned to the same gamma aging used in truth and the filter.
+
+### Quality weight \(w(f)\)
+
+Per unit with freshness \(f\), define:
+
+\[
+w(f) = \frac{\mathbb{E}[T_{\mathrm{rem}} \mid f]}{T_{\mathrm{nom}}}
+\]
+
+- \(T_{\mathrm{rem}}(f)\): time until spoil (first day \(f \le 0\)) under production gamma aging (MOD-02 in freshness space).
+- \(T_{\mathrm{nom}} = \mathbb{E}[T_{\mathrm{rem}} \mid f{=}1]\): pristine reference remaining life.
+
+**Effective inventory** from the wire belief:
+
+\[
+\tilde I = \sum_{\ell=0}^{L-1} n_\ell \, \mathbb{E}[w(f) \mid \ell] + q_{\mathrm{pipeline}} \, f_{\mathrm{pipe}}
+\]
+
+Here \(n_\ell =\) `lot_counts[ℓ]` (expected alive units in virtual lot slot ℓ) and the expectation over \(f\) uses row `f_marginals[ℓ, ·]` against `f_grid`. Pipeline units use default birth freshness \(f_{\mathrm{pipe}}\) (typically 1.0).
+
+### Link to gamma aging
+
+Production aging applies a gamma decrement each day (`apply_gamma_decrement` / `draw_gamma_decrement` in `physics.rs`):
+
+\[
+f_{t+1} = \max(f_t - \Delta_t, 0), \quad \Delta_t \sim \mathrm{Gamma}(\mathrm{shape}, \mathrm{scale} \times \mathrm{Q10})
+\]
+
+| Regime | \(w(f)\) | Intuition |
+|--------|----------|-----------|
+| **Deterministic** decrement \(\Delta \equiv \delta\) | \(w(f) = f\) | Remaining life \(T_{\mathrm{rem}} = f/\delta\); numerator and denominator both scale with \(1/\delta\) |
+| **Stochastic gamma** | \(w(f) \approx f\) to first order; exact \(w(f_k)\) tabulatable | Jensen / first-passage effects mean \(\mathbb{E}[T_{\mathrm{rem}}\mid f] \neq f \cdot T_{\mathrm{nom}}\) in general |
+
+When \(f\) is a **linear remaining-life fraction** (birth convention \(f = 1 - \tau/\eta_{\mathrm{ref}}\), with τ private inside shipment cache only), treating bin centers as \(w(f_k) = f_k\) counts **pristine-equivalent units** — the MVP shipped in ADR 0131.
+
+### MVP on the wire (production)
+
+The implementation uses **\(\mathbb{E}[f]\) weighting** — i.e. \(w(f_k) = f_k\) at bin centers:
+
+\[
+\tilde I = \sum_\ell n_\ell \sum_k p_{\ell k} f_k + q_{\mathrm{pipe}} f_{\mathrm{pipe}}
+\]
+
+| Layer | Function |
+|-------|----------|
+| Rust policy | `effective_inventory_f_belief` → input to `damped_sw_order_f_belief` |
+| Python | `effective_inventory_f_belief(FreshShelfBelief, …)` |
+| Web charts | `effectiveInventoryFromFlatBelief` |
+
+Damped-SW compares \(\tilde I_t\) to protection demand; it does **not** re-integrate Weibull survival.
+
+### Contrast with retired τ / Weibull path
+
+| Retired (τ) | Kept (f-native MVP) |
+|-------------|---------------------|
+| `effective_inventory_belief` — Weibull × `tau_grid` / `age_marginals` | `effective_inventory_f_belief` — \(\mathbb{E}[f]\) × `f_marginals` |
+| `damped_sw_order_belief` | `damped_sw_order_f_belief` |
+| Mock `survivalWeightedInventory(lots, β)` on **belief** `effective_inv` | `effectiveInventoryFromFlatBelief` everywhere ordering / UI reads belief |
+| Weibull survival chart + β slider in studio | Gamma / f spoilage story only |
+
+Truth overlay `live_lots[].mean_f` is **not** \(\tilde I\); it is physics mean freshness per ground-truth lot for charts. Policy \(\tilde I\) always comes from **filter** `f_marginals`.
+
+### Optional refinement (not MVP)
+
+ADR 0131 documents a follow-up: precompute \(w(f_k)\) on `f_grid` from `(gamma_shape, gamma_scale, store Q10)` via Monte Carlo or first-passage approximation, and a horizon-aligned variant \(w_H(f)\) matched to damped-SW protection window \(H\). MVP \(w = f\) ships first because it matches deterministic-gamma physics and is already implemented.
+
+---
+
 ## Related work (out of scope here)
 
 Legacy **τ** / `age_marginals` wire fields belong to the pre–f-native count filter. Retiring τ from the production wire is **planned separately**; f-native exports `f_grid` / `f_marginals` only.
