@@ -71,7 +71,6 @@ export class MockAdapter implements EngineAdapter {
       this.state.rng,
       this.config.obs_scenario,
       12,
-      this.config,
     );
   }
 
@@ -86,7 +85,6 @@ export class MockAdapter implements EngineAdapter {
       this.state.rng,
       this.config.obs_scenario,
       12,
-      this.config,
     );
     this.seq = 0;
     return this.toSnapshot();
@@ -128,7 +126,6 @@ export class MockAdapter implements EngineAdapter {
       this.state.rng,
       this.config.obs_scenario,
       12,
-      this.config,
     );
     this.seq = 0;
     return this.toSnapshot();
@@ -148,7 +145,6 @@ export class MockAdapter implements EngineAdapter {
       this.state.rng,
       this.config.obs_scenario,
       12,
-      this.config,
     );
     return this.toSnapshot();
   }
@@ -169,7 +165,6 @@ export class MockAdapter implements EngineAdapter {
         this.state.rng,
         this.config.obs_scenario,
         12,
-        this.config,
       );
     }
     return this.toSnapshot();
@@ -257,7 +252,6 @@ export class MockAdapter implements EngineAdapter {
       this.state.rng,
       this.config.obs_scenario,
       12,
-      this.config,
     );
     this.seq += 1;
     return {

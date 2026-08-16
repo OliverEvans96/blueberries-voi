@@ -8,8 +8,7 @@ const initial: ControlsState = {
   orderQty: 24,
   economics: { p_sell: 4, c_unit: 2, c_waste: 1, c_stockout: 3 },
   config: {
-    beta: 2,
-    eta_ref: 14,
+        eta_ref: 14,
     q10: 2,
     t_ref_c: 4,
     t_store_c: 4,

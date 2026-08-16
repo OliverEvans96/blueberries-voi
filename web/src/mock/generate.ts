@@ -16,6 +16,10 @@ export const DEFAULT_ECONOMICS: Economics = {
   c_stockout: 2.5,
 };
 
+/** Gamma aging defaults (ModelParams / voi_core). */
+const GAMMA_SHAPE = 2.0;
+const GAMMA_SCALE = 0.08;
+
 /**
  * Abdella shipment effective ages at ModelParams defaults (q10=3, t_ref=0°C),
  * from shipment_arrival_age on the six MOD-21 traces (S1…S6).
@@ -35,7 +39,6 @@ const ALL_IDS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const;
 
 /** Defaults aligned with blueberries_voi.model.ModelParams where applicable. */
 export const DEFAULT_SIM_CONFIG: SimConfig = {
-  beta: 2,
   eta_ref: 14,
   q10: 3,
   t_ref_c: 0,
@@ -82,7 +85,6 @@ function clamp(n: number, lo: number, hi: number): number {
 }
 
 function gaussian(rng: () => number): number {
-  // Box–Muller
   const u = Math.max(1e-12, rng());
   const v = rng();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
@@ -100,11 +102,21 @@ function transitAgeFactor(cfg: SimConfig): number {
   return q10 ** (cfg.transit_temp_bias_c / 10);
 }
 
+/** Q10 store-aging factor (matches voi_core store_temp_factor). */
+export function storeTempFactor(cfg: SimConfig): number {
+  return Math.max(1.01, cfg.q10) ** ((cfg.t_store_c - cfg.t_ref_c) / 10);
+}
+
+/** Map effective age τ (days) to unit freshness f ∈ [0, 1]. */
+export function ageToF(tauDays: number, etaRef: number): number {
+  if (etaRef <= 0) return 0;
+  return clamp(1 - tauDays / etaRef, 0, 1);
+}
+
 /** Base mix ages after Q10 rescale from the q10=3 calibration point. */
 function baseMixAges(cfg: SimConfig): number[] {
   const ids = productShipmentIds(cfg.arrival_product);
   const q10Scale = Math.max(1.01, cfg.q10) / 3;
-  // Mild Q10 rescale of integrated ages (mock stand-in for re-integrating paths).
   return ids.map((id) => ABDELLA_AGES_BASE[id]! * q10Scale);
 }
 
@@ -122,40 +134,12 @@ export function sampleArrivalAge(cfg: SimConfig, rng: () => number): number {
     cfg.sensor_sigma > 0
       ? withTransit + gaussian(rng) * cfg.sensor_sigma
       : withTransit;
-  return clamp(noisy, 0, 14);
+  return clamp(noisy, 0, cfg.eta_ref);
 }
 
-/** Discrete prior PMF on a uniform age grid (FIL-03-style teaching view). */
-export function arrivalAgePriorPdf(
-  cfg: SimConfig,
-  opts?: { transitBiasOverride?: number; nGrid?: number },
-): { tau: number; density: number }[] {
-  const nGrid = opts?.nGrid ?? 81;
-  const tauMax = 12;
-  const bias =
-    opts?.transitBiasOverride !== undefined
-      ? opts.transitBiasOverride
-      : cfg.transit_temp_bias_c;
-  const factor = Math.max(1.01, cfg.q10) ** (bias / 10);
-  const mix = baseMixAges(cfg);
-  const ages = mix.map((a) => meanShrink(a, mix, cfg.spread_scale) * factor);
-  const bw = Math.max(0.15, cfg.f2a_transit_sd * 0.55);
-  const dx = tauMax / (nGrid - 1);
-  const pts: { tau: number; density: number }[] = [];
-  for (let i = 0; i < nGrid; i++) {
-    const tau = i * dx;
-    let dens = 0;
-    for (const a of ages) {
-      const z = (tau - a) / bw;
-      dens += Math.exp(-0.5 * z * z);
-    }
-    dens /= ages.length * bw * Math.sqrt(2 * Math.PI);
-    pts.push({ tau, density: dens });
-  }
-  let mass = 0;
-  for (const p of pts) mass += p.density * dx;
-  if (mass > 0) for (const p of pts) p.density /= mass;
-  return pts;
+/** Freshness at receipt from the arrival-age mix. */
+export function sampleArrivalFreshness(cfg: SimConfig, rng: () => number): number {
+  return ageToF(sampleArrivalAge(cfg, rng), cfg.eta_ref);
 }
 
 function meanShrink(age: number, mix: number[], spreadScale: number): number {
@@ -163,24 +147,68 @@ function meanShrink(age: number, mix: number[], spreadScale: number): number {
   return mean + spreadScale * (age - mean);
 }
 
+/** Discrete prior PMF on a uniform freshness grid (FIL-03-style teaching view). */
+export function arrivalFreshnessPriorPdf(
+  cfg: SimConfig,
+  opts?: { transitBiasOverride?: number; nGrid?: number },
+): { f: number; density: number }[] {
+  const nGrid = opts?.nGrid ?? 81;
+  const fMax = 1;
+  const bias =
+    opts?.transitBiasOverride !== undefined
+      ? opts.transitBiasOverride
+      : cfg.transit_temp_bias_c;
+  const factor = Math.max(1.01, cfg.q10) ** (bias / 10);
+  const mix = baseMixAges(cfg);
+  const freshes = mix.map((a) =>
+    ageToF(meanShrink(a, mix, cfg.spread_scale) * factor, cfg.eta_ref),
+  );
+  const bw = Math.max(0.015, cfg.f2a_transit_sd * 0.055);
+  const dx = fMax / (nGrid - 1);
+  const pts: { f: number; density: number }[] = [];
+  for (let i = 0; i < nGrid; i++) {
+    const f = i * dx;
+    let dens = 0;
+    for (const ff of freshes) {
+      const z = (f - ff) / bw;
+      dens += Math.exp(-0.5 * z * z);
+    }
+    dens /= freshes.length * bw * Math.sqrt(2 * Math.PI);
+    pts.push({ f, density: dens });
+  }
+  let mass = 0;
+  for (const p of pts) mass += p.density * dx;
+  if (mass > 0) for (const p of pts) p.density /= mass;
+  return pts;
+}
+
+/** @deprecated use arrivalFreshnessPriorPdf */
+export function arrivalAgePriorPdf(
+  cfg: SimConfig,
+  opts?: { transitBiasOverride?: number; nGrid?: number },
+): { f: number; density: number }[] {
+  return arrivalFreshnessPriorPdf(cfg, opts);
+}
+
 /** F2a-style Gaussian centered on mix mean (pack-date prior width). */
 export function f2aPriorPdf(
   cfg: SimConfig,
   nGrid = 81,
-): { tau: number; density: number }[] {
+): { f: number; density: number }[] {
   const mix = baseMixAges(cfg);
   const ages = mix.map((a) => meanShrink(a, mix, cfg.spread_scale));
-  const mean =
+  const meanAge =
     (ages.reduce((s, a) => s + a, 0) / ages.length) * transitAgeFactor(cfg);
-  const sd = Math.max(0.05, cfg.f2a_transit_sd);
-  const tauMax = 12;
-  const pts: { tau: number; density: number }[] = [];
-  const dx = tauMax / (nGrid - 1);
+  const meanF = ageToF(meanAge, cfg.eta_ref);
+  const sd = Math.max(0.015, cfg.f2a_transit_sd / cfg.eta_ref);
+  const fMax = 1;
+  const pts: { f: number; density: number }[] = [];
+  const dx = fMax / (nGrid - 1);
   for (let i = 0; i < nGrid; i++) {
-    const tau = i * dx;
-    const z = (tau - mean) / sd;
+    const f = i * dx;
+    const z = (f - meanF) / sd;
     pts.push({
-      tau,
+      f,
       density: Math.exp(-0.5 * z * z) / (sd * Math.sqrt(2 * Math.PI)),
     });
   }
@@ -197,35 +225,10 @@ function totalInventory(lots: Lot[]): number {
   return lots.reduce((s, l) => s + l.n, 0);
 }
 
-/** Effective characteristic life under Q10 temperature shift. */
+/** Effective characteristic life under Q10 temperature shift (teaching display). */
 export function etaEffective(cfg: SimConfig): number {
   const shift = (cfg.t_ref_c - cfg.t_store_c) / 10;
   return Math.max(0.5, cfg.eta_ref * cfg.q10 ** shift);
-}
-
-function weibullSurvival(t: number, beta: number, eta: number): number {
-  if (t <= 0) return 1;
-  return Math.exp(-((t / eta) ** beta));
-}
-
-export { weibullSurvival };
-
-/** Deterministic Weibull survival curve under current Q10-adjusted η. */
-export function survivalCurve(
-  cfg: SimConfig,
-  tauMax = 24,
-  steps = 97,
-): { tau: number; s: number; h: number }[] {
-  const eta = etaEffective(cfg);
-  const pts: { tau: number; s: number; h: number }[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const tau = (i / steps) * tauMax;
-    const s = weibullSurvival(tau, cfg.beta, eta);
-    const s1 = weibullSurvival(tau + 1e-3, cfg.beta, eta);
-    const h = s > 1e-12 ? Math.max(0, (s - s1) / (1e-3 * s)) : 0;
-    pts.push({ tau, s, h });
-  }
-  return pts;
 }
 
 /** NB pmf under ModelParams convention (no seasonal factor — knob snapshot). */
@@ -240,7 +243,6 @@ export function demandPmf(
   const maxK = kMax ?? Math.min(200, Math.ceil(mu + 8 * Math.sqrt(mu * vm) + 20));
 
   const out: { k: number; p: number }[] = [];
-  // Recurrence: P(0)=p^r; P(k+1)/P(k) = (k+r)/(k+1) * (1-p)
   let pk = successP ** r;
   let sum = 0;
   for (let k = 0; k <= maxK; k++) {
@@ -255,29 +257,18 @@ export function demandPmf(
   return out;
 }
 
-export function survivalWeightedInventory(
-  lots: Lot[],
-  cfg: SimConfig,
-): number {
-  const eta = etaEffective(cfg);
-  return lots.reduce(
-    (s, l) => s + l.n * weibullSurvival(l.tau, cfg.beta, eta),
-    0,
-  );
+/** E[f]-weighted on-hand from truth lots (MVP policy parity). */
+export function effectiveInventoryFromLots(lots: Lot[]): number {
+  return lots.reduce((s, l) => s + l.n * l.mean_f, 0);
 }
 
 export function onHandInventory(lots: Lot[]): number {
   return totalInventory(lots);
 }
 
-
-/** Per-day spoil probability from Weibull survival ratio, with sigma noise. */
-function spoilProb(tau: number, cfg: SimConfig, rng: () => number): number {
-  const eta = etaEffective(cfg) * Math.exp(cfg.sigma * (rng() - 0.5) * 0.4);
-  const s0 = weibullSurvival(tau, cfg.beta, eta);
-  const s1 = weibullSurvival(tau + 1, cfg.beta, eta);
-  if (s0 <= 1e-12) return 1;
-  return clamp(1 - s1 / s0, 0, 1);
+function drawGammaDecrement(cfg: SimConfig, rng: () => number): number {
+  const scale = GAMMA_SCALE * storeTempFactor(cfg);
+  return sampleGamma(rng, GAMMA_SHAPE, scale);
 }
 
 function binomialTrials(n: number, p: number, rng: () => number): number {
@@ -290,7 +281,7 @@ function binomialTrials(n: number, p: number, rng: () => number): number {
   return k;
 }
 
-/** Age one day; Weibull-ish spoilage draws waste from each lot. */
+/** Age one day; gamma freshness decrement draws waste from each lot. */
 function ageAndSpoil(
   lots: Lot[],
   cfg: SimConfig,
@@ -299,12 +290,16 @@ function ageAndSpoil(
   let waste = 0;
   const next: Lot[] = [];
   for (const lot of lots) {
-    const tau = lot.tau + 1;
-    const p = spoilProb(tau, cfg, rng);
+    const decrement = drawGammaDecrement(cfg, rng);
+    const fAfter = Math.max(0, lot.mean_f - decrement);
+    const p =
+      lot.mean_f <= 0
+        ? 1
+        : clamp((lot.mean_f - fAfter) / lot.mean_f, 0, 1);
     const died = binomialTrials(lot.n, p, rng);
     waste += died;
     const left = lot.n - died;
-    if (left > 0) next.push({ lot_id: lot.lot_id, n: left, tau });
+    if (left > 0) next.push({ lot_id: lot.lot_id, n: left, mean_f: fAfter });
   }
   return { lots: next, waste };
 }
@@ -316,7 +311,9 @@ function applySales(
   let remaining = demand;
   let sales = 0;
   const next: Lot[] = [];
-  const ordered = [...lots].sort((a, b) => a.tau - b.tau || a.lot_id - b.lot_id);
+  const ordered = [...lots].sort(
+    (a, b) => b.mean_f - a.mean_f || a.lot_id - b.lot_id,
+  );
   for (const lot of ordered) {
     if (remaining <= 0) {
       next.push(lot);
@@ -344,13 +341,12 @@ function randn(rng: () => number): number {
   return u * Math.sqrt((-2 * Math.log(s)) / s);
 }
 
-/** Approx Gamma(shape, scale) via sum-of-exponentials / normal for large shape. */
+/** Approx Gamma(shape, scale) via Marsaglia-Tsang. */
 function sampleGamma(rng: () => number, shape: number, scale: number): number {
   if (shape < 1) {
     const u = Math.max(1e-12, rng());
     return sampleGamma(rng, shape + 1, scale) * u ** (1 / shape);
   }
-  // Marsaglia-Tsang
   const d = shape - 1 / 3;
   const c = 1 / Math.sqrt(9 * d);
   for (;;) {
@@ -398,18 +394,12 @@ function sampleDemand(
 }
 
 function beliefBlur(scenario: ScenarioId): number {
-  if (scenario === "P0") return 1.6;
-  if (scenario === "F2") return 0.55;
-  if (scenario === "F2a") return 0.7;
-  if (scenario === "F1s") return 0.85;
-  if (scenario === "F1") return 0.95;
-  return 1; // P1
-}
-
-/** Map τ-day cohort age to unit freshness f ∈ [0, 1] (Weibull survival teaching stub). */
-export function freshnessFromTau(tau: number, cfg: SimConfig): number {
-  const eta = etaEffective(cfg);
-  return weibullSurvival(tau, cfg.beta, eta);
+  if (scenario === "P0") return 0.16;
+  if (scenario === "F2") return 0.055;
+  if (scenario === "F2a") return 0.07;
+  if (scenario === "F1s") return 0.085;
+  if (scenario === "F1") return 0.095;
+  return 0.1; // P1
 }
 
 /**
@@ -420,7 +410,6 @@ export function generateFlatBelief(
   rng: () => number,
   scenario: ScenarioId = "P1",
   K = 12,
-  cfg: SimConfig = DEFAULT_SIM_CONFIG,
 ): FlatBelief {
   const L = lots.length;
   if (L === 0) {
@@ -438,12 +427,11 @@ export function generateFlatBelief(
     { length: K },
     (_, i) => i / Math.max(1, K - 1),
   );
-  const maxTau = Math.max(8, ...lots.map((l) => l.tau));
-  const blurF = beliefBlur(scenario) / maxTau;
+  const blurF = beliefBlur(scenario);
   const f_marginals: number[] = [];
 
   for (let l = 0; l < L; l++) {
-    const fTruth = freshnessFromTau(lots[l]!.tau, cfg);
+    const fTruth = lots[l]!.mean_f;
     const row: number[] = [];
     let sum = 0;
     for (let k = 0; k < K; k++) {
@@ -465,9 +453,9 @@ export function generateBelief(
   rng: () => number,
   scenario: ScenarioId = "P1",
 ): BeliefGrid {
-  const tauBins = 12;
+  const fBins = 12;
   const countBins = 10;
-  const tau_edges = Array.from({ length: tauBins + 1 }, (_, i) => i);
+  const f_edges = Array.from({ length: fBins + 1 }, (_, i) => i / fBins);
   const maxCount = Math.max(40, totalInventory(lots) * 1.4);
   const count_edges = Array.from(
     { length: countBins + 1 },
@@ -475,29 +463,29 @@ export function generateBelief(
   );
   const blur = beliefBlur(scenario);
 
-  const density: number[][] = Array.from({ length: tauBins }, () =>
+  const density: number[][] = Array.from({ length: fBins }, () =>
     Array.from({ length: countBins }, () => 0),
   );
 
-  const byAge = new Map<number, number>();
+  const byF = new Map<number, number>();
   for (const lot of lots) {
-    byAge.set(lot.tau, (byAge.get(lot.tau) ?? 0) + lot.n);
+    byF.set(lot.mean_f, (byF.get(lot.mean_f) ?? 0) + lot.n);
   }
 
-  for (let ti = 0; ti < tauBins; ti++) {
-    const tauCenter = (tau_edges[ti]! + tau_edges[ti + 1]!) / 2;
+  for (let fi = 0; fi < fBins; fi++) {
+    const fCenter = (f_edges[fi]! + f_edges[fi + 1]!) / 2;
     for (let ci = 0; ci < countBins; ci++) {
       const countCenter = (count_edges[ci]! + count_edges[ci + 1]!) / 2;
-      let mass = 0.02 * blur; // prior floor
-      for (const [tau, n] of byAge) {
-        const dTau = (tauCenter - tau) / blur;
+      let mass = 0.02 * blur;
+      for (const [f, n] of byF) {
+        const dF = (fCenter - f) / blur;
         const dN = (countCenter - n) / blur;
         mass += Math.exp(
-          -(dTau * dTau) / 2.2 - (dN * dN) / (2 * (maxCount * 0.18) ** 2),
+          -(dF * dF) / 2.2 - (dN * dN) / (2 * (maxCount * 0.18) ** 2),
         );
       }
       mass *= 0.75 + 0.5 * rng();
-      density[ti]![ci] = mass;
+      density[fi]![ci] = mass;
     }
   }
 
@@ -509,7 +497,7 @@ export function generateBelief(
     }
   }
 
-  return { tau_edges, count_edges, density };
+  return { f_edges, count_edges, density };
 }
 
 function buildStartingLots(cfg: SimConfig, rng: () => number): Lot[] {
@@ -529,7 +517,7 @@ function buildStartingLots(cfg: SimConfig, rng: () => number): Lot[] {
       lots.push({
         lot_id: i + 1,
         n,
-        tau: Math.round(sampleArrivalAge(cfg, rng) * 10) / 10,
+        mean_f: Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000,
       });
       allocated += n;
     }
@@ -538,7 +526,7 @@ function buildStartingLots(cfg: SimConfig, rng: () => number): Lot[] {
     lots.push({
       lot_id: lots.length + 1,
       n: total - allocated,
-      tau: Math.round(sampleArrivalAge(cfg, rng) * 10) / 10,
+      mean_f: Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000,
     });
   }
   return lots;
@@ -567,12 +555,12 @@ function runDay(
     .filter((o) => o.arriveOn === day)
     .reduce((s, o) => s + o.qty, 0);
   pending = pending.filter((o) => o.arriveOn !== day);
-  let age_at_receipt: number | null = null;
+  let f_at_receipt: number | null = null;
   if (arrivals > 0) {
-    age_at_receipt = Math.round(sampleArrivalAge(cfg, rng) * 100) / 100;
+    f_at_receipt = Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000;
     stateLots = [
       ...stateLots,
-      { lot_id: nid++, n: arrivals, tau: age_at_receipt },
+      { lot_id: nid++, n: arrivals, mean_f: f_at_receipt },
     ];
   }
 
@@ -609,7 +597,7 @@ function runDay(
       order_qty,
       arrivals,
       stockout: sold.stockout,
-      age_at_receipt,
+      f_at_receipt,
     },
   };
 }
@@ -623,7 +611,6 @@ export function createInitialState(cfg: SimConfig): SimState {
   const history: Day[] = [];
 
   return {
-    // Next day to act (EngineSession parity): episode starts at day 0.
     day: 0,
     lots,
     nextLotId,
@@ -640,7 +627,6 @@ export function stepSimulation(
   cfg: SimConfig,
 ): { state: SimState; dayRecord: Day; completedDay: number } {
   const config = { ...cfg };
-  // `state.day` is the day about to be played (same as EngineSession.episode_day).
   const completedDay = state.day;
   const stepped = runDay(
     completedDay,

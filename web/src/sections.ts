@@ -36,8 +36,8 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   {
     id: "physics",
     label: "Physics",
-    blurb: "Weibull quality and cold-chain temps shape how long lots survive.",
-    plotIds: ["plot-survival"],
+    blurb: "Gamma freshness aging and cold-chain temps shape how long lots stay sellable.",
+    plotIds: [],
     controlSection: "physics",
   },
   {

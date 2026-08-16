@@ -34,7 +34,7 @@ function sampleViewModel(overrides: Partial<ViewModel> = {}): ViewModel {
       today_profit: 20,
     },
     belief: {
-      tau_edges: [0, 1],
+      f_edges: [0, 0.5, 1],
       count_edges: [0, 1],
       density: [[0.5]],
     },

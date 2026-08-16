@@ -32,7 +32,7 @@ function sampleViewModel(overrides: Partial<ViewModel> = {}): ViewModel {
     order_qty: 16,
     arrivals: 0,
     stockout: 1,
-    age_at_receipt: null,
+    f_at_receipt: null,
   };
 
   return {
@@ -52,7 +52,7 @@ function sampleViewModel(overrides: Partial<ViewModel> = {}): ViewModel {
       today_profit: 0,
     },
     belief: {
-      tau_edges: [0, 1, 2],
+      f_edges: [0, 1, 2],
       count_edges: [0, 1],
       density: [[0.2], [0.5], [0.3]],
       age_marginal: [0.2, 0.5, 0.3],
@@ -166,7 +166,7 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
       point: { clientX: 10, clientY: 10 },
       vm: sampleViewModel({
         belief: {
-          tau_edges: [0, 1],
+          f_edges: [0, 1],
           count_edges: [0, 1],
           density: [[0.5]],
         },

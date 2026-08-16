@@ -2,7 +2,7 @@ import * as d3 from "d3";
 import type { BeliefGrid } from "../types";
 
 function freshnessEdges(belief: BeliefGrid): number[] {
-  return belief.f_edges ?? belief.freshness_edges ?? belief.tau_edges;
+  return belief.f_edges ?? belief.freshness_edges ?? [];
 }
 
 function isFreshnessGrid(belief: BeliefGrid): boolean {

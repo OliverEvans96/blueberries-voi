@@ -16,7 +16,7 @@ function sampleDay(day: number, lots: Day["lots"]): Day {
     order_qty: 8,
     arrivals: 8,
     stockout: 2,
-    age_at_receipt: 1,
+    f_at_receipt: 1,
   };
 }
 
@@ -46,8 +46,8 @@ describe("history lot circles (T-115)", () => {
     renderHistory(
       el,
       [
-        sampleDay(0, [{ lot_id: 1, n: 8, tau: 2 }]),
-        sampleDay(1, [{ lot_id: 2, n: 4, tau: 5 }]),
+        sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 0.857 }]),
+        sampleDay(1, [{ lot_id: 2, n: 4, mean_f: 0.643 }]),
       ],
       { width: 720, height: 220 },
     );

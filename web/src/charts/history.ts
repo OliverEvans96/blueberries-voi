@@ -80,7 +80,7 @@ export function renderHistory(
     .attr("width", "100%")
     .attr("height", height)
     .attr("role", "img")
-    .attr("aria-label", "Inventory lots by day and age");
+    .attr("aria-label", "Inventory lots by day and freshness");
 
   const g = svg
     .append("g")
@@ -89,11 +89,11 @@ export function renderHistory(
 
   const days = history.map((d) => d.day);
   const step = days.length > 0 ? innerW / days.length : innerW;
-  const maxTau = Math.max(
-    10,
-    d3.max(history, (d) => d3.max(d.lots, (l) => l.tau)) ?? 10,
+  const maxF = Math.max(
+    1,
+    d3.max(history, (d) => d3.max(d.lots, (l) => l.mean_f)) ?? 1,
   );
-  const y = d3.scaleLinear().domain([0, maxTau]).nice().range([innerH, 0]);
+  const y = d3.scaleLinear().domain([0, maxF]).nice().range([innerH, 0]);
 
   g.append("g")
     .attr("class", "axis axis-y")
@@ -123,10 +123,8 @@ export function renderHistory(
     .attr("y", -34)
     .attr("transform", "rotate(-90)")
     .attr("text-anchor", "middle")
-    .text("Effective age (days)");
+    .text("Freshness f");
 
-  // Contiguous day bands (visual + shared x alignment). No pointer handlers —
-  // parent linked hover uses day-from-x.
   g.append("g")
     .attr("class", "day-cols")
     .selectAll("rect")
@@ -155,7 +153,7 @@ export function renderHistory(
 
   const color = d3
     .scaleSequential(d3.interpolateRgbBasis(["#7a9e7e", "#2f6b4f", "#1a3d32"]))
-    .domain([0, 10]);
+    .domain([0, 1]);
 
   const points: LotPoint[] = history.flatMap((d) =>
     d.lots.map((lot) => ({ day: d.day, ...lot })),
@@ -175,9 +173,9 @@ export function renderHistory(
           .attr("class", "lot")
           .attr("data-day", (d) => d.day)
           .attr("cx", (d) => (dayIndex.get(d.day) ?? 0) * step + step / 2)
-          .attr("cy", (d) => y(d.tau))
+          .attr("cy", (d) => y(d.mean_f))
           .attr("r", 0)
-          .attr("fill", (d) => color(d.tau))
+          .attr("fill", (d) => color(d.mean_f))
           .attr("fill-opacity", 0.88)
           .attr("stroke", "#0f241c")
           .attr("stroke-opacity", 0.18)
@@ -186,7 +184,7 @@ export function renderHistory(
               .append("title")
               .text(
                 (d) =>
-                  `Day ${d.day} · lot ${d.lot_id}\nage ${d.tau} · qty ${d.n}`,
+                  `Day ${d.day} · lot ${d.lot_id}\nf ${d.mean_f.toFixed(2)} · qty ${d.n}`,
               ),
           )
           .call((s) =>
@@ -197,12 +195,12 @@ export function renderHistory(
           ),
       (update) =>
         update
-          .attr("fill", (d) => color(d.tau))
+          .attr("fill", (d) => color(d.mean_f))
           .attr("data-day", (d) => d.day)
           .transition()
           .duration(280)
           .attr("cx", (d) => (dayIndex.get(d.day) ?? 0) * step + step / 2)
-          .attr("cy", (d) => y(d.tau))
+          .attr("cy", (d) => y(d.mean_f))
           .attr("r", (d) => r(d.n)),
       (exit) => exit.transition().duration(180).attr("r", 0).remove(),
     );

@@ -27,11 +27,6 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tooltip: "Penalty per missed sale — updates P&L immediately.",
     tier: "Live",
   },
-  beta: {
-    label: "Weibull shape (β)",
-    tooltip: "Spoilage curve shape — applies on Reset.",
-    tier: "Reset",
-  },
   eta_ref: {
     label: "Reference shelf life (η)",
     tooltip: "Baseline days to spoil at reference temperature.",

@@ -34,8 +34,8 @@ describe("demandSummaryFromConfig (T-124 AC-demand)", () => {
         L: 2,
         K: 4,
         lot_counts: [1, 1],
-        age_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
-        tau_grid: [0, 2.67, 5.33, 8],
+        f_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+        f_grid: [0.125, 0.375, 0.625, 0.875],
       },
       demand_summary: sampleSummary(),
     });
@@ -99,8 +99,8 @@ describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
         L: 2,
         K: 4,
         lot_counts: [1, 1],
-        age_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
-        tau_grid: [0, 2.67, 5.33, 8],
+        f_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+        f_grid: [0.125, 0.375, 0.625, 0.875],
       },
       demand_summary: sampleSummary(),
     });

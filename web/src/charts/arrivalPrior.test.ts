@@ -16,7 +16,7 @@ function day(partial: Partial<Day> & { day: number }): Day {
     order_qty: 0,
     arrivals: 0,
     stockout: 0,
-    age_at_receipt: null,
+    f_at_receipt: null,
     ...partial,
   };
 }
@@ -33,11 +33,11 @@ afterEach(() => {
 });
 
 describe("arrival prior receipt-age rug (T-115)", () => {
-  it("draws zero rug marks when history has no age_at_receipt / arrivals", () => {
+  it("draws zero rug marks when history has no f_at_receipt / arrivals", () => {
     const el = host();
     renderArrivalPrior(el, DEFAULT_SIM_CONFIG, [
-      day({ day: 0, arrivals: 0, age_at_receipt: null }),
-      day({ day: 1, arrivals: 0, age_at_receipt: 3 }),
+      day({ day: 0, arrivals: 0, f_at_receipt: null }),
+      day({ day: 1, arrivals: 0, f_at_receipt: 0.786 }),
     ]);
     expect(el.querySelectorAll(".arrival-rug").length).toBe(0);
     expect(el.querySelectorAll("[class*='truth']").length).toBe(0);
@@ -46,8 +46,8 @@ describe("arrival prior receipt-age rug (T-115)", () => {
   it("draws rug marks with a .truth-* class when receipt-age samples exist", () => {
     const el = host();
     renderArrivalPrior(el, DEFAULT_SIM_CONFIG, [
-      day({ day: 0, arrivals: 8, age_at_receipt: 2.5 }),
-      day({ day: 1, arrivals: 8, age_at_receipt: 4 }),
+      day({ day: 0, arrivals: 8, f_at_receipt: 0.821 }),
+      day({ day: 1, arrivals: 8, f_at_receipt: 0.714 }),
     ]);
     expect(el.querySelectorAll(".arrival-rug").length).toBeGreaterThan(0);
     const truthClassed = el.querySelectorAll(

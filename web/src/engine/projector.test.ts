@@ -14,7 +14,7 @@ import {
 import * as projectorMod from "./projector";
 import type { DayDelta, FlatBelief, Snapshot } from "./types";
 
-/** Mirror of centersToEdges for expected tau_edges (implementer may export the real one). */
+/** Mirror of centersToEdges for expected f_edges (implementer may export the real one). */
 function expectedCentersToEdges(centers: number[]): number[] {
   if (centers.length === 0) return [];
   if (centers.length === 1) {
@@ -31,10 +31,10 @@ function expectedCentersToEdges(centers: number[]): number[] {
   return edges;
 }
 
-function ageMarginalFromFlat(flat: FlatBelief): number[] {
+function fMarginalFromFlat(flat: FlatBelief): number[] {
   const fn = (
-    projectorMod as { ageMarginalFromFlat?: (f: FlatBelief) => number[] }
-  ).ageMarginalFromFlat;
+    projectorMod as { fMarginalFromFlat?: (f: FlatBelief) => number[] }
+  ).fMarginalFromFlat;
   expect(typeof fn).toBe("function");
   return fn!(flat);
 }
@@ -50,15 +50,15 @@ const FLAT_BELIEF: FlatBelief = {
   L: 2,
   K: 4,
   lot_counts: [3.6, 3.32],
-  age_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
-  tau_grid: [0, 2.6666666666666665, 5.333333333333333, 8],
+  f_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+  f_grid: [0.125, 0.375, 0.625, 0.875],
 };
 
 function sampleSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   return {
     seq: 0,
     episode_day: 0,
-    belief: { ...FLAT_BELIEF, age_marginals: [...FLAT_BELIEF.age_marginals] },
+    belief: { ...FLAT_BELIEF, f_marginals: [...FLAT_BELIEF.f_marginals] },
     history: [],
     live_lots: [],
     pipeline: [],
@@ -69,14 +69,14 @@ function sampleSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
 function sampleDay(day = 0): Day {
   return {
     day,
-    lots: [{ lot_id: 1, n: 8, tau: 2 }],
+    lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
     sales_total: 10,
     waste_total: 1,
     demand: 12,
     order_qty: 8,
     arrivals: 8,
     stockout: 2,
-    age_at_receipt: 1,
+    f_at_receipt: 1,
   };
 }
 
@@ -88,12 +88,12 @@ function sampleDelta(overrides: Partial<DayDelta> = {}): DayDelta {
     drop_oldest: false,
     belief: {
       ...FLAT_BELIEF,
-      age_marginals: [
+      f_marginals: [
         0.266, 0.255, 0.244, 0.235, 0.266, 0.255, 0.244, 0.235,
       ],
       lot_counts: [1.1, 1.25],
     },
-    live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+    live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
     pipeline: [{ qty: 16, arrive_on: 1, days_until: 1 }],
     ...overrides,
   };
@@ -106,7 +106,7 @@ describe("ViewModelProjector.applySnapshot", () => {
       window_days: 14,
     });
     const snap = sampleSnapshot({
-      live_lots: [{ lot_id: 7, n: 4, tau: 3 }],
+      live_lots: [{ lot_id: 7, n: 4, mean_f: 0.786 }],
       episode_day: 0,
     });
     const vm = projector.applySnapshot(snap);
@@ -115,7 +115,7 @@ describe("ViewModelProjector.applySnapshot", () => {
       episode_day: 0,
       window_days: 14,
       history: [],
-      live_lots: [{ lot_id: 7, n: 4, tau: 3 }],
+      live_lots: [{ lot_id: 7, n: 4, mean_f: 0.786 }],
       economics: expect.objectContaining({
         p_sell: DEFAULT_ECONOMICS.p_sell,
       }),
@@ -131,7 +131,7 @@ describe("ViewModelProjector.applySnapshot", () => {
     expect(vm.belief).toEqual(
       expect.objectContaining({
         density: expect.any(Array),
-        tau_edges: expect.any(Array),
+        f_edges: expect.any(Array),
       }),
     );
     expect(vm.belief.density.length).toBeGreaterThan(0);
@@ -157,7 +157,7 @@ describe("ViewModelProjector.applyDelta", () => {
         demand: 12,
       }),
     );
-    expect(vm.live_lots).toEqual([{ lot_id: 1, n: 8, tau: 2 }]);
+    expect(vm.live_lots).toEqual([{ lot_id: 1, n: 8, mean_f: 0.857 }]);
     expect(vm.pnl_series).toHaveLength(1);
     expect(vm.pnl_series[0]!.revenue).toBe(
       10 * DEFAULT_ECONOMICS.p_sell,
@@ -171,7 +171,7 @@ describe("ViewModelProjector.applyDelta", () => {
       window_days: 14,
     });
     projector.applySnapshot(sampleSnapshot());
-    const live = [{ lot_id: 2, n: 16, tau: 2.23 }];
+    const live = [{ lot_id: 2, n: 16, mean_f: 0.841 }];
     const vm = projector.applyDelta(
       sampleDelta({
         day: {
@@ -252,14 +252,14 @@ describe("ViewModelProjector.setEconomics (local reproject)", () => {
       [
         {
           day: 0,
-          lots: [{ lot_id: 1, n: 8, tau: 2 }],
+          lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
           sales_total: 10,
           waste_total: 1,
           demand: 12,
           order_qty: 8,
           arrivals: 8,
           stockout: 2,
-          age_at_receipt: 1,
+          f_at_receipt: 1,
         },
       ],
       { ...DEFAULT_ECONOMICS, p_sell: 9.0 },
@@ -283,16 +283,16 @@ describe("ViewModelProjector.setEconomics (local reproject)", () => {
 });
 
 describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
-  it("tau_edges domain follows tau_grid age span (~0..8), not lot-index [0, L]", () => {
+  it("f_edges domain follows tau_grid age span (~0..8), not lot-index [0, L]", () => {
     const grid = beliefGridFromFlat(FLAT_BELIEF);
-    const expected = expectedCentersToEdges(FLAT_BELIEF.tau_grid);
-    expect(grid.tau_edges).toEqual(expected);
-    expect(grid.tau_edges).toHaveLength(FLAT_BELIEF.K + 1);
-    // Age domain ≈ 0..8 — not lot-index 0..L (=2).
-    expect(grid.tau_edges[0]!).toBeLessThan(1);
-    expect(grid.tau_edges[grid.tau_edges.length - 1]!).toBeGreaterThan(7);
-    expect(grid.tau_edges).not.toEqual([0, 1, 2]);
-    expect(grid.tau_edges[grid.tau_edges.length - 1]!).not.toBe(FLAT_BELIEF.L);
+    const expected = expectedCentersToEdges(FLAT_BELIEF.f_grid);
+    expect(grid.f_edges).toEqual(expected);
+    expect(grid.f_edges).toHaveLength(FLAT_BELIEF.K + 1);
+    // Freshness domain in [0,1] — not lot-index 0..L (=2).
+    expect(grid.f_edges[0]!).toBeGreaterThanOrEqual(0);
+    expect(grid.f_edges[grid.f_edges.length - 1]!).toBeLessThanOrEqual(1);
+    expect(grid.f_edges).not.toEqual([0, 1, 2]);
+    expect(grid.f_edges[grid.f_edges.length - 1]!).not.toBe(FLAT_BELIEF.L);
   });
 
   it("density is shaped K×C (age bins × count bins), not L×K", () => {
@@ -307,7 +307,7 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
     // Supersedes T-054 L×K lot-index presentation.
     expect(grid.density).not.toHaveLength(FLAT_BELIEF.L);
     expect(grid.count_edges).toHaveLength(C + 1);
-    expect(grid.tau_edges).toHaveLength(K + 1);
+    expect(grid.f_edges).toHaveLength(K + 1);
   });
 
   it("count_edges are integer-friendly from 0 through max(n_l, truth n, 1)", () => {
@@ -315,8 +315,8 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
       L: 2,
       K: 3,
       lot_counts: [4, 2],
-      age_marginals: [1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3],
-      tau_grid: [0, 4, 8],
+      f_marginals: [1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3],
+      f_grid: [0.167, 0.5, 0.833],
     };
     const withTruth = beliefGridFromFlatWithTruth(flat, [{ n: 10 }]);
     expect(withTruth.count_edges[0]).toBe(0);
@@ -335,8 +335,8 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
       L: 0,
       K: 2,
       lot_counts: [],
-      age_marginals: [],
-      tau_grid: [0, 1],
+      f_marginals: [],
+      f_grid: [0.25, 0.75],
     };
     const emptyGrid = beliefGridFromFlatWithTruth(emptyLots, []);
     // Floor of max(..., 1) when no lots / truth.
@@ -361,8 +361,8 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
       K: 3,
       lot_counts: [4, 2],
       // Lot 0: all age mass in bin 0; lot 1: all in bin 2.
-      age_marginals: [1, 0, 0, 0, 0, 1],
-      tau_grid: [0, 4, 8],
+      f_marginals: [1, 0, 0, 0, 0, 1],
+      f_grid: [0.167, 0.5, 0.833],
     };
     const grid = beliefGridFromFlat(flat);
     expect(grid.density).toHaveLength(flat.K);
@@ -380,8 +380,8 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
       L: 1,
       K: 2,
       lot_counts: [3.6],
-      age_marginals: [0.5, 0.5],
-      tau_grid: [0, 8],
+      f_marginals: [0.5, 0.5],
+      f_grid: [0, 1],
     };
     const g2 = beliefGridFromFlat(nonInt);
     expect(g2.density).toHaveLength(nonInt.K);
@@ -395,38 +395,38 @@ describe("beliefGridFromFlat age×count rebin (T-090 / ADR 0109)", () => {
       L: 0,
       K: 4,
       lot_counts: [],
-      age_marginals: [],
-      tau_grid: [],
+      f_marginals: [],
+      f_grid: [],
     });
     expect(grid.density).toEqual([]);
   });
 
-  it("truth (tau, n) land on the same age×count scales as rebinned cells", () => {
-    const truth = [{ n: 8, tau: 2 }];
+  it("truth (mean_f, n) land on the same freshness×count scales as rebinned cells", () => {
+    const truth = [{ n: 8, mean_f: 0.857 }];
     const grid = beliefGridFromFlatWithTruth(FLAT_BELIEF, truth);
-    const tau0 = grid.tau_edges[0]!;
-    const tau1 = grid.tau_edges[grid.tau_edges.length - 1]!;
+    const f0 = grid.f_edges[0]!;
+    const f1 = grid.f_edges[grid.f_edges.length - 1]!;
     const n0 = grid.count_edges[0]!;
     const n1 = grid.count_edges[grid.count_edges.length - 1]!;
-    expect(truth[0]!.tau).toBeGreaterThanOrEqual(tau0);
-    expect(truth[0]!.tau).toBeLessThanOrEqual(tau1);
+    expect(truth[0]!.mean_f).toBeGreaterThanOrEqual(f0);
+    expect(truth[0]!.mean_f).toBeLessThanOrEqual(f1);
     expect(truth[0]!.n).toBeGreaterThanOrEqual(n0);
     expect(truth[0]!.n).toBeLessThanOrEqual(n1);
     // Scales are age×count — not lot-index x (0..L).
-    expect(tau1).toBeGreaterThan(FLAT_BELIEF.L);
+    expect(f1).toBeLessThanOrEqual(1);
   });
 });
 
-describe("ageMarginalFromFlat (T-090)", () => {
-  it("returns length-K merged age mass; sum equals Σ lot_counts when rows normalize", () => {
+describe("fMarginalFromFlat (T-090)", () => {
+  it("returns length-K merged f mass; sum equals Σ lot_counts when rows normalize", () => {
     const flat: FlatBelief = {
       L: 2,
       K: 3,
       lot_counts: [4, 10],
-      age_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
-      tau_grid: [0, 4, 8],
+      f_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
+      f_grid: [0.167, 0.5, 0.833],
     };
-    const m = ageMarginalFromFlat(flat);
+    const m = fMarginalFromFlat(flat);
     expect(m).toHaveLength(flat.K);
     expect(m[0]!).toBeCloseTo(4 * 0.5 + 10 * 0.1);
     expect(m[1]!).toBeCloseTo(4 * 0.3 + 10 * 0.6);
@@ -436,7 +436,7 @@ describe("ageMarginalFromFlat (T-090)", () => {
     expect(sumM).toBeCloseTo(sumCounts);
 
     const grid = beliefGridFromFlat(flat);
-    expect(m).toHaveLength(grid.tau_edges.length - 1);
+    expect(m).toHaveLength(grid.f_edges.length - 1);
     // Optional: same vector may also live on BeliefGrid.
     const optionalMarginal = (
       grid as { age_marginal?: number[] }
@@ -462,17 +462,17 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
     const b1: FlatBelief = {
       ...FLAT_BELIEF,
       lot_counts: [1, 1],
-      age_marginals: [...FLAT_BELIEF.age_marginals],
+      f_marginals: [...FLAT_BELIEF.f_marginals],
     };
     const b2: FlatBelief = {
       ...FLAT_BELIEF,
       lot_counts: [2, 2],
-      age_marginals: [...FLAT_BELIEF.age_marginals],
+      f_marginals: [...FLAT_BELIEF.f_marginals],
     };
     const b3: FlatBelief = {
       ...FLAT_BELIEF,
       lot_counts: [3, 3],
-      age_marginals: [...FLAT_BELIEF.age_marginals],
+      f_marginals: [...FLAT_BELIEF.f_marginals],
     };
 
     const d1 = sampleDelta({
@@ -525,15 +525,15 @@ describe("ViewModelProjector belief_history rolling window (T-115)", () => {
 describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () => {
   const peakedBelief = (ageBin: number): FlatBelief => {
     const K = 4;
-    const age_marginals = Array.from({ length: 2 * K }, () => 0);
-    age_marginals[ageBin] = 1;
-    age_marginals[K + ageBin] = 1;
+    const f_marginals = Array.from({ length: 2 * K }, () => 0);
+    f_marginals[ageBin] = 1;
+    f_marginals[K + ageBin] = 1;
     return {
       L: 2,
       K,
       lot_counts: [5, 5],
-      age_marginals,
-      tau_grid: [0, 2.6666666666666665, 5.333333333333333, 8],
+      f_marginals,
+      f_grid: [0.125, 0.375, 0.625, 0.875],
     };
   };
 
@@ -547,7 +547,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     const vm = projector.applySnapshot(
       sampleSnapshot({
         belief,
-        live_lots: [{ lot_id: 1, n: 99, tau: 8 }],
+        live_lots: [{ lot_id: 1, n: 99, mean_f: 0.429 }],
       }),
     );
     const mass = ageMass(vm.belief.density);
@@ -555,12 +555,12 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     expect(sum).toBeCloseTo(10);
     expect(mass[0]!).toBeCloseTo(10);
     expect(mass[3]!).toBeCloseTo(0);
-    expect(vm.belief.age_marginal).toEqual(ageMarginalFromFlat(belief));
+    expect(vm.belief.age_marginal).toEqual(fMarginalFromFlat(belief));
   });
 
   it("patchEngineState: changing belief with fixed live_lots changes density", () => {
     const projector = new ViewModelProjector();
-    const lots = [{ lot_id: 1, n: 8, tau: 2 }];
+    const lots = [{ lot_id: 1, n: 8, mean_f: 0.857 }];
     projector.applySnapshot(
       sampleSnapshot({
         belief: peakedBelief(0),
@@ -587,7 +587,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     projector.applySnapshot(
       sampleSnapshot({
         belief,
-        live_lots: [{ lot_id: 1, n: 4, tau: 1 }],
+        live_lots: [{ lot_id: 1, n: 4, mean_f: 0.929 }],
       }),
     );
     const before = projector.getViewModel();
@@ -595,8 +595,8 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     const vm = projector.patchEngineState({
       belief,
       live_lots: [
-        { lot_id: 1, n: 4, tau: 1 },
-        { lot_id: 2, n: 40, tau: 8 },
+        { lot_id: 1, n: 4, mean_f: 0.929 },
+        { lot_id: 2, n: 40, mean_f: 0.429 },
       ],
       pipeline: [],
       episode_day: 0,
@@ -614,7 +614,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     projector.applySnapshot(
       sampleSnapshot({
         belief: peakedBelief(0),
-        live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+        live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
       }),
     );
     projector.applyDelta(
@@ -639,7 +639,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     // Mimic wasm set_obs_scenario: real belief, empty history omitted from patch.
     const vm = projector.patchEngineState({
       belief: peakedBelief(3),
-      live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+      live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
       pipeline: [],
       episode_day: 2,
     });
@@ -650,8 +650,8 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     expect(ageMass(vm.belief.density)[3]!).toBeCloseTo(10);
     expect(vm.belief_history).toHaveLength(2);
     // Last-day belief trail updated to the new rung; earlier days unchanged.
-    expect(vm.belief_history[1]!.flatBelief.age_marginals[3]).toBe(1);
-    expect(vm.belief_history[0]!.flatBelief.age_marginals[0]).toBe(1);
+    expect(vm.belief_history[1]!.flatBelief.f_marginals[3]).toBe(1);
+    expect(vm.belief_history[0]!.flatBelief.f_marginals[0]).toBe(1);
   });
 
   it("patchEngineState skips belief_history update for empty stub belief", () => {
@@ -659,7 +659,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     projector.applySnapshot(
       sampleSnapshot({
         belief: peakedBelief(0),
-        live_lots: [{ lot_id: 1, n: 8, tau: 2 }],
+        live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
       }),
     );
     projector.applyDelta(
@@ -679,8 +679,8 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
         L: 0,
         K: 0,
         lot_counts: [],
-        age_marginals: [],
-        tau_grid: [],
+        f_marginals: [],
+        f_grid: [],
       },
       live_lots: [],
       pipeline: [],
@@ -725,7 +725,7 @@ describe("stockoutFromDayFields (missed sales wire gap)", () => {
           demand: 15,
           order_qty: 8,
           arrivals: 0,
-          lots: [{ lot_id: 1, n: 8, tau: 2 }],
+          lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
         },
       }),
     );
@@ -750,7 +750,7 @@ describe("stockoutFromDayFields (missed sales wire gap)", () => {
             order_qty: 0,
             arrivals: 0,
             stockout: undefined as unknown as number,
-            age_at_receipt: null,
+            f_at_receipt: null,
           },
         ],
       }),
@@ -799,10 +799,10 @@ function freshnessEdgesFromGrid(
     f_edges?: number[];
     freshness_edges?: number[];
   };
-  return g.f_edges ?? g.freshness_edges ?? grid.tau_edges;
+  return g.f_edges ?? g.freshness_edges ?? grid.f_edges;
 }
 
-function fMarginalFromFlat(flat: FNativeFlatBelief): number[] {
+function fMarginalFromFNativeFlat(flat: FNativeFlatBelief): number[] {
   const fn = (
     projectorMod as { fMarginalFromFlat?: (f: FlatBelief) => number[] }
   ).fMarginalFromFlat;
@@ -888,7 +888,7 @@ describe("fMarginalFromFlat (T-C2-A / AC-frontend)", () => {
       f_grid: [0.2, 0.5, 0.8],
       f_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
     });
-    const m = fMarginalFromFlat(flat);
+    const m = fMarginalFromFNativeFlat(flat);
     expect(m).toHaveLength(flat.K);
     expect(m[0]!).toBeCloseTo(4 * 0.5 + 10 * 0.1);
     expect(m[1]!).toBeCloseTo(4 * 0.3 + 10 * 0.6);

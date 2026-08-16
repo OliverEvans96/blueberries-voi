@@ -18,15 +18,15 @@ const FLAT_BELIEF = {
   L: 2,
   K: 4,
   lot_counts: [3, 3],
-  age_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
-  tau_grid: [0, 2.67, 5.33, 8],
+  f_marginals: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+  f_grid: [0.125, 0.375, 0.625, 0.875],
 };
 
 function sampleSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   return {
     seq: 0,
     episode_day: 0,
-    belief: { ...FLAT_BELIEF, age_marginals: [...FLAT_BELIEF.age_marginals] },
+    belief: { ...FLAT_BELIEF, f_marginals: [...FLAT_BELIEF.f_marginals] },
     history: [],
     live_lots: [],
     pipeline: [],

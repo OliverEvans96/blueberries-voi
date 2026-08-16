@@ -25,7 +25,6 @@ import {
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderBeliefAgeCount } from "../charts/beliefAgeCount";
 import { renderBeliefAgeMarginal } from "../charts/beliefAgeMarginal";
-import { renderSurvival } from "../charts/survival";
 import { renderDemandDist } from "../charts/demandDist";
 import {
   ageCompositionSeries,
@@ -182,7 +181,6 @@ export function initStudio(app: HTMLElement): () => void {
     hoverNote: document.querySelector("#hover-note") as HTMLElement,
     playChrome: document.querySelector("#play-chrome") as HTMLElement,
     sectionControls: document.querySelector("#section-controls") as HTMLElement,
-    survival: document.querySelector("#chart-survival") as HTMLElement,
     demand: document.querySelector("#chart-demand") as HTMLElement,
     salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
     inventory: document.querySelector("#chart-inventory") as HTMLElement,
@@ -333,7 +331,7 @@ export function initStudio(app: HTMLElement): () => void {
     return vm.history.map((d) => ({
       ...d,
       lots: [],
-      age_at_receipt: null,
+      f_at_receipt: null,
     }));
   }
 
@@ -433,14 +431,6 @@ export function initStudio(app: HTMLElement): () => void {
     if (plotVisible("plot-pnl")) {
       renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);
       applyHoverStyles(hoveredDay);
-    }
-    if (plotVisible("plot-survival")) {
-      renderSurvival(
-        els.survival,
-        vm.config,
-        truthLots(showTruth, vm.live_lots),
-        160,
-      );
     }
     if (plotVisible("plot-demand")) {
       renderDemandDist(

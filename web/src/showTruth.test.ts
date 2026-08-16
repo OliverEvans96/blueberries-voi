@@ -36,8 +36,8 @@ function stubLocalStorage(): void {
 }
 
 const LOTS: Lot[] = [
-  { lot_id: 1, n: 8, tau: 2 },
-  { lot_id: 2, n: 4, tau: 5 },
+  { lot_id: 1, n: 8, mean_f: 0.857 },
+  { lot_id: 2, n: 4, mean_f: 0.643 },
 ];
 
 describe("showTruth persistence (T-115)", () => {

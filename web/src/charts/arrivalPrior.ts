@@ -1,14 +1,14 @@
 import * as d3 from "d3";
 import type { Day, SimConfig } from "../types";
-import { arrivalAgePriorPdf, f2aPriorPdf } from "../mock/generate";
+import { arrivalFreshnessPriorPdf, f2aPriorPdf } from "../mock/generate";
 
-function recentReceiptAges(history: Day[]): number[] {
+function recentReceiptFreshness(history: Day[]): number[] {
   return history
-    .filter((d) => d.age_at_receipt != null && d.arrivals > 0)
-    .map((d) => d.age_at_receipt as number);
+    .filter((d) => d.f_at_receipt != null && d.arrivals > 0)
+    .map((d) => d.f_at_receipt as number);
 }
 
-/** Arrival-age prior PDF + optional rug of recent age_at_receipt samples. */
+/** Arrival-freshness prior PDF + optional rug of recent f_at_receipt samples. */
 export function renderArrivalPrior(
   container: HTMLElement,
   config: SimConfig,
@@ -22,9 +22,9 @@ export function renderArrivalPrior(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  const prior = arrivalAgePriorPdf(config);
+  const prior = arrivalFreshnessPriorPdf(config);
   const f2a = f2aPriorPdf(config);
-  const samples = recentReceiptAges(history);
+  const samples = recentReceiptFreshness(history);
   const yMax =
     Math.max(
       d3.max(prior, (d) => d.density) ?? 0.1,
@@ -37,13 +37,13 @@ export function renderArrivalPrior(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Arrival age prior with recent receipt ages");
+    .attr("aria-label", "Arrival freshness prior with recent receipt samples");
 
   const g = svg
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const x = d3.scaleLinear().domain([0, 12]).range([0, innerW]);
+  const x = d3.scaleLinear().domain([0, 1]).range([0, innerW]);
   const y = d3.scaleLinear().domain([0, yMax]).range([innerH, 0]);
 
   g.append("g")
@@ -59,7 +59,7 @@ export function renderArrivalPrior(
 
   const area = d3
     .area<(typeof prior)[number]>()
-    .x((d) => x(d.tau))
+    .x((d) => x(d.f))
     .y0(innerH)
     .y1((d) => y(d.density))
     .curve(d3.curveMonotoneX);
@@ -72,7 +72,7 @@ export function renderArrivalPrior(
 
   const line = d3
     .line<(typeof prior)[number]>()
-    .x((d) => x(d.tau))
+    .x((d) => x(d.f))
     .y((d) => y(d.density))
     .curve(d3.curveMonotoneX);
 
@@ -97,7 +97,7 @@ export function renderArrivalPrior(
     .attr("x", innerW / 2)
     .attr("y", innerH + 24)
     .attr("text-anchor", "middle")
-    .text("Age at receipt (eff. days)");
+    .text("Freshness at receipt (f)");
 
   g.selectAll(".arrival-rug")
     .data(showReceiptRug ? samples : [])
@@ -111,7 +111,7 @@ export function renderArrivalPrior(
     .attr("stroke-opacity", 0.55)
     .attr("stroke-width", 1.5)
     .append("title")
-    .text((d) => `age_at_receipt ${d.toFixed(2)}`);
+    .text((d) => `f_at_receipt ${d.toFixed(3)}`);
 }
 
 /** How transit temperature bias shifts the arrival prior (MOD-18 teaching). */
@@ -126,8 +126,8 @@ export function renderArrivalShift(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  const baseline = arrivalAgePriorPdf(config, { transitBiasOverride: 0 });
-  const shifted = arrivalAgePriorPdf(config);
+  const baseline = arrivalFreshnessPriorPdf(config, { transitBiasOverride: 0 });
+  const shifted = arrivalFreshnessPriorPdf(config);
   const yMax =
     Math.max(
       d3.max(baseline, (d) => d.density) ?? 0.1,
@@ -149,7 +149,7 @@ export function renderArrivalShift(
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const x = d3.scaleLinear().domain([0, 12]).range([0, innerW]);
+  const x = d3.scaleLinear().domain([0, 1]).range([0, innerW]);
   const y = d3.scaleLinear().domain([0, yMax]).range([innerH, 0]);
 
   g.append("g")
@@ -165,7 +165,7 @@ export function renderArrivalShift(
 
   const line = d3
     .line<(typeof baseline)[number]>()
-    .x((d) => x(d.tau))
+    .x((d) => x(d.f))
     .y((d) => y(d.density))
     .curve(d3.curveMonotoneX);
 

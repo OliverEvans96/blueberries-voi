@@ -40,8 +40,8 @@ describe("Belief section contracts (T-090)", () => {
     const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
     expect(belief).toBeDefined();
     const blurb = belief!.blurb.toLowerCase();
-    expect(blurb).toMatch(/age\s*[×x]\s*count|age×count/);
-    expect(blurb).toMatch(/marginal|age marginal/);
+    expect(blurb).toMatch(/freshness\s*[×x]\s*count|freshness×count/);
+    expect(blurb).toMatch(/marginal|f marginal/);
   });
 
   it("main.ts mounts age-marginal above the Belief heatmap (source order)", () => {
@@ -65,16 +65,16 @@ describe("Belief section contracts (T-090)", () => {
     expect(marginalIdx).toBeLessThan(heatmapIdx);
   });
 
-  it("ships beliefAgeMarginal chart module sharing tau / age domain with heatmap", () => {
+  it("ships beliefAgeMarginal chart module sharing freshness domain with heatmap", () => {
     expect(
       existsSync(BELIEF_AGE_MARGINAL_TS),
       "expected web/src/charts/beliefAgeMarginal.ts",
     ).toBe(true);
     const marginalSrc = readFileSync(BELIEF_AGE_MARGINAL_TS, "utf8");
-    expect(marginalSrc).toMatch(/tau_edges|age_marginal|ageMarginal/);
+    expect(marginalSrc).toMatch(/f_edges|age_marginal|ageMarginal/);
     // Heatmap truth markers stay at (lot.tau, lot.n) — no lot-index x.
     const heatmapSrc = readFileSync(BELIEF_AGE_COUNT_TS, "utf8");
-    expect(heatmapSrc).toMatch(/translate\(\$\{x\(d\.tau\)\},\$\{y\(d\.n\)\}\)/);
+    expect(heatmapSrc).toMatch(/translate\(\$\{x\(d\.mean_f\)\},\$\{y\(d\.n\)\}\)/);
     expect(heatmapSrc).not.toMatch(/x\(d\.lot_id\)|x\(.*lot.?index/i);
   });
 });

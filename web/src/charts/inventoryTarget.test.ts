@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
-import { DEFAULT_SIM_CONFIG, weibullSurvival } from "../mock/generate";
+import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Day } from "../types";
 import * as inv from "./inventoryTarget";
 import { inventorySeries } from "./inventoryTarget";
@@ -21,9 +21,9 @@ type AgeRow = { day: number; young: number; mid: number; old: number };
 const LOT_DAY: Day = {
   day: 0,
   lots: [
-    { lot_id: 1, n: 10, tau: 1 },
-    { lot_id: 2, n: 5, tau: 4 },
-    { lot_id: 3, n: 3, tau: 7 },
+    { lot_id: 1, n: 10, mean_f: 0.929 },
+    { lot_id: 2, n: 5, mean_f: 0.714 },
+    { lot_id: 3, n: 3, mean_f: 0.5 },
   ],
   sales_total: 0,
   waste_total: 0,
@@ -31,7 +31,7 @@ const LOT_DAY: Day = {
   order_qty: 0,
   arrivals: 0,
   stockout: 0,
-  age_at_receipt: null,
+  f_at_receipt: null,
 };
 
 /** Expected on-hand from belief is Σ lot_counts (6.92), not truth lot n (18). */
@@ -39,8 +39,8 @@ const FLAT: FlatBelief = {
   L: 2,
   K: 3,
   lot_counts: [3.6, 3.32],
-  age_marginals: [1, 0, 0, 0, 0, 1],
-  tau_grid: [1, 4, 7],
+  f_marginals: [1, 0, 0, 0, 0, 1],
+  f_grid: [0.929, 0.714, 0.5],
 };
 
 const BELIEF_HISTORY: BeliefDay[] = [{ day: 0, flatBelief: FLAT }];
@@ -92,7 +92,7 @@ describe("inventorySeries lots vs belief (T-115)", () => {
 });
 
 describe("age composition lots vs belief (T-115)", () => {
-  it("truth lots path: 0–2 / 3–5 / 6d+ bands from lot tau and n", () => {
+  it("truth lots path: freshness thirds from lot mean_f and n", () => {
     const fn = (
       inv as {
         ageCompositionSeries?: (
@@ -103,7 +103,7 @@ describe("age composition lots vs belief (T-115)", () => {
     ).ageCompositionSeries;
     expect(typeof fn, "expected ageCompositionSeries export").toBe("function");
     const rows = fn!([LOT_DAY]);
-    expect(rows[0]).toEqual({ day: 0, young: 10, mid: 5, old: 3 });
+    expect(rows[0]).toEqual({ day: 0, young: 15, mid: 3, old: 0 });
   });
 
   it("belief path: bands from expected ages, not truth lots", () => {
@@ -135,10 +135,10 @@ describe("age composition lots vs belief (T-115)", () => {
         belief_history: BELIEF_HISTORY,
       });
     }
-    // lot 0: all mass at tau=1 (young); lot 1: all mass at tau=7 (old)
+    // lot 0: all mass at high f; lot 1: all mass at low f
     expect(rows[0]!.young).toBeCloseTo(3.6);
-    expect(rows[0]!.mid).toBeCloseTo(0);
-    expect(rows[0]!.old).toBeCloseTo(3.32);
+    expect(rows[0]!.old).toBeCloseTo(0);
+    expect(rows[0]!.mid).toBeCloseTo(3.32);
     expect(rows[0]!.young + rows[0]!.mid + rows[0]!.old).not.toBe(18);
   });
 });
@@ -254,13 +254,8 @@ describe("inventorySeries E[f] effective (T-C2-A / AC-frontend)", () => {
     }
     expect(effective).toBeCloseTo(expected);
 
-    // Legacy τ→Weibull path must not match f-native E[f].
-    const legacyTau = F_FLAT.f_grid.reduce((s, f) => s + f, 0) / F_FLAT.K;
-    const weibullGuess = F_FLAT.lot_counts.reduce(
-      (s, n) => s + n * weibullSurvival(legacyTau, DEFAULT_SIM_CONFIG.beta, 14),
-      0,
-    );
-    expect(effective).not.toBeCloseTo(weibullGuess);
+        // E[f] must exceed naive on-hand when mass sits below f=1.
+    expect(effective).toBeLessThan(F_FLAT.lot_counts.reduce((s, n) => s + n, 0));
   });
 
   it("E[f] boundary: all mass at f=0 yields effective 0", () => {

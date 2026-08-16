@@ -3,15 +3,11 @@ import { beliefHeatmapAxisLabels } from "../engine/projector";
 import type { BeliefGrid, Lot } from "../types";
 
 function freshnessEdges(belief: BeliefGrid): number[] {
-  return belief.f_edges ?? belief.freshness_edges ?? belief.tau_edges;
+  return belief.f_edges ?? belief.freshness_edges ?? [];
 }
 
-function isFreshnessGrid(belief: BeliefGrid): boolean {
-  return belief.f_edges != null || belief.freshness_edges != null;
-}
-
-function formatAxisValue(value: number, freshness: boolean): string {
-  return freshness ? value.toFixed(2) : value.toFixed(0);
+function formatAxisValue(value: number): string {
+  return value.toFixed(2);
 }
 
 /** Belief freshness×count heatmap with truth lot overlays. */
@@ -25,7 +21,6 @@ export function renderBeliefAgeCount(
   const margin = { top: 12, right: 12, bottom: 36, left: 44 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
-  const freshness = isFreshnessGrid(belief);
   const xEdges = freshnessEdges(belief);
   const axisLabels = beliefHeatmapAxisLabels();
 
@@ -36,20 +31,15 @@ export function renderBeliefAgeCount(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr(
-      "aria-label",
-      freshness
-        ? "Belief freshness heatmap with truth lot overlay"
-        : "Belief heatmap with truth lot overlay",
-    );
+    .attr("aria-label", "Belief freshness heatmap with truth lot overlay");
 
   const g = svg
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const nTau = belief.density.length;
+  const nF = belief.density.length;
   const nCount = belief.density[0]?.length ?? 0;
-  if (nTau === 0 || nCount === 0) return;
+  if (nF === 0 || nCount === 0) return;
 
   const x = d3
     .scaleLinear()
@@ -68,14 +58,13 @@ export function renderBeliefAgeCount(
     .scaleSequential(d3.interpolateRgbBasis(["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"]))
     .domain([0, maxD]);
 
-  for (let ti = 0; ti < nTau; ti++) {
+  for (let fi = 0; fi < nF; fi++) {
     for (let ci = 0; ci < nCount; ci++) {
-      const v = belief.density[ti]![ci]!;
-      const x0 = x(xEdges[ti]!);
-      const x1 = x(xEdges[ti + 1]!);
+      const v = belief.density[fi]![ci]!;
+      const x0 = x(xEdges[fi]!);
+      const x1 = x(xEdges[fi + 1]!);
       const y0 = y(belief.count_edges[ci]!);
       const y1 = y(belief.count_edges[ci + 1]!);
-      const xLabel = freshness ? "freshness" : "age";
       g.append("rect")
         .attr("x", x0)
         .attr("y", y1)
@@ -84,12 +73,11 @@ export function renderBeliefAgeCount(
         .attr("fill", color(v))
         .append("title")
         .text(
-          `${xLabel} ${formatAxisValue(xEdges[ti]!, freshness)}–${formatAxisValue(xEdges[ti + 1]!, freshness)}, count ${belief.count_edges[ci]!.toFixed(0)}–${belief.count_edges[ci + 1]!.toFixed(0)}: ${(v * 100).toFixed(2)}%`,
+          `freshness ${formatAxisValue(xEdges[fi]!)}–${formatAxisValue(xEdges[fi + 1]!)}, count ${belief.count_edges[ci]!.toFixed(0)}–${belief.count_edges[ci + 1]!.toFixed(0)}: ${(v * 100).toFixed(2)}%`,
         );
     }
   }
 
-  // Truth lots as open circles + crosshairs at (age, count=n)
   const maxN = d3.max(truthLots, (l) => l.n) ?? 1;
   const r = d3.scaleSqrt().domain([0, maxN]).range([4, 11]);
 
@@ -99,7 +87,7 @@ export function renderBeliefAgeCount(
     .data(truthLots)
     .join("g")
     .attr("class", "truth-lot")
-    .attr("transform", (d) => `translate(${x(d.tau)},${y(d.n)})`)
+    .attr("transform", (d) => `translate(${x(d.mean_f)},${y(d.n)})`)
     .each(function (d) {
       const gg = d3.select(this);
       const rad = r(d.n);
@@ -120,9 +108,7 @@ export function renderBeliefAgeCount(
         .attr("r", rad)
         .attr("fill", "none");
       gg.append("title").text(
-        freshness
-          ? `truth lot ${d.lot_id}: n=${d.n}`
-          : `truth lot ${d.lot_id}: age ${d.tau}, n=${d.n}`,
+        `truth lot ${d.lot_id}: f=${d.mean_f.toFixed(2)}, n=${d.n}`,
       );
     });
 

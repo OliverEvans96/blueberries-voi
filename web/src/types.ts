@@ -10,7 +10,8 @@ export type BeliefHistoryDay = {
 export type Lot = {
   lot_id: number;
   n: number;
-  tau: number;
+  /** Cohort mean freshness f ∈ [0, 1]. */
+  mean_f: number;
 };
 
 export type Day = {
@@ -22,8 +23,8 @@ export type Day = {
   order_qty: number;
   arrivals: number;
   stockout: number;
-  /** Effective age at receipt for today's delivery (null if none). */
-  age_at_receipt: number | null;
+  /** Freshness at receipt for today's delivery (null if none). */
+  f_at_receipt: number | null;
 };
 
 export type Economics = {
@@ -43,7 +44,6 @@ export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2";
 export type ArrivalProduct = "abdella_all" | "long_haul" | "short_haul";
 
 export type SimConfig = {
-  beta: number;
   eta_ref: number;
   q10: number;
   t_ref_c: number;
@@ -90,10 +90,8 @@ export type DayPnL = {
 };
 
 export type BeliefGrid = {
-  /** Legacy τ-day edges; on f-wire equals freshness bin edges. */
-  tau_edges: number[];
-  /** Freshness bin edges in [0, 1] (f-native presentation). */
-  f_edges?: number[];
+  /** Freshness bin edges in [0, 1]. */
+  f_edges: number[];
   freshness_edges?: number[];
   count_edges: number[];
   /** Age / freshness bins × count bins (K × C) after lot-mass rebin (ADR 0109). */

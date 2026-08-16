@@ -7,7 +7,7 @@ import type { BeliefGrid, Lot } from "../types";
 import { renderBeliefAgeCount } from "./beliefAgeCount";
 
 const BELIEF: BeliefGrid = {
-  tau_edges: [0, 2, 4, 6],
+  f_edges: [0, 0.25, 0.5, 0.75, 1], freshness_edges: [0, 0.25, 0.5, 0.75, 1],
   count_edges: [0, 5, 10, 15],
   density: [
     [0.1, 0.05, 0.01],
@@ -16,7 +16,7 @@ const BELIEF: BeliefGrid = {
   ],
 };
 
-const LOTS: Lot[] = [{ lot_id: 1, n: 8, tau: 2 }];
+const LOTS: Lot[] = [{ lot_id: 1, n: 8, mean_f: 0.857 }];
 
 function host(): HTMLElement {
   const el = document.createElement("div");

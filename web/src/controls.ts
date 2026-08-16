@@ -132,7 +132,6 @@ const PRICE_SLIDERS: SliderSpec[] = [
 ];
 
 const CONFIG_SLIDERS: SliderSpec[] = [
-  { id: "beta", label: "β (Weibull shape)", min: 0.8, max: 4, step: 0.1, format: (v) => v.toFixed(1), group: "physics" },
   { id: "eta_ref", label: "η_ref (days)", min: 4, max: 28, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
   { id: "q10", label: "Q10", min: 1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "physics" },
   { id: "t_ref_c", label: "T_ref (°C)", min: -2, max: 8, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
@@ -236,7 +235,7 @@ function mountSectionControlsDom(
         ${PRICE_SLIDERS.map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="physics" hidden>
-        <p class="hint">Weibull spoilage + Q10 temperature shift.</p>
+        <p class="hint">Gamma freshness aging + Q10 temperature shift.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="demand" hidden>

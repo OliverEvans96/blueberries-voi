@@ -116,14 +116,6 @@ export function StudioLayout() {
                   />
                 </details>
               </div>
-              <div className="focus-plot" data-plot="plot-survival" hidden>
-                <div className="chart-caption impact-caption">Survival + lot rug</div>
-                <D3ChartHost
-                  id="chart-survival"
-                  className="chart"
-                  ariaLabel="Survival curve and lot rug"
-                />
-              </div>
               <div className="focus-plot" data-plot="plot-demand" hidden>
                 <div className="chart-caption impact-caption">
                   DOW demand · protection 3 / 3 / 4
