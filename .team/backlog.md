@@ -42,6 +42,15 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 - **Audit remediation** on `main` via `team/audit-remediation-integ` — ADR [0104](./adr/0104-audit-remediation-defaults.md); artifacts under `*-audit-remediation*` paths. **Science VOI is not citeable** until production regen. Remainder pointers: [audit-remediation-remainder.md](./reports/audit-remediation-remainder.md).
 - **M2+M3 library work is on `main`** (M2 T-022–T-034 and M3 T-035–T-041; plan [M3-voi-sweep.md](./plans/M3-voi-sweep.md)). Do not reopen VOI-02 ⚑ / X-06 axes without Oliver.
 
+## Planned modeling (Oliver-requested)
+
+- **Migrate arrival cohorts → proper lots (MOD-16 revisit):** Today deliveries map 1:1 to arrival
+  cohorts (ADR [0038](./adr/0038-mod-16-lots-per-delivery-below-the-scanning-rung.md) option A). Move
+  to real lots: **number of lots per delivery is a random variable** driven by order quantity (honest
+  range ~1–3, only a handful at a time). Implies simulator mixing + filter/VOI support assumptions;
+  likely supersedes MOD-16 A and touches MOD-01, FIL-03/04, SCN-F1 VOI channel. Needs ADR before
+  implementation.
+
 ## Settled / historical (do not reopen lightly)
 
 - **M1.5 / T-021 historical; superseded for production by ADR [0105](./adr/0105-arrival-only-age-counts-only-exact-wor.md):** Production filter is arrival-only age + counts-only PF (exact WOR). ADR [0091](./adr/0091-fil13-production-mean-field.md) mean-field age path is no longer the live settle. Do not reopen joint / MF age production without a **new** ADR.
