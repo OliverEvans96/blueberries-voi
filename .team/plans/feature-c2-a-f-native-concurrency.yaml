@@ -1,0 +1,223 @@
+ticket: feature-c2-a-f-native
+parent_tip: team/timing-freshness/implement
+optimize: balanced
+batch_below:
+  max_files: 5
+  max_prod_loc: 200
+max_parallel: 6
+description: >
+  C2 Algorithm A f-native production filter: unit-f day_step truth, unit_pf with
+  sales_by-when-available / totals fallback, f_marginals wire, f policy, session/VOI,
+  Python schema, frontend studio. Supersedes counts+tau / Weibull hot path.
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-C2-A.md
+      - .team/adr/0130-f-native-c2-a-unit-pf.md
+    deps: []
+
+  - id: qa-daystep
+    role: qa
+    files:
+      - crates/voi_core/src/day_step.rs
+      - .team/qa/T-C2-A-daystep-tests.md
+    deps: [architect]
+
+  - id: qa-unit-pf
+    role: qa
+    files:
+      - tests/test_unit_pf.py
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/unit_ll.rs
+      - .team/qa/T-C2-A-unit-pf-tests.md
+    deps: [architect]
+
+  - id: qa-belief-policy
+    role: qa
+    files:
+      - crates/voi_core/src/belief_flat.rs
+      - crates/voi_core/src/policy.rs
+      - .team/qa/T-C2-A-belief-policy-tests.md
+    deps: [architect]
+
+  - id: qa-session-wire
+    role: qa
+    files:
+      - tests/test_rust_session_wire.py
+      - tests/test_simulator_schema.py
+      - .team/qa/T-C2-A-session-wire-tests.md
+    deps: [architect]
+
+  - id: qa-frontend
+    role: qa
+    files:
+      - web/src/engine/projector.test.ts
+      - web/src/charts/inventoryTarget.test.ts
+      - .team/qa/T-C2-A-frontend-tests.md
+    deps: [architect]
+
+  - id: impl-physics
+    role: implement
+    shard: physics
+    files:
+      - crates/voi_core/src/physics.rs
+      - crates/voi_core/src/params.rs
+      - crates/voi_core/src/shipments.rs
+    deps: [qa-daystep]
+
+  - id: impl-daystep
+    role: implement
+    shard: daystep
+    files:
+      - crates/voi_core/src/day_step.rs
+    deps: [impl-physics, qa-daystep]
+
+  - id: impl-unit-ll
+    role: implement
+    shard: unit-ll
+    files:
+      - crates/voi_core/src/unit_ll.rs
+    deps: [impl-daystep, qa-unit-pf]
+
+  - id: impl-unit-pf
+    role: implement
+    shard: unit-pf
+    files:
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/lib.rs
+    deps: [impl-unit-ll, qa-unit-pf]
+
+  - id: impl-benches-seed
+    role: implement
+    shard: benches-seed
+    files:
+      - crates/voi_core/Cargo.toml
+      - crates/voi_core/src/bin/bench_c2_a_totals_study.rs
+      - crates/voi_core/src/bin/bench_c2_accuracy.rs
+      - crates/voi_core/src/bin/bench_c2_algorithms.rs
+    deps: [impl-unit-pf]
+
+  - id: impl-belief-flat
+    role: implement
+    shard: belief-flat
+    files:
+      - crates/voi_core/src/belief_flat.rs
+    deps: [impl-unit-pf, qa-belief-policy]
+
+  - id: impl-policy
+    role: implement
+    shard: policy
+    files:
+      - crates/voi_core/src/policy.rs
+      - crates/voi_core/src/rollout.rs
+    deps: [impl-belief-flat, qa-belief-policy]
+
+  - id: impl-session
+    role: implement
+    shard: session
+    files:
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/voi.rs
+      - crates/voi_core/src/obs.rs
+    deps: [impl-unit-pf, impl-belief-flat, impl-policy, qa-session-wire]
+
+  - id: impl-voi-py
+    role: implement
+    shard: voi-py
+    files:
+      - crates/voi_py/src/lib.rs
+    deps: [impl-session]
+
+  - id: impl-python-wire
+    role: implement
+    shard: python-wire
+    files:
+      - src/blueberries_voi/simulator/schema.py
+      - src/blueberries_voi/simulator/belief.py
+      - src/blueberries_voi/filter/belief.py
+      - src/blueberries_voi/simulator/session.py
+    deps: [impl-session, qa-session-wire]
+
+  - id: impl-python-tests
+    role: implement
+    shard: python-tests
+    files:
+      - tests/test_rust_session_wire.py
+      - tests/test_simulator_schema.py
+      - tests/fixtures/simulator/
+      - scripts/smoke_wasm.mjs
+    deps: [impl-python-wire, qa-session-wire]
+
+  - id: impl-frontend-types
+    role: implement
+    shard: frontend-types
+    files:
+      - web/src/engine/types.ts
+      - web/src/types.ts
+      - web/src/engine/projector.ts
+    deps: [impl-python-wire, qa-frontend]
+
+  - id: impl-frontend-charts
+    role: implement
+    shard: frontend-charts
+    files:
+      - web/src/charts/beliefAgeCount.ts
+      - web/src/charts/beliefAgeMarginal.ts
+      - web/src/charts/inventoryTarget.ts
+      - web/src/react/studioLogic.ts
+      - web/src/sections.ts
+    deps: [impl-frontend-types, qa-frontend]
+
+  - id: impl-frontend-mock
+    role: implement
+    shard: frontend-mock
+    files:
+      - web/src/mock/adapter.ts
+      - web/src/mock/generate.ts
+      - web/src/engine/projector.test.ts
+      - web/src/charts/inventoryTarget.test.ts
+    deps: [impl-frontend-types, qa-frontend]
+    file_owner:
+      web/src/engine/projector.test.ts: impl-frontend-mock
+      web/src/charts/inventoryTarget.test.ts: impl-frontend-mock
+
+  - id: impl-experiments
+    role: implement
+    shard: experiments
+    files:
+      - experiments/c2_a_totals_study.md
+      - experiments/generate_c2_a_totals_report.py
+      - .team/changelog.md
+    deps: [impl-benches-seed, impl-session]
+
+  - id: impl-legacy-cleanup
+    role: implement
+    shard: legacy-cleanup
+    files:
+      - crates/voi_core/src/particle_filter.rs
+      - AGENTS.md
+    deps: [impl-session, impl-voi-py]
+
+  - id: integration-merge
+    role: merge
+    merge_last: true
+    deps:
+      - impl-python-tests
+      - impl-frontend-charts
+      - impl-frontend-mock
+      - impl-experiments
+      - impl-legacy-cleanup
+
+  - id: review
+    role: review
+    files:
+      - .team/reviews/T-C2-A.md
+    deps: [integration-merge]
+
+  - id: verify
+    role: verify
+    files:
+      - .team/qa/T-C2-A.md
+    deps: [integration-merge]
