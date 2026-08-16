@@ -20,6 +20,12 @@ import the package.
 3. **Notebooks**: under `notebooks/`, for exploration and figures; they import
    the installed package rather than duplicating logic. Notebooks are not part of
    the coverage or mypy gates.
+4. **Rust kernel** (`crates/voi_core/`): production `EngineSession`, VOI, and WASM
+   studio use **f-native C2-A** (ADR 0130): `unit_day_step` ground truth on an
+   `L×U` freshness grid, `unit_pf::filter_step_unit` inference, and `f_grid` /
+   `f_marginals` belief export. Legacy counts+τ / `particle_filter::filter_step`
+   remain for research, benches, and PyO3 parity — not on `session.rs` / `voi.rs`
+   production paths.
 
 ## Stack
 
