@@ -125,3 +125,115 @@ pub fn loglik_sales_by_units<R: Rng + ?Sized>(
     }
     log_p
 }
+
+fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {
+    if values.len() == l {
+        return values.to_vec();
+    }
+    if values.len() > l {
+        return values[values.len() - l..].to_vec();
+    }
+    let mut padded = vec![0u32; l - values.len()];
+    padded.extend_from_slice(values);
+    padded
+}
+
+/// Per-lot binomial waste after observed `sales_by` (F2 / F1s lot-resolved wire).
+pub fn loglik_waste_by_units(
+    freshness: &[f64],
+    sales_by: &[u32],
+    waste_by: &[u32],
+    offsets: &[usize],
+) -> f64 {
+    let n_lots = offsets.len().saturating_sub(1);
+    if waste_by.len() != n_lots {
+        return f64::NEG_INFINITY;
+    }
+    let sales = align_lot_map(sales_by, n_lots);
+    let mut log_p = 0.0;
+    for ell in 0..n_lots {
+        let sl = &freshness[offsets[ell]..offsets[ell + 1]];
+        if sl.is_empty() {
+            continue;
+        }
+        let alive = sl.iter().filter(|&&f| f > 0.0).count();
+        let sales_ell = sales[ell] as usize;
+        if alive < sales_ell {
+            return f64::NEG_INFINITY;
+        }
+        let rem = alive - sales_ell;
+        let waste = waste_by[ell] as i32;
+        if waste < 0 || waste > rem as i32 {
+            return f64::NEG_INFINITY;
+        }
+        let dead = sl.iter().filter(|&&f| f <= 0.0).count();
+        let p_die = (dead as f64 / sl.len() as f64).clamp(0.0, 1.0);
+        let pw = binom_pmf(waste, rem as i32, p_die);
+        if pw <= 0.0 {
+            return f64::NEG_INFINITY;
+        }
+        log_p += pw.ln();
+    }
+    log_p
+}
+
+/// Aggregate waste total after lot-resolved sales (legacy `log_p_known_sales_and_waste`).
+pub fn loglik_waste_tot_after_sales_by(
+    freshness: &[f64],
+    sales_by: &[u32],
+    waste_tot: i32,
+    offsets: &[usize],
+) -> f64 {
+    let n_lots = offsets.len().saturating_sub(1);
+    let sales = align_lot_map(sales_by, n_lots);
+    let mut remaining = Vec::with_capacity(n_lots);
+    let mut p_die = Vec::with_capacity(n_lots);
+    for ell in 0..n_lots {
+        let sl = &freshness[offsets[ell]..offsets[ell + 1]];
+        if sl.is_empty() {
+            remaining.push(0u32);
+            p_die.push(0.0);
+            continue;
+        }
+        let alive = sl.iter().filter(|&&f| f > 0.0).count();
+        let sales_ell = sales[ell] as usize;
+        if alive < sales_ell {
+            return f64::NEG_INFINITY;
+        }
+        remaining.push((alive - sales_ell) as u32);
+        let dead = sl.iter().filter(|&&f| f <= 0.0).count();
+        p_die.push((dead as f64 / sl.len() as f64).clamp(0.0, 1.0));
+    }
+    let on_rem: i32 = remaining.iter().map(|&x| x as i32).sum();
+    if waste_tot < 0 || waste_tot > on_rem {
+        return f64::NEG_INFINITY;
+    }
+    if waste_tot == 0 {
+        let mut log_p = 0.0;
+        for ell in 0..n_lots {
+            if remaining[ell] == 0 {
+                continue;
+            }
+            let pw = binom_pmf(0, remaining[ell] as i32, p_die[ell]);
+            if pw <= 0.0 {
+                return f64::NEG_INFINITY;
+            }
+            log_p += pw.ln();
+        }
+        return log_p;
+    }
+    use crate::exact_ll::iter_compositions;
+    let mut p_waste = 0.0;
+    for waste in iter_compositions(&remaining, waste_tot) {
+        let mut term = 1.0;
+        for ell in 0..n_lots {
+            term *= binom_pmf(waste[ell] as i32, remaining[ell] as i32, p_die[ell]);
+        }
+        p_waste += term;
+    }
+    if p_waste <= 0.0 {
+        f64::NEG_INFINITY
+    } else {
+        p_waste.ln()
+    }
+}

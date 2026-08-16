@@ -9,7 +9,10 @@ use crate::obs::FilterObs;
 use crate::particle_filter::systematic_resample;
 use crate::physics::{apply_gamma_aging, age_to_f};
 use crate::shipments::{shipment_arrival_age, ShipmentTrace};
-use crate::unit_ll::{loglik_sales_by_units, p1_totals_loglik};
+use crate::unit_ll::{
+    loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
+    p1_totals_loglik,
+};
 use crate::ModelParams;
 
 #[derive(Clone, Debug)]
@@ -73,7 +76,24 @@ fn score_particle<R: Rng + ?Sized>(
     path_rng: &mut R,
 ) -> f64 {
     if let Some(ref sales_by) = obs.sales_by {
-        return loglik_sales_by_units(freshness, sales_by, offsets, params, path_rng);
+        let mut ll = loglik_sales_by_units(freshness, sales_by, offsets, params, path_rng);
+        if !ll.is_finite() {
+            return ll;
+        }
+        if let Some(ref waste_by) = obs.waste_by {
+            let wl = loglik_waste_by_units(freshness, sales_by, waste_by, offsets);
+            if !wl.is_finite() {
+                return wl;
+            }
+            ll += wl;
+        } else if let Some(wt) = obs.waste_tot {
+            let wl = loglik_waste_tot_after_sales_by(freshness, sales_by, wt, offsets);
+            if !wl.is_finite() {
+                return wl;
+            }
+            ll += wl;
+        }
+        return ll;
     }
     match (obs.sales_tot, obs.waste_tot) {
         (Some(sales), waste) => {
@@ -125,8 +145,8 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
     }
 
     if obs.arrivals > 0 && n_lots > 0 {
-        let birth = birth_f(obs, params, rng);
         for p in 0..n {
+            let birth = birth_f(obs, params, rng);
             let row = &mut bank.freshness[p];
             if row.len() >= upl {
                 row.drain(0..upl);

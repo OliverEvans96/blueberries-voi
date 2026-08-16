@@ -3,8 +3,8 @@
  * wasm32 handle_rpc contract for the studio EngineAdapter surface
  * (init / reset / step / step_n / act). Used by ./scripts/smoke-wasm.sh.
  *
- * `"ok": true` is not enough — Snapshot/DayDelta must carry FlatBelief fields
- * the ViewModelProjector reads (lot_counts, age_marginals, tau_grid).
+ * `"ok": true` is not enough — Snapshot/DayDelta must carry f-native FlatBelief fields
+ * the ViewModelProjector reads (lot_counts, f_marginals, f_grid).
  */
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -54,18 +54,18 @@ function assertFlatBelief(belief, label) {
   assert(belief != null && typeof belief === "object", `${label}: belief missing`);
   assert(Array.isArray(belief.lot_counts), `${label}: belief.lot_counts must be an array`);
   assert(
-    Array.isArray(belief.age_marginals),
-    `${label}: belief.age_marginals must be an array`,
+    Array.isArray(belief.f_marginals),
+    `${label}: belief.f_marginals must be an array`,
   );
-  assert(Array.isArray(belief.tau_grid), `${label}: belief.tau_grid must be an array`);
+  assert(Array.isArray(belief.f_grid), `${label}: belief.f_grid must be an array`);
   assert(typeof belief.L === "number", `${label}: belief.L`);
   assert(typeof belief.K === "number", `${label}: belief.K`);
   // Same spreads ViewModelProjector.applySnapshot / applyDelta perform.
   const cloned = {
     ...belief,
     lot_counts: [...belief.lot_counts],
-    age_marginals: [...belief.age_marginals],
-    tau_grid: [...belief.tau_grid],
+    f_marginals: [...belief.f_marginals],
+    f_grid: [...belief.f_grid],
   };
   assert(cloned.lot_counts.length === belief.lot_counts.length, `${label}: clone`);
 }
