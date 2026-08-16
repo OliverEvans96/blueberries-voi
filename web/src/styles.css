@@ -1153,3 +1153,4 @@ input[type="number"] {
   color: var(--spoil-strong);
   font-size: 0.9rem;
 }
+@import "./styles/eventsPane.css";
