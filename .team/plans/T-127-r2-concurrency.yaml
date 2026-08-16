@@ -1,0 +1,100 @@
+ticket: T-127
+parent_tip: team/T-127/merge-implement
+optimize: balanced
+description: >
+  Round 2 studio cockpit refinement: real freshness x time heatmap with
+  sub-day interpolation + truth overlay on Primary, true stacked freshness
+  histogram on Secondary, consolidated P&L chart in Economics, tradeoff
+  chart mean-line overlays, scenario-aware Events pane with mocked delivery
+  temperature history, tuning-dock content fixes (demand/arrival/physics/
+  logistics/autopilot), and removal of the duplicate order-qty control.
+  See t-127_studio_cockpit_refinement_f94aafd2.plan.md for full detail.
+max_parallel: 6
+tasks:
+  - id: shell
+    role: implement
+    shard: shell
+    files:
+      - web/src/sections.ts
+      - web/src/chapters.ts
+      - web/src/react/StudioLayout.tsx
+      - web/src/styles/cockpitGrid.css
+      - web/src/react/studioLogic.ts
+      - web/src/react/PlayChrome.tsx
+      - web/src/controlsPlayMount.tsx
+      - web/package.json
+      - web/playwright.config.ts
+    deps: []
+
+  - id: primary
+    role: implement
+    shard: primary
+    files:
+      - web/src/charts/beliefFreshnessTime.ts
+      - web/src/charts/salesDemand.ts
+      - web/src/charts/marginals.ts
+      - web/src/engine/projector.ts
+    deps: [shell]
+
+  - id: secondary
+    role: implement
+    shard: secondary
+    files:
+      - web/src/charts/freshnessHistogram.ts
+    deps: [shell]
+
+  - id: economics
+    role: implement
+    shard: economics
+    files:
+      - web/src/react/EconomicsPane.tsx
+      - web/src/charts/pnlTimeseries.ts
+    deps: [shell]
+
+  - id: tradeoff
+    role: implement
+    shard: tradeoff
+    files:
+      - web/src/charts/tradeoffCurve.ts
+    deps: [shell]
+
+  - id: events
+    role: implement
+    shard: events
+    files:
+      - web/src/react/EventsPane.tsx
+      - web/src/styles/eventsPane.css
+      - web/src/charts/deliveryTempMock.ts
+    deps: [shell]
+
+  - id: tuning-dock
+    role: implement
+    shard: tuning-dock
+    files:
+      - web/src/controls.ts
+      - web/src/paramLabels.ts
+      - web/src/charts/demandDist.ts
+      - web/src/scenarioAvailability.ts
+    deps: [shell]
+
+  - id: integrate
+    role: merge
+    shard: integrate
+    files:
+      - web/src/react/studioLogic.ts
+      - web/src/react/StudioLayout.tsx
+      - .team/backlog.md
+      - .team/changelog.md
+    deps: [primary, secondary, economics, tradeoff, events, tuning-dock]
+    file_owner:
+      web/src/react/studioLogic.ts: integrate
+      web/src/react/StudioLayout.tsx: integrate
+    merge_last: true
+
+  - id: visual-qa
+    role: verify
+    shard: visual-qa
+    files:
+      - web/tests
+      - web/src
+    deps: [integrate]
