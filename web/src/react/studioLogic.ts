@@ -58,13 +58,17 @@ import {
 } from "../sections";
 import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
-import { buildStepNOrders } from "../calendar/nextOrderAdvance";
+import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth, truthLots } from "../showTruth";
+import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
+import type { QForecastEntry } from "../charts/tradeoffForecast";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
 import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
 import { DecisionRail } from "./DecisionRail";
+import { EconomicsPane } from "./EconomicsPane";
+import { EventsPane } from "./EventsPane";
 import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
 
@@ -140,6 +144,10 @@ export function initStudio(app: HTMLElement): () => void {
     ...DEFAULT_CONTROLLER_CONTROLS,
   };
   let bootstrapped = false;
+  let tradeoffForecasts: QForecastEntry[] = [];
+  let eventDays: EventDayWire[] = [];
+  let eventsLoading = false;
+  let lastEventsKey = "";
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -192,8 +200,13 @@ export function initStudio(app: HTMLElement): () => void {
     ) as HTMLElement,
     focusTitle: document.querySelector("#focus-title") as HTMLElement,
     focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
-    focusPane: document.querySelector("#focus-pane") as HTMLElement,
+    focusPane: document.querySelector(".tuning-dock") as HTMLElement,
   };
+
+  const economicsPaneHost = document.querySelector("#economics-pane-host");
+  const eventsPaneHost = document.querySelector("#events-pane-host");
+  const economicsPaneRoot = economicsPaneHost ? createRoot(economicsPaneHost) : null;
+  const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
 
   const insightStripHost = document.querySelector("#insight-strip-host");
   const guidedPathsHost = document.querySelector("#guided-paths-host");
@@ -205,6 +218,57 @@ export function initStudio(app: HTMLElement): () => void {
   const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
   const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
+
+  function missedByDayMap(): Map<number, number> {
+    return new Map(
+      vm.history.map((d) => [d.day, Math.max(0, (d.demand ?? 0) - d.sales)]),
+    );
+  }
+
+  async function fetchTradeoffForecast(): Promise<void> {
+    if (typeof adapter.tradeoffForecast !== "function") return;
+    try {
+      const result = (await adapter.tradeoffForecast()) as TradeoffForecastResult;
+      tradeoffForecasts = result.forecasts ?? [];
+    } catch {
+      tradeoffForecasts = [];
+    }
+  }
+
+  async function fetchEvents(): Promise<void> {
+    if (typeof adapter.events !== "function" || !schedule) return;
+    const sinceDay = previousOrderDayFromSchedule(vm.episode_day, schedule);
+    const key = `${vm.episode_day}:${vm.config.obs_scenario}:${sinceDay}`;
+    if (key === lastEventsKey) return;
+    lastEventsKey = key;
+    eventsLoading = true;
+    renderEventsPane();
+    try {
+      const result = await adapter.events({ since_day: sinceDay });
+      eventDays = result.days ?? [];
+    } catch {
+      eventDays = [];
+    } finally {
+      eventsLoading = false;
+      renderEventsPane();
+    }
+  }
+
+  function renderEconomicsPane(): void {
+    if (!economicsPaneRoot) return;
+    economicsPaneRoot.render(createElement(EconomicsPane, { vm }));
+  }
+
+  function renderEventsPane(): void {
+    if (!eventsPaneRoot) return;
+    eventsPaneRoot.render(
+      createElement(EventsPane, {
+        days: eventDays,
+        showTruth,
+        missedByDay: missedByDayMap(),
+      }),
+    );
+  }
   let dayInspectorPortal = document.getElementById("day-inspector-portal");
   if (!dayInspectorPortal) {
     dayInspectorPortal = document.createElement("div");
@@ -280,6 +344,7 @@ export function initStudio(app: HTMLElement): () => void {
           playChromeApi.update(controlsState());
           renderDecisionRailChrome();
         },
+        tradeoffForecasts,
       }),
     );
   }
@@ -363,6 +428,25 @@ export function initStudio(app: HTMLElement): () => void {
     return !!node && !node.hidden;
   }
 
+  function renderCockpitBelief(): void {
+    renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 120);
+    renderBeliefAgeCount(
+      els.beliefLg,
+      vm.belief,
+      truthLots(showTruth, vm.live_lots),
+      220,
+    );
+  }
+
+  function renderRunStripCharts(): void {
+    const invSeries = showTruth
+      ? inventorySeries(vm.history, vm.config)
+      : inventorySeriesFromBelief(vm.belief_history, vm.config);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 120, invSeries);
+    renderControllerOrders(els.controllerOrders, vm.history, 120);
+    renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
+  }
+
   function renderStore() {
     const yMax = marginalYMax(vm.history);
     renderMarginal(els.sales, vm.history, "sales", 72, yMax);
@@ -396,6 +480,8 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderActiveFocusPlots(): void {
+    renderCockpitBelief();
+    renderRunStripCharts();
     if (plotVisible("plot-belief-age-marginal")) {
       renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 72);
     }
@@ -490,12 +576,20 @@ export function initStudio(app: HTMLElement): () => void {
     renderGuidedPaths();
     renderChapterTabs();
     renderDayInspector();
+    renderEconomicsPane();
+    renderEventsPane();
     renderDecisionRailChrome();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
     playChromeApi.update(state);
     sectionControlsApi.update(state);
     wireDemandPreview();
+  }
+
+  async function refreshRemotePanes(): Promise<void> {
+    await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
+    renderDecisionRailChrome();
+    renderEconomicsPane();
   }
 
   function wireDemandPreview(): void {
@@ -542,6 +636,7 @@ export function initStudio(app: HTMLElement): () => void {
             }
             onHoverDay(null, null);
             renderAll();
+            void refreshRemotePanes();
           } catch (err) {
             reportStudioAdapterError(
               `Advance failed: ${formatAdapterError(err)}`,
@@ -565,6 +660,7 @@ export function initStudio(app: HTMLElement): () => void {
             orderQty = snapOrder(orderQty);
             onHoverDay(null, null);
             renderAll();
+            void refreshRemotePanes();
           } catch (err) {
             reportStudioAdapterError(
               `Reset failed: ${formatAdapterError(err)}`,
@@ -626,6 +722,7 @@ export function initStudio(app: HTMLElement): () => void {
       }
       onHoverDay(null, null);
       renderAll();
+      void refreshRemotePanes();
     },
     getOpts: controllerToActOpts,
     getIntervalMs: () => controllerState.intervalMs,
@@ -722,7 +819,9 @@ export function initStudio(app: HTMLElement): () => void {
     if (typeof setObs !== "function") {
       vm = projector.setConfig({ obs_scenario: id });
       sectionControlsApi.update(controlsState());
+      lastEventsKey = "";
       renderAll();
+      void refreshRemotePanes();
       return;
     }
     const resumeAfter = autopilot.isRunning();
@@ -737,7 +836,9 @@ export function initStudio(app: HTMLElement): () => void {
       const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
       vm = projector.patchEngineState(snap);
       projector.setConfig({ obs_scenario: id });
+      lastEventsKey = "";
       renderAll();
+      void refreshRemotePanes();
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_scenario failed: ${formatAdapterError(err)}`,
@@ -796,6 +897,7 @@ export function initStudio(app: HTMLElement): () => void {
       projector.markConfigApplied();
       setSection(activeSection);
       renderAll();
+      void refreshRemotePanes();
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
