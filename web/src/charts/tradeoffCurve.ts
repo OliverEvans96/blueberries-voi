@@ -61,7 +61,9 @@ export function renderTradeoffCurve(
     .scaleLinear()
     .domain([
       0,
-      d3.max(data, (d) => Math.max(d.waste_p90, d.missed_p90)) ?? 1,
+      d3.max(data, (d) =>
+        Math.max(d.waste_p90, d.missed_p90, d.waste_mean, d.missed_mean),
+      ) ?? 1,
     ])
     .nice()
     .range([innerH, 0]);
@@ -89,6 +91,30 @@ export function renderTradeoffCurve(
     .attr("fill", "var(--sales, #48a)")
     .attr("opacity", 0.2)
     .attr("d", areaMissed);
+  const lineWasteMean = d3
+    .line<QForecastEntry>()
+    .x((d) => x(d.q))
+    .y((d) => y(d.waste_mean));
+  g.append("path")
+    .datum(data)
+    .attr("class", "tradeoff-mean-waste")
+    .attr("data-series", "waste_mean")
+    .attr("fill", "none")
+    .attr("stroke", "var(--missed, #c44)")
+    .attr("stroke-width", 2)
+    .attr("d", lineWasteMean);
+  const lineMissedMean = d3
+    .line<QForecastEntry>()
+    .x((d) => x(d.q))
+    .y((d) => y(d.missed_mean));
+  g.append("path")
+    .datum(data)
+    .attr("class", "tradeoff-mean-missed")
+    .attr("data-series", "missed_mean")
+    .attr("fill", "none")
+    .attr("stroke", "var(--sales, #48a)")
+    .attr("stroke-width", 2)
+    .attr("d", lineMissedMean);
   g.append("line")
     .attr("class", "order-q-marker")
     .attr("data-order-q", String(currentQ))

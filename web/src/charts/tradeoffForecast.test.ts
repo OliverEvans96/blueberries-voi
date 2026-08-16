@@ -100,6 +100,24 @@ describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {
     expect(svg.querySelector("[data-order-q='16'], .order-marker")).not.toBeNull();
   });
 
+  it("renderTradeoffCurve draws waste_mean and missed_mean line overlays", async () => {
+    const mod = await loadCurve();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mod!.renderTradeoffCurve(svg, CANDIDATES, 16);
+    const wasteMean = svg.querySelector(
+      ".tradeoff-mean-waste, [data-series='waste_mean']",
+    );
+    const missedMean = svg.querySelector(
+      ".tradeoff-mean-missed, [data-series='missed_mean']",
+    );
+    expect(wasteMean).not.toBeNull();
+    expect(missedMean).not.toBeNull();
+    expect(wasteMean?.getAttribute("stroke")).toBe("var(--missed, #c44)");
+    expect(missedMean?.getAttribute("stroke")).toBe("var(--sales, #48a)");
+    expect(wasteMean?.getAttribute("d")).toBeTruthy();
+    expect(missedMean?.getAttribute("d")).toBeTruthy();
+  });
+
   it("renderTradeoffHistogram selects joint_hist for nearest q", async () => {
     const mod = await loadHist();
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
