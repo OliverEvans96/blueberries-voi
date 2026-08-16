@@ -8,6 +8,7 @@ mod day_step_legacy;
 pub mod episode;
 pub mod exact_ll;
 pub mod unit_ll;
+pub mod unit_pf;
 pub mod obs;
 pub mod physics;
 pub mod policy;
@@ -32,6 +33,7 @@ pub use exact_ll::log_p_sales_waste_given_ages;
 pub use unit_ll::{
     loglik_sales_by_units, p1_totals_loglik, sequential_kernel_path_logprob,
 };
+pub use unit_pf::{filter_step_unit, UnitParticleBank};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use physics::{
     age_to_f, allocate_sales, apply_gamma_decrement, death_prob_hazard_product,

@@ -277,12 +277,10 @@ def test_bench_c2_a_totals_study_registered_in_cargo_toml() -> None:
     assert "bench_c2_a_totals_study" in cargo
 
 
-def test_cargo_unit_pf_ac_integration_suite_red() -> None:
-    """Full Rust integration file must fail until unit_ll/unit_pf land."""
+def test_cargo_unit_pf_ac_integration_suite_green() -> None:
+    """Full Rust integration suite passes after unit_ll/unit_pf land."""
     proc = _cargo_unit_pf_ac()
-    assert proc.returncode != 0, "unit_pf_ac should be RED before implementation"
-    combined = proc.stdout + proc.stderr
-    assert "unit_ll.rs" in combined or "unit_pf.rs" in combined, combined
+    assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
 def test_obs_mask_for_router_table_tests_pass() -> None:

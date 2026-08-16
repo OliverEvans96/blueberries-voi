@@ -187,8 +187,293 @@ fn p1_totals_loglik_impossible_sales_neg_inf() {
 fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     require_unit_pf();
     require_unit_ll();
-    panic!(
-        "AC-unit-pf: scripted L=20 N=200 U=15 study must achieve mean_f MAE < 0.02 and 100% order match"
+
+    use rand::Rng;
+    use rand_distr::{Distribution, Gamma};
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::FilterObs;
+    use voi_core::policy::{
+        damped_sw_order, damped_sw_order_belief, effective_inventory,
+        effective_inventory_belief,
+    };
+    use voi_core::{filter_step_unit, picking_weights, ModelParams, UnitParticleBank};
+
+    const DAYS: usize = 14;
+    const UNITS_PER_LOT: usize = 15;
+    const N_PARTICLES: usize = 200;
+    const N_LOTS: usize = 20;
+    const K_WIRE: usize = 8;
+    const MEAN_F_MAE_MAX: f64 = 0.02;
+    const SCRIPTED_SEED: u64 = 50_000 + N_LOTS as u64 * 1_000;
+
+    fn unit_tau(f: f64, eta: f64) -> f64 {
+        (1.0 - f).max(0.0) * eta
+    }
+
+    fn lot_mean_f(units_f: &[f64], offsets: &[usize]) -> Vec<f64> {
+        (0..offsets.len() - 1)
+            .map(|ell| {
+                let sl = &units_f[offsets[ell]..offsets[ell + 1]];
+                sl.iter().sum::<f64>() / sl.len() as f64
+            })
+            .collect()
+    }
+
+    fn lot_tau_from_units(units_f: &[f64], offsets: &[usize], eta: f64) -> Vec<f64> {
+        (0..offsets.len() - 1)
+            .map(|ell| {
+                let sl = &units_f[offsets[ell]..offsets[ell + 1]];
+                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
+                if alive.is_empty() {
+                    return 0.0;
+                }
+                let mean_f = alive.iter().sum::<f64>() / alive.len() as f64;
+                unit_tau(mean_f, eta)
+            })
+            .collect()
+    }
+
+    fn tau_grid_k(k: usize) -> Vec<f64> {
+        if k <= 1 {
+            return vec![0.0];
+        }
+        const HI: f64 = 8.0;
+        (0..k)
+            .map(|i| HI * (i as f64) / ((k - 1) as f64))
+            .collect()
+    }
+
+    fn tau_to_bin(tau: f64, grid: &[f64]) -> usize {
+        grid.iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| (*a - tau).abs().partial_cmp(&(*b - tau).abs()).unwrap())
+            .map(|(i, _)| i)
+            .unwrap_or(0)
+    }
+
+    fn belief_wire_from_particles(
+        freshness: &[Vec<f64>],
+        weights: &[f64],
+        offsets: &[usize],
+        k_wire: usize,
+        eta: f64,
+    ) -> (Vec<f64>, Vec<f64>) {
+        let l = offsets.len() - 1;
+        let grid = tau_grid_k(k_wire);
+        let z: f64 = weights.iter().sum();
+        let mut lot_counts = vec![0.0; l];
+        let mut age_marginals = vec![0.0; l * k_wire];
+        for (p, row) in freshness.iter().enumerate() {
+            let w = if z > 0.0 { weights[p] / z } else { 0.0 };
+            for ell in 0..l {
+                let sl = &row[offsets[ell]..offsets[ell + 1]];
+                let alive = sl.iter().filter(|&&f| f > 0.0).count() as f64;
+                lot_counts[ell] += w * alive;
+                if alive > 0.0 {
+                    for &f in sl {
+                        if f > 0.0 {
+                            let tau = unit_tau(f, eta);
+                            let b = tau_to_bin(tau, &grid);
+                            age_marginals[ell * k_wire + b] += w / alive;
+                        }
+                    }
+                }
+            }
+        }
+        for ell in 0..l {
+            let s: f64 = (0..k_wire).map(|b| age_marginals[ell * k_wire + b]).sum();
+            if s > 0.0 {
+                for b in 0..k_wire {
+                    age_marginals[ell * k_wire + b] /= s;
+                }
+            }
+        }
+        (lot_counts, age_marginals)
+    }
+
+    fn gamma_decrement(rng: &mut Pcg64, gamma: &Gamma<f64>) -> f64 {
+        gamma.sample(rng)
+    }
+
+    fn simulate_pick_units(
+        units_f: &[f64],
+        offsets: &[usize],
+        demand: usize,
+        params: &ModelParams,
+        rng: &mut Pcg64,
+    ) -> Vec<bool> {
+        let n_units = units_f.len();
+        let l = offsets.len() - 1;
+        let alive = vec![true; n_units];
+        let mut sold = vec![false; n_units];
+        let to_sell = demand.min(alive.iter().filter(|&&a| a).count());
+        for _ in 0..to_sell {
+            let idx_alive: Vec<usize> = (0..n_units)
+                .filter(|&i| alive[i] && !sold[i])
+                .collect();
+            if idx_alive.is_empty() {
+                break;
+            }
+            let taus: Vec<f64> = idx_alive
+                .iter()
+                .map(|&i| unit_tau(units_f[i], params.eta_ref))
+                .collect();
+            let w = picking_weights(
+                &taus,
+                params.sigma,
+                params.beta,
+                params.eta_ref,
+                params.uniform_picking,
+            );
+            let tot: f64 = w.iter().sum();
+            let j = if tot <= 0.0 {
+                idx_alive[rng.random_range(0..idx_alive.len())]
+            } else {
+                let draw = rng.random::<f64>() * tot;
+                let mut acc = 0.0;
+                let mut picked = idx_alive[0];
+                for (i, &wi) in w.iter().enumerate() {
+                    acc += wi;
+                    if draw < acc {
+                        picked = idx_alive[i];
+                        break;
+                    }
+                }
+                picked
+            };
+            sold[j] = true;
+        }
+        sold
+    }
+
+    fn simulate_truth_day(
+        units_f: &mut [f64],
+        offsets: &[usize],
+        params: &ModelParams,
+        rng: &mut Pcg64,
+        gamma: &Gamma<f64>,
+    ) -> (i32, i32) {
+        let before: Vec<f64> = units_f.to_vec();
+        for f in units_f.iter_mut() {
+            if *f > 0.0 {
+                *f = (*f - gamma_decrement(rng, gamma)).max(0.0);
+            }
+        }
+        let on_hand = units_f.iter().filter(|&&f| f > 0.0).count();
+        let lo = (on_hand / 5).max(1);
+        let hi = (on_hand / 3 + 1).max(2);
+        let demand = rng.random_range(lo..hi).min(on_hand);
+        let sold_mask = simulate_pick_units(units_f, offsets, demand, params, rng);
+        let spoiled_before = before
+            .iter()
+            .zip(units_f.iter())
+            .filter(|(&b, &u)| b > 0.0 && u <= 0.0)
+            .count() as i32;
+        for (u, &s) in units_f.iter_mut().zip(sold_mask.iter()) {
+            if s {
+                *u = 0.0;
+            }
+        }
+        let spoiled_after = units_f
+            .iter()
+            .zip(sold_mask.iter())
+            .zip(before.iter())
+            .filter(|((&u, &s), &b)| u <= 0.0 && !s && b > 0.0)
+            .count() as i32;
+        let sales = sold_mask.iter().filter(|&&s| s).count() as i32;
+        let waste = spoiled_before.max(spoiled_after);
+        (sales, waste)
+    }
+
+    let params = ModelParams::default();
+    let gamma = Gamma::new(params.gamma_shape, params.gamma_scale).expect("gamma");
+    let offsets: Vec<usize> = (0..=N_LOTS).map(|i| i * UNITS_PER_LOT).collect();
+    let total = N_LOTS * UNITS_PER_LOT;
+
+    let mut rng = Pcg64::seed_from_u64(SCRIPTED_SEED);
+    let mut units_f: Vec<f64> = (0..total)
+        .map(|_| 0.45 + rng.random::<f64>() * 0.5)
+        .collect();
+    let mut bank = UnitParticleBank {
+        weights: vec![1.0 / N_PARTICLES as f64; N_PARTICLES],
+        freshness: (0..N_PARTICLES)
+            .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
+            .collect(),
+    };
+
+    for _day in 0..DAYS {
+        let (sales, waste) = simulate_truth_day(&mut units_f, &offsets, &params, &mut rng, &gamma);
+        let obs = FilterObs {
+            sales_tot: Some(sales),
+            waste_tot: Some(waste),
+            arrivals: 0,
+            ..Default::default()
+        };
+        filter_step_unit(&mut bank, &obs, &params, &mut rng);
+    }
+
+    let truth_mf = lot_mean_f(&units_f, &offsets);
+    let mut pred_mf = vec![0.0; N_LOTS];
+    for p in 0..N_PARTICLES {
+        for ell in 0..N_LOTS {
+            let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
+            let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
+            let mf = if alive.is_empty() {
+                0.0
+            } else {
+                alive.iter().sum::<f64>() / alive.len() as f64
+            };
+            pred_mf[ell] += mf / N_PARTICLES as f64;
+        }
+    }
+
+    let mean_f_mae = pred_mf
+        .iter()
+        .zip(truth_mf.iter())
+        .map(|(a, b)| (a - b).abs())
+        .sum::<f64>()
+        / N_LOTS as f64;
+
+    let truth_tau = lot_tau_from_units(&units_f, &offsets, params.eta_ref);
+    let truth_counts: Vec<u32> = (0..N_LOTS)
+        .map(|ell| {
+            units_f[offsets[ell]..offsets[ell + 1]]
+                .iter()
+                .filter(|&&f| f > 0.0)
+                .count() as u32
+        })
+        .collect();
+    let truth_eff = effective_inventory(&truth_counts, &truth_tau, 0, &params);
+
+    let uniform_w = vec![1.0 / N_PARTICLES as f64; N_PARTICLES];
+    let (pred_lc, pred_am) =
+        belief_wire_from_particles(&bank.freshness, &uniform_w, &offsets, K_WIRE, params.eta_ref);
+    let grid = tau_grid_k(K_WIRE);
+    let belief_eff = effective_inventory_belief(&pred_lc, &pred_am, &grid, 0, &params);
+    let _ = (truth_eff, belief_eff);
+
+    let truth_order = damped_sw_order(&truth_counts, &truth_tau, 0, 7, &params, 0.9, 0.8, None);
+    let pred_order = damped_sw_order_belief(
+        &pred_lc,
+        &pred_am,
+        &grid,
+        0,
+        7,
+        &params,
+        0.9,
+        0.8,
+        None,
+    );
+
+    assert!(
+        mean_f_mae < MEAN_F_MAE_MAX,
+        "mean_f MAE {mean_f_mae} must be < {MEAN_F_MAE_MAX}"
+    );
+    assert_eq!(
+        truth_order,
+        pred_order,
+        "damped-SW order must match f-truth controller"
     );
 }
 
