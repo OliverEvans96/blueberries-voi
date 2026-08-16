@@ -447,6 +447,37 @@ describe("fMarginalFromFlat (T-090)", () => {
   });
 });
 
+describe("beliefFreshnessSeries (T-127)", () => {
+  it("maps belief_history to per-day f_edges and merged marginals", () => {
+    const fn = (
+      projectorMod as {
+        beliefFreshnessSeries?: (
+          bh: Array<{ day: number; flatBelief: FlatBelief }>,
+        ) => Array<{ day: number; f_edges: number[]; marginal: number[] }>;
+      }
+    ).beliefFreshnessSeries;
+    expect(typeof fn).toBe("function");
+    const flat: FlatBelief = {
+      L: 2,
+      K: 3,
+      lot_counts: [4, 10],
+      f_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
+      f_grid: [0.167, 0.5, 0.833],
+    };
+    const series = fn!([
+      { day: 0, flatBelief: flat },
+      { day: 1, flatBelief: { ...flat, lot_counts: [5, 11] } },
+    ]);
+    expect(series).toHaveLength(2);
+    expect(series[0]!.day).toBe(0);
+    expect(series[0]!.marginal).toEqual(fMarginalFromFlat(flat));
+    expect(series[0]!.f_edges).toEqual(expectedCentersToEdges(flat.f_grid));
+    expect(series[1]!.marginal).toEqual(
+      fMarginalFromFlat({ ...flat, lot_counts: [5, 11] }),
+    );
+  });
+});
+
 describe("ViewModelProjector belief_history rolling window (T-115)", () => {
   it("belief_history length tracks history after applySnapshot + applyDelta; payloads omit showTruth", () => {
     const projector = new ViewModelProjector({

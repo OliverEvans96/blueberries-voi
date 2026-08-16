@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
+import { salesDemandX } from "./salesDemand";
 
 export type MarginalKind = "sales" | "spoilage" | "stockout";
 
@@ -190,4 +191,114 @@ export function renderMarginal(
       )
       .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
   }
+}
+
+/** Shared y-domain for waste / spoilage bars in the Primary stack. */
+export function wasteBarYMax(history: Day[]): number {
+  return Math.max(1, d3.max(history, (d) => d.waste_total) ?? 0);
+}
+
+/**
+ * Waste (spoilage) bars over days — same x-band convention as `renderSalesDemand`
+ * for hover-linking in the Primary chart stack.
+ */
+export function renderWasteBars(
+  container: HTMLElement,
+  history: Day[],
+  height = 72,
+  yMax?: number,
+): void {
+  const width = container.clientWidth || 720;
+  const margin = {
+    top: 8,
+    right: CHART_MARGIN.right,
+    bottom: 22,
+    left: CHART_MARGIN.left,
+  };
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  container.replaceChildren();
+  if (history.length === 0) return;
+
+  const svg = d3
+    .select(container)
+    .append("svg")
+    .attr("class", "chart-svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("width", "100%")
+    .attr("height", height)
+    .attr("aria-label", "Daily spoilage");
+
+  const g = svg
+    .append("g")
+    .attr("class", "chart-root")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const days = history.map((d) => d.day);
+  const step = days.length > 0 ? innerW / days.length : innerW;
+  const barW = Math.max(1, step * 0.76);
+  const maxV = yMax != null ? Math.max(1, yMax) : wasteBarYMax(history);
+  const y = d3.scaleLinear().domain([0, maxV]).range([innerH, 0]);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(history, (d) => String((d as Day).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
+
+  g.selectAll(".bar")
+    .data(history, (d) => String((d as Day).day))
+    .join("rect")
+    .attr("class", "bar bar--spoilage")
+    .attr("data-day", (d) => d.day)
+    .attr("pointer-events", "none")
+    .attr("x", (d) => salesDemandX(days, innerW, d.day) - barW / 2)
+    .attr("width", barW)
+    .attr("y", (d) => y(d.waste_total))
+    .attr("height", (d) => innerH - y(d.waste_total))
+    .attr("rx", 2)
+    .call((sel) =>
+      sel
+        .append("title")
+        .text((d) => `Day ${d.day}: spoilage ${d.waste_total}`),
+    );
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
+
+  g.append("g")
+    .attr("class", "axis axis-y")
+    .call(d3.axisLeft(y).ticks(2).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove());
+
+  g.append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(
+      d3
+        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickSizeOuter(0),
+    )
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+}
+
+/** Hover styling for `renderWasteBars` (same contract as `setMarginalHover`). */
+export function setWasteBarsHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  setMarginalHover(container, hoveredDay);
 }
