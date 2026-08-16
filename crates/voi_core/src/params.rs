@@ -2,6 +2,9 @@
 
 use crate::demand_profile::DemandProfile;
 
+/// Default virtual units per lot on the f-native `L×U` grid (ADR 0130).
+pub const DEFAULT_UNITS_PER_LOT: usize = 15;
+
 #[derive(Clone, Debug)]
 pub struct ModelParams {
     pub beta: f64,
@@ -15,6 +18,14 @@ pub struct ModelParams {
     pub case_size: u32,
     pub uniform_picking: bool,
     pub demand_profile: Option<DemandProfile>,
+    /// Gamma aging shape (daily freshness decrement draw).
+    pub gamma_shape: f64,
+    /// Gamma aging scale before store-temperature Q10 factor.
+    pub gamma_scale: f64,
+    /// Fixed virtual grid width per lot (`L×U` truth).
+    pub units_per_lot: usize,
+    /// F2a pack-date transit uncertainty on τ days before `age_to_f`.
+    pub f2a_transit_uncertainty_sd: f64,
 }
 
 impl Default for ModelParams {
@@ -31,6 +42,10 @@ impl Default for ModelParams {
             case_size: 8,
             uniform_picking: false,
             demand_profile: None,
+            gamma_shape: 2.0,
+            gamma_scale: 0.05,
+            units_per_lot: DEFAULT_UNITS_PER_LOT,
+            f2a_transit_uncertainty_sd: 0.75,
         }
     }
 }

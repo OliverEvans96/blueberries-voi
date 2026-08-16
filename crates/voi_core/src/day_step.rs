@@ -367,6 +367,7 @@ mod tests {
                 params.q10,
                 params.t_ref_c,
                 1.0,
+                params.eta_ref,
             );
             assert!(
                 birth_f > 0.0 && birth_f <= 1.0,

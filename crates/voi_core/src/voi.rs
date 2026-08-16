@@ -12,7 +12,7 @@ use crate::physics::{draw_demand, weibull_survival};
 use crate::policy::{case_round, damped_sw_order, protection_demand_quantile};
 use crate::particle_filter::{filter_step, ParticleBank};
 use crate::rollout::{day_profit, rollout_order};
-use crate::shipments::{generate_arrival_age, ShipmentTrace};
+use crate::shipments::{generate_arrival_tau, ShipmentTrace};
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
@@ -257,7 +257,7 @@ fn run_scenario_episode(
         if arrival > 0 {
             let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
             let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let tau_in = generate_arrival_age(
+            let tau_in = generate_arrival_tau(
                 &mut rng_ship,
                 &mut rng_sensor,
                 shipments,

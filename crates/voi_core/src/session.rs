@@ -14,7 +14,7 @@ use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
 use crate::particle_filter::{filter_step, ParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
-use crate::shipments::{generate_arrival_age, ShipmentTrace};
+use crate::shipments::{generate_arrival_tau, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -208,7 +208,7 @@ impl EngineSession {
         if arrival > 0 {
             let mut rs = stream_rng(self.seed, self.day, 4);
             let mut rn = stream_rng(self.seed, self.day, 5);
-            let tau = generate_arrival_age(
+            let tau = generate_arrival_tau(
                 &mut rs,
                 &mut rn,
                 &self.shipments,

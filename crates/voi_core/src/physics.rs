@@ -1,11 +1,88 @@
 //! Weibull / Q10 / picking / sequential allocation (Python `model.physics`).
+//!
+//! Production f-native helpers (`picking_weights_f`, gamma aging, `age_to_f`) live on the
+//! hot path; legacy Weibull / τ picking remain for cohort research and test goldens.
 
 use rand::Rng;
+use rand_distr::{Distribution, Gamma};
 
 use crate::params::ModelParams;
 use crate::spawn_rng::{negative_binomial_gamma_poisson, SpawnRng};
 
 const SURV_FLOOR: f64 = 1e-300;
+
+/// Map effective age τ (days) to unit freshness `f ∈ [0, 1]` (bench C2-A convention).
+pub fn age_to_f(tau: f64, eta_ref: f64) -> f64 {
+    if eta_ref <= 0.0 {
+        panic!("eta_ref must be positive");
+    }
+    (1.0 - tau / eta_ref).clamp(0.0, 1.0)
+}
+
+/// Inverse of [`age_to_f`]: freshness to effective age τ days.
+pub fn f_to_age(f: f64, eta_ref: f64) -> f64 {
+    if eta_ref <= 0.0 {
+        panic!("eta_ref must be positive");
+    }
+    (1.0 - f.clamp(0.0, 1.0)) * eta_ref
+}
+
+/// Q10 temperature factor for store-aging rates (shared with legacy τ clock).
+pub fn store_temp_factor(t_store_c: f64, t_ref_c: f64, q10: f64) -> f64 {
+    q10.powf((t_store_c - t_ref_c) / 10.0)
+}
+
+/// Expected daily gamma freshness decrement at store temperature.
+pub fn gamma_decrement_for_store(params: &ModelParams) -> f64 {
+    let factor = store_temp_factor(params.t_store_c, params.t_ref_c, params.q10);
+    params.gamma_shape * params.gamma_scale * factor
+}
+
+/// Draw a stochastic gamma freshness decrement (shape fixed, scale × Q10 factor).
+pub fn draw_gamma_decrement<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
+    let factor = store_temp_factor(params.t_store_c, params.t_ref_c, params.q10);
+    let scale = params.gamma_scale * factor;
+    let dist = Gamma::new(params.gamma_shape, scale).expect("gamma params");
+    dist.sample(rng)
+}
+
+/// Apply a fixed gamma decrement to alive slots; `f ≤ 0` marks spoil.
+pub fn apply_gamma_decrement(freshness: &mut [f64], decrement: f64) {
+    if decrement <= 0.0 {
+        return;
+    }
+    for f in freshness.iter_mut() {
+        if *f > 0.0 {
+            *f = (*f - decrement).max(0.0);
+        }
+    }
+}
+
+/// Stochastic gamma aging step for unit freshness.
+pub fn apply_gamma_aging<R: Rng + ?Sized>(freshness: &mut [f64], rng: &mut R, params: &ModelParams) {
+    let decrement = draw_gamma_decrement(rng, params);
+    apply_gamma_decrement(freshness, decrement);
+}
+
+/// Picking weights on freshness: `w_i ∝ max(f_i, 0)^σ`, normalized.
+pub fn picking_weights_f(f: &[f64], sigma: f64, uniform: bool) -> Vec<f64> {
+    let n = f.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    if uniform || sigma <= 0.0 {
+        return vec![1.0 / n as f64; n];
+    }
+    let mut raw: Vec<f64> = f.iter().map(|&fi| fi.max(0.0).powf(sigma)).collect();
+    let total: f64 = raw.iter().sum();
+    if total <= 0.0 {
+        return vec![1.0 / n as f64; n];
+    }
+    for x in &mut raw {
+        *x /= total;
+    }
+    raw
+}
 
 pub fn weibull_survival(tau: f64, beta: f64, eta: f64) -> f64 {
     if tau <= 0.0 {
@@ -348,5 +425,32 @@ mod tests {
         let u = picking_weights(&[1.0, 2.0], 0.5, 2.0, 14.0, true);
         close(u[0], 0.5);
         close(u[1], 0.5);
+    }
+
+    #[test]
+    fn picking_weights_f_monotone_normalized() {
+        let w = picking_weights_f(&[0.2, 0.5, 0.9], 0.5, false);
+        assert_eq!(w.len(), 3);
+        close(w.iter().sum(), 1.0);
+        assert!(w[0] < w[1] && w[1] < w[2]);
+    }
+
+    #[test]
+    fn age_to_f_roundtrip() {
+        close(age_to_f(0.0, 14.0), 1.0);
+        close(age_to_f(14.0, 14.0), 0.0);
+        close(f_to_age(0.75, 14.0), 3.5);
+    }
+
+    #[test]
+    fn gamma_decrement_for_store_positive() {
+        let params = ModelParams::default();
+        let dec = gamma_decrement_for_store(&params);
+        assert!(dec > 0.0);
+        let mut f = vec![0.85, 0.0, 0.5];
+        apply_gamma_decrement(&mut f, dec);
+        assert!(f[0] < 0.85 && f[0] > 0.0);
+        assert_eq!(f[1], 0.0);
+        assert!(f[2] < 0.5);
     }
 }

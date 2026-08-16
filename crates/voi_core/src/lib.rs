@@ -26,8 +26,10 @@ pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use exact_ll::log_p_sales_waste_given_ages;
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use physics::{
-    allocate_sales, death_prob_hazard_product, death_prob_survival_ratio, draw_demand,
-    picking_weights, q10_age_increment, weibull_survival,
+    age_to_f, allocate_sales, apply_gamma_decrement, death_prob_hazard_product,
+    death_prob_survival_ratio, draw_demand, draw_gamma_decrement, f_to_age,
+    gamma_decrement_for_store, picking_weights, picking_weights_f, q10_age_increment,
+    weibull_survival,
 };
 pub use particle_filter::{exact_wor_loglik, filter_step, systematic_resample, ParticleBank};
 pub use rollout::{candidate_orders, rollout_order, terminal_salvage_value};
