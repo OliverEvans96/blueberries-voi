@@ -7,6 +7,7 @@ pub mod day_step;
 mod day_step_legacy;
 pub mod episode;
 pub mod exact_ll;
+pub mod unit_ll;
 pub mod obs;
 pub mod physics;
 pub mod policy;
@@ -28,6 +29,9 @@ pub use day_step::{
 pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use exact_ll::log_p_sales_waste_given_ages;
+pub use unit_ll::{
+    loglik_sales_by_units, p1_totals_loglik, sequential_kernel_path_logprob,
+};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use physics::{
     age_to_f, allocate_sales, apply_gamma_decrement, death_prob_hazard_product,

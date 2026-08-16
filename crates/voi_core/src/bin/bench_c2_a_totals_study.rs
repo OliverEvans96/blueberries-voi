@@ -15,8 +15,8 @@ use rand::SeedableRng;
 use rand_distr::{Distribution, Gamma};
 use rand_pcg::Pcg64;
 use serde::Serialize;
-use voi_core::exact_ll::binom_pmf;
 use voi_core::policy::{damped_sw_order, damped_sw_order_belief, effective_inventory};
+use voi_core::unit_ll::p1_totals_loglik;
 use voi_core::{picking_weights, ModelParams};
 
 const DAYS: usize = 14;
@@ -430,80 +430,6 @@ fn simulate_truth_day(
     let sales = sold_mask.iter().filter(|&&s| s).count() as i32;
     let waste = spoiled_before.max(spoiled_after);
     (sales, waste)
-}
-
-fn sequential_kernel_path_logprob(
-    freshness: &[f64],
-    sales: usize,
-    params: &ModelParams,
-    rng: &mut Pcg64,
-) -> f64 {
-    let taus: Vec<f64> = freshness
-        .iter()
-        .map(|&f| unit_tau(f, params.eta_ref))
-        .collect();
-    let base_w = picking_weights(
-        &taus,
-        params.sigma,
-        params.beta,
-        params.eta_ref,
-        params.uniform_picking,
-    );
-    let mut alive = vec![true; freshness.len()];
-    let mut log_p = 0.0;
-    for _ in 0..sales {
-        let mut tot = 0.0;
-        for i in 0..freshness.len() {
-            if alive[i] {
-                tot += base_w[i];
-            }
-        }
-        if tot <= 0.0 {
-            return f64::NEG_INFINITY;
-        }
-        let draw = rng.random::<f64>() * tot;
-        let mut acc = 0.0;
-        let mut picked = 0usize;
-        for i in 0..freshness.len() {
-            if !alive[i] {
-                continue;
-            }
-            acc += base_w[i];
-            if draw < acc {
-                picked = i;
-                break;
-            }
-        }
-        log_p += (base_w[picked] / tot).ln();
-        alive[picked] = false;
-    }
-    log_p
-}
-
-fn p1_totals_loglik(
-    freshness: &[f64],
-    sales: i32,
-    waste: i32,
-    params: &ModelParams,
-    rng: &mut Pcg64,
-) -> f64 {
-    let units = freshness.len();
-    let alive = freshness.iter().filter(|&&f| f > 0.0).count();
-    if alive < sales as usize {
-        return f64::NEG_INFINITY;
-    }
-    let ll_sales = sequential_kernel_path_logprob(freshness, sales as usize, params, rng);
-    if !ll_sales.is_finite() {
-        return f64::NEG_INFINITY;
-    }
-    let dead = freshness.iter().filter(|&&f| f <= 0.0).count() as i32;
-    let rem = alive as i32 - sales;
-    let p_die = (dead as f64 / units as f64).clamp(0.0, 1.0);
-    let pw = binom_pmf(waste, rem, p_die);
-    if pw <= 0.0 {
-        return f64::NEG_INFINITY;
-    }
-    ll_sales + pw.ln()
 }
 
 fn resample(rng: &mut Pcg64, n: usize, w: &[f64]) -> Vec<usize> {
