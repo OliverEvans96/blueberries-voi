@@ -32,9 +32,10 @@ function formatLotBreakdown(
   if (!values?.length || !lotIds?.length) return null;
   const n = Math.min(values.length, lotIds.length);
   if (n === 0) return null;
-  return Array.from({ length: n }, (_, i) => `Lot ${lotIds[i]}: ${values[i]} units`).join(
-    ", ",
-  );
+  return Array.from(
+    { length: n },
+    (_, i) => `Lot ${lotIds[i]}: ${values[i]} ${values[i] === 1 ? "unit" : "units"}`,
+  ).join(", ");
 }
 
 export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) {

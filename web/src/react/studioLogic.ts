@@ -405,7 +405,9 @@ export function initStudio(app: HTMLElement): () => void {
     document.querySelectorAll<HTMLElement>("[data-truth-caption]").forEach((el) => {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
-        el.textContent = showTruth ? "Belief vs truth" : "Belief";
+        el.textContent = showTruth
+          ? "Stacked freshness histogram (truth bars on)"
+          : "Stacked freshness histogram";
       }
       if (kind === "lots") {
         el.textContent =
@@ -477,7 +479,11 @@ export function initStudio(app: HTMLElement): () => void {
         );
       });
     } else {
-      spoilageUnavailableRoot?.render(null);
+      if (spoilageUnavailableRoot) {
+        flushSync(() => {
+          spoilageUnavailableRoot!.render(null);
+        });
+      }
       renderWasteBars(els.spoil, vm.history, 86, wasteBarYMax(vm.history));
     }
     renderCockpitBelief();

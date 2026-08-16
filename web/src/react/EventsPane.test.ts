@@ -126,7 +126,7 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
       }),
     );
     expect(screen.getByText(/Lot 101: 4 units/i)).toBeInTheDocument();
-    expect(screen.getByText(/Lot 102: 1 units/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lot 102: 1 unit\b/i)).toBeInTheDocument();
     expect(screen.getByText(/waste/i)).toBeInTheDocument();
     expect(screen.getByText(/1\.5/)).toBeInTheDocument();
   });
