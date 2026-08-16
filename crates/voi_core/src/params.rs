@@ -43,7 +43,7 @@ impl Default for ModelParams {
             uniform_picking: false,
             demand_profile: None,
             gamma_shape: 2.0,
-            gamma_scale: 0.05,
+            gamma_scale: 0.08,
             units_per_lot: DEFAULT_UNITS_PER_LOT,
             f2a_transit_uncertainty_sd: 0.75,
         }

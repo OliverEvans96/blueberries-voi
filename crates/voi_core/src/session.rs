@@ -1,17 +1,18 @@
-//! EngineSession JSON RPC — order schedule + particle filter + rollout (Python day_driver).
+//! EngineSession JSON RPC — order schedule + unit PF + rollout (Python day_driver).
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::belief_flat::{belief_mean_from_bank, BeliefMean};
-use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
+use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::physics::{draw_demand, draw_demand_spawn};
+use crate::params::DEFAULT_UNITS_PER_LOT;
+use crate::physics::{draw_demand, draw_demand_spawn, f_to_age};
 use crate::spawn_rng::SpawnRng;
-use crate::policy::{case_round_ceil, constant_order, damped_sw_order_belief};
-use crate::particle_filter::{filter_step, ParticleBank};
+use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
+use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{generate_arrival_tau, ShipmentTrace};
@@ -28,7 +29,9 @@ fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 {
 #[derive(Clone, Debug)]
 pub struct EngineSession {
     params: ModelParams,
-    state: DayStepIn,
+    freshness: Vec<f64>,
+    lot_offsets: Vec<usize>,
+    lot_ids: Vec<i64>,
     pending: std::collections::BTreeMap<u32, u32>,
     day: u32,
     seed: u64,
@@ -42,15 +45,15 @@ pub struct EngineSession {
     enable_filter: bool,
     schedule: OrderSchedule,
     shipments: Vec<ShipmentTrace>,
-    bank: ParticleBank,
+    bank: UnitParticleBank,
     next_lot: i64,
     seq: u32,
     l_dim: usize,
     k_dim: usize,
     obs_scenario: String,
     richest_log: Vec<RichDay>,
-    rungs: HashMap<String, (ParticleBank, i32)>,
-    bank_init: ParticleBank,
+    rungs: HashMap<String, (UnitParticleBank, i32)>,
+    bank_init: UnitParticleBank,
     catchup_days_last: u32,
 }
 
@@ -65,16 +68,9 @@ impl EngineSession {
         let n = 16usize;
         Self {
             params: ModelParams::default(),
-            state: DayStepIn {
-                counts: vec![],
-                taus: vec![],
-                lot_ids: vec![],
-                demand: None,
-                spoil_by: Some(vec![]),
-                delivery_n: 0,
-                delivery_tau: 0.0,
-                delivery_lot_id: 0,
-            },
+            freshness: vec![],
+            lot_offsets: vec![0],
+            lot_ids: vec![],
             pending: std::collections::BTreeMap::new(),
             day: 0,
             seed,
@@ -88,10 +84,9 @@ impl EngineSession {
             enable_filter: true,
             schedule: OrderSchedule::default(),
             shipments: vec![ShipmentTrace::smoke_cool()],
-            bank: ParticleBank {
+            bank: UnitParticleBank {
                 weights: vec![1.0 / n as f64; n],
-                counts: vec![vec![]; n],
-                taus: vec![vec![]; n],
+                freshness: vec![vec![]; n],
             },
             next_lot: 1,
             seq: 0,
@@ -100,10 +95,9 @@ impl EngineSession {
             obs_scenario: "P1".to_string(),
             richest_log: Vec::new(),
             rungs: HashMap::new(),
-            bank_init: ParticleBank {
+            bank_init: UnitParticleBank {
                 weights: vec![1.0 / n as f64; n],
-                counts: vec![vec![]; n],
-                taus: vec![vec![]; n],
+                freshness: vec![vec![]; n],
             },
             catchup_days_last: 0,
         }
@@ -113,6 +107,12 @@ impl EngineSession {
         *self = Self::new(seed);
         self.initialized = true;
         self.crossings += 1;
+        if self.params.demand_profile.is_none() {
+            apply_demand_profile(&mut self.params, committed_demand_profile());
+        }
+        if self.enable_filter {
+            self.seed_particle_bank();
+        }
     }
 
     pub fn set_demand_profile(&mut self, profile: DemandProfile) {
@@ -129,6 +129,7 @@ impl EngineSession {
         shipments: Vec<ShipmentTrace>,
         n_particles: usize,
         demand_profile: Option<DemandProfile>,
+        units_per_lot: Option<usize>,
     ) {
         self.lead_time = lead_time.max(1);
         self.enable_filter = enable_filter;
@@ -137,10 +138,10 @@ impl EngineSession {
         self.radius = radius;
         let n = n_particles.max(1);
         self._n_particles = n;
-        self.bank = ParticleBank {
+        self.params.units_per_lot = units_per_lot.unwrap_or(DEFAULT_UNITS_PER_LOT).max(1);
+        self.bank = UnitParticleBank {
             weights: vec![1.0 / n as f64; n],
-            counts: vec![vec![]; n],
-            taus: vec![vec![]; n],
+            freshness: vec![vec![]; n],
         };
         if !shipments.is_empty() {
             self.shipments = shipments;
@@ -160,22 +161,23 @@ impl EngineSession {
 
         let n = self._n_particles.max(1);
         let l = self.l_dim;
-        let k = self.k_dim.max(1);
-        let grid = tau_grid(k);
+        let upl = self.params.units_per_lot.max(1);
+        let units = l * upl;
+        let grid = f_grid_k(self.k_dim.max(1));
         let mut rng = Pcg64::seed_from_u64(self.seed.wrapping_add(0xF117_0000));
-        let mut counts = vec![vec![0u32; l]; n];
-        let mut taus = vec![vec![0.0; l]; n];
-        for i in 0..n {
-            for slot in 0..l {
-                counts[i][slot] = rng.random_range(0..8);
-                let bin = rng.random_range(0..k);
-                taus[i][slot] = grid[bin];
-            }
-        }
-        self.bank = ParticleBank {
+        let freshness: Vec<Vec<f64>> = (0..n)
+            .map(|_| {
+                (0..units)
+                    .map(|_| {
+                        let bin = rng.random_range(0..grid.len());
+                        grid[bin]
+                    })
+                    .collect()
+            })
+            .collect();
+        self.bank = UnitParticleBank {
             weights: vec![1.0 / n as f64; n],
-            counts,
-            taus,
+            freshness,
         };
         self.bank_init = self.bank.clone();
     }
@@ -205,69 +207,83 @@ impl EngineSession {
         }
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
-        if arrival > 0 {
+        let pre_lot_ids = self.lot_ids.clone();
+        let arrival_tau = if arrival > 0 {
             let mut rs = stream_rng(self.seed, self.day, 4);
             let mut rn = stream_rng(self.seed, self.day, 5);
-            let tau = generate_arrival_tau(
+            Some(generate_arrival_tau(
                 &mut rs,
                 &mut rn,
                 &self.shipments,
                 self.params.q10,
                 self.params.t_ref_c,
                 1.0,
-            );
-            self.state.delivery_n = arrival;
-            self.state.delivery_tau = tau;
-            self.state.delivery_lot_id = self.next_lot;
-            self.next_lot += 1;
+            ))
         } else {
-            self.state.delivery_n = 0;
-        }
-        if self.params.demand_profile.is_some() {
+            None
+        };
+        let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
-            self.state.demand =
-                Some(draw_demand_spawn(&mut rng_d, &self.params, Some(self.day)));
+            draw_demand_spawn(&mut rng_d, &self.params, Some(self.day))
         } else {
             let mut rng_d = stream_rng(self.seed, self.day, 1);
-            self.state.demand = Some(draw_demand(&mut rng_d, &self.params, None));
-        }
-        self.state.spoil_by = None;
-        let mut rng_a = stream_rng(self.seed, self.day, 2);
-        let mut rng_s = stream_rng(self.seed, self.day, 3);
-        let out = day_step(
-            &self.state,
+            draw_demand(&mut rng_d, &self.params, None)
+        };
+        let mut rng_gamma = stream_rng(self.seed, self.day, 3);
+        let mut rng_alloc = stream_rng(self.seed, self.day, 2);
+        let mut rng_ship = if arrival > 0 {
+            Some(stream_rng(self.seed, self.day, 4))
+        } else {
+            None
+        };
+        let mut rng_sensor = if arrival > 0 {
+            Some(stream_rng(self.seed, self.day, 5))
+        } else {
+            None
+        };
+        let input = UnitDayStepIn {
+            freshness: self.freshness.clone(),
+            lot_offsets: self.lot_offsets.clone(),
+            demand: Some(demand),
+            gamma_decrement: None,
+            deliver: arrival > 0,
+            deliver_units: if arrival > 0 { Some(arrival) } else { None },
+            delivery_f: None,
+            units_per_lot: Some(self.params.units_per_lot),
+            age_at_receipt: arrival_tau,
+            pack_age_mean: arrival_tau,
+        };
+        let out = unit_day_step(
+            &input,
             &self.params,
-            Some(&mut rng_a),
-            Some(&mut rng_s),
+            &self.shipments,
+            Some(&mut rng_gamma),
+            Some(&mut rng_alloc),
+            rng_ship.as_mut(),
+            rng_sensor.as_mut(),
         );
+        self.freshness = out.freshness;
+        self.lot_offsets = out.lot_offsets;
+        if arrival > 0 {
+            self.lot_ids.push(self.next_lot);
+            self.next_lot += 1;
+        }
         let rich = RichDay {
             sales_total: out.sales_total,
             waste_total: out.waste_total,
             arrivals: arrival,
             sales_by: out.sales_by.clone(),
             waste_by: out.waste_by.clone(),
-            lot_ids: out.lot_ids.clone(),
-            age_at_receipt: if arrival > 0 {
-                Some(self.state.delivery_tau)
-            } else {
-                None
-            },
-            // I1 Gaussian mean = pack_date_days (calendar transit)
-            pack_date_days: if arrival > 0 {
-                Some(self.state.delivery_tau.round() as i32)
-            } else {
-                None
-            },
+            lot_ids: pre_lot_ids,
+            age_at_receipt: arrival_tau,
+            pack_date_days: arrival_tau.map(|t| t.round() as i32),
         };
         if self.enable_filter {
             let obs = mask_for(&self.obs_scenario).unwrap().apply(&rich);
             let mut fr = stream_rng(self.seed, self.day, 6);
-            self.bank = filter_step(&self.bank, &obs, &self.params, &mut fr);
+            filter_step_unit(&mut self.bank, &obs, &self.params, &mut fr);
         }
-        self.state.counts = out.counts.clone();
-        self.state.taus = out.taus.clone();
-        self.state.lot_ids = out.lot_ids.clone();
-        let on_hand: u32 = out.counts.iter().sum();
+        let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets).iter().sum();
         let delta = DayDelta {
             demand: out.demand,
             sales_total: out.sales_total,
@@ -335,18 +351,31 @@ impl EngineSession {
     }
 
     fn belief_value(&self) -> serde_json::Value {
-        crate::belief_flat::particle_bank_to_flat(&self.bank, self.l_dim, self.k_dim)
+        belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim)
     }
 
     fn live_lots_value(&self) -> serde_json::Value {
-        let lots: Vec<serde_json::Value> = self
-            .state
-            .counts
-            .iter()
-            .zip(self.state.taus.iter())
-            .zip(self.state.lot_ids.iter())
-            .filter(|((&n, _), _)| n > 0)
-            .map(|((&n, &tau), &lot_id)| serde_json::json!({"lot_id": lot_id, "n": n, "tau": tau}))
+        let l = self.lot_offsets.len().saturating_sub(1);
+        let alive = alive_by_lot(&self.freshness, &self.lot_offsets);
+        let lots: Vec<serde_json::Value> = (0..l)
+            .filter(|&ell| alive.get(ell).copied().unwrap_or(0) > 0)
+            .map(|ell| {
+                let n = alive[ell];
+                let start = self.lot_offsets[ell];
+                let end = self.lot_offsets.get(ell + 1).copied().unwrap_or(start);
+                let mean_f = if n > 0 {
+                    self.freshness[start..end]
+                        .iter()
+                        .filter(|&&f| f > 0.0)
+                        .sum::<f64>()
+                        / f64::from(n)
+                } else {
+                    0.0
+                };
+                let tau = f_to_age(mean_f, self.params.eta_ref);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({"lot_id": lot_id, "n": n, "tau": tau})
+            })
             .collect();
         serde_json::Value::Array(lots)
     }
@@ -376,36 +405,50 @@ impl EngineSession {
         orders.iter().map(|&q| self.advance_one(q)).collect()
     }
 
-    fn belief_for_policy(&self) -> BeliefMean {
+    fn f_belief_for_policy(&self) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         if self.enable_filter {
-            belief_mean_from_bank(&self.bank, self.l_dim, self.k_dim)
+            let v = belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim);
+            (
+                json_f64_vec(&v["lot_counts"]),
+                json_f64_vec(&v["f_marginals"]),
+                json_f64_vec(&v["f_grid"]),
+            )
         } else {
-            BeliefMean::empty(self.l_dim, self.k_dim)
+            let k = self.k_dim.max(1);
+            let grid = f_grid_k(k);
+            let uniform = 1.0 / k as f64;
+            (
+                vec![0.0; self.l_dim],
+                vec![uniform; self.l_dim * k],
+                grid,
+            )
         }
     }
 
-    fn rollout_state_from_belief(belief: &BeliefMean) -> (Vec<u32>, Vec<f64>, Vec<i64>) {
-        let k = belief.tau_grid.len();
+    fn rollout_state_from_f_belief(
+        lot_counts: &[f64],
+        f_marginals: &[f64],
+        f_grid: &[f64],
+        eta_ref: f64,
+    ) -> (Vec<u32>, Vec<f64>, Vec<i64>) {
+        let l = lot_counts.len();
+        let k = f_grid.len();
         let mut counts = Vec::new();
         let mut taus = Vec::new();
         let mut ids = Vec::new();
-        for (i, &n_raw) in belief.lot_counts.iter().enumerate() {
-            let n = n_raw.round().max(0.0) as u32;
+        for ell in 0..l {
+            let n = lot_counts[ell].round().max(0.0) as u32;
             if n == 0 {
                 continue;
             }
-            let mut tau = 0.0;
-            if k > 0 && (i + 1) * k <= belief.age_marginals.len() {
-                let row = &belief.age_marginals[i * k..(i + 1) * k];
-                tau = row
-                    .iter()
-                    .zip(belief.tau_grid.iter())
-                    .map(|(&p, &t)| p * t)
-                    .sum();
+            let mut exp_f = 0.0;
+            for bin in 0..k {
+                let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
+                exp_f += p * f_grid[bin];
             }
             counts.push(n);
-            taus.push(tau);
-            ids.push((i + 1) as i64);
+            taus.push(f_to_age(exp_f, eta_ref));
+            ids.push((ell + 1) as i64);
         }
         (counts, taus, ids)
     }
@@ -423,7 +466,8 @@ impl EngineSession {
     ) -> DayDelta {
         self.require_init();
         let pending_sum: u32 = self.pending.values().copied().sum();
-        let belief = self.belief_for_policy();
+        let (lot_counts, f_marginals, f_grid) = self.f_belief_for_policy();
+        let f_pipe = 1.0;
         let alpha = alpha.unwrap_or(0.9);
         let rho = rho.unwrap_or(0.8);
         let h = h.unwrap_or(self.h);
@@ -434,30 +478,33 @@ impl EngineSession {
             "constant" | "const" | "fixed" => {
                 constant_order(order_qty.unwrap_or(0), self.params.case_size)
             }
-            "damped_sw" | "sw" => damped_sw_order_belief(
-                &belief.lot_counts,
-                &belief.age_marginals,
-                &belief.tau_grid,
+            "damped_sw" | "sw" => damped_sw_order_f_belief(
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
                 pending_sum,
                 self.day,
                 &self.params,
                 alpha,
                 rho,
                 Some(&self.schedule),
+                f_pipe,
             ),
             "rollout" | "ctl" | "rollout_order" => {
-                let base = damped_sw_order_belief(
-                    &belief.lot_counts,
-                    &belief.age_marginals,
-                    &belief.tau_grid,
+                let base = damped_sw_order_f_belief(
+                    &lot_counts,
+                    &f_marginals,
+                    &f_grid,
                     pending_sum,
                     self.day,
                     &self.params,
                     alpha,
                     rho,
                     Some(&self.schedule),
+                    f_pipe,
                 );
-                let (counts, taus, ids) = Self::rollout_state_from_belief(&belief);
+                let (counts, taus, ids) =
+                    Self::rollout_state_from_f_belief(&lot_counts, &f_marginals, &f_grid, self.params.eta_ref);
                 rollout_order(
                     &counts,
                     &taus,
@@ -511,7 +558,7 @@ impl EngineSession {
                 let log = &self.richest_log[day_idx as usize];
                 let obs = mask_for(obs_scenario).unwrap().apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
-                bank = filter_step(&bank, &obs, &self.params, &mut fr);
+                filter_step_unit(&mut bank, &obs, &self.params, &mut fr);
                 n += 1;
             }
             self.catchup_days_last = n;
@@ -539,8 +586,6 @@ impl EngineSession {
     }
 }
 
-const AGE_GRID_LO: f64 = 0.0;
-const AGE_GRID_HI: f64 = 8.0;
 const SCHEDULE_EPOCH: &str = "2024-01-01";
 const EMBEDDED_DEMAND_PROFILE: &str =
     include_str!("../../../data/freshnet/demand_profile.json");
@@ -554,75 +599,11 @@ fn apply_demand_profile(params: &mut ModelParams, profile: DemandProfile) {
     params.demand_profile = Some(profile);
 }
 
-fn tau_grid(k: usize) -> Vec<f64> {
-    if k == 0 {
-        return Vec::new();
-    }
-    if k == 1 {
-        return vec![0.0];
-    }
-    (0..k)
-        .map(|i| AGE_GRID_LO + (AGE_GRID_HI - AGE_GRID_LO) * (i as f64) / ((k - 1) as f64))
-        .collect()
-}
-
-#[allow(dead_code)] // kept for empty-physics overlay comments; live belief uses particle_bank_to_flat
-fn empty_flat_belief(l: usize, k: usize) -> serde_json::Value {
-    let grid = tau_grid(k);
-    if l == 0 {
-        return serde_json::json!({
-            "lot_counts": [],
-            "age_marginals": [],
-            "tau_grid": grid,
-            "L": 0,
-            "K": k,
-        });
-    }
-    let uniform = vec![1.0 / k as f64; k];
-    let mut age = Vec::with_capacity(l * k);
-    for _ in 0..l {
-        age.extend_from_slice(&uniform);
-    }
-    serde_json::json!({
-        "lot_counts": vec![0.0; l],
-        "age_marginals": age,
-        "tau_grid": grid,
-        "L": l,
-        "K": k,
-    })
-}
-
-fn nearest_bin(tau: f64, grid: &[f64]) -> usize {
-    let mut best = 0usize;
-    let mut best_d = f64::INFINITY;
-    for (i, &g) in grid.iter().enumerate() {
-        let d = (tau - g).abs();
-        if d < best_d {
-            best_d = d;
-            best = i;
-        }
-    }
-    best
-}
-
-#[allow(dead_code)] // unused: Snapshot.belief is particle_bank_to_flat; live_lots is physics overlay
-fn oracle_flat_belief(counts: &[u32], taus: &[f64], k: usize) -> serde_json::Value {
-    let l = counts.len();
-    let k = k.max(1);
-    let grid = tau_grid(k);
-    let lot_counts: Vec<f64> = counts.iter().map(|&n| n as f64).collect();
-    let mut age = vec![0.0; l * k];
-    for (i, &tau) in taus.iter().enumerate().take(l) {
-        let bin = nearest_bin(tau, &grid);
-        age[i * k + bin] = 1.0;
-    }
-    serde_json::json!({
-        "lot_counts": lot_counts,
-        "age_marginals": age,
-        "tau_grid": grid,
-        "L": l,
-        "K": k,
-    })
+fn json_f64_vec(value: &serde_json::Value) -> Vec<f64> {
+    value
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default()
 }
 
 fn schedule_wire(sched: &OrderSchedule) -> serde_json::Value {
@@ -764,6 +745,7 @@ impl EngineSession {
         let n_particles = rpc_u64(params, "n_particles").unwrap_or(200) as usize;
         let shipments = parse_shipments_from_rpc(params);
         let demand_profile = parse_demand_profile_from_rpc(params);
+        let units_per_lot = rpc_u64(params, "units_per_lot").map(|n| n as usize);
         self.configure(
             lead_time,
             enable_filter,
@@ -773,6 +755,7 @@ impl EngineSession {
             shipments,
             n_particles,
             demand_profile,
+            units_per_lot,
         );
         self.schedule.lead_time_days = self.lead_time;
     }
@@ -926,7 +909,7 @@ pub fn handle_rpc(request_json: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::policy::damped_sw_order_belief;
+    use crate::policy::damped_sw_order_f_belief;
 
     fn t121b_shipment() -> ShipmentTrace {
         ShipmentTrace {
@@ -939,10 +922,12 @@ mod tests {
         let mut s = EngineSession::new(seed);
         s.init(seed);
         s.set_belief_dims(2, 4);
-        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None);
-        for _ in 0..6 {
+        s.configure(1, false, 7, 2, 1, vec![t121b_shipment()], 32, None, None);
+        s.step(8);
+        for _ in 0..5 {
             s.step(0);
         }
+        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None, None);
         s
     }
 
@@ -1007,8 +992,8 @@ mod tests {
         assert_eq!(v["ok"], true);
         let belief = &v["result"]["belief"];
         assert!(belief["lot_counts"].is_array(), "{out}");
-        assert!(belief["age_marginals"].is_array());
-        assert!(belief["tau_grid"].is_array());
+        assert!(belief["f_marginals"].is_array());
+        assert!(belief["f_grid"].is_array());
         assert_eq!(belief["L"], 2);
         assert_eq!(belief["K"], 4);
         assert_eq!(v["result"]["episode_day"], 0);
@@ -1036,15 +1021,15 @@ mod tests {
         );
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["ok"], true, "{out}");
-        let age_mass: f64 = v["result"]["belief"]["age_marginals"]
+        let f_mass: f64 = v["result"]["belief"]["f_marginals"]
             .as_array()
             .unwrap()
             .iter()
             .filter_map(|x| x.as_f64())
             .sum();
         assert!(
-            age_mass > 0.0,
-            "filter-enabled init must expose non-zero age marginal mass"
+            f_mass > 0.0,
+            "filter-enabled init must expose non-zero f marginal mass"
         );
     }
 
@@ -1235,7 +1220,7 @@ mod tests {
     fn configure_sets_particle_count() {
         let mut s = EngineSession::new(1);
         s.init(1);
-        s.configure(1, true, 7, 2, 1, vec![], 200, None);
+        s.configure(1, true, 7, 2, 1, vec![], 200, None, None);
         assert_eq!(s.n_particles(), 200);
     }
 
@@ -1262,11 +1247,11 @@ mod tests {
     fn session_configure_loads_calendar_profile_and_uses_day_in_demand() {
         let mut s = EngineSession::new(0);
         s.init(0);
-        s.configure(1, false, 3, 1, 0, vec![], 16, None);
+        s.configure(1, false, 3, 1, 0, vec![], 16, None, None);
         let d0 = s.step(0);
         let mut s_dup = EngineSession::new(0);
         s_dup.init(0);
-        s_dup.configure(1, false, 3, 1, 0, vec![], 16, None);
+        s_dup.configure(1, false, 3, 1, 0, vec![], 16, None, None);
         let d0_dup = s_dup.step(0);
         assert_eq!(
             d0.demand, d0_dup.demand,
@@ -1274,7 +1259,7 @@ mod tests {
         );
         let mut s2 = EngineSession::new(0);
         s2.init(0);
-        s2.configure(1, false, 3, 1, 0, vec![], 16, None);
+        s2.configure(1, false, 3, 1, 0, vec![], 16, None, None);
         let mut demands = Vec::new();
         for _ in 0..90 {
             let d = s2.step(0);
@@ -1313,19 +1298,13 @@ mod tests {
             .collect()
     }
 
-    fn merged_age_mass(belief: &serde_json::Value) -> Vec<f64> {
+    fn max_row_entropy(belief: &serde_json::Value) -> f64 {
         let k = belief["K"].as_u64().unwrap_or(0) as usize;
         let l = belief["L"].as_u64().unwrap_or(0) as usize;
-        let counts = json_f64s(belief, "lot_counts");
-        let ages = json_f64s(belief, "age_marginals");
-        let mut m = vec![0.0; k];
-        for i in 0..l {
-            let c = counts.get(i).copied().unwrap_or(0.0);
-            for j in 0..k {
-                m[j] += c * ages.get(i * k + j).copied().unwrap_or(0.0);
-            }
-        }
-        m
+        let f_margs = json_f64s(belief, "f_marginals");
+        (0..l)
+            .map(|i| shannon(&f_margs[i * k..(i + 1) * k]))
+            .fold(0.0, f64::max)
     }
 
     fn step_until_arrivals(s: &mut EngineSession, orders: &[u32]) -> u32 {
@@ -1337,7 +1316,7 @@ mod tests {
         arrived
     }
 
-    /// AC: F2 vs P0 Snapshot.belief.age_marginals differ; live_lots identical.
+    /// AC: F2 vs P0 Snapshot.belief.f_marginals differ; live_lots identical.
     #[test]
     fn f2_belief_differs_from_p0_live_lots_unchanged() {
         let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
@@ -1358,8 +1337,8 @@ mod tests {
             "physics live_lots must match across rungs"
         );
         assert_ne!(
-            json_f64s(&snap_f2["belief"], "age_marginals"),
-            json_f64s(&snap_p0["belief"], "age_marginals"),
+            json_f64s(&snap_f2["belief"], "f_marginals"),
+            json_f64s(&snap_p0["belief"], "f_marginals"),
             "F2 particle posterior must differ from P0"
         );
     }
@@ -1376,8 +1355,8 @@ mod tests {
         p1.init(17);
         p1.set_obs_scenario("P1").unwrap();
         let _ = p1.step_n(&orders);
-        let h_f2a = shannon(&merged_age_mass(&f2a.snapshot_value()["belief"]));
-        let h_p1 = shannon(&merged_age_mass(&p1.snapshot_value()["belief"]));
+        let h_f2a = max_row_entropy(&f2a.snapshot_value()["belief"]);
+        let h_p1 = max_row_entropy(&p1.snapshot_value()["belief"]);
         assert!(
             h_f2a < h_p1 - 1e-9,
             "F2a entropy {h_f2a} should be < P1 {h_p1}"
@@ -1407,7 +1386,7 @@ mod tests {
         let b0 = p0.snapshot_value()["belief"].clone();
         let b1 = p1.snapshot_value()["belief"].clone();
         let same_counts = json_f64s(&b0, "lot_counts") == json_f64s(&b1, "lot_counts");
-        let same_ages = json_f64s(&b0, "age_marginals") == json_f64s(&b1, "age_marginals");
+        let same_ages = json_f64s(&b0, "f_marginals") == json_f64s(&b1, "f_marginals");
         assert!(
             !same_counts || !same_ages,
             "P0 omits waste LL so posterior must differ from P1"
@@ -1446,7 +1425,7 @@ mod tests {
         let b_f1 = f1.snapshot_value()["belief"].clone();
         let b_p1 = p1.snapshot_value()["belief"].clone();
         assert!(
-            json_f64s(&b_f1, "age_marginals") != json_f64s(&b_p1, "age_marginals")
+            json_f64s(&b_f1, "f_marginals") != json_f64s(&b_p1, "f_marginals")
                 || json_f64s(&b_f1, "lot_counts") != json_f64s(&b_p1, "lot_counts"),
             "F1 lot-resolved sales must move the posterior vs P1; F1={b_f1} P1={b_p1}"
         );
@@ -1460,34 +1439,34 @@ mod tests {
     #[test]
     fn catch_up_f2_matches_never_switched_and_not_oracle() {
         let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
-        let mut always = EngineSession::new(11);
-        always.init(11);
+        let mut always = EngineSession::new(42);
+        always.init(42);
         always.set_belief_dims(4, 8);
         always.set_obs_scenario("F2").unwrap();
         let _ = always.step_n(&orders);
         let b_always = always.snapshot_value()["belief"].clone();
 
-        let mut switched = EngineSession::new(11);
-        switched.init(11);
+        let mut switched = EngineSession::new(42);
+        switched.init(42);
         switched.set_belief_dims(4, 8);
         let _ = switched.step_n(&orders);
         switched.set_obs_scenario("F2").unwrap();
         let b_switched = switched.snapshot_value()["belief"].clone();
         assert_eq!(
-            json_f64s(&b_always, "age_marginals"),
-            json_f64s(&b_switched, "age_marginals"),
+            json_f64s(&b_always, "f_marginals"),
+            json_f64s(&b_switched, "f_marginals"),
             "day-keyed catch-up must match a never-switched F2 session"
         );
         assert_eq!(always.bank_weights(), switched.bank_weights());
 
-        let mut p0 = EngineSession::new(11);
-        p0.init(11);
+        let mut p0 = EngineSession::new(42);
+        p0.init(42);
         p0.set_belief_dims(4, 8);
         p0.set_obs_scenario("P0").unwrap();
         let _ = p0.step_n(&orders);
         assert_ne!(
-            json_f64s(&b_always, "age_marginals"),
-            json_f64s(&p0.snapshot_value()["belief"], "age_marginals"),
+            json_f64s(&b_always, "f_marginals"),
+            json_f64s(&p0.snapshot_value()["belief"], "f_marginals"),
             "caught-up F2 posterior must not collapse to P0/oracle"
         );
     }
@@ -1505,24 +1484,30 @@ mod tests {
     #[test]
     fn act_rollout_uses_belief_not_truth_counts() {
         let s = warm_t121b_session(_SEED);
-        let belief = belief_mean_from_bank(&s.bank, s.l_dim, s.k_dim);
+        let belief = belief_flat_from_unit_bank(&s.bank, s.l_dim, s.k_dim);
+        let lot_counts = json_f64s(&belief, "lot_counts");
+        let f_marginals = json_f64s(&belief, "f_marginals");
+        let f_grid = json_f64s(&belief, "f_grid");
         assert!(
-            belief.lot_counts.iter().any(|&x| x > 0.0),
+            lot_counts.iter().any(|&x| x > 0.0),
             "fixture must seed nontrivial belief mean"
         );
         let pending_sum: u32 = s.pending.values().copied().sum();
+        let f_pipe = 1.0;
         let belief_rollout = {
-            let (counts, taus, ids) = EngineSession::rollout_state_from_belief(&belief);
-            let base = damped_sw_order_belief(
-                &belief.lot_counts,
-                &belief.age_marginals,
-                &belief.tau_grid,
+            let (counts, taus, ids) =
+                EngineSession::rollout_state_from_f_belief(&lot_counts, &f_marginals, &f_grid, s.params.eta_ref);
+            let base = damped_sw_order_f_belief(
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
                 pending_sum,
                 s.day,
                 &s.params,
                 0.9,
                 0.8,
                 Some(&s.schedule),
+                f_pipe,
             );
             rollout_order(
                 &counts,

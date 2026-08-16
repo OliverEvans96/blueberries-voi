@@ -149,6 +149,7 @@ fn configured_session(n_particles: usize, k_dim: usize, l: usize) -> EngineSessi
         vec![smoke_shipment()],
         n_particles,
         None,
+        None,
     );
     let _ = s.set_obs_scenario("P1");
     s

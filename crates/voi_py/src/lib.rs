@@ -302,6 +302,7 @@ impl PyEngineSession {
             ships_from(times, temps),
             n_particles,
             demand_profile,
+            None,
         );
         if let Some(scenario) = obs_scenario {
             self.inner

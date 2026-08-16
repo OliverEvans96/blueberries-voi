@@ -3,6 +3,7 @@
 use serde_json::Value;
 
 use crate::particle_filter::ParticleBank;
+use crate::unit_pf::UnitParticleBank;
 
 const AGE_GRID_LO: f64 = 0.0;
 const AGE_GRID_HI: f64 = 8.0;
@@ -152,13 +153,6 @@ pub fn mean_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
             .collect(),
         taus,
     )
-}
-
-/// Unit-level particle bank (`unit_pf::UnitParticleBank` when that shard lands).
-#[derive(Clone, Debug)]
-pub struct UnitParticleBank {
-    pub weights: Vec<f64>,
-    pub freshness: Vec<Vec<f64>>,
 }
 
 /// Freshness bin centers in `[0, 1]` for wire dimension `K`.
@@ -382,7 +376,7 @@ mod tests {
 
     // --- T-C2-A AC-belief: f_grid / f_marginals / lot_counts from unit bank ---
 
-    fn unit_bank_fixture() -> UnitParticleBank {
+    fn unit_bank_fixture() -> crate::unit_pf::UnitParticleBank {
         // L=2, U=3: lot0 [1,1,0], lot1 [1,0.5,0] → alive counts 2 and 2.
         UnitParticleBank {
             weights: vec![1.0],
@@ -468,7 +462,7 @@ mod tests {
 
     #[test]
     fn belief_flat_from_unit_bank_empty_bank_zero_counts_uniform_marginals() {
-        let bank = UnitParticleBank {
+        let bank = crate::unit_pf::UnitParticleBank {
             weights: vec![],
             freshness: vec![],
         };
@@ -494,7 +488,7 @@ mod tests {
 
     #[test]
     fn belief_flat_from_unit_bank_weighted_particles() {
-        let bank = UnitParticleBank {
+        let bank = crate::unit_pf::UnitParticleBank {
             weights: vec![0.25, 0.75],
             freshness: vec![
                 vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0],

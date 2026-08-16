@@ -1,16 +1,16 @@
-//! SIM-02 CRN cell: shared physics, scenario-masked filter, SW+rollout policy.
+//! SIM-02 CRN cell: shared physics, scenario-masked unit PF, SW+rollout policy.
 
 use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use crate::belief_flat::particle_bank_to_flat;
-use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
+use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::physics::{draw_demand, weibull_survival};
-use crate::policy::{case_round, damped_sw_order, protection_demand_quantile};
-use crate::particle_filter::{filter_step, ParticleBank};
+use crate::physics::{draw_demand, f_to_age};
+use crate::policy::{damped_sw_order, damped_sw_order_f_belief};
+use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order};
 use crate::shipments::{generate_arrival_tau, ShipmentTrace};
 
@@ -20,10 +20,13 @@ pub const VOI_SCENARIOS: &[&str] = &["P0", "P1", "F1", "F1s", "F2a", "F2", "B-st
 
 const STREAM_DEMAND: u64 = 1;
 const STREAM_ALLOC: u64 = 2;
-const STREAM_SPOIL: u64 = 3;
+const STREAM_GAMMA: u64 = 3;
 const STREAM_SHIP: u64 = 4;
 const STREAM_SENSOR: u64 = 5;
 const STREAM_FILTER: u64 = 6;
+
+const FILTER_INIT_L: usize = 3;
+const FILTER_INIT_K: usize = 8;
 
 fn rng(root: u64, run_tag: u64, day: u32, stream: u64) -> Pcg64 {
     Pcg64::seed_from_u64(
@@ -52,101 +55,116 @@ fn pop_arrival(pending: &mut std::collections::BTreeMap<u32, u32>, day: u32) -> 
     pending.remove(&day).unwrap_or(0)
 }
 
-const FILTER_INIT_L: usize = 3;
-const FILTER_INIT_K: usize = 8;
-
-fn init_filter_bank(n: usize, root_seed: u64, scenario: &str) -> ParticleBank {
-    let tau_grid: Vec<f64> = if FILTER_INIT_K <= 1 {
-        vec![0.0]
-    } else {
-        (0..FILTER_INIT_K)
-            .map(|i| 8.0 * i as f64 / (FILTER_INIT_K - 1) as f64)
-            .collect()
-    };
+fn init_filter_bank(
+    n: usize,
+    root_seed: u64,
+    scenario: &str,
+    l: usize,
+    upl: usize,
+    k: usize,
+) -> UnitParticleBank {
+    let units = l * upl.max(1);
+    let grid = f_grid_k(k.max(1));
     let mut frng = rng(root_seed, filter_tag(scenario), 0, STREAM_FILTER);
-    let mut counts = Vec::with_capacity(n);
-    let mut taus = Vec::with_capacity(n);
-    for _ in 0..n {
-        let mut c = Vec::with_capacity(FILTER_INIT_L);
-        let mut t = Vec::with_capacity(FILTER_INIT_L);
-        for _ in 0..FILTER_INIT_L {
-            c.push(frng.random_range(0..8));
-            t.push(tau_grid[frng.random_range(0..FILTER_INIT_K)]);
-        }
-        counts.push(c);
-        taus.push(t);
-    }
-    ParticleBank {
+    let freshness: Vec<Vec<f64>> = (0..n)
+        .map(|_| {
+            (0..units)
+                .map(|_| {
+                    let bin = frng.random_range(0..grid.len());
+                    grid[bin]
+                })
+                .collect()
+        })
+        .collect();
+    UnitParticleBank {
         weights: vec![1.0 / n as f64; n],
-        counts,
-        taus,
+        freshness,
     }
 }
 
-fn effective_inventory_from_bank(
-    bank: &ParticleBank,
-    pending_sum: u32,
-    params: &ModelParams,
-) -> f64 {
-    let flat = particle_bank_to_flat(bank, FILTER_INIT_L, FILTER_INIT_K);
-    let lot_counts = flat["lot_counts"].as_array().expect("lot_counts");
-    let age_marginals = flat["age_marginals"].as_array().expect("age_marginals");
-    let grid = flat["tau_grid"].as_array().expect("tau_grid");
-    let mut on_hand = 0.0;
-    for slot in 0..FILTER_INIT_L {
-        let n = lot_counts[slot].as_f64().unwrap_or(0.0);
-        if n <= 0.0 {
-            continue;
-        }
-        for k in 0..FILTER_INIT_K {
-            let p = age_marginals[slot * FILTER_INIT_K + k].as_f64().unwrap_or(0.0);
-            let tau = grid[k].as_f64().unwrap_or(0.0);
-            on_hand += n * p * weibull_survival(tau, params.beta, params.eta_ref);
-        }
-    }
-    let pipeline_w = weibull_survival(0.0, params.beta, params.eta_ref);
-    on_hand + f64::from(pending_sum) * pipeline_w
+fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let v = belief_flat_from_unit_bank(bank, l, k);
+    let lot_counts: Vec<f64> = v["lot_counts"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default();
+    let f_marginals: Vec<f64> = v["f_marginals"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default();
+    let f_grid: Vec<f64> = v["f_grid"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default();
+    (lot_counts, f_marginals, f_grid)
 }
 
 fn damped_sw_from_bank(
-    bank: &ParticleBank,
+    bank: &UnitParticleBank,
     pending_sum: u32,
     day: u32,
     params: &ModelParams,
     alpha: f64,
     rho: f64,
 ) -> u32 {
-    let _ = day;
-    let i_tilde = effective_inventory_from_bank(bank, pending_sum, params);
-    let d_star = protection_demand_quantile(alpha, params, 2);
-    let raw = rho * (d_star - i_tilde).max(0.0);
-    case_round(raw, params.case_size)
+    let (lot_counts, f_marginals, f_grid) =
+        f_belief_from_bank(bank, FILTER_INIT_L, FILTER_INIT_K);
+    damped_sw_order_f_belief(
+        &lot_counts,
+        &f_marginals,
+        &f_grid,
+        pending_sum,
+        day,
+        params,
+        alpha,
+        rho,
+        None,
+        1.0,
+    )
 }
 
-/// ShelfBelief-style counts and marginal-mean taus for rollout (ADR 0106).
-fn ordering_belief_from_bank(bank: &ParticleBank) -> (Vec<u32>, Vec<f64>) {
-    if bank.counts.is_empty() || bank.counts.iter().all(|row| row.is_empty()) {
-        return (vec![], vec![]);
-    }
-    let flat = particle_bank_to_flat(bank, FILTER_INIT_L, FILTER_INIT_K);
-    let lot_counts = flat["lot_counts"].as_array().expect("lot_counts");
-    let age_marginals = flat["age_marginals"].as_array().expect("age_marginals");
-    let grid = flat["tau_grid"].as_array().expect("tau_grid");
-    let k = grid.len();
+fn ordering_belief_from_bank(bank: &UnitParticleBank, eta_ref: f64) -> (Vec<u32>, Vec<f64>) {
+    let (lot_counts, f_marginals, f_grid) =
+        f_belief_from_bank(bank, FILTER_INIT_L, FILTER_INIT_K);
+    let k = f_grid.len();
     let counts: Vec<u32> = lot_counts
         .iter()
-        .map(|c| c.as_f64().unwrap_or(0.0).ceil().max(0.0) as u32)
+        .map(|c| c.ceil().max(0.0) as u32)
         .collect();
     let mut taus = Vec::with_capacity(FILTER_INIT_L);
-    for slot in 0..FILTER_INIT_L {
-        let mut exp_tau = 0.0;
-        let mut mass = 0.0;
+    for ell in 0..FILTER_INIT_L {
+        let mut exp_f = 0.0;
         for bin in 0..k {
-            let p = age_marginals[slot * k + bin].as_f64().unwrap_or(0.0);
-            exp_tau += p * grid[bin].as_f64().unwrap_or(0.0);
-            mass += p;
+            let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
+            exp_f += p * f_grid[bin];
         }
-        taus.push(if mass > 0.0 { exp_tau / mass } else { 0.0 });
+        taus.push(f_to_age(exp_f, eta_ref));
+    }
+    (counts, taus)
+}
+
+fn truth_counts_taus(
+    freshness: &[f64],
+    lot_offsets: &[usize],
+    eta_ref: f64,
+) -> (Vec<u32>, Vec<f64>) {
+    let counts = alive_by_lot(freshness, lot_offsets);
+    let l = lot_offsets.len().saturating_sub(1);
+    let mut taus = Vec::with_capacity(l);
+    for ell in 0..l {
+        let n = counts.get(ell).copied().unwrap_or(0);
+        let start = lot_offsets[ell];
+        let end = lot_offsets.get(ell + 1).copied().unwrap_or(start);
+        let mean_f = if n > 0 {
+            freshness[start..end]
+                .iter()
+                .filter(|&&f| f > 0.0)
+                .sum::<f64>()
+                / f64::from(n)
+        } else {
+            0.0
+        };
+        taus.push(f_to_age(mean_f, eta_ref));
     }
     (counts, taus)
 }
@@ -190,25 +208,18 @@ fn run_scenario_episode(
     let horizon = budgets.n_burn + budgets.n_score;
     let oracle = scenario == "B-state";
     let n = budgets.filter_n.max(1) as usize;
+    let upl = params.units_per_lot.max(1);
     let mut bank = if oracle || scenario == "P0" {
-        ParticleBank {
+        UnitParticleBank {
             weights: vec![1.0 / n as f64; n],
-            counts: vec![vec![]; n],
-            taus: vec![vec![]; n],
+            freshness: vec![vec![]; n],
         }
     } else {
-        init_filter_bank(n, root_seed, scenario)
+        init_filter_bank(n, root_seed, scenario, FILTER_INIT_L, upl, FILTER_INIT_K)
     };
-    let mut state = DayStepIn {
-        counts: vec![],
-        taus: vec![],
-        lot_ids: vec![],
-        demand: None,
-        spoil_by: None,
-        delivery_n: 0,
-        delivery_tau: 0.0,
-        delivery_lot_id: 1,
-    };
+    let mut freshness: Vec<f64> = vec![];
+    let mut lot_offsets: Vec<usize> = vec![0];
+    let mut lot_ids: Vec<i64> = vec![];
     let mut pending: std::collections::BTreeMap<u32, u32> = std::collections::BTreeMap::new();
     let mut next_lot = 1i64;
     let mut scored = 0.0;
@@ -217,9 +228,9 @@ fn run_scenario_episode(
     for day in 0..horizon {
         let pending_sum: u32 = pending.values().copied().sum();
         let (b_counts, b_taus) = if oracle {
-            (state.counts.clone(), state.taus.clone())
+            truth_counts_taus(&freshness, &lot_offsets, params.eta_ref)
         } else {
-            ordering_belief_from_bank(&bank)
+            ordering_belief_from_bank(&bank, params.eta_ref)
         };
         let ids: Vec<i64> = (1..=b_counts.len().max(1) as i64).collect();
         let base_q = if oracle {
@@ -254,32 +265,62 @@ fn run_scenario_episode(
         };
         enqueue(&mut pending, day, budgets.lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
-        if arrival > 0 {
+        let pre_lot_ids = lot_ids.clone();
+        let arrival_tau = if arrival > 0 {
             let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
             let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let tau_in = generate_arrival_tau(
+            Some(generate_arrival_tau(
                 &mut rng_ship,
                 &mut rng_sensor,
                 shipments,
                 params.q10,
                 params.t_ref_c,
                 1.0,
-            );
-            state.delivery_n = arrival;
-            state.delivery_tau = tau_in;
-            state.delivery_lot_id = next_lot;
-            next_lot += 1;
+            ))
         } else {
-            state.delivery_n = 0;
-        }
+            None
+        };
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
         let demand = draw_demand(&mut rng_d, params, Some(day));
-        state.demand = Some(demand);
-        state.spoil_by = None;
-        let pre_lot_ids = state.lot_ids.clone();
-        let mut rng_a = rng(root_seed, phys, day, STREAM_ALLOC);
-        let mut rng_s = rng(root_seed, phys, day, STREAM_SPOIL);
-        let out = day_step(&state, params, Some(&mut rng_a), Some(&mut rng_s));
+        let mut rng_gamma = rng(root_seed, phys, day, STREAM_GAMMA);
+        let mut rng_alloc = rng(root_seed, phys, day, STREAM_ALLOC);
+        let mut rng_ship = if arrival > 0 {
+            Some(rng(root_seed, phys, day, STREAM_SHIP))
+        } else {
+            None
+        };
+        let mut rng_sensor = if arrival > 0 {
+            Some(rng(root_seed, phys, day, STREAM_SENSOR))
+        } else {
+            None
+        };
+        let input = UnitDayStepIn {
+            freshness,
+            lot_offsets,
+            demand: Some(demand),
+            gamma_decrement: None,
+            deliver: arrival > 0,
+            deliver_units: if arrival > 0 { Some(arrival) } else { None },
+            delivery_f: None,
+            units_per_lot: Some(upl),
+            age_at_receipt: arrival_tau,
+            pack_age_mean: arrival_tau,
+        };
+        let out = unit_day_step(
+            &input,
+            params,
+            shipments,
+            Some(&mut rng_gamma),
+            Some(&mut rng_alloc),
+            rng_ship.as_mut(),
+            rng_sensor.as_mut(),
+        );
+        freshness = out.freshness;
+        lot_offsets = out.lot_offsets;
+        if arrival > 0 {
+            lot_ids.push(next_lot);
+            next_lot += 1;
+        }
         if day >= budgets.n_burn {
             scored += day_profit(out.sales_total, out.waste_total, out.demand, 2.0, 1.5, 3.0);
         }
@@ -291,24 +332,13 @@ fn run_scenario_episode(
                 sales_by: out.sales_by.clone(),
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
-                age_at_receipt: if arrival > 0 {
-                    Some(state.delivery_tau)
-                } else {
-                    None
-                },
-                pack_date_days: if arrival > 0 {
-                    Some(state.delivery_tau.round() as i32)
-                } else {
-                    None
-                },
+                age_at_receipt: arrival_tau,
+                pack_date_days: arrival_tau.map(|t| t.round() as i32),
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
-            bank = filter_step(&bank, &obs, params, &mut frng);
+            filter_step_unit(&mut bank, &obs, params, &mut frng);
         }
-        state.counts = out.counts;
-        state.taus = out.taus;
-        state.lot_ids = out.lot_ids;
     }
     scored
 }
@@ -422,8 +452,8 @@ mod tests {
 
     #[test]
     fn init_filter_bank_yields_nonempty_ordering_belief() {
-        let bank = init_filter_bank(8, 42, "P0");
-        let (c, t) = ordering_belief_from_bank(&bank);
+        let bank = init_filter_bank(8, 42, "P0", FILTER_INIT_L, 15, FILTER_INIT_K);
+        let (c, t) = ordering_belief_from_bank(&bank, ModelParams::default().eta_ref);
         assert_eq!(c.len(), FILTER_INIT_L);
         assert_eq!(t.len(), FILTER_INIT_L);
         assert!(c.iter().any(|&n| n > 0), "counts {c:?} taus {t:?}");

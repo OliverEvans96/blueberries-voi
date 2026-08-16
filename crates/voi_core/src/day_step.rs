@@ -20,6 +20,8 @@ pub struct UnitDayStepIn {
     pub gamma_decrement: Option<f64>,
     /// Deliver a new lot this day.
     pub deliver: bool,
+    /// Total units to inject when `deliver` (default one lot width).
+    pub deliver_units: Option<u32>,
     /// Birth freshness for delivered units (`delivery_birth_f` when `None`).
     pub delivery_f: Option<f64>,
     /// Units injected per delivery (default `params.units_per_lot`, typically 15).
@@ -194,9 +196,13 @@ pub fn unit_day_step<R: Rng + ?Sized>(
                 input.pack_age_mean,
             )
         });
+        let total_units = input
+            .deliver_units
+            .unwrap_or(units_per_lot as u32)
+            .max(1) as usize;
         let start = freshness.len();
-        freshness.extend(vec![birth_f; units_per_lot]);
-        lot_offsets.push(start + units_per_lot);
+        freshness.extend(vec![birth_f; total_units]);
+        lot_offsets.push(start + total_units);
     }
 
     UnitDayStepOut {
@@ -383,6 +389,40 @@ mod tests {
     }
 
     #[test]
+    fn unit_day_step_produces_waste_when_inventory_ages() {
+        let params = ModelParams::default();
+        let mut input = UnitDayStepIn {
+            freshness: vec![0.9; 30],
+            lot_offsets: vec![0, 30],
+            demand: Some(0),
+            gamma_decrement: None,
+            deliver: false,
+            deliver_units: None,
+            delivery_f: None,
+            units_per_lot: None,
+            age_at_receipt: None,
+            pack_age_mean: None,
+        };
+        let mut rng_gamma = Pcg64::seed_from_u64(1);
+        let mut total_waste = 0u32;
+        for _ in 0..40 {
+            let out = unit_day_step(
+                &input,
+                &params,
+                &[],
+                Some(&mut rng_gamma),
+                None,
+                None,
+                None,
+            );
+            total_waste += out.waste_total;
+            input.freshness = out.freshness;
+            input.lot_offsets = out.lot_offsets;
+        }
+        assert!(total_waste > 0, "expected gamma spoil waste, got {total_waste}");
+    }
+
+    #[test]
     fn unit_day_step_gamma_and_picking_conserves_slots() {
         let params = ModelParams::default();
         let upl = 15;
@@ -392,6 +432,7 @@ mod tests {
             demand: Some(5),
             gamma_decrement: Some(0.05),
             deliver: false,
+            deliver_units: None,
             delivery_f: None,
             units_per_lot: None,
             age_at_receipt: None,
@@ -432,6 +473,7 @@ mod tests {
             demand: Some(0),
             gamma_decrement: Some(0.0),
             deliver: true,
+            deliver_units: None,
             delivery_f: Some(0.92),
             units_per_lot: None,
             age_at_receipt: None,

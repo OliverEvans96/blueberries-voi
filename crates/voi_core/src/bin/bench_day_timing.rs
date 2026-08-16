@@ -42,6 +42,7 @@ fn new_configured() -> EngineSession {
         vec![smoke_shipment()],
         N_PARTICLES,
         None,
+        None,
     );
     let _ = s.set_obs_scenario("P1");
     s

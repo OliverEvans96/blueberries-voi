@@ -255,6 +255,11 @@ fn path_value_f_belief(
             demand: Some(params.demand_mu.max(0.0) as u32),
             gamma_decrement: Some(gamma_decrement_for_store(params)),
             deliver: d == 0 || first_order > 0,
+            deliver_units: if d == 0 || first_order > 0 {
+                Some(first_order)
+            } else {
+                None
+            },
             delivery_f: Some(1.0),
             units_per_lot: Some(if d == 0 { first_order } else { first_order } as usize),
             age_at_receipt: None,

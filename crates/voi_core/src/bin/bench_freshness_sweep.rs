@@ -143,6 +143,7 @@ fn configured_session(
         vec![smoke_shipment()],
         n_particles,
         None,
+        None,
     );
     let _ = s.set_obs_scenario("P1");
     s
