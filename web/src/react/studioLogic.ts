@@ -44,7 +44,6 @@ import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
   EPISODE_HORIZON,
-  mountPlayChrome,
   mountSectionControls,
   type ControllerControlsState,
 } from "../controls";
@@ -165,11 +164,9 @@ export function initStudio(app: HTMLElement): () => void {
     return { policy: s.policy, budgets };
   }
 
-  let playChromeApi!: ReturnType<typeof mountPlayChrome>;
   let autopilot!: ReturnType<typeof createAutopilotLoop>;
 
   function syncAutopilotChrome(): void {
-    playChromeApi.setAutopilotRunning(autopilot.isRunning());
     renderDecisionRailChrome();
   }
 
@@ -187,7 +184,6 @@ export function initStudio(app: HTMLElement): () => void {
     ) as HTMLElement,
     beliefLg: document.querySelector("#chart-belief-lg") as HTMLElement,
     hoverNote: document.querySelector("#hover-note") as HTMLElement,
-    playChrome: document.querySelector("#play-chrome") as HTMLElement,
     sectionControls: document.querySelector("#section-controls") as HTMLElement,
     demand: document.querySelector("#chart-demand") as HTMLElement,
     salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
@@ -343,7 +339,7 @@ export function initStudio(app: HTMLElement): () => void {
         onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
         onOrderChange: (qty) => {
           orderQty = snapOrder(qty);
-          playChromeApi.update(controlsState());
+          sectionControlsApi.update(controlsState());
           renderDecisionRailChrome();
         },
         tradeoffForecasts,
@@ -415,11 +411,11 @@ export function initStudio(app: HTMLElement): () => void {
             : "Lots · day × freshness";
       }
     });
-    const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
-    if (belief && activeSection === "belief") {
+    const observation = STUDIO_SECTIONS.find((s) => s.id === "observation");
+    if (observation && activeSection === "observation") {
       els.focusBlurb.textContent = showTruth
-        ? `${belief.blurb} Truth lots overlay when enabled.`
-        : belief.blurb;
+        ? `${observation.blurb} Truth lots overlay when enabled.`
+        : observation.blurb;
     }
   }
 
@@ -551,12 +547,23 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  function syncTuningDockTabs(): void {
+    document
+      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
+      .forEach((tab) => {
+        const selected = tab.dataset.section === activeSection;
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+      });
+  }
+
   function setSection(id: SectionId): void {
     activeSection = id;
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
     renderChapterTabs();
+    syncTuningDockTabs();
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
@@ -589,7 +596,6 @@ export function initStudio(app: HTMLElement): () => void {
     renderDecisionRailChrome();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
-    playChromeApi.update(state);
     sectionControlsApi.update(state);
     wireDemandPreview();
   }
@@ -612,96 +618,57 @@ export function initStudio(app: HTMLElement): () => void {
     });
   }
 
-  playChromeApi = mountPlayChrome(
-    els.playChrome,
-    controlsState(),
-    {
-      onOrderChange(qty) {
-        orderQty = qty;
-        renderDecisionRailChrome();
-      },
-      onAdvance() {
-        void (async () => {
-          try {
-            if (vm.episode_day >= EPISODE_HORIZON) {
-              return;
-            }
-            if (!schedule) {
-              throw new Error("schedule missing — init/reset before advance");
-            }
-            const orders = buildStepNOrders(
-              vm.episode_day,
-              orderQty,
-              schedule,
-            );
-            const deltas = await adapter.step_n(orders);
-            for (const delta of deltas) {
-              vm = projector.applyDelta(delta);
-            }
-            if (deltas.length > 0) {
-              const completed = deltas[deltas.length - 1]!.episode_day;
-              vm = { ...vm, episode_day: completed + 1 };
-            }
-            onHoverDay(null, null);
-            renderAll();
-            void refreshRemotePanes();
-          } catch (err) {
-            reportStudioAdapterError(
-              `Advance failed: ${formatAdapterError(err)}`,
-              undefined,
-              err,
-            );
-          }
-        })();
-      },
-      onReset() {
-        void (async () => {
-          try {
-            if (autopilot.isRunning()) {
-              autopilot.pause();
-              syncAutopilotChrome();
-            }
-            const snap = await adapter.reset({ ...vm.config });
-            captureSchedule(snap);
-            vm = projector.applySnapshot(snap);
-            projector.markConfigApplied();
-            orderQty = snapOrder(orderQty);
-            onHoverDay(null, null);
-            renderAll();
-            void refreshRemotePanes();
-          } catch (err) {
-            reportStudioAdapterError(
-              `Reset failed: ${formatAdapterError(err)}`,
-              undefined,
-              err,
-            );
-          }
-        })();
-      },
-      onAutopilotPlay() {
-        if (vm.episode_day >= EPISODE_HORIZON) {
-          autopilot.pause();
-          syncAutopilotChrome();
-          return;
-        }
-        autopilot.play();
-        syncAutopilotChrome();
-      },
-      onAutopilotPause() {
+  async function advanceEpisode(): Promise<void> {
+    try {
+      if (vm.episode_day >= EPISODE_HORIZON) {
+        return;
+      }
+      if (!schedule) {
+        throw new Error("schedule missing — init/reset before advance");
+      }
+      const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
+      const deltas = await adapter.step_n(orders);
+      for (const delta of deltas) {
+        vm = projector.applyDelta(delta);
+      }
+      if (deltas.length > 0) {
+        const completed = deltas[deltas.length - 1]!.episode_day;
+        vm = { ...vm, episode_day: completed + 1 };
+      }
+      onHoverDay(null, null);
+      renderAll();
+      void refreshRemotePanes();
+    } catch (err) {
+      reportStudioAdapterError(
+        `Advance failed: ${formatAdapterError(err)}`,
+        undefined,
+        err,
+      );
+    }
+  }
+
+  async function resetEpisode(): Promise<void> {
+    try {
+      if (autopilot.isRunning()) {
         autopilot.pause();
         syncAutopilotChrome();
-      },
-      onShowTruthChange(show) {
-        showTruth = show;
-        saveShowTruth(show);
-        renderAll();
-      },
-    },
-    {
-      showTruth,
-      truthClassTarget: app,
-    },
-  );
+      }
+      const snap = await adapter.reset({ ...vm.config });
+      captureSchedule(snap);
+      vm = projector.applySnapshot(snap);
+      projector.markConfigApplied();
+      orderQty = snapOrder(orderQty);
+      onHoverDay(null, null);
+      renderAll();
+      void refreshRemotePanes();
+    } catch (err) {
+      reportStudioAdapterError(
+        `Reset failed: ${formatAdapterError(err)}`,
+        undefined,
+        err,
+      );
+    }
+  }
 
   autopilot = createAutopilotLoop({
     act: (opts) => {
@@ -747,7 +714,8 @@ export function initStudio(app: HTMLElement): () => void {
       const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
       if (typeof q === "number") {
         orderQty = snapOrder(q);
-        playChromeApi.update(controlsFromVm(vm, orderQty));
+        sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
+        renderDecisionRailChrome();
       }
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
@@ -775,10 +743,9 @@ export function initStudio(app: HTMLElement): () => void {
         vm = projector.setConfig(partial);
         if (partial.case_size != null) {
           orderQty = snapOrder(orderQty);
-          playChromeApi.update(controlsState());
         }
-        playChromeApi.update(controlsState());
         sectionControlsApi.update(controlsState());
+        renderDecisionRailChrome();
         renderActiveFocusPlots();
         // Autopilot pauses when staged config is dirty (AC).
         if (vm.config_dirty && autopilot.isRunning()) {
@@ -796,16 +763,21 @@ export function initStudio(app: HTMLElement): () => void {
     },
     (caseSize) => {
       orderQty = snapOrder(orderQty);
-      playChromeApi.setOrderFromCaseChange(orderQty, caseSize);
+      sectionControlsApi.update({
+        ...controlsState(),
+        orderQty,
+        config: { ...vm.config, case_size: caseSize },
+      });
+      renderDecisionRailChrome();
     },
     controllerState,
   );
 
   railHandlers.onAdvance = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-advance")?.click();
+    void advanceEpisode();
   };
   railHandlers.onReset = () => {
-    els.playChrome.querySelector<HTMLButtonElement>("#btn-reset")?.click();
+    void resetEpisode();
   };
   railHandlers.onAutopilotPlay = () => {
     if (vm.episode_day >= EPISODE_HORIZON) {
@@ -894,6 +866,21 @@ export function initStudio(app: HTMLElement): () => void {
       setSection(STUDIO_SECTIONS[n - 1]!.id);
     }
   });
+
+  function wireTuningDockTabs(): void {
+    document
+      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
+      .forEach((tab) => {
+        if (tab.dataset.bound === "1") return;
+        tab.dataset.bound = "1";
+        tab.addEventListener("click", () => {
+          const id = tab.dataset.section as SectionId | undefined;
+          if (id) setSection(id);
+        });
+      });
+  }
+
+  wireTuningDockTabs();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;

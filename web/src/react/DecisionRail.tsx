@@ -77,6 +77,7 @@ export function DecisionRail({
           <button
             type="button"
             className="btn-advance"
+            id="btn-advance"
             disabled={autopilotRunning || atEnd}
             onClick={onAdvance}
           >
@@ -98,7 +99,7 @@ export function DecisionRail({
           >
             Autopilot Pause
           </button>
-          <button type="button" className="btn-reset" onClick={onReset}>
+          <button type="button" className="btn-reset" id="btn-reset" onClick={onReset}>
             Reset
           </button>
         </div>

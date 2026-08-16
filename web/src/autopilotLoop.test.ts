@@ -10,8 +10,8 @@ import type { DayDelta } from "./engine/types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AUTOPILOT_LOOP_TS = join(HERE, "autopilotLoop.ts");
-const CONTROLS_TS = join(HERE, "controlsPlayMount.tsx");
-const PLAY_CHROME_TS = join(HERE, "react/PlayChrome.tsx");
+const CONTROLS_TS = join(HERE, "controls.ts");
+const DECISION_RAIL_TS = join(HERE, "react/DecisionRail.tsx");
 const MAIN_TS = join(HERE, "react/studioLogic.ts");
 
 function sampleDelta(orderQty: number, episodeDay = 1): DayDelta {
@@ -374,24 +374,18 @@ describe("createAutopilotLoop pause on error / config_dirty + order sync (T-100)
   });
 });
 
-describe("Play chrome Autopilot Play/Pause (T-100)", () => {
-  it("mountPlayChrome exposes Autopilot Play and Autopilot Pause labels", () => {
-    const src = readFileSync(CONTROLS_TS, "utf8") + readFileSync(PLAY_CHROME_TS, "utf8");
-    expect(src).toMatch(/function\s+mountPlayChrome\b/);
+describe("Decision rail Autopilot Play/Pause (T-100)", () => {
+  it("DecisionRail exposes Autopilot Play and Autopilot Pause labels", () => {
+    const src = readFileSync(DECISION_RAIL_TS, "utf8") + readFileSync(MAIN_TS, "utf8");
     expect(
       src,
-      "expected Autopilot Play accessible name/label in play chrome",
+      "expected Autopilot Play accessible name/label in decision rail",
     ).toMatch(/Autopilot\s+Play/);
     expect(
       src,
-      "expected Autopilot Pause accessible name/label in play chrome",
+      "expected Autopilot Pause accessible name/label in decision rail",
     ).toMatch(/Autopilot\s+Pause/);
-    // T-100 open question: Advance disabled while Autopilot runs (not step+pause).
-    // T-112 also disables Advance at episode day 90.
-    expect(src).toMatch(/Advance is disabled/);
-    expect(src).toMatch(
-      /btnAdvance\.disabled\s*=\s*(running|autopilotRunning\s*\|\|)|disabled=\{autopilotRunning \|\| atEnd\}/,
-    );
+    expect(src).toMatch(/disabled=\{autopilotRunning \|\| atEnd\}/);
   });
 
   it("react/studioLogic.ts wires createAutopilotLoop (adapter.act path, not generate autopilot)", () => {

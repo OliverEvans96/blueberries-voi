@@ -1,6 +1,5 @@
 /**
- * T-099 RED: Controller section (nav key 8), controls knobs, plotIds,
- * react/studioLogic.ts chart mount wiring.
+ * T-099 / T-127: Autopilot section (renamed from controller).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -45,50 +44,46 @@ function stubLocalStorage(): void {
   });
 }
 
-describe("Controller section registration (T-099)", () => {
-  it("STUDIO_SECTIONS has controller as the 8th entry (nav key 8)", () => {
+describe("Autopilot section registration (T-127 shell)", () => {
+  it("STUDIO_SECTIONS has autopilot as the 8th entry (nav key 8)", () => {
     expect(STUDIO_SECTIONS).toHaveLength(8);
     expect(STUDIO_SECTIONS[7]).toBeDefined();
-    expect(STUDIO_SECTIONS[7]!.id).toBe("controller");
-    expect(STUDIO_SECTIONS[7]!.label).toMatch(/^Controller$/i);
+    expect(STUDIO_SECTIONS[7]!.id).toBe("autopilot");
+    expect(STUDIO_SECTIONS[7]!.label).toMatch(/^Autopilot$/i);
   });
 
-  it("SectionId union in sections.ts includes controller", () => {
+  it("SectionId union in sections.ts includes autopilot", () => {
     const src = readFileSync(SECTIONS_TS, "utf8");
     const typeBlock = src.match(
       /export\s+type\s+SectionId\s*=([\s\S]*?);/,
     )?.[1];
     expect(typeBlock, "expected SectionId type alias").toBeDefined();
-    expect(typeBlock).toMatch(/\|\s*"controller"/);
+    expect(typeBlock).toMatch(/\|\s*"autopilot"/);
   });
 
-  it("loadSection / saveSection accept controller and round-trip", () => {
+  it("loadSection / saveSection accept autopilot and round-trip", () => {
     stubLocalStorage();
-    saveSection("controller" as SectionId);
-    expect(MEMORY_STORE.get(SECTION_STORAGE_KEY)).toBe("controller");
-    expect(loadSection()).toBe("controller");
+    saveSection("autopilot" as SectionId);
+    expect(MEMORY_STORE.get(SECTION_STORAGE_KEY)).toBe("autopilot");
+    expect(loadSection()).toBe("autopilot");
   });
 
-  it("Belief and earlier sections remain intact at their indices", () => {
-    expect(STUDIO_SECTIONS[0]?.id).toBe("play");
-    expect(STUDIO_SECTIONS[6]?.id).toBe("belief");
-    const belief = STUDIO_SECTIONS.find((s) => s.id === "belief");
-    expect(belief).toBeDefined();
-    expect(belief!.plotIds).toEqual(
-      expect.arrayContaining(["plot-belief-age-marginal", "plot-belief-lg"]),
-    );
+  it("migrates legacy controller storage key to autopilot", () => {
+    stubLocalStorage();
+    MEMORY_STORE.set(SECTION_STORAGE_KEY, "controller");
+    expect(loadSection()).toBe("autopilot");
   });
 
-  it("controller plotIds include orders plot and reuse plot-inventory", () => {
-    const controller = STUDIO_SECTIONS.find((s) => s.id === "controller");
-    expect(controller).toBeDefined();
-    const ids = controller!.plotIds;
+  it("autopilot plotIds include orders plot and reuse plot-inventory", () => {
+    const autopilot = STUDIO_SECTIONS.find((s) => s.id === "autopilot");
+    expect(autopilot).toBeDefined();
+    const ids = autopilot!.plotIds;
     expect(ids).toContain("plot-controller-orders");
     expect(ids).toContain("plot-inventory");
   });
 });
 
-describe("Controller controls (T-099)", () => {
+describe("Autopilot controls (T-099 legacy controller block)", () => {
   it("controls.ts mounts a controller block with policy / alpha / rho / budgets / interval", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).toMatch(/data-section=["']controller["']/);
@@ -121,7 +116,7 @@ describe("Controller controls (T-099)", () => {
   });
 });
 
-describe("Controller chart wiring (T-099)", () => {
+describe("Autopilot chart wiring (T-099)", () => {
   it("ships controllerOrders chart module", () => {
     expect(
       existsSync(CONTROLLER_ORDERS_TS),

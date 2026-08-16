@@ -1,12 +1,12 @@
 export type SectionId =
-  | "play"
+  | "economics"
   | "pricing"
   | "physics"
   | "demand"
   | "logistics"
   | "arrival"
-  | "belief"
-  | "controller";
+  | "observation"
+  | "autopilot";
 
 export type StudioSection = {
   id: SectionId;
@@ -20,11 +20,12 @@ export type StudioSection = {
 
 export const STUDIO_SECTIONS: StudioSection[] = [
   {
-    id: "play",
-    label: "Play",
-    blurb: "Run the store day by day. Watch inventory age, sales, and spoilage unfold.",
-    plotIds: ["plot-sales-demand"],
-    controlSection: "play",
+    id: "economics",
+    label: "Economics",
+    blurb:
+      "Revenue, cost, and profit drivers — P&L recomputes from stored units without re-simulating physics.",
+    plotIds: ["plot-sales-demand", "plot-pnl"],
+    controlSection: "economics",
   },
   {
     id: "pricing",
@@ -63,33 +64,44 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     controlSection: "arrival",
   },
   {
-    id: "belief",
-    label: "Belief",
+    id: "observation",
+    label: "Observation",
     blurb:
-      "Freshness×count belief density, with a top f marginal on the shared freshness axis.",
-    plotIds: ["plot-belief-age-marginal", "plot-belief-lg"],
-    controlSection: "belief",
+      "Knowledge changes what the store sees, so future orders can change. Use the decision rail to switch observation rungs.",
+    plotIds: [],
+    controlSection: "observation",
   },
   {
-    id: "controller",
-    label: "Controller",
+    id: "autopilot",
+    label: "Autopilot",
     blurb:
       "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
     plotIds: ["plot-controller-orders", "plot-inventory"],
-    controlSection: "controller",
+    controlSection: "autopilot",
   },
 ];
 
 export const SECTION_STORAGE_KEY = "blueberries-voi-studio-section";
 
+const LEGACY_SECTION_IDS: Record<string, SectionId> = {
+  play: "demand",
+  belief: "observation",
+  controller: "autopilot",
+};
+
 export function loadSection(): SectionId {
   try {
     const raw = localStorage.getItem(SECTION_STORAGE_KEY);
-    if (STUDIO_SECTIONS.some((s) => s.id === raw)) return raw as SectionId;
+    if (raw && STUDIO_SECTIONS.some((s) => s.id === raw)) {
+      return raw as SectionId;
+    }
+    if (raw && raw in LEGACY_SECTION_IDS) {
+      return LEGACY_SECTION_IDS[raw]!;
+    }
   } catch {
     /* ignore */
   }
-  return "play";
+  return "demand";
 }
 
 export function saveSection(id: SectionId): void {

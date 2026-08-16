@@ -15,16 +15,16 @@ export const GUIDED_PATHS: GuidedPath[] = [
   {
     id: "books-baseline",
     title: "Books-only baseline",
-    description: "Start at P0 with Play — no daily shrink signal.",
+    description: "Start at P0 with Demand — no daily shrink signal.",
     scenario: "P0",
-    section: "play",
+    section: "demand",
   },
   {
     id: "shrink-story",
     title: "Shrink gun story",
-    description: "P1 default rung with Belief heatmap.",
+    description: "P1 default rung with Observation ladder.",
     scenario: "P1",
-    section: "belief",
+    section: "observation",
   },
   {
     id: "arrival-prior",

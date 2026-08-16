@@ -7,7 +7,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
 import { createElement } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import { DecisionRail } from "./DecisionRail";
 import { StudioLayout } from "./StudioLayout";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -118,5 +122,41 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
 
   it("does not mount StoreChartTabs for always-on Primary/Secondary", () => {
     expect(layoutSrc).not.toMatch(/StoreChartTabs/);
+  });
+
+  it("renders run controls exactly once (no hidden PlayChrome duplicate)", () => {
+    const { container } = render(createElement(StudioLayout));
+    const host = container.querySelector("#decision-rail-host");
+    expect(host).not.toBeNull();
+    const root = createRoot(host!);
+    flushSync(() => {
+      root.render(
+        createElement(DecisionRail, {
+          vm: {
+            episode_day: 1,
+            window_days: 90,
+            config: DEFAULT_SIM_CONFIG,
+          },
+          showTruth: false,
+          orderQty: 24,
+          activeSection: "demand",
+          onAdvance: () => undefined,
+          onReset: () => undefined,
+          onAutopilotPlay: () => undefined,
+          onAutopilotPause: () => undefined,
+          onSetObsScenario: () => undefined,
+          onShowTruthChange: () => undefined,
+          onOrderChange: () => undefined,
+        }),
+      );
+    });
+
+    for (const id of ["order-range", "order-num", "btn-advance", "btn-reset"]) {
+      const nodes = container.querySelectorAll(`#${id}`);
+      expect(nodes.length, `expected exactly one #${id}`).toBe(1);
+    }
+
+    expect(container.querySelector("#play-chrome")).toBeNull();
+    root.unmount();
   });
 });

@@ -16,8 +16,8 @@
 }
 
 .cockpit-row--charts {
-  flex: 2; /* Take more space for primary charts */
-  min-height: 280px;
+  flex: 3;
+  min-height: 480px;
 }
 
 .cockpit-row--operations {
@@ -51,7 +51,7 @@
 
 .cockpit-pane--primary,
 .cockpit-pane--secondary {
-  min-height: 280px;
+  min-height: 420px;
 }
 
 .cockpit-pane--economics,

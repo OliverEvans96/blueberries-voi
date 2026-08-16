@@ -110,7 +110,6 @@ export function StudioLayout() {
           <div id="economics-pane-host" className="cockpit-pane cockpit-pane--economics" />
           <div id="events-pane-host" className="cockpit-pane cockpit-pane--events" />
           <div className="cockpit-pane cockpit-pane--run">
-            <div id="play-chrome" hidden />
             <section className="run-today panel" aria-label="Today strip">
               <h3 className="run-today-heading">Today</h3>
               <div className="chart-stack run-today-charts">
@@ -163,26 +162,65 @@ export function StudioLayout() {
               aria-label="Tuning clusters"
             >
               <div className="tuning-cluster" role="presentation">
-                <span className="tuning-cluster-label">World config</span>
+                <span className="tuning-cluster-label">Sim params</span>
                 <div className="tuning-cluster-tabs">
-                  <button type="button" role="tab" data-tuning-cluster="world">
-                    Demand · Logistics · Physics
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="demand"
+                    aria-controls="section-controls"
+                  >
+                    Demand
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="observation"
+                    aria-controls="section-controls"
+                  >
+                    Observation
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="arrival"
+                    aria-controls="section-controls"
+                  >
+                    Arrival
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="physics"
+                    aria-controls="section-controls"
+                  >
+                    Physics
                   </button>
                 </div>
               </div>
               <div className="tuning-cluster" role="presentation">
-                <span className="tuning-cluster-label">Sensing</span>
+                <span className="tuning-cluster-label">Logistics</span>
                 <div className="tuning-cluster-tabs">
-                  <button type="button" role="tab" data-tuning-cluster="sensing">
-                    Arrival · Belief
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="logistics"
+                    aria-controls="section-controls"
+                  >
+                    Logistics
                   </button>
                 </div>
               </div>
               <div className="tuning-cluster" role="presentation">
                 <span className="tuning-cluster-label">Autopilot</span>
                 <div className="tuning-cluster-tabs">
-                  <button type="button" role="tab" data-tuning-cluster="autopilot">
-                    Controller
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="autopilot"
+                    aria-controls="section-controls"
+                  >
+                    Autopilot
                   </button>
                 </div>
               </div>
@@ -197,7 +235,7 @@ export function StudioLayout() {
             </div>
             <div className="tuning-dock-body">
               <div className="focus-header">
-                <h2 id="focus-title">Play</h2>
+                <h2 id="focus-title">Demand</h2>
                 <p className="focus-blurb" id="focus-blurb" />
               </div>
               <div id="section-controls" />

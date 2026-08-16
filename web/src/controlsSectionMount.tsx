@@ -28,7 +28,7 @@ export function mountSectionControls(
   const domRoot = createRoot(root);
   let state = initial;
   let controllerState = { ...initialController };
-  let visibleSection: SectionId = "play";
+  let visibleSection: SectionId = "demand";
 
   function render(): void {
     domRoot.render(

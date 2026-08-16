@@ -486,7 +486,6 @@ export function controlsFromVm(
   };
 }
 
-export { mountPlayChrome } from "./controlsPlayMount";
 export { mountSectionControls } from "./controlsSectionMount";
 
 export { mountSectionControlsDom };

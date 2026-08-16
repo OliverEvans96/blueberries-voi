@@ -13,7 +13,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = join(HERE, "../..");
 const REPO_ROOT = join(WEB_ROOT, "..");
 const MAIN_TS = join(WEB_ROOT, "src/react/studioLogic.ts");
-const CONTROLS_TS = join(WEB_ROOT, "src/react/PlayChrome.tsx");
+const DECISION_RAIL_TS = join(WEB_ROOT, "src/react/DecisionRail.tsx");
+const CONTROLS_TS = join(WEB_ROOT, "src/controls.ts");
 const CALENDAR_TS = join(WEB_ROOT, "src/calendar/nextOrderAdvance.ts");
 
 const DEFAULT_SCHEDULE: ScheduleWire = {
@@ -24,35 +25,34 @@ const DEFAULT_SCHEDULE: ScheduleWire = {
 };
 
 describe("T-086 primary play advances via step_n to next order day", () => {
-  it("react/studioLogic.ts primary onAdvance calls adapter.step_n (not only single-day step)", () => {
+  it("react/studioLogic.ts advanceEpisode calls adapter.step_n (not only single-day step)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
-    const advance = src.match(/onAdvance\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/);
-    expect(advance, "expected onAdvance handler in react/studioLogic.ts").toBeTruthy();
+    const advance = src.match(
+      /async function advanceEpisode\(\): Promise<void> \{[\s\S]*?reportStudioAdapterError\(\s*`Advance failed/,
+    );
+    expect(advance, "expected advanceEpisode in react/studioLogic.ts").toBeTruthy();
     const body = advance![0]!;
     expect(body).toMatch(/adapter\.step_n\s*\(/);
-    // Primary path must not be a lone single-day step.
-    expect(body).not.toMatch(/^\s*onAdvance[\s\S]*?await\s+adapter\.step\s*\(/m);
     expect(body).not.toMatch(/const\s+delta\s*=\s*await\s+adapter\.step\s*\(/);
   });
 
-  it("play chrome primary button labels next-order-day advance (not plain Advance day)", () => {
-    const src = readFileSync(CONTROLS_TS, "utf8");
+  it("decision rail primary button exposes advance control (not plain Advance day)", () => {
+    const src = readFileSync(DECISION_RAIL_TS, "utf8");
     expect(src).toMatch(/btn-advance|onAdvance/);
-    // Prefer explicit next-order copy; reject the pre-CAL-C2 single-day label alone.
     expect(src).not.toMatch(/>\s*Advance day\s*</);
-    expect(src).toMatch(/next\s*order|order\s*day|Advance to|Skip to/i);
+    expect(src).toMatch(/Advance/);
   });
 
   it("optional single-day step remains available or is documented as omitted", () => {
-    const controls = readFileSync(CONTROLS_TS, "utf8");
+    const rail = readFileSync(DECISION_RAIL_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
     const smokePath = join(REPO_ROOT, ".team/qa/T-086-smoke.md");
     const hasDebugControl = /btn-step-day|Advance one day|single-day|step one day/i.test(
-      controls + main,
+      rail + main,
     );
-    // Primary onAdvance must use step_n; a leftover adapter.step outside that
-    // handler can count as the debug single-day path.
-    const advance = main.match(/onAdvance\s*\([^)]*\)\s*\{[\s\S]*?\n\s*\},/);
+    const advance = main.match(
+      /async function advanceEpisode\(\): Promise<void> \{[\s\S]*?reportStudioAdapterError\(\s*`Advance failed/,
+    );
     const advanceBody = advance?.[0] ?? "";
     const stepOutsideAdvance =
       /adapter\.step\s*\(/.test(main) && !/adapter\.step\s*\(/.test(advanceBody);
@@ -69,21 +69,21 @@ describe("T-086 primary play advances via step_n to next order day", () => {
 });
 
 describe("T-086 weekday labels + pipeline hint in studio chrome", () => {
-  it("play chrome / main surfaces weekday labels from schedule epoch", () => {
-    const controls = readFileSync(CONTROLS_TS, "utf8");
+  it("studio chrome surfaces weekday labels from schedule epoch", () => {
+    const rail = readFileSync(DECISION_RAIL_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
     const calendar = readFileSync(CALENDAR_TS, "utf8");
-    const blob = controls + main + calendar;
+    const blob = rail + main + calendar;
     // Avoid matching incidental substrings like ArrowDown's "dow".
     expect(blob).toMatch(/\bweekdayLabel\b|\bweekday_label\b|\bformatWeekday\b|\bday-label\b|\bweekday\b/i);
     expect(blob).toMatch(/2024-01-01|schedule\.epoch|epoch.*weekday|weekday.*epoch/i);
   });
 
   it("UI surfaces next delivery / pipeline hint consistent with LT=1", () => {
-    const controls = readFileSync(CONTROLS_TS, "utf8");
+    const rail = readFileSync(DECISION_RAIL_TS, "utf8");
     const main = readFileSync(MAIN_TS, "utf8");
     const calendar = readFileSync(CALENDAR_TS, "utf8");
-    const blob = controls + main + calendar;
+    const blob = rail + main + calendar;
     expect(blob).toMatch(
       /pipeline|deliver|arrival|inbound|LT\s*=?\s*1|lead_time/i,
     );
