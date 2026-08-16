@@ -22,8 +22,8 @@ use rand_pcg::Pcg64;
 use serde::Serialize;
 use voi_core::exact_ll::log_p_sales_waste_given_ages;
 use voi_core::{
-    day_step, filter_step, mask_for, picking_weights, DayStepIn, EngineSession, ModelParams,
-    ParticleBank, RichDay, ShipmentTrace,
+    day_step, filter_step, filter_step_unit, mask_for, DayStepIn, EngineSession, ModelParams,
+    ParticleBank, RichDay, UnitParticleBank, ShipmentTrace,
 };
 
 const SEED: u64 = 42;
@@ -277,126 +277,22 @@ fn bench_baseline(cfg: BenchCfg, n: usize, k: usize) -> (f64, Vec<f64>) {
     })
 }
 
-fn unit_f_to_tau(f: f64, eta: f64) -> f64 {
-    (1.0 - f).max(0.0) * eta
-}
-
-/// Kernel-weighted sequential picking along one path — O(sales × units).
-fn sequential_kernel_path_logprob(
-    freshness: &[f64],
-    sales: usize,
-    params: &ModelParams,
-    rng: &mut Pcg64,
-) -> f64 {
-    let taus: Vec<f64> = freshness
-        .iter()
-        .map(|&f| unit_f_to_tau(f, params.eta_ref))
-        .collect();
-    let base_w = picking_weights(
-        &taus,
-        params.sigma,
-        params.beta,
-        params.eta_ref,
-        params.uniform_picking,
-    );
-    let mut alive = vec![true; freshness.len()];
-    let mut log_p = 0.0;
-    for _ in 0..sales {
-        let mut tot = 0.0;
-        for i in 0..freshness.len() {
-            if alive[i] {
-                tot += base_w[i];
-            }
-        }
-        if tot <= 0.0 {
-            return f64::NEG_INFINITY;
-        }
-        let draw = rng.random::<f64>() * tot;
-        let mut acc = 0.0;
-        let mut picked = 0usize;
-        for i in 0..freshness.len() {
-            if !alive[i] {
-                continue;
-            }
-            acc += base_w[i];
-            if draw < acc {
-                picked = i;
-                break;
-            }
-        }
-        log_p += (base_w[picked] / tot).ln();
-        alive[picked] = false;
-    }
-    log_p
-}
-
-fn binom_pmf(k: i32, n: i32, p: f64) -> f64 {
-    if k < 0 || k > n || n < 0 {
-        return 0.0;
-    }
-    let mut coef = 1.0;
-    for i in 0..k {
-        coef *= (n - i) as f64 / (i + 1) as f64;
-    }
-    coef * p.powi(k) * (1.0 - p).powi(n - k)
-}
-
 fn bench_c2_a(cfg: BenchCfg, n: usize, l: usize, upl: usize) -> (f64, Vec<f64>) {
-    let units = l * upl;
-    let gamma = Gamma::new(2.0, 0.05).expect("gamma");
     let (obs, params) = bench_obs_units(l, upl);
-    let sales = obs.sales_tot.unwrap_or(2).max(0) as usize;
-    let waste = obs.waste_tot.unwrap_or(1);
     time_cell(cfg, || {
         let mut rng = Pcg64::seed_from_u64(SEED);
-        let mut freshness: Vec<Vec<f64>> = (0..n)
-            .map(|_| {
-                (0..units)
-                    .map(|_| 0.4 + rng.random::<f64>() * 0.55)
-                    .collect()
-            })
-            .collect();
-        let mut log_w = vec![0.0f64; n];
-        for p in 0..n {
-            for f in &mut freshness[p] {
-                *f -= gamma.sample(&mut rng);
-                if *f <= 0.0 {
-                    *f = 0.0;
-                }
-            }
-            let alive = freshness[p].iter().filter(|&&f| f > 0.0).count();
-            if alive < sales {
-                log_w[p] = -1e300;
-                continue;
-            }
-            let ll_sales =
-                sequential_kernel_path_logprob(&freshness[p], sales, &params, &mut rng);
-            let dead = freshness[p].iter().filter(|&&f| f <= 0.0).count() as i32;
-            let rem = alive as i32 - sales as i32;
-            let p_die = (dead as f64 / units as f64).clamp(0.0, 1.0);
-            let pw = binom_pmf(waste, rem, p_die);
-            log_w[p] = if pw > 0.0 && ll_sales.is_finite() {
-                ll_sales + pw.ln()
-            } else {
-                -1e300
-            };
-        }
-        let mx = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let mut w: Vec<f64> = log_w.iter().map(|lw| (lw - mx).exp()).collect();
-        let z: f64 = w.iter().sum();
-        if z > 0.0 {
-            for x in &mut w {
-                *x /= z;
-            }
-        }
-        let mut cdf = 0.0;
-        for i in 0..n {
-            cdf += w[i];
-            if cdf >= 0.5 {
-                freshness[0] = freshness[i].clone();
-                break;
-            }
-        }
+        let units = l * upl;
+        let mut bank = UnitParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            freshness: (0..n)
+                .map(|_| {
+                    (0..units)
+                        .map(|_| 0.4 + rng.random::<f64>() * 0.55)
+                        .collect()
+                })
+                .collect(),
+        };
+        filter_step_unit(&mut bank, &obs, &params, &mut rng);
     })
 }
 
