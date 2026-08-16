@@ -1,6 +1,7 @@
 /**
  * T-127 RED (qa-tradeoff-ui): tradeoff chart renderers — bands and histogram lookup.
  */
+// @vitest-environment jsdom
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,22 +55,22 @@ const CANDIDATES: QForecast[] = [
   },
 ];
 
+import type { QForecastEntry } from "./tradeoffCurve";
+import {
+  nearestCandidateQ,
+  renderTradeoffCurve as renderTradeoffCurveSvg,
+} from "./tradeoffCurve";
+import { renderTradeoffHistogram as renderTradeoffHistogramSvg } from "./tradeoffHistogram";
+
 async function loadCurve() {
-  if (!existsSync(CURVE)) return null;
-  try {
-    return await import(CURVE);
-  } catch {
-    return null;
-  }
+  return {
+    renderTradeoffCurve: renderTradeoffCurveSvg,
+    nearestCandidateQ,
+  };
 }
 
 async function loadHist() {
-  if (!existsSync(HIST)) return null;
-  try {
-    return await import(HIST);
-  } catch {
-    return null;
-  }
+  return { renderTradeoffHistogram: renderTradeoffHistogramSvg };
 }
 
 describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {

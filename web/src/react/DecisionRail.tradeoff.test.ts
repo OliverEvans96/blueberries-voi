@@ -69,7 +69,7 @@ function baseProps() {
     orderQty: 16,
     onOrderChange: vi.fn(),
     activeSection: "physics" as const,
-    tradeoffForecast: { candidates: FIXTURE_CANDIDATES },
+    tradeoffForecasts: FIXTURE_CANDIDATES,
   };
 }
 

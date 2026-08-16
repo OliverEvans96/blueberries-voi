@@ -1,11 +1,17 @@
 import type { SectionId } from "../sections";
 import type { ScenarioId, ViewModel } from "../types";
+import type { QForecastEntry } from "../charts/tradeoffForecast";
 import { SCENARIO_COPY, OBS_LADDER_IDS } from "../controls";
+import {
+  nearestForecast,
+  renderTradeoffCurve,
+  renderTradeoffHistogram,
+} from "../charts/tradeoffForecast";
 
 const LADDER = OBS_LADDER_IDS;
 
 export type DecisionRailProps = {
-  vm: Pick<ViewModel, "episode_day" | "window_days" | "config" | "pnl_totals">;
+  vm: Pick<ViewModel, "episode_day" | "window_days" | "config">;
   showTruth: boolean;
   catchingUp?: boolean;
   onAdvance: () => void;
@@ -18,12 +24,8 @@ export type DecisionRailProps = {
   onOrderChange: (qty: number) => void;
   activeSection: SectionId;
   autopilotRunning?: boolean;
+  tradeoffForecasts?: QForecastEntry[];
 };
-
-function formatMoney(n: number): string {
-  const sign = n < 0 ? "−" : "";
-  return `${sign}$${Math.abs(n).toFixed(0)}`;
-}
 
 export function DecisionRail({
   vm,
@@ -38,9 +40,9 @@ export function DecisionRail({
   onOrderChange,
   autopilotRunning = false,
   catchingUp = false,
+  tradeoffForecasts = [],
 }: DecisionRailProps) {
   const atEnd = vm.episode_day >= vm.window_days;
-  const t = vm.pnl_totals;
 
   return (
     <aside className="decision-rail sticky">
@@ -100,6 +102,33 @@ export function DecisionRail({
             Reset
           </button>
         </div>
+        <div className="tradeoff-charts" data-testid="tradeoff-charts">
+          <div>
+            <div className="chart-caption">Tradeoff curve</div>
+            <div
+              id="tradeoff-curve-host"
+              className="tradeoff-chart-host"
+              ref={(node) => {
+                if (node) renderTradeoffCurve(node, tradeoffForecasts, orderQty);
+              }}
+            />
+          </div>
+          <div>
+            <div className="chart-caption">Joint histogram</div>
+            <div
+              id="tradeoff-histogram-host"
+              className="tradeoff-chart-host"
+              ref={(node) => {
+                if (node) {
+                  renderTradeoffHistogram(
+                    node,
+                    nearestForecast(tradeoffForecasts, orderQty),
+                  );
+                }
+              }}
+            />
+          </div>
+        </div>
       </section>
 
       <section className="decision-rail-ladder">
@@ -143,27 +172,6 @@ export function DecisionRail({
           </span>
           <span className="truth-toggle-text">{showTruth ? "On" : "Off"}</span>
         </button>
-      </section>
-
-      <section
-        className="decision-rail-pnl"
-        data-testid="pnl-consolidated"
-        id="chart-pnl-totals"
-      >
-        <div className="pnl-totals">
-          <div className="pnl-row">
-            <span className="pnl-label">Episode revenue</span>
-            <span className="pnl-value">{formatMoney(t.revenue)}</span>
-          </div>
-          <div className="pnl-row">
-            <span className="pnl-label">Episode cost</span>
-            <span className="pnl-value">{formatMoney(t.cost)}</span>
-          </div>
-          <div className="pnl-row pnl-row--emphasis">
-            <span className="pnl-label">Episode profit</span>
-            <span className="pnl-value">{formatMoney(t.profit)}</span>
-          </div>
-        </div>
       </section>
     </aside>
   );
