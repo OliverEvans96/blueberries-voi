@@ -19,8 +19,8 @@ use rand_pcg::Pcg64;
 use serde::Serialize;
 use voi_core::exact_ll::log_p_sales_waste_given_ages;
 use voi_core::{
-    filter_step, picking_weights, sequential_wor_composition_prob, FilterObs, ModelParams,
-    ParticleBank,
+    filter_step, filter_step_unit, picking_weights, sequential_wor_composition_prob, FilterObs,
+    ModelParams, ParticleBank, UnitParticleBank,
 };
 
 const DAYS: usize = 14;
@@ -386,54 +386,6 @@ fn percentile(vals: &[f64], p: f64) -> f64 {
     v[idx.min(v.len() - 1)]
 }
 
-fn sequential_kernel_path_logprob(
-    freshness: &[f64],
-    sales: usize,
-    params: &ModelParams,
-    rng: &mut Pcg64,
-) -> f64 {
-    let taus: Vec<f64> = freshness
-        .iter()
-        .map(|&f| unit_tau(f, params.eta_ref))
-        .collect();
-    let base_w = picking_weights(
-        &taus,
-        params.sigma,
-        params.beta,
-        params.eta_ref,
-        params.uniform_picking,
-    );
-    let mut alive = vec![true; freshness.len()];
-    let mut log_p = 0.0;
-    for _ in 0..sales {
-        let mut tot = 0.0;
-        for i in 0..freshness.len() {
-            if alive[i] {
-                tot += base_w[i];
-            }
-        }
-        if tot <= 0.0 {
-            return f64::NEG_INFINITY;
-        }
-        let draw = rng.random::<f64>() * tot;
-        let mut acc = 0.0;
-        let mut picked = 0usize;
-        for i in 0..freshness.len() {
-            if !alive[i] {
-                continue;
-            }
-            acc += base_w[i];
-            if draw < acc {
-                picked = i;
-                break;
-            }
-        }
-        log_p += (base_w[picked] / tot).ln();
-        alive[picked] = false;
-    }
-    log_p
-}
-
 fn marginal_tv(a: &[f64], b: &[f64]) -> f64 {
     0.5 * a.iter().zip(b).map(|(x, y)| (x - y).abs()).sum::<f64>()
 }
@@ -656,64 +608,45 @@ fn run_unit_pf(
     let edges = freshness_bins(SCORE_K);
 
     let mut units_f: Vec<f64> = (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect();
-    let mut freshness: Vec<Vec<f64>> = (0..n_particles)
-        .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
-        .collect();
-    let mut log_w = vec![0.0f64; n_particles];
+    let mut bank = UnitParticleBank {
+        weights: vec![1.0 / n_particles as f64; n_particles],
+        freshness: (0..n_particles)
+            .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
+            .collect(),
+    };
     let mut ess_trace = Vec::new();
 
-    for day in 0..DAYS {
-        let (sales, _waste, sales_by) =
+    for _day in 0..DAYS {
+        let (sales, waste, sales_by) =
             simulate_truth_day(&mut units_f, &offsets, params, &mut rng, gamma);
-        for p in 0..n_particles {
-            for f in &mut freshness[p] {
-                if *f > 0.0 {
-                    *f = (*f - gamma_decrement(&mut rng, gamma)).max(0.0);
-                }
+        let obs = if obs_mode == "sales_by" {
+            FilterObs {
+                sales_tot: Some(sales),
+                waste_tot: Some(waste),
+                sales_by: Some(sales_by.iter().map(|&x| x as u32).collect()),
+                arrivals: 0,
+                ..Default::default()
             }
-            let alive = freshness[p].iter().filter(|&&f| f > 0.0).count();
-            let ll = if obs_mode == "totals" && alive >= sales as usize {
-                let mut sub =
-                    Pcg64::seed_from_u64(seed.wrapping_add(p as u64).wrapping_add(day as u64));
-                sequential_kernel_path_logprob(&freshness[p], sales as usize, params, &mut sub)
-            } else if obs_mode == "sales_by" {
-                let mut s = 0.0;
-                for ell in 0..n_lots {
-                    let sl = &freshness[p][offsets[ell]..offsets[ell + 1]];
-                    let alive_f: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
-                    let mean_f = if alive_f.is_empty() {
-                        0.0
-                    } else {
-                        alive_f.iter().sum::<f64>() / alive_f.len() as f64
-                    };
-                    s += -(mean_f - sales_by[ell] as f64 / upl as f64).abs();
-                }
-                s
-            } else {
-                -1e9
-            };
-            log_w[p] = ll;
-        }
-        let mx = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let mut w: Vec<f64> = log_w.iter().map(|lw| (lw - mx).exp()).collect();
-        let z: f64 = w.iter().sum();
-        for x in &mut w {
-            *x /= z.max(1e-300);
-        }
-        ess_trace.push(ess(&w));
-        let idx = resample(&mut rng, n_particles, &w);
-        freshness = idx.into_iter().map(|i| freshness[i].clone()).collect();
-        log_w.fill(0.0);
+        } else {
+            FilterObs {
+                sales_tot: Some(sales),
+                waste_tot: Some(waste),
+                arrivals: 0,
+                ..Default::default()
+            }
+        };
+        filter_step_unit(&mut bank, &obs, params, &mut rng);
+        ess_trace.push(ess(&bank.weights));
     }
 
     let truth_mf = lot_mean_f(&units_f, &offsets);
     let truth_h = truth_hist_per_lot(&units_f, &offsets, &edges);
-    let n_particles = freshness.len();
+    let n_particles = bank.freshness.len();
     let mut pred_mf = vec![0.0; n_lots];
     let mut pred_h = vec![vec![0.0; SCORE_K]; n_lots];
     for p in 0..n_particles {
         for ell in 0..n_lots {
-            let sl = &freshness[p][offsets[ell]..offsets[ell + 1]];
+            let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
             let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
             let mf = if alive.is_empty() {
                 0.0
@@ -748,7 +681,7 @@ fn run_unit_pf(
         .map(|p| {
             (0..n_lots)
                 .map(|ell| {
-                    let sl = &freshness[p][offsets[ell]..offsets[ell + 1]];
+                    let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
                     let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
                     if alive.is_empty() {
                         0.0
