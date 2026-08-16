@@ -176,8 +176,81 @@ pub fn f_grid_k(k: usize) -> Vec<f64> {
 
 /// Flatten `UnitParticleBank` onto the f-native `L×K` belief wire (ADR 0130).
 pub fn belief_flat_from_unit_bank(bank: &UnitParticleBank, l: usize, k: usize) -> Value {
-    let _ = (bank, l, k);
-    unimplemented!("belief_flat_from_unit_bank")
+    let grid = f_grid_k(k);
+    let n = bank.weights.len();
+    let w_sum: f64 = bank.weights.iter().sum();
+    let units_per_lot = if l > 0 && !bank.freshness.is_empty() {
+        bank.freshness[0].len() / l
+    } else {
+        0
+    };
+
+    let mut lot_counts = vec![0.0; l];
+    if w_sum > 0.0 && units_per_lot > 0 {
+        for slot in 0..l {
+            let start = slot * units_per_lot;
+            let end = start + units_per_lot;
+            let mut acc = 0.0;
+            for i in 0..n {
+                let alive = bank
+                    .freshness
+                    .get(i)
+                    .and_then(|row| row.get(start..end))
+                    .map(|units| units.iter().filter(|&&f| f > 0.0).count() as f64)
+                    .unwrap_or(0.0);
+                acc += bank.weights[i] * alive;
+            }
+            lot_counts[slot] = acc / w_sum;
+        }
+    }
+
+    let mut f_marginals = vec![0.0; l.saturating_mul(k)];
+    if k > 0 {
+        if w_sum > 0.0 && units_per_lot > 0 {
+            for i in 0..n {
+                let w = bank.weights[i];
+                if w == 0.0 {
+                    continue;
+                }
+                let freshness = bank.freshness.get(i).map(Vec::as_slice).unwrap_or(&[]);
+                for slot in 0..l {
+                    let start = slot * units_per_lot;
+                    let end = start + units_per_lot;
+                    if end > freshness.len() {
+                        continue;
+                    }
+                    for &f in &freshness[start..end] {
+                        if f > 0.0 {
+                            let bin = nearest_bin(f, &grid);
+                            f_marginals[slot * k + bin] += w;
+                        }
+                    }
+                }
+            }
+        }
+        for slot in 0..l {
+            let row = &mut f_marginals[slot * k..(slot + 1) * k];
+            let z: f64 = row.iter().sum();
+            if z > 0.0 {
+                for x in row.iter_mut() {
+                    *x /= z;
+                }
+            } else {
+                let u = 1.0 / k as f64;
+                for x in row.iter_mut() {
+                    *x = u;
+                }
+            }
+        }
+    }
+
+    serde_json::json!({
+        "f_grid": grid,
+        "f_marginals": f_marginals,
+        "lot_counts": lot_counts,
+        "L": l,
+        "K": k,
+    })
 }
 
 #[cfg(test)]
