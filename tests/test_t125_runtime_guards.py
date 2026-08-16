@@ -88,3 +88,22 @@ def test_engine_dir_has_no_http_or_pyodide_adapter_files() -> None:
         "T-125 guard: retired studio adapters still in web/src/engine: "
         + ", ".join(present)
     )
+
+
+def test_studio_sh_is_wasm_only_no_mode_flags() -> None:
+    """Launcher must not require --wasm; WASM is the only studio engine path."""
+    text = (_REPO_ROOT / "scripts" / "studio.sh").read_text(encoding="utf-8")
+    for flag in ("--wasm", "--http", "--pyodide"):
+        assert flag not in text, (
+            f"T-125 guard: studio.sh still mentions {flag}; launcher is WASM-only"
+        )
+    assert "VITE_ENGINE_ADAPTER=wasm" in text
+
+
+def test_package_json_has_single_studio_script() -> None:
+    pkg = (_REPO_ROOT / "web" / "package.json").read_text(encoding="utf-8")
+    for script in ("studio:http", "studio:pyodide", "studio:wasm"):
+        assert script not in pkg, (
+            f"T-125 guard: web/package.json still defines {script}; use studio only"
+        )
+    assert "studio.sh" in pkg

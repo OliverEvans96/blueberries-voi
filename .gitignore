@@ -1,5 +1,8 @@
 # Python
 __pycache__/
+# T-125 / ADR 0129 retired studio hosts (delete if recreated locally)
+packaging/pyodide/
+src/blueberries_voi/api/
 *.py[cod]
 *.so
 .Python
