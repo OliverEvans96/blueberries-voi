@@ -27,7 +27,8 @@ _FORBIDDEN_KEYS = frozenset(
     }
 )
 
-_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "age_marginals", "tau_grid", "L", "K"})
+_FLAT_BELIEF_KEYS = frozenset({"lot_counts", "f_marginals", "f_grid", "L", "K"})
+_LEGACY_BELIEF_KEYS = frozenset({"age_marginals", "tau_grid"})
 _SNAPSHOT_REQUIRED = frozenset(
     {"seq", "episode_day", "belief", "schedule", "demand_summary"}
 )
@@ -71,8 +72,16 @@ def _is_nested_sequence(value: Any) -> bool:
 
 
 def validate_flat_belief(obj: Mapping[str, Any], *, label: str = "belief") -> None:
-    """Raise if ``obj`` is not a flat L / L*K / K belief buffer."""
+    """Raise if ``obj`` is not a flat L / L*K / K f-native belief buffer."""
     belief = _require_mapping(obj, label=label)
+    legacy = _LEGACY_BELIEF_KEYS & {str(k) for k in belief}
+    if legacy:
+        msg = (
+            f"{label} must not expose legacy τ-wire keys "
+            f"{sorted(legacy)} (forbidden on f-native wire)"
+        )
+        raise ValueError(msg)
+
     missing = _FLAT_BELIEF_KEYS - {str(k) for k in belief}
     if missing:
         msg = f"{label} missing flat belief fields {sorted(missing)}"
@@ -86,33 +95,43 @@ def validate_flat_belief(obj: Mapping[str, Any], *, label: str = "belief") -> No
         raise TypeError(msg) from exc
 
     lot_counts = belief["lot_counts"]
-    age_marginals = belief["age_marginals"]
-    tau_grid = belief["tau_grid"]
+    f_marginals = belief["f_marginals"]
+    f_grid = belief["f_grid"]
 
     if not _is_nested_sequence(lot_counts):
         msg = f"{label}.lot_counts must be a sequence of floats"
         raise TypeError(msg)
-    if not _is_nested_sequence(age_marginals):
-        msg = f"{label}.age_marginals must be a flat sequence of floats"
+    if not _is_nested_sequence(f_marginals):
+        msg = f"{label}.f_marginals must be a flat sequence of floats"
         raise TypeError(msg)
-    if not _is_nested_sequence(tau_grid):
-        msg = f"{label}.tau_grid must be a sequence of floats"
+    if not _is_nested_sequence(f_grid):
+        msg = f"{label}.f_grid must be a sequence of floats"
         raise TypeError(msg)
+
+    for i, x in enumerate(f_marginals):
+        if _is_nested_sequence(x):
+            msg = f"{label}.f_marginals[{i}] is nested; wire requires flat L*K"
+            raise TypeError(msg)
 
     if len(lot_counts) != l_dim:
         msg = f"{label}: len(lot_counts)={len(lot_counts)} != L={l_dim}"
         raise ValueError(msg)
-    if len(age_marginals) != l_dim * k_dim:
-        msg = f"{label}: len(age_marginals)={len(age_marginals)} != L*K={l_dim * k_dim}"
+    if len(f_marginals) != l_dim * k_dim:
+        msg = f"{label}: len(f_marginals)={len(f_marginals)} != L*K={l_dim * k_dim}"
         raise ValueError(msg)
-    if len(tau_grid) != k_dim:
-        msg = f"{label}: len(tau_grid)={len(tau_grid)} != K={k_dim}"
+    if len(f_grid) != k_dim:
+        msg = f"{label}: len(f_grid)={len(f_grid)} != K={k_dim}"
         raise ValueError(msg)
 
-    for i, x in enumerate(age_marginals):
-        if _is_nested_sequence(x):
-            msg = f"{label}.age_marginals[{i}] is nested; wire requires flat L*K"
-            raise TypeError(msg)
+    for i, f_val in enumerate(f_grid):
+        try:
+            fv = float(f_val)
+        except (TypeError, ValueError) as exc:
+            msg = f"{label}.f_grid[{i}] must be a number"
+            raise TypeError(msg) from exc
+        if fv < 0.0 or fv > 1.0:
+            msg = f"{label}.f_grid[{i}]={fv} outside freshness [0, 1]"
+            raise ValueError(msg)
 
 
 def _validate_weekday_list(value: Any, *, label: str) -> None:

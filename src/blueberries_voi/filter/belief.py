@@ -202,6 +202,16 @@ def empty_f_shelf_belief(*, f_grid: Sequence[float]) -> FreshShelfBelief:
     )
 
 
+def flatten_f_belief(belief: FreshShelfBelief) -> dict[str, Any]:
+    """Flat f-native wire: lot_counts, f_marginals, f_grid, L, K."""
+    return belief.to_export()
+
+
+def unflatten_f_belief(payload: Mapping[str, Any]) -> FreshShelfBelief:
+    """Rebuild ``FreshShelfBelief`` from a flat f-native wire buffer."""
+    return FreshShelfBelief.from_export(payload)
+
+
 def effective_inventory_f_belief(
     belief: FreshShelfBelief,
     *,
@@ -230,7 +240,9 @@ __all__ = [
     "effective_inventory_f_belief",
     "empty_f_shelf_belief",
     "empty_shelf_belief",
+    "flatten_f_belief",
     "shelf_belief_from_cohorts_oracle",
     "shelf_belief_from_f_oracle",
     "shelf_belief_from_oracle",
+    "unflatten_f_belief",
 ]

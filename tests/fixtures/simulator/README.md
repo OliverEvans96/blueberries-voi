@@ -12,7 +12,7 @@ Frozen JSON examples of the Python → host wire contract:
 
 - **Filter:** filter-on (`enable_filter=True`) under ADR 0099 / `DEMO_BUDGETS`
   (`n_particles=200`, `H=7`, `n_rollout_paths=2`, `candidate_case_radius=1`).
-- **Shelf:** `L=2`, `K=4` (flat `age_marginals` length `L*K=8`).
+- **Shelf:** `L=2`, `K=4` (flat `f_marginals` length `L*K=8`, `f_grid` on `[0, 1]`).
 - **Seed:** `42`
 - **Shipments:** two in-memory `ShipmentTrace` values (no parquet / Abdella FS).
 - **Order:** first delta uses `order_qty=16`; `step_n` uses `[0, 16, 0]`.
