@@ -114,6 +114,30 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 });
 
+describe("Cockpit grid responsive shell (T-127 AC-layout)", () => {
+  const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
+  const css = readFileSync(STYLES_CSS, "utf8");
+
+  it("cockpitGrid.css or styles.css defines cockpit-grid breakpoints at 1100px and 720px", () => {
+    const cockpitCssPath = join(HERE, "styles/cockpitGrid.css");
+    const cockpitCss = existsSync(cockpitCssPath)
+      ? readFileSync(cockpitCssPath, "utf8")
+      : css;
+    expect(cockpitCss).toMatch(/cockpit-grid/);
+    expect(cockpitCss).toMatch(/1100px/);
+    expect(cockpitCss).toMatch(/720px/);
+  });
+
+  it(".shell.studio scroll not clipped by cockpit rows at narrow widths", () => {
+    const cockpitCssPath = join(HERE, "styles/cockpitGrid.css");
+    const cockpitCss = existsSync(cockpitCssPath)
+      ? readFileSync(cockpitCssPath, "utf8")
+      : css;
+    expect(cockpitCss).toMatch(/overflow/);
+    expect(layoutSrc).toMatch(/cockpit-grid/);
+  });
+});
+
 describe("Missed-sales CSS tokens (T-116)", () => {
   const css = readFileSync(STYLES_CSS, "utf8");
 
