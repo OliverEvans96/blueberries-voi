@@ -9,13 +9,13 @@ use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
-use crate::physics::{draw_demand, draw_demand_spawn, f_to_age};
+use crate::physics::{draw_demand, draw_demand_spawn};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::rollout_order;
 use crate::schedule::OrderSchedule;
-use crate::shipments::{generate_arrival_tau, ShipmentTrace};
+use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -208,19 +208,19 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let arrival_tau = if arrival > 0 {
+        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rs = stream_rng(self.seed, self.day, 4);
             let mut rn = stream_rng(self.seed, self.day, 5);
-            Some(generate_arrival_tau(
+            let (f, tau, pack) = arrival_receipt_meta(
                 &mut rs,
                 &mut rn,
                 &self.shipments,
-                self.params.q10,
-                self.params.t_ref_c,
+                &self.params,
                 1.0,
-            ))
+            );
+            (Some(f), Some(tau), Some(pack))
         } else {
-            None
+            (None, None, None)
         };
         let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
@@ -250,8 +250,8 @@ impl EngineSession {
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: None,
             units_per_lot: Some(self.params.units_per_lot),
-            age_at_receipt: arrival_tau,
-            pack_age_mean: arrival_tau,
+            age_at_receipt: None,
+            pack_age_mean: None,
         };
         let out = unit_day_step(
             &input,
@@ -275,8 +275,9 @@ impl EngineSession {
             sales_by: out.sales_by.clone(),
             waste_by: out.waste_by.clone(),
             lot_ids: pre_lot_ids,
-            age_at_receipt: arrival_tau,
-            pack_date_days: arrival_tau.map(|t| t.round() as i32),
+            f_at_receipt,
+            age_at_receipt,
+            pack_date_days,
         };
         if self.enable_filter {
             let obs = mask_for(&self.obs_scenario).unwrap().apply(&rich);
@@ -372,9 +373,8 @@ impl EngineSession {
                 } else {
                     0.0
                 };
-                let tau = f_to_age(mean_f, self.params.eta_ref);
                 let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
-                serde_json::json!({"lot_id": lot_id, "n": n, "tau": tau})
+                serde_json::json!({"lot_id": lot_id, "n": n, "mean_f": mean_f})
             })
             .collect();
         serde_json::Value::Array(lots)
@@ -423,34 +423,6 @@ impl EngineSession {
                 grid,
             )
         }
-    }
-
-    fn rollout_state_from_f_belief(
-        lot_counts: &[f64],
-        f_marginals: &[f64],
-        f_grid: &[f64],
-        eta_ref: f64,
-    ) -> (Vec<u32>, Vec<f64>, Vec<i64>) {
-        let l = lot_counts.len();
-        let k = f_grid.len();
-        let mut counts = Vec::new();
-        let mut taus = Vec::new();
-        let mut ids = Vec::new();
-        for ell in 0..l {
-            let n = lot_counts[ell].round().max(0.0) as u32;
-            if n == 0 {
-                continue;
-            }
-            let mut exp_f = 0.0;
-            for bin in 0..k {
-                let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
-                exp_f += p * f_grid[bin];
-            }
-            counts.push(n);
-            taus.push(f_to_age(exp_f, eta_ref));
-            ids.push((ell + 1) as i64);
-        }
-        (counts, taus, ids)
     }
 
     /// Select an order via policy dispatch on belief mean (filter on) or empty shelf.
@@ -503,12 +475,10 @@ impl EngineSession {
                     Some(&self.schedule),
                     f_pipe,
                 );
-                let (counts, taus, ids) =
-                    Self::rollout_state_from_f_belief(&lot_counts, &f_marginals, &f_grid, self.params.eta_ref);
                 rollout_order(
-                    &counts,
-                    &taus,
-                    &ids,
+                    &lot_counts,
+                    &f_marginals,
+                    &f_grid,
                     base,
                     &self.params,
                     self.seed,
@@ -1052,7 +1022,7 @@ mod tests {
         );
         let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
         let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
-        let tau_warm = warm_last["live_lots"][0]["tau"]
+        let f_warm = warm_last["live_lots"][0]["mean_f"]
             .as_f64()
             .expect("warm shipment arrival must populate live_lots");
         let smoke = handle_rpc(
@@ -1064,12 +1034,12 @@ mod tests {
         );
         let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
         let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
-        let tau_smoke = cool_last["live_lots"][0]["tau"]
+        let f_cool = cool_last["live_lots"][0]["mean_f"]
             .as_f64()
             .expect("smoke shipment arrival must populate live_lots");
         assert!(
-            tau_warm > tau_smoke + 1e-6,
-            "configured warm shipments must raise arrival age vs cool default ({tau_warm} vs {tau_smoke})"
+            f_warm < f_cool - 1e-6,
+            "configured warm shipments must lower arrival freshness vs cool default ({f_warm} vs {f_cool})"
         );
     }
 
@@ -1105,7 +1075,7 @@ mod tests {
         assert!(!lots.is_empty(), "arrival after lead_time must surface live_lots");
         assert!(lots[0]["lot_id"].is_number());
         assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
-        assert!(lots[0]["tau"].is_number());
+        assert!(lots[0]["mean_f"].is_number());
     }
 
     #[test]
@@ -1302,7 +1272,9 @@ mod tests {
         let k = belief["K"].as_u64().unwrap_or(0) as usize;
         let l = belief["L"].as_u64().unwrap_or(0) as usize;
         let f_margs = json_f64s(belief, "f_marginals");
+        let lot_counts = json_f64s(belief, "lot_counts");
         (0..l)
+            .filter(|&i| lot_counts.get(i).copied().unwrap_or(0.0) > 0.0)
             .map(|i| shannon(&f_margs[i * k..(i + 1) * k]))
             .fold(0.0, f64::max)
     }
@@ -1495,8 +1467,6 @@ mod tests {
         let pending_sum: u32 = s.pending.values().copied().sum();
         let f_pipe = 1.0;
         let belief_rollout = {
-            let (counts, taus, ids) =
-                EngineSession::rollout_state_from_f_belief(&lot_counts, &f_marginals, &f_grid, s.params.eta_ref);
             let base = damped_sw_order_f_belief(
                 &lot_counts,
                 &f_marginals,
@@ -1510,9 +1480,9 @@ mod tests {
                 f_pipe,
             );
             rollout_order(
-                &counts,
-                &taus,
-                &ids,
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
                 base,
                 &s.params,
                 s.seed,

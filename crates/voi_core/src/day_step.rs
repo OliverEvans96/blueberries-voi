@@ -8,8 +8,6 @@ use crate::physics::{
 };
 use crate::shipments::{delivery_birth_f, ShipmentTrace};
 
-pub use crate::day_step_legacy::{advance_days, day_step, Cohort, DayStepIn, DayStepOut};
-
 /// Input for one f-native day on the virtual `L×U` grid.
 #[derive(Clone, Debug)]
 pub struct UnitDayStepIn {
@@ -219,7 +217,7 @@ pub fn unit_day_step<R: Rng + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shipments::{generate_arrival_age, ShipmentTrace};
+    use crate::shipments::{generate_arrival_f, ShipmentTrace};
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
 
@@ -359,7 +357,7 @@ mod tests {
             let shipments = [ShipmentTrace::smoke_cool()];
             let mut rng_ship = Pcg64::seed_from_u64(11);
             let mut rng_sensor = Pcg64::seed_from_u64(22);
-            let birth_f = generate_arrival_age(
+            let birth_f = generate_arrival_f(
                 &mut rng_ship,
                 &mut rng_sensor,
                 &shipments,
@@ -374,7 +372,7 @@ mod tests {
             );
             let src = production_day_step_src();
             assert!(
-                src.contains("generate_arrival_age") || src.contains("delivery_f"),
+                src.contains("generate_arrival_f") || src.contains("delivery_f"),
                 "RED: delivery path must map arrival prior to birth f"
             );
         }

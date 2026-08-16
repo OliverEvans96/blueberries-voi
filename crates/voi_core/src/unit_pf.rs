@@ -6,7 +6,6 @@ use rand_pcg::Pcg64;
 use rand::SeedableRng;
 
 use crate::obs::FilterObs;
-use crate::particle_filter::systematic_resample;
 use crate::physics::{apply_gamma_aging, age_to_f};
 use crate::shipments::{shipment_arrival_age, ShipmentTrace};
 use crate::unit_ll::{
@@ -19,6 +18,34 @@ use crate::ModelParams;
 pub struct UnitParticleBank {
     pub weights: Vec<f64>,
     pub freshness: Vec<Vec<f64>>,
+}
+
+pub fn systematic_resample(log_w: &[f64]) -> Vec<usize> {
+    let n = log_w.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let mut w: Vec<f64> = log_w.iter().map(|lw| (lw - max).exp()).collect();
+    let z: f64 = w.iter().sum();
+    if z <= 0.0 {
+        return (0..n).collect();
+    }
+    for x in &mut w {
+        *x /= z;
+    }
+    let mut cdf = vec![0.0; n];
+    cdf[0] = w[0];
+    for i in 1..n {
+        cdf[i] = cdf[i - 1] + w[i];
+    }
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let u = (i as f64 + 0.5) / n as f64;
+        let idx = cdf.iter().position(|&c| c >= u).unwrap_or(n - 1);
+        out.push(idx);
+    }
+    out
 }
 
 fn lot_offsets(n_lots: usize, units_per_lot: usize) -> Vec<usize> {

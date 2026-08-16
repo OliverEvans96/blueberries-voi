@@ -1,13 +1,10 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
-use rand::SeedableRng;
-use rand_pcg::Pcg64;
 use serde_json::Value;
 use voi_core::{
-    crate_name, day_step, filter_step, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
-    sequential_wor_composition_probs, weibull_survival, CrnBudgets, DayDelta, DayStepIn,
-    EngineSession, FilterObs, ModelParams, ParticleBank, ShipmentTrace,
+    crate_name, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
+    sequential_wor_composition_probs, CrnBudgets, DayDelta, EngineSession, ShipmentTrace,
     DemandProfile,
 };
 
@@ -38,48 +35,8 @@ fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
 }
 
 #[pyfunction]
-fn weibull_survival_py(tau: f64, beta: f64, eta: f64) -> f64 {
-    weibull_survival(tau, beta, eta)
-}
-
-#[pyfunction]
 fn sequential_wor_py(counts: Vec<u32>, sales_tot: i32, weights: Vec<f64>) -> Vec<(Vec<u32>, f64)> {
     sequential_wor_composition_probs(&counts, sales_tot, &weights)
-}
-
-#[pyfunction]
-fn day_step_injected(
-    counts: Vec<u32>,
-    taus: Vec<f64>,
-    lot_ids: Vec<i64>,
-    demand: u32,
-    delivery_n: u32,
-    delivery_tau: f64,
-    delivery_lot_id: i64,
-    seed: u64,
-) -> (Vec<u32>, Vec<f64>, Vec<i64>, u32, u32, u32) {
-    let params = ModelParams::default();
-    let input = DayStepIn {
-        counts,
-        taus,
-        lot_ids,
-        demand: Some(demand),
-        spoil_by: None,
-        delivery_n,
-        delivery_tau,
-        delivery_lot_id,
-    };
-    let mut rng_a = Pcg64::seed_from_u64(seed);
-    let mut rng_s = Pcg64::seed_from_u64(seed.wrapping_add(1));
-    let out = day_step(&input, &params, Some(&mut rng_a), Some(&mut rng_s));
-    (
-        out.counts,
-        out.taus,
-        out.lot_ids,
-        out.demand,
-        out.sales_total,
-        out.waste_total,
-    )
 }
 
 #[pyfunction]
@@ -140,7 +97,7 @@ fn run_episode_py(
         n_burn,
         n_score,
         constant_order,
-        &ModelParams::default(),
+        &voi_core::ModelParams::default(),
         seed,
     )
     .expect("episode");
@@ -148,44 +105,26 @@ fn run_episode_py(
 }
 
 #[pyfunction]
-fn rollout_order_py(counts: Vec<u32>, taus: Vec<f64>, base_q: u32, seed: u64, h: u32) -> u32 {
-    let ids: Vec<i64> = (1..=counts.len() as i64).collect();
+fn rollout_order_py(
+    lot_counts: Vec<f64>,
+    f_marginals: Vec<f64>,
+    f_grid: Vec<f64>,
+    base_q: u32,
+    seed: u64,
+    h: u32,
+) -> u32 {
     rollout_order(
-        &counts,
-        &taus,
-        &ids,
+        &lot_counts,
+        &f_marginals,
+        &f_grid,
         base_q,
-        &ModelParams::default(),
+        &voi_core::ModelParams::default(),
         seed,
         h,
         1,
         1,
     )
     .expect("rollout")
-}
-
-#[pyfunction]
-fn filter_step_py(
-    counts: Vec<Vec<u32>>,
-    taus: Vec<Vec<f64>>,
-    sales: i32,
-    waste: i32,
-    seed: u64,
-) -> Vec<f64> {
-    let n = counts.len();
-    let bank = ParticleBank {
-        weights: vec![1.0 / n as f64; n],
-        counts,
-        taus,
-    };
-    let obs = FilterObs {
-        sales_tot: Some(sales),
-        waste_tot: Some(waste),
-        arrivals: 0,
-        ..Default::default()
-    };
-    let mut rng = Pcg64::seed_from_u64(seed);
-    filter_step(&bank, &obs, &ModelParams::default(), &mut rng).weights
 }
 
 fn ships_from(times: Vec<Vec<f64>>, temps: Vec<Vec<f64>>) -> Vec<ShipmentTrace> {
@@ -414,13 +353,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("VOI_CORE", crate_name())?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
-    m.add_function(wrap_pyfunction!(weibull_survival_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
-    m.add_function(wrap_pyfunction!(day_step_injected, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
-    m.add_function(wrap_pyfunction!(filter_step_py, m)?)?;
     m.add_class::<PyEngineSession>()?;
     Ok(())
 }

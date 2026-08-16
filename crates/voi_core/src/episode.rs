@@ -3,7 +3,8 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use crate::day_step::{day_step, DayStepIn, ModelParams};
+use crate::day_step::{unit_day_step, UnitDayStepIn, ModelParams};
+use crate::shipments::ShipmentTrace;
 
 #[derive(Clone, Debug)]
 pub struct EpisodeResult {
@@ -29,42 +30,49 @@ pub fn run_closed_loop_episode(
     seed: u64,
 ) -> Result<EpisodeResult, String> {
     let horizon = n_burn + n_score;
-    let mut state = DayStepIn {
-        counts: vec![],
-        taus: vec![],
-        lot_ids: vec![],
-        demand: Some(params.demand_mu.max(0.0) as u32),
-        spoil_by: Some(vec![]),
-        delivery_n: 0,
-        delivery_tau: 0.0,
-        delivery_lot_id: 1,
-    };
+    let upl = params.units_per_lot.max(1);
+    let mut freshness: Vec<f64> = vec![];
+    let mut lot_offsets: Vec<usize> = vec![0];
+    let shipments = [ShipmentTrace::smoke_cool()];
     let mut sales_total = 0u32;
     let mut waste_total = 0u32;
     let mut scored_sales = 0u32;
     let mut scored_waste = 0u32;
-    let mut lot = 1i64;
     for day in 0..horizon {
         let order = if can_order(day) { constant_order } else { 0 };
-        state.delivery_n = order;
-        state.delivery_lot_id = lot;
-        if order > 0 {
-            lot += 1;
-        }
-        state.spoil_by = None;
-        let mut rng_a = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 3));
-        let mut rng_s = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 5 + 1));
-        let out = day_step(&state, params, Some(&mut rng_a), Some(&mut rng_s));
+        let input = UnitDayStepIn {
+            freshness: freshness.clone(),
+            lot_offsets: lot_offsets.clone(),
+            demand: Some(params.demand_mu.max(0.0) as u32),
+            gamma_decrement: None,
+            deliver: order > 0,
+            deliver_units: if order > 0 { Some(order) } else { None },
+            delivery_f: Some(1.0),
+            units_per_lot: Some(upl),
+            age_at_receipt: None,
+            pack_age_mean: None,
+        };
+        let mut rng_gamma = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 3));
+        let mut rng_alloc = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 5 + 1));
+        let mut rng_ship = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 7));
+        let mut rng_sensor = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 11));
+        let out = unit_day_step(
+            &input,
+            params,
+            &shipments,
+            Some(&mut rng_gamma),
+            Some(&mut rng_alloc),
+            Some(&mut rng_ship),
+            Some(&mut rng_sensor),
+        );
         sales_total += out.sales_total;
         waste_total += out.waste_total;
         if day >= n_burn {
             scored_sales += out.sales_total;
             scored_waste += out.waste_total;
         }
-        state.counts = out.counts;
-        state.taus = out.taus;
-        state.lot_ids = out.lot_ids;
-        state.demand = Some(params.demand_mu.max(0.0) as u32);
+        freshness = out.freshness;
+        lot_offsets = out.lot_offsets;
     }
     Ok(EpisodeResult {
         n_burn,

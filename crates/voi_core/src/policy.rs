@@ -1,6 +1,5 @@
 //! Damped survival-weighted base-stock (algorithm from `damped_sw.py`).
 
-use crate::physics::weibull_survival;
 use crate::schedule::OrderSchedule;
 use crate::ModelParams;
 
@@ -52,94 +51,6 @@ pub fn protection_demand_quantile(alpha: f64, params: &ModelParams, protection_d
     nbinom_ppf(alpha, r, p)
 }
 
-pub fn effective_inventory(
-    counts: &[u32],
-    taus: &[f64],
-    pending_sum: u32,
-    params: &ModelParams,
-) -> f64 {
-    let mut on_hand = 0.0;
-    for (n, tau) in counts.iter().zip(taus.iter()) {
-        on_hand += f64::from(*n) * weibull_survival(*tau, params.beta, params.eta_ref);
-    }
-    let pipeline_w = weibull_survival(0.0, params.beta, params.eta_ref);
-    on_hand + f64::from(pending_sum) * pipeline_w
-}
-
-pub fn effective_inventory_belief(
-    lot_counts: &[f64],
-    age_marginals: &[f64],
-    tau_grid: &[f64],
-    pending_sum: u32,
-    params: &ModelParams,
-) -> f64 {
-    let l = lot_counts.len();
-    let k = tau_grid.len();
-    let mut on_hand = 0.0;
-    for ell in 0..l {
-        let mut e_s = 0.0;
-        for bin in 0..k {
-            let s = weibull_survival(tau_grid[bin], params.beta, params.eta_ref);
-            let p = age_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
-            e_s += p * s;
-        }
-        on_hand += lot_counts[ell] * e_s;
-    }
-    let pipeline_w = weibull_survival(0.0, params.beta, params.eta_ref);
-    on_hand + f64::from(pending_sum) * pipeline_w
-}
-
-pub fn damped_sw_order(
-    counts: &[u32],
-    taus: &[f64],
-    pending_sum: u32,
-    day: u32,
-    params: &ModelParams,
-    alpha: f64,
-    rho: f64,
-    schedule: Option<&OrderSchedule>,
-) -> u32 {
-    if let Some(s) = schedule {
-        if !s.can_order(day) {
-            return 0;
-        }
-    }
-    let n_days = schedule.map(|s| s.protection_days(day)).unwrap_or(2);
-    let i_tilde = effective_inventory(counts, taus, pending_sum, params);
-    let d_star = protection_demand_quantile(alpha, params, n_days);
-    let raw = rho * (d_star - i_tilde).max(0.0);
-    case_round(raw, params.case_size)
-}
-
-pub fn damped_sw_order_belief(
-    lot_counts: &[f64],
-    age_marginals: &[f64],
-    tau_grid: &[f64],
-    pending_sum: u32,
-    day: u32,
-    params: &ModelParams,
-    alpha: f64,
-    rho: f64,
-    schedule: Option<&OrderSchedule>,
-) -> u32 {
-    if let Some(s) = schedule {
-        if !s.can_order(day) {
-            return 0;
-        }
-    }
-    let n_days = schedule.map(|s| s.protection_days(day)).unwrap_or(2);
-    let i_tilde = effective_inventory_belief(
-        lot_counts,
-        age_marginals,
-        tau_grid,
-        pending_sum,
-        params,
-    );
-    let d_star = protection_demand_quantile(alpha, params, n_days);
-    let raw = rho * (d_star - i_tilde).max(0.0);
-    case_round(raw, params.case_size)
-}
-
 /// Fixed-q constant order (Python `ConstantOrderPolicy`: nearest `case_round`).
 pub fn constant_order(q: u32, case_size: u32) -> u32 {
     case_round(f64::from(q), case_size)
@@ -167,7 +78,7 @@ pub fn effective_inventory_f_belief(
     on_hand + f64::from(pending_sum) * f_pipeline_default
 }
 
-/// Damped survival-weighted order from f-belief (mirrors `damped_sw_order_belief`).
+/// Damped survival-weighted order from f-belief.
 pub fn damped_sw_order_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
@@ -217,7 +128,8 @@ mod tests {
     #[test]
     fn sw_empty_shelf_orders_cases() {
         let p = ModelParams::default();
-        let q = damped_sw_order(&[], &[], 0, 0, &p, 0.9, 0.8, None);
+        let f_grid = vec![0.0, 1.0];
+        let q = damped_sw_order_f_belief(&[], &[], &f_grid, 0, 0, &p, 0.9, 0.8, None, 1.0);
         assert!(
             q >= 8,
             "empty shelf must still raise a case-rounded order, got {q}"
@@ -228,8 +140,23 @@ mod tests {
     fn sw_non_order_day_zero() {
         let p = ModelParams::default();
         let s = OrderSchedule::default();
+        let f_grid = vec![0.0, 1.0];
+        let lot_counts = vec![10.0];
+        let mut f_marginals = vec![0.0; 2];
+        f_marginals[1] = 1.0;
         assert_eq!(
-            damped_sw_order(&[10], &[0.0], 0, 0, &p, 0.9, 0.8, Some(&s)),
+            damped_sw_order_f_belief(
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
+                0,
+                0,
+                &p,
+                0.9,
+                0.8,
+                Some(&s),
+                1.0,
+            ),
             0
         );
     }
@@ -249,23 +176,20 @@ mod tests {
         let p = ModelParams::default();
         let q = constant_order(8, p.case_size);
         assert!(q > 0);
-        let sw = damped_sw_order(&[], &[], 0, 0, &p, 0.9, 0.8, None);
+        let f_grid = vec![0.0, 1.0];
+        let sw = damped_sw_order_f_belief(&[], &[], &f_grid, 0, 0, &p, 0.9, 0.8, None, 1.0);
         assert!(
             sw > q,
             "damped_sw on empty shelf ({sw}) should exceed constant q={q}"
         );
     }
 
-    // --- T-C2-A AC-policy: f-native inventory and ordering ---
-
     fn f_belief_fixture() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let k = 3usize;
         let f_grid: Vec<f64> = (0..k).map(|i| i as f64 / 2.0).collect();
         let lot_counts = vec![10.0, 5.0];
         let mut f_marginals = vec![0.0; 2 * k];
-        // lot0: E[f]=0.5
         f_marginals[1] = 1.0;
-        // lot1: E[f]=1.0
         f_marginals[2 * k - 1] = 1.0;
         (lot_counts, f_marginals, f_grid)
     }
@@ -320,27 +244,6 @@ mod tests {
         let f_marginals: Vec<f64> = vec![];
         let got = effective_inventory_f_belief(&[], &f_marginals, &f_grid, 4, 0.75);
         assert!((got - 3.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn effective_inventory_f_belief_differs_from_weibull_tau_path() {
-        let (lot_counts, f_marginals, f_grid) = f_belief_fixture();
-        let params = ModelParams::default();
-        let tau_grid: Vec<f64> = (0..f_grid.len())
-            .map(|i| 8.0 * i as f64 / (f_grid.len().saturating_sub(1).max(1) as f64))
-            .collect();
-        let f_inv = effective_inventory_f_belief(&lot_counts, &f_marginals, &f_grid, 0, 1.0);
-        let tau_inv = effective_inventory_belief(
-            &lot_counts,
-            &f_marginals,
-            &tau_grid,
-            0,
-            &params,
-        );
-        assert!(
-            (f_inv - tau_inv).abs() > 1e-6,
-            "f-native inventory must not delegate to Weibull τ integration"
-        );
     }
 
     #[test]

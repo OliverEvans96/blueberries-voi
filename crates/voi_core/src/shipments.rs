@@ -3,7 +3,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-use crate::physics::{age_to_f, q10_age_increment};
+use crate::physics::{age_to_f, f_to_age, q10_age_increment};
 use crate::params::ModelParams;
 
 #[derive(Clone, Debug)]
@@ -41,8 +41,8 @@ pub fn shipment_arrival_age(ship: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64
     arrival_age_from_path(&ship.temps_c, &ship.times_d, q10, t_ref_c)
 }
 
-/// Bootstrap a shipment then shrink toward the mean (τ days; legacy cohort path).
-pub fn generate_arrival_tau<R: rand::Rng + ?Sized>(
+/// Bootstrap a shipment then shrink toward the mean (τ days; private Q10 cache).
+fn generate_arrival_tau<R: rand::Rng + ?Sized>(
     rng_ship: &mut R,
     rng_sensor: &mut R,
     shipments: &[ShipmentTrace],
@@ -64,8 +64,8 @@ pub fn generate_arrival_tau<R: rand::Rng + ?Sized>(
     mean + spread_scale * (age - mean)
 }
 
-/// Default arrival prior mapped to birth freshness `f ∈ [0, 1]`.
-pub fn generate_arrival_age<R: rand::Rng + ?Sized>(
+/// Default arrival prior: birth freshness `f ∈ [0, 1]` from shipment mix.
+pub fn generate_arrival_f<R: rand::Rng + ?Sized>(
     rng_ship: &mut R,
     rng_sensor: &mut R,
     shipments: &[ShipmentTrace],
@@ -85,9 +85,14 @@ pub fn generate_arrival_age<R: rand::Rng + ?Sized>(
     age_to_f(tau, eta_ref)
 }
 
+/// Wire helper: map measured τ-days at receipt to freshness.
+pub fn f_at_receipt_from_age(age_at_receipt: f64, eta_ref: f64) -> f64 {
+    age_to_f(age_at_receipt.max(0.0), eta_ref)
+}
+
 /// F2: Dirac birth freshness from measured age at receipt (τ days).
 pub fn birth_f_f2_dirac(age_at_receipt: f64, eta_ref: f64) -> f64 {
-    age_to_f(age_at_receipt.max(0.0), eta_ref)
+    f_at_receipt_from_age(age_at_receipt, eta_ref)
 }
 
 /// F2a: Gaussian draw on pack-date transit age (τ days) mapped to freshness.
@@ -124,7 +129,7 @@ pub fn delivery_birth_f<R: Rng + ?Sized>(
             params.f2a_transit_uncertainty_sd,
         );
     }
-    generate_arrival_age(
+    generate_arrival_f(
         rng_ship,
         rng_sensor,
         shipments,
@@ -133,6 +138,27 @@ pub fn delivery_birth_f<R: Rng + ?Sized>(
         spread_scale,
         params.eta_ref,
     )
+}
+
+/// Arrival metadata for wire + filter obs (physics birth uses shipments only).
+pub fn arrival_receipt_meta<R: rand::Rng + ?Sized>(
+    rng_ship: &mut R,
+    rng_sensor: &mut R,
+    shipments: &[ShipmentTrace],
+    params: &ModelParams,
+    spread_scale: f64,
+) -> (f64, f64, i32) {
+    let f = generate_arrival_f(
+        rng_ship,
+        rng_sensor,
+        shipments,
+        params.q10,
+        params.t_ref_c,
+        spread_scale,
+        params.eta_ref,
+    );
+    let tau = f_to_age(f, params.eta_ref);
+    (f, tau, tau.round() as i32)
 }
 
 #[cfg(test)]
@@ -156,18 +182,18 @@ mod tests {
         let result = std::panic::catch_unwind(|| {
             let mut a = Pcg64::seed_from_u64(0);
             let mut b = Pcg64::seed_from_u64(1);
-            generate_arrival_tau(&mut a, &mut b, &[], 3.0, 0.0, 1.0);
+            generate_arrival_f(&mut a, &mut b, &[], 3.0, 0.0, 1.0, 14.0);
         });
         assert!(result.is_err());
     }
 
     #[test]
-    fn generate_arrival_age_maps_to_freshness() {
+    fn generate_arrival_f_maps_to_unit_interval() {
         let params = ModelParams::default();
         let shipments = [ShipmentTrace::smoke_cool()];
         let mut rng_ship = Pcg64::seed_from_u64(11);
         let mut rng_sensor = Pcg64::seed_from_u64(22);
-        let birth_f = generate_arrival_age(
+        let birth_f = generate_arrival_f(
             &mut rng_ship,
             &mut rng_sensor,
             &shipments,
@@ -176,7 +202,10 @@ mod tests {
             1.0,
             params.eta_ref,
         );
-        assert!(birth_f > 0.0 && birth_f <= 1.0, "birth f must lie in (0, 1]: {birth_f}");
+        assert!(
+            birth_f > 0.0 && birth_f <= 1.0,
+            "birth f must lie in (0, 1]: {birth_f}"
+        );
     }
 
     #[test]
@@ -187,5 +216,13 @@ mod tests {
         let mut rng = Pcg64::seed_from_u64(7);
         let f2a = birth_f_f2a_gaussian(&mut rng, 3.0, params.eta_ref, 0.75);
         assert!(f2a >= 0.0 && f2a <= 1.0);
+    }
+
+    #[test]
+    fn f_at_receipt_from_age_roundtrip() {
+        let eta = 14.0;
+        let tau = 2.5;
+        let f = f_at_receipt_from_age(tau, eta);
+        assert!((f_to_age(f, eta) - tau).abs() < 1e-9);
     }
 }

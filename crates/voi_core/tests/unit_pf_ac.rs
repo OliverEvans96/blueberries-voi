@@ -126,6 +126,7 @@ fn p1_mask_obs_sales_by_stays_none() {
         sales_by: vec![3, 2],
         waste_by: vec![1, 1],
         lot_ids: vec![1, 2],
+        f_at_receipt: None,
         age_at_receipt: None,
         pack_date_days: None,
     };
@@ -144,6 +145,7 @@ fn f1_mask_exposes_sales_by_for_router() {
         sales_by: vec![3, 2],
         waste_by: vec![1, 1],
         lot_ids: vec![10, 11],
+        f_at_receipt: None,
         age_at_receipt: None,
         pack_date_days: None,
     };
@@ -194,10 +196,9 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     use rand_pcg::Pcg64;
     use voi_core::obs::FilterObs;
     use voi_core::policy::{
-        damped_sw_order, damped_sw_order_belief, effective_inventory,
-        effective_inventory_belief,
+        damped_sw_order_f_belief, effective_inventory_f_belief,
     };
-    use voi_core::{filter_step_unit, picking_weights, ModelParams, UnitParticleBank};
+    use voi_core::{filter_step_unit, picking_weights_f, ModelParams, UnitParticleBank};
 
     const DAYS: usize = 14;
     const UNITS_PER_LOT: usize = 15;
@@ -234,20 +235,19 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
             .collect()
     }
 
-    fn tau_grid_k(k: usize) -> Vec<f64> {
+    fn f_grid_k(k: usize) -> Vec<f64> {
         if k <= 1 {
             return vec![0.0];
         }
-        const HI: f64 = 8.0;
         (0..k)
-            .map(|i| HI * (i as f64) / ((k - 1) as f64))
+            .map(|i| i as f64 / ((k - 1) as f64))
             .collect()
     }
 
-    fn tau_to_bin(tau: f64, grid: &[f64]) -> usize {
+    fn f_to_bin(f: f64, grid: &[f64]) -> usize {
         grid.iter()
             .enumerate()
-            .min_by(|(_, a), (_, b)| (*a - tau).abs().partial_cmp(&(*b - tau).abs()).unwrap())
+            .min_by(|(_, a), (_, b)| (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap())
             .map(|(i, _)| i)
             .unwrap_or(0)
     }
@@ -257,13 +257,12 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         weights: &[f64],
         offsets: &[usize],
         k_wire: usize,
-        eta: f64,
-    ) -> (Vec<f64>, Vec<f64>) {
+    ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         let l = offsets.len() - 1;
-        let grid = tau_grid_k(k_wire);
+        let grid = f_grid_k(k_wire);
         let z: f64 = weights.iter().sum();
         let mut lot_counts = vec![0.0; l];
-        let mut age_marginals = vec![0.0; l * k_wire];
+        let mut f_marginals = vec![0.0; l * k_wire];
         for (p, row) in freshness.iter().enumerate() {
             let w = if z > 0.0 { weights[p] / z } else { 0.0 };
             for ell in 0..l {
@@ -273,23 +272,22 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
                 if alive > 0.0 {
                     for &f in sl {
                         if f > 0.0 {
-                            let tau = unit_tau(f, eta);
-                            let b = tau_to_bin(tau, &grid);
-                            age_marginals[ell * k_wire + b] += w / alive;
+                            let b = f_to_bin(f, &grid);
+                            f_marginals[ell * k_wire + b] += w / alive;
                         }
                     }
                 }
             }
         }
         for ell in 0..l {
-            let s: f64 = (0..k_wire).map(|b| age_marginals[ell * k_wire + b]).sum();
+            let s: f64 = (0..k_wire).map(|b| f_marginals[ell * k_wire + b]).sum();
             if s > 0.0 {
                 for b in 0..k_wire {
-                    age_marginals[ell * k_wire + b] /= s;
+                    f_marginals[ell * k_wire + b] /= s;
                 }
             }
         }
-        (lot_counts, age_marginals)
+        (lot_counts, f_marginals, grid)
     }
 
     fn gamma_decrement(rng: &mut Pcg64, gamma: &Gamma<f64>) -> f64 {
@@ -315,15 +313,10 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
             if idx_alive.is_empty() {
                 break;
             }
-            let taus: Vec<f64> = idx_alive
-                .iter()
-                .map(|&i| unit_tau(units_f[i], params.eta_ref))
-                .collect();
-            let w = picking_weights(
-                &taus,
+            let alive_f: Vec<f64> = idx_alive.iter().map(|&i| units_f[i]).collect();
+            let w = picking_weights_f(
+                &alive_f,
                 params.sigma,
-                params.beta,
-                params.eta_ref,
                 params.uniform_picking,
             );
             let tot: f64 = w.iter().sum();
@@ -435,7 +428,6 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         .sum::<f64>()
         / N_LOTS as f64;
 
-    let truth_tau = lot_tau_from_units(&units_f, &offsets, params.eta_ref);
     let truth_counts: Vec<u32> = (0..N_LOTS)
         .map(|ell| {
             units_f[offsets[ell]..offsets[ell + 1]]
@@ -444,26 +436,65 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
                 .count() as u32
         })
         .collect();
-    let truth_eff = effective_inventory(&truth_counts, &truth_tau, 0, &params);
+    let truth_counts_f: Vec<f64> = truth_counts.iter().map(|&n| f64::from(n)).collect();
+    let mut truth_f_marginals = vec![0.0; N_LOTS * K_WIRE];
+    let f_grid = f_grid_k(K_WIRE);
+    for ell in 0..N_LOTS {
+        if truth_counts[ell] == 0 {
+            continue;
+        }
+        let sl = &units_f[offsets[ell]..offsets[ell + 1]];
+        for &f in sl {
+            if f > 0.0 {
+                let b = f_to_bin(f, &f_grid);
+                truth_f_marginals[ell * K_WIRE + b] += 1.0;
+            }
+        }
+        let row = &mut truth_f_marginals[ell * K_WIRE..(ell + 1) * K_WIRE];
+        let z: f64 = row.iter().sum();
+        if z > 0.0 {
+            for x in row.iter_mut() {
+                *x /= z;
+            }
+        }
+    }
+    let truth_eff = effective_inventory_f_belief(
+        &truth_counts_f,
+        &truth_f_marginals,
+        &f_grid,
+        0,
+        1.0,
+    );
 
     let uniform_w = vec![1.0 / N_PARTICLES as f64; N_PARTICLES];
-    let (pred_lc, pred_am) =
-        belief_wire_from_particles(&bank.freshness, &uniform_w, &offsets, K_WIRE, params.eta_ref);
-    let grid = tau_grid_k(K_WIRE);
-    let belief_eff = effective_inventory_belief(&pred_lc, &pred_am, &grid, 0, &params);
+    let (pred_lc, pred_fm, pred_grid) =
+        belief_wire_from_particles(&bank.freshness, &uniform_w, &offsets, K_WIRE);
+    let belief_eff = effective_inventory_f_belief(&pred_lc, &pred_fm, &pred_grid, 0, 1.0);
     let _ = (truth_eff, belief_eff);
 
-    let truth_order = damped_sw_order(&truth_counts, &truth_tau, 0, 7, &params, 0.9, 0.8, None);
-    let pred_order = damped_sw_order_belief(
-        &pred_lc,
-        &pred_am,
-        &grid,
+    let truth_order = damped_sw_order_f_belief(
+        &truth_counts_f,
+        &truth_f_marginals,
+        &f_grid,
         0,
         7,
         &params,
         0.9,
         0.8,
         None,
+        1.0,
+    );
+    let pred_order = damped_sw_order_f_belief(
+        &pred_lc,
+        &pred_fm,
+        &pred_grid,
+        0,
+        7,
+        &params,
+        0.9,
+        0.8,
+        None,
+        1.0,
     );
 
     assert!(
@@ -478,10 +509,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
 }
 
 #[test]
-fn bench_c2_a_totals_study_uses_unit_ll_not_inline_copy() {
-    let bench = read_src("bin/bench_c2_a_totals_study.rs");
-    assert!(
-        bench.contains("voi_core::unit_ll::") || bench.contains("use voi_core::unit_ll"),
-        "bench_c2_a_totals_study must call production unit_ll, not duplicate inline LL"
-    );
+fn unit_ll_promoted_to_production() {
+    let lib = read_lib_rs();
+    assert!(lib.contains("pub mod unit_ll"), "production lib must export unit_ll");
 }

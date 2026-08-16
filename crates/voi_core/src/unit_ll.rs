@@ -4,17 +4,50 @@
 
 use rand::Rng;
 
-use crate::exact_ll::binom_pmf;
-use crate::physics::{f_to_age, picking_weights};
+use crate::physics::picking_weights_f;
 use crate::ModelParams;
 
-fn unit_tau(f: f64, eta: f64) -> f64 {
-    f_to_age(f, eta)
+pub fn binom_pmf(k: i32, n: i32, p: f64) -> f64 {
+    if k < 0 || k > n || n < 0 {
+        return 0.0;
+    }
+    let p_c = p.clamp(0.0, 1.0);
+    let mut coef = 1.0;
+    for i in 0..k {
+        coef *= f64::from(n - i) / f64::from(i + 1);
+    }
+    coef * p_c.powi(k) * (1.0 - p_c).powi(n - k)
+}
+
+pub fn iter_compositions(totals: &[u32], target: i32) -> Vec<Vec<u32>> {
+    let l = totals.len();
+    let mut out = Vec::new();
+    if target < 0 || l == 0 {
+        return out;
+    }
+    let mut acc = vec![0u32; l];
+    fn rec(i: usize, left: i32, totals: &[u32], acc: &mut [u32], out: &mut Vec<Vec<u32>>) {
+        let l = totals.len();
+        if i == l - 1 {
+            if left >= 0 && left <= totals[i] as i32 {
+                acc[i] = left as u32;
+                out.push(acc.to_vec());
+            }
+            return;
+        }
+        let maxv = (totals[i] as i32).min(left);
+        for v in 0..=maxv {
+            acc[i] = v as u32;
+            rec(i + 1, left - v, totals, acc, out);
+        }
+    }
+    rec(0, target, totals, &mut acc, &mut out);
+    out
 }
 
 /// Log-probability of a sequential picking path selling `sales` units from alive slots.
 ///
-/// Uses τ = (1 − f)·η_ref picking weights (bench C2-A convention). Alive units are those with
+/// Uses f-native picking weights (`picking_weights_f`). Alive units are those with
 /// `f > 0`; picked slots are removed without replacement. `rng` drives the path draw sequence.
 pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     freshness: &[f64],
@@ -22,15 +55,9 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     params: &ModelParams,
     rng: &mut R,
 ) -> f64 {
-    let taus: Vec<f64> = freshness
-        .iter()
-        .map(|&f| unit_tau(f, params.eta_ref))
-        .collect();
-    let base_w = picking_weights(
-        &taus,
+    let base_w = picking_weights_f(
+        freshness,
         params.sigma,
-        params.beta,
-        params.eta_ref,
         params.uniform_picking,
     );
     let mut alive = vec![true; freshness.len()];
@@ -222,7 +249,6 @@ pub fn loglik_waste_tot_after_sales_by(
         }
         return log_p;
     }
-    use crate::exact_ll::iter_compositions;
     let mut p_waste = 0.0;
     for waste in iter_compositions(&remaining, waste_tot) {
         let mut term = 1.0;

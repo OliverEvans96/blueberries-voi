@@ -25,6 +25,7 @@ pub struct RichDay {
     pub sales_by: Vec<u32>,
     pub waste_by: Vec<u32>,
     pub lot_ids: Vec<i64>,
+    pub f_at_receipt: Option<f64>,
     pub age_at_receipt: Option<f64>,
     pub pack_date_days: Option<i32>,
 }
@@ -250,6 +251,7 @@ mod tests {
             sales_by: vec![3, 1],
             waste_by: vec![2, 0],
             lot_ids: vec![10, 11],
+            f_at_receipt: Some(0.85),
             age_at_receipt: Some(2.0),
             pack_date_days: Some(3),
         };
@@ -273,6 +275,7 @@ mod tests {
             sales_by: vec![4, 0],
             waste_by: vec![0, 1],
             lot_ids: vec![1, 2],
+            f_at_receipt: Some(0.9),
             age_at_receipt: Some(1.5),
             pack_date_days: Some(0),
         };

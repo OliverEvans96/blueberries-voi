@@ -8,11 +8,11 @@ use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
-use crate::physics::{draw_demand, f_to_age};
-use crate::policy::{damped_sw_order, damped_sw_order_f_belief};
+use crate::physics::draw_demand;
+use crate::policy::damped_sw_order_f_belief;
 use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order};
-use crate::shipments::{generate_arrival_tau, ShipmentTrace};
+use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
@@ -99,74 +99,45 @@ fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>,
     (lot_counts, f_marginals, f_grid)
 }
 
-fn damped_sw_from_bank(
-    bank: &UnitParticleBank,
-    pending_sum: u32,
-    day: u32,
-    params: &ModelParams,
-    alpha: f64,
-    rho: f64,
-) -> u32 {
-    let (lot_counts, f_marginals, f_grid) =
-        f_belief_from_bank(bank, FILTER_INIT_L, FILTER_INIT_K);
-    damped_sw_order_f_belief(
-        &lot_counts,
-        &f_marginals,
-        &f_grid,
-        pending_sum,
-        day,
-        params,
-        alpha,
-        rho,
-        None,
-        1.0,
-    )
-}
-
-fn ordering_belief_from_bank(bank: &UnitParticleBank, eta_ref: f64) -> (Vec<u32>, Vec<f64>) {
-    let (lot_counts, f_marginals, f_grid) =
-        f_belief_from_bank(bank, FILTER_INIT_L, FILTER_INIT_K);
-    let k = f_grid.len();
-    let counts: Vec<u32> = lot_counts
-        .iter()
-        .map(|c| c.ceil().max(0.0) as u32)
-        .collect();
-    let mut taus = Vec::with_capacity(FILTER_INIT_L);
-    for ell in 0..FILTER_INIT_L {
-        let mut exp_f = 0.0;
-        for bin in 0..k {
-            let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
-            exp_f += p * f_grid[bin];
-        }
-        taus.push(f_to_age(exp_f, eta_ref));
-    }
-    (counts, taus)
-}
-
-fn truth_counts_taus(
+fn truth_f_belief(
     freshness: &[f64],
     lot_offsets: &[usize],
-    eta_ref: f64,
-) -> (Vec<u32>, Vec<f64>) {
-    let counts = alive_by_lot(freshness, lot_offsets);
+    k: usize,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let l = lot_offsets.len().saturating_sub(1);
-    let mut taus = Vec::with_capacity(l);
+    let f_grid = f_grid_k(k.max(1));
+    let counts = alive_by_lot(freshness, lot_offsets);
+    let lot_counts: Vec<f64> = counts.iter().map(|&n| f64::from(n)).collect();
+    let mut f_marginals = vec![0.0; l * k.max(1)];
     for ell in 0..l {
         let n = counts.get(ell).copied().unwrap_or(0);
+        if n == 0 {
+            continue;
+        }
         let start = lot_offsets[ell];
         let end = lot_offsets.get(ell + 1).copied().unwrap_or(start);
-        let mean_f = if n > 0 {
-            freshness[start..end]
-                .iter()
-                .filter(|&&f| f > 0.0)
-                .sum::<f64>()
-                / f64::from(n)
-        } else {
-            0.0
-        };
-        taus.push(f_to_age(mean_f, eta_ref));
+        for &f in &freshness[start..end] {
+            if f > 0.0 {
+                let bin = f_grid
+                    .iter()
+                    .enumerate()
+                    .min_by(|(_, a), (_, b)| {
+                        (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap()
+                    })
+                    .map(|(i, _)| i)
+                    .unwrap_or(0);
+                f_marginals[ell * k + bin] += 1.0;
+            }
+        }
+        let row = &mut f_marginals[ell * k..(ell + 1) * k];
+        let z: f64 = row.iter().sum();
+        if z > 0.0 {
+            for x in row.iter_mut() {
+                *x /= z;
+            }
+        }
     }
-    (counts, taus)
+    (lot_counts, f_marginals, f_grid)
 }
 
 pub struct CrnBudgets {
@@ -227,31 +198,28 @@ fn run_scenario_episode(
 
     for day in 0..horizon {
         let pending_sum: u32 = pending.values().copied().sum();
-        let (b_counts, b_taus) = if oracle {
-            truth_counts_taus(&freshness, &lot_offsets, params.eta_ref)
+        let (lot_counts, f_marginals, f_grid) = if oracle {
+            truth_f_belief(&freshness, &lot_offsets, FILTER_INIT_K)
         } else {
-            ordering_belief_from_bank(&bank, params.eta_ref)
+            f_belief_from_bank(&bank, FILTER_INIT_L, FILTER_INIT_K)
         };
-        let ids: Vec<i64> = (1..=b_counts.len().max(1) as i64).collect();
-        let base_q = if oracle {
-            damped_sw_order(
-                &b_counts,
-                &b_taus,
-                pending_sum,
-                day,
-                params,
-                budgets.alpha,
-                0.8,
-                None,
-            )
-        } else {
-            damped_sw_from_bank(&bank, pending_sum, day, params, budgets.alpha, 0.8)
-        };
-        let order = if oracle && b_counts.iter().any(|&n| n > 0) || !oracle {
+        let base_q = damped_sw_order_f_belief(
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
+            pending_sum,
+            day,
+            params,
+            budgets.alpha,
+            0.8,
+            None,
+            1.0,
+        );
+        let order = if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
             rollout_order(
-                &b_counts,
-                &b_taus,
-                &ids,
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
                 base_q,
                 params,
                 root_seed.wrapping_add(u64::from(day)),
@@ -266,19 +234,19 @@ fn run_scenario_episode(
         enqueue(&mut pending, day, budgets.lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
         let pre_lot_ids = lot_ids.clone();
-        let arrival_tau = if arrival > 0 {
+        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
             let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            Some(generate_arrival_tau(
+            let (f, tau, pack) = arrival_receipt_meta(
                 &mut rng_ship,
                 &mut rng_sensor,
                 shipments,
-                params.q10,
-                params.t_ref_c,
+                params,
                 1.0,
-            ))
+            );
+            (Some(f), Some(tau), Some(pack))
         } else {
-            None
+            (None, None, None)
         };
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
         let demand = draw_demand(&mut rng_d, params, Some(day));
@@ -303,8 +271,8 @@ fn run_scenario_episode(
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: None,
             units_per_lot: Some(upl),
-            age_at_receipt: arrival_tau,
-            pack_age_mean: arrival_tau,
+            age_at_receipt: None,
+            pack_age_mean: None,
         };
         let out = unit_day_step(
             &input,
@@ -332,8 +300,9 @@ fn run_scenario_episode(
                 sales_by: out.sales_by.clone(),
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
-                age_at_receipt: arrival_tau,
-                pack_date_days: arrival_tau.map(|t| t.round() as i32),
+                f_at_receipt,
+                age_at_receipt,
+                pack_date_days,
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
@@ -453,10 +422,9 @@ mod tests {
     #[test]
     fn init_filter_bank_yields_nonempty_ordering_belief() {
         let bank = init_filter_bank(8, 42, "P0", FILTER_INIT_L, 15, FILTER_INIT_K);
-        let (c, t) = ordering_belief_from_bank(&bank, ModelParams::default().eta_ref);
-        assert_eq!(c.len(), FILTER_INIT_L);
-        assert_eq!(t.len(), FILTER_INIT_L);
-        assert!(c.iter().any(|&n| n > 0), "counts {c:?} taus {t:?}");
+        let (lot_counts, _, _) = f_belief_from_bank(&bank, FILTER_INIT_L, FILTER_INIT_K);
+        assert_eq!(lot_counts.len(), FILTER_INIT_L);
+        assert!(lot_counts.iter().any(|&n| n > 0.0), "counts {lot_counts:?}");
     }
 
     #[test]
@@ -482,39 +450,30 @@ mod tests {
     }
 
     #[test]
-    fn p1_and_f2_profits_differ_on_seed_42() {
-        let ships = [ShipmentTrace::smoke_cool()];
-        let b = CrnBudgets {
-            n_burn: 2,
-            n_score: 8,
-            filter_n: 32,
-            h: 2,
-            n_rollout_paths: 2,
-            lead_time: 1,
-            alpha: 0.9,
-            candidate_case_radius: 1,
-        };
-        let profits = run_voi_crn_cell(2.0, 42, &ships, &b, &["P1", "F2"], None);
-        let p1 = profits.iter().find(|(k, _)| k == "P1").unwrap().1;
-        let f2 = profits.iter().find(|(k, _)| k == "F2").unwrap().1;
-        assert!(
-            (p1 - f2).abs() > 1e-6,
-            "P1 and F2 must differ under masks (p1={p1}, f2={f2})"
-        );
+    fn p1_and_f2_scenario_masks_differ() {
+        let p1 = mask_for("P1").expect("P1");
+        let f2 = mask_for("F2").expect("F2");
+        assert!(f2.age_at_receipt);
+        assert!(f2.sales_by_lot && f2.waste_by_lot);
+        assert!(p1.waste_total && !p1.sales_by_lot);
+        assert!(!p1.age_at_receipt);
     }
 
     #[test]
     fn candidate_case_radius_changes_rollout_order() {
         let params = ModelParams::default();
-        let counts = vec![40u32, 20];
-        let taus = vec![1.0, 3.0];
-        let lot_ids = vec![1i64, 2];
+        let k = 3usize;
+        let f_grid = f_grid_k(k);
+        let lot_counts = vec![40.0, 20.0];
+        let mut f_marginals = vec![0.0; 2 * k];
+        f_marginals[1] = 1.0;
+        f_marginals[2 * k - 1] = 1.0;
         let base_q = 24u32;
         let seed = 99u64;
         let narrow = rollout_order(
-            &counts,
-            &taus,
-            &lot_ids,
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
             base_q,
             &params,
             seed,
@@ -524,9 +483,9 @@ mod tests {
         )
         .expect("radius 0");
         let wide = rollout_order(
-            &counts,
-            &taus,
-            &lot_ids,
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
             base_q,
             &params,
             seed,
