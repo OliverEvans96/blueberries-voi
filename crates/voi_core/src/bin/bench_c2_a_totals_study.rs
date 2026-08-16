@@ -16,8 +16,11 @@ use rand_distr::{Distribution, Gamma};
 use rand_pcg::Pcg64;
 use serde::Serialize;
 use voi_core::policy::{damped_sw_order, damped_sw_order_belief, effective_inventory};
-use voi_core::unit_ll::p1_totals_loglik;
-use voi_core::{picking_weights, ModelParams};
+#[allow(unused_imports)]
+use voi_core::unit_ll;
+use voi_core::{
+    filter_step_unit, picking_weights, FilterObs, ModelParams, UnitParticleBank,
+};
 
 const DAYS: usize = 14;
 const UNITS_PER_LOT: usize = 15;
@@ -432,76 +435,36 @@ fn simulate_truth_day(
     (sales, waste)
 }
 
-fn resample(rng: &mut Pcg64, n: usize, w: &[f64]) -> Vec<usize> {
-    let mut idx = Vec::with_capacity(n);
-    for _ in 0..n {
-        let u = rng.random::<f64>();
-        let mut cdf = 0.0;
-        let mut chosen = w.len().saturating_sub(1);
-        for (i, &wi) in w.iter().enumerate() {
-            cdf += wi;
-            if u <= cdf {
-                chosen = i;
-                break;
-            }
-        }
-        idx.push(chosen);
-    }
-    idx
-}
-
 fn one_day_update(
-    freshness: &mut Vec<Vec<f64>>,
+    bank: &mut UnitParticleBank,
     sales: i32,
     waste: i32,
     params: &ModelParams,
-    gamma: &Gamma<f64>,
     rng: &mut Pcg64,
-    seed: u64,
-    day: usize,
 ) -> Vec<f64> {
-    let n = freshness.len();
-    let mut log_w = vec![0.0f64; n];
-    for p in 0..n {
-        for f in &mut freshness[p] {
-            if *f > 0.0 {
-                *f = (*f - gamma_decrement(rng, gamma)).max(0.0);
-            }
-        }
-        let mut path_rng =
-            Pcg64::seed_from_u64(seed.wrapping_add(p as u64).wrapping_add(day as u64));
-        log_w[p] = p1_totals_loglik(&freshness[p], sales, waste, params, &mut path_rng);
-    }
-    let mx = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let mut w: Vec<f64> = log_w.iter().map(|lw| (lw - mx).exp()).collect();
-    let z: f64 = w.iter().sum();
-    for x in &mut w {
-        *x /= z.max(1e-300);
-    }
-    let idx = resample(rng, n, &w);
-    *freshness = idx.into_iter().map(|i| freshness[i].clone()).collect();
-    w
+    let obs = FilterObs {
+        sales_tot: Some(sales),
+        waste_tot: Some(waste),
+        arrivals: 0,
+        ..Default::default()
+    };
+    filter_step_unit(bank, &obs, params, rng);
+    bank.weights.clone()
 }
 
-fn time_one_day(n_lots: usize, upl: usize, params: &ModelParams, gamma: &Gamma<f64>) -> f64 {
+fn time_one_day(n_lots: usize, upl: usize, params: &ModelParams) -> f64 {
     let units = n_lots * upl;
     let mut rng = Pcg64::seed_from_u64(99);
-    let mut freshness: Vec<Vec<f64>> = (0..N_PARTICLES)
-        .map(|_| (0..units).map(|_| 0.5 + rng.random::<f64>() * 0.4).collect())
-        .collect();
+    let mut bank = UnitParticleBank {
+        weights: vec![1.0 / N_PARTICLES as f64; N_PARTICLES],
+        freshness: (0..N_PARTICLES)
+            .map(|_| (0..units).map(|_| 0.5 + rng.random::<f64>() * 0.4).collect())
+            .collect(),
+    };
     let sales = 12i32;
     let waste = 2i32;
     let t0 = Instant::now();
-    one_day_update(
-        &mut freshness,
-        sales,
-        waste,
-        params,
-        gamma,
-        &mut rng,
-        99,
-        0,
-    );
+    one_day_update(&mut bank, sales, waste, params, &mut rng);
     t0.elapsed().as_secs_f64() * 1000.0
 }
 
@@ -519,23 +482,18 @@ fn run_rep(
 
     let mut rng = Pcg64::seed_from_u64(seed);
     let mut units_f: Vec<f64> = (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect();
-    let mut freshness: Vec<Vec<f64>> = (0..N_PARTICLES)
-        .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
-        .collect();
+    let mut bank = UnitParticleBank {
+        weights: vec![1.0 / N_PARTICLES as f64; N_PARTICLES],
+        freshness: (0..N_PARTICLES)
+            .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
+            .collect(),
+    };
     let mut ess_trace = Vec::new();
 
     for day in 0..DAYS {
         let (sales, waste) = simulate_truth_day(&mut units_f, &offsets, params, &mut rng, gamma);
-        let w = one_day_update(
-            &mut freshness,
-            sales,
-            waste,
-            params,
-            gamma,
-            &mut rng,
-            seed,
-            day,
-        );
+        let w = one_day_update(&mut bank, sales, waste, params, &mut rng);
+        let _ = day;
         ess_trace.push(ess(&w));
     }
 
@@ -549,7 +507,7 @@ fn run_rep(
 
     let uniform_w = vec![1.0 / N_PARTICLES as f64; N_PARTICLES];
     let (pred_lc, pred_am) =
-        belief_wire_from_particles(&freshness, &uniform_w, &offsets, k_wire, params.eta_ref);
+        belief_wire_from_particles(&bank.freshness, &uniform_w, &offsets, k_wire, params.eta_ref);
     let (truth_lc, truth_am) = truth_belief_wire(&units_f, &offsets, k_wire, params.eta_ref);
 
     let mut pred_mf = vec![0.0; n_lots];
@@ -557,9 +515,9 @@ fn run_rep(
     let mut pred_tau_acc = vec![0.0; n_lots];
     let mut particle_mf = vec![vec![0.0; n_lots]; N_PARTICLES];
     for p in 0..N_PARTICLES {
-        let ptau = lot_tau_from_units(&freshness[p], &offsets, params.eta_ref);
+        let ptau = lot_tau_from_units(&bank.freshness[p], &offsets, params.eta_ref);
         for ell in 0..n_lots {
-            let sl = &freshness[p][offsets[ell]..offsets[ell + 1]];
+            let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
             let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
             let mf = if alive.is_empty() {
                 0.0
@@ -711,10 +669,10 @@ fn main() {
     for &l in &L_VALUES {
         let mut samples = Vec::new();
         for _ in 0..TIMING_WARMUP {
-            let _ = time_one_day(l, UNITS_PER_LOT, &params, &gamma);
+            let _ = time_one_day(l, UNITS_PER_LOT, &params);
         }
         for _ in 0..TIMING_REPS {
-            samples.push(time_one_day(l, UNITS_PER_LOT, &params, &gamma));
+            samples.push(time_one_day(l, UNITS_PER_LOT, &params));
         }
         samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
