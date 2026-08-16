@@ -345,8 +345,8 @@ export class MockAdapter implements EngineAdapter {
       .map((d) => ({
         day: d.day,
         arrivals: d.arrivals ?? 0,
-        sales_total: d.sales,
-        waste_total: d.waste,
+        sales_total: d.sales_total,
+        waste_total: d.waste_total,
         sales_by: null,
         waste_by: null,
         lot_ids: null,

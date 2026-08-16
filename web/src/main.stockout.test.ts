@@ -23,29 +23,19 @@ describe("Store chart-stack missed sales (T-116)", () => {
   const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
   const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
 
-  it("chart-stack order: Units sold, sales, Missed sales, stockout, Lots, history, Units spoiled, spoil", () => {
-    const storeSection = layoutSrc.match(
-      /id="linked-charts">([\s\S]*?)<\/main>/,
-    )?.[1];
-    expect(storeSection, "expected #linked-charts section in StudioLayout.tsx").toBeDefined();
-
-    const sold = storeSection!.indexOf("Units sold");
-    const salesId = storeSection!.indexOf('id="chart-sales"');
-    const missed = storeSection!.indexOf("Missed sales");
-    const stockoutId = storeSection!.indexOf('id="chart-stockout"');
-    const lots = storeSection!.indexOf("Lots · day × age");
-    const historyId = storeSection!.indexOf('id="chart-history"');
-    const spoiled = storeSection!.indexOf("Units spoiled");
-    const spoilId = storeSection!.indexOf('id="chart-spoil"');
-
+  it("cockpit layout preserves missed-sales captions and chart hosts (T-127)", () => {
+    expect(layoutSrc).toMatch(/Missed sales/);
+    expect(layoutSrc).toMatch(/id="chart-stockout"/);
+    expect(layoutSrc).toMatch(/id="chart-history"/);
+    expect(layoutSrc).toMatch(/id="chart-spoil"/);
+    const sold = layoutSrc.indexOf("Units sold");
+    const salesId = layoutSrc.indexOf('id="chart-sales"');
+    const missed = layoutSrc.indexOf("Missed sales");
+    const stockoutId = layoutSrc.indexOf('id="chart-stockout"');
     expect(sold).toBeGreaterThanOrEqual(0);
     expect(salesId).toBeGreaterThan(sold);
     expect(missed).toBeGreaterThan(salesId);
     expect(stockoutId).toBeGreaterThan(missed);
-    expect(lots).toBeGreaterThan(stockoutId);
-    expect(historyId).toBeGreaterThan(lots);
-    expect(spoiled).toBeGreaterThan(historyId);
-    expect(spoilId).toBeGreaterThan(spoiled);
   });
 
   it('caption text is exactly "Missed sales"', () => {

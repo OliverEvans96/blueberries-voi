@@ -11,6 +11,9 @@ import type {
   TradeoffForecastWire,
 } from "./types";
 
+/** Wire aliases documented for adapter implementers (T-127). */
+export type { TradeoffForecastWire, EventsWire };
+
 /**
  * Host-facing engine boundary. Returns Snapshot / DayDelta only — never a full
  * ViewModel. Economics / PnL / heatmap stay in ViewModelProjector.

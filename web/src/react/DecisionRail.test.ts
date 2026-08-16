@@ -65,11 +65,8 @@ describe("DecisionRail (T-124 AC-ia)", () => {
     const truth = screen.getByRole("switch", { name: /truth|true state/i });
     expect(truth).toBeInTheDocument();
 
-    expect(
-      document.querySelector(
-        "[data-testid='pnl-consolidated'], #chart-pnl-totals",
-      ),
-    ).not.toBeNull();
+    // T-127: consolidated P&L moved to EconomicsPane; Run rail keeps tradeoff charts.
+    expect(document.querySelector(".tradeoff-charts, #tradeoff-curve-host")).not.toBeNull();
   });
 
   it("updates order quantity when the slider moves", () => {

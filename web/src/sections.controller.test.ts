@@ -129,11 +129,10 @@ describe("Controller chart wiring (T-099)", () => {
     ).toBe(true);
   });
 
-  it("react/studioLogic.ts mounts controller orders when that plot is visible", () => {
+  it("react/studioLogic.ts mounts controller orders in Run today strip (T-127)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
     expect(logic).toMatch(/controllerOrders|renderControllerOrders/);
-    expect(layout).toMatch(/data-plot=["']plot-controller-orders["']/);
-    expect(logic).toMatch(/plotVisible\(\s*["']plot-controller-orders["']\s*\)/);
+    expect(layout).toMatch(/id="chart-controller-orders"/);
   });
 });

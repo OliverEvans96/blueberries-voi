@@ -20,7 +20,9 @@ except ImportError:
 _RUST = pytest.mark.skipif(_rust_handle_rpc is None, reason="_core not built")
 
 
-def _rpc(method: str, params: dict[str, Any] | None = None, *, id_: str = "1") -> dict[str, Any]:
+def _rpc(
+    method: str, params: dict[str, Any] | None = None, *, id_: str = "1"
+) -> dict[str, Any]:
     assert _rust_handle_rpc is not None
     raw = _rust_handle_rpc(
         json.dumps({"id": id_, "method": method, "params": params or {}})
@@ -86,9 +88,6 @@ def test_tradeoff_forecast_optional_params() -> None:
 def test_tradeoff_forecast_does_not_advance_day() -> None:
     _rpc("init", {"seed": 7})
     _rpc("step", {"order": 0})
-    snap = _rpc("init", {"seed": 7})
-    _rpc("step", {"order": 0})
-    day_before = snap["result"]["episode_day"]
     _rpc("tradeoff_forecast", {})
     # Re-check via fresh init+step — forecast must be read-only.
     out = _rpc("tradeoff_forecast", {})

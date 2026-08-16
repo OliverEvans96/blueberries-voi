@@ -219,17 +219,11 @@ export function initStudio(app: HTMLElement): () => void {
   const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
   const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
 
-  function missedByDayMap(): Map<number, number> {
-    return new Map(
-      vm.history.map((d) => [d.day, Math.max(0, (d.demand ?? 0) - d.sales)]),
-    );
-  }
-
   async function fetchTradeoffForecast(): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
       const result = (await adapter.tradeoffForecast()) as TradeoffForecastResult;
-      tradeoffForecasts = result.forecasts ?? [];
+      tradeoffForecasts = result.candidates ?? [];
     } catch {
       tradeoffForecasts = [];
     }
@@ -263,9 +257,17 @@ export function initStudio(app: HTMLElement): () => void {
     if (!eventsPaneRoot) return;
     eventsPaneRoot.render(
       createElement(EventsPane, {
-        days: eventDays,
+        vm: {
+          episode_day: vm.episode_day,
+          history: vm.history.map((d) => ({
+            day: d.day,
+            missed: d.stockout,
+          })),
+          config: vm.config,
+        },
         showTruth,
-        missedByDay: missedByDayMap(),
+        events: eventDays,
+        loading: eventsLoading,
       }),
     );
   }

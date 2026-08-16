@@ -44,25 +44,12 @@ describe("Belief section contracts (T-090)", () => {
     expect(blurb).toMatch(/marginal|f marginal/);
   });
 
-  it("main.ts mounts age-marginal above the Belief heatmap (source order)", () => {
+  it("StudioLayout always-on Secondary hosts belief heatmap and age marginal (T-127)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
     expect(logic).toMatch(/beliefAgeMarginal|renderBeliefAgeMarginal/);
-
-    // data-plot for marginal should appear before heatmap lg in the focus pane markup.
-    const marginalIdx = layout.search(
-      /data-plot=["'][^"']*(age[-_]?marginal|marginal)[^"']*["']/,
-    );
-    const heatmapIdx = layout.search(
-      /data-plot=["']plot-belief-lg["']|data-plot=["'][^"']*heatmap[^"']*["']/,
-    );
-    expect(marginalIdx, "expected age-marginal focus-plot in main.ts").toBeGreaterThanOrEqual(
-      0,
-    );
-    expect(heatmapIdx, "expected Belief heatmap focus-plot in main.ts").toBeGreaterThanOrEqual(
-      0,
-    );
-    expect(marginalIdx).toBeLessThan(heatmapIdx);
+    expect(layout).toMatch(/id="chart-belief-age-marginal"/);
+    expect(layout).toMatch(/id="chart-belief-lg"/);
   });
 
   it("ships beliefAgeMarginal chart module sharing freshness domain with heatmap", () => {
