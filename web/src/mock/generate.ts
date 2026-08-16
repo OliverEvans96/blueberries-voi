@@ -1,3 +1,4 @@
+import type { FlatBelief } from "../engine/types";
 import type {
   ArrivalProduct,
   BeliefGrid,
@@ -403,6 +404,60 @@ function beliefBlur(scenario: ScenarioId): number {
   if (scenario === "F1s") return 0.85;
   if (scenario === "F1") return 0.95;
   return 1; // P1
+}
+
+/** Map τ-day cohort age to unit freshness f ∈ [0, 1] (Weibull survival teaching stub). */
+export function freshnessFromTau(tau: number, cfg: SimConfig): number {
+  const eta = etaEffective(cfg);
+  return weibullSurvival(tau, cfg.beta, eta);
+}
+
+/**
+ * Flat L×K f-wire belief from live lots (fake physics; projector rebins to heatmap).
+ */
+export function generateFlatBelief(
+  lots: Lot[],
+  rng: () => number,
+  scenario: ScenarioId = "P1",
+  K = 12,
+  cfg: SimConfig = DEFAULT_SIM_CONFIG,
+): FlatBelief {
+  const L = lots.length;
+  if (L === 0) {
+    return {
+      L: 0,
+      K,
+      lot_counts: [],
+      f_marginals: [],
+      f_grid: Array.from({ length: K }, (_, i) => (i + 0.5) / K),
+    };
+  }
+
+  const lot_counts = lots.map((l) => l.n);
+  const f_grid = Array.from(
+    { length: K },
+    (_, i) => i / Math.max(1, K - 1),
+  );
+  const maxTau = Math.max(8, ...lots.map((l) => l.tau));
+  const blurF = beliefBlur(scenario) / maxTau;
+  const f_marginals: number[] = [];
+
+  for (let l = 0; l < L; l++) {
+    const fTruth = freshnessFromTau(lots[l]!.tau, cfg);
+    const row: number[] = [];
+    let sum = 0;
+    for (let k = 0; k < K; k++) {
+      const d = (f_grid[k]! - fTruth) / Math.max(0.05, blurF);
+      const mass = Math.exp(-(d * d) / 2) * (0.75 + 0.5 * rng());
+      row.push(mass);
+      sum += mass;
+    }
+    for (const m of row) {
+      f_marginals.push(sum > 0 ? m / sum : 1 / K);
+    }
+  }
+
+  return { L, K, lot_counts, f_marginals, f_grid };
 }
 
 export function generateBelief(

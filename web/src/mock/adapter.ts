@@ -10,7 +10,6 @@ import type {
 } from "../engine/types";
 import type {
   Economics,
-  Lot,
   PipelineOrder,
   ScenarioId,
   SimConfig,
@@ -20,11 +19,14 @@ import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
   createInitialState,
+  generateFlatBelief,
   onHandInventory,
   snapCases,
   stepSimulation,
   type SimState,
 } from "./generate";
+
+export { generateFlatBelief } from "./generate";
 
 /** Coherent OrderSchedule stubs when live engine is absent (T-085 / ADR 0114). */
 const MOCK_SCHEDULE: ScheduleWire = {
@@ -42,60 +44,6 @@ const MOCK_DEMAND_SUMMARY: DemandSummary = {
 
 function configsEqual(a: SimConfig, b: SimConfig): boolean {
   return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
-}
-
-function beliefBlur(scenario: ScenarioId): number {
-  if (scenario === "P0") return 1.6;
-  if (scenario === "F2") return 0.55;
-  if (scenario === "F2a") return 0.7;
-  if (scenario === "F1s") return 0.85;
-  if (scenario === "F1") return 0.95;
-  return 1; // P1
-}
-
-/** Flat L×K belief from live lots (fake physics; JS heatmap derives density). */
-export function generateFlatBelief(
-  lots: Lot[],
-  rng: () => number,
-  scenario: ScenarioId = "P1",
-  K = 12,
-): FlatBelief {
-  const L = lots.length;
-  if (L === 0) {
-    return {
-      L: 0,
-      K,
-      lot_counts: [],
-      age_marginals: [],
-      tau_grid: Array.from({ length: K }, (_, i) => i),
-    };
-  }
-
-  const lot_counts = lots.map((l) => l.n);
-  const maxTau = Math.max(8, ...lots.map((l) => l.tau));
-  const tau_grid = Array.from(
-    { length: K },
-    (_, i) => (i / Math.max(1, K - 1)) * maxTau,
-  );
-  const blur = beliefBlur(scenario);
-  const age_marginals: number[] = [];
-
-  for (let l = 0; l < L; l++) {
-    const tau = lots[l]!.tau;
-    const row: number[] = [];
-    let sum = 0;
-    for (let k = 0; k < K; k++) {
-      const d = (tau_grid[k]! - tau) / blur;
-      const mass = Math.exp(-(d * d) / 2) * (0.75 + 0.5 * rng());
-      row.push(mass);
-      sum += mass;
-    }
-    for (const m of row) {
-      age_marginals.push(sum > 0 ? m / sum : 1 / K);
-    }
-  }
-
-  return { L, K, lot_counts, age_marginals, tau_grid };
 }
 
 /**
@@ -122,6 +70,8 @@ export class MockAdapter implements EngineAdapter {
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
+      12,
+      this.config,
     );
   }
 
@@ -135,6 +85,8 @@ export class MockAdapter implements EngineAdapter {
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
+      12,
+      this.config,
     );
     this.seq = 0;
     return this.toSnapshot();
@@ -175,6 +127,8 @@ export class MockAdapter implements EngineAdapter {
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
+      12,
+      this.config,
     );
     this.seq = 0;
     return this.toSnapshot();
@@ -193,6 +147,8 @@ export class MockAdapter implements EngineAdapter {
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
+      12,
+      this.config,
     );
     return this.toSnapshot();
   }
@@ -212,6 +168,8 @@ export class MockAdapter implements EngineAdapter {
         this.state.lots,
         this.state.rng,
         this.config.obs_scenario,
+        12,
+        this.config,
       );
     }
     return this.toSnapshot();
@@ -298,6 +256,8 @@ export class MockAdapter implements EngineAdapter {
       this.state.lots,
       this.state.rng,
       this.config.obs_scenario,
+      12,
+      this.config,
     );
     this.seq += 1;
     return {
@@ -311,8 +271,8 @@ export class MockAdapter implements EngineAdapter {
       belief: {
         ...this.flatBelief,
         lot_counts: [...this.flatBelief.lot_counts],
-        age_marginals: [...this.flatBelief.age_marginals],
-        tau_grid: [...this.flatBelief.tau_grid],
+        f_marginals: [...this.flatBelief.f_marginals],
+        f_grid: [...this.flatBelief.f_grid],
       },
       live_lots: this.state.lots.map((l) => ({ ...l })),
       pipeline: this.pipeline(),
@@ -337,8 +297,8 @@ export class MockAdapter implements EngineAdapter {
       belief: {
         ...this.flatBelief,
         lot_counts: [...this.flatBelief.lot_counts],
-        age_marginals: [...this.flatBelief.age_marginals],
-        tau_grid: [...this.flatBelief.tau_grid],
+        f_marginals: [...this.flatBelief.f_marginals],
+        f_grid: [...this.flatBelief.f_grid],
       },
       history: this.state.history.map((d) => ({
         ...d,
