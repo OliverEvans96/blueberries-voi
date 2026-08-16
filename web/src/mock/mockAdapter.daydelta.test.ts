@@ -38,8 +38,8 @@ describe("EngineAdapter interface (MockAdapter)", () => {
           L: expect.any(Number),
           K: expect.any(Number),
           lot_counts: expect.any(Array),
-          age_marginals: expect.any(Array),
-          tau_grid: expect.any(Array),
+          f_marginals: expect.any(Array),
+          f_grid: expect.any(Array),
         }),
       }),
     );
@@ -65,12 +65,12 @@ describe("EngineAdapter interface (MockAdapter)", () => {
     expect(resetSnap).toEqual(
       expect.objectContaining({
         seq: expect.any(Number),
-        belief: expect.objectContaining({ age_marginals: expect.any(Array) }),
+        belief: expect.objectContaining({ f_marginals: expect.any(Array) }),
       }),
     );
   });
 
-  it("init Snapshot belief is flat (len age_marginals === L*K)", async () => {
+  it("init Snapshot belief is flat (len f_marginals === L*K)", async () => {
     const adapter = new MockAdapter(42) as unknown as EngineAdapter;
     const snap = await adapter.init({});
     expect(snap.belief).toEqual(
@@ -78,15 +78,15 @@ describe("EngineAdapter interface (MockAdapter)", () => {
         L: expect.any(Number),
         K: expect.any(Number),
         lot_counts: expect.any(Array),
-        age_marginals: expect.any(Array),
-        tau_grid: expect.any(Array),
+        f_marginals: expect.any(Array),
+        f_grid: expect.any(Array),
       }),
     );
-    const { L, K, lot_counts, age_marginals, tau_grid } = snap.belief;
+    const { L, K, lot_counts, f_marginals, f_grid } = snap.belief;
     expect(lot_counts).toHaveLength(L);
-    expect(age_marginals).toHaveLength(L * K);
-    expect(tau_grid).toHaveLength(K);
-    for (const row of age_marginals) {
+    expect(f_marginals).toHaveLength(L * K);
+    expect(f_grid).toHaveLength(K);
+    for (const row of f_marginals) {
       expect(Array.isArray(row)).toBe(false);
     }
   });

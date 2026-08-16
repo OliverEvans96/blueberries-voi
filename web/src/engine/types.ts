@@ -7,9 +7,10 @@ export type FlatBelief = {
   L: number;
   K: number;
   lot_counts: number[];
-  /** Row-major length L*K. */
-  age_marginals: number[];
-  tau_grid: number[];
+  /** Row-major length L*K alive-only normalized marginals. */
+  f_marginals: number[];
+  /** Freshness bin centers in [0, 1]. */
+  f_grid: number[];
 };
 
 /** OrderSchedule export for Studio calendar chrome (T-085 / CAL-C1). */

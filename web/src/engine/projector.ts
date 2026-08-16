@@ -34,6 +34,47 @@ export type ProjectorOptions = {
   config?: SimConfig;
 };
 
+/** Legacy τ-wire fields (mock fixtures only; forbidden on production f-wire). */
+type LegacyFlatBeliefFields = {
+  age_marginals?: number[];
+  tau_grid?: number[];
+};
+
+function asLegacyFlat(flat: FlatBelief): FlatBelief & LegacyFlatBeliefFields {
+  return flat as FlatBelief & LegacyFlatBeliefFields;
+}
+
+function isLegacyFlatBelief(flat: FlatBelief): boolean {
+  const legacy = asLegacyFlat(flat);
+  return (
+    Array.isArray(legacy.tau_grid) &&
+    legacy.tau_grid.length > 0 &&
+    Array.isArray(legacy.age_marginals)
+  );
+}
+
+function gridAndMarginals(flat: FlatBelief): {
+  grid: number[];
+  marginals: number[];
+} {
+  const legacy = asLegacyFlat(flat);
+  if (isLegacyFlatBelief(flat)) {
+    return {
+      grid: legacy.tau_grid!,
+      marginals: legacy.age_marginals!,
+    };
+  }
+  return {
+    grid: flat.f_grid,
+    marginals: flat.f_marginals,
+  };
+}
+
+/** Heatmap axis labels for belief density (f-native: Freshness × count). */
+export function beliefHeatmapAxisLabels(): { x: string; y: string } {
+  return { x: "Freshness", y: "Count" };
+}
+
 /** Derive missed sales when wire omits stockout (HTTP / Pyodide / WASM). */
 export function stockoutFromDayFields(
   demand: number | undefined,
@@ -88,15 +129,36 @@ export function centersToEdges(centers: number[]): number[] {
 }
 
 /**
- * Merged age mass m[k] = Σ_l lot_counts[l] * age_marginals[l*K+k] (ADR 0109).
+ * Merged f mass m[k] = Σ_l lot_counts[l] * f_marginals[l*K+k] (T-C2-A / ADR 0130).
  */
-export function ageMarginalFromFlat(flat: FlatBelief): number[] {
-  const { L, K, lot_counts, age_marginals } = flat;
+export function fMarginalFromFlat(flat: FlatBelief): number[] {
+  const { L, K, lot_counts } = flat;
+  const { marginals } = gridAndMarginals(flat);
   const m = Array.from({ length: K }, () => 0);
   for (let l = 0; l < L; l++) {
     const count = lot_counts[l] ?? 0;
     for (let k = 0; k < K; k++) {
-      m[k]! += count * (age_marginals[l * K + k] ?? 0);
+      m[k]! += count * (marginals[l * K + k] ?? 0);
+    }
+  }
+  return m;
+}
+
+/**
+ * Merged age mass m[k] = Σ_l lot_counts[l] * age_marginals[l*K+k] (ADR 0109).
+ * Legacy mock fixtures; f-wire callers use {@link fMarginalFromFlat}.
+ */
+export function ageMarginalFromFlat(flat: FlatBelief): number[] {
+  if (!isLegacyFlatBelief(flat)) {
+    return fMarginalFromFlat(flat);
+  }
+  const { L, K, lot_counts } = flat;
+  const { marginals } = gridAndMarginals(flat);
+  const m = Array.from({ length: K }, () => 0);
+  for (let l = 0; l < L; l++) {
+    const count = lot_counts[l] ?? 0;
+    for (let k = 0; k < K; k++) {
+      m[k]! += count * (marginals[l * K + k] ?? 0);
     }
   }
   return m;
@@ -104,7 +166,8 @@ export function ageMarginalFromFlat(flat: FlatBelief): number[] {
 
 function integerCountEdges(maxN: number): number[] {
   const top = Math.max(1, Math.ceil(maxN));
-  return Array.from({ length: top + 1 }, (_, i) => i);
+  // +2 so rounded n === top lands in bin top (edge value top is a left edge, not the cap).
+  return Array.from({ length: top + 2 }, (_, i) => i);
 }
 
 function countBinFor(edges: number[], n: number): number {
@@ -127,8 +190,10 @@ export function beliefGridFromFlat(
     return { density: [], tau_edges: [], count_edges: [], age_marginal: [] };
   }
 
-  const { L, K, lot_counts, age_marginals, tau_grid } = flat;
-  const tau_edges = centersToEdges(tau_grid);
+  const { L, K, lot_counts } = flat;
+  const { grid, marginals } = gridAndMarginals(flat);
+  const bin_edges = centersToEdges(grid);
+  const fNative = !isLegacyFlatBelief(flat);
 
   let maxN = 1;
   for (const n of lot_counts) {
@@ -150,15 +215,18 @@ export function beliefGridFromFlat(
     const n_l = lot_counts[l] ?? 0;
     const c = countBinFor(count_edges, n_l);
     for (let k = 0; k < K; k++) {
-      density[k]![c]! += n_l * (age_marginals[l * K + k] ?? 0);
+      density[k]![c]! += n_l * (marginals[l * K + k] ?? 0);
     }
   }
 
+  const merged = fNative ? fMarginalFromFlat(flat) : ageMarginalFromFlat(flat);
+
   return {
     density,
-    tau_edges,
+    tau_edges: bin_edges,
+    ...(fNative ? { f_edges: bin_edges, freshness_edges: bin_edges } : {}),
     count_edges,
-    age_marginal: ageMarginalFromFlat(flat),
+    age_marginal: merged,
   };
 }
 
@@ -172,12 +240,21 @@ export function beliefGridFromFlat(
  * day.lots explicitly and that wins.
  */
 function cloneFlat(belief: FlatBelief): FlatBelief {
-  return {
-    ...belief,
+  const legacy = asLegacyFlat(belief);
+  const cloned: FlatBelief & LegacyFlatBeliefFields = {
+    L: belief.L,
+    K: belief.K,
     lot_counts: [...belief.lot_counts],
-    age_marginals: [...belief.age_marginals],
-    tau_grid: [...belief.tau_grid],
+    f_marginals: belief.f_marginals ? [...belief.f_marginals] : [],
+    f_grid: belief.f_grid ? [...belief.f_grid] : [],
   };
+  if (legacy.age_marginals) {
+    cloned.age_marginals = [...legacy.age_marginals];
+  }
+  if (legacy.tau_grid) {
+    cloned.tau_grid = [...legacy.tau_grid];
+  }
+  return cloned;
 }
 
 function asDay(
@@ -243,8 +320,8 @@ export class ViewModelProjector {
     L: 0,
     K: 0,
     lot_counts: [],
-    age_marginals: [],
-    tau_grid: [],
+    f_marginals: [],
+    f_grid: [],
   };
   private demandSummary: DemandSummary | null = null;
   private schedule: ScheduleWire | null = null;
@@ -274,12 +351,7 @@ export class ViewModelProjector {
     }));
     this.liveLots = (snapshot.live_lots ?? []).map((l) => ({ ...l }));
     this.pipeline = normalizePipeline(snapshot.pipeline, this.episodeDay);
-    this.flatBelief = {
-      ...snapshot.belief,
-      lot_counts: [...snapshot.belief.lot_counts],
-      age_marginals: [...snapshot.belief.age_marginals],
-      tau_grid: [...snapshot.belief.tau_grid],
-    };
+    this.flatBelief = cloneFlat(snapshot.belief);
 
     if (snapshot.applied_config) {
       this.config = {
@@ -361,12 +433,7 @@ export class ViewModelProjector {
       this.episodeDay = snapshot.episode_day;
     }
     if (snapshot.belief) {
-      this.flatBelief = {
-        ...snapshot.belief,
-        lot_counts: [...snapshot.belief.lot_counts],
-        age_marginals: [...snapshot.belief.age_marginals],
-        tau_grid: [...snapshot.belief.tau_grid],
-      };
+      this.flatBelief = cloneFlat(snapshot.belief);
       // Mid-episode scenario switch: update the current / last-day belief trail
       // entry. Skip empty stubs (e.g. incomplete PyO3 responses with L<=0).
       if (snapshot.belief.L > 0 && snapshot.belief.K > 0) {

@@ -760,3 +760,142 @@ describe("stockoutFromDayFields (missed sales wire gap)", () => {
   });
 });
 
+/** f-native wire (T-C2-A): FlatBelief carries f_grid / f_marginals, not τ fields. */
+type FNativeFlatBelief = {
+  L: number;
+  K: number;
+  lot_counts: number[];
+  f_grid: number[];
+  /** Row-major L×K alive-only normalized marginals. */
+  f_marginals: number[];
+};
+
+function fNativeFlat(
+  overrides: Partial<FNativeFlatBelief> & Pick<FNativeFlatBelief, "L" | "K">,
+): FNativeFlatBelief {
+  const { L, K } = overrides;
+  return {
+    L,
+    K,
+    lot_counts: overrides.lot_counts ?? Array.from({ length: L }, () => 1),
+    f_grid:
+      overrides.f_grid ??
+      Array.from({ length: K }, (_, k) => (k + 0.5) / K),
+    f_marginals:
+      overrides.f_marginals ??
+      Array.from({ length: L * K }, () => 1 / K),
+    ...overrides,
+  };
+}
+
+function asFWireBelief(flat: FNativeFlatBelief): FlatBelief {
+  return flat as unknown as FlatBelief;
+}
+
+function freshnessEdgesFromGrid(
+  grid: ReturnType<typeof beliefGridFromFlat>,
+): number[] {
+  const g = grid as ReturnType<typeof beliefGridFromFlat> & {
+    f_edges?: number[];
+    freshness_edges?: number[];
+  };
+  return g.f_edges ?? g.freshness_edges ?? grid.tau_edges;
+}
+
+function fMarginalFromFlat(flat: FNativeFlatBelief): number[] {
+  const fn = (
+    projectorMod as { fMarginalFromFlat?: (f: FlatBelief) => number[] }
+  ).fMarginalFromFlat;
+  expect(typeof fn).toBe("function");
+  return fn!(asFWireBelief(flat));
+}
+
+describe("beliefGridFromFlat f_grid / f_marginals (T-C2-A / AC-frontend)", () => {
+  it("maps f_grid bin centers to freshness edges in [0, 1], not τ-day span", () => {
+    const flat = fNativeFlat({
+      L: 2,
+      K: 4,
+      lot_counts: [3.6, 3.32],
+      f_grid: [0.125, 0.375, 0.625, 0.875],
+      f_marginals: [1, 0, 0, 0, 0, 0, 0, 1],
+    });
+    const grid = beliefGridFromFlat(asFWireBelief(flat));
+    const edges = freshnessEdgesFromGrid(grid);
+    expect(edges).toHaveLength(flat.K + 1);
+    expect(edges[0]!).toBeGreaterThanOrEqual(0);
+    expect(edges[edges.length - 1]!).toBeLessThanOrEqual(1);
+    // Freshness domain — not legacy τ_grid ≈ 0..8 days.
+    expect(edges[edges.length - 1]!).toBeLessThan(2);
+    expect(edges).not.toEqual(expectedCentersToEdges([0, 2.67, 5.33, 8]));
+  });
+
+  it("deposits lot mass from f_marginals row-major L×K", () => {
+    const flat = fNativeFlat({
+      L: 2,
+      K: 3,
+      lot_counts: [4, 2],
+      f_grid: [0.1, 0.5, 0.9],
+      // Lot 0 → bin 0; lot 1 → bin 2.
+      f_marginals: [1, 0, 0, 0, 0, 1],
+    });
+    const grid = beliefGridFromFlat(asFWireBelief(flat));
+    expect(grid.density).toHaveLength(flat.K);
+    const bin4 = Math.round(4);
+    const bin2 = Math.round(2);
+    const c4 = grid.count_edges.findIndex((e) => e === bin4);
+    const c2 = grid.count_edges.findIndex((e) => e === bin2);
+    expect(c4).toBeGreaterThanOrEqual(0);
+    expect(c2).toBeGreaterThanOrEqual(0);
+    expect(grid.density[0]![c4]!).toBeCloseTo(4);
+    expect(grid.density[2]![c2]!).toBeCloseTo(2);
+    expect(grid.density[0]![c2]!).toBeCloseTo(0);
+    expect(grid.density[2]![c4]!).toBeCloseTo(0);
+  });
+
+  it("returns empty density for L=0 f-native boundary", () => {
+    const grid = beliefGridFromFlat(
+      asFWireBelief({
+        L: 0,
+        K: 4,
+        lot_counts: [],
+        f_grid: [0.25, 0.5, 0.75, 1],
+        f_marginals: [],
+      }),
+    );
+    expect(grid.density).toEqual([]);
+  });
+
+  it("exposes Freshness × count heatmap axis labels", () => {
+    const fn = (
+      projectorMod as {
+        beliefHeatmapAxisLabels?: () => { x: string; y: string };
+      }
+    ).beliefHeatmapAxisLabels;
+    expect(typeof fn).toBe("function");
+    const labels = fn!();
+    expect(labels.x.toLowerCase()).toContain("freshness");
+    expect(labels.y.toLowerCase()).toContain("count");
+    expect(labels.x.toLowerCase()).not.toContain("age");
+  });
+});
+
+describe("fMarginalFromFlat (T-C2-A / AC-frontend)", () => {
+  it("merges per-lot f mass: m[k] = Σ_l lot_counts[l] × f_marginals[l×K+k]", () => {
+    const flat = fNativeFlat({
+      L: 2,
+      K: 3,
+      lot_counts: [4, 10],
+      f_grid: [0.2, 0.5, 0.8],
+      f_marginals: [0.5, 0.3, 0.2, 0.1, 0.6, 0.3],
+    });
+    const m = fMarginalFromFlat(flat);
+    expect(m).toHaveLength(flat.K);
+    expect(m[0]!).toBeCloseTo(4 * 0.5 + 10 * 0.1);
+    expect(m[1]!).toBeCloseTo(4 * 0.3 + 10 * 0.6);
+    expect(m[2]!).toBeCloseTo(4 * 0.2 + 10 * 0.3);
+    const sumM = m.reduce((a, b) => a + b, 0);
+    const sumCounts = flat.lot_counts.reduce((a, b) => a + b, 0);
+    expect(sumM).toBeCloseTo(sumCounts);
+  });
+});
+
