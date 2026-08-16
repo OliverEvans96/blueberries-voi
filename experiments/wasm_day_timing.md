@@ -167,4 +167,7 @@ under 2 ms p95 native / ~2 ms WASM (1.5× estimate).
 | `crates/voi_core/src/bin/bench_day_timing.rs` | native release harness (quick smoke) |
 | `experiments/bench_wasm_day_timing.mjs` | WASM `handle_rpc` harness |
 | `experiments/bench_order_autopilot_timing.py` | aggregates native + WASM JSON |
-| `experiments/wasm_day_timing.md` | this report (initial pass; see `freshness_timing_sweep.md` for parameter grids) |
+| `experiments/wasm_day_timing.md` | initial DEMO_BUDGETS smoke (superseded by parameter sweep) |
+| `experiments/freshness_timing_sweep.md` | **full parameter sweep** (current + C1/C2/C3 proxies) |
+| `crates/voi_core/src/bin/bench_freshness_sweep.rs` | native sweep harness |
+| `experiments/generate_freshness_timing_report.py` | JSON → markdown report |

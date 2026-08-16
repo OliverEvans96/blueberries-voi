@@ -13,6 +13,10 @@ crate-type = ["rlib"]
 name = "bench_day_timing"
 path = "src/bin/bench_day_timing.rs"
 
+[[bin]]
+name = "bench_freshness_sweep"
+path = "src/bin/bench_freshness_sweep.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
