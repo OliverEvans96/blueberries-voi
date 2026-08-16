@@ -157,24 +157,22 @@ def test_beta1_degeneracy_orders_match_on_same_age_fixture() -> None:
 
     params = ModelParams(case_size=8)
     alpha, rho = 0.9, 1.0
-    grid = [0.0, 1.0, 2.0, 3.0, 4.0]
+    grid = [0.0, 0.25, 0.5, 0.75, 1.0]
     lots = [20.0, 20.0]
     pending = {1: 16}
-    margs = [[1.0, 0.0, 0.0, 0.0, 0.0] for _ in lots]
-    belief = ShelfBelief(lot_counts=lots, age_marginals=margs, tau_grid=grid)
+    margs = [[0.0, 0.0, 0.0, 0.0, 1.0] for _ in lots]
+    belief = ShelfBelief(lot_counts=lots, f_marginals=margs, f_grid=grid)
 
     bar_w = float(
         effective_inventory(
-            ShelfBelief(lot_counts=[1.0], age_marginals=[margs[0]], tau_grid=grid),
+            ShelfBelief(lot_counts=[1.0], f_marginals=[margs[0]], f_grid=grid),
             pending_orders={},
-            params=params,
         )
     )
     pipe_w = float(
         effective_inventory(
-            ShelfBelief(lot_counts=[0.0], age_marginals=[margs[0]], tau_grid=grid),
+            ShelfBelief(lot_counts=[0.0], f_marginals=[margs[0]], f_grid=grid),
             pending_orders={1: 1},
-            params=params,
         )
     )
     # Matched legacy scalar window for flat-w unit equality. MWF schedule /

@@ -1,11 +1,13 @@
-"""T-020 Stage 0: sequential_wor_pmf age likelihood (exact joint vs mean-field).
-
-Hand helpers below lock the ADR 0090 contract against production
-``blueberries_voi.filter.age_likelihood`` once it exists. No production
-module is created by this file.
-"""
+"""T-020 Stage 0: sequential_wor_pmf age likelihood — retired with τ filter."""
 
 from __future__ import annotations
+
+import pytest
+
+pytest.skip(
+    "T-TAU-RETIRE: filter.age_likelihood module deleted",
+    allow_module_level=True,
+)
 
 import importlib
 import math

@@ -34,7 +34,8 @@ from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSche
 _EPOCH = date(2024, 1, 1)
 _ALPHA = 0.9
 _RHO = 1.0
-_TAU_GRID = (0.0, 2.0, 4.0, 6.0)
+_F_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
+_FRESH_ROW = [0.0, 0.0, 0.0, 0.0, 1.0]
 
 # Epoch-aligned order days (ADR 0114): Sun=6, Tue=1, Thu=3 → protection 3/3/4
 _ORDER_DAY_PROTECTION: tuple[tuple[int, int, str], ...] = (
@@ -57,16 +58,16 @@ def _weekday(day: int) -> int:
 def _empty_belief() -> Any:
     return shelf_belief_from_oracle(
         lot_counts=[0],
-        ages=[0.0],
-        tau_grid=list(_TAU_GRID),
+        f_marginals=[_FRESH_ROW],
+        f_grid=list(_F_GRID),
     )
 
 
 def _belief_with_total(n: float) -> Any:
     return shelf_belief_from_oracle(
         lot_counts=[float(n)],
-        ages=[0.0],
-        tau_grid=list(_TAU_GRID),
+        f_marginals=[_FRESH_ROW],
+        f_grid=list(_F_GRID),
     )
 
 

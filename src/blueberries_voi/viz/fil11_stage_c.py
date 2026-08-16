@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from blueberries_voi.filter import P1Obs
-from blueberries_voi.filter.backends import observation_loglik_mc
 from blueberries_voi.filter.types import RichObs, age_grid
 from blueberries_voi.model import (
     Cohort,
@@ -179,75 +178,6 @@ def run_fil11_stage_c(
     Divergence is TV between the two empirical discrete P1 distributions
     (equivalently 0 under exact CRN match). Requires non-degenerate support.
     """
-    import matplotlib.pyplot as plt
+    msg = "research particle filter removed (T-TAU-RETIRE)"
+    raise NotImplementedError(msg)
 
-    p = params or ModelParams()
-    out = figures_dir or FIG
-    out.mkdir(parents=True, exist_ok=True)
-    cohorts = _stage_c_cohorts(L, K)
-
-    sim_pairs: list[tuple[int, int]] = []
-    model_pairs: list[tuple[int, int]] = []
-    for i in range(n_obs_samples):
-        seed = _STAGE_C_SEED + i
-        sim_pairs.append(_obs_from_day_step(cohorts, p, np.random.default_rng(seed)))
-        model_rng = np.random.default_rng(seed)
-        if inject_wrong_physics:
-            model_pairs.append(_obs_from_wrong_physics(cohorts, p, model_rng))
-        else:
-            # Production observation model = shared day_step kernels (T-011 MC LL).
-            model_pairs.append(_obs_from_day_step(cohorts, p, model_rng))
-
-    n_support = len(set(sim_pairs))
-    if n_support < 2:
-        msg = (
-            f"Stage C empirical support is degenerate (n_support={n_support}); "
-            "refusing vacuous generative check"
-        )
-        raise RuntimeError(msg)
-
-    if not inject_wrong_physics:
-        ok = _production_mc_ll_finite(
-            cohorts,
-            p,
-            sim_pairs[0],
-            np.random.default_rng(_STAGE_C_SEED + 77_777),
-        )
-        if not ok:
-            msg = "production observation_loglik_mc returned non-finite score"
-            raise RuntimeError(msg)
-
-    divergence = _tv_discrete(_empirical_pmf(sim_pairs), _empirical_pmf(model_pairs))
-    passed = bool(divergence <= tolerance)
-
-    fig, ax = plt.subplots(figsize=(6.0, 3.8))
-    ax.bar(
-        ["divergence", "tolerance"],
-        [divergence, tolerance],
-        color=["#264653", "#e76f51"],
-    )
-    status = "PASS" if passed else "FAIL"
-    physics = (
-        "wrong-physics inject" if inject_wrong_physics else "production day_step/MC LL"
-    )
-    ax.set_ylabel("TV (paired CRN discrete P1 obs)")
-    ax.set_title(
-        f"FIL-11 Stage C generative ({physics}) - {status}\n"
-        f"L={L}, K={K}, n={n_obs_samples}, support={n_support}, "
-        f"TV={divergence:.4f}"
-    )
-    fig.tight_layout()
-    path = out / "fil11_stage_c_generative.png"
-    fig.savefig(path, dpi=120)
-    plt.close(fig)
-
-    return StageCResult(
-        divergence=float(divergence),
-        tolerance=float(tolerance),
-        passed=passed,
-        figure_path=path,
-        mode="generative_day_step",
-        L=L,
-        K=K,
-        n_support=n_support,
-    )

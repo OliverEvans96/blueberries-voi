@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any as ResearchParticleFilter  # T-121 F3
-
-import numpy as np
 import pytest
 
-from blueberries_voi import filter as filter_pkg
-from blueberries_voi.filter.backends import BACKENDS, get_backend, run_microbench
+pytest.skip(
+    "T-TAU-RETIRE: filter.backends / particle research modules deleted",
+    allow_module_level=True,
+)
 from blueberries_voi.filter.types import P1Obs, guard_joint_memory
 from blueberries_voi.model import ModelParams, death_prob_survival_ratio
 from blueberries_voi.sim.rust_bridge import day_step

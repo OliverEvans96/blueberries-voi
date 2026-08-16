@@ -1,10 +1,10 @@
-"""Flat belief wire buffers at the EngineSession boundary (ADR 0100)."""
+"""Flat belief wire buffers at the EngineSession boundary (ADR 0100 / 0131)."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from blueberries_voi.filter.belief import FreshShelfBelief
+from blueberries_voi.filter.belief import ShelfBelief
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -26,8 +26,8 @@ def f_grid_k(k: int) -> list[float]:
     return [float(i) / float(k - 1) for i in range(k)]
 
 
-def flatten_shelf_belief(belief: FreshShelfBelief) -> FlatBelief:
-    """Encode nested FreshShelfBelief as flat L / L*K / K f-native wire buffers."""
+def flatten_shelf_belief(belief: ShelfBelief) -> FlatBelief:
+    """Encode nested ShelfBelief as flat L / L*K / K f-native wire buffers."""
     return belief.to_export()
 
 
@@ -60,9 +60,9 @@ def empty_flat_belief(*, L: int, K: int) -> FlatBelief:
     }
 
 
-def shelf_belief_from_flat(payload: Mapping[str, Any]) -> FreshShelfBelief:
-    """Rebuild nested FreshShelfBelief from a flat f-native wire buffer."""
-    return FreshShelfBelief.from_export(payload)
+def shelf_belief_from_flat(payload: Mapping[str, Any]) -> ShelfBelief:
+    """Rebuild nested ShelfBelief from a flat f-native wire buffer."""
+    return ShelfBelief.from_export(payload)
 
 
 def live_lots_payload(cohorts: Sequence[Any]) -> list[dict[str, Any]]:
@@ -72,11 +72,14 @@ def live_lots_payload(cohorts: Sequence[Any]) -> list[dict[str, Any]]:
         n = int(getattr(c, "n", 0))
         if n <= 0:
             continue
+        tau = float(getattr(c, "tau", 0.0))
+        eta = float(getattr(c, "eta_ref", 14.0))
+        mean_f = max(0.0, 1.0 - tau / eta)
         out.append(
             {
                 "lot_id": int(getattr(c, "lot_id", 0)),
                 "n": n,
-                "tau": float(getattr(c, "tau", 0.0)),
+                "mean_f": mean_f,
             }
         )
     return out

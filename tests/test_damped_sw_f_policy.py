@@ -45,8 +45,8 @@ def _require_f_sw_export(name: str) -> object:
 
 
 def _f_belief_fixture() -> object:
-    shelf_belief_from_f_oracle = _require_belief_export("shelf_belief_from_f_oracle")
-    return shelf_belief_from_f_oracle(
+    shelf_belief_from_oracle = _require_belief_export("shelf_belief_from_oracle")
+    return shelf_belief_from_oracle(
         lot_counts=list(_F_LOT_COUNTS),
         f_marginals=[list(_F_MARGINALS[:3]), list(_F_MARGINALS[3:])],
         f_grid=list(_F_GRID),
@@ -72,10 +72,8 @@ def _hand_effective_inventory_f(
 
 
 def test_f_belief_effective_inventory_matches_ef_weighted_sum() -> None:
-    """AC-policy: effective_inventory_f_belief uses E[f] from f_marginals x f_grid."""
-    effective_inventory_f_belief = _require_belief_export(
-        "effective_inventory_f_belief"
-    )
+    """AC-policy: effective_inventory uses E[f] from f_marginals x f_grid."""
+    effective_inventory = _require_belief_export("effective_inventory")
 
     belief = _f_belief_fixture()
     expected = _hand_effective_inventory_f(
@@ -86,7 +84,7 @@ def test_f_belief_effective_inventory_matches_ef_weighted_sum() -> None:
         f_pipeline_default=_F_PIPELINE_DEFAULT,
     )
     assert expected == pytest.approx(18.0)
-    got = effective_inventory_f_belief(
+    got = effective_inventory(
         belief,
         pending_orders=_F_PENDING,
         f_pipeline_default=_F_PIPELINE_DEFAULT,
@@ -95,13 +93,11 @@ def test_f_belief_effective_inventory_matches_ef_weighted_sum() -> None:
 
 
 def test_f_belief_effective_inventory_empty_lots_pipeline_only() -> None:
-    effective_inventory_f_belief = _require_belief_export(
-        "effective_inventory_f_belief"
-    )
-    empty_f_shelf_belief = _require_belief_export("empty_f_shelf_belief")
+    effective_inventory = _require_belief_export("effective_inventory")
+    empty_shelf_belief = _require_belief_export("empty_shelf_belief")
 
-    belief = empty_f_shelf_belief(f_grid=list(_F_GRID))
-    got = effective_inventory_f_belief(
+    belief = empty_shelf_belief(f_grid=list(_F_GRID))
+    got = effective_inventory(
         belief,
         pending_orders={0: 4},
         f_pipeline_default=0.75,
@@ -150,9 +146,9 @@ def test_f_belief_damped_sw_zero_when_inventory_covers_quantile() -> None:
     from blueberries_voi.model import ModelParams
 
     damped_sw_order_f_belief = _require_f_sw_export("damped_sw_order_f_belief")
-    shelf_belief_from_f_oracle = _require_belief_export("shelf_belief_from_f_oracle")
+    shelf_belief_from_oracle = _require_belief_export("shelf_belief_from_oracle")
 
-    belief = shelf_belief_from_f_oracle(
+    belief = shelf_belief_from_oracle(
         lot_counts=[200.0],
         f_marginals=[[0.0, 1.0]],
         f_grid=[0.0, 1.0],
@@ -170,10 +166,10 @@ def test_f_belief_damped_sw_zero_when_inventory_covers_quantile() -> None:
 
 
 def test_f_belief_export_uses_f_grid_not_tau_grid() -> None:
-    FreshShelfBelief = _require_belief_export("FreshShelfBelief")
+    ShelfBelief = _require_belief_export("ShelfBelief")
 
     belief = _f_belief_fixture()
-    assert isinstance(belief, FreshShelfBelief)
+    assert isinstance(belief, ShelfBelief)
     payload = belief.to_export()
     assert "f_grid" in payload
     assert "f_marginals" in payload

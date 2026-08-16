@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -259,57 +258,6 @@ def run_m15_stage_b(
     ``diagnostic_only`` (M1 post-A-fail pattern). Does not implement foresight
     oracles beyond the separate B-state ladder helper.
     """
-    rung_ids = _validate_rungs([str(r) for r in rungs])
-    a_pass = _resolve_stage_a_pass(stage_a_pass=stage_a_pass, rung_ids=rung_ids)
-    params = ModelParams()
-    ships = load_abdella_shipments(ROOT / "data" / "abdella")
-    out_dir = figures_dir or FIG_M15
-    out_dir.mkdir(parents=True, exist_ok=True)
-    K = _SMOKE_K
-    L = _SMOKE_L
+    msg = "research particle filter removed (T-TAU-RETIRE)"
+    raise NotImplementedError(msg)
 
-    rows: list[StageBRungResult] = []
-    for scenario in rung_ids:
-        coverage, fig_path = _calibrate_rung(
-            scenario=scenario,
-            params=params,
-            ships=ships,
-            root_seed=root_seed,
-            n_reps=n_reps,
-            n_particles=n_particles,
-            K=K,
-            L=L,
-            n_burn=n_burn,
-            n_score=n_score,
-            figure_dir=out_dir,
-            write_figure=write_figure,
-        )
-        rows.append(
-            StageBRungResult(
-                scenario=scenario,
-                coverage_90=coverage,
-                diagnostic_only=not a_pass[scenario],
-                figure_path=fig_path,
-            )
-        )
-
-    if write_md:
-        import blueberries_voi.viz.m15 as m15_facade
-
-        gap = run_m15_oracle_ladder(
-            root_seed=root_seed,
-            n_particles=n_particles,
-            n_reps=min(n_reps, _SMOKE_ORACLE_REPS),
-            n_burn=n_burn,
-            n_score=n_score,
-            figures_dir=out_dir,
-            write_figure=write_figure,
-            write_md=False,
-        )
-        _write_stage_b_md(
-            rows,
-            gap,
-            root_seed=root_seed,
-            path=m15_facade.STAGE_B_RESULT_MD_PATH,
-        )
-    return rows

@@ -1,6 +1,13 @@
-"""T-065 NumPy sequential-WOR composition DP — RED identity / structure tests."""
+"""T-065 NumPy sequential-WOR composition DP — retired with τ filter."""
 
 from __future__ import annotations
+
+import pytest
+
+pytest.skip(
+    "T-TAU-RETIRE: filter.age_likelihood module deleted",
+    allow_module_level=True,
+)
 
 import ast
 import inspect

@@ -62,15 +62,12 @@ class Policy(Protocol):
     ) -> int: ...
 
 
-_EMPTY_ORACLE_TAU_GRID: tuple[float, ...] = (
+_EMPTY_ORACLE_F_GRID: tuple[float, ...] = (
     0.0,
-    2.0,
-    4.0,
-    6.0,
-    8.0,
-    10.0,
-    12.0,
-    14.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
 )
 
 
@@ -79,7 +76,7 @@ def _shelf_belief_from_cohorts(cohorts: Sequence[Cohort]) -> object:
     from blueberries_voi.filter.belief import shelf_belief_from_cohorts_oracle
 
     return shelf_belief_from_cohorts_oracle(
-        cohorts, empty_tau_grid=_EMPTY_ORACLE_TAU_GRID
+        cohorts, empty_f_grid=_EMPTY_ORACLE_F_GRID
     )
 
 

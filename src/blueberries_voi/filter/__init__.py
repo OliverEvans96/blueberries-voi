@@ -1,20 +1,19 @@
-"""Filter package — observation types and belief façades (ADR 0105 / 0127).
+"""Filter package — observation types and f-native belief façades (ADR 0130 / 0131).
 
-Production PF compute removed in T-121 Wave F; hot filter stepping lives in
-``voi_core``. Research backends under ``filter/backends.py`` remain for bakeoff.
+Production filter stepping lives in ``voi_core`` (unit PF). This package exposes
+observation masks, belief wire helpers, and backend selection constants.
 """
 
 from __future__ import annotations
 
-from blueberries_voi.filter.arrival_priors import (
-    arrival_age_prior_f2,
-    arrival_age_prior_f2a,
-)
-from blueberries_voi.filter.backends import observation_loglik_mc
 from blueberries_voi.filter.belief import (
     ShelfBelief,
     effective_inventory,
+    empty_shelf_belief,
+    flatten_shelf_belief,
+    shelf_belief_from_cohorts_oracle,
     shelf_belief_from_oracle,
+    unflatten_shelf_belief,
 )
 from blueberries_voi.filter.constants import (
     PRODUCTION_BACKEND,
@@ -49,14 +48,15 @@ __all__ = [
     "P1Obs",
     "RichObs",
     "ShelfBelief",
-    "arrival_age_prior_f2",
-    "arrival_age_prior_f2a",
     "choose_backend",
     "day_step",
     "effective_inventory",
+    "empty_shelf_belief",
+    "flatten_shelf_belief",
     "is_unobserved",
     "mask_for",
-    "observation_loglik_mc",
     "rich_obs_from_day_log",
+    "shelf_belief_from_cohorts_oracle",
     "shelf_belief_from_oracle",
+    "unflatten_shelf_belief",
 ]

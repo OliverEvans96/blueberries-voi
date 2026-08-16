@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from blueberries_voi.filter.belief import FreshShelfBelief, effective_inventory_f_belief
+from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.sim.bakeoff_damped_sw import protection_demand_quantile
 from blueberries_voi.sim.bakeoff_ordering import case_round
 
@@ -18,7 +18,7 @@ _PROTECTION_DEMAND_DAYS = 2
 
 
 def damped_sw_order_f_belief(
-    belief: FreshShelfBelief,
+    belief: ShelfBelief,
     *,
     pending_orders: Mapping[int, int],
     params: ModelParams,
@@ -31,7 +31,7 @@ def damped_sw_order_f_belief(
     """Case-rounded damped SW order from f-belief."""
     if schedule is not None and not schedule.can_order(day):
         return 0
-    i_tilde = effective_inventory_f_belief(
+    i_tilde = effective_inventory(
         belief,
         pending_orders=pending_orders,
         f_pipeline_default=f_pipeline_default,

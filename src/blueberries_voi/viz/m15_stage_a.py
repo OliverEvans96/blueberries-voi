@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from blueberries_voi.filter.arrival_priors import cold_abdella_arrival_age_prior
-from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -161,75 +160,6 @@ def run_m15_stage_a(
     after ≥1 post-birth day), avoiding oldest-slot-only comparisons when
     ``L_filter`` < empirical L.
     """
-    _validate_margin(contraction_margin)
-    rung_ids = _validate_rungs([str(r) for r in rungs])
+    msg = "research particle filter removed (T-TAU-RETIRE)"
+    raise NotImplementedError(msg)
 
-    params = ModelParams()
-    ships = load_abdella_shipments(ROOT / "data" / "abdella")
-    # Shared CRN episode: identical streams; rung loop only remasks observations.
-    ep = run_episode(
-        params,
-        root_seed=root_seed,
-        run_id="m15_stage_a",
-        n_burn=n_burn,
-        n_score=n_score,
-        shipments=ships,
-    )
-
-    K = _SMOKE_K
-    L = _SMOKE_L
-    grid = age_grid(K)
-    prior_full = cold_abdella_arrival_age_prior(grid, params)
-    prior_tight = _arrival_prior(_TIGHT_SPREAD, K)
-    prior_sd = _spread(prior_full, grid)
-    prior_tight_sd = _spread(prior_tight, grid)
-    margin = float(contraction_margin)
-    out_dir = figures_dir or FIG_M15
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    rows: list[StageARungResult] = []
-    for scenario in rung_ids:
-        post = _filter_rung(
-            ep,
-            scenario=scenario,
-            params=params,
-            prior=prior_full,
-            root_seed=root_seed,
-            n_particles=n_particles,
-            K=K,
-            L=L,
-            reseeds_birth_with_prior=False,
-        )
-        post_tight = _filter_rung(
-            ep,
-            scenario=scenario,
-            params=params,
-            prior=prior_tight,
-            root_seed=root_seed,
-            n_particles=n_particles,
-            K=K,
-            L=L,
-            reseeds_birth_with_prior=True,
-        )
-        post_sd = _spread(post, grid)
-        post_tight_sd = _spread(post_tight, grid)
-        contracted = bool(post_sd < prior_sd * (1.0 - margin))
-        # Tight-prior control collapses: posterior stays near the tight prior.
-        tight_control_collapsed = bool(
-            post_tight_sd <= prior_tight_sd * (1.0 + margin)
-            or post_tight_sd < prior_sd * (1.0 - margin)
-        )
-        rows.append(
-            StageARungResult(
-                scenario=scenario,
-                prior_sd=prior_sd,
-                posterior_sd=post_sd,
-                contracted=contracted,
-                tight_control_collapsed=tight_control_collapsed,
-            )
-        )
-
-    if write_figure:
-        _write_rung_map_figure(rows, figure_dir=out_dir, margin=margin)
-
-    return StageAMultiResult(rows=rows, root_seed=root_seed, figure_dir=out_dir)

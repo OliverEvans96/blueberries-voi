@@ -76,7 +76,7 @@ _CI_N_SCORE: int = 2
 _CI_ROLLOUT_H: int = 2
 _CI_N_ROLLOUT_PATHS: int = 1
 _CI_FILTER_N: int = 32
-_EMPTY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0)
+_EMPTY_F_GRID: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0)
 
 __all__ = [
     "DEFAULT_MULTI_SCENARIO_REPORT_PATH",
@@ -125,12 +125,12 @@ def _protection_demand_fractile(alpha: float, params: ModelParams) -> float:
 
 
 def _empty_shelf_belief() -> ShelfBelief:
-    return empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
+    return empty_shelf_belief(f_grid=_EMPTY_F_GRID)
 
 
 def _oracle_belief(cohorts: Sequence[Cohort]) -> ShelfBelief:
     """B-state ShelfBelief via ``shelf_belief_from_cohorts_oracle`` (ADR 0092)."""
-    return shelf_belief_from_cohorts_oracle(cohorts, empty_tau_grid=_EMPTY_TAU_GRID)
+    return shelf_belief_from_cohorts_oracle(cohorts, empty_f_grid=_EMPTY_F_GRID)
 
 
 def _p1_belief(particle_filter: Any) -> ShelfBelief:

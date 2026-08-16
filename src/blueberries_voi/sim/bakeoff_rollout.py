@@ -22,7 +22,12 @@ from typing import Any, Protocol
 import numpy as np
 
 from blueberries_voi import model as model_pkg
-from blueberries_voi.filter.belief import ShelfBelief, empty_shelf_belief
+from blueberries_voi.filter.belief import (
+    ShelfBelief,
+    cohort_tau_from_belief_lot,
+    empty_shelf_belief,
+    shelf_belief_from_cohorts_oracle,
+)
 from blueberries_voi.model import Cohort, ModelParams, weibull_survival
 from blueberries_voi.rng import STREAM_ALLOC, STREAM_DEMAND, STREAM_SPOIL, spawn_rng
 from blueberries_voi.sim.profit import ProfitCosts, day_profit
@@ -40,7 +45,7 @@ DEFAULT_LEAD_TIME: int = 1
 _DEFAULT_MARGIN: float = 2.0
 _DEFAULT_WASTE_COST: float = 1.5
 _DEFAULT_STOCKOUT_PENALTY: float = 3.0
-_EMPTY_TAU_GRID: tuple[float, ...] = (0.0, 2.0, 4.0, 6.0)
+_EMPTY_F_GRID: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0)
 
 
 class _BaseOrderPolicy(Protocol):
@@ -138,19 +143,11 @@ def terminal_salvage_value(
 
 def _cohorts_from_belief(belief: ShelfBelief) -> list[Cohort]:
     cohorts: list[Cohort] = []
-    grid = [float(t) for t in belief.tau_grid]
-    for i, (n_raw, marg) in enumerate(
-        zip(belief.lot_counts, belief.age_marginals, strict=True)
-    ):
+    for i, n_raw in enumerate(belief.lot_counts):
         n = round(float(n_raw))
         if n <= 0:
             continue
-        if grid and marg:
-            tau = float(
-                sum(float(p) * float(t) for p, t in zip(marg, grid, strict=True))
-            )
-        else:
-            tau = 0.0
+        tau = cohort_tau_from_belief_lot(belief, lot_index=i)
         cohorts.append(Cohort(n=n, tau=tau, lot_id=i + 1))
     return cohorts
 
@@ -158,19 +155,12 @@ def _cohorts_from_belief(belief: ShelfBelief) -> list[Cohort]:
 def _belief_from_cohorts(
     cohorts: Sequence[Cohort],
     *,
-    tau_grid: Sequence[float],
+    f_grid: Sequence[float],
 ) -> ShelfBelief:
-    """Rebuild ShelfBelief after a rollout day_step using the parent τ grid."""
-    from blueberries_voi.filter.belief import shelf_belief_from_oracle
-
-    grid = list(tau_grid) if tau_grid else list(_EMPTY_TAU_GRID)
-    live = [c for c in cohorts if c.n > 0]
-    if not live:
-        return empty_shelf_belief(tau_grid=grid)
-    return shelf_belief_from_oracle(
-        lot_counts=[c.n for c in live],
-        ages=[c.tau for c in live],
-        tau_grid=grid,
+    """Rebuild ShelfBelief after a rollout day_step using the parent f grid."""
+    return shelf_belief_from_cohorts_oracle(
+        cohorts,
+        empty_f_grid=f_grid if f_grid else _EMPTY_F_GRID,
     )
 
 
@@ -315,7 +305,7 @@ def _path_value(
             waste_cost=waste_cost,
             stockout_penalty=stockout_penalty,
         )
-        shelf = _belief_from_cohorts(cohorts, tau_grid=belief.tau_grid)
+        shelf = _belief_from_cohorts(cohorts, f_grid=belief.f_grid)
 
     value += terminal_salvage_value(
         _lots_for_salvage(cohorts),
@@ -477,7 +467,7 @@ class RolloutPolicy:
         shelf = (
             belief
             if isinstance(belief, ShelfBelief)
-            else empty_shelf_belief(tau_grid=_EMPTY_TAU_GRID)
+            else empty_shelf_belief(f_grid=_EMPTY_F_GRID)
         )
         pending = {} if pending_orders is None else pending_orders
         # Without on-hand lots, closed-loop currently has no shelf signal; matching

@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from blueberries_voi.filter.particle.research import ResearchParticleFilter
 from blueberries_voi.filter.types import (
     ScenarioId,
     age_grid,
@@ -193,63 +192,6 @@ def run_m15_oracle_ladder(
     Default ``compare`` is P1 vs F2. B-state age error is zero by construction;
     each row's ``vs_b_state`` is the scenario error minus that ceiling.
     """
-    scenarios = _validate_oracle_compare([str(c) for c in compare])
-    params = ModelParams()
-    ships = load_abdella_shipments(ROOT / "data" / "abdella")
-    out_dir = figures_dir or FIG_M15
-    out_dir.mkdir(parents=True, exist_ok=True)
-    K = _SMOKE_K
-    L = _SMOKE_L
+    msg = "research particle filter removed (T-TAU-RETIRE)"
+    raise NotImplementedError(msg)
 
-    b_state_err = b_state_mean_abs_age_error(true_n=1, true_tau=1.0)
-    rows: list[OracleGapRow] = []
-    for scenario in scenarios:
-        mae = _mean_abs_age_error_for_scenario(
-            scenario=scenario,
-            params=params,
-            ships=ships,
-            root_seed=root_seed,
-            n_reps=n_reps,
-            n_particles=n_particles,
-            K=K,
-            L=L,
-            n_burn=n_burn,
-            n_score=n_score,
-        )
-        rows.append(
-            OracleGapRow(
-                scenario=scenario,
-                mean_abs_age_error=mae,
-                vs_b_state=float(mae - b_state_err),
-            )
-        )
-
-    if write_figure:
-        import matplotlib.pyplot as plt
-
-        labels = [r.scenario for r in rows]
-        vals = [r.vs_b_state for r in rows]
-        fig, ax = plt.subplots(figsize=(6.0, 4.0))
-        ax.bar(labels, vals, color="#2b6cb0")
-        ax.axhline(0.0, color="k", lw=0.5)
-        ax.set_ylabel("Mean abs age error vs B-state")
-        ax.set_title(f"M1.5 oracle ladder (root_seed={root_seed})")
-        fig.tight_layout()
-        fig_path = out_dir / "m15_oracle_ladder_gap.png"
-        fig.savefig(fig_path, dpi=120)
-        plt.close(fig)
-
-    if write_md:
-        # Preserve any Stage B rows already written; rewrite with gap table.
-        # Read path via façade so monkeypatches on viz.m15 stay effective.
-        import blueberries_voi.viz.m15 as m15_facade
-        from blueberries_voi.viz.m15_stage_b import _write_stage_b_md
-
-        _write_stage_b_md(
-            [],
-            rows,
-            root_seed=root_seed,
-            path=m15_facade.ORACLE_GAP_MD_PATH,
-        )
-
-    return rows

@@ -44,8 +44,8 @@ _CASE_SIZE: int = 8
 _PROTECTION_DAYS: int = PROTECTION_DEMAND_DAYS
 # T-083 retune record: order-day protection under DEFAULT_ORDER_SCHEDULE.
 _MWF_ORDER_PROTECTION_DAYS: tuple[int, ...] = (3, 3, 4)  # Sun / Tue / Thu
-_TAU_GRID: tuple[float, ...] = (0.0, 1.0, 2.0, 3.0, 4.0)
-_SAME_AGE_INDEX: int = 0
+_F_GRID: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0)
+_SAME_F_INDEX: int = 2
 # First-week calendar days that are order days (epoch Mon 2024-01-01).
 _ORDER_DAY_FIXTURES: tuple[int, ...] = (6, 1, 3)  # Sun, Tue, Thu
 
@@ -61,18 +61,18 @@ class GateResult:
     report: Mapping[str, float] | None = None
 
 
-def _same_age_belief(*, lot_counts: list[float]) -> ShelfBelief:
-    """All lots Dirac on one grid age — flat-w across lots (β=1-style fixture)."""
-    grid = list(_TAU_GRID)
+def _same_f_belief(*, lot_counts: list[float]) -> ShelfBelief:
+    """All lots Dirac on one f grid knot — flat-w across lots (β=1-style fixture)."""
+    grid = list(_F_GRID)
     k = len(grid)
-    idx = int(_SAME_AGE_INDEX) % k
+    idx = int(_SAME_F_INDEX) % k
     counts = [float(x) for x in lot_counts]
     margs: list[list[float]] = []
     for _ in counts:
         row = [0.0] * k
         row[idx] = 1.0
         margs.append(row)
-    return ShelfBelief(lot_counts=counts, age_marginals=margs, tau_grid=grid)
+    return ShelfBelief(lot_counts=counts, f_marginals=margs, f_grid=grid)
 
 
 def _protection_demand_fractile(
@@ -85,12 +85,12 @@ def _protection_demand_fractile(
     return protection_demand_quantile(alpha, params, protection_days=protection_days)
 
 
-def _fixture_survival_weights(params: ModelParams) -> tuple[float, float]:
+def _fixture_f_weights() -> tuple[float, float]:
     """On-hand / pipeline weights implied by ``effective_inventory`` on the fixture."""
-    unit = _same_age_belief(lot_counts=[1.0])
-    bar_w = float(effective_inventory(unit, pending_orders={}, params=params))
-    empty = _same_age_belief(lot_counts=[0.0])
-    pipe_w = float(effective_inventory(empty, pending_orders={1: 1}, params=params))
+    unit = _same_f_belief(lot_counts=[1.0])
+    bar_w = float(effective_inventory(unit, pending_orders={}))
+    empty = _same_f_belief(lot_counts=[0.0])
+    pipe_w = float(effective_inventory(empty, pending_orders={1: 1}))
     return bar_w, pipe_w
 
 
@@ -111,7 +111,7 @@ def assert_beta1_degeneracy() -> GateResult:
     """
     schedule = DEFAULT_ORDER_SCHEDULE
     params = ModelParams(case_size=_CASE_SIZE)
-    bar_w, pipe_w = _fixture_survival_weights(params)
+    bar_w, pipe_w = _fixture_f_weights()
     # Homogeneous day-indexed table (T-081); values match the flat fixture.
     weights_by_weekday = {wd: bar_w for wd in range(7)}
 
@@ -146,7 +146,7 @@ def assert_beta1_degeneracy() -> GateResult:
         # Touch day-indexed API so gates consume T-081 weights (not scalar-only).
         _ = float(age_blind.mean_survival_weight_for_day(day))
         for lots, pending in cases:
-            belief = _same_age_belief(lot_counts=lots)
+            belief = _same_f_belief(lot_counts=lots)
             q_blind = int(age_blind.order(day, belief, pending_orders=pending))
             q_aware = int(age_aware.order(belief, day=day, pending_orders=pending))
             if q_blind != q_aware:

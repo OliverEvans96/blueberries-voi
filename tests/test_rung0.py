@@ -92,17 +92,17 @@ def _resolve_policy_module() -> Any:
     return importlib.import_module(cls.__module__)
 
 
-def _belief(*, lot_counts: list[float], age_index: int = 0) -> ShelfBelief:
-    """ShelfBelief fixture; Rung 0 must ignore age mix and use sum(counts)."""
-    grid = [0.0, 1.0, 2.0, 3.0, 4.0]
+def _belief(*, lot_counts: list[float], f_index: int = 4) -> ShelfBelief:
+    """ShelfBelief fixture; Rung 0 must ignore f mix and use sum(counts)."""
+    grid = [0.0, 0.25, 0.5, 0.75, 1.0]
     k = len(grid)
     counts = [float(x) for x in lot_counts]
     margs: list[list[float]] = []
     for _ in counts:
         row = [0.0] * k
-        row[int(age_index) % k] = 1.0
+        row[int(f_index) % k] = 1.0
         margs.append(row)
-    return ShelfBelief(lot_counts=counts, age_marginals=margs, tau_grid=grid)
+    return ShelfBelief(lot_counts=counts, f_marginals=margs, f_grid=grid)
 
 
 def _hand_rung0_order(
@@ -261,8 +261,8 @@ def test_rung0_order_matches_hand_table_total_on_hand_plus_pipeline() -> None:
         else:
             belief = ShelfBelief(
                 lot_counts=[],
-                age_marginals=[],
-                tau_grid=[0.0, 1.0],
+                f_marginals=[],
+                f_grid=[0.0, 1.0],
             )
         got = _invoke_order(policy, belief, pending_orders=pending)
         hand = _hand_rung0_order(
@@ -282,15 +282,15 @@ def test_rung0_ignores_age_mix_same_total_on_hand() -> None:
     """Age-blind: same total N + pipeline => same order regardless of ages."""
     policy = _make_policy()
     pending = {1: 8}
-    young = _belief(lot_counts=[16.0, 24.0], age_index=0)
-    old = _belief(lot_counts=[16.0, 24.0], age_index=4)
+    young = _belief(lot_counts=[16.0, 24.0], f_index=4)
+    old = _belief(lot_counts=[16.0, 24.0], f_index=0)
     mixed = ShelfBelief(
         lot_counts=[16.0, 24.0],
-        age_marginals=[
-            [1.0, 0.0, 0.0, 0.0, 0.0],
+        f_marginals=[
             [0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0],
         ],
-        tau_grid=[0.0, 1.0, 2.0, 3.0, 4.0],
+        f_grid=[0.0, 0.25, 0.5, 0.75, 1.0],
     )
     orders = {
         _invoke_order(policy, young, pending_orders=pending),
@@ -423,7 +423,7 @@ def test_rung0_coincides_with_damped_sw_policy_when_available() -> None:
         filtered = sw_kwargs
     sw_policy = sw_cls(**filtered)
 
-    belief = _belief(lot_counts=[20.0, 20.0], age_index=0)
+    belief = _belief(lot_counts=[20.0, 20.0], f_index=4)
     pending = {1: 16}
     sw_order = _invoke_order(sw_policy, belief, pending_orders=pending)
     flat = _flat_sw_order(lot_counts=[20.0, 20.0], pending=pending, rho=rho)

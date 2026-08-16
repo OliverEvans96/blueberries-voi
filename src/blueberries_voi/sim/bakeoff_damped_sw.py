@@ -16,8 +16,8 @@ Order quantity (Nahmias rho damping; default rho=0.8):
 
     q_t = case_round(rho * [F^{-1}_{D_{t:t+L}}(alpha) - I_tilde_t]^+)
 
-where ``I_tilde_t`` is T-023 ``effective_inventory`` on ``ShelfBelief`` (MF
-marginals) and ``F^{-1}`` is the alpha-quantile of the sum of ``n`` i.i.d.
+where ``I_tilde_t`` is f-native ``effective_inventory`` on ``ShelfBelief`` and
+``F^{-1}`` is the alpha-quantile of the sum of ``n`` i.i.d.
 daily NB demands (``NB(n*nb_r, nb_p)``) for day-indexed protection length
 ``n``. Non-order days return 0 when an ``OrderSchedule`` is attached.
 """
@@ -94,6 +94,7 @@ class DampedSurvivalWeightedPolicy:
         self.rho = float(rho)
         self.alpha = float(alpha)
         self.params = params
+        self.f_pipeline_default = 1.0
         self.schedule = schedule
         self._protection_days = protection_days
         self.lead_time = LEAD_TIME_DAYS
@@ -135,7 +136,11 @@ class DampedSurvivalWeightedPolicy:
             return 0
         pending: Mapping[int, int] = {} if pending_orders is None else pending_orders
         i_tilde = float(
-            effective_inventory(belief, pending_orders=pending, params=self.params)
+            effective_inventory(
+                belief,
+                pending_orders=pending,
+                f_pipeline_default=self.f_pipeline_default,
+            )
         )
         # Prefer call-site schedule for can_order; protection length follows
         # injected callable / int, else schedule.protection_days(day), else 2.
