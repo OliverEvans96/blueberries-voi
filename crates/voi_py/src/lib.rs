@@ -270,7 +270,7 @@ impl PyEngineSession {
         }
     }
 
-    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None))]
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None, units_per_lot=None))]
     fn init<'py>(
         &mut self,
         py: Python<'py>,
@@ -287,6 +287,7 @@ impl PyEngineSession {
         k: usize,
         obs_scenario: Option<String>,
         demand_profile_json: Option<String>,
+        units_per_lot: Option<usize>,
     ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
         self.inner.set_belief_dims(l, k.max(1));
@@ -302,7 +303,7 @@ impl PyEngineSession {
             ships_from(times, temps),
             n_particles,
             demand_profile,
-            None,
+            units_per_lot,
         );
         if let Some(scenario) = obs_scenario {
             self.inner
@@ -326,6 +327,7 @@ impl PyEngineSession {
             200,
             2,
             4,
+            None,
             None,
             None,
         )
