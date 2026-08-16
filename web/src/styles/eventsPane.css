@@ -1,0 +1,21 @@
+.events-pane {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.events-day-card {
+  border-top: 1px solid var(--border, #ccc);
+  padding: 0.5rem 0;
+}
+
+.events-not-observed {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.events-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0;
+}
