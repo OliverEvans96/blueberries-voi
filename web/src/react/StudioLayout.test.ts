@@ -23,7 +23,6 @@ const REQUIRED_CHART_IDS = [
   "chart-history",
   "chart-spoil",
   "chart-sales-demand",
-  "chart-pnl-series",
   "chart-demand",
   "chart-inventory",
   "chart-age-comp",
@@ -32,7 +31,6 @@ const REQUIRED_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
-  "chart-pnl-spark",
 ] as const;
 
 function stripComments(src: string): string {
@@ -108,7 +106,7 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     ).toBe(true);
   });
 
-  it("all 14 D3ChartHost ids appear exactly once", () => {
+  it("all 13 D3ChartHost ids appear exactly once", () => {
     const { container } = render(createElement(StudioLayout));
     for (const id of REQUIRED_CHART_IDS) {
       const nodes = container.querySelectorAll(`#${id}`);

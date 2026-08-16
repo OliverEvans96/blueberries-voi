@@ -10,8 +10,7 @@ import { STUDIO_SECTIONS } from "./sections";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
 const LOGIC_TS = join(HERE, "react/studioLogic.ts");
-const BELIEF_AGE_MARGINAL_TS = join(HERE, "charts/beliefAgeMarginal.ts");
-const BELIEF_AGE_COUNT_TS = join(HERE, "charts/beliefAgeCount.ts");
+const FRESHNESS_HISTOGRAM_TS = join(HERE, "charts/freshnessHistogram.ts");
 
 describe("Observation section contracts (T-127 shell)", () => {
   it("registers observation with ladder-explainer blurb and no tuning-dock plots", () => {
@@ -21,23 +20,21 @@ describe("Observation section contracts (T-127 shell)", () => {
     expect(observation!.blurb.toLowerCase()).toMatch(/observation|knowledge/);
   });
 
-  it("StudioLayout always-on Secondary hosts belief heatmap and age marginal (T-127)", () => {
+  it("StudioLayout always-on Secondary hosts stacked freshness histogram (T-127)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
-    expect(logic).toMatch(/beliefAgeMarginal|renderBeliefAgeMarginal/);
+    expect(logic).toMatch(/renderFreshnessHistogram|freshnessHistogramDataFromFlat/);
     expect(layout).toMatch(/id="chart-belief-age-marginal"/);
     expect(layout).toMatch(/id="chart-belief-lg"/);
   });
 
-  it("ships beliefAgeMarginal chart module sharing freshness domain with heatmap", () => {
+  it("ships freshnessHistogram chart module with stacked lot segments", () => {
     expect(
-      existsSync(BELIEF_AGE_MARGINAL_TS),
-      "expected web/src/charts/beliefAgeMarginal.ts",
+      existsSync(FRESHNESS_HISTOGRAM_TS),
+      "expected web/src/charts/freshnessHistogram.ts",
     ).toBe(true);
-    const marginalSrc = readFileSync(BELIEF_AGE_MARGINAL_TS, "utf8");
-    expect(marginalSrc).toMatch(/f_edges|age_marginal|ageMarginal/);
-    const heatmapSrc = readFileSync(BELIEF_AGE_COUNT_TS, "utf8");
-    expect(heatmapSrc).toMatch(/translate\(\$\{x\(d\.mean_f\)\},\$\{y\(d\.n\)\}\)/);
-    expect(heatmapSrc).not.toMatch(/x\(d\.lot_id\)|x\(.*lot.?index/i);
+    const histogramSrc = readFileSync(FRESHNESS_HISTOGRAM_TS, "utf8");
+    expect(histogramSrc).toMatch(/f_edges|FreshnessHistogramData|renderFreshnessHistogram/);
+    expect(histogramSrc).toMatch(/freshness-stack-series/);
   });
 });

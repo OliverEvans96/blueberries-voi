@@ -71,7 +71,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setMarginalHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
   });
 
@@ -86,9 +86,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(
       /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
     );
-    expect(fn).toMatch(
-      /renderMarginal\(\s*els\.spoil[\s\S]*,\s*"spoilage"/,
-    );
+    expect(fn).toMatch(/renderWasteBars\(\s*els\.spoil/);
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {

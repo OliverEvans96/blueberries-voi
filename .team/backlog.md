@@ -51,6 +51,13 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
   likely supersedes MOD-16 A and touches MOD-01, FIL-03/04, SCN-F1 VOI channel. Needs ADR before
   implementation.
 
+## T-127 studio cockpit follow-ups (non-blocking)
+
+- **No retained temperature-history trace per delivery:** `crates/voi_core/src/shipments.rs::ShipmentTrace` is sampled but never kept on `Day` / `DayDelta`. Round 2 mocks a deterministic transit-temperature curve per delivery in the Events pane as a placeholder until the engine retains and wires real traces.
+- **No distinct base-stock autopilot policy:** `crates/voi_core/src/session.rs` exposes `damped_sw` but not a separate order-up-to-target (`base_stock`) autopilot policy distinct from damped base-stock.
+- **Hardcoded delivery/order weekdays:** `crates/voi_core/src/schedule.rs` — delivery and order weekdays are not configurable via `SimConfig`; the tuning dock shows them read-only from `ScheduleWire`.
+- **Pricing sliders not colocated with Economics pane:** `#economics-pricing-host` in `EconomicsPane` is still an empty placeholder; pricing sliders (`p_sell`, `c_unit`, `c_waste`, `c_stockout`) remain in the tuning dock Pricing section (`controls.ts`). Cosmetic IA gap, not a functional bug.
+
 ## Settled / historical (do not reopen lightly)
 
 - **M1.5 / T-021 historical; superseded for production by ADR [0105](./adr/0105-arrival-only-age-counts-only-exact-wor.md):** Production filter is arrival-only age + counts-only PF (exact WOR). ADR [0091](./adr/0091-fil13-production-mean-field.md) mean-field age path is no longer the live settle. Do not reopen joint / MF age production without a **new** ADR.

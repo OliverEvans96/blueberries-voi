@@ -7,7 +7,6 @@ const D3_CHART_IDS = [
   "chart-history",
   "chart-spoil",
   "chart-sales-demand",
-  "chart-pnl-series",
   "chart-demand",
   "chart-inventory",
   "chart-age-comp",
@@ -16,7 +15,6 @@ const D3_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
-  "chart-pnl-spark",
 ] as const;
 
 /** Static studio shell — Cockpit Grid 3-row layout (T-127 / ADR 0130). */
@@ -69,14 +67,28 @@ export function StudioLayout() {
               <span className="chip chip-spoil">Spoilage</span>
               <span className="chip chip-missed">Missed</span>
             </div>
-            <div className="chart-caption" data-truth-caption="lots">
-              Lots · day × freshness
+            <div className="chart-stack primary-charts">
+              <div className="chart-caption" data-truth-caption="lots">
+                Freshness × time
+              </div>
+              <D3ChartHost
+                id="chart-history"
+                className="chart"
+                ariaLabel="Belief freshness over time with truth overlay"
+              />
+              <div className="chart-caption impact-caption">Sales vs demand</div>
+              <D3ChartHost
+                id="chart-sales-demand"
+                className="chart"
+                ariaLabel="Sales versus demand with stockout gap"
+              />
+              <div className="chart-caption">Units spoiled</div>
+              <D3ChartHost
+                id="chart-spoil"
+                className="chart"
+                ariaLabel="Units spoiled by day"
+              />
             </div>
-            <D3ChartHost
-              id="chart-history"
-              className="chart"
-              ariaLabel="Inventory lots by day and age"
-            />
           </div>
 
           <div className="cockpit-pane cockpit-pane--secondary panel">
@@ -87,18 +99,22 @@ export function StudioLayout() {
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
             >
-              Belief heatmap
+              Stacked freshness histogram
             </div>
             <D3ChartHost
               id="chart-belief-lg"
               className="chart"
-              ariaLabel="Belief heatmap age by count"
+              ariaLabel="Stacked freshness histogram by lot"
             />
-            <div className="chart-caption impact-caption">Age marginal</div>
-            <D3ChartHost
+            <div className="chart-caption impact-caption" hidden>
+              Age marginal
+            </div>
+            <div
               id="chart-belief-age-marginal"
               className="chart"
-              ariaLabel="Belief age marginal"
+              role="img"
+              aria-label="Belief age marginal"
+              hidden
             />
           </div>
         </section>
@@ -138,12 +154,6 @@ export function StudioLayout() {
                   id="chart-controller-orders"
                   className="chart chart--compact"
                   ariaLabel="Controller order quantities"
-                />
-                <div className="chart-caption impact-caption">Cumulative PnL</div>
-                <D3ChartHost
-                  id="chart-pnl-spark"
-                  className="chart chart--compact"
-                  ariaLabel="Cumulative profit sparkline"
                 />
               </div>
             </section>
@@ -240,26 +250,6 @@ export function StudioLayout() {
               </div>
               <div id="section-controls" />
               <div className="focus-plots tuning-plots">
-                <div className="focus-plot" data-plot="plot-sales-demand" hidden>
-                  <div className="chart-caption impact-caption">Sales vs demand</div>
-                  <D3ChartHost
-                    id="chart-sales-demand"
-                    className="chart"
-                    ariaLabel="Sales versus demand"
-                  />
-                </div>
-                <div className="focus-plot" data-plot="plot-pnl" hidden>
-                  <details className="ledger-expand">
-                    <summary className="chart-caption impact-caption">
-                      Full ledger (cumulative revenue · cost · profit)
-                    </summary>
-                    <D3ChartHost
-                      id="chart-pnl-series"
-                      className="chart"
-                      ariaLabel="Cumulative profit and loss"
-                    />
-                  </details>
-                </div>
                 <div className="focus-plot" data-plot="plot-demand" hidden>
                   <div className="chart-caption impact-caption">
                     DOW demand · protection 3 / 3 / 4
@@ -296,14 +286,6 @@ export function StudioLayout() {
                     id="chart-arrival-shift"
                     className="chart"
                     ariaLabel="Transit temperature shift"
-                  />
-                </div>
-                <div className="focus-plot" data-plot="plot-spoil-dock" hidden>
-                  <div className="chart-caption">Units spoiled</div>
-                  <D3ChartHost
-                    id="chart-spoil"
-                    className="chart"
-                    ariaLabel="Units spoiled by day"
                   />
                 </div>
               </div>

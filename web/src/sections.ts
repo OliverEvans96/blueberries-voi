@@ -24,14 +24,14 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     label: "Economics",
     blurb:
       "Revenue, cost, and profit drivers — P&L recomputes from stored units without re-simulating physics.",
-    plotIds: ["plot-sales-demand", "plot-pnl"],
+    plotIds: [],
     controlSection: "economics",
   },
   {
     id: "pricing",
     label: "Pricing",
     blurb: "Retune money without re-simulating physics — P&L recomputes from stored units.",
-    plotIds: ["plot-pnl"],
+    plotIds: [],
     controlSection: "pricing",
   },
   {

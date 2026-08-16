@@ -16,15 +16,22 @@ import {
   studioFooterCopy,
   type StudioEnv,
 } from "../engine/studioAdapter";
-import { renderHistory, setHistoryHover } from "../charts/history";
+import {
+  renderBeliefFreshnessTime,
+  setBeliefFreshnessTimeHover,
+} from "../charts/beliefFreshnessTime";
+import {
+  freshnessHistogramDataFromFlat,
+  renderFreshnessHistogram,
+} from "../charts/freshnessHistogram";
 import {
   marginalYMax,
   renderMarginal,
+  renderWasteBars,
   setMarginalHover,
+  setWasteBarsHover,
+  wasteBarYMax,
 } from "../charts/marginals";
-import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
-import { renderBeliefAgeCount } from "../charts/beliefAgeCount";
-import { renderBeliefAgeMarginal } from "../charts/beliefAgeMarginal";
 import { renderDemandDist } from "../charts/demandDist";
 import {
   ageCompositionSeries,
@@ -35,7 +42,7 @@ import {
   renderInventoryTarget,
 } from "../charts/inventoryTarget";
 import { renderControllerOrders } from "../charts/controllerOrders";
-import { renderSalesDemand } from "../charts/salesDemand";
+import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
   renderArrivalPrior,
   renderArrivalShift,
@@ -58,7 +65,7 @@ import {
 import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
-import { loadShowTruth, saveShowTruth, truthLots } from "../showTruth";
+import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
@@ -176,8 +183,6 @@ export function initStudio(app: HTMLElement): () => void {
     stockout: document.querySelector("#chart-stockout") as HTMLElement,
     history: document.querySelector("#chart-history") as HTMLElement,
     spoil: document.querySelector("#chart-spoil") as HTMLElement,
-    pnlSeries: document.querySelector("#chart-pnl-series") as HTMLElement,
-    pnlSpark: document.querySelector("#chart-pnl-spark") as HTMLElement,
     belief: document.querySelector("#chart-belief") as HTMLElement,
     beliefAgeMarginal: document.querySelector(
       "#chart-belief-age-marginal",
@@ -359,11 +364,9 @@ export function initStudio(app: HTMLElement): () => void {
   function applyHoverStyles(day: HoverDay): void {
     setMarginalHover(els.sales, day);
     setMarginalHover(els.stockout, day);
-    setHistoryHover(els.history, day);
-    setMarginalHover(els.spoil, day);
-    if (!els.pnlSeries.closest(".focus-plot")?.hasAttribute("hidden")) {
-      setPnLHover(els.pnlSeries, day);
-    }
+    setBeliefFreshnessTimeHover(els.history, day);
+    setSalesDemandHover(els.salesDemand, day);
+    setWasteBarsHover(els.spoil, day);
   }
 
   function onHoverDay(day: HoverDay, point: HoverPoint): void {
@@ -407,8 +410,8 @@ export function initStudio(app: HTMLElement): () => void {
       if (kind === "lots") {
         el.textContent =
           !showTruth && vm.history.length > 0
-            ? "Lots · day × freshness (turn on Sim truth overlay to see lot freshness)"
-            : "Lots · day × freshness";
+            ? "Freshness × time (turn on Sim truth overlay to see lot freshness)"
+            : "Freshness × time";
       }
     });
     const observation = STUDIO_SECTIONS.find((s) => s.id === "observation");
@@ -427,13 +430,14 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderCockpitBelief(): void {
-    renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 120);
-    renderBeliefAgeCount(
-      els.beliefLg,
-      vm.belief,
-      truthLots(showTruth, vm.live_lots),
-      220,
-    );
+    const flat = vm.belief_history.at(-1)?.flatBelief;
+    if (flat) {
+      const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
+      renderFreshnessHistogram(els.beliefLg, data, showTruth, 260);
+    } else {
+      els.beliefLg.replaceChildren();
+    }
+    els.beliefAgeMarginal.replaceChildren();
   }
 
   function renderRunStripCharts(): void {
@@ -442,20 +446,20 @@ export function initStudio(app: HTMLElement): () => void {
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
     renderInventoryTarget(els.inventory, vm.history, vm.config, 120, invSeries);
     renderControllerOrders(els.controllerOrders, vm.history, 120);
-    renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
   }
 
   function renderStore() {
     const yMax = marginalYMax(vm.history);
     renderMarginal(els.sales, vm.history, "sales", 72, yMax);
     renderMarginal(els.stockout, vm.history, "stockout", 72, yMax);
-    renderHistory(
-      els.history, 
-      historyForCharts(), 
-      vm.belief,
-      truthLots(showTruth, vm.live_lots),
-      { height: 220 }
+    renderBeliefFreshnessTime(
+      els.history,
+      vm.history,
+      vm.belief_history,
+      showTruth,
+      { height: 220 },
     );
+    renderSalesDemand(els.salesDemand, vm.history, 130);
     const spoilSlot = resolveStoreSpoilageSlot({
       scenario: vm.config.obs_scenario,
       showTruth,
@@ -474,32 +478,14 @@ export function initStudio(app: HTMLElement): () => void {
       });
     } else {
       spoilageUnavailableRoot?.render(null);
-      renderMarginal(els.spoil, vm.history, "spoilage", 86);
+      renderWasteBars(els.spoil, vm.history, 86, wasteBarYMax(vm.history));
     }
+    renderCockpitBelief();
     applyHoverStyles(hoveredDay);
   }
 
-  function renderChrome(): void {
-    renderPnLTimeseries(els.pnlSpark, vm.pnl_series, 118);
-  }
-
   function renderActiveFocusPlots(): void {
-    renderCockpitBelief();
     renderRunStripCharts();
-    if (plotVisible("plot-belief-age-marginal")) {
-      renderBeliefAgeMarginal(els.beliefAgeMarginal, vm.belief, 72);
-    }
-    if (plotVisible("plot-belief-lg")) {
-      renderBeliefAgeCount(
-        els.beliefLg,
-        vm.belief,
-        truthLots(showTruth, vm.live_lots),
-        280,
-      );
-    }
-    if (plotVisible("plot-sales-demand")) {
-      renderSalesDemand(els.salesDemand, vm.history, 130);
-    }
     if (plotVisible("plot-inventory")) {
       const invSeries = showTruth
         ? inventorySeries(vm.history, vm.config)
@@ -517,10 +503,6 @@ export function initStudio(app: HTMLElement): () => void {
         ageRows,
         showTruth ? "age" : "freshness",
       );
-    }
-    if (plotVisible("plot-pnl")) {
-      renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);
-      applyHoverStyles(hoveredDay);
     }
     if (plotVisible("plot-demand")) {
       renderDemandDist(
@@ -585,7 +567,6 @@ export function initStudio(app: HTMLElement): () => void {
   function renderAll(): void {
     syncTruthCaptions();
     renderStore();
-    renderChrome();
     renderActiveFocusPlots();
     renderInsightStrip();
     renderGuidedPaths();
@@ -731,11 +712,7 @@ export function initStudio(app: HTMLElement): () => void {
       onEconomicsChange(partial: Partial<Economics>) {
         // Local reproject only — never round-trip to the engine.
         vm = projector.setEconomics(partial);
-        renderChrome();
-        if (plotVisible("plot-pnl")) {
-          renderPnLTimeseries(els.pnlSeries, vm.pnl_series, 160);
-          applyHoverStyles(hoveredDay);
-        }
+        renderEconomicsPane();
         sectionControlsApi.update(controlsState());
       },
       onConfigChange(partial: Partial<SimConfig>) {
@@ -906,7 +883,6 @@ export function initStudio(app: HTMLElement): () => void {
 
   const onResize = () => {
     renderStore();
-    renderChrome();
     renderActiveFocusPlots();
   };
   window.addEventListener("resize", onResize);
