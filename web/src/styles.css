@@ -3,6 +3,7 @@
 @import "./styles/dayInspector.css";
 @import "./styles/storeTabs.css";
 @import "./styles/cockpitGrid.css";
+@import "./styles/eventsPane.css";
 
 :root {
   --bg: #e8e2d4;
@@ -1153,4 +1154,3 @@ input[type="number"] {
   color: var(--spoil-strong);
   font-size: 0.9rem;
 }
-@import "./styles/eventsPane.css";
