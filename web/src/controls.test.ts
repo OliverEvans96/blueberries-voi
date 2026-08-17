@@ -9,7 +9,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
+  formatSigmaPrecision,
   mountSectionControlsDom,
+  precisionToSigma,
+  SIGMA_MAX,
+  SIGMA_MIN,
+  SIGMA_PRECISION_MAX,
+  sigmaToPrecision,
   type ControlsState,
 } from "./controls";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
@@ -160,6 +166,102 @@ describe("T-127 tuning-dock content", () => {
     expect(state.demand_summary).toEqual(vm.demand_summary);
   });
 
+  it("sigma slider min/max are 0 (uniform sentinel) and SIGMA_PRECISION_MAX, not raw sigma bounds", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/id: "sigma"[\s\S]{0,300}min: 0/);
+    expect(src).toMatch(/id: "sigma"[\s\S]{0,300}max: SIGMA_PRECISION_MAX/);
+  });
+});
+
+describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
+  it("sigmaToPrecision / precisionToSigma round-trip for typical σ", () => {
+    for (const sigma of [0.05, 0.2, 0.5, 0.9, 1.5]) {
+      const p = sigmaToPrecision(sigma);
+      expect(precisionToSigma(p)).toBeCloseTo(sigma, 6);
+    }
+  });
+
+  it("sigma <= 0 maps to the reserved uniform-picking sentinel precision 0", () => {
+    expect(sigmaToPrecision(0)).toBe(0);
+    expect(sigmaToPrecision(-1)).toBe(0);
+  });
+
+  it("precision 0 maps back to sigma 0 (uniform)", () => {
+    expect(precisionToSigma(0)).toBe(0);
+    expect(precisionToSigma(-5)).toBe(0);
+  });
+
+  it("precision is inversely related to sigma across the slider's range", () => {
+    // Bigger slider value (precision) => smaller resulting sigma.
+    const loP = sigmaToPrecision(SIGMA_MAX);
+    const hiP = sigmaToPrecision(SIGMA_MIN);
+    expect(hiP).toBeGreaterThan(loP);
+    expect(hiP).toBeCloseTo(SIGMA_PRECISION_MAX, 6);
+    expect(precisionToSigma(hiP)).toBeCloseTo(SIGMA_MIN, 6);
+    expect(precisionToSigma(loP)).toBeCloseTo(SIGMA_MAX, 6);
+  });
+
+  it("formatSigmaPrecision shows the resulting sigma value, and 'uniform picking' at the sentinel", () => {
+    expect(formatSigmaPrecision(0)).toMatch(/uniform/i);
+    expect(formatSigmaPrecision(sigmaToPrecision(0.35))).toBe("currently 0.35");
+  });
+
+  it("moving the #sigma slider converts the raw (precision) value to σ before onConfigChange, and drives the picking-variability chart in σ-space", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const onConfigChange = vi.fn();
+    mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange,
+        onControllerChange: vi.fn(),
+      },
+    );
+
+    const sigmaInput = host.querySelector("#sigma") as HTMLInputElement;
+    expect(sigmaInput).not.toBeNull();
+    expect(sigmaInput.min).toBe("0");
+    expect(sigmaInput.max).toBe(String(SIGMA_PRECISION_MAX));
+
+    // Set the raw slider (precision) input to 2 -> expect σ = 1/2 = 0.5.
+    sigmaInput.value = "2";
+    sigmaInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(onConfigChange).toHaveBeenCalledWith({ sigma: 0.5 });
+    const label = host.querySelector("#val-sigma") as HTMLElement;
+    expect(label.textContent).toBe("currently 0.50");
+
+    const pickHost = host.querySelector("#picking-var-chart") as HTMLElement;
+    expect(pickHost.querySelector(".picking-var-line")).not.toBeNull();
+
+    document.body.removeChild(host);
+  });
+
+  it("sigma slider position reflects config.sigma (converted to precision) on sync, not raw σ", () => {
+    const host = document.createElement("div");
+    const state = baseState();
+    state.config = { ...state.config, sigma: 0.25 };
+    const api = mountSectionControlsDom(
+      host,
+      state,
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+    );
+    api.update(state);
+
+    const sigmaInput = host.querySelector("#sigma") as HTMLInputElement;
+    expect(Number(sigmaInput.value)).toBeCloseTo(1 / 0.25, 6);
+    const label = host.querySelector("#val-sigma") as HTMLElement;
+    expect(label.textContent).toBe("currently 0.25");
+  });
+});
+
+describe("T-127 tuning-dock content — projected demand", () => {
   it("renders projected demand preview and schedule weekdays in DOM", () => {
     const host = document.createElement("div");
     mountSectionControlsDom(

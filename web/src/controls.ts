@@ -122,6 +122,45 @@ export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
 };
 
 
+/**
+ * σ (picking variability) drives `w ∝ f^σ`, a power-law shape — equal steps
+ * in raw σ are far from equally meaningful (σ 0.05→0.15 reshapes the curve
+ * dramatically; σ 1.0→1.1 barely moves it). The `sigma` slider's *raw input
+ * value* is therefore precision `p = 1/σ`, linear in the input element, and
+ * converted to/from σ at the UI boundary. `p = 0` is reserved as an explicit
+ * sentinel for "uniform picking" (σ = 0), matching `pickingWeightsF`'s own
+ * `sigma <= 0` special case — 1/0 is not computed.
+ */
+export const SIGMA_MIN = 0.05;
+export const SIGMA_MAX = 1.5;
+export const SIGMA_PRECISION_MAX = 1 / SIGMA_MIN;
+
+function clamp(value: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, value));
+}
+
+/** σ → slider precision (1/σ), with σ ≤ 0 mapping to the uniform sentinel 0. */
+export function sigmaToPrecision(sigma: number): number {
+  if (sigma <= 0) return 0;
+  return clamp(1 / sigma, 0, SIGMA_PRECISION_MAX);
+}
+
+/** Slider precision (1/σ) → σ, with the sentinel 0 mapping back to uniform. */
+export function precisionToSigma(precision: number): number {
+  if (precision <= 0) return 0;
+  return clamp(1 / precision, SIGMA_MIN, SIGMA_MAX);
+}
+
+/**
+ * Display text for the sigma slider's raw (precision) value — the label
+ * already reads "σ (picking)", so this shows the resulting σ number (not
+ * precision) to keep the on-screen value meaningful, e.g. "currently 0.35".
+ */
+export function formatSigmaPrecision(precision: number): string {
+  if (precision <= 0) return "uniform picking";
+  return `currently ${precisionToSigma(precision).toFixed(2)}`;
+}
+
 type SliderSpec = {
   id: string;
   label: string;
@@ -146,7 +185,18 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "t_store_c", label: "T_store (°C)", min: 0, max: 12, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
   { id: "demand_mu", label: "demand μ", min: 5, max: 80, step: 1, format: (v) => v.toFixed(0), group: "demand" },
   { id: "demand_vm", label: "demand V/M", min: 1.1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "demand" },
-  { id: "sigma", label: "σ (picking)", min: 0, max: 1.5, step: 0.05, format: (v) => v.toFixed(2), group: "demand" },
+  {
+    id: "sigma",
+    label: "σ (picking)",
+    // Raw input value is precision p = 1/σ, not σ (see comment above);
+    // p=0 is the reserved "uniform picking" sentinel, p=SIGMA_PRECISION_MAX
+    // corresponds to the most-selective σ=SIGMA_MIN.
+    min: 0,
+    max: SIGMA_PRECISION_MAX,
+    step: 0.1,
+    format: formatSigmaPrecision,
+    group: "demand",
+  },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
@@ -432,6 +482,11 @@ function mountSectionControlsDom(
   function syncConfig(c: SimConfig, catchingUp = false): void {
     void catchingUp;
     for (const spec of CONFIG_SLIDERS) {
+      if (spec.id === "sigma") {
+        // Slider's raw value is precision (1/σ), not σ — see SIGMA_* helpers.
+        syncSlider(spec, sigmaToPrecision(c.sigma));
+        continue;
+      }
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
     }
@@ -497,17 +552,22 @@ function mountSectionControlsDom(
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
     if (!el) continue;
     el.addEventListener("input", () => {
-      const value = Number(el.value);
+      const raw = Number(el.value);
       (root.querySelector(`#val-${spec.id}`) as HTMLElement).textContent =
-        spec.format(value);
-      cb.onConfigChange({ [spec.id]: value });
-      if (spec.id === "case_size") onCaseSizeChange?.(Math.round(value));
+        spec.format(raw);
       if (spec.id === "sigma") {
+        // Raw slider value is precision (1/σ); convert before writing config
+        // and before feeding the illustrative w(f) curve, which is σ-shaped.
+        const sigma = precisionToSigma(raw);
+        cb.onConfigChange({ sigma });
         renderPickingVariability(
           root.querySelector("#picking-var-chart") as HTMLElement,
-          value,
+          sigma,
         );
+        return;
       }
+      cb.onConfigChange({ [spec.id]: raw });
+      if (spec.id === "case_size") onCaseSizeChange?.(Math.round(raw));
     });
   }
 
