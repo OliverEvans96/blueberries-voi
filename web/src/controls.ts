@@ -338,7 +338,7 @@ function mountSectionControlsDom(
       <div class="controls-block" data-section="observation" hidden>
         <p class="hint">
           Knowledge changes what the store sees, so future orders can change.
-          Use the decision rail to switch observation rungs.
+          Use the observation scenario chips on the Secondary pane to switch rungs.
         </p>
         <div class="obs-scenario-copy" id="obs-scenario-copy">
           <strong class="obs-scenario-title" id="obs-scenario-title"></strong>

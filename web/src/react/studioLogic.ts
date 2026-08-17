@@ -537,11 +537,13 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    if (plotVisible("plot-demand")) {
+    // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not
+    // .focus-plot[data-plot="plot-demand"] — gate on active section instead.
+    if (activeSection === "demand" && schedule) {
       renderDemandDist(
         els.demand,
         vm.demand_summary,
-        vm.schedule,
+        schedule,
         160,
       );
     }
