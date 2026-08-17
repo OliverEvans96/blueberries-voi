@@ -37,6 +37,9 @@ dev = [
 notebooks = [
     "jupyter>=1.0.0",
     "ipykernel>=6.29.0",
+    "tqdm>=4.66.0",
+    # Ax BO for rollout alpha tuning (nb 12); pulls PyTorch + BoTorch — notebooks only.
+    "ax-platform>=0.5.0",
 ]
 rust = [
     "maturin>=1.8.0",
