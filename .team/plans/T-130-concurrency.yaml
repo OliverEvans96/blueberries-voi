@@ -1,0 +1,116 @@
+ticket: T-130
+parent_tip: main
+optimize: balanced
+description: >
+  Studio layout v5 round 3: 3-column grid (Economics|Today|Events), SecondaryChrome
+  (obs/truth/tradeoff tabs), chart polish, tuning controls, events daily log, e2e fixes.
+max_parallel: 4
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-130.md
+      - .team/adr/0132-studio-layout-v5.md
+      - .team/plans/T-130-concurrency.yaml
+    deps: []
+
+  - id: qa-red
+    role: qa
+    files:
+      - web/src/react/StudioLayout.test.ts
+      - web/src/react/SecondaryChrome.tradeoff.test.ts
+      - web/src/react/EventsPane.test.ts
+      - web/src/charts/controllerOrders.test.ts
+      - web/src/charts/pnlTimeseries.test.ts
+      - web/src/charts/freshnessHistogram.test.ts
+      - web/src/controls.test.ts
+      - web/tests/studio-visual-qa.spec.ts
+      - .team/qa/T-130-tests.md
+    deps: [architect]
+
+  - id: impl-layout
+    role: implement
+    shard: layout
+    files:
+      - web/src/react/StudioLayout.tsx
+      - web/src/react/StudioLayout.test.ts
+      - web/src/styles/cockpitGrid.css
+    deps: [qa-red]
+
+  - id: impl-secondary
+    role: implement
+    shard: secondary
+    files:
+      - web/src/react/SecondaryChrome.tsx
+      - web/src/react/SecondaryChrome.tradeoff.test.ts
+      - web/src/charts/tradeoffCurve.ts
+      - web/src/charts/tradeoffHistogram.ts
+      - web/src/charts/tradeoffForecast.ts
+    deps: [impl-layout]
+    file_owner:
+      web/src/react/DecisionRail.tsx: impl-secondary
+
+  - id: impl-charts
+    role: implement
+    shard: charts
+    files:
+      - web/src/charts/controllerOrders.ts
+      - web/src/charts/controllerOrders.test.ts
+      - web/src/charts/pnlTimeseries.ts
+      - web/src/charts/pnlTimeseries.test.ts
+      - web/src/charts/freshnessHistogram.ts
+      - web/src/charts/freshnessHistogram.test.ts
+      - web/src/sections.ts
+    deps: [impl-layout]
+
+  - id: impl-tuning
+    role: implement
+    shard: tuning
+    files:
+      - web/src/styles/tuningDock.css
+      - web/src/controls.ts
+      - web/src/controls.test.ts
+      - web/src/paramLabels.ts
+      - web/src/autopilotLoop.test.ts
+      - web/src/styles.css
+    deps: [impl-layout]
+    file_owner:
+      web/src/styles.css: impl-tuning
+
+  - id: impl-events
+    role: implement
+    shard: events
+    files:
+      - web/src/react/EventsPane.tsx
+      - web/src/react/EventsPane.test.ts
+      - web/src/styles/eventsPane.css
+    deps: [impl-layout]
+
+  - id: impl-tradeoff
+    role: implement
+    shard: e2e
+    files:
+      - web/tests/studio-visual-qa.spec.ts
+    deps: [impl-secondary]
+
+  - id: merge
+    role: merge
+    shard: merge
+    merge_last: true
+    files:
+      - web/src/react/studioLogic.ts
+      - web/src/main.stockout.test.ts
+    deps:
+      - impl-secondary
+      - impl-charts
+      - impl-tuning
+      - impl-events
+      - impl-tradeoff
+    file_owner:
+      web/src/react/studioLogic.ts: merge
+
+  - id: verify
+    role: verify
+    files:
+      - .team/qa/T-130.md
+    deps: [merge]
