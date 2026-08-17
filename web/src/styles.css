@@ -2,6 +2,8 @@
 @import "./styles/referenceDrawer.css";
 @import "./styles/dayInspector.css";
 @import "./styles/storeTabs.css";
+@import "./styles/cockpitGrid.css";
+@import "./styles/eventsPane.css";
 
 :root {
   --bg: #e8e2d4;
@@ -59,8 +61,8 @@ body {
 }
 
 .hero {
-  margin-bottom: 20px;
-  padding: 8px 4px 4px;
+  margin-bottom: 16px;
+  padding: 6px 4px 2px;
 }
 
 .hero-top {
@@ -167,7 +169,7 @@ body {
   color: var(--ink-soft);
 }
 
-.btn-autopilot.autopilot-hint {
+.autopilot-toggle.autopilot-hint {
   animation: autopilot-hint-pulse 0.8s ease-in-out 3;
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -650,15 +652,27 @@ body {
 
 .order-row {
   display: grid;
-  grid-template-columns: 1fr 72px;
+  grid-template-columns: 1fr 76px;
   gap: 8px;
   align-items: center;
+}
+
+.order-row input[type="number"] {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+}
+
+.order-row input[type="range"] {
+  height: 10px;
 }
 
 .btn-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .btn-row-play {
@@ -682,46 +696,79 @@ input[type="number"] {
 
 .btn-advance,
 .btn-reset,
-.btn-autopilot {
+.autopilot-toggle {
   appearance: none;
   border: none;
   border-radius: 10px;
-  padding: 11px 12px;
+  padding: 14px 14px;
   font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 700;
+  font-size: 0.98rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: transform 0.12s ease, filter 0.12s ease, background 0.12s ease;
 }
 
 .btn-advance {
   background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
   color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.28);
-}
-
-.btn-autopilot {
-  background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
-  color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.22);
+  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.32);
 }
 
 .btn-reset {
   background: #fffdf8;
   color: var(--ink);
   border: 1px solid var(--paper-edge);
+  font-weight: 600;
+}
+
+/* Autopilot Play/Pause toggle (T-127 v3) — one switch instead of two
+ * separate buttons, echoing .truth-toggle's track+thumb pattern for visual
+ * consistency, sized to sit in the Advance/Reset button row. */
+.autopilot-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fffdf8;
+  color: var(--ink);
+  border: 1px solid var(--paper-edge);
+}
+
+.autopilot-toggle .truth-toggle-track {
+  background: var(--paper-edge);
+}
+
+.autopilot-toggle-text {
+  white-space: nowrap;
+}
+
+.autopilot-toggle--on {
+  background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
+  color: #f4f7f4;
+  border-color: #1f5f86;
+  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.26);
+}
+
+.autopilot-toggle--on .truth-toggle-track {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.autopilot-toggle--on .truth-toggle-thumb {
+  transform: translateX(16px);
+  background: #fff;
 }
 
 .btn-advance:hover,
 .btn-reset:hover,
-.btn-autopilot:hover {
+.autopilot-toggle:hover {
   filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
 .btn-advance:active,
 .btn-reset:active,
-.btn-autopilot:active {
+.autopilot-toggle:active {
   transform: translateY(0);
 }
 
@@ -812,7 +859,7 @@ input[type="number"] {
 }
 
 .btn-advance:disabled,
-.btn-autopilot:disabled {
+.autopilot-toggle:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
@@ -932,6 +979,81 @@ input[type="number"] {
   box-shadow: var(--shadow);
 }
 
+/* Operator controls — order quantity + Advance/Autopilot/Reset — are the
+ * primary "you are in control" action zone. T-127 layout v3 mounts them at
+ * the bottom of the Secondary pane (`.cockpit-pane--secondary`, which
+ * stretches to match the taller Primary pane in the charts row): pushing
+ * this host to the end of that flex column with margin-top:auto fills the
+ * pane's otherwise-empty whitespace below its one histogram chart, instead
+ * of adding a new row/bar that pushes the rest of the page down. */
+#operator-bar-host {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.operator-bar {
+  margin: 0 -16px -16px;
+  padding: 12px 16px 16px;
+  background: linear-gradient(180deg, rgba(184, 134, 11, 0.1), rgba(184, 134, 11, 0.03));
+  border-top: 2px solid rgba(184, 134, 11, 0.35);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.operator-bar-heading {
+  margin: 0 0 8px;
+}
+
+.operator-bar-buttons {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 900px) {
+  .operator-bar-buttons {
+    grid-template-columns: 1fr;
+  }
+}
+
+.decision-rail-heading {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.decision-rail-heading::before {
+  content: "\25B6";
+  font-size: 0.7rem;
+  color: var(--focus);
+}
+
+/* Tradeoff curve + joint histogram side-by-side instead of stacked — halves
+ * the vertical footprint of the decision rail, which was a big contributor
+ * to the third operations-row column dwarfing Economics/Events beside it. */
+.tradeoff-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tradeoff-charts > div {
+  flex: 1 1 130px;
+  min-width: 120px;
+}
+
+.tradeoff-charts .chart-caption {
+  margin-left: 0;
+}
+
+.tradeoff-chart-host svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .chart-unavailable {
   position: relative;
   display: grid;
@@ -1042,6 +1164,21 @@ input[type="number"] {
 .pmf-bar {
   fill: var(--sales);
   fill-opacity: 0.55;
+}
+
+/* Picking-variability shape (small "w ∝ f^σ" inline chart, Demand tab) — was
+ * unstyled and defaulted to a solid black SVG fill; tint + stroke it like
+ * the other Demand-section chart, .pmf-bar. */
+.picking-var-area {
+  fill: var(--sales);
+  fill-opacity: 0.22;
+  stroke: none;
+}
+
+.picking-var-line {
+  fill: none;
+  stroke: var(--sales-strong);
+  stroke-width: 2;
 }
 
 .coverage-band {

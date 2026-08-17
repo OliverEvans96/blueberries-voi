@@ -23,29 +23,19 @@ describe("Store chart-stack missed sales (T-116)", () => {
   const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
   const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
 
-  it("chart-stack order: Units sold, sales, Missed sales, stockout, Lots, history, Units spoiled, spoil", () => {
-    const storeSection = layoutSrc.match(
-      /id="linked-charts">([\s\S]*?)<\/main>/,
-    )?.[1];
-    expect(storeSection, "expected #linked-charts section in StudioLayout.tsx").toBeDefined();
-
-    const sold = storeSection!.indexOf("Units sold");
-    const salesId = storeSection!.indexOf('id="chart-sales"');
-    const missed = storeSection!.indexOf("Missed sales");
-    const stockoutId = storeSection!.indexOf('id="chart-stockout"');
-    const lots = storeSection!.indexOf("Lots · day × age");
-    const historyId = storeSection!.indexOf('id="chart-history"');
-    const spoiled = storeSection!.indexOf("Units spoiled");
-    const spoilId = storeSection!.indexOf('id="chart-spoil"');
-
+  it("cockpit layout preserves missed-sales captions and chart hosts (T-127)", () => {
+    expect(layoutSrc).toMatch(/Missed sales/);
+    expect(layoutSrc).toMatch(/id="chart-stockout"/);
+    expect(layoutSrc).toMatch(/id="chart-history"/);
+    expect(layoutSrc).toMatch(/id="chart-spoil"/);
+    const sold = layoutSrc.indexOf("Units sold");
+    const salesId = layoutSrc.indexOf('id="chart-sales"');
+    const missed = layoutSrc.indexOf("Missed sales");
+    const stockoutId = layoutSrc.indexOf('id="chart-stockout"');
     expect(sold).toBeGreaterThanOrEqual(0);
     expect(salesId).toBeGreaterThan(sold);
     expect(missed).toBeGreaterThan(salesId);
     expect(stockoutId).toBeGreaterThan(missed);
-    expect(lots).toBeGreaterThan(stockoutId);
-    expect(historyId).toBeGreaterThan(lots);
-    expect(spoiled).toBeGreaterThan(historyId);
-    expect(spoilId).toBeGreaterThan(spoiled);
   });
 
   it('caption text is exactly "Missed sales"', () => {
@@ -81,7 +71,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setMarginalHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
   });
 
@@ -96,9 +86,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(
       /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
     );
-    expect(fn).toMatch(
-      /renderMarginal\(\s*els\.spoil[\s\S]*,\s*"spoilage"/,
-    );
+    expect(fn).toMatch(/renderWasteBars\(\s*els\.spoil/);
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {
@@ -111,6 +99,30 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(sd).toMatch(/lineSales|lineDemand/);
     expect(sd).toMatch(/sales-demand-gap/);
     expect(sd).not.toMatch(/bar--stockout/);
+  });
+});
+
+describe("Cockpit grid responsive shell (T-127 AC-layout)", () => {
+  const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
+  const css = readFileSync(STYLES_CSS, "utf8");
+
+  it("cockpitGrid.css or styles.css defines cockpit-grid breakpoints at 1100px and 720px", () => {
+    const cockpitCssPath = join(HERE, "styles/cockpitGrid.css");
+    const cockpitCss = existsSync(cockpitCssPath)
+      ? readFileSync(cockpitCssPath, "utf8")
+      : css;
+    expect(cockpitCss).toMatch(/cockpit-grid/);
+    expect(cockpitCss).toMatch(/1100px/);
+    expect(cockpitCss).toMatch(/720px/);
+  });
+
+  it(".shell.studio scroll not clipped by cockpit rows at narrow widths", () => {
+    const cockpitCssPath = join(HERE, "styles/cockpitGrid.css");
+    const cockpitCss = existsSync(cockpitCssPath)
+      ? readFileSync(cockpitCssPath, "utf8")
+      : css;
+    expect(cockpitCss).toMatch(/overflow/);
+    expect(layoutSrc).toMatch(/cockpit-grid/);
   });
 });
 

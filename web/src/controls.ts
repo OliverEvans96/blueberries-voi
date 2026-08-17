@@ -7,8 +7,14 @@ import type {
 } from "./types";
 import type { SectionId } from "./sections";
 import { defaultIntervalMsForPolicy } from "./autopilotLoop";
-import type { ScheduleWire } from "./engine/types";
+import type { DemandSummary, ScheduleWire } from "./engine/types";
 import { PARAM_LABELS, type ControlTier } from "./paramLabels";
+import { controlAvailability } from "./scenarioAvailability";
+import {
+  formatWeekdayList,
+  projectedDemandDays,
+  renderPickingVariability,
+} from "./charts/demandDist";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -85,6 +91,8 @@ export type ControlsState = {
   pendingOrder: number;
   /** Snapshot schedule for weekday / pipeline chrome (T-086). */
   schedule: ScheduleWire | null;
+  /** DOW demand profile for projected-demand preview (read-only). */
+  demand_summary: DemandSummary | null;
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
@@ -114,6 +122,45 @@ export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
 };
 
 
+/**
+ * σ (picking variability) drives `w ∝ f^σ`, a power-law shape — equal steps
+ * in raw σ are far from equally meaningful (σ 0.05→0.15 reshapes the curve
+ * dramatically; σ 1.0→1.1 barely moves it). The `sigma` slider's *raw input
+ * value* is therefore precision `p = 1/σ`, linear in the input element, and
+ * converted to/from σ at the UI boundary. `p = 0` is reserved as an explicit
+ * sentinel for "uniform picking" (σ = 0), matching `pickingWeightsF`'s own
+ * `sigma <= 0` special case — 1/0 is not computed.
+ */
+export const SIGMA_MIN = 0.05;
+export const SIGMA_MAX = 1.5;
+export const SIGMA_PRECISION_MAX = 1 / SIGMA_MIN;
+
+function clamp(value: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, value));
+}
+
+/** σ → slider precision (1/σ), with σ ≤ 0 mapping to the uniform sentinel 0. */
+export function sigmaToPrecision(sigma: number): number {
+  if (sigma <= 0) return 0;
+  return clamp(1 / sigma, 0, SIGMA_PRECISION_MAX);
+}
+
+/** Slider precision (1/σ) → σ, with the sentinel 0 mapping back to uniform. */
+export function precisionToSigma(precision: number): number {
+  if (precision <= 0) return 0;
+  return clamp(1 / precision, SIGMA_MIN, SIGMA_MAX);
+}
+
+/**
+ * Display text for the sigma slider's raw (precision) value — the label
+ * already reads "σ (picking)", so this shows the resulting σ number (not
+ * precision) to keep the on-screen value meaningful, e.g. "currently 0.35".
+ */
+export function formatSigmaPrecision(precision: number): string {
+  if (precision <= 0) return "uniform picking";
+  return `currently ${precisionToSigma(precision).toFixed(2)}`;
+}
+
 type SliderSpec = {
   id: string;
   label: string;
@@ -136,10 +183,22 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "q10", label: "Q10", min: 1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "physics" },
   { id: "t_ref_c", label: "T_ref (°C)", min: -2, max: 8, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
   { id: "t_store_c", label: "T_store (°C)", min: 0, max: 12, step: 0.5, format: (v) => v.toFixed(1), group: "physics" },
-  { id: "sigma", label: "σ (picking)", min: 0, max: 1.5, step: 0.05, format: (v) => v.toFixed(2), group: "physics" },
   { id: "demand_mu", label: "demand μ", min: 5, max: 80, step: 1, format: (v) => v.toFixed(0), group: "demand" },
   { id: "demand_vm", label: "demand V/M", min: 1.1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "demand" },
+  {
+    id: "sigma",
+    label: "σ (picking)",
+    // Raw input value is precision p = 1/σ, not σ (see comment above);
+    // p=0 is the reserved "uniform picking" sentinel, p=SIGMA_PRECISION_MAX
+    // corresponds to the most-selective σ=SIGMA_MIN.
+    min: 0,
+    max: SIGMA_PRECISION_MAX,
+    step: 0.1,
+    format: formatSigmaPrecision,
+    group: "demand",
+  },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
+  { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "starting_inv", label: "starting inventory", min: 0, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   {
@@ -225,25 +284,32 @@ function mountSectionControlsDom(
 } {
   root.innerHTML = `
     <div class="section-controls">
-      <div class="controls-block" data-section="play">
-        <p class="hint">Seed reshapes the episode on Reset. Advance to step the store.</p>
-        <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
-      </div>
       <div class="controls-block" data-section="pricing" hidden>
         <p class="hint">Recompute P&amp;L from stored unit history — no re-sim.</p>
         ${PRICE_SLIDERS.map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="physics" hidden>
         <p class="hint">Gamma freshness aging + Q10 temperature shift.</p>
+        <p class="meta-readonly">No separate gamma shape knob post f-native migration — aging draws from ModelParams defaults.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="demand" hidden>
-        <p class="hint">Negative-binomial-ish demand from mean and V/M.</p>
+        <p class="hint">Negative-binomial-ish demand from mean and V/M; σ shapes lot picking spread.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
+        <div class="field">
+          <span class="field-label">Picking variability shape</span>
+          <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Next few days (projected μ)</span>
+          <p class="meta-readonly" id="demand-preview-list">—</p>
+        </div>
+        <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
+        ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="logistics" hidden>
-        <p class="hint">Case snap and stocking targets for daily refill.</p>
+        <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
+        <p class="meta-readonly" id="schedule-weekdays-readonly">Schedule weekdays —</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
@@ -261,7 +327,7 @@ function mountSectionControlsDom(
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
       </div>
-      <div class="controls-block" data-section="belief" hidden>
+      <div class="controls-block" data-section="observation" hidden>
         <p class="hint">
           Knowledge changes what the store sees, so future orders can change.
           Use the decision rail to switch observation rungs.
@@ -271,7 +337,7 @@ function mountSectionControlsDom(
           <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
         </div>
       </div>
-      <div class="controls-block" data-section="controller" hidden>
+      <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">
           Policy and rollout budgets feed Autopilot / act — physics still needs Reset.
         </p>
@@ -283,14 +349,23 @@ function mountSectionControlsDom(
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
-        <label class="field">
-          <span class="field-label">α <span id="val-alpha"></span></span>
-          <input type="range" id="alpha" min="0.5" max="0.99" step="0.01" />
-        </label>
-        <label class="field">
-          <span class="field-label">ρ <span id="val-rho"></span></span>
-          <input type="range" id="rho" min="0.1" max="1" step="0.05" />
-        </label>
+        <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
+        <div class="field alpha-rho-field">
+          <span class="field-label">α / ρ <span id="val-alpha-rho"></span></span>
+          <svg
+            id="alpha-rho-pad"
+            class="alpha-rho-pad"
+            width="120"
+            height="120"
+            viewBox="0 0 120 120"
+            role="slider"
+            aria-label="Alpha and rho tuning pad"
+            tabindex="0"
+          >
+            <rect class="alpha-rho-pad-bg" x="8" y="8" width="104" height="104" rx="4" />
+            <circle id="alpha-rho-handle" class="alpha-rho-handle" r="6" cx="60" cy="60" />
+          </svg>
+        </div>
         <label class="field">
           <span class="field-label">H (horizon) <span id="val-H"></span></span>
           <input type="number" id="H" min="1" max="56" step="1" />
@@ -317,6 +392,81 @@ function mountSectionControlsDom(
 
   let controllerState: ControllerControlsState = { ...initialController };
 
+  const ALPHA_MIN = 0.5;
+  const ALPHA_MAX = 0.99;
+  const RHO_MIN = 0.1;
+  const RHO_MAX = 1;
+  const PAD_PAD = 8;
+  const PAD_SIZE = 120;
+
+  function alphaRhoToPad(alpha: number, rho: number): { cx: number; cy: number } {
+    const inner = PAD_SIZE - PAD_PAD * 2;
+    const cx =
+      PAD_PAD + ((alpha - ALPHA_MIN) / (ALPHA_MAX - ALPHA_MIN)) * inner;
+    const cy =
+      PAD_PAD + (1 - (rho - RHO_MIN) / (RHO_MAX - RHO_MIN)) * inner;
+    return { cx, cy };
+  }
+
+  function padToAlphaRho(cx: number, cy: number): { alpha: number; rho: number } {
+    const inner = PAD_SIZE - PAD_PAD * 2;
+    const ax = Math.min(1, Math.max(0, (cx - PAD_PAD) / inner));
+    const ry = Math.min(1, Math.max(0, (cy - PAD_PAD) / inner));
+    const alpha = ALPHA_MIN + ax * (ALPHA_MAX - ALPHA_MIN);
+    const rho = RHO_MIN + (1 - ry) * (RHO_MAX - RHO_MIN);
+    return { alpha, rho };
+  }
+
+  function syncControlAvailability(scenario: ScenarioId): void {
+    for (const spec of [...CONFIG_SLIDERS, ...PRICE_SLIDERS]) {
+      const input = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
+      const field = input?.closest(".field") as HTMLElement | null;
+      if (!field || !input) continue;
+      const avail = controlAvailability(spec.id, scenario);
+      if (avail === "unavailable") {
+        field.hidden = true;
+        input.disabled = true;
+        continue;
+      }
+      field.hidden = false;
+      if (avail === "dim") {
+        field.style.opacity = "0.45";
+        input.disabled = true;
+      } else {
+        field.style.opacity = "";
+        input.disabled = false;
+      }
+    }
+  }
+
+  function syncDemandChrome(s: ControlsState): void {
+    const pickHost = root.querySelector("#picking-var-chart") as HTMLElement | null;
+    if (pickHost) {
+      renderPickingVariability(pickHost, s.config.sigma);
+    }
+    const previewEl = root.querySelector("#demand-preview-list") as HTMLElement | null;
+    if (previewEl) {
+      if (s.demand_summary) {
+        const rows = projectedDemandDays(s.episodeDay, s.demand_summary, 5);
+        previewEl.textContent = rows
+          .map((r) => `${r.weekday} d${r.day}: μ≈${r.mean.toFixed(0)}`)
+          .join(" · ");
+      } else {
+        previewEl.textContent = "— (demand_summary pending)";
+      }
+    }
+    const schedEl = root.querySelector("#schedule-weekdays-readonly") as HTMLElement | null;
+    if (schedEl) {
+      if (s.schedule) {
+        const del = formatWeekdayList(s.schedule.delivery_weekdays);
+        const ord = formatWeekdayList(s.schedule.order_weekdays);
+        schedEl.textContent = `Delivery ${del} · Order ${ord} (read-only — weekday edit blocked on backend)`;
+      } else {
+        schedEl.textContent = "Schedule weekdays — (pending init)";
+      }
+    }
+  }
+
   function syncSlider(spec: SliderSpec, value: number): void {
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
     const label = root.querySelector(`#val-${spec.id}`) as HTMLElement | null;
@@ -332,6 +482,11 @@ function mountSectionControlsDom(
   function syncConfig(c: SimConfig, catchingUp = false): void {
     void catchingUp;
     for (const spec of CONFIG_SLIDERS) {
+      if (spec.id === "sigma") {
+        // Slider's raw value is precision (1/σ), not σ — see SIGMA_* helpers.
+        syncSlider(spec, sigmaToPrecision(c.sigma));
+        continue;
+      }
       const v = c[spec.id as keyof SimConfig];
       if (typeof v === "number") syncSlider(spec, v);
     }
@@ -347,6 +502,11 @@ function mountSectionControlsDom(
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
+    syncControlAvailability(c.obs_scenario);
+  }
+
+  function syncDemandState(s: ControlsState): void {
+    syncDemandChrome(s);
   }
 
   function syncController(s: ControllerControlsState): void {
@@ -354,13 +514,16 @@ function mountSectionControlsDom(
     root.querySelectorAll<HTMLButtonElement>(".policy-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.policy === s.policy);
     });
-    const alphaEl = root.querySelector("#alpha") as HTMLInputElement;
-    const rhoEl = root.querySelector("#rho") as HTMLInputElement;
-    alphaEl.value = String(s.alpha);
-    rhoEl.value = String(s.rho);
-    (root.querySelector("#val-alpha") as HTMLElement).textContent =
-      s.alpha.toFixed(2);
-    (root.querySelector("#val-rho") as HTMLElement).textContent = s.rho.toFixed(2);
+    const handle = root.querySelector("#alpha-rho-handle") as SVGCircleElement | null;
+    const label = root.querySelector("#val-alpha-rho") as HTMLElement | null;
+    const pos = alphaRhoToPad(s.alpha, s.rho);
+    if (handle) {
+      handle.setAttribute("cx", String(pos.cx));
+      handle.setAttribute("cy", String(pos.cy));
+    }
+    if (label) {
+      label.textContent = `α=${s.alpha.toFixed(2)} ρ=${s.rho.toFixed(2)}`;
+    }
     for (const id of [
       "H",
       "n_rollout_paths",
@@ -370,8 +533,8 @@ function mountSectionControlsDom(
     ] as const) {
       const el = root.querySelector(`#${id}`) as HTMLInputElement;
       el.value = String(s[id]);
-      const label = root.querySelector(`#val-${id}`) as HTMLElement | null;
-      if (label) label.textContent = String(s[id]);
+      const valLabel = root.querySelector(`#val-${id}`) as HTMLElement | null;
+      if (valLabel) valLabel.textContent = String(s[id]);
     }
   }
 
@@ -389,11 +552,22 @@ function mountSectionControlsDom(
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
     if (!el) continue;
     el.addEventListener("input", () => {
-      const value = Number(el.value);
+      const raw = Number(el.value);
       (root.querySelector(`#val-${spec.id}`) as HTMLElement).textContent =
-        spec.format(value);
-      cb.onConfigChange({ [spec.id]: value });
-      if (spec.id === "case_size") onCaseSizeChange?.(Math.round(value));
+        spec.format(raw);
+      if (spec.id === "sigma") {
+        // Raw slider value is precision (1/σ); convert before writing config
+        // and before feeding the illustrative w(f) curve, which is σ-shaped.
+        const sigma = precisionToSigma(raw);
+        cb.onConfigChange({ sigma });
+        renderPickingVariability(
+          root.querySelector("#picking-var-chart") as HTMLElement,
+          sigma,
+        );
+        return;
+      }
+      cb.onConfigChange({ [spec.id]: raw });
+      if (spec.id === "case_size") onCaseSizeChange?.(Math.round(raw));
     });
   }
 
@@ -417,20 +591,36 @@ function mountSectionControlsDom(
     });
   });
 
-  const alphaInput = root.querySelector("#alpha") as HTMLInputElement;
-  alphaInput.addEventListener("input", () => {
-    const alpha = Number(alphaInput.value);
-    (root.querySelector("#val-alpha") as HTMLElement).textContent =
-      alpha.toFixed(2);
-    controllerState = { ...controllerState, alpha };
-    cb.onControllerChange?.({ alpha });
+  const alphaRhoPad = root.querySelector("#alpha-rho-pad") as SVGSVGElement;
+  let padDragging = false;
+
+  function applyPadPoint(clientX: number, clientY: number): void {
+    const rect = alphaRhoPad.getBoundingClientRect();
+    const scaleX = PAD_SIZE / rect.width;
+    const scaleY = PAD_SIZE / rect.height;
+    const cx = (clientX - rect.left) * scaleX;
+    const cy = (clientY - rect.top) * scaleY;
+    const { alpha, rho } = padToAlphaRho(cx, cy);
+    controllerState = { ...controllerState, alpha, rho };
+    syncController(controllerState);
+    cb.onControllerChange?.({ alpha, rho });
+  }
+
+  alphaRhoPad.addEventListener("pointerdown", (ev) => {
+    padDragging = true;
+    alphaRhoPad.setPointerCapture(ev.pointerId);
+    applyPadPoint(ev.clientX, ev.clientY);
   });
-  const rhoInput = root.querySelector("#rho") as HTMLInputElement;
-  rhoInput.addEventListener("input", () => {
-    const rho = Number(rhoInput.value);
-    (root.querySelector("#val-rho") as HTMLElement).textContent = rho.toFixed(2);
-    controllerState = { ...controllerState, rho };
-    cb.onControllerChange?.({ rho });
+  alphaRhoPad.addEventListener("pointermove", (ev) => {
+    if (!padDragging) return;
+    applyPadPoint(ev.clientX, ev.clientY);
+  });
+  alphaRhoPad.addEventListener("pointerup", (ev) => {
+    padDragging = false;
+    alphaRhoPad.releasePointerCapture(ev.pointerId);
+  });
+  alphaRhoPad.addEventListener("pointerleave", () => {
+    padDragging = false;
   });
 
   for (const id of [
@@ -452,12 +642,14 @@ function mountSectionControlsDom(
 
   syncEconomics(initial.economics);
   syncConfig(initial.config);
+  syncDemandState(initial);
   syncController(initialController);
 
   return {
     update(s) {
       syncEconomics(s.economics);
       syncConfig(s.config, Boolean(s.catchingUp));
+      syncDemandState(s);
     },
     updateController(s) {
       syncController(s);
@@ -483,10 +675,10 @@ export function controlsFromVm(
     episodeDay: vm.episode_day,
     pendingOrder: vm.pending_order,
     schedule,
+    demand_summary: vm.demand_summary,
   };
 }
 
-export { mountPlayChrome } from "./controlsPlayMount";
 export { mountSectionControls } from "./controlsSectionMount";
 
 export { mountSectionControlsDom };

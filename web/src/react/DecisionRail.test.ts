@@ -30,33 +30,24 @@ function baseProps(activeSection: SectionId = "physics") {
       },
     },
     showTruth: false,
-    onAdvance: vi.fn(),
-    onReset: vi.fn(),
-    onAutopilotPlay: vi.fn(),
-    onAutopilotPause: vi.fn(),
     onSetObsScenario: vi.fn(),
     onShowTruthChange: vi.fn(),
     orderQty: 16,
-    onOrderChange: vi.fn(),
     activeSection,
   };
 }
 
 describe("DecisionRail (T-124 AC-ia)", () => {
-  it("is a sticky aside with Run controls, obs ladder chips, truth toggle, consolidated P&L", () => {
+  it("is a sticky aside with obs ladder chips, truth toggle, tradeoff charts", () => {
+    // T-127 layout v2: Run controls (order qty + Advance/Autopilot/Reset)
+    // moved out into the dedicated OperatorBar component/control bar, so
+    // DecisionRail itself no longer renders them — see OperatorBar.test.ts.
     const props = baseProps();
     render(createElement(DecisionRail, props));
 
     const rail = document.querySelector("aside.decision-rail");
     expect(rail).not.toBeNull();
     expect(rail?.className).toMatch(/decision-rail|sticky/);
-
-    expect(
-      screen.getByRole("button", { name: /advance/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/order quantity/i)).toBeInTheDocument();
-    expect(document.querySelector("#order-num")).toHaveValue(16);
 
     for (const id of LADDER) {
       expect(document.querySelector(`[data-obs="${id}"]`)).not.toBeNull();
@@ -65,20 +56,8 @@ describe("DecisionRail (T-124 AC-ia)", () => {
     const truth = screen.getByRole("switch", { name: /truth|true state/i });
     expect(truth).toBeInTheDocument();
 
-    expect(
-      document.querySelector(
-        "[data-testid='pnl-consolidated'], #chart-pnl-totals",
-      ),
-    ).not.toBeNull();
-  });
-
-  it("updates order quantity when the slider moves", () => {
-    const props = baseProps();
-    render(createElement(DecisionRail, props));
-
-    const slider = document.querySelector("#order-range") as HTMLInputElement;
-    fireEvent.input(slider, { target: { value: "32" } });
-    expect(props.onOrderChange).toHaveBeenCalledWith(32);
+    // T-127: consolidated P&L moved to EconomicsPane; Run rail keeps tradeoff charts.
+    expect(document.querySelector(".tradeoff-charts, #tradeoff-curve-host")).not.toBeNull();
   });
 
   it("keeps observation ladder chips visible when active section is not Belief", () => {
@@ -88,7 +67,7 @@ describe("DecisionRail (T-124 AC-ia)", () => {
     const chips = document.querySelectorAll("[data-obs]");
     expect(chips.length).toBe(LADDER.length);
     expect(
-      document.querySelector('.controls-block[data-section="belief"] [data-obs]'),
+      document.querySelector('.controls-block[data-section="observation"] [data-obs]'),
     ).toBeNull();
 
     const f2 = document.querySelector('[data-obs="F2"]') as HTMLButtonElement;

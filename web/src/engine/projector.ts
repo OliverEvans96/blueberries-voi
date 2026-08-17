@@ -112,6 +112,25 @@ export function ageMarginalFromFlat(flat: FlatBelief): number[] {
   return fMarginalFromFlat(flat);
 }
 
+/** Per-day freshness marginal series for the Primary freshness×time heatmap. */
+export type BeliefFreshnessDay = {
+  day: number;
+  f_edges: number[];
+  /** Length K merged freshness mass (Σ_l lot_counts[l] × f_marginals[l,k]). */
+  marginal: number[];
+};
+
+/** Map rolling belief history → chart-ready freshness marginals per day. */
+export function beliefFreshnessSeries(
+  beliefHistory: BeliefHistoryDay[],
+): BeliefFreshnessDay[] {
+  return beliefHistory.map(({ day, flatBelief }) => ({
+    day,
+    f_edges: centersToEdges(flatBelief.f_grid),
+    marginal: fMarginalFromFlat(flatBelief),
+  }));
+}
+
 function integerCountEdges(maxN: number): number[] {
   const top = Math.max(1, Math.ceil(maxN));
   return Array.from({ length: top + 2 }, (_, i) => i);

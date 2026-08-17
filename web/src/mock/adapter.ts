@@ -312,4 +312,47 @@ export class MockAdapter implements EngineAdapter {
       },
     };
   }
+
+  async tradeoffForecast(): Promise<import("../engine/types").TradeoffForecastResult> {
+    const candidates = [0, 8, 16, 24].map((q) => ({
+      q,
+      waste_mean: q * 0.1,
+      waste_p10: q * 0.05,
+      waste_p50: q * 0.1,
+      waste_p90: q * 0.15,
+      missed_mean: Math.max(0, 20 - q * 0.2),
+      missed_p10: 0,
+      missed_p50: Math.max(0, 20 - q * 0.2),
+      missed_p90: Math.max(0, 30 - q * 0.2),
+      joint_hist: {
+        waste_bins: [0, 2, 4, 8],
+        missed_bins: [0, 5, 10, 20],
+        counts: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+      },
+    }));
+    return { candidates };
+  }
+
+  async events(params: {
+    since_day: number;
+  }): Promise<import("../engine/types").EventsResult> {
+    const days = this.state.history
+      .filter((d) => d.day >= params.since_day)
+      .map((d) => ({
+        day: d.day,
+        arrivals: d.arrivals ?? 0,
+        sales_total: d.sales_total,
+        waste_total: d.waste_total,
+        sales_by: null,
+        waste_by: null,
+        lot_ids: null,
+        pack_date_days: null,
+        age_at_receipt: null,
+      }));
+    return { since_day: params.since_day, days };
+  }
 }

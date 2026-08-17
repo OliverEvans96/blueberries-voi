@@ -3,6 +3,9 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-16
+- **The studio cockpit now shows freshness over time with a truth overlay, a stacked freshness histogram by lot, sales-versus-demand with red stockout shading, and consolidated profit charts in the Economics pane — duplicate P&L sparklines were removed, the Events pane lists days newest-first with illustrative delivery temperature traces, tradeoff charts show mean waste and missed-sales lines, and the tuning dock has real sub-navigation with improved demand, arrival, physics, logistics, and autopilot controls** (T-127 round 2).
+- **Fixed a crash that could occur when switching observation scenarios while the waste chart was hidden, and corrected a wording glitch that showed "1 units" instead of "1 unit" in the events log** (T-127 round 2 visual QA).
+- **The studio now uses a fixed cockpit grid with always-visible belief, economics, events, and run panes, plus tradeoff forecast charts and a masked event log for your observation rung** (T-127).
 
 - **The production freshness filter (C2 Algorithm A) now has a published timing and accuracy study wired to the real engine code — about 5.7 ms per day at a 20-lot store, well under the 500 ms budget, with near-perfect order recommendations on scripted tests** (T-C2-A).
 

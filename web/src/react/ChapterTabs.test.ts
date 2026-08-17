@@ -13,7 +13,7 @@ function sectionIndex(sectionId: SectionId): number {
   return STUDIO_SECTIONS.findIndex((s) => s.id === sectionId) + 1;
 }
 
-function renderChapterTabs(activeSection: SectionId = "play") {
+function renderChapterTabs(activeSection: SectionId = "demand") {
   const onSelectSection = vi.fn();
   render(
     createElement(ChapterTabs, { activeSection, onSelectSection }),
@@ -23,7 +23,7 @@ function renderChapterTabs(activeSection: SectionId = "play") {
 
 describe("ChapterTabs (T-126 AC-tabs)", () => {
   it("renders a tablist with three chapter groups and eight section tabs", () => {
-    renderChapterTabs("play");
+    renderChapterTabs("demand");
 
     const tablist = screen.getByRole("tablist", { name: "Studio sections" });
     expect(tablist).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe("ChapterTabs (T-126 AC-tabs)", () => {
   });
 
   it("calls onSelectSection once when clicking a non-active tab", () => {
-    const { onSelectSection } = renderChapterTabs("play");
+    const { onSelectSection } = renderChapterTabs("demand");
 
     const demandTab = screen.getByRole("tab", { name: /demand/i });
     fireEvent.click(demandTab);
@@ -95,10 +95,10 @@ describe("ChapterTabs (T-126 AC-tabs)", () => {
   });
 
   it("does not throw when clicking the already-active tab", () => {
-    const { onSelectSection } = renderChapterTabs("belief");
+    const { onSelectSection } = renderChapterTabs("observation");
 
-    const beliefTab = screen.getByRole("tab", { name: /belief/i });
-    expect(() => fireEvent.click(beliefTab)).not.toThrow();
-    expect(onSelectSection).toHaveBeenCalledWith("belief");
+    const observationTab = screen.getByRole("tab", { name: /observation/i });
+    expect(() => fireEvent.click(observationTab)).not.toThrow();
+    expect(onSelectSection).toHaveBeenCalledWith("observation");
   });
 });

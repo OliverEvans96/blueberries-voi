@@ -5,7 +5,7 @@
 
 import type { EngineAdapter } from "./adapter";
 import { toFlatActParams } from "./actOpts";
-import type { ActOpts, DayDelta, EngineConfig, Snapshot } from "./types";
+import type { ActOpts, DayDelta, EngineConfig, EventsResult, Snapshot, TradeoffForecastResult } from "./types";
 
 export type WasmAdapterOpts = {
   workerUrl: string;
@@ -104,6 +104,17 @@ export class WasmAdapter implements EngineAdapter {
 
   async set_obs_scenario(obs_scenario: string): Promise<Snapshot> {
     return this.setObsScenario(obs_scenario);
+  }
+
+  async tradeoffForecast(params?: {
+    n_paths?: number;
+    protection_days?: number;
+  }): Promise<TradeoffForecastResult> {
+    return (await this.call("tradeoff_forecast", params ?? {})) as TradeoffForecastResult;
+  }
+
+  async events(params: { since_day: number }): Promise<EventsResult> {
+    return (await this.call("events", params)) as EventsResult;
   }
 
   terminate(): void {

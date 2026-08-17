@@ -1,8 +1,23 @@
 import { D3ChartHost } from "./D3ChartHost";
 import { ReferenceDrawer } from "./ReferenceDrawer";
-import { StoreChartTabs } from "./StoreChartTabs";
 
-/** Static studio shell — two-pane cockpit layout (T-126 / ADR 0129). */
+const D3_CHART_IDS = [
+  "chart-sales",
+  "chart-stockout",
+  "chart-history",
+  "chart-spoil",
+  "chart-sales-demand",
+  "chart-demand",
+  "chart-inventory",
+  "chart-age-comp",
+  "chart-arrival-prior",
+  "chart-arrival-shift",
+  "chart-belief-age-marginal",
+  "chart-belief-lg",
+  "chart-controller-orders",
+] as const;
+
+/** Static studio shell — Cockpit Grid 3-row layout (T-127 / ADR 0130). */
 export function StudioLayout() {
   return (
     <div className="shell studio">
@@ -26,19 +41,22 @@ export function StudioLayout() {
         </div>
         <h1>Blueberry inventory studio</h1>
         <p className="lede">
-          Walk one idea at a time — order the store, then explore Operate,
-          Understand, and Tune chapters to see how each knob teaches through its
-          plots.
+          Always-on cockpit: freshness belief, economics, events, and run controls
+          with a tuning dock for deeper teaching plots.
         </p>
         <div id="insight-strip-host" className="insight-strip-host" />
         <div id="chapter-tabs-host" className="chapter-tabs-host" />
       </header>
 
-      <div className="studio-layout studio-layout--two-pane">
-        <main className="store">
-          <section className="panel panel-stage" id="linked-charts">
+      <div className="cockpit-grid" data-testid="cockpit-grid">
+        <section
+          className="cockpit-row cockpit-row--charts"
+          data-testid="cockpit-row-charts"
+          id="linked-charts"
+        >
+          <div className="cockpit-pane cockpit-pane--primary panel">
             <div className="panel-head">
-              <h2>The store</h2>
+              <h2>Primary</h2>
               <span className="panel-note" id="hover-note">
                 Hover a day to highlight it everywhere
               </span>
@@ -49,174 +67,261 @@ export function StudioLayout() {
               <span className="chip chip-spoil">Spoilage</span>
               <span className="chip chip-missed">Missed</span>
             </div>
-            <StoreChartTabs
-              salesView={
-                <div className="chart-stack">
-                  <div className="chart-caption">Units sold</div>
-                  <D3ChartHost
-                    id="chart-sales"
-                    className="chart"
-                    ariaLabel="Units sold by day"
-                  />
-                  <div className="chart-caption">Missed sales</div>
-                  <D3ChartHost
-                    id="chart-stockout"
-                    className="chart"
-                    ariaLabel="Missed sales by day"
-                  />
-                </div>
-              }
-              ageView={
-                <div className="chart-stack">
-                  <div className="chart-caption" data-truth-caption="lots">
-                    Lots · day × age
-                  </div>
-                  <D3ChartHost
-                    id="chart-history"
-                    className="chart"
-                    ariaLabel="Inventory lots by day and age"
-                  />
-                  <div className="chart-caption">Units spoiled</div>
-                  <D3ChartHost
-                    id="chart-spoil"
-                    className="chart"
-                    ariaLabel="Units spoiled by day"
-                  />
-                </div>
-              }
-            />
-          </section>
-        </main>
-
-        <aside className="focus-column">
-          <section className="panel focus-pane" id="focus-pane">
-            <div className="focus-header">
-              <h2 id="focus-title">Play</h2>
-              <p className="focus-blurb" id="focus-blurb" />
+            <div className="chart-stack primary-charts">
+              <div className="chart-caption" data-truth-caption="lots">
+                Freshness × time
+              </div>
+              <D3ChartHost
+                id="chart-history"
+                className="chart"
+                ariaLabel="Belief freshness over time with truth overlay"
+              />
+              <div className="chart-caption impact-caption">Sales vs demand</div>
+              <D3ChartHost
+                id="chart-sales-demand"
+                className="chart"
+                ariaLabel="Sales versus demand with stockout gap"
+              />
+              <div className="chart-caption">Units spoiled</div>
+              <D3ChartHost
+                id="chart-spoil"
+                className="chart"
+                ariaLabel="Units spoiled by day"
+              />
             </div>
-            <div id="section-controls" />
-            <div className="focus-plots">
-              <div className="focus-plot" data-plot="plot-sales-demand" hidden>
-                <div className="chart-caption impact-caption">Sales vs demand</div>
+          </div>
+
+          <div className="cockpit-pane cockpit-pane--secondary panel">
+            <div className="panel-head">
+              <h2>Secondary</h2>
+            </div>
+            <div
+              className="chart-caption impact-caption"
+              data-truth-caption="belief-lg"
+            >
+              Stacked freshness histogram
+            </div>
+            <D3ChartHost
+              id="chart-belief-lg"
+              className="chart"
+              ariaLabel="Stacked freshness histogram by lot"
+            />
+            <div className="chart-caption impact-caption" hidden>
+              Age marginal
+            </div>
+            <div
+              id="chart-belief-age-marginal"
+              className="chart"
+              role="img"
+              aria-label="Belief age marginal"
+              hidden
+            />
+            <div id="operator-bar-host" />
+          </div>
+        </section>
+
+        <section
+          className="cockpit-row cockpit-row--operations"
+          data-testid="cockpit-row-operations"
+        >
+          <div id="economics-pane-host" className="cockpit-pane cockpit-pane--economics" />
+          <div id="events-pane-host" className="cockpit-pane cockpit-pane--events" />
+        </section>
+
+        {/* Independent sidebar column (T-127 layout v4): spans the Economics/
+         * Events row *and* the tuning-dock row below, sized to its own
+         * content instead of sharing a grid row track with either — that
+         * shared-row-track approach was what forced the operations row to
+         * the Run column's height and left Economics/Events with dead
+         * whitespace beneath them. See cockpitGrid.css `grid-template-areas`. */}
+        <aside
+          className="cockpit-pane cockpit-pane--run"
+          data-testid="cockpit-sidebar-run"
+          aria-label="Run controls and decision support"
+        >
+          <section className="run-today panel" aria-label="Today strip">
+            <h3 className="run-today-heading">Today</h3>
+            <div className="run-today-charts">
+              <div className="run-today-cell">
+                <div className="chart-caption">Units sold</div>
                 <D3ChartHost
-                  id="chart-sales-demand"
-                  className="chart"
-                  ariaLabel="Sales versus demand"
+                  id="chart-sales"
+                  className="chart chart--compact"
+                  ariaLabel="Units sold by day"
                 />
               </div>
-              <div className="focus-plot" data-plot="plot-pnl" hidden>
-                <details className="ledger-expand">
-                  <summary className="chart-caption impact-caption">
-                    Full ledger (cumulative revenue · cost · profit)
-                  </summary>
-                  <D3ChartHost
-                    id="chart-pnl-series"
-                    className="chart"
-                    ariaLabel="Cumulative profit and loss"
-                  />
-                </details>
-              </div>
-              <div className="focus-plot" data-plot="plot-demand" hidden>
-                <div className="chart-caption impact-caption">
-                  DOW demand · protection 3 / 3 / 4
-                </div>
+              <div className="run-today-cell">
+                <div className="chart-caption">Missed sales</div>
                 <D3ChartHost
-                  id="chart-demand"
-                  className="chart"
-                  ariaLabel="Day of week demand profile"
+                  id="chart-stockout"
+                  className="chart chart--compact"
+                  ariaLabel="Missed sales by day"
                 />
               </div>
-              <div className="focus-plot" data-plot="plot-inventory" hidden>
+              <div className="run-today-cell">
                 <div className="chart-caption impact-caption">
                   Inventory vs base-stock
                 </div>
                 <D3ChartHost
                   id="chart-inventory"
-                  className="chart"
+                  className="chart chart--compact"
                   ariaLabel="Inventory versus base stock target"
                 />
               </div>
-              <div className="focus-plot" data-plot="plot-age-comp" hidden>
-                <div className="chart-caption impact-caption">On-hand by age band</div>
-                <D3ChartHost
-                  id="chart-age-comp"
-                  className="chart"
-                  ariaLabel="On-hand inventory by age band"
-                />
-              </div>
-              <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
-                <div className="chart-caption impact-caption">
-                  Arrival-age prior · receipt rug
-                </div>
-                <D3ChartHost
-                  id="chart-arrival-prior"
-                  className="chart"
-                  ariaLabel="Arrival age prior distribution"
-                />
-              </div>
-              <div className="focus-plot" data-plot="plot-arrival-shift" hidden>
-                <div className="chart-caption impact-caption">
-                  Transit ΔT shift vs baseline
-                </div>
-                <D3ChartHost
-                  id="chart-arrival-shift"
-                  className="chart"
-                  ariaLabel="Transit temperature shift"
-                />
-              </div>
-              <div
-                className="focus-plot"
-                data-plot="plot-belief-age-marginal"
-                hidden
-              >
-                <div className="chart-caption impact-caption">Age marginal</div>
-                <D3ChartHost
-                  id="chart-belief-age-marginal"
-                  className="chart"
-                  ariaLabel="Belief age marginal"
-                />
-              </div>
-              <div className="focus-plot" data-plot="plot-belief-lg" hidden>
-                <div
-                  className="chart-caption impact-caption"
-                  data-truth-caption="belief-lg"
-                >
-                  Belief heatmap
-                </div>
-                <D3ChartHost
-                  id="chart-belief-lg"
-                  className="chart"
-                  ariaLabel="Belief heatmap age by count"
-                />
-              </div>
-              <div className="focus-plot" data-plot="plot-controller-orders" hidden>
+              <div className="run-today-cell">
                 <div className="chart-caption impact-caption">Order quantity</div>
                 <D3ChartHost
                   id="chart-controller-orders"
-                  className="chart"
+                  className="chart chart--compact"
                   ariaLabel="Controller order quantities"
                 />
               </div>
             </div>
           </section>
+          <div id="decision-rail-host" />
         </aside>
 
-        <div className="decision-rail-column">
-          <div id="play-chrome" hidden />
-          <div className="pnl-chrome" hidden>
-            <div className="chart-caption impact-caption">Cumulative PnL</div>
-            <D3ChartHost
-              id="chart-pnl-spark"
-              className="chart"
-              ariaLabel="Cumulative profit sparkline"
-            />
+        <section
+          className="cockpit-row cockpit-row--tuning"
+          data-testid="cockpit-row-tuning"
+        >
+          <div className="tuning-dock panel">
+            <div
+              className="tuning-dock-tabs"
+              role="tablist"
+              aria-label="Tuning clusters"
+            >
+              <div className="tuning-cluster" role="presentation">
+                <span className="tuning-cluster-label">Sim params</span>
+                <div className="tuning-cluster-tabs">
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="demand"
+                    aria-controls="section-controls"
+                  >
+                    Demand
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="observation"
+                    aria-controls="section-controls"
+                  >
+                    Observation
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="arrival"
+                    aria-controls="section-controls"
+                  >
+                    Arrival
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="physics"
+                    aria-controls="section-controls"
+                  >
+                    Physics
+                  </button>
+                </div>
+              </div>
+              <div className="tuning-cluster" role="presentation">
+                <span className="tuning-cluster-label">Logistics</span>
+                <div className="tuning-cluster-tabs">
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="logistics"
+                    aria-controls="section-controls"
+                  >
+                    Logistics
+                  </button>
+                </div>
+              </div>
+              <div className="tuning-cluster" role="presentation">
+                <span className="tuning-cluster-label">Autopilot</span>
+                <div className="tuning-cluster-tabs">
+                  <button
+                    type="button"
+                    role="tab"
+                    data-section="autopilot"
+                    aria-controls="section-controls"
+                  >
+                    Autopilot
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="tuning-future-chip"
+                disabled
+                aria-disabled="true"
+              >
+                Future
+              </button>
+            </div>
+            <div className="tuning-dock-body">
+              <div className="focus-header">
+                <h2 id="focus-title">Demand</h2>
+                <p className="focus-blurb" id="focus-blurb" />
+              </div>
+              <div id="section-controls" />
+              <div className="focus-plots tuning-plots">
+                <div className="focus-plot" data-plot="plot-demand" hidden>
+                  <div className="chart-caption impact-caption">
+                    DOW demand · protection 3 / 3 / 4
+                  </div>
+                  <D3ChartHost
+                    id="chart-demand"
+                    className="chart"
+                    ariaLabel="Day of week demand profile"
+                  />
+                </div>
+                <div className="focus-plot" data-plot="plot-age-comp" hidden>
+                  <div className="chart-caption impact-caption">On-hand by age band</div>
+                  <D3ChartHost
+                    id="chart-age-comp"
+                    className="chart"
+                    ariaLabel="On-hand inventory by age band"
+                  />
+                </div>
+                <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
+                  <div className="chart-caption impact-caption">
+                    Arrival-age prior · receipt rug
+                  </div>
+                  <D3ChartHost
+                    id="chart-arrival-prior"
+                    className="chart"
+                    ariaLabel="Arrival age prior distribution"
+                  />
+                </div>
+                <div className="focus-plot" data-plot="plot-arrival-shift" hidden>
+                  <div className="chart-caption impact-caption">
+                    Transit ΔT shift vs baseline
+                  </div>
+                  <D3ChartHost
+                    id="chart-arrival-shift"
+                    className="chart"
+                    ariaLabel="Transit temperature shift"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <div id="decision-rail-host" />
-        </div>
+        </section>
       </div>
 
       <div id="studio-error" className="studio-error" hidden role="alert" />
       <footer className="foot" id="studio-footer" />
+      {/* Preserve chart id enumeration for layout tests */}
+      <span id="d3-chart-id-registry" hidden>
+        {D3_CHART_IDS.join(",")}
+      </span>
     </div>
   );
 }
+
+export { D3_CHART_IDS };

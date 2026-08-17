@@ -77,6 +77,11 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tooltip: "Units on hand at episode start.",
     tier: "Reset",
   },
+  lead_time: {
+    label: "Lead time (days)",
+    tooltip: "Days from order to delivery — flows to session schedule.",
+    tier: "Reset",
+  },
   spread_scale: {
     label: "Arrival spread (FIL-11)",
     tooltip: "Tightens or widens arrival-age mix.",

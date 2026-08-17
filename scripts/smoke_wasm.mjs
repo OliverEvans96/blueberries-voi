@@ -143,6 +143,21 @@ try {
 assert(malformed.ok === false, "malformed JSON must set ok:false");
 assert(malformed.error?.type, `malformed envelope: ${JSON.stringify(malformed)}`);
 
+// T-127: tradeoff_forecast + events RPC smoke
+const tf = rpc({ id: "9", method: "tradeoff_forecast", params: {} });
+assert(tf.result != null && typeof tf.result === "object", "tradeoff_forecast result");
+const candidates = tf.result.candidates;
+assert(Array.isArray(candidates) && candidates.length > 0, "tradeoff_forecast candidates");
+const c0 = candidates[0];
+assert(c0.joint_hist != null, "candidate joint_hist");
+assert(Array.isArray(c0.joint_hist.waste_bins), "joint_hist.waste_bins");
+assert(Array.isArray(c0.joint_hist.missed_bins), "joint_hist.missed_bins");
+assert(Array.isArray(c0.joint_hist.counts), "joint_hist.counts");
+
+const ev = rpc({ id: "10", method: "events", params: { since_day: 0 } });
+assert(ev.result != null && typeof ev.result === "object", "events result");
+assert(Array.isArray(ev.result.days), "events.days array");
+
 console.log(
-  "wasm smoke: init/reset/step/step_n/act + error envelopes ok; belief.lot_counts is array (wasm32)",
+  "wasm smoke: init/reset/step/step_n/act/tradeoff_forecast/events + error envelopes ok; belief.lot_counts is array (wasm32)",
 );

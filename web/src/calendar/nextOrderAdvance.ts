@@ -43,6 +43,18 @@ export function nextOrderDayFromSchedule(
   throw new Error("no next order day within two weeks of schedule.order_weekdays");
 }
 
+/** Largest d < currentDay with weekday in schedule.order_weekdays, or 0. */
+export function previousOrderDayFromSchedule(
+  currentDay: number,
+  schedule: ScheduleWire,
+): number {
+  const orderSet = new Set(schedule.order_weekdays);
+  for (let d = currentDay - 1; d >= 0; d--) {
+    if (orderSet.has(weekdayMonday0(d, schedule))) return d;
+  }
+  return 0;
+}
+
 /**
  * Build step_n orders for EngineSession indexing: orders[i] applies to
  * episode_day + i (current day first). Include every day from current

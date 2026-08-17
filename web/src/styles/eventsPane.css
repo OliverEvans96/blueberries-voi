@@ -1,0 +1,63 @@
+/* T-127 layout v4: Events grows a day-card per day in the current
+ * protection window (resets each order cycle, so this doesn't grow
+ * unbounded across an episode — but a window with a delivery day's temp.
+ * chart, or all pack-date/age-at-receipt rows shown, can still comfortably
+ * exceed Economics' height). Cap just the scrolling list, not the "Events"
+ * heading, so the pane's own height stays predictable and doesn't ripple
+ * into the masonry layout around it (cockpitGrid.css). */
+.events-list {
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.events-day-card {
+  padding: 0.5rem 0;
+}
+
+.events-day-divider {
+  border: none;
+  border-top: 1px solid var(--border, #ccc);
+  margin: 0;
+}
+
+.events-not-observed {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.events-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0;
+}
+
+.events-breakdown {
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.events-lots {
+  font-size: 0.9em;
+}
+
+.events-temp-history {
+  margin: 0.35rem 0 0.15rem;
+}
+
+.events-temp-caption {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  font-style: italic;
+}
+
+.events-temp-chart-host {
+  width: 120px;
+  height: 36px;
+}
+
+.events-temp-chart-host svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

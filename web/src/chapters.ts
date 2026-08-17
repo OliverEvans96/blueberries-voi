@@ -10,12 +10,12 @@ export const STUDIO_CHAPTERS: StudioChapter[] = [
   {
     id: "operate",
     title: "Operate",
-    sectionIds: ["play", "controller"],
+    sectionIds: ["economics", "autopilot"],
   },
   {
     id: "understand",
     title: "Understand",
-    sectionIds: ["belief", "demand", "arrival"],
+    sectionIds: ["observation", "demand", "arrival"],
   },
   {
     id: "tune",

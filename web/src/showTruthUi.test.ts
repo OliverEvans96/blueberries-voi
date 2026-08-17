@@ -1,37 +1,17 @@
 /**
- * Sim truth overlay toggle — mountPlayChrome switch UX (ADR 0125).
+ * Sim truth overlay toggle — DecisionRail switch UX (ADR 0125 / T-127 shell).
  */
 // @vitest-environment jsdom
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountPlayChrome, type ControlsState } from "./controls";
-import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
+import { DEFAULT_SIM_CONFIG } from "./mock/generate";
+import { DecisionRail } from "./react/DecisionRail";
 import { SHOW_TRUTH_STORAGE_KEY } from "./showTruth";
-
-function sampleState(): ControlsState {
-  return {
-    orderQty: 16,
-    economics: { ...DEFAULT_ECONOMICS },
-    config: { ...DEFAULT_SIM_CONFIG },
-    configDirty: false,
-    episodeDay: 0,
-    pendingOrder: 0,
-    schedule: null,
-  };
-}
-
-const noopCb = {
-  onOrderChange: () => undefined,
-  onAdvance: () => undefined,
-  onReset: () => undefined,
-};
 
 const MEMORY_STORE = new Map<string, string>();
 
-let cleanup: (() => void) | undefined;
 afterEach(() => {
-  cleanup?.();
-  cleanup = undefined;
   document.body.replaceChildren();
   document.body.classList.remove("studio--show-truth");
   MEMORY_STORE.clear();
@@ -55,75 +35,67 @@ function stubLocalStorage(): void {
   });
 }
 
-function mountWithApp(showTruth = false) {
-  const app = document.createElement("div");
-  app.id = "app";
-  document.body.appendChild(app);
-  const root = document.createElement("div");
-  document.body.appendChild(root);
+function renderRail(showTruth = false) {
   const onShowTruthChange = vi.fn();
-  const api = mountPlayChrome(
-    root,
-    sampleState(),
-    { ...noopCb, onShowTruthChange },
-    { showTruth, truthClassTarget: app },
+  render(
+    createElement(DecisionRail, {
+      vm: {
+        episode_day: 1,
+        window_days: 90,
+        config: DEFAULT_SIM_CONFIG,
+      },
+      showTruth,
+      orderQty: 16,
+      activeSection: "demand",
+      onAdvance: () => undefined,
+      onReset: () => undefined,
+      onAutopilotPlay: () => undefined,
+      onAutopilotPause: () => undefined,
+      onSetObsScenario: () => undefined,
+      onShowTruthChange,
+      onOrderChange: () => undefined,
+    }),
   );
-  cleanup = () => api.destroy();
-  const btn = root.querySelector("#btn-show-truth") as HTMLButtonElement;
-  return { app, root, btn, onShowTruthChange };
+  const btn = screen.getByRole("switch", { name: /true state/i });
+  return { btn, onShowTruthChange };
 }
 
-describe("mountPlayChrome truth toggle", () => {
+describe("DecisionRail truth toggle", () => {
   it("starts off with aria-checked false and Off label", () => {
     stubLocalStorage();
-    const { app, btn } = mountWithApp(false);
+    const { btn } = renderRail(false);
 
     expect(btn.getAttribute("aria-checked")).toBe("false");
     expect(btn.classList.contains("truth-toggle--on")).toBe(false);
     expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("Off");
-    expect(app.classList.contains("studio--show-truth")).toBe(false);
   });
 
-  it("click toggles on then off and persists to localStorage", () => {
+  it("click invokes onShowTruthChange with toggled value", () => {
     stubLocalStorage();
-    const { app, btn, onShowTruthChange } = mountWithApp(false);
+    const { btn, onShowTruthChange } = renderRail(false);
 
     fireEvent.click(btn);
-    expect(btn.getAttribute("aria-checked")).toBe("true");
-    expect(btn.classList.contains("truth-toggle--on")).toBe(true);
-    expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("On");
-    expect(app.classList.contains("studio--show-truth")).toBe(true);
-    expect(MEMORY_STORE.get(SHOW_TRUTH_STORAGE_KEY)).toBe("true");
     expect(onShowTruthChange).toHaveBeenLastCalledWith(true);
-
-    fireEvent.click(btn);
-    expect(btn.getAttribute("aria-checked")).toBe("false");
-    expect(btn.classList.contains("truth-toggle--on")).toBe(false);
-    expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("Off");
-    expect(app.classList.contains("studio--show-truth")).toBe(false);
-    expect(MEMORY_STORE.get(SHOW_TRUTH_STORAGE_KEY)).toBe("false");
-    expect(onShowTruthChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("opts.showTruth true on mount starts on", () => {
+  it("showTruth true on mount starts on", () => {
     stubLocalStorage();
-    const { app, btn } = mountWithApp(true);
+    const { btn } = renderRail(true);
 
     expect(btn.getAttribute("aria-checked")).toBe("true");
     expect(btn.classList.contains("truth-toggle--on")).toBe(true);
     expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("On");
-    expect(app.classList.contains("studio--show-truth")).toBe(true);
   });
 
-  it("renders dedicated truth-toggle-row below play buttons", () => {
+  it("renders truth toggle in decision-rail-truth section", () => {
     stubLocalStorage();
-    const { root } = mountWithApp(false);
+    renderRail(false);
 
-    const row = root.querySelector(".truth-toggle-row");
-    expect(row).not.toBeNull();
-    expect(row!.querySelector(".truth-toggle-label")?.textContent).toBe(
+    const section = document.querySelector(".decision-rail-truth");
+    expect(section).not.toBeNull();
+    expect(section!.querySelector(".truth-toggle-label")?.textContent).toBe(
       "Sim truth overlay",
     );
-    expect(root.querySelector(".btn-row-play")?.contains(row!)).toBe(false);
+    expect(MEMORY_STORE.has(SHOW_TRUTH_STORAGE_KEY)).toBe(false);
   });
 });

@@ -1,0 +1,176 @@
+ticket: T-127
+parent_tip: main
+optimize: balanced
+description: >
+  Cockpit Grid layout (Layout 1): fixed 3-row grid with always-on Primary/Secondary/
+  Economics/Events/Run panes, tuning-dock tab strip; WASM tradeoff_forecast RPC
+  (Options A+B Monte Carlo + joint histogram) and events RPC (masked richest_log
+  window); frontend tradeoff mini-charts and EventsPane with obsMask.ts port.
+batch_below:
+  max_files: 2
+  max_prod_loc: 50
+max_parallel: 5
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-127.md
+      - .team/adr/0130-tradeoff-forecast-sampling.md
+    deps: []
+
+  - id: qa-rust-tradeoff
+    role: qa
+    files:
+      - crates/voi_core/src/tradeoff.rs
+      - tests/test_t127_tradeoff_forecast.py
+      - .team/qa/T-127-rust-tradeoff-tests.md
+    deps: [architect]
+
+  - id: qa-rust-events
+    role: qa
+    files:
+      - tests/test_t127_events_rpc.py
+      - .team/qa/T-127-rust-events-tests.md
+    deps: [architect]
+
+  - id: qa-obs-mask
+    role: qa
+    files:
+      - web/src/obsMask.test.ts
+      - .team/qa/T-127-obs-mask-tests.md
+    deps: [architect]
+
+  - id: qa-calendar
+    role: qa
+    files:
+      - web/src/calendar/nextOrderAdvance.test.ts
+      - .team/qa/T-127-calendar-tests.md
+    deps: [architect]
+
+  - id: qa-layout
+    role: qa
+    files:
+      - web/src/react/StudioLayout.test.ts
+      - web/src/main.stockout.test.ts
+      - .team/qa/T-127-layout-tests.md
+    deps: [architect]
+
+  - id: qa-tradeoff-ui
+    role: qa
+    files:
+      - web/src/react/DecisionRail.tradeoff.test.ts
+      - web/src/charts/tradeoffForecast.test.ts
+      - .team/qa/T-127-tradeoff-ui-tests.md
+    deps: [architect]
+
+  - id: qa-events-ui
+    role: qa
+    files:
+      - web/src/react/EventsPane.test.ts
+      - .team/qa/T-127-events-ui-tests.md
+    deps: [architect]
+
+  - id: qa-wire
+    role: qa
+    files:
+      - web/src/engine/wasmAdapter.tradeoff.test.ts
+      - scripts/smoke_wasm.mjs
+      - .team/qa/T-127-wire-tests.md
+    deps: [architect]
+
+  - id: impl-rust
+    role: implement
+    shard: rust
+    files:
+      - crates/voi_core/src/tradeoff.rs
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/lib.rs
+      - crates/voi_core/benches/tradeoff_forecast.rs
+    deps: [qa-rust-tradeoff, qa-rust-events]
+
+  - id: impl-obs-mask
+    role: implement
+    shard: obs-mask
+    files:
+      - web/src/obsMask.ts
+    deps: [qa-obs-mask]
+
+  - id: impl-calendar
+    role: implement
+    shard: calendar
+    files:
+      - web/src/calendar/nextOrderAdvance.ts
+    deps: [qa-calendar]
+
+  - id: impl-layout
+    role: implement
+    shard: layout
+    files:
+      - web/src/react/StudioLayout.tsx
+      - web/src/react/EconomicsPane.tsx
+      - web/src/sections.ts
+      - web/src/chapters.ts
+      - web/src/controls.ts
+      - web/src/styles.css
+      - web/src/styles/cockpitGrid.css
+    deps: [qa-layout]
+
+  - id: impl-wire
+    role: implement
+    shard: wire
+    files:
+      - web/src/engine/adapter.ts
+      - web/src/engine/wasmAdapter.ts
+      - web/src/mock/adapter.ts
+      - scripts/smoke_wasm.mjs
+    deps: [impl-rust, qa-wire]
+
+  - id: impl-tradeoff-ui
+    role: implement
+    shard: tradeoff-ui
+    files:
+      - web/src/react/DecisionRail.tsx
+      - web/src/charts/tradeoffCurve.ts
+      - web/src/charts/tradeoffHistogram.ts
+    deps: [impl-wire, qa-tradeoff-ui]
+
+  - id: impl-events-ui
+    role: implement
+    shard: events-ui
+    files:
+      - web/src/react/EventsPane.tsx
+      - web/src/styles/eventsPane.css
+    deps: [impl-wire, impl-obs-mask, impl-calendar, qa-events-ui]
+
+  - id: merge
+    role: merge
+    shard: merge
+    merge_last: true
+    files:
+      - web/src/react/studioLogic.ts
+      - web/src/styles.css
+    deps:
+      - impl-layout
+      - impl-tradeoff-ui
+      - impl-events-ui
+    file_owner:
+      web/src/styles.css: impl-layout
+
+  - id: changelog
+    role: implement
+    shard: changelog
+    files:
+      - .team/changelog.md
+    deps: [merge]
+
+  - id: review
+    role: review
+    files:
+      - .team/reviews/T-127.md
+    deps: [changelog]
+
+  - id: verify
+    role: verify
+    files:
+      - .team/qa/T-127.md
+    deps: [changelog]
