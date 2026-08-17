@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
+
 import pytest
 
 from blueberries_voi.filter.types import (
@@ -12,10 +15,74 @@ from blueberries_voi.filter.types import (
     mask_from_channels,
     validate_channels,
 )
+from blueberries_voi.simulator.belief import empty_flat_belief
+from blueberries_voi.simulator.session import EngineSession
+
+_FLAT = empty_flat_belief(L=2, K=4)
+
+
+def _config(**overrides: Any) -> dict[str, Any]:
+    cfg: dict[str, Any] = {
+        "seed": 1,
+        "n_particles": 32,
+        "enable_filter": True,
+        "shipments": [{"times_d": [0.0, 1.0, 2.0], "temps_c": [5.0, 5.0, 5.0]}],
+        "obs_scenario": "P1",
+    }
+    cfg.update(overrides)
+    return cfg
+
+
+def _snap(obs_channels: ObsChannels, obs: str = "P1") -> dict[str, Any]:
+    return {
+        "seq": 0,
+        "episode_day": 0,
+        "belief": dict(_FLAT),
+        "applied_config": {
+            "obs_scenario": obs,
+            "obs_channels": {
+                "pos": obs_channels.pos,
+                "waste": obs_channels.waste,
+                "deliveries": obs_channels.deliveries,
+            },
+        },
+        "history": [],
+        "live_lots": [],
+        "pipeline": [],
+    }
+
+
+class _FakePyEngineSession:
+    def __init__(self, seed: int = 0) -> None:
+        self.seed = int(seed)
+        self.set_obs_channels_calls: list[tuple[str, str, str]] = []
+
+    def init(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return _snap(channels_for_preset("P1"))
+
+    def set_obs_channels(self, pos: str, waste: str, deliveries: str) -> dict[str, Any]:
+        self.set_obs_channels_calls.append((pos, waste, deliveries))
+        ch = ObsChannels(pos=pos, waste=waste, deliveries=deliveries)
+        return _snap(ch, obs="F2a")
+
+
+def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSession]:
+    holder: dict[str, _FakePyEngineSession] = {}
+
+    def factory(seed: int = 0) -> _FakePyEngineSession:
+        sess = _FakePyEngineSession(seed)
+        holder["s"] = sess
+        return sess
+
+    fake = SimpleNamespace(PyEngineSession=factory)
+    monkeypatch.setattr("blueberries_voi.backend.rust_available", lambda: True)
+    monkeypatch.setattr("blueberries_voi.backend.rust_core", fake)
+    return holder
+
 
 PRESET_IDS = ("P0", "P1", "F1", "F1s", "F2a", "F2")
 
-# All 12 orthogonal combos (pos × waste × deliveries).
+# All 12 orthogonal combos (pos x waste x deliveries).
 ALL_CHANNELS: tuple[ObsChannels, ...] = tuple(
     ObsChannels(pos=pos, waste=waste, deliveries=delivery)
     for pos in ("upc_only", "lot_id")
@@ -72,26 +139,37 @@ def test_f2_preset_uses_pack_date_not_age() -> None:
 
 def test_channels_cache_key_canonical() -> None:
     ch = ObsChannels(pos="lot_id", waste="daily_counts", deliveries="quantity_only")
-    assert channels_cache_key(ch) == "pos=lot_id|waste=daily_counts|deliveries=quantity_only"
+    expected = "pos=lot_id|waste=daily_counts|deliveries=quantity_only"
+    assert channels_cache_key(ch) == expected
 
 
 def test_validate_channels_rejects_unknown_enum() -> None:
     with pytest.raises(ValueError, match="pos"):
-        validate_channels({"pos": "invalid", "waste": "none", "deliveries": "quantity_only"})
+        validate_channels(
+            {"pos": "invalid", "waste": "none", "deliveries": "quantity_only"}
+        )
     with pytest.raises(ValueError, match="waste"):
-        validate_channels({"pos": "upc_only", "waste": "bad", "deliveries": "quantity_only"})
+        validate_channels(
+            {"pos": "upc_only", "waste": "bad", "deliveries": "quantity_only"}
+        )
     with pytest.raises(ValueError, match="deliveries"):
         validate_channels({"pos": "upc_only", "waste": "none", "deliveries": "bad"})
 
 
-def test_set_obs_channels_on_session() -> None:
-    from blueberries_voi.simulator.session import PyEngineSession
-
-    session = PyEngineSession()
-    session.init(seed=42, n_particles=32, enable_filter=True)
-    snap = session.set_obs_channels(
-        ObsChannels(pos="upc_only", waste="daily_counts", deliveries="pack_date_per_lot")
+def test_set_obs_channels_on_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    holder = _install_fake(monkeypatch)
+    session = EngineSession()
+    session.init(_config(), seed=42)
+    ch = ObsChannels(
+        pos="upc_only",
+        waste="daily_counts",
+        deliveries="pack_date_per_lot",
     )
-    applied = snap.applied_config
+    snap = session.set_obs_channels(ch)
+    applied = snap["applied_config"]
     assert applied["obs_channels"]["deliveries"] == "pack_date_per_lot"
     assert applied["obs_scenario"] == "F2a"
+    inner = holder["s"]
+    assert inner.set_obs_channels_calls == [
+        ("upc_only", "daily_counts", "pack_date_per_lot"),
+    ]

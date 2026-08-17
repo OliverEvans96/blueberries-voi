@@ -1,5 +1,5 @@
 /**
- * T-124 RED (qa-ia): Decision rail — Run + ladder + truth + P&L always visible.
+ * T-124 / T-128: Decision rail — channel toggles + truth + tradeoff charts.
  */
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -7,10 +7,7 @@ import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { SectionId } from "../sections";
-import type { ScenarioId } from "../types";
 import { DecisionRail } from "./DecisionRail";
-
-const LADDER: ScenarioId[] = ["P0", "P1", "F1", "F1s", "F2a", "F2"];
 
 function baseProps(activeSection: SectionId = "physics") {
   return {
@@ -18,7 +15,7 @@ function baseProps(activeSection: SectionId = "physics") {
       episode_day: 3,
       window_days: 90,
       economics: { ...DEFAULT_ECONOMICS },
-      config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "P1" as ScenarioId },
+      config: { ...DEFAULT_SIM_CONFIG },
       config_dirty: false,
       pnl_totals: {
         revenue: 100,
@@ -30,48 +27,51 @@ function baseProps(activeSection: SectionId = "physics") {
       },
     },
     showTruth: false,
-    onSetObsScenario: vi.fn(),
+    onSetObsChannels: vi.fn(),
+    onSetObsPreset: vi.fn(),
     onShowTruthChange: vi.fn(),
     orderQty: 16,
     activeSection,
   };
 }
 
-describe("DecisionRail (T-124 AC-ia)", () => {
-  it("is a sticky aside with obs ladder chips, truth toggle, tradeoff charts", () => {
-    // T-127 layout v2: Run controls (order qty + Advance/Autopilot/Reset)
-    // moved out into the dedicated OperatorBar component/control bar, so
-    // DecisionRail itself no longer renders them — see OperatorBar.test.ts.
+describe("DecisionRail (T-128 obs channels)", () => {
+  it("renders channel toggle groups and preset select", () => {
     const props = baseProps();
     render(createElement(DecisionRail, props));
 
     const rail = document.querySelector("aside.decision-rail");
     expect(rail).not.toBeNull();
-    expect(rail?.className).toMatch(/decision-rail|sticky/);
-
-    for (const id of LADDER) {
-      expect(document.querySelector(`[data-obs="${id}"]`)).not.toBeNull();
-    }
+    expect(document.querySelector("[data-testid='obs-channels']")).not.toBeNull();
+    expect(document.querySelectorAll("[data-obs-pos]").length).toBe(2);
+    expect(document.querySelectorAll("[data-obs-waste]").length).toBe(3);
+    expect(document.querySelectorAll("[data-obs-deliveries]").length).toBe(2);
+    expect(document.getElementById("obs-preset-select")).not.toBeNull();
 
     const truth = screen.getByRole("switch", { name: /truth|true state/i });
     expect(truth).toBeInTheDocument();
-
-    // T-127: consolidated P&L moved to EconomicsPane; Run rail keeps tradeoff charts.
     expect(document.querySelector(".tradeoff-charts, #tradeoff-curve-host")).not.toBeNull();
   });
 
-  it("keeps observation ladder chips visible when active section is not Belief", () => {
+  it("preset select calls onSetObsPreset", () => {
     const props = baseProps("physics");
     render(createElement(DecisionRail, props));
 
-    const chips = document.querySelectorAll("[data-obs]");
-    expect(chips.length).toBe(LADDER.length);
-    expect(
-      document.querySelector('.controls-block[data-section="observation"] [data-obs]'),
-    ).toBeNull();
+    const select = document.getElementById("obs-preset-select") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "F2" } });
+    expect(props.onSetObsPreset).toHaveBeenCalledWith("F2");
+  });
 
-    const f2 = document.querySelector('[data-obs="F2"]') as HTMLButtonElement;
-    fireEvent.click(f2);
-    expect(props.onSetObsScenario).toHaveBeenCalledWith("F2");
+  it("waste channel toggle calls onSetObsChannels", () => {
+    const props = baseProps();
+    render(createElement(DecisionRail, props));
+
+    const lotWaste = document.querySelector(
+      '[data-obs-waste="lot_id"]',
+    ) as HTMLButtonElement;
+    fireEvent.click(lotWaste);
+    expect(props.onSetObsChannels).toHaveBeenCalledWith(
+      expect.objectContaining({ waste: "lot_id" }),
+    );
   });
 });

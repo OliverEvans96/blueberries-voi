@@ -6,10 +6,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SRC = dirname(fileURLToPath(import.meta.url));
 
-function read(rel: string): string {
-  return readFileSync(join(ROOT, rel), "utf8");
+function readSrc(rel: string): string {
+  return readFileSync(join(SRC, rel), "utf8");
 }
 
 type ObsChannels = {
@@ -30,7 +30,7 @@ type ObsMask = {
 };
 
 async function loadObsMask() {
-  return (await import("../obsMask")) as {
+  return (await import("./obsMask")) as {
     maskFromChannels: (ch: ObsChannels) => ObsMask;
     channelsForPreset: (id: string) => ObsChannels;
     channelsCacheKey: (ch: ObsChannels) => string;
@@ -71,7 +71,7 @@ describe("T-128 maskFromChannels", () => {
 
 describe("T-128 DecisionRail toggles", () => {
   it("DecisionRail.tsx uses obs channel toggles not ladder chips", () => {
-    const src = read("src/react/DecisionRail.tsx");
+    const src = readSrc("react/DecisionRail.tsx");
     expect(src).toMatch(/obs-channels|obsChannels|onSetObsChannels/);
     expect(src).not.toMatch(/OBS_LADDER_IDS\.map/);
   });
@@ -79,7 +79,7 @@ describe("T-128 DecisionRail toggles", () => {
 
 describe("T-128 scenarioAvailability by channels", () => {
   it("scenarioAvailability exports channelAvailability", async () => {
-    const mod = await import("../scenarioAvailability");
+    const mod = await import("./scenarioAvailability");
     expect(mod.channelAvailability).toBeDefined();
     const ch: ObsChannels = {
       pos: "upc_only",

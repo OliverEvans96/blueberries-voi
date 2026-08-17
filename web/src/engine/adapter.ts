@@ -26,6 +26,16 @@ export interface EngineAdapter {
   act?(opts?: ActOpts): Promise<DayDelta>;
   setObsScenario?(obs_scenario: string): Promise<Snapshot>;
   set_obs_scenario?(obs_scenario: string): Promise<Snapshot>;
+  setObsChannels?(channels: {
+    pos: string;
+    waste: string;
+    deliveries: string;
+  }): Promise<Snapshot>;
+  set_obs_channels?(channels: {
+    pos: string;
+    waste: string;
+    deliveries: string;
+  }): Promise<Snapshot>;
   tradeoffForecast?(params?: {
     n_paths?: number;
     protection_days?: number;

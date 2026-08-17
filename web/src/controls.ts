@@ -417,12 +417,12 @@ function mountSectionControlsDom(
     return { alpha, rho };
   }
 
-  function syncControlAvailability(scenario: ScenarioId): void {
+  function syncControlAvailability(channels: SimConfig["obs_channels"]): void {
     for (const spec of [...CONFIG_SLIDERS, ...PRICE_SLIDERS]) {
       const input = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
       const field = input?.closest(".field") as HTMLElement | null;
       if (!field || !input) continue;
-      const avail = controlAvailability(spec.id, scenario);
+      const avail = controlAvailability(spec.id, channels);
       if (avail === "unavailable") {
         field.hidden = true;
         input.disabled = true;
@@ -502,7 +502,7 @@ function mountSectionControlsDom(
     root.querySelectorAll<HTMLButtonElement>(".arrival-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
-    syncControlAvailability(c.obs_scenario);
+    syncControlAvailability(c.obs_channels);
   }
 
   function syncDemandState(s: ControlsState): void {

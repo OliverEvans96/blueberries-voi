@@ -37,6 +37,16 @@ export type Economics = {
 /** Filter observation ladder (≡ Python ``filter.types.ScenarioId``). */
 export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2";
 
+export type PosChannel = "upc_only" | "lot_id";
+export type WasteChannel = "none" | "daily_counts" | "lot_id";
+export type DeliveryChannel = "quantity_only" | "pack_date_per_lot";
+
+export type ObsChannels = {
+  pos: PosChannel;
+  waste: WasteChannel;
+  deliveries: DeliveryChannel;
+};
+
 /**
  * MOD-21 Abdella sampling frame (mock): all six vs corridor subsets.
  * Matches ADR alternatives A / B / C.
@@ -57,6 +67,7 @@ export type SimConfig = {
   starting_inv: number;
   seed: number;
   obs_scenario: ScenarioId;
+  obs_channels: ObsChannels;
   window_days: number;
   /** MOD-21: which Abdella corridor mix seeds the arrival prior. */
   arrival_product: ArrivalProduct;

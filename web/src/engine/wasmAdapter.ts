@@ -106,6 +106,22 @@ export class WasmAdapter implements EngineAdapter {
     return this.setObsScenario(obs_scenario);
   }
 
+  async setObsChannels(channels: {
+    pos: string;
+    waste: string;
+    deliveries: string;
+  }): Promise<Snapshot> {
+    return (await this.call("set_obs_channels", channels)) as Snapshot;
+  }
+
+  async set_obs_channels(channels: {
+    pos: string;
+    waste: string;
+    deliveries: string;
+  }): Promise<Snapshot> {
+    return this.setObsChannels(channels);
+  }
+
   async tradeoffForecast(params?: {
     n_paths?: number;
     protection_days?: number;

@@ -217,13 +217,11 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     expect(body).not.toMatch(/adapter\.(init|step|reset|act)\s*\(/);
   });
 
-  it("onSetObsScenario uses patchEngineState (not applySnapshot) so wasm empty history does not wipe the episode", () => {
+  it("obs channel handler uses patchEngineState (not applySnapshot)", () => {
     const src = readFileSync(MAIN_TS, "utf8");
-    const handler = src.match(
-      /onSetObsScenario\s*=\s*async\s*\([^)]*\)\s*=>\s*\{[\s\S]*?\n\s*\};/,
-    );
-    expect(handler, "expected onSetObsScenario handler in react/studioLogic.ts").toBeTruthy();
-    const body = handler![0]!;
+    expect(src).toMatch(/async function applyObsSelection/);
+    const start = src.indexOf("async function applyObsSelection");
+    const body = src.slice(start, start + 1200);
     expect(body).toMatch(/projector\.patchEngineState\s*\(/);
     expect(body).not.toMatch(/projector\.applySnapshot\s*\(/);
   });

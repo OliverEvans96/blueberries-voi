@@ -343,6 +343,22 @@ impl PyEngineSession {
         json_to_py_dict(py, &snap)
     }
 
+    fn set_obs_channels<'py>(
+        &mut self,
+        py: Python<'py>,
+        pos: String,
+        waste: String,
+        deliveries: String,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let channels = voi_core::obs::parse_channels(&pos, &waste, &deliveries)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        let snap = self
+            .inner
+            .set_obs_channels(channels)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        json_to_py_dict(py, &snap)
+    }
+
     fn host_crossings(&self) -> u32 {
         self.inner.host_crossings()
     }

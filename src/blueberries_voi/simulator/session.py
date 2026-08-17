@@ -11,7 +11,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from blueberries_voi.filter.types import mask_for
+from blueberries_voi.filter.types import (
+    ObsChannels,
+    mask_for,
+    validate_channels,
+)
 from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 
@@ -194,7 +198,7 @@ class EngineSession:
         return self._coerce_day_delta(raw, seq=self._seq)
 
     def set_obs_scenario(self, obs_scenario: ScenarioId | str) -> Snapshot:
-        """Catch-up the selected observation rung and return a Snapshot."""
+        """Catch-up the selected observation preset and return a Snapshot."""
         self._require_init()
         mask_for(obs_scenario)
         self._obs_scenario = obs_scenario
@@ -204,6 +208,33 @@ class EngineSession:
             msg = "PyEngineSession.set_obs_scenario is required after T-121 Wave F"
             raise RuntimeError(msg)
         return self._coerce_snapshot(fn(str(obs_scenario)))
+
+    def set_obs_channels(self, channels: ObsChannels | Mapping[str, str]) -> Snapshot:
+        """Catch-up the selected observation channels and return a Snapshot."""
+        self._require_init()
+        ch = validate_channels(channels)
+        self._config["obs_channels"] = {
+            "pos": ch.pos,
+            "waste": ch.waste,
+            "deliveries": ch.deliveries,
+        }
+        from blueberries_voi.filter.types import channels_for_preset
+
+        for sid in ("P0", "P1", "F1", "F1s", "F2a", "F2"):
+            preset = channels_for_preset(sid)
+            if (
+                preset.pos == ch.pos
+                and preset.waste == ch.waste
+                and preset.deliveries == ch.deliveries
+            ):
+                self._obs_scenario = sid
+                self._config["obs_scenario"] = sid
+                break
+        fn = getattr(self._require_rust(), "set_obs_channels", None)
+        if not callable(fn):
+            msg = "PyEngineSession.set_obs_channels is required after T-128"
+            raise RuntimeError(msg)
+        return self._coerce_snapshot(fn(ch.pos, ch.waste, ch.deliveries))
 
     def host_crossings(self) -> int:
         """Host/FFI crossings (Rust backend)."""

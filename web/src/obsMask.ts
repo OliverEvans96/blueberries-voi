@@ -1,5 +1,5 @@
 /**
- * Observation masks — TypeScript port of crates/voi_core/src/obs.rs (T-127).
+ * Observation masks — TypeScript port of crates/voi_core/src/obs.rs (T-127 / T-128).
  */
 export type ObsMask = {
   arrivals: boolean;
@@ -10,6 +10,16 @@ export type ObsMask = {
   pack_date: boolean;
   age_at_receipt: boolean;
   lot_ids_live: boolean;
+};
+
+export type PosChannel = "upc_only" | "lot_id";
+export type WasteChannel = "none" | "daily_counts" | "lot_id";
+export type DeliveryChannel = "quantity_only" | "pack_date_per_lot";
+
+export type ObsChannels = {
+  pos: PosChannel;
+  waste: WasteChannel;
+  deliveries: DeliveryChannel;
 };
 
 export type RichObsWire = {
@@ -37,62 +47,71 @@ const DEFAULT_MASK: ObsMask = {
   lot_ids_live: false,
 };
 
-export function maskFor(scenario: string): ObsMask {
+export const DEFAULT_OBS_CHANNELS: ObsChannels = {
+  pos: "upc_only",
+  waste: "daily_counts",
+  deliveries: "quantity_only",
+};
+
+const PRESET_CHANNELS: Record<string, ObsChannels> = {
+  P0: { pos: "upc_only", waste: "none", deliveries: "quantity_only" },
+  P1: DEFAULT_OBS_CHANNELS,
+  F1: { pos: "lot_id", waste: "daily_counts", deliveries: "quantity_only" },
+  F1s: { pos: "upc_only", waste: "lot_id", deliveries: "quantity_only" },
+  F2a: {
+    pos: "upc_only",
+    waste: "daily_counts",
+    deliveries: "pack_date_per_lot",
+  },
+  F2: {
+    pos: "lot_id",
+    waste: "lot_id",
+    deliveries: "pack_date_per_lot",
+  },
+};
+
+export function channelsForPreset(scenario: string): ObsChannels {
   if (scenario === "B-state") {
     throw new Error(
-      "SCN-B-state is a verification bypass, not an ObsMask; do not fabricate observations via maskFor",
+      "SCN-B-state is a verification bypass, not an ObsMask; do not fabricate observations via channelsForPreset",
     );
   }
-  switch (scenario) {
-    case "P0":
-      return { ...DEFAULT_MASK, arrivals: true, sales_total: true };
-    case "P1":
-      return {
-        ...DEFAULT_MASK,
-        arrivals: true,
-        sales_total: true,
-        waste_total: true,
-      };
-    case "F1":
-      return {
-        ...DEFAULT_MASK,
-        arrivals: true,
-        sales_total: true,
-        waste_total: true,
-        sales_by_lot: true,
-        lot_ids_live: true,
-      };
-    case "F1s":
-      return {
-        ...DEFAULT_MASK,
-        arrivals: true,
-        sales_total: true,
-        waste_total: true,
-        waste_by_lot: true,
-        lot_ids_live: true,
-      };
-    case "F2a":
-      return {
-        ...DEFAULT_MASK,
-        arrivals: true,
-        sales_total: true,
-        waste_total: true,
-        pack_date: true,
-      };
-    case "F2":
-      return {
-        ...DEFAULT_MASK,
-        arrivals: true,
-        sales_total: true,
-        waste_total: true,
-        sales_by_lot: true,
-        waste_by_lot: true,
-        age_at_receipt: true,
-        lot_ids_live: true,
-      };
-    default:
-      throw new Error(`Unknown scenario for ObsMask: ${JSON.stringify(scenario)}`);
+  const ch = PRESET_CHANNELS[scenario];
+  if (!ch) {
+    throw new Error(`Unknown scenario for ObsMask: ${JSON.stringify(scenario)}`);
   }
+  return { ...ch };
+}
+
+export function channelsCacheKey(ch: ObsChannels): string {
+  return `pos=${ch.pos}|waste=${ch.waste}|deliveries=${ch.deliveries}`;
+}
+
+export function maskFromChannels(ch: ObsChannels): ObsMask {
+  const m: ObsMask = {
+    ...DEFAULT_MASK,
+    arrivals: true,
+    sales_total: true,
+  };
+  if (ch.pos === "lot_id") {
+    m.sales_by_lot = true;
+    m.lot_ids_live = true;
+  }
+  if (ch.waste === "daily_counts") {
+    m.waste_total = true;
+  } else if (ch.waste === "lot_id") {
+    m.waste_total = true;
+    m.waste_by_lot = true;
+    m.lot_ids_live = true;
+  }
+  if (ch.deliveries === "pack_date_per_lot") {
+    m.pack_date = true;
+  }
+  return m;
+}
+
+export function maskFor(scenario: string): ObsMask {
+  return maskFromChannels(channelsForPreset(scenario));
 }
 
 export function applyMask(rich: RichObsWire, mask: ObsMask): MaskedObsWire {
