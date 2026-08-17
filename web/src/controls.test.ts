@@ -160,6 +160,10 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']rho["'][\s\S]*type="range"/);
   });
 
+  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to rollout (T-130)", () => {
+    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("rollout");
+  });
+
   it("controlsFromVm passes demand_summary for projected-demand preview", () => {
     const vm = minimalVm();
     const state = controlsFromVm(vm, 16, vm.schedule);

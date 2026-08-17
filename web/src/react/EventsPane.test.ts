@@ -131,6 +131,29 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     expect(screen.getByText(/pack date 3 days/i)).toBeInTheDocument();
   });
 
+  it("lot breakdown omits zero-quantity lots (T-130)", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const day: MaskedDayWire = {
+      day: 4,
+      arrivals: 0,
+      sales_total: 6,
+      waste_total: 1,
+      sales_by: [6, 0, 0],
+      waste_by: [0, 1, 0],
+      lot_ids: [201, 202, 203],
+    };
+    render(
+      createElement(EventsPane, {
+        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
+        showTruth: false,
+        events: [day],
+      }),
+    );
+    expect(screen.getByText(/Lot 201: 6 units/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lot 202: 1 unit\b/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Lot 203/i)).toBeNull();
+  });
+
   it("sorts day cards latest-first", async () => {
     const { EventsPane } = (await loadEventsPane())!;
     const { container } = render(
