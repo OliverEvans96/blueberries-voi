@@ -40,7 +40,9 @@ export function renderTradeoffCurve(
   data: QForecastEntry[],
   currentQ: number,
 ): void {
-  renderTradeoffCurveSvg(ensureSvg(host), data, currentQ);
+  const width = Math.max(host.clientWidth || 0, 280);
+  const svg = ensureSvg(host);
+  renderTradeoffCurveSvg(svg, data, currentQ, width);
 }
 
 export function renderTradeoffHistogram(
@@ -48,5 +50,7 @@ export function renderTradeoffHistogram(
   hist: JointHist,
   currentQ?: number,
 ): void {
-  renderTradeoffHistogramSvg(ensureSvg(host), hist, currentQ ?? 0);
+  const width = Math.max(host.clientWidth || 0, 280);
+  const svg = ensureSvg(host);
+  renderTradeoffHistogramSvg(svg, hist, currentQ ?? 0, width);
 }

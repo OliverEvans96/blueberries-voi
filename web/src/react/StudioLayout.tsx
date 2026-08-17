@@ -99,7 +99,7 @@ export function StudioLayout() {
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
             >
-              Stacked freshness histogram
+              Freshness histogram
             </div>
             <D3ChartHost
               id="chart-belief-lg"
@@ -134,22 +134,6 @@ export function StudioLayout() {
           <h3 className="run-today-heading">Today</h3>
           <div className="run-today-charts">
             <div className="run-today-cell">
-              <div className="chart-caption">Units sold</div>
-              <D3ChartHost
-                id="chart-sales"
-                className="chart chart--compact"
-                ariaLabel="Units sold by day"
-              />
-            </div>
-            <div className="run-today-cell">
-              <div className="chart-caption">Missed sales</div>
-              <D3ChartHost
-                id="chart-stockout"
-                className="chart chart--compact"
-                ariaLabel="Missed sales by day"
-              />
-            </div>
-            <div className="run-today-cell">
               <div className="chart-caption impact-caption">
                 Inventory vs base-stock
               </div>
@@ -167,6 +151,31 @@ export function StudioLayout() {
                 ariaLabel="Controller order quantities"
               />
             </div>
+            <div className="run-today-cell">
+              <div className="chart-caption impact-caption">On-hand by age band</div>
+              <D3ChartHost
+                id="chart-age-comp"
+                className="chart chart--compact"
+                ariaLabel="On-hand inventory by age band"
+              />
+            </div>
+          </div>
+          <div className="visually-hidden" aria-hidden="true">
+            <D3ChartHost
+              id="chart-sales"
+              className="chart chart--compact"
+              ariaLabel="Units sold by day"
+            />
+            <D3ChartHost
+              id="chart-stockout"
+              className="chart chart--compact"
+              ariaLabel="Missed sales by day"
+            />
+            <D3ChartHost
+              id="chart-demand"
+              className="chart"
+              ariaLabel="Day of week demand profile"
+            />
           </div>
         </section>
 
@@ -265,24 +274,6 @@ export function StudioLayout() {
               </div>
               <div id="section-controls" />
               <div className="focus-plots tuning-plots">
-                <div className="focus-plot" data-plot="plot-demand" hidden>
-                  <div className="chart-caption impact-caption">
-                    DOW demand · protection 3 / 3 / 4
-                  </div>
-                  <D3ChartHost
-                    id="chart-demand"
-                    className="chart"
-                    ariaLabel="Day of week demand profile"
-                  />
-                </div>
-                <div className="focus-plot" data-plot="plot-age-comp" hidden>
-                  <div className="chart-caption impact-caption">On-hand by age band</div>
-                  <D3ChartHost
-                    id="chart-age-comp"
-                    className="chart"
-                    ariaLabel="On-hand inventory by age band"
-                  />
-                </div>
                 <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
                   <div className="chart-caption impact-caption">
                     Arrival-age prior · receipt rug

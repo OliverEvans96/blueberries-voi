@@ -13,9 +13,9 @@ export function renderTradeoffHistogram(
   svg: SVGSVGElement,
   hist: JointHist,
   currentQ: number,
+  width = 190,
 ): void {
-  const width = 190;
-  const height = 150;
+  const height = Math.max(200, Math.round(width * 0.65));
   const margin = { top: 8, right: 10, bottom: 32, left: 40 };
   const root = d3.select(svg);
   root.selectAll("*").remove();

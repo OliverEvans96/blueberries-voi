@@ -4,6 +4,7 @@
 @import "./styles/storeTabs.css";
 @import "./styles/cockpitGrid.css";
 @import "./styles/eventsPane.css";
+@import "./styles/tuningDock.css";
 
 :root {
   --bg: #e8e2d4;
@@ -1289,3 +1290,38 @@ input[type="number"] {
   color: var(--spoil-strong);
   font-size: 0.9rem;
 }
+
+.alpha-rho-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.alpha-rho-pad-bg {
+  fill: color-mix(in srgb, var(--paper-edge, #d1d5db) 35%, var(--paper, #fff));
+  stroke: var(--paper-edge, #d1d5db);
+}
+
+.alpha-rho-crosshair {
+  stroke: var(--accent, #2563eb);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.alpha-rho-handle {
+  fill: #f59e0b;
+  stroke: var(--accent, #2563eb);
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.alpha-rho-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+

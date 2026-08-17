@@ -111,7 +111,7 @@ export type ControllerControlsState = {
 
 /** ADR 0099 dialed browser budgets + CTL-01 defaults. */
 export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
-  policy: "damped_sw",
+  policy: "rollout",
   alpha: 0.9,
   rho: 0.8,
   H: 7,
@@ -157,8 +157,8 @@ export function precisionToSigma(precision: number): number {
  * precision) to keep the on-screen value meaningful, e.g. "currently 0.35".
  */
 export function formatSigmaPrecision(precision: number): string {
-  if (precision <= 0) return "uniform picking";
-  return `currently ${precisionToSigma(precision).toFixed(2)}`;
+  if (precision <= 0) return "uniform (1/σ = 0)";
+  return `1/σ = ${precision.toFixed(2)}`;
 }
 
 type SliderSpec = {
@@ -187,7 +187,7 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "demand_vm", label: "demand V/M", min: 1.1, max: 5, step: 0.1, format: (v) => v.toFixed(1), group: "demand" },
   {
     id: "sigma",
-    label: "σ (picking)",
+    label: "Picking selectivity (1/σ)",
     // Raw input value is precision p = 1/σ, not σ (see comment above);
     // p=0 is the reserved "uniform picking" sentinel, p=SIGMA_PRECISION_MAX
     // corresponds to the most-selective σ=SIGMA_MIN.
@@ -294,18 +294,26 @@ function mountSectionControlsDom(
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="demand" hidden>
-        <p class="hint">Negative-binomial-ish demand from mean and V/M; σ shapes lot picking spread.</p>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
-        <div class="field">
-          <span class="field-label">Picking variability shape</span>
-          <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
+        <p class="hint">Negative-binomial-ish demand from mean and V/M; 1/σ shapes lot picking spread.</p>
+        <div class="demand-controls-layout">
+          <div class="demand-controls-sliders">
+            ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
+            <div class="field">
+              <span class="field-label">Picking variability shape</span>
+              <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">Next few days (projected μ)</span>
+              <p class="meta-readonly" id="demand-preview-list">—</p>
+            </div>
+            <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
+            ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
+          </div>
+          <div class="demand-controls-chart">
+            <div class="chart-caption impact-caption">DOW demand · protection 3 / 3 / 4</div>
+            <div id="demand-chart-slot" class="chart demand-chart-slot" role="img" aria-label="Day of week demand profile"></div>
+          </div>
         </div>
-        <div class="field">
-          <span class="field-label">Next few days (projected μ)</span>
-          <p class="meta-readonly" id="demand-preview-list">—</p>
-        </div>
-        <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
-        ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
@@ -351,20 +359,28 @@ function mountSectionControlsDom(
         </div>
         <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
         <div class="field alpha-rho-field">
-          <span class="field-label">α / ρ <span id="val-alpha-rho"></span></span>
-          <svg
-            id="alpha-rho-pad"
-            class="alpha-rho-pad"
-            width="120"
-            height="120"
-            viewBox="0 0 120 120"
-            role="slider"
-            aria-label="Alpha and rho tuning pad"
-            tabindex="0"
-          >
-            <rect class="alpha-rho-pad-bg" x="8" y="8" width="104" height="104" rx="4" />
-            <circle id="alpha-rho-handle" class="alpha-rho-handle" r="6" cx="60" cy="60" />
-          </svg>
+          <span class="field-label">α / ρ</span>
+          <div class="alpha-rho-row">
+            <svg
+              id="alpha-rho-pad"
+              class="alpha-rho-pad"
+              width="120"
+              height="120"
+              viewBox="0 0 120 120"
+              role="slider"
+              aria-label="Alpha and rho tuning pad"
+              tabindex="0"
+            >
+              <rect class="alpha-rho-pad-bg" x="8" y="8" width="104" height="104" rx="4" />
+              <line class="alpha-rho-crosshair alpha-rho-crosshair--h" x1="8" y1="60" x2="112" y2="60" />
+              <line class="alpha-rho-crosshair alpha-rho-crosshair--v" x1="60" y1="8" x2="60" y2="112" />
+              <circle id="alpha-rho-handle" class="alpha-rho-handle" r="6" cx="60" cy="60" />
+            </svg>
+            <div class="alpha-rho-readout">
+              <div>α <span id="val-alpha"></span></div>
+              <div>ρ <span id="val-rho"></span></div>
+            </div>
+          </div>
         </div>
         <label class="field">
           <span class="field-label">H (horizon) <span id="val-H"></span></span>
@@ -515,15 +531,15 @@ function mountSectionControlsDom(
       btn.classList.toggle("is-active", btn.dataset.policy === s.policy);
     });
     const handle = root.querySelector("#alpha-rho-handle") as SVGCircleElement | null;
-    const label = root.querySelector("#val-alpha-rho") as HTMLElement | null;
+    const alphaLabel = root.querySelector("#val-alpha") as HTMLElement | null;
+    const rhoLabel = root.querySelector("#val-rho") as HTMLElement | null;
     const pos = alphaRhoToPad(s.alpha, s.rho);
     if (handle) {
       handle.setAttribute("cx", String(pos.cx));
       handle.setAttribute("cy", String(pos.cy));
     }
-    if (label) {
-      label.textContent = `α=${s.alpha.toFixed(2)} ρ=${s.rho.toFixed(2)}`;
-    }
+    if (alphaLabel) alphaLabel.textContent = s.alpha.toFixed(2);
+    if (rhoLabel) rhoLabel.textContent = s.rho.toFixed(2);
     for (const id of [
       "H",
       "n_rollout_paths",

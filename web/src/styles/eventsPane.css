@@ -1,23 +1,30 @@
-/* T-127 layout v4: Events grows a day-card per day in the current
- * protection window (resets each order cycle, so this doesn't grow
- * unbounded across an episode — but a window with a delivery day's temp.
- * chart, or all pack-date/age-at-receipt rows shown, can still comfortably
- * exceed Economics' height). Cap just the scrolling list, not the "Events"
- * heading, so the pane's own height stays predictable and doesn't ripple
- * into the masonry layout around it (cockpitGrid.css). */
+/* T-128: Events pane — protection-interval daily log (full column height). */
+
 .events-list {
-  max-height: 440px;
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.events-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .events-day-card {
   padding: 0.5rem 0;
 }
 
+.events-day-card--today .events-day-heading {
+  font-weight: 700;
+}
+
 .events-day-divider {
   border: none;
-  border-top: 1px solid var(--border, #ccc);
-  margin: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border, #ccc) 55%, transparent);
+  margin: 0.35rem 0;
 }
 
 .events-not-observed {
@@ -25,11 +32,27 @@
   opacity: 0.75;
 }
 
-.events-row {
+.events-line {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin: 0.25rem 0;
+  align-items: baseline;
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+}
+
+.events-line-label {
+  min-width: 5.5rem;
+  font-weight: 600;
+}
+
+.events-line-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.events-line-detail {
+  font-size: 0.85em;
+  opacity: 0.85;
 }
 
 .events-breakdown {
