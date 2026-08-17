@@ -169,7 +169,7 @@ body {
   color: var(--ink-soft);
 }
 
-.btn-autopilot.autopilot-hint {
+.autopilot-toggle.autopilot-hint {
   animation: autopilot-hint-pulse 0.8s ease-in-out 3;
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -696,7 +696,7 @@ input[type="number"] {
 
 .btn-advance,
 .btn-reset,
-.btn-autopilot {
+.autopilot-toggle {
   appearance: none;
   border: none;
   border-radius: 10px;
@@ -706,19 +706,13 @@ input[type="number"] {
   font-size: 0.98rem;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: transform 0.12s ease, filter 0.12s ease, background 0.12s ease;
 }
 
 .btn-advance {
   background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
   color: #f4f7f4;
   box-shadow: 0 6px 14px rgba(26, 61, 50, 0.32);
-}
-
-.btn-autopilot {
-  background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
-  color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.26);
 }
 
 .btn-reset {
@@ -728,16 +722,53 @@ input[type="number"] {
   font-weight: 600;
 }
 
+/* Autopilot Play/Pause toggle (T-127 v3) — one switch instead of two
+ * separate buttons, echoing .truth-toggle's track+thumb pattern for visual
+ * consistency, sized to sit in the Advance/Reset button row. */
+.autopilot-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fffdf8;
+  color: var(--ink);
+  border: 1px solid var(--paper-edge);
+}
+
+.autopilot-toggle .truth-toggle-track {
+  background: var(--paper-edge);
+}
+
+.autopilot-toggle-text {
+  white-space: nowrap;
+}
+
+.autopilot-toggle--on {
+  background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
+  color: #f4f7f4;
+  border-color: #1f5f86;
+  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.26);
+}
+
+.autopilot-toggle--on .truth-toggle-track {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.autopilot-toggle--on .truth-toggle-thumb {
+  transform: translateX(16px);
+  background: #fff;
+}
+
 .btn-advance:hover,
 .btn-reset:hover,
-.btn-autopilot:hover {
+.autopilot-toggle:hover {
   filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
 .btn-advance:active,
 .btn-reset:active,
-.btn-autopilot:active {
+.autopilot-toggle:active {
   transform: translateY(0);
 }
 
@@ -828,7 +859,7 @@ input[type="number"] {
 }
 
 .btn-advance:disabled,
-.btn-autopilot:disabled {
+.autopilot-toggle:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
@@ -949,56 +980,36 @@ input[type="number"] {
 }
 
 /* Operator controls — order quantity + Advance/Autopilot/Reset — are the
- * primary "you are in control" action zone. T-127 layout v2 promotes them
- * out of the tall third operations-row column into a compact, full-width
- * bar right under the header/chapter-tabs — visible without scrolling —
- * instead of requiring a scroll past the Primary/Secondary charts row. */
-.operator-bar-host {
-  margin-top: 12px;
+ * primary "you are in control" action zone. T-127 layout v3 mounts them at
+ * the bottom of the Secondary pane (`.cockpit-pane--secondary`, which
+ * stretches to match the taller Primary pane in the charts row): pushing
+ * this host to the end of that flex column with margin-top:auto fills the
+ * pane's otherwise-empty whitespace below its one histogram chart, instead
+ * of adding a new row/bar that pushes the rest of the page down. */
+#operator-bar-host {
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 .operator-bar {
-  padding: 10px 16px;
+  margin: 0 -16px -16px;
+  padding: 12px 16px 16px;
   background: linear-gradient(180deg, rgba(184, 134, 11, 0.1), rgba(184, 134, 11, 0.03));
-  border-color: rgba(184, 134, 11, 0.35);
-}
-
-.operator-bar-inner {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
+  border-top: 2px solid rgba(184, 134, 11, 0.35);
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .operator-bar-heading {
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.operator-bar-field {
-  flex: 1 1 260px;
-  max-width: 420px;
-  margin: 0;
+  margin: 0 0 8px;
 }
 
 .operator-bar-buttons {
-  flex: 2 1 440px;
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
-  margin-top: 0;
+  grid-template-columns: repeat(3, 1fr);
 }
 
 @media (max-width: 900px) {
-  .operator-bar-inner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .operator-bar-field {
-    max-width: none;
-  }
-
   .operator-bar-buttons {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1153,6 +1164,21 @@ input[type="number"] {
 .pmf-bar {
   fill: var(--sales);
   fill-opacity: 0.55;
+}
+
+/* Picking-variability shape (small "w ∝ f^σ" inline chart, Demand tab) — was
+ * unstyled and defaulted to a solid black SVG fill; tint + stroke it like
+ * the other Demand-section chart, .pmf-bar. */
+.picking-var-area {
+  fill: var(--sales);
+  fill-opacity: 0.22;
+  stroke: none;
+}
+
+.picking-var-line {
+  fill: none;
+  stroke: var(--sales-strong);
+  stroke-width: 2;
 }
 
 .coverage-band {

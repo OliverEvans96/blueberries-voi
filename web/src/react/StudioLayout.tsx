@@ -48,8 +48,6 @@ export function StudioLayout() {
         <div id="chapter-tabs-host" className="chapter-tabs-host" />
       </header>
 
-      <div id="operator-bar-host" className="operator-bar-host" />
-
       <div className="cockpit-grid" data-testid="cockpit-grid">
         <section
           className="cockpit-row cockpit-row--charts"
@@ -118,6 +116,7 @@ export function StudioLayout() {
               aria-label="Belief age marginal"
               hidden
             />
+            <div id="operator-bar-host" />
           </div>
         </section>
 
@@ -130,33 +129,41 @@ export function StudioLayout() {
           <div className="cockpit-pane cockpit-pane--run">
             <section className="run-today panel" aria-label="Today strip">
               <h3 className="run-today-heading">Today</h3>
-              <div className="chart-stack run-today-charts">
-                <div className="chart-caption">Units sold</div>
-                <D3ChartHost
-                  id="chart-sales"
-                  className="chart chart--compact"
-                  ariaLabel="Units sold by day"
-                />
-                <div className="chart-caption">Missed sales</div>
-                <D3ChartHost
-                  id="chart-stockout"
-                  className="chart chart--compact"
-                  ariaLabel="Missed sales by day"
-                />
-                <div className="chart-caption impact-caption">
-                  Inventory vs base-stock
+              <div className="run-today-charts">
+                <div className="run-today-cell">
+                  <div className="chart-caption">Units sold</div>
+                  <D3ChartHost
+                    id="chart-sales"
+                    className="chart chart--compact"
+                    ariaLabel="Units sold by day"
+                  />
                 </div>
-                <D3ChartHost
-                  id="chart-inventory"
-                  className="chart chart--compact"
-                  ariaLabel="Inventory versus base stock target"
-                />
-                <div className="chart-caption impact-caption">Order quantity</div>
-                <D3ChartHost
-                  id="chart-controller-orders"
-                  className="chart chart--compact"
-                  ariaLabel="Controller order quantities"
-                />
+                <div className="run-today-cell">
+                  <div className="chart-caption">Missed sales</div>
+                  <D3ChartHost
+                    id="chart-stockout"
+                    className="chart chart--compact"
+                    ariaLabel="Missed sales by day"
+                  />
+                </div>
+                <div className="run-today-cell">
+                  <div className="chart-caption impact-caption">
+                    Inventory vs base-stock
+                  </div>
+                  <D3ChartHost
+                    id="chart-inventory"
+                    className="chart chart--compact"
+                    ariaLabel="Inventory versus base stock target"
+                  />
+                </div>
+                <div className="run-today-cell">
+                  <div className="chart-caption impact-caption">Order quantity</div>
+                  <D3ChartHost
+                    id="chart-controller-orders"
+                    className="chart chart--compact"
+                    ariaLabel="Controller order quantities"
+                  />
+                </div>
               </div>
             </section>
             <div id="decision-rail-host" />

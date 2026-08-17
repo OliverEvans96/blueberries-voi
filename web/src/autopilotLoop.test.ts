@@ -376,21 +376,21 @@ describe("createAutopilotLoop pause on error / config_dirty + order sync (T-100)
 });
 
 describe("Decision rail Autopilot Play/Pause (T-100)", () => {
-  it("DecisionRail exposes Autopilot Play and Autopilot Pause labels", () => {
+  it("OperatorBar exposes a single Autopilot toggle wired to onAutopilotPlay/onAutopilotPause", () => {
     // T-127 layout v2: Advance/Autopilot Play/Pause controls moved from
     // DecisionRail into the dedicated OperatorBar component/control bar.
+    // T-127 layout v3: the two separate Play/Pause buttons collapsed into
+    // one toggle switch (mirrors DecisionRail's .truth-toggle pattern).
     const src =
       readFileSync(DECISION_RAIL_TS, "utf8") +
       readFileSync(OPERATOR_BAR_TS, "utf8") +
       readFileSync(MAIN_TS, "utf8");
     expect(
       src,
-      "expected Autopilot Play accessible name/label in decision rail",
-    ).toMatch(/Autopilot\s+Play/);
-    expect(
-      src,
-      "expected Autopilot Pause accessible name/label in decision rail",
-    ).toMatch(/Autopilot\s+Pause/);
+      "expected a single Autopilot toggle switch, not separate Play/Pause buttons",
+    ).toMatch(/autopilot-toggle/);
+    expect(src).toMatch(/onAutopilotPlay\s*\(\s*\)/);
+    expect(src).toMatch(/onAutopilotPause\s*\(\s*\)/);
     expect(src).toMatch(/disabled=\{autopilotRunning \|\| atEnd\}/);
   });
 

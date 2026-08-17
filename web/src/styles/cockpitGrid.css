@@ -36,7 +36,11 @@
 
 .cockpit-row--operations {
   grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr) minmax(320px, 1.1fr);
-  align-items: stretch;
+  /* start, not stretch: Economics/Events are naturally much shorter than the
+   * Run column (Today strip + tradeoff charts) — stretching them to match
+   * just padded them with dead whitespace instead of the "compact,
+   * evenly-filled panels" the operations row should read as. */
+  align-items: start;
 }
 
 .cockpit-row--tuning {
@@ -99,13 +103,22 @@
   cursor: not-allowed;
 }
 
-/* Today strip packs 4 small charts into a 2x2 grid instead of a tall single
- * column — this pane was the biggest contributor to the "Tetris" mismatch
- * against the shorter Economics/Events panes beside it. */
+/* Today strip packs its small charts into a 2x2 grid of (caption + chart)
+ * cells instead of a tall single column — this pane was the biggest
+ * contributor to the "Tetris" mismatch against the shorter Economics/Events
+ * panes beside it. Each metric is wrapped in its own .run-today-cell so the
+ * grid places (caption, chart) pairs together instead of auto-placing
+ * captions and charts as independent 2-per-row items. */
 .run-today-charts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.4rem 0.75rem;
+  gap: 0.5rem 0.75rem;
+}
+
+.run-today-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .run-today-charts .chart-caption {

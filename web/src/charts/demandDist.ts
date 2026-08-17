@@ -97,7 +97,11 @@ export function renderPickingVariability(
   height = 72,
 ): void {
   const curve = pickingWeightCurve(sigma);
-  const width = container.clientWidth || 200;
+  // Guard against a not-yet-laid-out or still-hidden container reporting a
+  // near-zero clientWidth (e.g. right after a tuning-dock tab switch) —
+  // falling back only on exactly 0 let degenerate single-digit widths
+  // through and produced a collapsed/garbled chart.
+  const width = container.clientWidth > 60 ? container.clientWidth : 200;
   const margin = { top: 8, right: 8, bottom: 20, left: 28 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
@@ -220,7 +224,8 @@ export function renderDemandDist(
     ? protectionCoverageFromSchedule(schedule)
     : [];
 
-  const width = container.clientWidth || 320;
+  // Same not-yet-laid-out/hidden-container guard as renderPickingVariability.
+  const width = container.clientWidth > 60 ? container.clientWidth : 320;
   const margin = { top: 28, right: 12, bottom: 36, left: 36 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;

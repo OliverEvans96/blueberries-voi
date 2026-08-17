@@ -298,10 +298,12 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function hintAutoplay(): void {
-    const playBtn = document.querySelector<HTMLButtonElement>("#btn-autopilot-play");
-    if (!playBtn) return;
-    playBtn.classList.add("autopilot-hint");
-    window.setTimeout(() => playBtn.classList.remove("autopilot-hint"), 2400);
+    const toggleBtn = document.querySelector<HTMLButtonElement>(
+      "#btn-autopilot-toggle",
+    );
+    if (!toggleBtn) return;
+    toggleBtn.classList.add("autopilot-hint");
+    window.setTimeout(() => toggleBtn.classList.remove("autopilot-hint"), 2400);
   }
 
   function onGuidedPathSelect(path: GuidedPath): void {
@@ -581,6 +583,14 @@ export function initStudio(app: HTMLElement): () => void {
 
     renderActiveFocusPlots();
     syncTruthCaptions();
+
+    // Defensive re-render one frame later: a plot's container can still
+    // report a stale/near-zero clientWidth in the same tick that its
+    // ancestor's `hidden` flips off (T-127 "demand chart looks weird" bug),
+    // so re-measure once the browser has actually completed layout.
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => renderActiveFocusPlots());
+    }
   }
 
   function renderAll(): void {

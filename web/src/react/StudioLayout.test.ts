@@ -178,4 +178,17 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     decisionRailRoot.unmount();
     operatorBarRoot.unmount();
   });
+
+  it("mounts #operator-bar-host at the bottom of the Secondary pane (T-127 layout v3)", () => {
+    // Fills the Secondary pane's otherwise-empty whitespace below its one
+    // histogram chart, instead of a full-width bar pushing the rest of the
+    // page down.
+    const { container } = render(createElement(StudioLayout));
+    const secondary = container.querySelector(".cockpit-pane--secondary");
+    expect(secondary).not.toBeNull();
+    const operatorBarHost = secondary!.querySelector("#operator-bar-host");
+    expect(operatorBarHost).not.toBeNull();
+    expect(operatorBarHost).toBe(secondary!.lastElementChild);
+    expect(container.querySelector("#operator-bar-host")).toBe(operatorBarHost);
+  });
 });

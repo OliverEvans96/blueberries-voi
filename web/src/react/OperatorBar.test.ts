@@ -1,6 +1,8 @@
 /**
- * T-127 (layout v2): OperatorBar — order quantity + Advance/Autopilot/Reset,
- * split out of DecisionRail into a compact, prominent control bar.
+ * T-127 (layout v3): OperatorBar — order quantity + Advance/Autopilot/Reset,
+ * mounted at the bottom of the Secondary pane. Autopilot Play/Pause is a
+ * single toggle switch (mirrors DecisionRail's .truth-toggle) instead of two
+ * separate buttons.
  */
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -25,15 +27,19 @@ function baseProps() {
   };
 }
 
-describe("OperatorBar (T-127 layout v2)", () => {
-  it("renders Advance/Autopilot Play/Autopilot Pause/Reset and the order quantity control", () => {
+describe("OperatorBar (T-127 layout v3)", () => {
+  it("renders Advance/Reset, an Autopilot toggle switch, and the order quantity control", () => {
     const props = baseProps();
     render(createElement(OperatorBar, props));
 
     expect(screen.getByRole("button", { name: /^advance$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /autopilot play/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /autopilot pause/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
+    const toggle = screen.getByRole("switch", { name: /autopilot/i });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle.querySelector(".autopilot-toggle-text")?.textContent).toBe(
+      "Autopilot: Off",
+    );
     expect(screen.getByLabelText(/order quantity/i)).toBeInTheDocument();
     expect(document.querySelector("#order-num")).toHaveValue(16);
     expect(document.querySelector("#order-range")).not.toBeNull();
@@ -50,7 +56,7 @@ describe("OperatorBar (T-127 layout v2)", () => {
 
   it("calls onAdvance / onReset / onAutopilotPlay / onAutopilotPause", () => {
     const props = baseProps();
-    render(createElement(OperatorBar, props));
+    const { rerender } = render(createElement(OperatorBar, props));
 
     fireEvent.click(screen.getByRole("button", { name: /^advance$/i }));
     expect(props.onAdvance).toHaveBeenCalled();
@@ -58,17 +64,45 @@ describe("OperatorBar (T-127 layout v2)", () => {
     fireEvent.click(screen.getByRole("button", { name: /reset/i }));
     expect(props.onReset).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /autopilot play/i }));
+    fireEvent.click(screen.getByRole("switch", { name: /autopilot/i }));
     expect(props.onAutopilotPlay).toHaveBeenCalled();
+    expect(props.onAutopilotPause).not.toHaveBeenCalled();
+
+    rerender(createElement(OperatorBar, { ...props, autopilotRunning: true }));
+    fireEvent.click(screen.getByRole("switch", { name: /autopilot/i }));
+    expect(props.onAutopilotPause).toHaveBeenCalled();
   });
 
-  it("disables Advance/Autopilot Play at episode end, Autopilot Pause unless running", () => {
+  it("toggle reflects autopilotRunning with on/off label + aria-checked", () => {
+    const props = { ...baseProps(), autopilotRunning: true };
+    render(createElement(OperatorBar, props));
+
+    const toggle = screen.getByRole("switch", { name: /autopilot/i });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(toggle.classList.contains("autopilot-toggle--on")).toBe(true);
+    expect(toggle.querySelector(".autopilot-toggle-text")?.textContent).toBe(
+      "Autopilot: On",
+    );
+  });
+
+  it("disables Advance + Autopilot toggle at episode end when not running", () => {
     const props = { ...baseProps(), vm: { ...baseProps().vm, episode_day: 90 } };
     render(createElement(OperatorBar, props));
 
     expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /autopilot play/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /autopilot pause/i })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: /autopilot/i })).toBeDisabled();
+  });
+
+  it("keeps the Autopilot toggle enabled at episode end while running, so it can still be paused", () => {
+    const props = {
+      ...baseProps(),
+      vm: { ...baseProps().vm, episode_day: 90 },
+      autopilotRunning: true,
+    };
+    render(createElement(OperatorBar, props));
+
+    expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: /autopilot/i })).not.toBeDisabled();
   });
 
   it("slider drag updates value via onOrderChange only — no extra side effects", () => {
