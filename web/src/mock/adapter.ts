@@ -10,11 +10,13 @@ import type {
 } from "../engine/types";
 import type {
   Economics,
+  ObsChannels,
   PipelineOrder,
   ScenarioId,
   SimConfig,
   StepInput,
 } from "../types";
+import { channelsForPreset, DEFAULT_OBS_CHANNELS } from "../obsMask";
 import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
@@ -43,7 +45,12 @@ const MOCK_DEMAND_SUMMARY: DemandSummary = {
 };
 
 function configsEqual(a: SimConfig, b: SimConfig): boolean {
-  return (Object.keys(a) as (keyof SimConfig)[]).every((k) => a[k] === b[k]);
+  return (Object.keys(a) as (keyof SimConfig)[]).every((k) => {
+    if (k === "obs_channels") {
+      return JSON.stringify(a.obs_channels) === JSON.stringify(b.obs_channels);
+    }
+    return a[k] === b[k];
+  });
 }
 
 /**
@@ -135,6 +142,7 @@ export class MockAdapter implements EngineAdapter {
     this.config = {
       ...this.config,
       obs_scenario: obs_scenario as ScenarioId,
+      obs_channels: channelsForPreset(obs_scenario),
     };
     this.appliedConfig = {
       ...this.appliedConfig,
@@ -153,13 +161,43 @@ export class MockAdapter implements EngineAdapter {
     return this.setObsScenario(obs_scenario);
   }
 
+  async setObsChannels(channels: ObsChannels): Promise<Snapshot> {
+    this.config = {
+      ...this.config,
+      obs_channels: { ...channels },
+    };
+    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]) {
+      const preset = channelsForPreset(id);
+      if (
+        preset.pos === channels.pos &&
+        preset.waste === channels.waste &&
+        preset.deliveries === channels.deliveries
+      ) {
+        this.config.obs_scenario = id;
+        break;
+      }
+    }
+    this.appliedConfig = { ...this.config };
+    this.flatBelief = generateFlatBelief(
+      this.state.lots,
+      this.state.rng,
+      this.config.obs_scenario,
+      12,
+    );
+    return this.toSnapshot();
+  }
+
+  async set_obs_channels(channels: ObsChannels): Promise<Snapshot> {
+    return this.setObsChannels(channels);
+  }
+
   /**
    * Studio helper: stage knobs on the mock physics. Returns a Snapshot of the
    * current engine fields (no presentation keys) so the projector can patch.
    */
   setConfig(next: Partial<SimConfig>): Snapshot {
     this.applyConfigPartial(next);
-    if (next.obs_scenario != null) {
+    if (next.obs_scenario != null || next.obs_channels != null) {
       this.flatBelief = generateFlatBelief(
         this.state.lots,
         this.state.rng,

@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ScenarioId } from "../types";
+import type { ObsChannels, ScenarioId } from "../types";
 import { plotAvailability } from "../scenarioAvailability";
 import { ChartUnavailable } from "./ChartUnavailable";
 
@@ -8,11 +8,14 @@ export type StoreSpoilageSlot =
   | { kind: "series" };
 
 export function resolveStoreSpoilageSlot(opts: {
-  scenario: ScenarioId;
+  scenario?: ScenarioId;
+  channels?: ObsChannels;
   showTruth: boolean;
 }): StoreSpoilageSlot {
   void opts.showTruth;
-  const avail = plotAvailability("store-spoilage", opts.scenario);
+  const avail = opts.channels
+    ? plotAvailability("store-spoilage", opts.channels)
+    : plotAvailability("store-spoilage", opts.scenario ?? "P1");
   if (avail === "unavailable") {
     return { kind: "unavailable", component: ChartUnavailable };
   }

@@ -19,6 +19,10 @@ AGE_GRID_HI: float = 8.0
 
 ScenarioId: TypeAlias = Literal["P0", "P1", "F1", "F1s", "F2a", "F2"]
 
+PosChannel: TypeAlias = Literal["upc_only", "lot_id"]
+WasteChannel: TypeAlias = Literal["none", "daily_counts", "lot_id"]
+DeliveryChannel: TypeAlias = Literal["quantity_only", "pack_date_per_lot"]
+
 _RICH_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "arrivals",
@@ -50,10 +54,43 @@ _SCENARIO_PRESENT: dict[ScenarioId, frozenset[str]] = {
             "waste_total",
             "sales_by_lot",
             "waste_by_lot",
-            "age_at_receipt",
+            "pack_date",
             "lot_ids_live",
         }
     ),
+}
+
+_PRESET_CHANNELS: dict[ScenarioId, dict[str, str]] = {
+    "P0": {
+        "pos": "upc_only",
+        "waste": "none",
+        "deliveries": "quantity_only",
+    },
+    "P1": {
+        "pos": "upc_only",
+        "waste": "daily_counts",
+        "deliveries": "quantity_only",
+    },
+    "F1": {
+        "pos": "lot_id",
+        "waste": "daily_counts",
+        "deliveries": "quantity_only",
+    },
+    "F1s": {
+        "pos": "upc_only",
+        "waste": "lot_id",
+        "deliveries": "quantity_only",
+    },
+    "F2a": {
+        "pos": "upc_only",
+        "waste": "daily_counts",
+        "deliveries": "pack_date_per_lot",
+    },
+    "F2": {
+        "pos": "lot_id",
+        "waste": "lot_id",
+        "deliveries": "pack_date_per_lot",
+    },
 }
 
 
@@ -82,6 +119,68 @@ UnobservedT: TypeAlias = Unobserved
 def is_unobserved(value: object) -> bool:
     """True iff ``value`` is the ``UNOBSERVED`` sentinel."""
     return value is UNOBSERVED
+
+
+@dataclass(frozen=True)
+class ObsChannels:
+    """Orthogonal observation channels (ADR 0133)."""
+
+    pos: PosChannel
+    waste: WasteChannel
+    deliveries: DeliveryChannel
+
+
+def validate_channels(raw: Mapping[str, str] | ObsChannels) -> ObsChannels:
+    """Parse and validate channel enums from a mapping."""
+    if isinstance(raw, ObsChannels):
+        return raw
+    pos = raw.get("pos", "")
+    waste = raw.get("waste", "")
+    deliveries = raw.get("deliveries", "")
+    if pos not in ("upc_only", "lot_id"):
+        msg = f"invalid pos channel: {pos!r}"
+        raise ValueError(msg)
+    if waste not in ("none", "daily_counts", "lot_id"):
+        msg = f"invalid waste channel: {waste!r}"
+        raise ValueError(msg)
+    if deliveries not in ("quantity_only", "pack_date_per_lot"):
+        msg = f"invalid deliveries channel: {deliveries!r}"
+        raise ValueError(msg)
+    return ObsChannels(
+        pos=pos,  # type: ignore[arg-type]
+        waste=waste,  # type: ignore[arg-type]
+        deliveries=deliveries,  # type: ignore[arg-type]
+    )
+
+
+def channels_for_preset(scenario: ScenarioId | str) -> ObsChannels:
+    if scenario == "B-state":
+        msg = (
+            "SCN-B-state is a verification bypass, not an ObsMask; "
+            "do not fabricate observations via mask_for"
+        )
+        raise ValueError(msg)
+    if scenario not in _PRESET_CHANNELS:
+        msg = f"Unknown scenario for ObsMask: {scenario!r}"
+        raise KeyError(msg)
+    return validate_channels(_PRESET_CHANNELS[scenario])
+
+
+def channels_cache_key(channels: ObsChannels) -> str:
+    return f"pos={channels.pos}|waste={channels.waste}|deliveries={channels.deliveries}"
+
+
+def mask_from_channels(channels: ObsChannels) -> ObsMask:
+    present: set[str] = {"arrivals", "sales_total"}
+    if channels.pos == "lot_id":
+        present.update({"sales_by_lot", "lot_ids_live"})
+    if channels.waste == "daily_counts":
+        present.add("waste_total")
+    elif channels.waste == "lot_id":
+        present.update({"waste_total", "waste_by_lot", "lot_ids_live"})
+    if channels.deliveries == "pack_date_per_lot":
+        present.add("pack_date")
+    return ObsMask(present=frozenset(present))
 
 
 @dataclass(frozen=True)
@@ -149,22 +248,8 @@ class ObsMask:
 
 
 def mask_for(scenario: ScenarioId | str) -> ObsMask:
-    """Return the ObsMask for a settled M1.5 scenario id.
-
-    SCN-B-state is a verification bypass (true state → belief identity), not an
-    observation mask that fabricates fields — calling ``mask_for("B-state")``
-    raises.
-    """
-    if scenario == "B-state":
-        msg = (
-            "SCN-B-state is a verification bypass, not an ObsMask; "
-            "do not fabricate observations via mask_for"
-        )
-        raise ValueError(msg)
-    if scenario not in _SCENARIO_PRESENT:
-        msg = f"Unknown scenario for ObsMask: {scenario!r}"
-        raise KeyError(msg)
-    return ObsMask(present=_SCENARIO_PRESENT[scenario])
+    """Return the ObsMask for a settled M1.5 scenario id (ADR 0133 preset compile)."""
+    return mask_from_channels(channels_for_preset(scenario))
 
 
 def _lot_ids_from_day(day: Any) -> frozenset[int] | Unobserved:
@@ -246,17 +331,25 @@ __all__ = [
     "AGE_GRID_LO",
     "MAX_JOINT_FLOATS",
     "UNOBSERVED",
+    "DeliveryChannel",
     "FilterSummary",
+    "ObsChannels",
     "ObsMask",
     "P1Obs",
+    "PosChannel",
     "RichObs",
     "ScenarioId",
     "Unobserved",
     "UnobservedT",
+    "WasteChannel",
     "age_grid",
+    "channels_cache_key",
+    "channels_for_preset",
     "guard_joint_memory",
     "is_unobserved",
     "joint_state_count",
     "mask_for",
+    "mask_from_channels",
     "rich_obs_from_day_log",
+    "validate_channels",
 ]

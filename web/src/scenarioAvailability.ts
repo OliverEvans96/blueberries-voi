@@ -1,8 +1,8 @@
 /**
- * Scenario-aware plot/control gating (T-124 / ADR 0086 / T-119 audit).
+ * Scenario-aware plot/control gating (T-124 / T-128 ObsChannels).
  */
 import { STUDIO_SECTIONS } from "./sections";
-import type { ScenarioId } from "./types";
+import type { ObsChannels, ScenarioId } from "./types";
 
 export type Availability = "show" | "dim" | "unavailable";
 
@@ -41,63 +41,69 @@ export const ALL_CONTROL_IDS: string[] = [
 
 export const ALL_PLOT_IDS: string[] = collectPlotIds();
 
-const PLOT_RULES: Partial<Record<string, Partial<Record<ScenarioId, Availability>>>> = {
-  "store-spoilage": {
-    P0: "unavailable",
-  },
-  "plot-arrival-prior-rug": {
-    P0: "unavailable",
-    P1: "unavailable",
-    F1: "unavailable",
-    F1s: "unavailable",
-    F2a: "unavailable",
-    F2: "show",
-  },
-};
-
-const CONTROL_RULES: Partial<Record<string, Partial<Record<ScenarioId, Availability>>>> = {
-  f2a_transit_sd: {
-    P0: "dim",
-    P1: "dim",
-    F1: "dim",
-    F1s: "dim",
-    F2a: "show",
-    F2: "dim",
-  },
-  sensor_sigma: {
-    P0: "dim",
-    P1: "dim",
-    F1: "dim",
-    F1s: "dim",
-    F2a: "dim",
-    F2: "show",
-  },
-};
-
-function lookup(
-  rules: Partial<Record<string, Partial<Record<ScenarioId, Availability>>>>,
-  id: string,
-  scenario: ScenarioId,
-): Availability {
-  return rules[id]?.[scenario] ?? "show";
+function spoilageAvailable(ch: ObsChannels): Availability {
+  return ch.waste === "none" ? "unavailable" : "show";
 }
 
-export function plotAvailability(plotId: string, scenario: ScenarioId): Availability {
-  return lookup(PLOT_RULES, plotId, scenario);
+function packDateControlsAvailable(ch: ObsChannels): Availability {
+  return ch.deliveries === "pack_date_per_lot" ? "show" : "dim";
+}
+
+export function channelAvailability(
+  id: string,
+  channels: ObsChannels,
+): Availability {
+  if (id === "store-spoilage") return spoilageAvailable(channels);
+  if (id === "plot-arrival-prior-rug") {
+    return ch.deliveries === "pack_date_per_lot" ? "show" : "unavailable";
+  }
+  if (id === "f2a_transit_sd" || id === "sensor_sigma") {
+    return packDateControlsAvailable(channels);
+  }
+  return "show";
+}
+
+export function plotAvailability(
+  plotId: string,
+  scenarioOrChannels: ScenarioId | ObsChannels,
+): Availability {
+  if (typeof scenarioOrChannels === "string") {
+    return channelAvailability(plotId, channelsFromLegacyScenario(scenarioOrChannels));
+  }
+  return channelAvailability(plotId, scenarioOrChannels);
 }
 
 export function controlAvailability(
   controlId: string,
-  scenario: ScenarioId,
+  scenarioOrChannels: ScenarioId | ObsChannels,
 ): Availability {
-  return lookup(CONTROL_RULES, controlId, scenario);
+  if (typeof scenarioOrChannels === "string") {
+    return channelAvailability(controlId, channelsFromLegacyScenario(scenarioOrChannels));
+  }
+  return channelAvailability(controlId, scenarioOrChannels);
 }
 
-/** Whether arrival prior receipt rug may render (F2 or showTruth). */
+function channelsFromLegacyScenario(scenario: ScenarioId): ObsChannels {
+  const map: Record<ScenarioId, ObsChannels> = {
+    P0: { pos: "upc_only", waste: "none", deliveries: "quantity_only" },
+    P1: { pos: "upc_only", waste: "daily_counts", deliveries: "quantity_only" },
+    F1: { pos: "lot_id", waste: "daily_counts", deliveries: "quantity_only" },
+    F1s: { pos: "upc_only", waste: "lot_id", deliveries: "quantity_only" },
+    F2a: {
+      pos: "upc_only",
+      waste: "daily_counts",
+      deliveries: "pack_date_per_lot",
+    },
+    F2: { pos: "lot_id", waste: "lot_id", deliveries: "pack_date_per_lot" },
+  };
+  return map[scenario];
+}
+
+/** Whether arrival prior receipt rug may render (pack_date channel or showTruth). */
 export function arrivalRugAvailable(
-  scenario: ScenarioId,
+  channels: ObsChannels,
   showTruth: boolean,
 ): boolean {
   if (showTruth) return true;
-  return plotAvailability("plot-arrival-prior-rug", scenario) === "show";
+  return channelAvailability("plot-arrival-prior-rug", channels) === "show";
 }

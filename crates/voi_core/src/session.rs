@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
-use crate::obs::{mask_for, RichDay};
+use crate::obs::{
+    channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
+    parse_channels, preset_for_channels, validate_channels_json, ObsChannels, RichDay,
+};
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn};
 use crate::spawn_rng::SpawnRng;
@@ -52,6 +55,7 @@ pub struct EngineSession {
     l_dim: usize,
     k_dim: usize,
     obs_scenario: String,
+    obs_channels: ObsChannels,
     richest_log: Vec<RichDay>,
     rungs: HashMap<String, (UnitParticleBank, i32)>,
     bank_init: UnitParticleBank,
@@ -94,6 +98,7 @@ impl EngineSession {
             l_dim: DEFAULT_L_DIM,
             k_dim: 4,
             obs_scenario: "P1".to_string(),
+            obs_channels: channels_for_preset("P1").unwrap(),
             richest_log: Vec::new(),
             rungs: HashMap::new(),
             bank_init: UnitParticleBank {
@@ -191,6 +196,18 @@ impl EngineSession {
         &self.obs_scenario
     }
 
+    pub fn obs_channels(&self) -> ObsChannels {
+        self.obs_channels
+    }
+
+    fn active_rung_key(&self) -> String {
+        channels_cache_key(self.obs_channels)
+    }
+
+    fn mask_active(&self) -> crate::obs::ObsMask {
+        mask_from_channels(self.obs_channels)
+    }
+
     fn require_init(&self) {
         if !self.initialized {
             panic!("EngineSession.init() must be called before step/act");
@@ -281,7 +298,7 @@ impl EngineSession {
             pack_date_days,
         };
         if self.enable_filter {
-            let obs = mask_for(&self.obs_scenario).unwrap().apply(&rich);
+            let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, self.day, 6);
             filter_step_unit(&mut self.bank, &obs, &self.params, &mut fr);
         }
@@ -300,7 +317,7 @@ impl EngineSession {
         self.richest_log.push(rich);
         if self.enable_filter {
             self.rungs.insert(
-                self.obs_scenario.clone(),
+                self.active_rung_key(),
                 (self.bank.clone(), self.day as i32 - 1),
             );
         }
@@ -325,6 +342,7 @@ impl EngineSession {
                 "enable_filter": self.enable_filter,
                 "lead_time": self.lead_time,
                 "obs_scenario": self.obs_scenario,
+                "obs_channels": channels_json(self.obs_channels),
                 "seed": self.seed,
             },
             "schedule": schedule_wire(&self.schedule),
@@ -503,41 +521,49 @@ impl EngineSession {
         self.init(seed);
     }
 
-    pub fn set_obs_scenario(&mut self, obs_scenario: &str) -> Result<serde_json::Value, String> {
+    pub fn set_obs_channels(&mut self, channels: ObsChannels) -> Result<serde_json::Value, String> {
         self.require_init();
-        validate_scenario(obs_scenario)?;
         self.catchup_days_last = 0;
-        if obs_scenario == self.obs_scenario && self.rungs.contains_key(obs_scenario) {
+        let key = channels_cache_key(channels);
+        if channels == self.obs_channels && self.rungs.contains_key(&key) {
             return Ok(self.snapshot_value());
         }
         if self.enable_filter {
             self.rungs.insert(
-                self.obs_scenario.clone(),
+                self.active_rung_key(),
                 (self.bank.clone(), self.day as i32 - 1),
             );
         }
-        self.obs_scenario = obs_scenario.to_string();
+        self.obs_channels = channels;
+        self.obs_scenario = preset_for_channels(channels)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
             let (mut bank, last) = self
                 .rungs
-                .get(obs_scenario)
+                .get(&key)
                 .cloned()
                 .unwrap_or_else(|| (self.bank_init.clone(), -1));
             let now = self.day as i32 - 1;
+            let mask = mask_from_channels(channels);
             let mut n = 0u32;
             for day_idx in (last + 1)..=now {
                 let log = &self.richest_log[day_idx as usize];
-                let obs = mask_for(obs_scenario).unwrap().apply(log);
+                let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 filter_step_unit(&mut bank, &obs, &self.params, &mut fr);
                 n += 1;
             }
             self.catchup_days_last = n;
             self.bank = bank;
-            self.rungs
-                .insert(obs_scenario.to_string(), (self.bank.clone(), now));
+            self.rungs.insert(key, (self.bank.clone(), now));
         }
         Ok(self.snapshot_value())
+    }
+
+    pub fn set_obs_scenario(&mut self, obs_scenario: &str) -> Result<serde_json::Value, String> {
+        let channels = channels_for_preset(obs_scenario)?;
+        self.set_obs_channels(channels)
     }
 
     pub fn tradeoff_forecast_value(
@@ -561,7 +587,7 @@ impl EngineSession {
 
     pub fn events_value(&self, since_day: u32) -> serde_json::Value {
         self.require_init();
-        let mask = mask_for(&self.obs_scenario).expect("validated at init");
+        let mask = self.mask_active();
         if since_day > self.day {
             return serde_json::json!({ "days": [] });
         }
@@ -823,8 +849,20 @@ pub fn handle_rpc(request_json: &str) -> String {
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
                 sess.apply_rpc_configure(&req.params);
-                if let Some(sc) = rpc_str(&req.params, "obs_scenario") {
+                if let Some(ch) = rpc_field(&req.params, "obs_channels") {
+                    if let Ok(channels) = validate_channels_json(ch) {
+                        let _ = sess.set_obs_channels(channels);
+                    }
+                } else if let Some(sc) = rpc_str(&req.params, "obs_scenario") {
                     let _ = sess.set_obs_scenario(sc);
+                } else if let Some(cfg) = req.params.get("config") {
+                    if let Some(ch) = cfg.get("obs_channels") {
+                        if let Ok(channels) = validate_channels_json(ch) {
+                            let _ = sess.set_obs_channels(channels);
+                        }
+                    } else if let Some(sc) = cfg.get("obs_scenario").and_then(|v| v.as_str()) {
+                        let _ = sess.set_obs_scenario(sc);
+                    }
                 }
                 sess.snapshot_value()
             }
@@ -903,6 +941,28 @@ pub fn handle_rpc(request_json: &str) -> String {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 match sess.set_obs_scenario(id) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return format!(
+                            "{{\"id\":{},\"ok\":false,\"error\":{{\"type\":\"ValidationError\",\"message\":{}}}}}",
+                            req.id,
+                            serde_json::to_string(&e).unwrap()
+                        );
+                    }
+                }
+            }
+            "set_obs_channels" => {
+                let ch = match validate_channels_json(&req.params) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        return format!(
+                            "{{\"id\":{},\"ok\":false,\"error\":{{\"type\":\"ValidationError\",\"message\":{}}}}}",
+                            req.id,
+                            serde_json::to_string(&e).unwrap()
+                        );
+                    }
+                };
+                match sess.set_obs_channels(ch) {
                     Ok(v) => v,
                     Err(e) => {
                         return format!(

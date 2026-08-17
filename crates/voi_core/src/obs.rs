@@ -1,9 +1,8 @@
-//! Observation masks and RichObs-shaped FilterObs (ADR 0086 / 0126).
-//!
-//! Production `mask_for` richness is T-117 I1. This module exists so QA tests
-//! compile against the public types; stubs do not implement the field table.
+//! Observation masks and RichObs-shaped FilterObs (ADR 0086 / 0126 / 0133).
 
-/// Which RichObs fields are present under a scenario id.
+use serde::{Deserialize, Serialize};
+
+/// Which RichObs fields are present under a scenario id or channel combo.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ObsMask {
     pub arrivals: bool,
@@ -16,7 +15,37 @@ pub struct ObsMask {
     pub lot_ids_live: bool,
 }
 
-/// Richest logged day (DayStepOut + receipt meta). Catch-up applies `mask_for`.
+/// Orthogonal observation channels (ADR 0133).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObsChannels {
+    pub pos: PosChannel,
+    pub waste: WasteChannel,
+    pub deliveries: DeliveryChannel,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PosChannel {
+    UpcOnly,
+    LotId,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WasteChannel {
+    None,
+    DailyCounts,
+    LotId,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeliveryChannel {
+    QuantityOnly,
+    PackDatePerLot,
+}
+
+/// Richest logged day (DayStepOut + receipt meta). Catch-up applies mask.
 #[derive(Clone, Debug, Default)]
 pub struct RichDay {
     pub sales_total: u32,
@@ -58,66 +87,166 @@ impl Default for FilterObs {
     }
 }
 
-/// Scenario → mask. Matches Python ADR 0086 / `mask_for`.
-pub fn mask_for(id: &str) -> Result<ObsMask, String> {
-    if id == "B-state" {
-        return Err("SCN-B-state is a verification bypass, not an ObsMask; \
-             do not fabricate observations via mask_for"
-            .into());
-    }
-    let m = match id {
-        "P0" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            ..ObsMask::default()
-        },
-        "P1" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            waste_total: true,
-            ..ObsMask::default()
-        },
-        "F1" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            waste_total: true,
-            sales_by_lot: true,
-            lot_ids_live: true,
-            ..ObsMask::default()
-        },
-        "F1s" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            waste_total: true,
-            waste_by_lot: true,
-            lot_ids_live: true,
-            ..ObsMask::default()
-        },
-        "F2a" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            waste_total: true,
-            pack_date: true,
-            ..ObsMask::default()
-        },
-        "F2" => ObsMask {
-            arrivals: true,
-            sales_total: true,
-            waste_total: true,
-            sales_by_lot: true,
-            waste_by_lot: true,
-            age_at_receipt: true,
-            lot_ids_live: true,
-            ..ObsMask::default()
-        },
-        _ => return Err(format!("Unknown scenario for ObsMask: {id:?}")),
+pub fn validate_channels_json(value: &serde_json::Value) -> Result<ObsChannels, String> {
+    let pos = value
+        .get("pos")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let waste = value
+        .get("waste")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let deliveries = value
+        .get("deliveries")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    parse_channels(pos, waste, deliveries)
+}
+
+pub fn parse_channels(pos: &str, waste: &str, deliveries: &str) -> Result<ObsChannels, String> {
+    let pos = match pos {
+        "upc_only" => PosChannel::UpcOnly,
+        "lot_id" => PosChannel::LotId,
+        other => return Err(format!("invalid pos channel: {other:?}")),
     };
-    Ok(m)
+    let waste = match waste {
+        "none" => WasteChannel::None,
+        "daily_counts" => WasteChannel::DailyCounts,
+        "lot_id" => WasteChannel::LotId,
+        other => return Err(format!("invalid waste channel: {other:?}")),
+    };
+    let deliveries = match deliveries {
+        "quantity_only" => DeliveryChannel::QuantityOnly,
+        "pack_date_per_lot" => DeliveryChannel::PackDatePerLot,
+        other => return Err(format!("invalid deliveries channel: {other:?}")),
+    };
+    Ok(ObsChannels {
+        pos,
+        waste,
+        deliveries,
+    })
+}
+
+pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
+    if id == "B-state" {
+        return Err(
+            "SCN-B-state is a verification bypass, not an ObsMask; do not fabricate observations"
+                .into(),
+        );
+    }
+    match id {
+        "P0" => Ok(ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::None,
+            deliveries: DeliveryChannel::QuantityOnly,
+        }),
+        "P1" => Ok(ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::QuantityOnly,
+        }),
+        "F1" => Ok(ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::QuantityOnly,
+        }),
+        "F1s" => Ok(ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::QuantityOnly,
+        }),
+        "F2a" => Ok(ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        }),
+        "F2" => Ok(ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        }),
+        _ => Err(format!("Unknown scenario for ObsMask: {id:?}")),
+    }
+}
+
+pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
+    for id in ["P0", "P1", "F1", "F1s", "F2a", "F2"] {
+        if channels_for_preset(id).ok() == Some(ch) {
+            return Some(id);
+        }
+    }
+    None
+}
+
+pub fn channels_cache_key(ch: ObsChannels) -> String {
+    let pos = match ch.pos {
+        PosChannel::UpcOnly => "upc_only",
+        PosChannel::LotId => "lot_id",
+    };
+    let waste = match ch.waste {
+        WasteChannel::None => "none",
+        WasteChannel::DailyCounts => "daily_counts",
+        WasteChannel::LotId => "lot_id",
+    };
+    let deliveries = match ch.deliveries {
+        DeliveryChannel::QuantityOnly => "quantity_only",
+        DeliveryChannel::PackDatePerLot => "pack_date_per_lot",
+    };
+    format!("pos={pos}|waste={waste}|deliveries={deliveries}")
+}
+
+pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
+    serde_json::json!({
+        "pos": match ch.pos {
+            PosChannel::UpcOnly => "upc_only",
+            PosChannel::LotId => "lot_id",
+        },
+        "waste": match ch.waste {
+            WasteChannel::None => "none",
+            WasteChannel::DailyCounts => "daily_counts",
+            WasteChannel::LotId => "lot_id",
+        },
+        "deliveries": match ch.deliveries {
+            DeliveryChannel::QuantityOnly => "quantity_only",
+            DeliveryChannel::PackDatePerLot => "pack_date_per_lot",
+        },
+    })
+}
+
+pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
+    let mut m = ObsMask {
+        arrivals: true,
+        sales_total: true,
+        ..ObsMask::default()
+    };
+    if ch.pos == PosChannel::LotId {
+        m.sales_by_lot = true;
+        m.lot_ids_live = true;
+    }
+    match ch.waste {
+        WasteChannel::None => {}
+        WasteChannel::DailyCounts => {
+            m.waste_total = true;
+        }
+        WasteChannel::LotId => {
+            m.waste_total = true;
+            m.waste_by_lot = true;
+            m.lot_ids_live = true;
+        }
+    }
+    if ch.deliveries == DeliveryChannel::PackDatePerLot {
+        m.pack_date = true;
+    }
+    m
+}
+
+/// Scenario preset → mask. Matches Python ADR 0086 / `mask_for` (ADR 0133 F2 uses pack_date).
+pub fn mask_for(id: &str) -> Result<ObsMask, String> {
+    Ok(mask_from_channels(channels_for_preset(id)?))
 }
 
 impl ObsMask {
     /// Keep present fields from `rich`; absent = `None` (never invent 0).
-    /// `arrivals` is always copied (u32 on every rung).
     pub fn apply(self, rich: &RichDay) -> FilterObs {
         FilterObs {
             sales_tot: if self.sales_total {
@@ -178,6 +307,133 @@ mod tests {
         ])
     }
 
+    const ALL_CHANNELS: [ObsChannels; 12] = [
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::None,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::None,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::UpcOnly,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::None,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::None,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::QuantityOnly,
+        },
+        ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::LotId,
+            deliveries: DeliveryChannel::PackDatePerLot,
+        },
+    ];
+
+    #[test]
+    fn mask_from_channels_all_twelve_combos() {
+        for ch in ALL_CHANNELS {
+            let m = mask_from_channels(ch);
+            let f = present_fields(&m);
+            assert!(f["arrivals"] && f["sales_total"]);
+            assert!(!f["age_at_receipt"]);
+            if ch.pos == PosChannel::LotId {
+                assert!(f["sales_by_lot"] && f["lot_ids_live"]);
+            }
+            if ch.waste == WasteChannel::None {
+                assert!(!f["waste_total"]);
+            } else if ch.waste == WasteChannel::DailyCounts {
+                assert!(f["waste_total"] && !f["waste_by_lot"]);
+            } else {
+                assert!(f["waste_total"] && f["waste_by_lot"] && f["lot_ids_live"]);
+            }
+            if ch.deliveries == DeliveryChannel::PackDatePerLot {
+                assert!(f["pack_date"]);
+            } else {
+                assert!(!f["pack_date"]);
+            }
+        }
+    }
+
+    #[test]
+    fn preset_round_trip_matches_mask_for() {
+        for id in ["P0", "P1", "F1", "F1s", "F2a", "F2"] {
+            let ch = channels_for_preset(id).unwrap();
+            let from_ch = mask_from_channels(ch);
+            let from_id = mask_for(id).unwrap();
+            assert_eq!(from_ch, from_id);
+            assert!(!from_ch.age_at_receipt);
+        }
+    }
+
+    #[test]
+    fn f2_preset_uses_pack_date_not_age() {
+        let ch = channels_for_preset("F2").unwrap();
+        assert_eq!(ch.deliveries, DeliveryChannel::PackDatePerLot);
+        let m = mask_from_channels(ch);
+        assert!(m.pack_date && !m.age_at_receipt);
+    }
+
+    #[test]
+    fn channels_cache_key_canonical() {
+        let ch = ObsChannels {
+            pos: PosChannel::LotId,
+            waste: WasteChannel::DailyCounts,
+            deliveries: DeliveryChannel::QuantityOnly,
+        };
+        assert_eq!(
+            channels_cache_key(ch),
+            "pos=lot_id|waste=daily_counts|deliveries=quantity_only"
+        );
+    }
+
+    #[test]
+    fn parse_channels_rejects_invalid_enum() {
+        assert!(parse_channels("bad", "none", "quantity_only").is_err());
+        assert!(parse_channels("upc_only", "bad", "quantity_only").is_err());
+        assert!(parse_channels("upc_only", "none", "bad").is_err());
+    }
+
     #[test]
     fn mask_for_p0_has_arrivals_and_sales_total_only() {
         let m = mask_for("P0").expect("P0 is a valid rung");
@@ -224,11 +480,11 @@ mod tests {
     }
 
     #[test]
-    fn mask_for_f2_has_maps_age_at_receipt_and_lot_ids() {
+    fn mask_for_f2_has_maps_and_pack_date() {
         let m = mask_for("F2").expect("F2");
         assert!(m.waste_total && m.sales_by_lot && m.waste_by_lot);
-        assert!(m.age_at_receipt && m.lot_ids_live);
-        assert!(!m.pack_date);
+        assert!(m.pack_date && m.lot_ids_live);
+        assert!(!m.age_at_receipt);
     }
 
     #[test]
@@ -267,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_f2_keeps_maps_and_age_at_receipt() {
+    fn apply_f2_keeps_maps_and_pack_date() {
         let rich = RichDay {
             sales_total: 4,
             waste_total: 1,
@@ -277,13 +533,14 @@ mod tests {
             lot_ids: vec![1, 2],
             f_at_receipt: Some(0.9),
             age_at_receipt: Some(1.5),
-            pack_date_days: Some(0),
+            pack_date_days: Some(5),
         };
         let obs = mask_for("F2").unwrap().apply(&rich);
         assert_eq!(obs.waste_tot, Some(1));
         assert_eq!(obs.sales_by.as_deref(), Some(&[4u32, 0][..]));
         assert_eq!(obs.waste_by.as_deref(), Some(&[0u32, 1][..]));
         assert_eq!(obs.lot_ids_live.as_deref(), Some(&[1i64, 2][..]));
-        assert_eq!(obs.age_at_receipt, Some(1.5));
+        assert_eq!(obs.pack_date_days, Some(5));
+        assert!(obs.age_at_receipt.is_none());
     }
 }

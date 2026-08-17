@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-16
+- **Observation in the studio is now three independent toggles — POS, waste, and delivery detail — with named presets (P0 through F2) kept for comparisons; switching channels mid-episode still uses the same lazy catch-up replay as before** (T-128).
 - **The studio cockpit now shows freshness over time with a truth overlay, a stacked freshness histogram by lot, sales-versus-demand with red stockout shading, and consolidated profit charts in the Economics pane — duplicate P&L sparklines were removed, the Events pane lists days newest-first with illustrative delivery temperature traces, tradeoff charts show mean waste and missed-sales lines, and the tuning dock has real sub-navigation with improved demand, arrival, physics, logistics, and autopilot controls** (T-127 round 2).
 - **Fixed a crash that could occur when switching observation scenarios while the waste chart was hidden, and corrected a wording glitch that showed "1 units" instead of "1 unit" in the events log** (T-127 round 2 visual QA).
 - **The studio now uses a fixed cockpit grid with always-visible belief, economics, events, and run panes, plus tradeoff forecast charts and a masked event log for your observation rung** (T-127).

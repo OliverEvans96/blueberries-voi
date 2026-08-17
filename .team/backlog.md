@@ -44,12 +44,7 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 ## Planned modeling (Oliver-requested)
 
-- **Observation schemes → independent toggles (replace fixed ladder):** Replace the fixed
-  observation-ladder chips (P0 / P1 / F1 / …) with per-channel toggles:
-  - **POS:** UPC only · lot ID
-  - **Waste:** None · daily counts · lot ID
-  - **Deliveries:** quantity only · pick date per lot
-  Needs spec/ADR before implementation; supersedes or reframes T-089 chip ladder UX.
+- **Observation schemes → independent toggles (replace fixed ladder):** **Done (T-128)** — studio Decision rail exposes POS / Waste / Deliveries channel toggles plus named presets (P0–F2); `set_obs_channels` RPC with lazy catch-up cache keyed by canonical channels (ADR 0133).
 
 - **Migrate arrival cohorts → proper lots (MOD-16 revisit):** Today deliveries map 1:1 to arrival
   cohorts (ADR [0038](./adr/0038-mod-16-lots-per-delivery-below-the-scanning-rung.md) option A). Move

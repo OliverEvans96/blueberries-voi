@@ -1,7 +1,7 @@
 /**
  * WASM worker host for EngineSession (ADR 0120).
  * Same JSON RPC envelope as packaging/pyodide/worker.js:
- *   init | step | step_n | reset | act | set_obs_scenario | tradeoff_forecast | events
+ *   init | step | step_n | reset | act | set_obs_scenario | set_obs_channels | tradeoff_forecast | events
  *
  * Demo budgets use DEMO_BUDGETS (n_particles ≤ 200), not full production N.
  * init / reset hydrate missing shipments + clamp budgets (T-071 / session_rpc parity).

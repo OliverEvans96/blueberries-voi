@@ -408,6 +408,12 @@ export class ViewModelProjector {
           obs_scenario: snapshot.applied_config.obs_scenario,
         };
       }
+      if (snapshot.applied_config.obs_channels !== undefined) {
+        this.config = {
+          ...this.config,
+          obs_channels: snapshot.applied_config.obs_channels,
+        };
+      }
     }
     this.viewModel = this.buildViewModel();
     return this.viewModel;

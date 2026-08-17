@@ -5,9 +5,11 @@ import type {
   Day,
   Economics,
   Lot,
+  ObsChannels,
   ScenarioId,
   SimConfig,
 } from "../types";
+import { DEFAULT_OBS_CHANNELS } from "../obsMask";
 
 export const DEFAULT_ECONOMICS: Economics = {
   p_sell: 4.5,
@@ -52,6 +54,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   starting_inv: 72,
   seed: 42,
   obs_scenario: "P1",
+  obs_channels: DEFAULT_OBS_CHANNELS,
   window_days: 90,
   arrival_product: "abdella_all",
   spread_scale: 1,

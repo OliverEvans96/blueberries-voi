@@ -62,7 +62,8 @@ import {
   saveSection,
   type SectionId,
 } from "../sections";
-import type { Economics, HoverDay, ScenarioId, SimConfig, ViewModel } from "../types";
+import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
+import { channelsCacheKey, channelsForPreset } from "../obsMask";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
@@ -236,7 +237,7 @@ export function initStudio(app: HTMLElement): () => void {
   async function fetchEvents(): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
     const sinceDay = previousOrderDayFromSchedule(vm.episode_day, schedule);
-    const key = `${vm.episode_day}:${vm.config.obs_scenario}:${sinceDay}`;
+    const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
     if (key === lastEventsKey) return;
     lastEventsKey = key;
     eventsLoading = true;
@@ -307,7 +308,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function onGuidedPathSelect(path: GuidedPath): void {
-    void railHandlers.onSetObsScenario(path.scenario);
+    void railHandlers.onSetObsPreset(path.scenario);
     setSection(path.section);
     if (path.autoplayHint) {
       hintAutoplay();
@@ -340,7 +341,8 @@ export function initStudio(app: HTMLElement): () => void {
           catchingUp,
           orderQty,
           activeSection,
-          onSetObsScenario: (id) => railHandlers.onSetObsScenario(id),
+          onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
+          onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
           onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
           tradeoffForecasts,
         }),
@@ -372,7 +374,8 @@ export function initStudio(app: HTMLElement): () => void {
     onReset: () => {},
     onAutopilotPlay: () => {},
     onAutopilotPause: () => {},
-    onSetObsScenario: (_id: ScenarioId) => {},
+    onSetObsChannels: (_ch: ObsChannels) => {},
+    onSetObsPreset: (_id: ScenarioId) => {},
     onShowTruthChange: (_on: boolean) => {},
   };
 
@@ -478,7 +481,7 @@ export function initStudio(app: HTMLElement): () => void {
     );
     renderSalesDemand(els.salesDemand, vm.history, 130);
     const spoilSlot = resolveStoreSpoilageSlot({
-      scenario: vm.config.obs_scenario,
+      channels: vm.config.obs_channels,
       showTruth,
     });
     if (spoilSlot.kind === "unavailable") {
@@ -539,7 +542,7 @@ export function initStudio(app: HTMLElement): () => void {
         vm.config,
         historyForCharts(),
         160,
-        arrivalRugAvailable(vm.config.obs_scenario, showTruth),
+        arrivalRugAvailable(vm.config.obs_channels, showTruth),
       );
     }
     if (plotVisible("plot-arrival-shift")) {
@@ -759,8 +762,8 @@ export function initStudio(app: HTMLElement): () => void {
           syncAutopilotChrome();
         }
       },
-      onSetObsScenario: (id) => {
-        void railHandlers.onSetObsScenario(id);
+      onSetObsPreset: (id) => {
+        void railHandlers.onSetObsPreset(id);
       },
       onControllerChange(partial: Partial<ControllerControlsState>) {
         controllerState = { ...controllerState, ...partial };
@@ -798,12 +801,15 @@ export function initStudio(app: HTMLElement): () => void {
     autopilot.pause();
     syncAutopilotChrome();
   };
-  railHandlers.onSetObsScenario = async (id: ScenarioId) => {
-    const setObs =
-      adapter.setObsScenario?.bind(adapter) ??
-      adapter.set_obs_scenario?.bind(adapter);
-    if (typeof setObs !== "function") {
-      vm = projector.setConfig({ obs_scenario: id });
+  async function applyObsSelection(
+    channels: ObsChannels,
+    obs_scenario: ScenarioId,
+  ): Promise<void> {
+    const setCh =
+      adapter.set_obs_channels?.bind(adapter) ??
+      adapter.setObsChannels?.bind(adapter);
+    if (typeof setCh !== "function") {
+      vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       sectionControlsApi.update(controlsState());
       lastEventsKey = "";
       renderAll();
@@ -819,15 +825,17 @@ export function initStudio(app: HTMLElement): () => void {
     sectionControlsApi.update(controlsState());
     renderDecisionRailChrome();
     try {
-      const snap = (await engineStatus.follow(setObs(id))) as Snapshot;
+      const snap = (await engineStatus.follow(
+        setCh(channels),
+      )) as Snapshot;
       vm = projector.patchEngineState(snap);
-      projector.setConfig({ obs_scenario: id });
+      projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
       renderAll();
       void refreshRemotePanes();
     } catch (err) {
       reportStudioAdapterError(
-        `set_obs_scenario failed: ${formatAdapterError(err)}`,
+        `set_obs_channels failed: ${formatAdapterError(err)}`,
         undefined,
         err,
       );
@@ -840,6 +848,26 @@ export function initStudio(app: HTMLElement): () => void {
         syncAutopilotChrome();
       }
     }
+  }
+
+  railHandlers.onSetObsPreset = async (id: ScenarioId) => {
+    await applyObsSelection(channelsForPreset(id), id);
+  };
+
+  railHandlers.onSetObsChannels = async (channels: ObsChannels) => {
+    let preset: ScenarioId = vm.config.obs_scenario;
+    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]) {
+      const presetCh = channelsForPreset(id);
+      if (
+        presetCh.pos === channels.pos &&
+        presetCh.waste === channels.waste &&
+        presetCh.deliveries === channels.deliveries
+      ) {
+        preset = id;
+        break;
+      }
+    }
+    await applyObsSelection(channels, preset);
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;
