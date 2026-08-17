@@ -201,9 +201,9 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
     expect(precisionToSigma(loP)).toBeCloseTo(SIGMA_MAX, 6);
   });
 
-  it("formatSigmaPrecision shows the resulting sigma value, and 'uniform picking' at the sentinel", () => {
+  it("formatSigmaPrecision shows 1/σ on the slider track, and uniform at the sentinel", () => {
     expect(formatSigmaPrecision(0)).toMatch(/uniform/i);
-    expect(formatSigmaPrecision(sigmaToPrecision(0.35))).toBe("currently 0.35");
+    expect(formatSigmaPrecision(sigmaToPrecision(0.35))).toBe("1/σ = 2.86");
   });
 
   it("moving the #sigma slider converts the raw (precision) value to σ before onConfigChange, and drives the picking-variability chart in σ-space", () => {
@@ -231,7 +231,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
 
     expect(onConfigChange).toHaveBeenCalledWith({ sigma: 0.5 });
     const label = host.querySelector("#val-sigma") as HTMLElement;
-    expect(label.textContent).toBe("currently 0.50");
+    expect(label.textContent).toBe("1/σ = 2.00");
 
     const pickHost = host.querySelector("#picking-var-chart") as HTMLElement;
     expect(pickHost.querySelector(".picking-var-line")).not.toBeNull();
@@ -257,7 +257,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
     const sigmaInput = host.querySelector("#sigma") as HTMLInputElement;
     expect(Number(sigmaInput.value)).toBeCloseTo(1 / 0.25, 6);
     const label = host.querySelector("#val-sigma") as HTMLElement;
-    expect(label.textContent).toBe("currently 0.25");
+    expect(label.textContent).toBe("1/σ = 4.00");
   });
 });
 

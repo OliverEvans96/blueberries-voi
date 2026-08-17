@@ -23,23 +23,16 @@ describe("Store chart-stack missed sales (T-116)", () => {
   const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
   const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
 
-  it("cockpit layout preserves missed-sales captions and chart hosts (T-127)", () => {
-    expect(layoutSrc).toMatch(/Missed sales/);
+  it("cockpit layout preserves chart-stockout host for hover wiring (T-128 hidden)", () => {
     expect(layoutSrc).toMatch(/id="chart-stockout"/);
     expect(layoutSrc).toMatch(/id="chart-history"/);
     expect(layoutSrc).toMatch(/id="chart-spoil"/);
-    const sold = layoutSrc.indexOf("Units sold");
-    const salesId = layoutSrc.indexOf('id="chart-sales"');
-    const missed = layoutSrc.indexOf("Missed sales");
-    const stockoutId = layoutSrc.indexOf('id="chart-stockout"');
-    expect(sold).toBeGreaterThanOrEqual(0);
-    expect(salesId).toBeGreaterThan(sold);
-    expect(missed).toBeGreaterThan(salesId);
-    expect(stockoutId).toBeGreaterThan(missed);
+    expect(layoutSrc).toMatch(/visually-hidden/);
+    expect(layoutSrc).toMatch(/ariaLabel="Missed sales by day"/);
   });
 
-  it('caption text is exactly "Missed sales"', () => {
-    expect(layoutSrc).toMatch(
+  it("missed-sales chart is not in visible Today strip (T-128)", () => {
+    expect(layoutSrc).not.toMatch(
       /className="chart-caption">Missed sales<\/div>/,
     );
     expect(layoutSrc).not.toMatch(
