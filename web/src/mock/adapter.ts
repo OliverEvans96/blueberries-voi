@@ -16,7 +16,7 @@ import type {
   SimConfig,
   StepInput,
 } from "../types";
-import { channelsForPreset, DEFAULT_OBS_CHANNELS } from "../obsMask";
+import { channelsForPreset } from "../obsMask";
 import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,

@@ -120,12 +120,12 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(m.sales_by_lot || m.waste_by_lot || m.lot_ids_live).toBe(false);
   });
 
-  it("mask_for F2 has maps, age_at_receipt, lot_ids", async () => {
+  it("mask_for F2 has maps, pack_date, lot_ids — not age_at_receipt", async () => {
     const mod = await loadObsMask();
     const m = mod!.maskFor("F2");
     expect(m.waste_total && m.sales_by_lot && m.waste_by_lot).toBe(true);
-    expect(m.age_at_receipt && m.lot_ids_live).toBe(true);
-    expect(m.pack_date).toBe(false);
+    expect(m.lot_ids_live && m.pack_date).toBe(true);
+    expect(m.age_at_receipt).toBe(false);
   });
 
   it("mask_for P2 and B-state throw like Rust", async () => {
@@ -147,13 +147,14 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(obs.age_at_receipt).toBeNull();
   });
 
-  it("applyMask F2 keeps maps and age_at_receipt", async () => {
+  it("applyMask F2 keeps maps and pack_date, strips age_at_receipt", async () => {
     const mod = await loadObsMask();
     const obs = mod!.applyMask(RICH, mod!.maskFor("F2"));
     expect(obs.waste_total).toBe(2);
     expect(obs.sales_by).toEqual([3, 1]);
     expect(obs.waste_by).toEqual([2, 0]);
     expect(obs.lot_ids).toEqual([10, 11]);
-    expect(obs.age_at_receipt).toBe(2.0);
+    expect(obs.pack_date_days).toBe(3);
+    expect(obs.age_at_receipt).toBeNull();
   });
 });

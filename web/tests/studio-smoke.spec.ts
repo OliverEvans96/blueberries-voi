@@ -10,7 +10,9 @@ test.describe("studio cockpit smoke (T-127 integrate)", () => {
     await expect(page.locator("#chart-belief-lg")).toBeVisible();
     await expect(page.locator("#economics-pane-host")).toHaveCount(1);
     await expect(page.locator("#events-pane-host")).toHaveCount(1);
-    await expect(page.locator("#decision-rail-host")).toHaveCount(1);
+    await expect(page.locator("[data-testid='cockpit-today']")).toHaveCount(1);
+    await expect(page.locator("#secondary-chrome-host")).toHaveCount(1);
+    await expect(page.locator("#decision-rail-host")).toHaveCount(0);
     await expect(page.locator(".tuning-dock")).toBeVisible();
     await expect(page.locator("#chart-pnl-spark")).toHaveCount(0);
     await expect(page.locator("#chart-pnl-series")).toHaveCount(0);

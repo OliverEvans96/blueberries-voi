@@ -65,7 +65,7 @@ const F2_DAY: MaskedDayWire = {
   sales_by: [4, 2],
   waste_by: [0, 1],
   lot_ids: [101, 102],
-  age_at_receipt: 1.5,
+  pack_date_days: 3,
 };
 
 function baseVm(showTruth = false) {
@@ -128,7 +128,7 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     expect(screen.getByText(/Lot 101: 4 units/i)).toBeInTheDocument();
     expect(screen.getByText(/Lot 102: 1 unit\b/i)).toBeInTheDocument();
     expect(screen.getByText(/waste/i)).toBeInTheDocument();
-    expect(screen.getByText(/1\.5/)).toBeInTheDocument();
+    expect(screen.getByText(/pack date 3 days/i)).toBeInTheDocument();
   });
 
   it("sorts day cards latest-first", async () => {
@@ -172,17 +172,28 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     expect(screen.queryByText(/1\.5/)).toBeNull();
   });
 
-  it("F2 shows age at receipt but not pack date row", async () => {
+  it("F2 does not surface age_at_receipt at the channel mask rung", async () => {
     const { EventsPane } = (await loadEventsPane())!;
+    const f2NonDelivery: MaskedDayWire = {
+      day: 3,
+      arrivals: 0,
+      sales_total: 4,
+      waste_total: 1,
+      sales_by: [4],
+      waste_by: [1],
+      lot_ids: [101],
+      age_at_receipt: 1.5,
+      pack_date_days: 2,
+    };
     render(
       createElement(EventsPane, {
         vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
         showTruth: false,
-        events: [F2_DAY],
+        events: [f2NonDelivery],
       }),
     );
-    expect(screen.getByText(/age at receipt/i)).toBeInTheDocument();
-    expect(screen.queryByText(/^pack date$/i)).toBeNull();
+    expect(screen.queryByText(/age at receipt/i)).toBeNull();
+    expect(screen.getByText(/pack date/i)).toBeInTheDocument();
   });
 
   it("delivery day shows illustrative temp chart", async () => {

@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
+import { channelsForPreset } from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -550,7 +551,10 @@ export function initStudio(app: HTMLElement): () => void {
         vm.config,
         historyForCharts(),
         160,
-        arrivalRugAvailable(vm.config.obs_scenario, showTruth),
+        arrivalRugAvailable(
+          vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
+          showTruth,
+        ),
       );
     }
     if (plotVisible("plot-arrival-shift")) {
@@ -816,7 +820,7 @@ export function initStudio(app: HTMLElement): () => void {
     autopilot.pause();
     syncAutopilotChrome();
   };
-  railHandlers.onSetObsScenario = async (id: ScenarioId) => {
+  async function applyObsSelection(id: ScenarioId): Promise<void> {
     const setObs =
       adapter.setObsScenario?.bind(adapter) ??
       adapter.set_obs_scenario?.bind(adapter);
@@ -858,6 +862,9 @@ export function initStudio(app: HTMLElement): () => void {
         syncAutopilotChrome();
       }
     }
+  }
+  railHandlers.onSetObsScenario = async (id: ScenarioId) => {
+    await applyObsSelection(id);
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;
