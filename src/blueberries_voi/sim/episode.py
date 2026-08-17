@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from blueberries_voi.model import Cohort, ModelParams
+from blueberries_voi.model import Cohort, ModelParams, draw_demand
 from blueberries_voi.rng import (
     STREAM_ALLOC,
     STREAM_ARRIVAL_SENSOR,
@@ -166,12 +166,13 @@ def run_closed_loop_episode(
         rng_d = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_DEMAND)
         rng_a = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_ALLOC)
         rng_s = spawn_rng(root_seed, run_id=run_id, day=day, stream=STREAM_SPOIL)
+        demand = draw_demand(rng_d, p, day=day)
         result = day_step(
             cohorts,
             day=day,
             params=p,
+            demand=demand,
             delivery=delivery,
-            rng_demand=rng_d,
             rng_alloc=rng_a,
             rng_spoil=rng_s,
         )

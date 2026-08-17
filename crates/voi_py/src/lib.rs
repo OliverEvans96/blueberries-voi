@@ -3,9 +3,9 @@ use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
 use voi_core::{
-    crate_name, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
-    sequential_wor_composition_probs, CrnBudgets, DayDelta, EngineSession, ShipmentTrace,
-    DemandProfile,
+    crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode, run_closed_loop_episode,
+    run_voi_crn_cell, sequential_wor_composition_probs, AlphaTuneCosts, CrnBudgets, DayDelta,
+    EngineSession, ShipmentTrace, DemandProfile,
 };
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
@@ -84,6 +84,65 @@ fn run_voi_crn_cell_py(
         &[],
         demand_profile,
     ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    arm_id,
+    alpha,
+    root_seed,
+    n_burn=2,
+    n_score=5,
+    lead_time=1,
+    unit_margin=2.0,
+    waste_cost=1.5,
+    stockout_penalty=3.0,
+    times=None,
+    temps=None,
+))]
+fn evaluate_alpha_tune_episode_py(
+    arm_id: &str,
+    alpha: f64,
+    root_seed: u64,
+    n_burn: u32,
+    n_score: u32,
+    lead_time: u32,
+    unit_margin: f64,
+    waste_cost: f64,
+    stockout_penalty: f64,
+    times: Option<Vec<Vec<f64>>>,
+    temps: Option<Vec<Vec<f64>>>,
+) -> PyResult<f64> {
+    let arm = parse_alpha_tune_arm(arm_id)
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
+    let ships: Vec<ShipmentTrace> = match (times, temps) {
+        (Some(t), Some(tp)) => ships_from(t, tp),
+        (None, None) => vec![ShipmentTrace::smoke_cool()],
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "times and temps must both be provided or both omitted",
+            ));
+        }
+    };
+    let params = voi_core::ModelParams::default();
+    let costs = AlphaTuneCosts {
+        unit_margin,
+        waste_cost,
+        stockout_penalty,
+    };
+    let ep = run_alpha_tune_episode(
+        arm,
+        alpha,
+        root_seed,
+        n_burn,
+        n_score,
+        lead_time,
+        &params,
+        &ships,
+        &costs,
+    )
+    .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
+    Ok(ep.scored_profit)
 }
 
 #[pyfunction]
@@ -371,6 +430,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_class::<PyEngineSession>()?;

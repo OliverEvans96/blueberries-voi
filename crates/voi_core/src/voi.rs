@@ -99,7 +99,7 @@ fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>,
     (lot_counts, f_marginals, f_grid)
 }
 
-fn truth_f_belief(
+pub fn truth_f_belief(
     freshness: &[f64],
     lot_offsets: &[usize],
     k: usize,

@@ -1,5 +1,6 @@
 //! Shared VOI compute kernel (ADR 0119 / 0121).
 
+pub mod alpha_tune;
 pub mod belief_flat;
 pub mod demand_profile;
 pub mod params;
@@ -19,6 +20,10 @@ pub mod tradeoff;
 pub mod voi;
 pub mod wor;
 
+pub use alpha_tune::{
+    parse_alpha_tune_arm, run_alpha_tune_episode, AlphaTuneArm, AlphaTuneCosts,
+    AlphaTuneEpisodeResult,
+};
 pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use demand_profile::{DemandProfile, DemandProfileError};
 pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
@@ -40,7 +45,7 @@ pub use rollout::{candidate_orders, day_profit, rollout_order, terminal_salvage_
 pub use tradeoff::{full_tradeoff_q_candidates, tradeoff_forecast};
 pub use session::{handle_rpc, DayDelta, EngineSession};
 pub use shipments::ShipmentTrace;
-pub use voi::{run_voi_crn_cell, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};
+pub use voi::{run_voi_crn_cell, truth_f_belief, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};
 pub use wor::{sequential_wor_composition_prob, sequential_wor_composition_probs};
 
 pub fn crate_name() -> &'static str {

@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from blueberries_voi.backend import rust_available, rust_core
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.filter.belief import ShelfBelief
 from blueberries_voi.model import ModelParams
@@ -179,6 +180,49 @@ def _protection_demand_quantile(
     return protection_demand_quantile(alpha, params, protection_days=n_days)
 
 
+def _shipments_wire(
+    ships: Sequence[ShipmentTrace],
+) -> tuple[list[list[float]], list[list[float]]]:
+    times = [list(map(float, s.times_d)) for s in ships]
+    temps = [list(map(float, s.temps_c)) for s in ships]
+    return times, temps
+
+
+def _evaluate_via_rust_kernel(
+    arm_id: str,
+    alpha: float,
+    root_seed: int,
+    ships: Sequence[ShipmentTrace],
+    *,
+    n_burn: int,
+    n_score: int,
+    lead_time: int,
+    costs: ProfitCosts,
+) -> float | None:
+    """Return scored profit from ``voi_core`` when the PyO3 shim is available."""
+    if not rust_available() or rust_core is None:
+        return None
+    fn = getattr(rust_core, "evaluate_alpha_tune_episode_py", None)
+    if fn is None:
+        return None
+    times, temps = _shipments_wire(ships)
+    return float(
+        fn(
+            arm_id,
+            float(alpha),
+            int(root_seed),
+            n_burn=int(n_burn),
+            n_score=int(n_score),
+            lead_time=int(lead_time),
+            unit_margin=float(costs.unit_margin),
+            waste_cost=float(costs.waste_cost),
+            stockout_penalty=float(costs.stockout_penalty),
+            times=times,
+            temps=temps,
+        )
+    )
+
+
 def evaluate_alpha_episode_profit(
     arm_id: str,
     alpha: float,
@@ -194,8 +238,22 @@ def evaluate_alpha_episode_profit(
 ) -> float:
     """Score one (arm, alpha) pair via closed-loop ``episode_profit`` (SIM-01=B)."""
     p = params or ModelParams()
-    policy = _ClosedLoopPolicyAdapter(arm_id, alpha, p)
     ships = list(shipments) if shipments is not None else default_shipments()
+    use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    rust_profit = _evaluate_via_rust_kernel(
+        arm_id,
+        alpha,
+        int(root_seed),
+        ships,
+        n_burn=n_burn,
+        n_score=n_score,
+        lead_time=lead_time,
+        costs=use_costs,
+    )
+    if rust_profit is not None:
+        return rust_profit
+
+    policy = _ClosedLoopPolicyAdapter(arm_id, alpha, p)
     episode = run_closed_loop_episode(
         policy,
         shipments=ships,
@@ -207,9 +265,7 @@ def evaluate_alpha_episode_profit(
         lead_time=lead_time,
         schedule=DEFAULT_ORDER_SCHEDULE,
     )
-    return float(
-        episode_profit(episode, costs if costs is not None else DEFAULT_PROFIT_COSTS)
-    )
+    return float(episode_profit(episode, use_costs))
 
 
 def tune_alpha_grid(

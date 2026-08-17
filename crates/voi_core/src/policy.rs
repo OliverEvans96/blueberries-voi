@@ -51,6 +51,28 @@ pub fn protection_demand_quantile(alpha: f64, params: &ModelParams, protection_d
     nbinom_ppf(alpha, r, p)
 }
 
+/// Rung 0 corrected age-blind order from oracle lot counts (CTL-05).
+pub fn rung0_order_f_belief(
+    lot_counts: &[f64],
+    pending_sum: u32,
+    day: u32,
+    params: &ModelParams,
+    rho: f64,
+    schedule: &OrderSchedule,
+    mean_survival_weight: f64,
+    pipeline_weight: f64,
+    demand_target: f64,
+) -> u32 {
+    if !schedule.can_order(day) {
+        return 0;
+    }
+    let total_on_hand: f64 = lot_counts.iter().sum();
+    let inv = mean_survival_weight * total_on_hand
+        + f64::from(pending_sum) * pipeline_weight;
+    let raw = rho * (demand_target - inv).max(0.0);
+    case_round(raw, params.case_size)
+}
+
 /// Fixed-q constant order (Python `ConstantOrderPolicy`: nearest `case_round`).
 pub fn constant_order(q: u32, case_size: u32) -> u32 {
     case_round(f64::from(q), case_size)
