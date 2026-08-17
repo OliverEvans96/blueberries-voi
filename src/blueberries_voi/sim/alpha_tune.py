@@ -32,6 +32,7 @@ from blueberries_voi.sim.bakeoff_damped_sw import (
     protection_demand_quantile,
 )
 from blueberries_voi.sim.bakeoff_ordering import ConstantOrderPolicy
+from blueberries_voi.sim.bakeoff_rollout import RolloutPolicy
 from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
@@ -49,8 +50,13 @@ LADDER_ALPHA_ARMS: tuple[str, ...] = (
     "rollout",
     "dp",
 )
-_PLACEHOLDER_ARMS: frozenset[str] = frozenset({"rollout", "dp"})
-_AVAILABLE_ARMS: frozenset[str] = frozenset({"constant", "rung0", "sw"})
+_PLACEHOLDER_ARMS: frozenset[str] = frozenset({"dp"})
+_AVAILABLE_ARMS: frozenset[str] = frozenset({"constant", "rung0", "sw", "rollout"})
+
+# Rollout budgets: CI-tiny defaults (m2 ladder / CrnBudgets parity).
+DEFAULT_CI_ROLLOUT_H: int = 2
+DEFAULT_CI_N_ROLLOUT_PATHS: int = 1
+DEFAULT_CI_CANDIDATE_CASE_RADIUS: int = 1
 
 DEFAULT_TUNED_ALPHA_PATH: str = "experiments/tuned_alpha.json"
 
@@ -70,6 +76,9 @@ _PROTECTION_DEMAND_DAYS: int = 2
 
 __all__ = [
     "DEFAULT_CI_ALPHAS",
+    "DEFAULT_CI_CANDIDATE_CASE_RADIUS",
+    "DEFAULT_CI_N_ROLLOUT_PATHS",
+    "DEFAULT_CI_ROLLOUT_H",
     "DEFAULT_DESKTOP_ALPHAS",
     "DEFAULT_TUNED_ALPHA_PATH",
     "LADDER_ALPHA_ARMS",
@@ -198,6 +207,9 @@ def _evaluate_via_rust_kernel(
     n_score: int,
     lead_time: int,
     costs: ProfitCosts,
+    rollout_h: int,
+    n_rollout_paths: int,
+    candidate_case_radius: int,
 ) -> float | None:
     """Return scored profit from ``voi_core`` when the PyO3 shim is available."""
     if not rust_available() or rust_core is None:
@@ -217,10 +229,58 @@ def _evaluate_via_rust_kernel(
             unit_margin=float(costs.unit_margin),
             waste_cost=float(costs.waste_cost),
             stockout_penalty=float(costs.stockout_penalty),
+            rollout_h=int(rollout_h),
+            n_rollout_paths=int(n_rollout_paths),
+            candidate_case_radius=int(candidate_case_radius),
             times=times,
             temps=temps,
         )
     )
+
+
+def _evaluate_rollout_python(
+    alpha: float,
+    root_seed: int,
+    ships: Sequence[ShipmentTrace],
+    *,
+    params: ModelParams,
+    costs: ProfitCosts,
+    n_burn: int,
+    n_score: int,
+    lead_time: int,
+    run_id: str | int,
+    rollout_h: int,
+    n_rollout_paths: int,
+    candidate_case_radius: int,
+) -> float:
+    """Python fallback: damped-SW base + one-step rollout (m2 ladder pattern)."""
+    base = DampedSurvivalWeightedPolicy(
+        alpha=float(alpha),
+        params=params,
+        schedule=DEFAULT_ORDER_SCHEDULE,
+    )
+    policy = RolloutPolicy(
+        base_policy=base,
+        params=params,
+        root_seed=int(root_seed),
+        run_id=run_id,
+        H=int(rollout_h),
+        n_rollout_paths=int(n_rollout_paths),
+        candidate_case_radius=int(candidate_case_radius),
+        lead_time=int(lead_time),
+    )
+    episode = run_closed_loop_episode(
+        policy,
+        shipments=list(ships),
+        params=params,
+        root_seed=int(root_seed),
+        run_id=run_id,
+        n_burn=n_burn,
+        n_score=n_score,
+        lead_time=lead_time,
+        schedule=DEFAULT_ORDER_SCHEDULE,
+    )
+    return float(episode_profit(episode, costs))
 
 
 def evaluate_alpha_episode_profit(
@@ -235,6 +295,9 @@ def evaluate_alpha_episode_profit(
     n_score: int = 5,
     lead_time: int = 1,
     run_id: str | int = "alpha-tune",
+    rollout_h: int = DEFAULT_CI_ROLLOUT_H,
+    n_rollout_paths: int = DEFAULT_CI_N_ROLLOUT_PATHS,
+    candidate_case_radius: int = DEFAULT_CI_CANDIDATE_CASE_RADIUS,
 ) -> float:
     """Score one (arm, alpha) pair via closed-loop ``episode_profit`` (SIM-01=B)."""
     p = params or ModelParams()
@@ -249,9 +312,28 @@ def evaluate_alpha_episode_profit(
         n_score=n_score,
         lead_time=lead_time,
         costs=use_costs,
+        rollout_h=rollout_h,
+        n_rollout_paths=n_rollout_paths,
+        candidate_case_radius=candidate_case_radius,
     )
     if rust_profit is not None:
         return rust_profit
+
+    if arm_id == "rollout":
+        return _evaluate_rollout_python(
+            alpha,
+            int(root_seed),
+            ships,
+            params=p,
+            costs=use_costs,
+            n_burn=n_burn,
+            n_score=n_score,
+            lead_time=lead_time,
+            run_id=run_id,
+            rollout_h=rollout_h,
+            n_rollout_paths=n_rollout_paths,
+            candidate_case_radius=candidate_case_radius,
+        )
 
     policy = _ClosedLoopPolicyAdapter(arm_id, alpha, p)
     episode = run_closed_loop_episode(
@@ -278,18 +360,21 @@ def tune_alpha_grid(
     shipments: Sequence[ShipmentTrace] | None = None,
     n_burn: int = 2,
     n_score: int = 5,
+    rollout_h: int = DEFAULT_CI_ROLLOUT_H,
+    n_rollout_paths: int = DEFAULT_CI_N_ROLLOUT_PATHS,
+    candidate_case_radius: int = DEFAULT_CI_CANDIDATE_CASE_RADIUS,
 ) -> float:
     """Grid-search alpha for one ladder arm under shared CRN ``root_seed``.
 
     Returns the alpha in ``alphas`` with highest ``episode_profit``. Placeholder
-    arms (``rollout``, ``dp``) raise until T-030 / T-031 land.
+    arm ``dp`` raises until T-031 lands.
     """
     if arm_id not in LADDER_ALPHA_ARMS:
         msg = f"unknown ladder arm {arm_id!r}; expected one of {LADDER_ALPHA_ARMS}"
         raise ValueError(msg)
     if arm_id in _PLACEHOLDER_ARMS:
         msg = (
-            f"{arm_id} is a placeholder arm (unavailable until T-030/T-031); "
+            f"{arm_id} is a placeholder arm (unavailable until T-031); "
             "alpha tuning is not implemented yet"
         )
         raise NotImplementedError(msg)
@@ -312,6 +397,9 @@ def tune_alpha_grid(
             shipments=shipments,
             n_burn=n_burn,
             n_score=n_score,
+            rollout_h=rollout_h,
+            n_rollout_paths=n_rollout_paths,
+            candidate_case_radius=candidate_case_radius,
         )
         if profit > best_profit:
             best_profit = profit

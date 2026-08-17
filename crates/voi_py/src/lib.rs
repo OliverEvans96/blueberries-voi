@@ -4,8 +4,8 @@ use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
 use voi_core::{
     crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode, run_closed_loop_episode,
-    run_voi_crn_cell, sequential_wor_composition_probs, AlphaTuneCosts, CrnBudgets, DayDelta,
-    EngineSession, ShipmentTrace, DemandProfile,
+    run_voi_crn_cell, sequential_wor_composition_probs, AlphaTuneCosts, AlphaTuneRolloutBudgets,
+    CrnBudgets, DayDelta, EngineSession, ShipmentTrace, DemandProfile,
 };
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
@@ -97,6 +97,9 @@ fn run_voi_crn_cell_py(
     unit_margin=2.0,
     waste_cost=1.5,
     stockout_penalty=3.0,
+    rollout_h=2,
+    n_rollout_paths=1,
+    candidate_case_radius=1,
     times=None,
     temps=None,
 ))]
@@ -110,6 +113,9 @@ fn evaluate_alpha_tune_episode_py(
     unit_margin: f64,
     waste_cost: f64,
     stockout_penalty: f64,
+    rollout_h: u32,
+    n_rollout_paths: u32,
+    candidate_case_radius: i32,
     times: Option<Vec<Vec<f64>>>,
     temps: Option<Vec<Vec<f64>>>,
 ) -> PyResult<f64> {
@@ -130,6 +136,11 @@ fn evaluate_alpha_tune_episode_py(
         waste_cost,
         stockout_penalty,
     };
+    let rollout = AlphaTuneRolloutBudgets {
+        h: rollout_h,
+        n_rollout_paths,
+        candidate_case_radius,
+    };
     let ep = run_alpha_tune_episode(
         arm,
         alpha,
@@ -140,6 +151,7 @@ fn evaluate_alpha_tune_episode_py(
         &params,
         &ships,
         &costs,
+        &rollout,
     )
     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
     Ok(ep.scored_profit)

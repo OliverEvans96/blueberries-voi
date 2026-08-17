@@ -8,7 +8,7 @@ use crate::physics::draw_demand_spawn;
 use crate::policy::{
     constant_order, damped_sw_order_f_belief, protection_demand_quantile, rung0_order_f_belief,
 };
-use crate::rollout::day_profit;
+use crate::rollout::{day_profit, rollout_order};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
@@ -22,12 +22,31 @@ const STREAM_SPOIL: &str = ":spoil";
 const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
 const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
 
-/// Ladder arms available for automated α tuning (rollout / DP remain placeholders).
+/// Ladder arms available for automated alpha tuning (`dp` remains a placeholder).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlphaTuneArm {
     Constant,
     Rung0,
     Sw,
+    Rollout,
+}
+
+/// Rollout compute budgets for the rollout ladder arm (CTL-02/04).
+#[derive(Clone, Debug)]
+pub struct AlphaTuneRolloutBudgets {
+    pub h: u32,
+    pub n_rollout_paths: u32,
+    pub candidate_case_radius: i32,
+}
+
+impl Default for AlphaTuneRolloutBudgets {
+    fn default() -> Self {
+        Self {
+            h: 2,
+            n_rollout_paths: 1,
+            candidate_case_radius: 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +100,7 @@ fn protection_target_at_seed(alpha: f64, params: &ModelParams, schedule: &OrderS
 fn order_for_arm(
     arm: AlphaTuneArm,
     alpha: f64,
+    root_seed: u64,
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
@@ -90,6 +110,7 @@ fn order_for_arm(
     schedule: &OrderSchedule,
     constant_q: u32,
     rung0_target: f64,
+    rollout: &AlphaTuneRolloutBudgets,
 ) -> u32 {
     match arm {
         AlphaTuneArm::Constant => {
@@ -122,6 +143,36 @@ fn order_for_arm(
             Some(schedule),
             1.0,
         ),
+        AlphaTuneArm::Rollout => {
+            if !schedule.can_order(day) {
+                return 0;
+            }
+            let base_q = damped_sw_order_f_belief(
+                lot_counts,
+                f_marginals,
+                f_grid,
+                pending_sum,
+                day,
+                params,
+                alpha,
+                0.8,
+                Some(schedule),
+                1.0,
+            );
+            let seed = root_seed.wrapping_add(u64::from(day));
+            rollout_order(
+                lot_counts,
+                f_marginals,
+                f_grid,
+                base_q,
+                params,
+                seed,
+                rollout.h.max(1),
+                rollout.n_rollout_paths.max(1),
+                rollout.candidate_case_radius,
+            )
+            .unwrap_or(base_q)
+        }
     }
 }
 
@@ -136,6 +187,7 @@ pub fn run_alpha_tune_episode(
     params: &ModelParams,
     shipments: &[ShipmentTrace],
     costs: &AlphaTuneCosts,
+    rollout: &AlphaTuneRolloutBudgets,
 ) -> Result<AlphaTuneEpisodeResult, String> {
     if !(0.0 < alpha && alpha < 1.0) {
         return Err(format!("alpha must be in (0,1), got {alpha}"));
@@ -164,6 +216,7 @@ pub fn run_alpha_tune_episode(
         let order = order_for_arm(
             arm,
             alpha,
+            root_seed,
             &lot_counts,
             &f_marginals,
             &f_grid,
@@ -173,6 +226,7 @@ pub fn run_alpha_tune_episode(
             &schedule,
             constant_q,
             rung0_target,
+            rollout,
         );
         enqueue(&mut pending, day, lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
@@ -256,6 +310,7 @@ pub fn parse_alpha_tune_arm(arm_id: &str) -> Result<AlphaTuneArm, String> {
         "constant" => Ok(AlphaTuneArm::Constant),
         "rung0" => Ok(AlphaTuneArm::Rung0),
         "sw" => Ok(AlphaTuneArm::Sw),
+        "rollout" => Ok(AlphaTuneArm::Rollout),
         other => Err(format!("unknown alpha_tune arm {other:?}")),
     }
 }
@@ -270,6 +325,7 @@ mod tests {
         let ships = [ShipmentTrace::smoke_cool()];
         let params = ModelParams::default();
         let costs = AlphaTuneCosts::default();
+        let rollout = AlphaTuneRolloutBudgets::default();
         let ep = run_alpha_tune_episode(
             AlphaTuneArm::Sw,
             0.9,
@@ -280,6 +336,7 @@ mod tests {
             &params,
             &ships,
             &costs,
+            &rollout,
         )
         .expect("episode");
         assert_eq!(ep.n_days, 5);
@@ -291,6 +348,7 @@ mod tests {
         let ships = [ShipmentTrace::smoke_cool()];
         let params = ModelParams::default();
         let costs = AlphaTuneCosts::default();
+        let rollout = AlphaTuneRolloutBudgets::default();
         let a = run_alpha_tune_episode(
             AlphaTuneArm::Sw,
             0.8,
@@ -301,6 +359,7 @@ mod tests {
             &params,
             &ships,
             &costs,
+            &rollout,
         )
         .expect("a");
         let b = run_alpha_tune_episode(
@@ -313,8 +372,63 @@ mod tests {
             &params,
             &ships,
             &costs,
+            &rollout,
         )
         .expect("b");
         assert_eq!(a.scored_profit, b.scored_profit);
+    }
+
+    #[test]
+    fn rollout_smoke_finite_profit() {
+        let ships = [ShipmentTrace::smoke_cool()];
+        let params = ModelParams::default();
+        let costs = AlphaTuneCosts::default();
+        let rollout = AlphaTuneRolloutBudgets::default();
+        let ep = run_alpha_tune_episode(
+            AlphaTuneArm::Rollout,
+            0.9,
+            42,
+            2,
+            3,
+            1,
+            &params,
+            &ships,
+            &costs,
+            &rollout,
+        )
+        .expect("rollout episode");
+        assert!(ep.scored_profit.is_finite());
+    }
+
+    #[test]
+    fn rollout_tune_best_in_ci_grid() {
+        let ships = [ShipmentTrace::smoke_cool()];
+        let params = ModelParams::default();
+        let costs = AlphaTuneCosts::default();
+        let rollout = AlphaTuneRolloutBudgets::default();
+        let grid = [0.7, 0.8, 0.9];
+        let mut best_alpha = grid[0];
+        let mut best_profit = f64::NEG_INFINITY;
+        for alpha in grid {
+            let ep = run_alpha_tune_episode(
+                AlphaTuneArm::Rollout,
+                alpha,
+                99,
+                2,
+                3,
+                1,
+                &params,
+                &ships,
+                &costs,
+                &rollout,
+            )
+            .expect("grid point");
+            if ep.scored_profit > best_profit {
+                best_profit = ep.scored_profit;
+                best_alpha = alpha;
+            }
+        }
+        assert!(grid.contains(&best_alpha));
+        assert!(best_profit.is_finite());
     }
 }

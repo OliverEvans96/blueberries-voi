@@ -22,7 +22,7 @@ pub mod wor;
 
 pub use alpha_tune::{
     parse_alpha_tune_arm, run_alpha_tune_episode, AlphaTuneArm, AlphaTuneCosts,
-    AlphaTuneEpisodeResult,
+    AlphaTuneEpisodeResult, AlphaTuneRolloutBudgets,
 };
 pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use demand_profile::{DemandProfile, DemandProfileError};
