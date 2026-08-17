@@ -1,5 +1,12 @@
-.events-pane {
-  max-height: 100%;
+/* T-127 layout v4: Events grows a day-card per day in the current
+ * protection window (resets each order cycle, so this doesn't grow
+ * unbounded across an episode — but a window with a delivery day's temp.
+ * chart, or all pack-date/age-at-receipt rows shown, can still comfortably
+ * exceed Economics' height). Cap just the scrolling list, not the "Events"
+ * heading, so the pane's own height stays predictable and doesn't ripple
+ * into the masonry layout around it (cockpitGrid.css). */
+.events-list {
+  max-height: 440px;
   overflow-y: auto;
 }
 

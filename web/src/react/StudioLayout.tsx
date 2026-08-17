@@ -126,49 +126,60 @@ export function StudioLayout() {
         >
           <div id="economics-pane-host" className="cockpit-pane cockpit-pane--economics" />
           <div id="events-pane-host" className="cockpit-pane cockpit-pane--events" />
-          <div className="cockpit-pane cockpit-pane--run">
-            <section className="run-today panel" aria-label="Today strip">
-              <h3 className="run-today-heading">Today</h3>
-              <div className="run-today-charts">
-                <div className="run-today-cell">
-                  <div className="chart-caption">Units sold</div>
-                  <D3ChartHost
-                    id="chart-sales"
-                    className="chart chart--compact"
-                    ariaLabel="Units sold by day"
-                  />
-                </div>
-                <div className="run-today-cell">
-                  <div className="chart-caption">Missed sales</div>
-                  <D3ChartHost
-                    id="chart-stockout"
-                    className="chart chart--compact"
-                    ariaLabel="Missed sales by day"
-                  />
-                </div>
-                <div className="run-today-cell">
-                  <div className="chart-caption impact-caption">
-                    Inventory vs base-stock
-                  </div>
-                  <D3ChartHost
-                    id="chart-inventory"
-                    className="chart chart--compact"
-                    ariaLabel="Inventory versus base stock target"
-                  />
-                </div>
-                <div className="run-today-cell">
-                  <div className="chart-caption impact-caption">Order quantity</div>
-                  <D3ChartHost
-                    id="chart-controller-orders"
-                    className="chart chart--compact"
-                    ariaLabel="Controller order quantities"
-                  />
-                </div>
-              </div>
-            </section>
-            <div id="decision-rail-host" />
-          </div>
         </section>
+
+        {/* Independent sidebar column (T-127 layout v4): spans the Economics/
+         * Events row *and* the tuning-dock row below, sized to its own
+         * content instead of sharing a grid row track with either — that
+         * shared-row-track approach was what forced the operations row to
+         * the Run column's height and left Economics/Events with dead
+         * whitespace beneath them. See cockpitGrid.css `grid-template-areas`. */}
+        <aside
+          className="cockpit-pane cockpit-pane--run"
+          data-testid="cockpit-sidebar-run"
+          aria-label="Run controls and decision support"
+        >
+          <section className="run-today panel" aria-label="Today strip">
+            <h3 className="run-today-heading">Today</h3>
+            <div className="run-today-charts">
+              <div className="run-today-cell">
+                <div className="chart-caption">Units sold</div>
+                <D3ChartHost
+                  id="chart-sales"
+                  className="chart chart--compact"
+                  ariaLabel="Units sold by day"
+                />
+              </div>
+              <div className="run-today-cell">
+                <div className="chart-caption">Missed sales</div>
+                <D3ChartHost
+                  id="chart-stockout"
+                  className="chart chart--compact"
+                  ariaLabel="Missed sales by day"
+                />
+              </div>
+              <div className="run-today-cell">
+                <div className="chart-caption impact-caption">
+                  Inventory vs base-stock
+                </div>
+                <D3ChartHost
+                  id="chart-inventory"
+                  className="chart chart--compact"
+                  ariaLabel="Inventory versus base stock target"
+                />
+              </div>
+              <div className="run-today-cell">
+                <div className="chart-caption impact-caption">Order quantity</div>
+                <D3ChartHost
+                  id="chart-controller-orders"
+                  className="chart chart--compact"
+                  ariaLabel="Controller order quantities"
+                />
+              </div>
+            </div>
+          </section>
+          <div id="decision-rail-host" />
+        </aside>
 
         <section
           className="cockpit-row cockpit-row--tuning"
