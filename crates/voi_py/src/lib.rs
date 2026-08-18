@@ -1,3 +1,6 @@
+mod demand_profile;
+
+use demand_profile::PyDemandProfile;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
@@ -38,25 +41,22 @@ fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (alpha, demand_mu, demand_vm, protection_days, start_day, demand_profile_json=None))]
+#[pyo3(signature = (alpha, demand_mu, demand_vm, protection_days, start_day, demand_profile=None))]
 fn protection_demand_quantile_py(
     alpha: f64,
     demand_mu: f64,
     demand_vm: f64,
     protection_days: u32,
     start_day: u32,
-    demand_profile_json: Option<&str>,
+    demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<f64> {
     let mut params = ModelParams {
         demand_mu,
         demand_vm,
         ..ModelParams::default()
     };
-    if let Some(json) = demand_profile_json {
-        params.demand_profile = Some(
-            DemandProfile::from_json(json)
-                .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?,
-        );
+    if let Some(profile) = demand_profile {
+        params.demand_profile = Some(profile.inner.clone());
     }
     Ok(protection_demand_quantile(
         alpha,
@@ -135,6 +135,10 @@ fn run_voi_crn_cell_py(
     candidate_case_radius=1,
     times=None,
     temps=None,
+    demand_mu=30.0,
+    demand_vm=2.0,
+    case_size=8,
+    demand_profile=None,
 ))]
 fn evaluate_alpha_tune_episode_py(
     arm_id: &str,
@@ -152,6 +156,10 @@ fn evaluate_alpha_tune_episode_py(
     candidate_case_radius: i32,
     times: Option<Vec<Vec<f64>>>,
     temps: Option<Vec<Vec<f64>>>,
+    demand_mu: f64,
+    demand_vm: f64,
+    case_size: u32,
+    demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<f64> {
     let (profit, _, _) = evaluate_alpha_tune_outcomes_inner(
         arm_id,
@@ -169,6 +177,10 @@ fn evaluate_alpha_tune_episode_py(
         candidate_case_radius,
         times,
         temps,
+        demand_mu,
+        demand_vm,
+        case_size,
+        demand_profile,
     )?;
     Ok(profit)
 }
@@ -190,6 +202,10 @@ fn evaluate_alpha_tune_episode_py(
     candidate_case_radius=1,
     times=None,
     temps=None,
+    demand_mu=30.0,
+    demand_vm=2.0,
+    case_size=8,
+    demand_profile=None,
 ))]
 fn evaluate_alpha_tune_outcomes_py(
     arm_id: &str,
@@ -207,6 +223,10 @@ fn evaluate_alpha_tune_outcomes_py(
     candidate_case_radius: i32,
     times: Option<Vec<Vec<f64>>>,
     temps: Option<Vec<Vec<f64>>>,
+    demand_mu: f64,
+    demand_vm: f64,
+    case_size: u32,
+    demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<(f64, u32, u32)> {
     evaluate_alpha_tune_outcomes_inner(
         arm_id,
@@ -224,6 +244,10 @@ fn evaluate_alpha_tune_outcomes_py(
         candidate_case_radius,
         times,
         temps,
+        demand_mu,
+        demand_vm,
+        case_size,
+        demand_profile,
     )
 }
 
@@ -243,6 +267,10 @@ fn evaluate_alpha_tune_outcomes_inner(
     candidate_case_radius: i32,
     times: Option<Vec<Vec<f64>>>,
     temps: Option<Vec<Vec<f64>>>,
+    demand_mu: f64,
+    demand_vm: f64,
+    case_size: u32,
+    demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<(f64, u32, u32)> {
     let arm = parse_alpha_tune_arm(arm_id)
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
@@ -255,7 +283,15 @@ fn evaluate_alpha_tune_outcomes_inner(
             ));
         }
     };
-    let params = voi_core::ModelParams::default();
+    let mut params = ModelParams {
+        demand_mu,
+        demand_vm,
+        case_size,
+        ..ModelParams::default()
+    };
+    if let Some(profile) = demand_profile {
+        params.demand_profile = Some(profile.inner.clone());
+    }
     let costs = AlphaTuneCosts {
         unit_margin,
         waste_cost,
@@ -678,6 +714,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_function(wrap_pyfunction!(terminal_salvage_unit_state_py, m)?)?;
     m.add_function(wrap_pyfunction!(w_long_py, m)?)?;
+    m.add_class::<PyDemandProfile>()?;
     m.add_class::<PyEngineSession>()?;
     Ok(())
 }

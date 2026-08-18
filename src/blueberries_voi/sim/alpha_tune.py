@@ -229,6 +229,19 @@ def _shipments_wire(
     return times, temps
 
 
+def _core_demand_profile(params: ModelParams) -> Any | None:
+    """Convert Python ``DemandProfile`` dataclass to ``_core.DemandProfile``."""
+    prof = params.demand_profile
+    if prof is None or rust_core is None:
+        return None
+    return rust_core.DemandProfile(
+        prof.scale_target_mu,
+        list(prof.dow_factors),
+        list(prof.week_factors),
+        prof.demand_vm,
+    )
+
+
 def _evaluate_via_rust_kernel(
     arm_id: str,
     alpha: float,
@@ -246,8 +259,6 @@ def _evaluate_via_rust_kernel(
     candidate_case_radius: int,
 ) -> AlphaTuneEpisodeOutcomes | None:
     """Return scored outcomes from ``voi_core`` when the PyO3 shim is available."""
-    if params.demand_profile is not None:
-        return None
     if not rust_available() or rust_core is None:
         return None
     fn = getattr(rust_core, "evaluate_alpha_tune_outcomes_py", None)
@@ -270,6 +281,10 @@ def _evaluate_via_rust_kernel(
         candidate_case_radius=int(candidate_case_radius),
         times=times,
         temps=temps,
+        demand_mu=float(params.demand_mu),
+        demand_vm=float(params.demand_vm),
+        case_size=int(params.case_size),
+        demand_profile=_core_demand_profile(params),
     )
     return AlphaTuneEpisodeOutcomes(
         profit=float(profit),

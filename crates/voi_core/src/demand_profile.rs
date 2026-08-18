@@ -50,6 +50,20 @@ impl DemandProfile {
         Self::from_parsed(raw)
     }
 
+    pub fn from_parts(
+        scale_target_mu: f64,
+        dow_factors: [f64; 7],
+        week_factors: Vec<f64>,
+        demand_vm: f64,
+    ) -> Result<Self, DemandProfileError> {
+        Self::from_parsed(DemandProfileJson {
+            scale_target_mu,
+            dow_factors: dow_factors.to_vec(),
+            week_factors,
+            demand_vm,
+        })
+    }
+
     fn from_parsed(raw: DemandProfileJson) -> Result<Self, DemandProfileError> {
         if raw.dow_factors.len() != 7 {
             return Err(DemandProfileError::Invalid(

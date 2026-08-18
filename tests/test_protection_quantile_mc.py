@@ -133,8 +133,15 @@ def test_rust_python_protection_quantile_parity() -> None:
     fn = getattr(rust_core, "protection_demand_quantile_py", None)
     if fn is None:
         pytest.skip("protection_demand_quantile_py not exported")
-    params = _params_with_profile()
+    profile = _committed_profile()
+    params = _params_with_profile(profile)
     py = protection_demand_quantile(_ALPHA, params, protection_days=3, start_day=6)
+    core_prof = rust_core.DemandProfile(
+        profile.scale_target_mu,
+        list(profile.dow_factors),
+        list(profile.week_factors),
+        profile.demand_vm,
+    )
     rs = float(
         fn(
             _ALPHA,
@@ -142,7 +149,7 @@ def test_rust_python_protection_quantile_parity() -> None:
             params.demand_vm,
             3,
             6,
-            _PROFILE_PATH.read_text(encoding="utf-8"),
+            core_prof,
         )
     )
     assert py == pytest.approx(rs, rel=0.0, abs=1.0)
