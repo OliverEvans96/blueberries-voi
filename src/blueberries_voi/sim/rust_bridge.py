@@ -171,6 +171,9 @@ def day_step(
 ) -> DayStepResult:
     """Apply one MOD-12 day (Rust injected shim when available, else Python cohort)."""
     del event_log
+    if rust_available() and demand is None and rng_demand is None:
+        msg = "sim.rust_bridge.day_step requires rust backend and fixed demand"
+        raise RuntimeError(msg)
     if (
         demand is not None
         and rust_available()
