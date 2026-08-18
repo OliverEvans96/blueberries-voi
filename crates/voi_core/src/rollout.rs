@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use crate::day_step::{unit_day_step, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::{draw_demand_spawn, f_to_age, weibull_survival};
-use crate::policy::damped_sw_order_f_belief;
+use crate::policy::{damped_sw_order_f_belief, effective_inventory_f_belief};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
@@ -91,17 +91,14 @@ pub fn terminal_salvage_unit_state(
     margin * weighted
 }
 
-/// Legacy f-belief terminal (research); rollout scoring uses [`terminal_salvage_unit_state`].
+/// Terminal salvage V_T = m * E[f]-weighted on-hand at horizon (ADR 0061 / 0130 f-native).
 pub fn terminal_salvage_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
     margin: f64,
-    params: &ModelParams,
 ) -> f64 {
-    let upl = params.units_per_lot.max(1);
-    let (freshness, _) = unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
-    terminal_salvage_unit_state(&freshness, margin, params)
+    margin * effective_inventory_f_belief(lot_counts, f_marginals, f_grid, 0, 0.0)
 }
 
 pub fn day_profit(
@@ -301,7 +298,8 @@ fn path_value_f_belief(
         lot_offsets = out.lot_offsets;
     }
 
-    profit + terminal_salvage_unit_state(&freshness, ctx.costs.unit_margin, params)
+    let (lc, fm, fg) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
+    profit + terminal_salvage_f_belief(&lc, &fm, &fg, ctx.costs.unit_margin)
 }
 
 #[cfg(test)]
@@ -323,6 +321,23 @@ mod tests {
         assert_eq!(
             terminal_salvage_unit_state(&[], 2.0, &ModelParams::default()),
             0.0
+        );
+    }
+
+    #[test]
+    fn terminal_salvage_f_belief_matches_effective_inventory() {
+        let k = 3usize;
+        let f_grid = f_grid_k(k);
+        let lot_counts = vec![4.0, 2.0];
+        let mut f_marginals = vec![0.0; 2 * k];
+        f_marginals[k - 1] = 1.0;
+        f_marginals[2 * k - 1] = 1.0;
+        let margin = 2.0;
+        let expected =
+            margin * effective_inventory_f_belief(&lot_counts, &f_marginals, &f_grid, 0, 0.0);
+        assert_eq!(
+            terminal_salvage_f_belief(&lot_counts, &f_marginals, &f_grid, margin),
+            expected
         );
     }
 
