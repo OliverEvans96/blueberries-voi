@@ -2,6 +2,73 @@
 
 use crate::schedule::OrderSchedule;
 use crate::ModelParams;
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
+use crate::spawn_rng::negative_binomial_gamma_poisson;
+
+const PROTECTION_MC_BASE_SEED: u32 = 0xC41B_4B4D;
+const PROTECTION_MC_DEFAULT_N: u32 = 20_000;
+const FLAT_MU_ATOL: f64 = 1e-9;
+
+pub fn derive_protection_mc_seed(
+    start_day: u32,
+    protection_days: u32,
+    alpha: f64,
+    mc_seed: Option<u64>,
+) -> u64 {
+    if let Some(seed) = mc_seed {
+        return seed & 0xFFFF_FFFF;
+    }
+    let alpha_bits = (alpha as f32).to_bits() as u64;
+    let mixed = u64::from(PROTECTION_MC_BASE_SEED)
+        ^ (u64::from(start_day) * 1_314_542_391)
+        ^ (u64::from(protection_days) * 2_654_435_761)
+        ^ alpha_bits;
+    mixed & 0xFFFF_FFFF
+}
+
+fn homogeneous_closed_form(
+    alpha: f64,
+    mu: f64,
+    demand_vm: f64,
+    protection_days: u32,
+) -> f64 {
+    let r_day = mu / (demand_vm - 1.0);
+    let r_sum = r_day * f64::from(protection_days);
+    let p = r_day / (r_day + mu);
+    nbinom_ppf(alpha, r_sum, p)
+}
+
+fn heterogeneous_nb_sum_quantile_mc(
+    alpha: f64,
+    mus: &[f64],
+    demand_vm: f64,
+    start_day: u32,
+    protection_days: u32,
+    n_mc: u32,
+    mc_seed: Option<u64>,
+) -> f64 {
+    if mus.is_empty() {
+        return 0.0;
+    }
+    let seed = derive_protection_mc_seed(start_day, protection_days, alpha, mc_seed);
+    let mut seed_bytes = [0u8; 32];
+    seed_bytes[..8].copy_from_slice(&seed.to_le_bytes());
+    let mut rng = Pcg64::from_seed(seed_bytes);
+    let mut samples = vec![0.0f64; n_mc as usize];
+    for &mu in mus {
+        let r = mu / (demand_vm - 1.0);
+        let p = r / (r + mu);
+        for s in &mut samples {
+            *s += f64::from(negative_binomial_gamma_poisson(&mut rng, r, p));
+        }
+    }
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let idx = ((alpha * f64::from(n_mc)).ceil() as usize)
+        .saturating_sub(1)
+        .min(samples.len() - 1);
+    samples[idx]
+}
 
 pub fn case_round(x: f64, case_size: u32) -> u32 {
     if case_size == 0 {
@@ -41,14 +108,44 @@ pub fn nbinom_ppf(alpha: f64, r: f64, p: f64) -> f64 {
     f64::from(k)
 }
 
-pub fn protection_demand_quantile(alpha: f64, params: &ModelParams, protection_days: u32) -> f64 {
+pub fn protection_demand_quantile(
+    alpha: f64,
+    params: &ModelParams,
+    protection_days: u32,
+    start_day: u32,
+) -> f64 {
     if !(0.0 < alpha && alpha < 1.0) {
         panic!("alpha must be in (0,1)");
     }
-    let r = (params.demand_mu / (params.demand_vm - 1.0)) * f64::from(protection_days);
-    let p = (params.demand_mu / (params.demand_vm - 1.0))
-        / (params.demand_mu / (params.demand_vm - 1.0) + params.demand_mu);
-    nbinom_ppf(alpha, r, p)
+    if protection_days == 0 {
+        return 0.0;
+    }
+    if params.demand_profile.is_none() {
+        return homogeneous_closed_form(
+            alpha,
+            params.demand_mu,
+            params.demand_vm,
+            protection_days,
+        );
+    }
+    let mut mus = Vec::with_capacity(protection_days as usize);
+    for k in 0..protection_days {
+        mus.push(params.demand_mu_for_day(start_day + k));
+    }
+    let mu_min = mus.iter().copied().fold(f64::INFINITY, f64::min);
+    let mu_max = mus.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if mu_max - mu_min <= FLAT_MU_ATOL {
+        return homogeneous_closed_form(alpha, mu_min, params.demand_vm, protection_days);
+    }
+    heterogeneous_nb_sum_quantile_mc(
+        alpha,
+        &mus,
+        params.demand_vm,
+        start_day,
+        protection_days,
+        PROTECTION_MC_DEFAULT_N,
+        None,
+    )
 }
 
 /// Rung 0 corrected age-blind order from oracle lot counts (CTL-05).
@@ -126,7 +223,7 @@ pub fn damped_sw_order_f_belief(
         pending_sum,
         f_pipeline_default,
     );
-    let d_star = protection_demand_quantile(alpha, params, n_days);
+    let d_star = protection_demand_quantile(alpha, params, n_days, day);
     let raw = rho * (d_star - i_tilde).max(0.0);
     case_round(raw, params.case_size)
 }
@@ -283,7 +380,7 @@ mod tests {
             pending,
             f_pipe,
         );
-        let d_star = protection_demand_quantile(alpha, &params, 2);
+        let d_star = protection_demand_quantile(alpha, &params, 2, 0);
         let expected = case_round(rho * (d_star - i_tilde).max(0.0), params.case_size);
         let got = damped_sw_order_f_belief(
             &lot_counts,

@@ -256,3 +256,43 @@ milestone (CAL-01) with parallel schedule / demand / web tracks, not a single ti
   record IDs in PROVENANCE.
 - If V/M refit is unstable, keep `demand_vm = 2.0` and document in the fit report.
 - A2 may land before B3 with optional `day=` shim on `draw_demand`.
+
+---
+
+# Intake 2026-08-17 — Ax BO for rollout α tuning (notebook)
+
+## Request (their words)
+
+> In a juypter notebook, use the python library Ax platform to perform Bayesian optimization to do the alpha tuning for the rollout controller over a variety of realizations of the stochastic demand.
+
+## What they want
+
+Bayesian optimization (Ax) to tune the demand fractile **α** for the **rollout** ladder arm (`DampedSurvivalWeightedPolicy` base + one-step rollout improvement). Each candidate α is scored on **multiple stochastic demand realizations** (`root_seed` panel), aggregated to mean ± SEM for Ax. Notebook-only exploration — not production `experiments/tuned_alpha.json` gates.
+
+## In scope
+
+- `notebooks/12_rollout_alpha_bayesian_optimization.ipynb` on `team/alpha-tune-rollout` / `team/alpha-tune-notebook`
+- `evaluate_alpha_episode_profit("rollout", ...)` — Rust-first via `evaluate_alpha_tune_episode_py` when `_core` is built
+- `ax-platform` under `[project.optional-dependencies] notebooks`
+- Optional `outputs/rollout_alpha_bo.json` (gitignored)
+
+## Out of scope
+
+- `tune_alpha_grid` / ladder artifact gate changes
+- ADR 0060 supersession (grid remains production standard)
+- CI coverage of Ax
+- Multi-objective BO (profit vs wall time)
+
+## Open questions
+
+- [ ] Merge nb 11 reference into same branch vs keep sibling branches separate?
+- [ ] FreshNet `demand_profile.json` for desktop runs?
+- [ ] Promote `tune_alpha_bo()` into `sim/alpha_tune.py` after validation?
+
+## Assumptions if unanswered
+
+- Base branch includes Rust rollout arm (`team/alpha-tune-rollout` @ `3e52fe5`)
+- Ax observations: `(mean, sem)` over K=4 (smoke) / K=6 (desktop) demand seeds per α
+- Rollout budgets: smoke H=7, paths=2; desktop H=28, paths=8; `candidate_case_radius=2`
+- Homogeneous μ demand; `smoke_cool_shipments()` unless Abdella flag set
+- Held-out validation seeds (3 smoke / 5 desktop) not used during BO

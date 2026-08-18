@@ -302,6 +302,101 @@ fn path_value_f_belief(
     profit + terminal_salvage_f_belief(&lc, &fm, &fg, ctx.costs.unit_margin)
 }
 
+/// Test helper: sum arrival units delivered across an inner rollout path.
+#[cfg(test)]
+fn path_arrival_units_sum(
+    lot_counts: &[f64],
+    f_marginals: &[f64],
+    f_grid: &[f64],
+    first_order: u32,
+    params: &ModelParams,
+    pending0: &BTreeMap<u32, u32>,
+    ctx: &RolloutContext,
+    path: u32,
+) -> u32 {
+    let path_run = format!("{}|rollout|p{path}", ctx.run_id);
+    let upl = params.units_per_lot.max(1);
+    let (mut freshness, mut lot_offsets) =
+        unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
+    let mut pending = pending0.clone();
+    let mut delivered = 0u32;
+
+    for h in 0..ctx.h {
+        let sim_day = ctx.day0 + h;
+        let pending_sum: u32 = pending.values().copied().sum();
+        let (lc, fm, fg) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
+        let order_qty = if h == 0 {
+            first_order
+        } else {
+            damped_sw_order_f_belief(
+                &lc,
+                &fm,
+                &fg,
+                pending_sum,
+                sim_day,
+                params,
+                ctx.alpha,
+                ctx.rho,
+                Some(&ctx.schedule),
+                ctx.f_pipeline_default,
+            )
+        };
+        enqueue(&mut pending, sim_day, ctx.lead_time, order_qty);
+        let arrival = pop_arrival(&mut pending, sim_day);
+        if arrival > 0 {
+            delivered += arrival;
+        }
+
+        let mut rng_demand =
+            SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_DEMAND);
+        let demand = draw_demand_spawn(&mut rng_demand, params, Some(sim_day));
+        let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
+        let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
+
+        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+            let mut rng_ship =
+                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
+            let mut rng_sensor =
+                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
+            let (f, tau, pack) = arrival_receipt_meta(
+                &mut rng_ship,
+                &mut rng_sensor,
+                &ctx.shipments,
+                params,
+                ctx.f_pipeline_default,
+            );
+            (Some(f), Some(tau), Some(pack))
+        } else {
+            (None, None, None)
+        };
+
+        let input = UnitDayStepIn {
+            freshness: freshness.clone(),
+            lot_offsets: lot_offsets.clone(),
+            demand: Some(demand),
+            gamma_decrement: None,
+            deliver: arrival > 0,
+            deliver_units: if arrival > 0 { Some(arrival) } else { None },
+            delivery_f: f_at_receipt,
+            units_per_lot: Some(upl),
+            age_at_receipt,
+            pack_age_mean: pack_date_days.map(f64::from),
+        };
+        let out = unit_day_step(
+            &input,
+            params,
+            &ctx.shipments,
+            Some(&mut rng_gamma),
+            Some(&mut rng_alloc),
+            None,
+            None,
+        );
+        freshness = out.freshness;
+        lot_offsets = out.lot_offsets;
+    }
+    delivered
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -402,12 +497,19 @@ mod tests {
     #[test]
     fn no_repeat_delivery_over_horizon() {
         let p = ModelParams::default();
+        let mut order_only_monday = [false; 7];
+        order_only_monday[0] = true;
+        let schedule = OrderSchedule {
+            delivery_weekdays: OrderSchedule::default().delivery_weekdays,
+            order_weekdays: order_only_monday,
+            lead_time_days: 1,
+        };
         let ctx = RolloutContext {
             root_seed: 42,
             run_id: "delivery-once".into(),
             day0: 0,
             lead_time: 1,
-            schedule: OrderSchedule::default(),
+            schedule,
             alpha: 0.9,
             rho: 0.8,
             costs: RolloutCosts::default(),
@@ -417,21 +519,86 @@ mod tests {
             n_paths: 1,
             radius: 0,
         };
-        let mut pending = BTreeMap::new();
-        let value = path_value_f_belief(
+        let first_order = 16u32;
+        let delivered = path_arrival_units_sum(
             &[0.0],
             &[1.0],
             &f_grid_k(1),
-            16,
+            first_order,
             &p,
-            &pending,
+            &BTreeMap::new(),
             &ctx,
             0,
         );
-        assert!(value.is_finite());
-        // After inner sim the pending pipeline must not re-deliver the same lot.
-        enqueue(&mut pending, 0, 1, 16);
-        let _ = pop_arrival(&mut pending, 1);
-        assert_eq!(pending.get(&1).copied().unwrap_or(0), 0);
+        assert_eq!(delivered, first_order, "pipeline delivers candidate order once");
+        assert_ne!(
+            delivered,
+            first_order * ctx.h,
+            "must not re-deliver first_order every inner day"
+        );
+    }
+
+    #[test]
+    fn rollout_costs_flip_winning_order() {
+        let p = ModelParams::default();
+        let k = 5usize;
+        let f_grid = f_grid_k(k);
+        let lot_counts = vec![20.0, 10.0];
+        let mut f_marginals = vec![0.0; 2 * k];
+        f_marginals[k - 1] = 1.0;
+        f_marginals[2 * k - 2] = 1.0;
+        let base = damped_sw_order_f_belief(
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
+            0,
+            6,
+            &p,
+            0.9,
+            0.8,
+            Some(&OrderSchedule::default()),
+            1.0,
+        );
+        assert!(base > 0, "fixture needs positive base_q");
+        let mk_ctx = |waste: f64| RolloutContext {
+            root_seed: 7,
+            run_id: "cost-rank".into(),
+            day0: 6,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts {
+                unit_margin: 2.0,
+                waste_cost: waste,
+                stockout_penalty: 3.0,
+            },
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 4,
+            n_paths: 4,
+            radius: 2,
+        };
+        let low = rollout_order(
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
+            base,
+            &p,
+            &BTreeMap::new(),
+            &mk_ctx(0.05),
+        )
+        .unwrap();
+        let high = rollout_order(
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
+            base,
+            &p,
+            &BTreeMap::new(),
+            &mk_ctx(25.0),
+        )
+        .unwrap();
+        assert_ne!(low, high, "waste_cost must flip rollout winner on fixture");
     }
 }

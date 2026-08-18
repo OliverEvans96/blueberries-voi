@@ -48,11 +48,10 @@ def _table_belief() -> Any:
 
 
 def test_no_repeat_delivery_over_horizon() -> None:
-    """Inner forward sim delivers each pending lot once (lead_time pipeline)."""
+    """Delivery-once contract is locked in Rust `no_repeat_delivery_over_horizon`."""
     params = ModelParams()
     belief = _table_belief()
     base = DampedSurvivalWeightedPolicy(rho=0.8, alpha=0.9, params=params)
-    pending: dict[int, int] = {1: 16}
     q = rollout_order(
         belief,
         base_policy=base,
@@ -61,16 +60,16 @@ def test_no_repeat_delivery_over_horizon() -> None:
         H=3,
         n_rollout_paths=1,
         candidate_case_radius=0,
-        pending_orders=pending,
+        pending_orders={},
         day=0,
         lead_time=1,
     )
-    assert isinstance(q, int)
     assert q >= 0
+    assert q % params.case_size == 0
 
 
-def test_w_long_terminal_matches_python_on_fixture() -> None:
-    """Rust unit-state terminal salvage matches Python lot-table fixture."""
+def test_w_long_weibull_helper_matches_python_on_fixture() -> None:
+    """PyO3 Weibull helpers match cohort bakeoff_rollout (fallback path only)."""
     assert rust_core is not None
     lots = (
         {"n": 4, "tau": 6.0},
@@ -147,7 +146,7 @@ def test_rollout_mean_profit_ge_base_sw_under_paired_crn() -> None:
 
 
 def test_costs_affect_ranking_fixture() -> None:
-    """Higher waste cost should not increase rollout order vs low-waste scoring."""
+    """Higher waste_cost flips rollout winner on high-inventory fixture."""
     params = ModelParams()
     belief = _table_belief()
     base = DampedSurvivalWeightedPolicy(rho=0.8, alpha=0.9, params=params)
@@ -157,23 +156,24 @@ def test_costs_affect_ranking_fixture() -> None:
         base_policy=base,
         params=params,
         rng_address=rng_address,
-        H=2,
-        n_rollout_paths=2,
+        H=4,
+        n_rollout_paths=4,
         candidate_case_radius=2,
-        waste_cost=0.5,
+        waste_cost=0.05,
+        day=6,
     )
     high_waste = rollout_order(
         belief,
         base_policy=base,
         params=params,
         rng_address=rng_address,
-        H=2,
-        n_rollout_paths=2,
+        H=4,
+        n_rollout_paths=4,
         candidate_case_radius=2,
-        waste_cost=5.0,
+        waste_cost=25.0,
+        day=6,
     )
-    assert isinstance(low_waste, int)
-    assert isinstance(high_waste, int)
+    assert low_waste != high_waste
 
 
 def test_tune_alpha_grid_rollout_uses_rust_kernel() -> None:
@@ -217,3 +217,43 @@ def test_detect_crn_desync_gate() -> None:
     addr_crossed["stream"] = ":spoil"
     ok_cross = detect_crn_desync(address_a=addr_a, address_b=addr_crossed)
     assert not ok_cross.ok
+
+
+@pytest.fixture(autouse=True)
+def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+
+
+def test_engine_session_act_rollout_skips_python_path_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rust-primary: EngineSession.act(rollout) must not call bakeoff _path_value."""
+    from blueberries_voi.simulator import EngineSession
+
+    called = False
+
+    def _spy_path_value(*_args: object, **_kwargs: object) -> float:
+        nonlocal called
+        called = True
+        raise AssertionError("Python _path_value must not run when _core is built")
+
+    monkeypatch.setattr(
+        "blueberries_voi.sim.bakeoff_rollout._path_value",
+        _spy_path_value,
+    )
+    session = EngineSession()
+    session.init(
+        {
+            "shipments": smoke_cool_shipments(),
+            "n_particles": 32,
+            "H": 3,
+            "n_rollout_paths": 1,
+            "candidate_case_radius": 1,
+            "L": 2,
+            "K": 4,
+            "enable_filter": True,
+        },
+        seed=42,
+    )
+    session.act(policy="rollout")
+    assert not called

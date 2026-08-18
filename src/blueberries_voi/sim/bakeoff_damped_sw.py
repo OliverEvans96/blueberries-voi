@@ -5,9 +5,9 @@ L=1 → demand over R+L=2 calendar days. Under CAL-01 MWF cadence (CAL-A3 /
 T-081 / ADR 0112), protection length is **day-indexed** via
 ``OrderSchedule.protection_days(day)`` (3 / 3 / 4 on Sun / Tue / Thu).
 
-Until T-084 / CAL-B4, protection treats demand as **homogeneous μ** (i.i.d.
-daily NB) with day-varying length only; upgrade to heterogeneous / μ(day)
-when B4 lands.
+With a calendar demand profile (CAL-B4 / T-132 / ADR 0134), the protection
+quantile sums heterogeneous daily NB demands μ(day+k) via Monte Carlo; without
+a profile the closed-form homogeneous ``NB(n·r, p)`` path is unchanged.
 
 The lead-time age increment ``delta_tau_L`` remains the LT=1 scalar shared
 with Rung 0: ``q10_age_increment(1.0, ...)`` under store temperatures.
@@ -17,19 +17,17 @@ Order quantity (Nahmias rho damping; default rho=0.8):
     q_t = case_round(rho * [F^{-1}_{D_{t:t+L}}(alpha) - I_tilde_t]^+)
 
 where ``I_tilde_t`` is f-native ``effective_inventory`` on ``ShelfBelief`` and
-``F^{-1}`` is the alpha-quantile of the sum of ``n`` i.i.d.
-daily NB demands (``NB(n*nb_r, nb_p)``) for day-indexed protection length
-``n``. Non-order days return 0 when an ``OrderSchedule`` is attached.
+``F^{-1}`` is the alpha-quantile of protection-window demand for calendar days
+``day .. day+n-1``. Non-order days return 0 when an ``OrderSchedule`` is attached.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from scipy.stats import nbinom
-
 from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 from blueberries_voi.model import ModelParams, q10_age_increment
+from blueberries_voi.model.demand_fractile import protection_interval_quantile
 from blueberries_voi.sim.bakeoff_ordering import case_round
 
 if TYPE_CHECKING:
@@ -46,19 +44,24 @@ def protection_demand_quantile(
     params: ModelParams,
     *,
     protection_days: int,
+    start_day: int = 0,
+    n_mc: int = 20_000,
+    mc_seed: int | None = None,
 ) -> float:
-    """Alpha-quantile of ``protection_days`` i.i.d. daily NB demand.
+    """Alpha-quantile of protection-window NB demand.
 
-    Homogeneous μ: scale NB ``r`` by ``protection_days`` (ADR 0116 / T-081).
-    Call sites pass their own length / alpha; this helper does not unify
-    schedule-aware vs legacy scalar conventions.
+    Homogeneous μ when no profile; heterogeneous MC when ``demand_profile`` is set
+    (ADR 0134). ``start_day`` is the calendar day of the first demand day in the
+    window (typically the order day).
     """
-    if not 0.0 < float(alpha) < 1.0:
-        msg = f"alpha must be in (0, 1), got {alpha}"
-        raise ValueError(msg)
-    r = float(params.nb_r()) * float(protection_days)
-    p = float(params.nb_p())
-    return float(nbinom.ppf(float(alpha), r, p))
+    return protection_interval_quantile(
+        alpha,
+        params,
+        protection_days=protection_days,
+        start_day=start_day,
+        n_mc=n_mc,
+        mc_seed=mc_seed,
+    )
 
 
 def _protection_demand_quantile(
@@ -66,9 +69,15 @@ def _protection_demand_quantile(
     params: ModelParams,
     *,
     protection_days: int = PROTECTION_DEMAND_DAYS,
+    start_day: int = 0,
 ) -> float:
-    """Alpha-quantile of protection-interval demand (n i.i.d. daily NB)."""
-    return protection_demand_quantile(alpha, params, protection_days=protection_days)
+    """Alpha-quantile of protection-interval demand."""
+    return protection_demand_quantile(
+        alpha,
+        params,
+        protection_days=protection_days,
+        start_day=start_day,
+    )
 
 
 class DampedSurvivalWeightedPolicy:
@@ -151,7 +160,10 @@ class DampedSurvivalWeightedPolicy:
         else:
             n_days = self._resolve_protection_days(day)
         d_star = _protection_demand_quantile(
-            self.alpha, self.params, protection_days=n_days
+            self.alpha,
+            self.params,
+            protection_days=n_days,
+            start_day=day,
         )
         raw = self.rho * max(0.0, d_star - i_tilde)
         return int(case_round(raw, self.params.case_size))

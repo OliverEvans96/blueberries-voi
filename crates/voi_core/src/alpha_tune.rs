@@ -96,7 +96,7 @@ fn seed_order_day(schedule: &OrderSchedule) -> u32 {
 fn protection_target_at_seed(alpha: f64, params: &ModelParams, schedule: &OrderSchedule) -> f64 {
     let seed_day = seed_order_day(schedule);
     let prot = schedule.protection_days(seed_day);
-    protection_demand_quantile(alpha, params, prot)
+    protection_demand_quantile(alpha, params, prot, seed_day)
 }
 
 fn order_for_arm(
