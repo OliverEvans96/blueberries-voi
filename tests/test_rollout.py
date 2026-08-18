@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import pytest
 
-pytest.skip("T-121 F3: Python rollout compute removed", allow_module_level=True)
+# Heavy closed-loop rollout compute tests remain skipped (Rust-primary path).
+_ROLLOUT_COMPUTE_SKIP = pytest.mark.skip(
+    reason="full rollout closed-loop compute: use tests/test_rollout_rust.py"
+)
 
 import ast
 import importlib
@@ -131,10 +134,14 @@ def _fixture_shipments() -> list[ShipmentTrace]:
 
 def _table_belief(params: ModelParams | None = None) -> Any:
     del params  # belief construction does not need params for oracle fixtures
+    f_grid = [0.0, 0.25, 0.5, 0.75, 1.0]
     return shelf_belief_from_oracle(
         lot_counts=[20, 10],
-        ages=[0.0, 4.0],
-        tau_grid=list(_TABLE_GRID),
+        f_marginals=[
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0],
+        ],
+        f_grid=f_grid,
     )
 
 
@@ -287,6 +294,7 @@ def test_candidate_orders_rejects_empty_or_invalid() -> None:
             )
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_rollout_order_rejects_nonpositive_horizon() -> None:
     """H=0 is not a meaningful forward horizon; H=1 remains a valid edge."""
     fn = _resolve(_ROLLOUT_ATTR)
@@ -367,6 +375,7 @@ def test_rollout_module_documents_vt_formula_and_adr_0061() -> None:
     assert _VT_FORMULA_LOCK.split("=")[0].strip() in source or "V_T" in source
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_rollout_order_returns_nonnegative_case_multiple() -> None:
     fn = _resolve(_ROLLOUT_ATTR)
     params = ModelParams()
@@ -388,6 +397,7 @@ def test_rollout_order_returns_nonnegative_case_multiple() -> None:
 # ---------------------------------------------------------------------------
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_rollout_mean_profit_ge_base_sw_under_paired_crn() -> None:
     """Improvement or tie under shared CRN seeds; never worse beyond abs 1e-6."""
     params = ModelParams()
@@ -456,6 +466,7 @@ def test_rollout_order_budget_kwargs_have_desktop_defaults() -> None:
                 assert params[n].default is not inspect.Parameter.empty
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_omitting_budget_kwargs_preserves_production_behaviour() -> None:
     """Omitting optional budgets must match calling with the documented defaults."""
     fn = _resolve(_ROLLOUT_ATTR)
@@ -538,6 +549,7 @@ def test_rollout_forward_steps_use_shared_model_day_step() -> None:
             )
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_rollout_forward_steps_call_day_step_via_spy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -690,6 +702,7 @@ def test_crn_desync_detector_fails_when_streams_intentionally_crossed() -> None:
 # ---------------------------------------------------------------------------
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_rollout_module_has_no_figure_or_fs_writers() -> None:
     """controller rollout stays a pure library (M2 agent brief)."""
     _ = _resolve(_ROLLOUT_ATTR)
@@ -734,6 +747,7 @@ def test_rollout_module_has_no_figure_or_fs_writers() -> None:
                 )
 
 
+@_ROLLOUT_COMPUTE_SKIP
 def test_controller_package_exports_rollout_order() -> None:
     fn = _resolve(_ROLLOUT_ATTR)
     pkg = importlib.import_module(_CONTROLLER_PKG)

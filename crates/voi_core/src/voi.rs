@@ -11,7 +11,8 @@ use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order_f_belief;
 use crate::unit_pf::{filter_step_unit, UnitParticleBank};
-use crate::rollout::{day_profit, rollout_order};
+use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
+use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
@@ -216,16 +217,33 @@ fn run_scenario_episode(
             1.0,
         );
         let order = if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
+            let schedule = OrderSchedule {
+                lead_time_days: budgets.lead_time,
+                ..OrderSchedule::default()
+            };
+            let ctx = RolloutContext {
+                root_seed,
+                run_id: format!("{phys}-d{day}"),
+                day0: day,
+                lead_time: budgets.lead_time,
+                schedule,
+                alpha: budgets.alpha,
+                rho: 0.8,
+                costs: RolloutCosts::default(),
+                shipments: shipments.to_vec(),
+                f_pipeline_default: 1.0,
+                h: budgets.h.max(1),
+                n_paths: budgets.n_rollout_paths.max(1),
+                radius: budgets.candidate_case_radius,
+            };
             rollout_order(
                 &lot_counts,
                 &f_marginals,
                 &f_grid,
                 base_q,
                 params,
-                root_seed.wrapping_add(u64::from(day)),
-                budgets.h.max(1),
-                budgets.n_rollout_paths.max(1),
-                budgets.candidate_case_radius,
+                &pending,
+                &ctx,
             )
             .unwrap_or(base_q)
         } else {
@@ -470,16 +488,33 @@ mod tests {
         f_marginals[2 * k - 1] = 1.0;
         let base_q = 24u32;
         let seed = 99u64;
+        let narrow_ctx = RolloutContext {
+            root_seed: seed,
+            run_id: "voi-test".into(),
+            day0: 0,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts::default(),
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 2,
+            n_paths: 2,
+            radius: 0,
+        };
+        let wide_ctx = RolloutContext {
+            radius: 2,
+            ..narrow_ctx.clone()
+        };
         let narrow = rollout_order(
             &lot_counts,
             &f_marginals,
             &f_grid,
             base_q,
             &params,
-            seed,
-            2,
-            2,
-            0,
+            &std::collections::BTreeMap::new(),
+            &narrow_ctx,
         )
         .expect("radius 0");
         let wide = rollout_order(
@@ -488,10 +523,8 @@ mod tests {
             &f_grid,
             base_q,
             &params,
-            seed,
-            2,
-            2,
-            2,
+            &std::collections::BTreeMap::new(),
+            &wide_ctx,
         )
         .expect("radius 2");
         assert_ne!(

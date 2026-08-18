@@ -20,6 +20,7 @@ heterogeneous / μ(day) is the B4 upgrade path.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from blueberries_voi.model.abdella import ShipmentTrace
+    from blueberries_voi.sim.types_log import EpisodeLog
 
 LADDER_ALPHA_ARMS: tuple[str, ...] = (
     "constant",
@@ -73,6 +75,28 @@ DEFAULT_DESKTOP_ALPHAS: tuple[float, ...] = (
 )
 
 _PROTECTION_DEMAND_DAYS: int = 2
+_DEFAULT_RHO: float = 0.8
+
+
+@dataclass(frozen=True)
+class AlphaTuneEpisodeOutcomes:
+    """Scored-episode aggregates for SIM-01=B alpha / rho tuning."""
+
+    profit: float
+    total_waste: int
+    total_lost_sales: int
+
+
+def _scored_outcomes(
+    episode: EpisodeLog, costs: ProfitCosts
+) -> AlphaTuneEpisodeOutcomes:
+    waste = sum(day.waste_total for day in episode.scored)
+    lost = sum(max(0, day.demand - day.sales_total) for day in episode.scored)
+    return AlphaTuneEpisodeOutcomes(
+        profit=float(episode_profit(episode, costs)),
+        total_waste=int(waste),
+        total_lost_sales=int(lost),
+    )
 
 __all__ = [
     "DEFAULT_CI_ALPHAS",
@@ -82,7 +106,9 @@ __all__ = [
     "DEFAULT_DESKTOP_ALPHAS",
     "DEFAULT_TUNED_ALPHA_PATH",
     "LADDER_ALPHA_ARMS",
+    "AlphaTuneEpisodeOutcomes",
     "assert_ladder_profit_claim_allowed",
+    "evaluate_alpha_episode_outcomes",
     "evaluate_alpha_episode_profit",
     "load_tuned_alpha_table",
     "protection_coverage_days",
@@ -107,6 +133,7 @@ class _ClosedLoopPolicyAdapter:
         alpha: float,
         params: ModelParams,
         *,
+        rho: float = _DEFAULT_RHO,
         schedule: OrderSchedule | None = None,
     ) -> None:
         self.arm_id = arm_id
@@ -137,6 +164,7 @@ class _ClosedLoopPolicyAdapter:
             self._kind = "rung0"
         elif arm_id == "sw":
             self._inner = DampedSurvivalWeightedPolicy(
+                rho=float(rho),
                 alpha=self.alpha,
                 params=params,
                 schedule=self.schedule,
@@ -200,6 +228,7 @@ def _shipments_wire(
 def _evaluate_via_rust_kernel(
     arm_id: str,
     alpha: float,
+    rho: float,
     root_seed: int,
     ships: Sequence[ShipmentTrace],
     *,
@@ -210,36 +239,41 @@ def _evaluate_via_rust_kernel(
     rollout_h: int,
     n_rollout_paths: int,
     candidate_case_radius: int,
-) -> float | None:
-    """Return scored profit from ``voi_core`` when the PyO3 shim is available."""
+) -> AlphaTuneEpisodeOutcomes | None:
+    """Return scored outcomes from ``voi_core`` when the PyO3 shim is available."""
     if not rust_available() or rust_core is None:
         return None
-    fn = getattr(rust_core, "evaluate_alpha_tune_episode_py", None)
+    fn = getattr(rust_core, "evaluate_alpha_tune_outcomes_py", None)
     if fn is None:
         return None
     times, temps = _shipments_wire(ships)
-    return float(
-        fn(
-            arm_id,
-            float(alpha),
-            int(root_seed),
-            n_burn=int(n_burn),
-            n_score=int(n_score),
-            lead_time=int(lead_time),
-            unit_margin=float(costs.unit_margin),
-            waste_cost=float(costs.waste_cost),
-            stockout_penalty=float(costs.stockout_penalty),
-            rollout_h=int(rollout_h),
-            n_rollout_paths=int(n_rollout_paths),
-            candidate_case_radius=int(candidate_case_radius),
-            times=times,
-            temps=temps,
-        )
+    profit, waste, lost = fn(
+        arm_id,
+        float(alpha),
+        int(root_seed),
+        n_burn=int(n_burn),
+        n_score=int(n_score),
+        lead_time=int(lead_time),
+        rho=float(rho),
+        unit_margin=float(costs.unit_margin),
+        waste_cost=float(costs.waste_cost),
+        stockout_penalty=float(costs.stockout_penalty),
+        rollout_h=int(rollout_h),
+        n_rollout_paths=int(n_rollout_paths),
+        candidate_case_radius=int(candidate_case_radius),
+        times=times,
+        temps=temps,
+    )
+    return AlphaTuneEpisodeOutcomes(
+        profit=float(profit),
+        total_waste=int(waste),
+        total_lost_sales=int(lost),
     )
 
 
 def _evaluate_rollout_python(
     alpha: float,
+    rho: float,
     root_seed: int,
     ships: Sequence[ShipmentTrace],
     *,
@@ -252,9 +286,10 @@ def _evaluate_rollout_python(
     rollout_h: int,
     n_rollout_paths: int,
     candidate_case_radius: int,
-) -> float:
+) -> AlphaTuneEpisodeOutcomes:
     """Python fallback: damped-SW base + one-step rollout (m2 ladder pattern)."""
     base = DampedSurvivalWeightedPolicy(
+        rho=float(rho),
         alpha=float(alpha),
         params=params,
         schedule=DEFAULT_ORDER_SCHEDULE,
@@ -280,14 +315,44 @@ def _evaluate_rollout_python(
         lead_time=lead_time,
         schedule=DEFAULT_ORDER_SCHEDULE,
     )
-    return float(episode_profit(episode, costs))
+    return _scored_outcomes(episode, costs)
 
 
-def evaluate_alpha_episode_profit(
+def _evaluate_python_episode(
+    arm_id: str,
+    alpha: float,
+    rho: float,
+    root_seed: int,
+    ships: Sequence[ShipmentTrace],
+    *,
+    params: ModelParams,
+    costs: ProfitCosts,
+    n_burn: int,
+    n_score: int,
+    lead_time: int,
+    run_id: str | int,
+) -> AlphaTuneEpisodeOutcomes:
+    policy = _ClosedLoopPolicyAdapter(arm_id, alpha, params, rho=rho)
+    episode = run_closed_loop_episode(
+        policy,
+        shipments=ships,
+        params=params,
+        root_seed=int(root_seed),
+        run_id=run_id,
+        n_burn=n_burn,
+        n_score=n_score,
+        lead_time=lead_time,
+        schedule=DEFAULT_ORDER_SCHEDULE,
+    )
+    return _scored_outcomes(episode, costs)
+
+
+def evaluate_alpha_episode_outcomes(
     arm_id: str,
     alpha: float,
     root_seed: int,
     *,
+    rho: float = _DEFAULT_RHO,
     params: ModelParams | None = None,
     costs: ProfitCosts | None = None,
     shipments: Sequence[ShipmentTrace] | None = None,
@@ -298,14 +363,15 @@ def evaluate_alpha_episode_profit(
     rollout_h: int = DEFAULT_CI_ROLLOUT_H,
     n_rollout_paths: int = DEFAULT_CI_N_ROLLOUT_PATHS,
     candidate_case_radius: int = DEFAULT_CI_CANDIDATE_CASE_RADIUS,
-) -> float:
-    """Score one (arm, alpha) pair via closed-loop ``episode_profit`` (SIM-01=B)."""
+) -> AlphaTuneEpisodeOutcomes:
+    """Score one (arm, alpha, rho) via closed-loop episode aggregates (SIM-01=B)."""
     p = params or ModelParams()
     ships = list(shipments) if shipments is not None else default_shipments()
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
-    rust_profit = _evaluate_via_rust_kernel(
+    rust_outcomes = _evaluate_via_rust_kernel(
         arm_id,
         alpha,
+        rho,
         int(root_seed),
         ships,
         n_burn=n_burn,
@@ -316,12 +382,13 @@ def evaluate_alpha_episode_profit(
         n_rollout_paths=n_rollout_paths,
         candidate_case_radius=candidate_case_radius,
     )
-    if rust_profit is not None:
-        return rust_profit
+    if rust_outcomes is not None:
+        return rust_outcomes
 
     if arm_id == "rollout":
         return _evaluate_rollout_python(
             alpha,
+            rho,
             int(root_seed),
             ships,
             params=p,
@@ -335,19 +402,57 @@ def evaluate_alpha_episode_profit(
             candidate_case_radius=candidate_case_radius,
         )
 
-    policy = _ClosedLoopPolicyAdapter(arm_id, alpha, p)
-    episode = run_closed_loop_episode(
-        policy,
-        shipments=ships,
+    return _evaluate_python_episode(
+        arm_id,
+        alpha,
+        rho,
+        int(root_seed),
+        ships,
         params=p,
-        root_seed=int(root_seed),
-        run_id=run_id,
+        costs=use_costs,
         n_burn=n_burn,
         n_score=n_score,
         lead_time=lead_time,
-        schedule=DEFAULT_ORDER_SCHEDULE,
+        run_id=run_id,
     )
-    return float(episode_profit(episode, use_costs))
+
+
+def evaluate_alpha_episode_profit(
+    arm_id: str,
+    alpha: float,
+    root_seed: int,
+    *,
+    rho: float = _DEFAULT_RHO,
+    params: ModelParams | None = None,
+    costs: ProfitCosts | None = None,
+    shipments: Sequence[ShipmentTrace] | None = None,
+    n_burn: int = 2,
+    n_score: int = 5,
+    lead_time: int = 1,
+    run_id: str | int = "alpha-tune",
+    rollout_h: int = DEFAULT_CI_ROLLOUT_H,
+    n_rollout_paths: int = DEFAULT_CI_N_ROLLOUT_PATHS,
+    candidate_case_radius: int = DEFAULT_CI_CANDIDATE_CASE_RADIUS,
+) -> float:
+    """Score one (arm, alpha) pair via closed-loop ``episode_profit`` (SIM-01=B)."""
+    return float(
+        evaluate_alpha_episode_outcomes(
+            arm_id,
+            alpha,
+            root_seed,
+            rho=rho,
+            params=params,
+            costs=costs,
+            shipments=shipments,
+            n_burn=n_burn,
+            n_score=n_score,
+            lead_time=lead_time,
+            run_id=run_id,
+            rollout_h=rollout_h,
+            n_rollout_paths=n_rollout_paths,
+            candidate_case_radius=candidate_case_radius,
+        ).profit
+    )
 
 
 def tune_alpha_grid(

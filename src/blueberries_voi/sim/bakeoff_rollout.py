@@ -22,6 +22,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from blueberries_voi import model as model_pkg
+from blueberries_voi.backend import rust_available, rust_core
 from blueberries_voi.filter.belief import (
     ShelfBelief,
     cohort_tau_from_belief_lot,
@@ -340,6 +341,57 @@ def candidate_orders(
     return out
 
 
+def _try_rust_rollout_order(
+    belief: ShelfBelief,
+    *,
+    base_q: int,
+    params: ModelParams,
+    rng_address: Mapping[str, Any],
+    H: int,
+    n_rollout_paths: int,
+    candidate_case_radius: int,
+    pending_orders: Mapping[int, int],
+    day: int,
+    lead_time: int,
+    margin: float,
+    waste_cost: float,
+    stockout_penalty: float,
+    alpha: float,
+    rho: float,
+) -> int | None:
+    """Delegate to ``voi_core`` rollout when the PyO3 extension is built."""
+    if not rust_available() or rust_core is None:
+        return None
+    fn = getattr(rust_core, "rollout_order_py", None)
+    if fn is None:
+        return None
+    pending_days = [int(k) for k in pending_orders]
+    pending_qtys = [int(pending_orders[k]) for k in pending_orders]
+    flat_marginals = [float(x) for row in belief.f_marginals for x in row]
+    return int(
+        fn(
+            list(map(float, belief.lot_counts)),
+            flat_marginals,
+            list(map(float, belief.f_grid)),
+            int(base_q),
+            int(rng_address["root_seed"]),
+            str(rng_address["run_id"]),
+            day0=int(day),
+            lead_time=int(lead_time),
+            alpha=float(alpha),
+            rho=float(rho),
+            h=int(H),
+            n_paths=int(n_rollout_paths),
+            radius=int(candidate_case_radius),
+            unit_margin=float(margin),
+            waste_cost=float(waste_cost),
+            stockout_penalty=float(stockout_penalty),
+            pending_days=pending_days or None,
+            pending_qtys=pending_qtys or None,
+        )
+    )
+
+
 def rollout_order(
     belief: ShelfBelief,
     *,
@@ -357,6 +409,8 @@ def rollout_order(
     margin: float = _DEFAULT_MARGIN,
     waste_cost: float = _DEFAULT_WASTE_COST,
     stockout_penalty: float = _DEFAULT_STOCKOUT_PENALTY,
+    alpha: float = 0.9,
+    rho: float = 0.8,
 ) -> int:
     """One-step rollout: pick the case order with highest CRN-paired path value.
 
@@ -406,6 +460,27 @@ def rollout_order(
 
     root_seed = int(rng_address["root_seed"])
     run_id = rng_address["run_id"]
+
+    rust_q = _try_rust_rollout_order(
+        belief,
+        base_q=base_q,
+        params=params,
+        rng_address={"root_seed": root_seed, "run_id": run_id},
+        H=int(H),
+        n_rollout_paths=int(n_rollout_paths),
+        candidate_case_radius=int(candidate_case_radius),
+        pending_orders=pending0,
+        day=int(day),
+        lead_time=int(lead_time),
+        margin=float(margin),
+        waste_cost=float(waste_cost),
+        stockout_penalty=float(stockout_penalty),
+        alpha=float(alpha),
+        rho=float(rho),
+    )
+    if rust_q is not None:
+        return rust_q
+
     best_q = unique[0]
     best_score = float("-inf")
     for q in unique:
@@ -476,6 +551,8 @@ class RolloutPolicy:
             return int(
                 self.base_policy.order(shelf, day=int(day), pending_orders=pending)
             )
+        alpha = float(getattr(self.base_policy, "alpha", 0.9))
+        rho = float(getattr(self.base_policy, "rho", 0.8))
         return rollout_order(
             shelf,
             base_policy=self.base_policy,
@@ -491,6 +568,8 @@ class RolloutPolicy:
             pending_orders=pending,
             day=int(day),
             lead_time=self.lead_time,
+            alpha=alpha,
+            rho=rho,
         )
 
 

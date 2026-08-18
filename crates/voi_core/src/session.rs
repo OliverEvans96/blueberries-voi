@@ -16,7 +16,7 @@ use crate::physics::{draw_demand, draw_demand_spawn};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::unit_pf::{filter_step_unit, UnitParticleBank};
-use crate::rollout::rollout_order;
+use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
@@ -494,16 +494,29 @@ impl EngineSession {
                     Some(&self.schedule),
                     f_pipe,
                 );
+                let ctx = RolloutContext {
+                    root_seed: self.seed,
+                    run_id: format!("session-d{}", self.day),
+                    day0: self.day,
+                    lead_time: self.lead_time,
+                    schedule: self.schedule.clone(),
+                    alpha,
+                    rho,
+                    costs: RolloutCosts::default(),
+                    shipments: self.shipments.clone(),
+                    f_pipeline_default: f_pipe,
+                    h,
+                    n_paths,
+                    radius,
+                };
                 rollout_order(
                     &lot_counts,
                     &f_marginals,
                     &f_grid,
                     base,
                     &self.params,
-                    self.seed,
-                    h,
-                    n_paths,
-                    radius,
+                    &self.pending,
+                    &ctx,
                 )
                 .unwrap_or(base)
             }
@@ -1619,10 +1632,22 @@ mod tests {
                 &f_grid,
                 base,
                 &s.params,
-                s.seed,
-                s.h,
-                s.n_paths,
-                s.radius,
+                &s.pending,
+                &RolloutContext {
+                    root_seed: s.seed,
+                    run_id: format!("session-d{}", s.day),
+                    day0: s.day,
+                    lead_time: s.lead_time,
+                    schedule: s.schedule.clone(),
+                    alpha: 0.9,
+                    rho: 0.8,
+                    costs: RolloutCosts::default(),
+                    shipments: s.shipments.clone(),
+                    f_pipeline_default: f_pipe,
+                    h: s.h,
+                    n_paths: s.n_paths,
+                    radius: s.radius,
+                },
             )
             .unwrap_or(base)
         };

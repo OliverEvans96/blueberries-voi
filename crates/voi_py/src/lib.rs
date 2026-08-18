@@ -4,9 +4,11 @@ use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
 use voi_core::{
     crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode, run_closed_loop_episode,
-    run_voi_crn_cell, sequential_wor_composition_probs, AlphaTuneCosts, AlphaTuneRolloutBudgets,
-    CrnBudgets, DayDelta, EngineSession, ShipmentTrace, DemandProfile,
+    run_voi_crn_cell, sequential_wor_composition_probs, terminal_salvage_unit_state, w_long,
+    AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, EngineSession, RolloutContext,
+    RolloutCosts, ShipmentTrace, DemandProfile,
 };
+use voi_core::schedule::OrderSchedule;
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
     let json = if std::path::Path::new(source).is_file() {
@@ -94,6 +96,7 @@ fn run_voi_crn_cell_py(
     n_burn=2,
     n_score=5,
     lead_time=1,
+    rho=0.8,
     unit_margin=2.0,
     waste_cost=1.5,
     stockout_penalty=3.0,
@@ -110,6 +113,7 @@ fn evaluate_alpha_tune_episode_py(
     n_burn: u32,
     n_score: u32,
     lead_time: u32,
+    rho: f64,
     unit_margin: f64,
     waste_cost: f64,
     stockout_penalty: f64,
@@ -119,6 +123,97 @@ fn evaluate_alpha_tune_episode_py(
     times: Option<Vec<Vec<f64>>>,
     temps: Option<Vec<Vec<f64>>>,
 ) -> PyResult<f64> {
+    let (profit, _, _) = evaluate_alpha_tune_outcomes_inner(
+        arm_id,
+        alpha,
+        root_seed,
+        n_burn,
+        n_score,
+        lead_time,
+        rho,
+        unit_margin,
+        waste_cost,
+        stockout_penalty,
+        rollout_h,
+        n_rollout_paths,
+        candidate_case_radius,
+        times,
+        temps,
+    )?;
+    Ok(profit)
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    arm_id,
+    alpha,
+    root_seed,
+    n_burn=2,
+    n_score=5,
+    lead_time=1,
+    rho=0.8,
+    unit_margin=2.0,
+    waste_cost=1.5,
+    stockout_penalty=3.0,
+    rollout_h=2,
+    n_rollout_paths=1,
+    candidate_case_radius=1,
+    times=None,
+    temps=None,
+))]
+fn evaluate_alpha_tune_outcomes_py(
+    arm_id: &str,
+    alpha: f64,
+    root_seed: u64,
+    n_burn: u32,
+    n_score: u32,
+    lead_time: u32,
+    rho: f64,
+    unit_margin: f64,
+    waste_cost: f64,
+    stockout_penalty: f64,
+    rollout_h: u32,
+    n_rollout_paths: u32,
+    candidate_case_radius: i32,
+    times: Option<Vec<Vec<f64>>>,
+    temps: Option<Vec<Vec<f64>>>,
+) -> PyResult<(f64, u32, u32)> {
+    evaluate_alpha_tune_outcomes_inner(
+        arm_id,
+        alpha,
+        root_seed,
+        n_burn,
+        n_score,
+        lead_time,
+        rho,
+        unit_margin,
+        waste_cost,
+        stockout_penalty,
+        rollout_h,
+        n_rollout_paths,
+        candidate_case_radius,
+        times,
+        temps,
+    )
+}
+
+fn evaluate_alpha_tune_outcomes_inner(
+    arm_id: &str,
+    alpha: f64,
+    root_seed: u64,
+    n_burn: u32,
+    n_score: u32,
+    lead_time: u32,
+    rho: f64,
+    unit_margin: f64,
+    waste_cost: f64,
+    stockout_penalty: f64,
+    rollout_h: u32,
+    n_rollout_paths: u32,
+    candidate_case_radius: i32,
+    times: Option<Vec<Vec<f64>>>,
+    temps: Option<Vec<Vec<f64>>>,
+) -> PyResult<(f64, u32, u32)> {
     let arm = parse_alpha_tune_arm(arm_id)
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
     let ships: Vec<ShipmentTrace> = match (times, temps) {
@@ -144,6 +239,7 @@ fn evaluate_alpha_tune_episode_py(
     let ep = run_alpha_tune_episode(
         arm,
         alpha,
+        rho,
         root_seed,
         n_burn,
         n_score,
@@ -154,7 +250,11 @@ fn evaluate_alpha_tune_episode_py(
         &rollout,
     )
     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
-    Ok(ep.scored_profit)
+    Ok((
+        ep.scored_profit,
+        ep.scored_waste,
+        ep.scored_lost_sales,
+    ))
 }
 
 #[pyfunction]
@@ -176,26 +276,125 @@ fn run_episode_py(
 }
 
 #[pyfunction]
+#[pyo3(signature = (
+    lot_counts,
+    f_marginals,
+    f_grid,
+    base_q,
+    root_seed,
+    run_id,
+    day0=0,
+    lead_time=1,
+    alpha=0.9,
+    rho=0.8,
+    h=28,
+    n_paths=8,
+    radius=2,
+    unit_margin=2.0,
+    waste_cost=1.5,
+    stockout_penalty=3.0,
+    pending_days=None,
+    pending_qtys=None,
+    times=None,
+    temps=None,
+))]
+#[allow(clippy::too_many_arguments)]
 fn rollout_order_py(
     lot_counts: Vec<f64>,
     f_marginals: Vec<f64>,
     f_grid: Vec<f64>,
     base_q: u32,
-    seed: u64,
+    root_seed: u64,
+    run_id: &str,
+    day0: u32,
+    lead_time: u32,
+    alpha: f64,
+    rho: f64,
     h: u32,
-) -> u32 {
+    n_paths: u32,
+    radius: i32,
+    unit_margin: f64,
+    waste_cost: f64,
+    stockout_penalty: f64,
+    pending_days: Option<Vec<u32>>,
+    pending_qtys: Option<Vec<u32>>,
+    times: Option<Vec<Vec<f64>>>,
+    temps: Option<Vec<Vec<f64>>>,
+) -> PyResult<u32> {
+    let mut pending = std::collections::BTreeMap::new();
+    if let (Some(days), Some(qtys)) = (pending_days, pending_qtys) {
+        if days.len() != qtys.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "pending_days and pending_qtys must have equal length",
+            ));
+        }
+        for (d, q) in days.into_iter().zip(qtys) {
+            pending.insert(d, q);
+        }
+    }
+    let ships: Vec<ShipmentTrace> = match (times, temps) {
+        (Some(t), Some(tp)) => ships_from(t, tp),
+        (None, None) => vec![ShipmentTrace::smoke_cool()],
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "times and temps must both be provided or both omitted",
+            ));
+        }
+    };
+    let schedule = OrderSchedule {
+        lead_time_days: lead_time,
+        ..OrderSchedule::default()
+    };
+    let ctx = RolloutContext {
+        root_seed,
+        run_id: run_id.to_string(),
+        day0,
+        lead_time,
+        schedule,
+        alpha,
+        rho,
+        costs: RolloutCosts {
+            unit_margin,
+            waste_cost,
+            stockout_penalty,
+        },
+        shipments: ships,
+        f_pipeline_default: 1.0,
+        h,
+        n_paths,
+        radius,
+    };
     rollout_order(
         &lot_counts,
         &f_marginals,
         &f_grid,
         base_q,
         &voi_core::ModelParams::default(),
-        seed,
-        h,
-        1,
-        1,
+        &pending,
+        &ctx,
     )
-    .expect("rollout")
+    .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+}
+
+#[pyfunction]
+fn terminal_salvage_unit_state_py(
+    freshness: Vec<f64>,
+    margin: f64,
+    beta: f64,
+    eta_ref: f64,
+) -> f64 {
+    let mut params = voi_core::ModelParams::default();
+    params.beta = beta;
+    params.eta_ref = eta_ref;
+    terminal_salvage_unit_state(&freshness, margin, &params)
+}
+
+#[pyfunction]
+fn w_long_py(tau: f64, beta: f64, eta_ref: f64) -> f64 {
+    let mut params = voi_core::ModelParams::default();
+    params.beta = beta;
+    params.eta_ref = eta_ref;
+    w_long(tau, &params)
 }
 
 fn ships_from(times: Vec<Vec<f64>>, temps: Vec<Vec<f64>>) -> Vec<ShipmentTrace> {
@@ -443,8 +642,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_alpha_tune_outcomes_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
+    m.add_function(wrap_pyfunction!(terminal_salvage_unit_state_py, m)?)?;
+    m.add_function(wrap_pyfunction!(w_long_py, m)?)?;
     m.add_class::<PyEngineSession>()?;
     Ok(())
 }

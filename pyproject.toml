@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 # Slim / browser install story (ADR 0099 / T-046): no hard pyarrow or matplotlib.
 dependencies = [
     "numpy>=2.4.6",
+    "pyarrow>=25.0.1",
     "scipy>=1.17.1",
 ]
 
@@ -136,6 +137,9 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+]
+markers = [
+    "slow: expensive rollout / CRN parity tests (H=28, P=8)",
 ]
 
 [tool.coverage.run]

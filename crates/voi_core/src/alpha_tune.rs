@@ -8,7 +8,7 @@ use crate::physics::draw_demand_spawn;
 use crate::policy::{
     constant_order, damped_sw_order_f_belief, protection_demand_quantile, rung0_order_f_belief,
 };
-use crate::rollout::{day_profit, rollout_order};
+use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
@@ -72,6 +72,8 @@ pub struct AlphaTuneEpisodeResult {
     pub n_score: u32,
     pub n_days: u32,
     pub scored_profit: f64,
+    pub scored_waste: u32,
+    pub scored_lost_sales: u32,
 }
 
 fn enqueue(pending: &mut BTreeMap<u32, u32>, day: u32, lead: u32, qty: u32) {
@@ -100,18 +102,23 @@ fn protection_target_at_seed(alpha: f64, params: &ModelParams, schedule: &OrderS
 fn order_for_arm(
     arm: AlphaTuneArm,
     alpha: f64,
+    rho: f64,
     root_seed: u64,
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
-    pending_sum: u32,
+    pending: &BTreeMap<u32, u32>,
     day: u32,
     params: &ModelParams,
     schedule: &OrderSchedule,
+    shipments: &[ShipmentTrace],
+    costs: &AlphaTuneCosts,
     constant_q: u32,
     rung0_target: f64,
     rollout: &AlphaTuneRolloutBudgets,
+    lead_time: u32,
 ) -> u32 {
+    let pending_sum: u32 = pending.values().copied().sum();
     match arm {
         AlphaTuneArm::Constant => {
             if !schedule.can_order(day) {
@@ -139,7 +146,7 @@ fn order_for_arm(
             day,
             params,
             alpha,
-            0.8,
+            rho,
             Some(schedule),
             1.0,
         ),
@@ -155,21 +162,37 @@ fn order_for_arm(
                 day,
                 params,
                 alpha,
-                0.8,
+                rho,
                 Some(schedule),
                 1.0,
             );
-            let seed = root_seed.wrapping_add(u64::from(day));
+            let ctx = RolloutContext {
+                root_seed,
+                run_id: format!("{RUN_ID}-d{day}"),
+                day0: day,
+                lead_time,
+                schedule: schedule.clone(),
+                alpha,
+                rho,
+                costs: RolloutCosts {
+                    unit_margin: costs.unit_margin,
+                    waste_cost: costs.waste_cost,
+                    stockout_penalty: costs.stockout_penalty,
+                },
+                shipments: shipments.to_vec(),
+                f_pipeline_default: 1.0,
+                h: rollout.h.max(1),
+                n_paths: rollout.n_rollout_paths.max(1),
+                radius: rollout.candidate_case_radius,
+            };
             rollout_order(
                 lot_counts,
                 f_marginals,
                 f_grid,
                 base_q,
                 params,
-                seed,
-                rollout.h.max(1),
-                rollout.n_rollout_paths.max(1),
-                rollout.candidate_case_radius,
+                pending,
+                &ctx,
             )
             .unwrap_or(base_q)
         }
@@ -180,6 +203,7 @@ fn order_for_arm(
 pub fn run_alpha_tune_episode(
     arm: AlphaTuneArm,
     alpha: f64,
+    rho: f64,
     root_seed: u64,
     n_burn: u32,
     n_score: u32,
@@ -191,6 +215,9 @@ pub fn run_alpha_tune_episode(
 ) -> Result<AlphaTuneEpisodeResult, String> {
     if !(0.0 < alpha && alpha < 1.0) {
         return Err(format!("alpha must be in (0,1), got {alpha}"));
+    }
+    if !(0.0 < rho && rho <= 1.0) {
+        return Err(format!("rho must be in (0,1], got {rho}"));
     }
     if shipments.is_empty() {
         return Err("shipments must be non-empty".to_string());
@@ -209,24 +236,29 @@ pub fn run_alpha_tune_episode(
     let mut lot_offsets: Vec<usize> = vec![0];
     let mut pending: BTreeMap<u32, u32> = BTreeMap::new();
     let mut scored_profit = 0.0;
+    let mut scored_waste = 0u32;
+    let mut scored_lost_sales = 0u32;
 
     for day in 0..horizon {
-        let pending_sum: u32 = pending.values().copied().sum();
         let (lot_counts, f_marginals, f_grid) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
         let order = order_for_arm(
             arm,
             alpha,
+            rho,
             root_seed,
             &lot_counts,
             &f_marginals,
             &f_grid,
-            pending_sum,
+            &pending,
             day,
             params,
             &schedule,
+            shipments,
+            costs,
             constant_q,
             rung0_target,
             rollout,
+            lead_time,
         );
         enqueue(&mut pending, day, lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
@@ -294,6 +326,8 @@ pub fn run_alpha_tune_episode(
                 costs.waste_cost,
                 costs.stockout_penalty,
             );
+            scored_waste += out.waste_total;
+            scored_lost_sales += out.demand.saturating_sub(out.sales_total);
         }
     }
 
@@ -302,6 +336,8 @@ pub fn run_alpha_tune_episode(
         n_score,
         n_days: horizon,
         scored_profit,
+        scored_waste,
+        scored_lost_sales,
     })
 }
 
@@ -329,6 +365,7 @@ mod tests {
         let ep = run_alpha_tune_episode(
             AlphaTuneArm::Sw,
             0.9,
+            0.8,
             42,
             2,
             3,
@@ -352,6 +389,7 @@ mod tests {
         let a = run_alpha_tune_episode(
             AlphaTuneArm::Sw,
             0.8,
+            0.8,
             7,
             2,
             2,
@@ -364,6 +402,7 @@ mod tests {
         .expect("a");
         let b = run_alpha_tune_episode(
             AlphaTuneArm::Sw,
+            0.8,
             0.8,
             7,
             2,
@@ -387,6 +426,7 @@ mod tests {
         let ep = run_alpha_tune_episode(
             AlphaTuneArm::Rollout,
             0.9,
+            0.8,
             42,
             2,
             3,
@@ -413,6 +453,7 @@ mod tests {
             let ep = run_alpha_tune_episode(
                 AlphaTuneArm::Rollout,
                 alpha,
+                0.8,
                 99,
                 2,
                 3,

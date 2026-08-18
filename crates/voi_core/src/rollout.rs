@@ -1,11 +1,58 @@
-//! CTL-02/04 one-step rollout (Python controller.rollout).
+//! CTL-02/04 one-step rollout (Python `bakeoff_rollout`).
 
-use rand::SeedableRng;
-use rand_pcg::Pcg64;
+use std::collections::BTreeMap;
 
-use crate::day_step::{unit_day_step, ModelParams, UnitDayStepIn};
-use crate::policy::effective_inventory_f_belief;
-use crate::shipments::ShipmentTrace;
+use crate::day_step::{unit_day_step, UnitDayStepIn};
+use crate::params::ModelParams;
+use crate::physics::{draw_demand_spawn, f_to_age, weibull_survival};
+use crate::policy::damped_sw_order_f_belief;
+use crate::schedule::OrderSchedule;
+use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::spawn_rng::SpawnRng;
+use crate::voi::truth_f_belief;
+
+const STREAM_DEMAND: &str = ":demand";
+const STREAM_ALLOC: &str = ":alloc";
+const STREAM_SPOIL: &str = ":spoil";
+const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
+const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
+const ORACLE_K: usize = 5;
+
+/// SIM-01=B profit coefficients for rollout path scoring.
+#[derive(Clone, Debug)]
+pub struct RolloutCosts {
+    pub unit_margin: f64,
+    pub waste_cost: f64,
+    pub stockout_penalty: f64,
+}
+
+impl Default for RolloutCosts {
+    fn default() -> Self {
+        Self {
+            unit_margin: 2.0,
+            waste_cost: 1.5,
+            stockout_penalty: 3.0,
+        }
+    }
+}
+
+/// Shared rollout forward-sim context (CRN addressing + continuation policy).
+#[derive(Clone, Debug)]
+pub struct RolloutContext {
+    pub root_seed: u64,
+    pub run_id: String,
+    pub day0: u32,
+    pub lead_time: u32,
+    pub schedule: OrderSchedule,
+    pub alpha: f64,
+    pub rho: f64,
+    pub costs: RolloutCosts,
+    pub shipments: Vec<ShipmentTrace>,
+    pub f_pipeline_default: f64,
+    pub h: u32,
+    pub n_paths: u32,
+    pub radius: i32,
+}
 
 pub fn candidate_orders(base_q: u32, case_size: u32, radius: i32) -> Vec<u32> {
     let cs = case_size.max(1);
@@ -23,14 +70,38 @@ pub fn candidate_orders(base_q: u32, case_size: u32, radius: i32) -> Vec<u32> {
     out
 }
 
-/// Terminal salvage from f-belief: margin × `effective_inventory_f_belief` with zero pipeline.
+/// Weibull survival weight at effective age τ (ADR 0061).
+pub fn w_long(tau: f64, params: &ModelParams) -> f64 {
+    weibull_survival(tau, params.beta, params.eta_ref)
+}
+
+/// Terminal salvage from unit freshness state: V_T = m * Σ w_long(τ_i) over alive units.
+pub fn terminal_salvage_unit_state(
+    freshness: &[f64],
+    margin: f64,
+    params: &ModelParams,
+) -> f64 {
+    let mut taus: Vec<f64> = freshness
+        .iter()
+        .filter(|&&f| f > 0.0)
+        .map(|&f| f_to_age(f, params.eta_ref))
+        .collect();
+    taus.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let weighted: f64 = taus.iter().map(|&tau| w_long(tau, params)).sum();
+    margin * weighted
+}
+
+/// Legacy f-belief terminal (research); rollout scoring uses [`terminal_salvage_unit_state`].
 pub fn terminal_salvage_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
     margin: f64,
+    params: &ModelParams,
 ) -> f64 {
-    margin * effective_inventory_f_belief(lot_counts, f_marginals, f_grid, 0, 0.0)
+    let upl = params.units_per_lot.max(1);
+    let (freshness, _) = unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
+    terminal_salvage_unit_state(&freshness, margin, params)
 }
 
 pub fn day_profit(
@@ -72,25 +143,34 @@ fn unit_state_from_f_belief(
     (freshness, lot_offsets)
 }
 
-/// Rollout on f-belief using `unit_day_step` and f-native terminal salvage.
+fn enqueue(pending: &mut BTreeMap<u32, u32>, day: u32, lead: u32, qty: u32) {
+    *pending.entry(day + lead).or_insert(0) += qty;
+}
+
+fn pop_arrival(pending: &mut BTreeMap<u32, u32>, day: u32) -> u32 {
+    pending.remove(&day).unwrap_or(0)
+}
+
+/// One-step rollout: pick the case order with highest CRN-paired path value.
 pub fn rollout_order(
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
     base_q: u32,
     params: &ModelParams,
-    seed: u64,
-    h: u32,
-    n_paths: u32,
-    radius: i32,
+    pending0: &BTreeMap<u32, u32>,
+    ctx: &RolloutContext,
 ) -> Result<u32, String> {
-    if h == 0 {
-        return Err(format!("H must be positive, got {h}"));
+    if ctx.h == 0 {
+        return Err(format!("H must be positive, got {}", ctx.h));
     }
-    if n_paths == 0 {
-        return Err(format!("n_rollout_paths must be positive, got {n_paths}"));
+    if ctx.n_paths == 0 {
+        return Err(format!(
+            "n_rollout_paths must be positive, got {}",
+            ctx.n_paths
+        ));
     }
-    let mut cands = candidate_orders(base_q, params.case_size, radius);
+    let mut cands = candidate_orders(base_q, params.case_size, ctx.radius);
     if cands.is_empty() {
         return Err("candidates must be non-empty".into());
     }
@@ -104,19 +184,19 @@ pub fn rollout_order(
     let mut best_score = f64::NEG_INFINITY;
     for q in unique {
         let mut acc = 0.0;
-        for path in 0..n_paths {
+        for path in 0..ctx.n_paths {
             acc += path_value_f_belief(
                 lot_counts,
                 f_marginals,
                 f_grid,
                 q,
                 params,
-                seed,
+                pending0,
+                ctx,
                 path,
-                h,
             );
         }
-        let score = acc / f64::from(n_paths);
+        let score = acc / f64::from(ctx.n_paths);
         if score > best_score {
             best_score = score;
             best_q = q;
@@ -131,97 +211,97 @@ fn path_value_f_belief(
     f_grid: &[f64],
     first_order: u32,
     params: &ModelParams,
-    seed: u64,
+    pending0: &BTreeMap<u32, u32>,
+    ctx: &RolloutContext,
     path: u32,
-    h: u32,
 ) -> f64 {
-    let units_per_lot = params.units_per_lot.max(1);
+    let path_run = format!("{}|rollout|p{path}", ctx.run_id);
+    let upl = params.units_per_lot.max(1);
     let (mut freshness, mut lot_offsets) =
-        unit_state_from_f_belief(lot_counts, f_marginals, f_grid, units_per_lot);
-    let shipments = [ShipmentTrace::smoke_cool()];
+        unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
+    let mut pending = pending0.clone();
     let mut profit = 0.0;
-    for d in 0..h {
-        let mut rng_gamma = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(path * 31 + d)));
-        let mut rng_alloc = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(path * 17 + d)));
-        let mut rng_ship = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(path * 19 + d)));
-        let mut rng_sensor = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(path * 23 + d)));
+
+    for h in 0..ctx.h {
+        let sim_day = ctx.day0 + h;
+        let pending_sum: u32 = pending.values().copied().sum();
+        let (lc, fm, fg) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
+        let order_qty = if h == 0 {
+            first_order
+        } else {
+            damped_sw_order_f_belief(
+                &lc,
+                &fm,
+                &fg,
+                pending_sum,
+                sim_day,
+                params,
+                ctx.alpha,
+                ctx.rho,
+                Some(&ctx.schedule),
+                ctx.f_pipeline_default,
+            )
+        };
+        enqueue(&mut pending, sim_day, ctx.lead_time, order_qty);
+        let arrival = pop_arrival(&mut pending, sim_day);
+
+        let mut rng_demand =
+            SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_DEMAND);
+        let demand = draw_demand_spawn(&mut rng_demand, params, Some(sim_day));
+        let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
+        let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
+
+        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+            let mut rng_ship =
+                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
+            let mut rng_sensor =
+                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
+            let (f, tau, pack) = arrival_receipt_meta(
+                &mut rng_ship,
+                &mut rng_sensor,
+                &ctx.shipments,
+                params,
+                ctx.f_pipeline_default,
+            );
+            (Some(f), Some(tau), Some(pack))
+        } else {
+            (None, None, None)
+        };
+
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
             lot_offsets: lot_offsets.clone(),
-            demand: Some(params.demand_mu.max(0.0) as u32),
-            gamma_decrement: Some(gamma_decrement_for_store(params)),
-            deliver: d == 0 || first_order > 0,
-            deliver_units: if d == 0 || first_order > 0 {
-                Some(first_order)
-            } else {
-                None
-            },
-            delivery_f: Some(1.0),
-            units_per_lot: Some(if d == 0 { first_order } else { first_order } as usize),
-            age_at_receipt: None,
-            pack_age_mean: None,
+            demand: Some(demand),
+            gamma_decrement: None,
+            deliver: arrival > 0,
+            deliver_units: if arrival > 0 { Some(arrival) } else { None },
+            delivery_f: f_at_receipt,
+            units_per_lot: Some(upl),
+            age_at_receipt,
+            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step(
             &input,
             params,
-            &shipments,
+            &ctx.shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            Some(&mut rng_ship),
-            Some(&mut rng_sensor),
+            None,
+            None,
         );
-        profit += day_profit(out.sales_total, out.waste_total, out.demand, 2.0, 1.5, 3.0);
+        profit += day_profit(
+            out.sales_total,
+            out.waste_total,
+            out.demand,
+            ctx.costs.unit_margin,
+            ctx.costs.waste_cost,
+            ctx.costs.stockout_penalty,
+        );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;
     }
-    let l = lot_counts.len();
-    let k = f_grid.len();
-    let alive_counts: Vec<f64> = (0..l)
-        .map(|ell| {
-            let start = lot_offsets[ell];
-            let end = lot_offsets[ell + 1];
-            freshness[start..end]
-                .iter()
-                .filter(|&&f| f > 0.0)
-                .count() as f64
-        })
-        .collect();
-    let terminal_marginals: Vec<f64> = if k > 0 {
-        let mut m = vec![0.0; l * k];
-        for ell in 0..l {
-            let start = lot_offsets[ell];
-            let end = lot_offsets[ell + 1];
-            for &f in &freshness[start..end] {
-                if f > 0.0 {
-                    let bin = nearest_f_bin(f, f_grid);
-                    m[ell * k + bin] += 1.0;
-                }
-            }
-            let row = &mut m[ell * k..(ell + 1) * k];
-            let z: f64 = row.iter().sum();
-            if z > 0.0 {
-                for x in row.iter_mut() {
-                    *x /= z;
-                }
-            }
-        }
-        m
-    } else {
-        vec![]
-    };
-    profit + terminal_salvage_f_belief(&alive_counts, &terminal_marginals, f_grid, 2.0)
-}
 
-fn nearest_f_bin(f: f64, grid: &[f64]) -> usize {
-    grid.iter()
-        .enumerate()
-        .min_by(|(_, a), (_, b)| (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap())
-        .map(|(i, _)| i)
-        .unwrap_or(0)
-}
-
-fn gamma_decrement_for_store(params: &ModelParams) -> f64 {
-    crate::physics::gamma_decrement_for_store(params)
+    profit + terminal_salvage_unit_state(&freshness, ctx.costs.unit_margin, params)
 }
 
 #[cfg(test)]
@@ -239,9 +319,9 @@ mod tests {
     }
 
     #[test]
-    fn terminal_salvage_f_belief_empty_is_zero() {
+    fn terminal_salvage_unit_state_empty_is_zero() {
         assert_eq!(
-            terminal_salvage_f_belief(&[], &[], &f_grid_k(3), 2.0),
+            terminal_salvage_unit_state(&[], 2.0, &ModelParams::default()),
             0.0
         );
     }
@@ -249,7 +329,22 @@ mod tests {
     #[test]
     fn rollout_rejects_nonpositive_horizon() {
         let p = ModelParams::default();
-        assert!(rollout_order(&[8.0], &[1.0], &f_grid_k(1), 8, &p, 1, 0, 1, 1).is_err());
+        let ctx = RolloutContext {
+            root_seed: 1,
+            run_id: "t".into(),
+            day0: 0,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts::default(),
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 0,
+            n_paths: 1,
+            radius: 1,
+        };
+        assert!(rollout_order(&[8.0], &[1.0], &f_grid_k(1), 8, &p, &BTreeMap::new(), &ctx).is_err());
     }
 
     #[test]
@@ -261,18 +356,67 @@ mod tests {
         let mut f_marginals = vec![0.0; 2 * k];
         f_marginals[1] = 1.0;
         f_marginals[2 * k - 1] = 1.0;
+        let ctx = RolloutContext {
+            root_seed: 3,
+            run_id: "t".into(),
+            day0: 0,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts::default(),
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 2,
+            n_paths: 1,
+            radius: 1,
+        };
         let q = rollout_order(
             &lot_counts,
             &f_marginals,
             &f_grid,
             8,
             &p,
-            3,
-            2,
-            1,
-            1,
+            &BTreeMap::new(),
+            &ctx,
         )
         .unwrap();
         assert_eq!(q % p.case_size, 0);
+    }
+
+    #[test]
+    fn no_repeat_delivery_over_horizon() {
+        let p = ModelParams::default();
+        let ctx = RolloutContext {
+            root_seed: 42,
+            run_id: "delivery-once".into(),
+            day0: 0,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts::default(),
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 3,
+            n_paths: 1,
+            radius: 0,
+        };
+        let mut pending = BTreeMap::new();
+        let value = path_value_f_belief(
+            &[0.0],
+            &[1.0],
+            &f_grid_k(1),
+            16,
+            &p,
+            &pending,
+            &ctx,
+            0,
+        );
+        assert!(value.is_finite());
+        // After inner sim the pending pipeline must not re-deliver the same lot.
+        enqueue(&mut pending, 0, 1, 16);
+        let _ = pop_arrival(&mut pending, 1);
+        assert_eq!(pending.get(&1).copied().unwrap_or(0), 0);
     }
 }
