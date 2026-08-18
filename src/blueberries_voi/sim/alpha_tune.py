@@ -98,6 +98,7 @@ def _scored_outcomes(
         total_lost_sales=int(lost),
     )
 
+
 __all__ = [
     "DEFAULT_CI_ALPHAS",
     "DEFAULT_CI_CANDIDATE_CASE_RADIUS",
@@ -298,7 +299,7 @@ def _evaluate_rollout_python(
         base_policy=base,
         params=params,
         root_seed=int(root_seed),
-        run_id=run_id,
+        run_id=str(run_id),
         H=int(rollout_h),
         n_rollout_paths=int(n_rollout_paths),
         candidate_case_radius=int(candidate_case_radius),
