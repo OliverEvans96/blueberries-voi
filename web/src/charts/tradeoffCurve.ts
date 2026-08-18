@@ -41,9 +41,9 @@ export function renderTradeoffCurve(
   svg: SVGSVGElement,
   data: QForecastEntry[],
   currentQ: number,
+  width = 300,
 ): void {
-  const width = 300;
-  const height = 160;
+  const height = Math.max(200, Math.round(width * 0.55));
   const margin = { top: 16, right: 10, bottom: 32, left: 40 };
   const root = d3.select(svg);
   root.selectAll("*").remove();

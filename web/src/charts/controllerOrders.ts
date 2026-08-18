@@ -13,7 +13,7 @@ export function controllerOrdersSeries(
   return history.map((d) => ({ day: d.day, order_qty: d.order_qty }));
 }
 
-/** Order quantity over episode days. */
+/** Order quantity over episode days — bar chart. */
 export function renderControllerOrders(
   container: HTMLElement,
   history: ReadonlyArray<{ day: number; order_qty: number }>,
@@ -46,11 +46,11 @@ export function renderControllerOrders(
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const days = series.map((d) => d.day);
-  const step = innerW / days.length;
-  const x = (day: number): number => {
-    const i = days.indexOf(day);
-    return i * step + step / 2;
-  };
+  const x = d3
+    .scaleBand<number>()
+    .domain(days)
+    .range([0, innerW])
+    .padding(0.2);
 
   const yMax = Math.max(d3.max(series, (d) => d.order_qty) ?? 0, 1);
   const y = d3.scaleLinear().domain([0, yMax * 1.08]).nice().range([innerH, 0]);
@@ -65,33 +65,21 @@ export function renderControllerOrders(
     .attr("transform", `translate(0,${innerH})`)
     .call(
       d3
-        .axisBottom(
-          d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0),
-        )
+        .axisBottom(x)
         .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
-  const line = d3
-    .line<ControllerOrderPoint>()
-    .x((d) => x(d.day))
-    .y((d) => y(d.order_qty))
-    .curve(d3.curveMonotoneX);
-
-  g.append("path")
-    .datum(series)
-    .attr("class", "order-line")
-    .attr("fill", "none")
-    .attr("d", line);
-
-  g.selectAll(".order-dot")
+  g.selectAll<SVGRectElement, ControllerOrderPoint>(".order-bar")
     .data(series)
-    .join("circle")
-    .attr("class", "order-dot")
-    .attr("cx", (d) => x(d.day))
-    .attr("cy", (d) => y(d.order_qty))
-    .attr("r", 2.5)
+    .join("rect")
+    .attr("class", "order-bar")
+    .attr("x", (d) => x(d.day) ?? 0)
+    .attr("width", x.bandwidth())
+    .attr("y", (d) => y(d.order_qty))
+    .attr("height", (d) => Math.max(0, innerH - y(d.order_qty)))
+    .attr("fill", "var(--color-order-bar, #4a7c9e)")
     .append("title")
     .text((d) => `Day ${d.day}: order ${d.order_qty}`);
 }

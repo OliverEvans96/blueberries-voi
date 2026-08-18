@@ -55,7 +55,7 @@ export function channelAvailability(
 ): Availability {
   if (id === "store-spoilage") return spoilageAvailable(channels);
   if (id === "plot-arrival-prior-rug") {
-    return ch.deliveries === "pack_date_per_lot" ? "show" : "unavailable";
+    return channels.deliveries === "pack_date_per_lot" ? "show" : "unavailable";
   }
   if (id === "f2a_transit_sd" || id === "sensor_sigma") {
     return packDateControlsAvailable(channels);

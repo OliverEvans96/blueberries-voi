@@ -44,11 +44,11 @@ describe("T-113 chips call set_obs_scenario (not config_dirty for obs_scenario a
     expect(src).toMatch(/set_obs_scenario|onObsScenario|onSetObsScenario/);
   });
 
-  it("react/studioLogic.ts / adapter surface forwards set_obs_scenario", () => {
+  it("react/studioLogic.ts / adapter surface forwards set_obs_channels", () => {
     const main = readFileSync(MAIN_TS, "utf8");
     const adapter = readFileSync(ADAPTER_TS, "utf8");
-    expect(adapter).toMatch(/set_obs_scenario|setObsScenario/);
-    expect(main).toMatch(/set_obs_scenario|setObsScenario/);
+    expect(adapter).toMatch(/set_obs_channels|setObsChannels/);
+    expect(main).toMatch(/set_obs_channels|setObsChannels/);
     expect(main).not.toMatch(
       /onConfigChange\(partial\).*obs_scenario[\s\S]{0,200}config_dirty/,
     );
@@ -73,7 +73,7 @@ describe("T-113 catch-up progress and chips disabled", () => {
     const main = readFileSync(MAIN_TS, "utf8");
     expect(main).toMatch(/catch-?up/i);
     expect(main).toMatch(/autopilot\.pause/);
-    expect(main).toMatch(/set_obs_scenario|setObsScenario/);
+    expect(main).toMatch(/set_obs_channels|setObsChannels/);
     expect(main).toMatch(/autopilot\.(play|resume)|resume/);
   });
 });

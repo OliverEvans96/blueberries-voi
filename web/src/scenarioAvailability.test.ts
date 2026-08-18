@@ -74,27 +74,31 @@ describe("T-124 scenarioAvailability ADR 0086 / T-119 gates (AC-avail)", () => {
     }
   });
 
-  it("plot-arrival-prior-rug is unavailable below F2 (showTruth is orthogonal)", () => {
-    for (const scenario of ["P0", "P1", "F1", "F1s", "F2a"] as const) {
+  it("plot-arrival-prior-rug follows pack_date_per_lot delivery channel", () => {
+    for (const scenario of ["P0", "P1", "F1", "F1s"] as const) {
       expect(plotAvailability("plot-arrival-prior-rug", scenario)).toBe(
         "unavailable",
       );
     }
-    expect(plotAvailability("plot-arrival-prior-rug", "F2")).toBe("show");
+    for (const scenario of ["F2a", "F2"] as const) {
+      expect(plotAvailability("plot-arrival-prior-rug", scenario)).toBe("show");
+    }
   });
 
-  it("f2a_transit_sd is dim on P0–F1s and show on F2a", () => {
+  it("f2a_transit_sd is dim without pack_date_per_lot and show on F2a/F2", () => {
     for (const scenario of ["P0", "P1", "F1", "F1s"] as const) {
       expect(controlAvailability("f2a_transit_sd", scenario)).toBe("dim");
     }
     expect(controlAvailability("f2a_transit_sd", "F2a")).toBe("show");
-    expect(controlAvailability("f2a_transit_sd", "F2")).toBe("dim");
+    expect(controlAvailability("f2a_transit_sd", "F2")).toBe("show");
   });
 
-  it("sensor_sigma is dim on P0–F2a and show on F2", () => {
-    for (const scenario of ["P0", "P1", "F1", "F1s", "F2a"] as const) {
+  it("sensor_sigma is dim without pack_date_per_lot and show on F2a/F2", () => {
+    for (const scenario of ["P0", "P1", "F1", "F1s"] as const) {
       expect(controlAvailability("sensor_sigma", scenario)).toBe("dim");
     }
-    expect(controlAvailability("sensor_sigma", "F2")).toBe("show");
+    for (const scenario of ["F2a", "F2"] as const) {
+      expect(controlAvailability("sensor_sigma", scenario)).toBe("show");
+    }
   });
 });

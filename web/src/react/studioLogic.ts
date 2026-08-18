@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
+import { channelsCacheKey, channelsForPreset } from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -63,7 +64,6 @@ import {
   type SectionId,
 } from "../sections";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
-import { channelsCacheKey, channelsForPreset } from "../obsMask";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
@@ -73,7 +73,7 @@ import { resolveStoreSpoilageSlot } from "./chartSlots";
 import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
-import { DecisionRail } from "./DecisionRail";
+import { SecondaryChrome } from "./SecondaryChrome";
 import { EconomicsPane } from "./EconomicsPane";
 import { EventsPane } from "./EventsPane";
 import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
@@ -176,7 +176,7 @@ export function initStudio(app: HTMLElement): () => void {
   let autopilot!: ReturnType<typeof createAutopilotLoop>;
 
   function syncAutopilotChrome(): void {
-    renderDecisionRailChrome();
+    renderSecondaryChrome();
   }
 
   const els = {
@@ -214,14 +214,16 @@ export function initStudio(app: HTMLElement): () => void {
   const insightStripHost = document.querySelector("#insight-strip-host");
   const guidedPathsHost = document.querySelector("#guided-paths-host");
   const chapterTabsHost = document.querySelector("#chapter-tabs-host");
-  const decisionRailHost = document.querySelector("#decision-rail-host");
+  const secondaryChromeHost = document.querySelector("#secondary-chrome-host");
   const operatorBarHost = document.querySelector("#operator-bar-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
   const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
   const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
-  const decisionRailRoot = decisionRailHost ? createRoot(decisionRailHost) : null;
+  const secondaryChromeRoot = secondaryChromeHost
+    ? createRoot(secondaryChromeHost)
+    : null;
   const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
 
   async function fetchTradeoffForecast(): Promise<void> {
@@ -332,15 +334,14 @@ export function initStudio(app: HTMLElement): () => void {
     );
   }
 
-  function renderDecisionRailChrome(): void {
-    if (decisionRailRoot) {
-      decisionRailRoot.render(
-        createElement(DecisionRail, {
+  function renderSecondaryChrome(): void {
+    if (secondaryChromeRoot) {
+      secondaryChromeRoot.render(
+        createElement(SecondaryChrome, {
           vm,
           showTruth,
           catchingUp,
           orderQty,
-          activeSection,
           onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
           onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
           onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
@@ -362,7 +363,7 @@ export function initStudio(app: HTMLElement): () => void {
           onOrderChange: (qty) => {
             orderQty = snapOrder(qty);
             sectionControlsApi.update(controlsState());
-            renderDecisionRailChrome();
+            renderSecondaryChrome();
           },
         }),
       );
@@ -424,8 +425,8 @@ export function initStudio(app: HTMLElement): () => void {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
         el.textContent = showTruth
-          ? "Stacked freshness histogram (truth bars on)"
-          : "Stacked freshness histogram";
+          ? "Freshness histogram (truth bars on)"
+          : "Freshness histogram";
       }
       if (kind === "lots") {
         el.textContent =
@@ -453,7 +454,7 @@ export function initStudio(app: HTMLElement): () => void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
     if (flat) {
       const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
-      renderFreshnessHistogram(els.beliefLg, data, showTruth, 260);
+      renderFreshnessHistogram(els.beliefLg, data, showTruth, 300, "aggregated");
     } else {
       els.beliefLg.replaceChildren();
     }
@@ -464,14 +465,24 @@ export function initStudio(app: HTMLElement): () => void {
     const invSeries = showTruth
       ? inventorySeries(vm.history, vm.config)
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 120, invSeries);
-    renderControllerOrders(els.controllerOrders, vm.history, 120);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 76, invSeries);
+    renderControllerOrders(els.controllerOrders, vm.history, 76);
+    const ageRows = showTruth
+      ? ageCompositionSeries(vm.history)
+      : ageCompositionSeriesFromBelief(vm.belief_history);
+    renderAgeComposition(
+      els.ageComp,
+      vm.history,
+      76,
+      ageRows,
+      showTruth ? "age" : "freshness",
+    );
   }
 
   function renderStore() {
     const yMax = marginalYMax(vm.history);
-    renderMarginal(els.sales, vm.history, "sales", 72, yMax);
-    renderMarginal(els.stockout, vm.history, "stockout", 72, yMax);
+    renderMarginal(els.sales, vm.history, "sales", 48, yMax);
+    renderMarginal(els.stockout, vm.history, "stockout", 48, yMax);
     renderBeliefFreshnessTime(
       els.history,
       vm.history,
@@ -481,7 +492,7 @@ export function initStudio(app: HTMLElement): () => void {
     );
     renderSalesDemand(els.salesDemand, vm.history, 130);
     const spoilSlot = resolveStoreSpoilageSlot({
-      channels: vm.config.obs_channels,
+      scenario: vm.config.obs_scenario,
       showTruth,
     });
     if (spoilSlot.kind === "unavailable") {
@@ -528,11 +539,13 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    if (plotVisible("plot-demand")) {
+    // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not
+    // .focus-plot[data-plot="plot-demand"] — gate on active section instead.
+    if (activeSection === "demand" && schedule) {
       renderDemandDist(
         els.demand,
         vm.demand_summary,
-        vm.schedule,
+        schedule,
         160,
       );
     }
@@ -542,7 +555,10 @@ export function initStudio(app: HTMLElement): () => void {
         vm.config,
         historyForCharts(),
         160,
-        arrivalRugAvailable(vm.config.obs_channels, showTruth),
+        arrivalRugAvailable(
+          vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
+          showTruth,
+        ),
       );
     }
     if (plotVisible("plot-arrival-shift")) {
@@ -584,6 +600,13 @@ export function initStudio(app: HTMLElement): () => void {
     void els.focusPane.offsetWidth;
     els.focusPane.classList.add("focus-flash");
 
+    if (id === "demand") {
+      const slot = document.querySelector("#demand-chart-slot");
+      if (slot && els.demand.parentElement !== slot) {
+        slot.appendChild(els.demand);
+      }
+    }
+
     renderActiveFocusPlots();
     syncTruthCaptions();
 
@@ -606,7 +629,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderDayInspector();
     renderEconomicsPane();
     renderEventsPane();
-    renderDecisionRailChrome();
+    renderSecondaryChrome();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
     sectionControlsApi.update(state);
@@ -615,7 +638,7 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function refreshRemotePanes(): Promise<void> {
     await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
-    renderDecisionRailChrome();
+    renderSecondaryChrome();
     renderEconomicsPane();
   }
 
@@ -728,7 +751,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (typeof q === "number") {
         orderQty = snapOrder(q);
         sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
-        renderDecisionRailChrome();
+        renderSecondaryChrome();
       }
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
@@ -754,7 +777,7 @@ export function initStudio(app: HTMLElement): () => void {
           orderQty = snapOrder(orderQty);
         }
         sectionControlsApi.update(controlsState());
-        renderDecisionRailChrome();
+        renderSecondaryChrome();
         renderActiveFocusPlots();
         // Autopilot pauses when staged config is dirty (AC).
         if (vm.config_dirty && autopilot.isRunning()) {
@@ -762,7 +785,7 @@ export function initStudio(app: HTMLElement): () => void {
           syncAutopilotChrome();
         }
       },
-      onSetObsPreset: (id) => {
+      onSetObsScenario: (id) => {
         void railHandlers.onSetObsPreset(id);
       },
       onControllerChange(partial: Partial<ControllerControlsState>) {
@@ -777,7 +800,7 @@ export function initStudio(app: HTMLElement): () => void {
         orderQty,
         config: { ...vm.config, case_size: caseSize },
       });
-      renderDecisionRailChrome();
+      renderSecondaryChrome();
     },
     controllerState,
   );
@@ -823,11 +846,9 @@ export function initStudio(app: HTMLElement): () => void {
     }
     catchingUp = true;
     sectionControlsApi.update(controlsState());
-    renderDecisionRailChrome();
+    renderSecondaryChrome();
     try {
-      const snap = (await engineStatus.follow(
-        setCh(channels),
-      )) as Snapshot;
+      const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
       vm = projector.patchEngineState(snap);
       projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
@@ -842,7 +863,7 @@ export function initStudio(app: HTMLElement): () => void {
     } finally {
       catchingUp = false;
       sectionControlsApi.update(controlsState());
-      renderDecisionRailChrome();
+      renderSecondaryChrome();
       if (resumeAfter) {
         autopilot.play();
         syncAutopilotChrome();

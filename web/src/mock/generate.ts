@@ -5,7 +5,6 @@ import type {
   Day,
   Economics,
   Lot,
-  ObsChannels,
   ScenarioId,
   SimConfig,
 } from "../types";

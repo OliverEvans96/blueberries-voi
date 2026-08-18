@@ -198,29 +198,6 @@ export function renderPnLTimeseries(
     .attr("opacity", 0)
     .attr("pointer-events", "none");
 
-  g.selectAll(".pnl-day")
-    .data(plotSeries, (d) => String((d as DayPnL).day))
-    .join("g")
-    .attr("class", "pnl-day")
-    .attr("data-day", (d) => d.day)
-    .attr("transform", (d) => `translate(${xCenter(d.day)},0)`)
-    .attr("pointer-events", "none")
-    .each(function (d) {
-      const gg = d3.select(this);
-      for (const s of seriesSpec) {
-        gg.append("circle")
-          .attr("class", `pnl-dot ${s.cls}`)
-          .attr("cy", y(d[s.key] as number))
-          .attr("r", 3)
-          .attr("fill", "currentColor")
-          .attr("stroke", "var(--paper)")
-          .attr("stroke-width", 1.5);
-      }
-      gg.append("title").text(
-        `Day ${d.day}\nCum rev $${d.revenue.toFixed(0)} · Cum cost $${d.cost_total.toFixed(0)} · Cum profit $${d.profit.toFixed(0)}`,
-      );
-    });
-
   const legend = svg
     .append("g")
     .attr("class", "legend")

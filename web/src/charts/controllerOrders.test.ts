@@ -1,6 +1,7 @@
 /**
  * T-099 RED: controllerOrders series helper from sample day history.
  */
+// @vitest-environment jsdom
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,5 +47,26 @@ describe("controllerOrders series helper (T-099)", () => {
     expect(existsSync(CONTROLLER_ORDERS_TS)).toBe(true);
     const mod = await import("./controllerOrders");
     expect(typeof mod.renderControllerOrders).toBe("function");
+  });
+
+  it("renderControllerOrders draws vertical bars not a line (T-130)", async () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    const { renderControllerOrders } = await import("./controllerOrders");
+    renderControllerOrders(
+      container,
+      [
+        { day: 1, order_qty: 16 },
+        { day: 2, order_qty: 0 },
+        { day: 3, order_qty: 24 },
+      ],
+      80,
+    );
+    const bars = container.querySelectorAll(".order-bar, rect.order-bar");
+    expect(bars.length).toBeGreaterThan(0);
+    expect(container.querySelector(".order-line, path.order-line")).toBeNull();
   });
 });
