@@ -1,35 +1,20 @@
-/* T-127 Cockpit Grid — masonry-style lower section (T-127 layout v4).
+/* T-128 Cockpit Grid — layout v5 (3-column: Economics | Today | Events).
  *
  * The whole page (html/body) is the single scroll container. Rows and panes
  * size to their natural content height — no fixed/calc() height + overflow
- * anywhere in this stack, since that previously nested a second (and a
- * third, for the tuning dock) scrollbar inside the page and silently
- * clipped content (charts, controls) that didn't fit the arbitrary budget.
+ * anywhere in this stack.
  *
- * Below the Primary/Secondary charts row, the page splits into two
- * *independent* columns rather than forcing every pane into shared grid
- * row tracks:
- *   - main column: Economics + Events, then the tuning dock beneath them
- *   - sidebar column ("Run"): Today strip + tradeoff charts/obs
- *     chips/truth toggle, spanning both of those row tracks
- * A CSS Grid row track always sizes to its tallest cell — that's what
- * previously forced the Economics/Events row to match the much-taller Run
- * column's height (a "Tetris" gap of 300-400px below their real content).
- * Letting the sidebar span two row tracks lets the main column's own two
- * stacked sections (operations row, tuning row) determine each track's
- * height independently of the sidebar; `align-items: start` then keeps the
- * sidebar from being stretched to fill that combined space. The two
- * columns naturally end at different total heights — that's normal
- * page-bottom variation, not a gap *between* panels.
+ * Column 1–2: charts row, then economics + today, then tuning dock (2 cols).
+ * Column 3: Events pane spans all three rows (full-height sidebar).
  */
 
 .cockpit-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 380px);
   grid-template-areas:
-    "charts  charts"
-    "ops     sidebar"
-    "tuning  sidebar";
+    "charts   charts   events"
+    "economics today  events"
+    "tuning   tuning   events";
   align-items: start;
   gap: 1rem;
 }
@@ -43,20 +28,6 @@
   grid-area: charts;
   min-height: 480px;
   grid-template-columns: 1fr 1fr;
-}
-
-.cockpit-row--operations {
-  grid-area: ops;
-  min-height: 240px;
-  grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr);
-  /* Economics is a fixed-height card (~310px: summary + fixed-height chart);
-   * Events varies with the current protection window and obs scenario
-   * (~240-360px). That mismatch is small and bounded (<=~80px) — unlike the
-   * old 300-400px Run-column mismatch this row used to contain, stretching
-   * here just adds modest breathing room to the shorter card instead of a
-   * large obviously-dead void, and it removes the page-background gap
-   * between the shorter card and the tuning dock below entirely. */
-  align-items: stretch;
 }
 
 .cockpit-row--tuning {
@@ -76,16 +47,36 @@
   min-height: 420px;
 }
 
-.cockpit-pane--economics,
-.cockpit-pane--events {
+.cockpit-pane--secondary {
+  /* Secondary chrome + OperatorBar stack below histogram */
+  min-height: 0;
+}
+
+.secondary-chrome-host {
+  flex: 1 1 auto;
+  min-height: 120px;
+  min-width: 0;
+}
+
+.cockpit-pane--secondary #operator-bar-host {
+  margin-top: auto;
+}
+
+.cockpit-pane--economics {
+  grid-area: economics;
   min-height: 240px;
 }
 
-.cockpit-pane--run {
-  grid-area: sidebar;
-  align-self: start; /* size to own content; don't stretch across the spanned row tracks */
+.cockpit-pane--today {
+  grid-area: today;
   min-height: 240px;
-  max-width: none; /* Prevent run rail from being crushed */
+}
+
+.cockpit-pane--events {
+  grid-area: events;
+  grid-row: 1 / span 3;
+  min-height: 240px;
+  align-self: stretch;
 }
 
 .tuning-dock {
@@ -98,16 +89,13 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: flex-end;
-  flex-shrink: 0; /* Prevent tabs from shrinking */
+  flex-shrink: 0;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--paper-edge);
 }
 
 .tuning-dock-body {
   padding-top: 1rem;
-  /* Generous cap so a very long control list scrolls internally instead of
-   * pushing the page to an unreasonable height — but big enough that normal
-   * section content (including its plot) is never clipped. */
   max-height: min(70vh, 680px);
   overflow-y: auto;
 }
@@ -123,48 +111,106 @@
   cursor: not-allowed;
 }
 
-/* Today strip packs its small charts into a 2x2 grid of (caption + chart)
- * cells instead of a tall single column — this pane was the biggest
- * contributor to the "Tetris" mismatch against the shorter Economics/Events
- * panes beside it. Each metric is wrapped in its own .run-today-cell so the
- * grid places (caption, chart) pairs together instead of auto-placing
- * captions and charts as independent 2-per-row items. */
+/* Today strip: single-column stack (T-128) */
 .run-today-charts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem 0.75rem;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
 }
 
 .run-today-cell {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-
-.run-today-charts .chart-caption {
-  margin: 2px 0 0;
+  width: 100%;
 }
 
 .run-today-charts .chart--compact {
-  min-height: 64px;
+  min-height: 72px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.secondary-chrome {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 200px;
+}
+
+.secondary-chrome-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.secondary-chrome-tradeoff {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 200px;
+}
+
+.tradeoff-tab-strip {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tradeoff-tab-strip [role="tab"] {
+  border: 1px solid var(--paper-edge);
+  border-radius: 4px;
+  background: var(--paper);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tradeoff-tab-strip [role="tab"][aria-selected="true"],
+.tradeoff-tab-strip [role="tab"].is-active {
+  border-color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+.tradeoff-chart-host {
+  min-height: 200px;
+  width: 100%;
+}
+
+.tradeoff-chart-host svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 @media (max-width: 1100px) {
-  /* Narrow viewports: collapse the two independent columns into one flow.
-   * Named areas (rather than DOM order) drive the visual order here, so
-   * Run stays right after Economics/Events instead of falling all the way
-   * to the bottom below the tuning dock. */
   .cockpit-grid {
     grid-template-columns: 1fr;
     grid-template-areas:
       "charts"
-      "ops"
-      "sidebar"
+      "economics"
+      "today"
+      "events"
       "tuning";
   }
 
-  .cockpit-row--charts,
-  .cockpit-row--operations {
+  .cockpit-pane--events {
+    grid-row: auto;
+    align-self: start;
+  }
+
+  .cockpit-row--charts {
     grid-template-columns: 1fr;
   }
 }

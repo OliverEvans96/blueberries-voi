@@ -76,7 +76,7 @@ describe("cumulativePnLSeries", () => {
 });
 
 describe("renderPnLTimeseries cumulative wiring", () => {
-  it("plots cumulative values (path differs from daily; tooltip uses Cum)", () => {
+  it("plots cumulative line paths without per-day dots (T-128 lines-only)", () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 400,
@@ -95,20 +95,9 @@ describe("renderPnLTimeseries cumulative wiring", () => {
     const cumD = profitPath!.getAttribute("d");
     expect(cumD).toBeTruthy();
 
-    // Re-render would use cumulative; compare cy of last profit dot to daily
-    // (daily last profit=2 is near bottom of scale vs cum=24 near top of series).
-    const dots = container.querySelectorAll(
-      ".pnl-day[data-day='3'] .pnl-dot.series-profit",
-    );
-    expect(dots).toHaveLength(1);
+    const dots = container.querySelectorAll(".pnl-dot");
+    expect(dots).toHaveLength(0);
 
-    const title = container.querySelector(".pnl-day[data-day='3'] title");
-    expect(title?.textContent).toMatch(/Cum rev \$35/);
-    expect(title?.textContent).toMatch(/Cum cost \$11/);
-    expect(title?.textContent).toMatch(/Cum profit \$24/);
-
-    // Sanity: cumulative path is not identical to what daily y-values would produce
-    // for a flat-then-drop series (day3 daily profit is much smaller than cum).
     expect(cumD!.length).toBeGreaterThan(10);
   });
 });

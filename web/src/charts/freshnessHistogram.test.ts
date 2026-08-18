@@ -56,7 +56,7 @@ describe("renderFreshnessHistogram", () => {
   it("renders stacked segments per freshness bin (not floating bars)", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, false);
+    renderFreshnessHistogram(el, data, false, 260, "stacked");
 
     const svg = el.querySelector("svg");
     expect(svg).not.toBeNull();
@@ -75,7 +75,7 @@ describe("renderFreshnessHistogram", () => {
   it("marks the newest delivery lot with highlight class", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, false);
+    renderFreshnessHistogram(el, data, false, 260, "stacked");
     expect(el.querySelectorAll(".freshness-stack-series--highlight").length).toBe(1);
   });
 
@@ -93,7 +93,7 @@ describe("renderFreshnessHistogram", () => {
       ],
       highlight_lot_id: 2,
     };
-    renderFreshnessHistogram(el, data, false);
+    renderFreshnessHistogram(el, data, false, 260, "stacked");
 
     const rects = [...el.querySelectorAll<SVGRectElement>(".freshness-stack-segment")].filter(
       (node) => (node.querySelector("title")?.textContent ?? "").includes("freshness 0.00–0.50"),
@@ -111,13 +111,21 @@ describe("renderFreshnessHistogram", () => {
     expect(yHighlight).toBeGreaterThan(yOther);
   });
 
+  it("aggregated mode renders a single-color series per bin (T-128)", () => {
+    const el = host();
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
+    renderFreshnessHistogram(el, data, false, 260, "aggregated");
+    expect(el.querySelectorAll(".freshness-stack-series").length).toBe(1);
+    expect(el.querySelectorAll(".freshness-stack-segment").length).toBe(FLAT.K);
+  });
+
   it("draws truth bars only when showTruth is true", () => {
     const elOff = host();
     const elOn = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
 
-    renderFreshnessHistogram(elOff, data, false);
-    renderFreshnessHistogram(elOn, data, true);
+    renderFreshnessHistogram(elOff, data, false, 260, "stacked");
+    renderFreshnessHistogram(elOn, data, true, 260, "stacked");
 
     expect(elOff.querySelectorAll(".truth-bar").length).toBe(0);
     expect(elOn.querySelectorAll(".truth-bar").length).toBe(TRUTH_LOTS.length);
@@ -126,7 +134,7 @@ describe("renderFreshnessHistogram", () => {
   it("truth bar height scales with Lot.n", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, true);
+    renderFreshnessHistogram(el, data, true, 260, "stacked");
 
     const bars = [...el.querySelectorAll<SVGRectElement>(".truth-bar")];
     const heights = bars.map((b) => Number(b.getAttribute("height")));

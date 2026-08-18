@@ -161,6 +161,14 @@ describe("T-087 DOW profile from demand_summary", () => {
       "main must pass demand_summary into Demand UI (or call a DOW successor)",
     ).toBe(false);
   });
+
+  it("react/studioLogic.ts renders demand DOW when demand section is active (T-130 colocation)", () => {
+    const main = stripComments(readFileSync(MAIN_TS, "utf8"));
+    expect(main).toMatch(/activeSection\s*===\s*["']demand["']/);
+    expect(main).not.toMatch(
+      /plotVisible\s*\(\s*["']plot-demand["']\s*\)/,
+    );
+  });
 });
 
 describe("T-087 protection-interval coverage 3/3/4", () => {

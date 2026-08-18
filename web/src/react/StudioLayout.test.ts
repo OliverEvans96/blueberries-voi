@@ -1,5 +1,5 @@
 /**
- * T-127 RED (qa-layout): Cockpit Grid 3-row shell — always-on panes.
+ * T-127 / T-128: Cockpit Grid shell — layout v4 → v5.
  */
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
@@ -11,12 +11,12 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
-import { DecisionRail } from "./DecisionRail";
 import { OperatorBar } from "./OperatorBar";
 import { StudioLayout } from "./StudioLayout";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAYOUT_TS = join(HERE, "StudioLayout.tsx");
+const COCKPIT_CSS = join(HERE, "../styles/cockpitGrid.css");
 
 const REQUIRED_CHART_IDS = [
   "chart-sales",
@@ -40,21 +40,28 @@ function stripComments(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
+describe("StudioLayout cockpit grid (T-127 AC-layout, T-128 v5)", () => {
   const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
+  const cockpitCss = readFileSync(COCKPIT_CSS, "utf8");
 
-  it("uses cockpit-grid 3-row shell — not T-126 two-pane / focus-column", () => {
+  it("uses cockpit-grid shell — not T-126 two-pane / focus-column", () => {
     expect(layoutSrc).toMatch(/cockpit-grid/);
     expect(layoutSrc).not.toMatch(/studio-layout--two-pane/);
     expect(layoutSrc).not.toMatch(/focus-column/);
   });
 
-  it("renders three distinct row regions in DOM order", () => {
+  it("defines layout v5 3-column grid areas in cockpitGrid.css", () => {
+    expect(cockpitCss).toMatch(/grid-template-areas/);
+    expect(cockpitCss).toMatch(/economics\s+today\s+events/);
+    expect(cockpitCss).toMatch(/minmax\(280px,\s*380px\)/);
+  });
+
+  it("renders charts and tuning row regions in DOM order", () => {
     const { container } = render(createElement(StudioLayout));
     const rows = container.querySelectorAll(
       ".cockpit-grid > .cockpit-row, .cockpit-grid > [data-cockpit-row]",
     );
-    expect(rows.length).toBeGreaterThanOrEqual(3);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
     const indices = Array.from(rows).map((el) =>
       Array.from(container.querySelectorAll(".cockpit-grid *")).indexOf(el),
     );
@@ -74,17 +81,29 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     expect(hiddenAncestor).toBeNull();
   });
 
-  it("row 2 hosts Economics, Events, and Run panes", () => {
+  it("row 2 hosts Economics, Today center pane, and Events column (v5)", () => {
     const { container } = render(createElement(StudioLayout));
+    const grid = container.querySelector(".cockpit-grid");
+    expect(grid).not.toBeNull();
     expect(
-      container.querySelector("#events-pane-host, [data-pane='events']"),
+      grid!.querySelector("#economics-pane-host, [data-pane='economics']"),
     ).not.toBeNull();
-    expect(container.querySelector("#decision-rail-host")).not.toBeNull();
     expect(
-      container.querySelector(
-        "#economics-pane-host, [data-pane='economics'], .economics-pane",
+      grid!.querySelector(
+        ".cockpit-pane--today, [data-testid='cockpit-today']",
       ),
     ).not.toBeNull();
+    expect(
+      grid!.querySelector("#events-pane-host, [data-pane='events']"),
+    ).not.toBeNull();
+    expect(grid!.querySelector("#decision-rail-host")).toBeNull();
+    expect(grid!.querySelector(".cockpit-pane--run")).toBeNull();
+    expect(grid!.querySelector("[data-testid='cockpit-sidebar-run']")).toBeNull();
+  });
+
+  it("retires Run sidebar — no decision-rail-host in layout source", () => {
+    expect(layoutSrc).not.toMatch(/decision-rail-host/);
+    expect(layoutSrc).not.toMatch(/cockpit-pane--run/);
   });
 
   it("row 3 tuning dock has tablist with 3 clusters and disabled Future chip", () => {
@@ -123,35 +142,13 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     expect(layoutSrc).not.toMatch(/StoreChartTabs/);
   });
 
-  it("renders run controls exactly once (no hidden PlayChrome duplicate)", () => {
-    // T-127 layout v2: Advance/Reset/order-qty controls moved into the
-    // dedicated OperatorBar, mounted into #operator-bar-host above the
-    // cockpit grid; DecisionRail (mounted into #decision-rail-host) keeps
-    // the tradeoff charts/ladder/truth toggle. Mount both, as studioLogic.ts
-    // does, and confirm the static shell doesn't already duplicate any ids.
+  it("renders OperatorBar controls exactly once (no hidden PlayChrome duplicate)", () => {
     const { container } = render(createElement(StudioLayout));
-    const decisionRailHost = container.querySelector("#decision-rail-host");
     const operatorBarHost = container.querySelector("#operator-bar-host");
-    expect(decisionRailHost).not.toBeNull();
     expect(operatorBarHost).not.toBeNull();
 
-    const decisionRailRoot = createRoot(decisionRailHost!);
     const operatorBarRoot = createRoot(operatorBarHost!);
     flushSync(() => {
-      decisionRailRoot.render(
-        createElement(DecisionRail, {
-          vm: {
-            episode_day: 1,
-            window_days: 90,
-            config: DEFAULT_SIM_CONFIG,
-          },
-          showTruth: false,
-          orderQty: 24,
-          activeSection: "demand",
-          onSetObsScenario: () => undefined,
-          onShowTruthChange: () => undefined,
-        }),
-      );
       operatorBarRoot.render(
         createElement(OperatorBar, {
           vm: {
@@ -175,20 +172,19 @@ describe("StudioLayout cockpit grid (T-127 AC-layout)", () => {
     }
 
     expect(container.querySelector("#play-chrome")).toBeNull();
-    decisionRailRoot.unmount();
     operatorBarRoot.unmount();
   });
 
-  it("mounts #operator-bar-host at the bottom of the Secondary pane (T-127 layout v3)", () => {
-    // Fills the Secondary pane's otherwise-empty whitespace below its one
-    // histogram chart, instead of a full-width bar pushing the rest of the
-    // page down.
+  it("mounts #secondary-chrome-host above #operator-bar-host in Secondary (v5)", () => {
     const { container } = render(createElement(StudioLayout));
     const secondary = container.querySelector(".cockpit-pane--secondary");
     expect(secondary).not.toBeNull();
+    const chromeHost = secondary!.querySelector("#secondary-chrome-host");
     const operatorBarHost = secondary!.querySelector("#operator-bar-host");
+    expect(chromeHost).not.toBeNull();
     expect(operatorBarHost).not.toBeNull();
     expect(operatorBarHost).toBe(secondary!.lastElementChild);
-    expect(container.querySelector("#operator-bar-host")).toBe(operatorBarHost);
+    expect(chromeHost!.compareDocumentPosition(operatorBarHost!) &
+      Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 });

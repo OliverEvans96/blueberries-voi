@@ -99,12 +99,13 @@ function segmentColor(lotId: number, highlightLotId: number | null, index: numbe
   return LOT_COLORS[index % LOT_COLORS.length]!;
 }
 
-/** Stacked freshness histogram with optional truth lot bars. */
+/** Stacked or aggregated freshness histogram with optional truth lot bars. */
 export function renderFreshnessHistogram(
   container: HTMLElement,
   data: FreshnessHistogramData,
   showTruth: boolean,
   height = 260,
+  mode: "aggregated" | "stacked" = "aggregated",
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 16, right: 16, bottom: 40, left: 44 };
@@ -118,13 +119,24 @@ export function renderFreshnessHistogram(
 
   const rows: BinRow[] = Array.from({ length: K }, (_, binIndex) => {
     const row: BinRow = { binIndex };
+    if (mode === "aggregated") {
+      const total = segments.reduce(
+        (sum, seg) => sum + (seg.masses[binIndex] ?? 0),
+        0,
+      );
+      row.aggregate = total;
+      return row;
+    }
     for (const seg of segments) {
       row[`lot_${seg.lot_index}`] = seg.masses[binIndex] ?? 0;
     }
     return row;
   });
 
-  const keys = stackLotKeys(segments, highlight_lot_id);
+  const keys =
+    mode === "aggregated"
+      ? ["aggregate"]
+      : stackLotKeys(segments, highlight_lot_id);
   const stack = d3.stack<BinRow>().keys(keys).order(d3.stackOrderNone).offset(d3.stackOffsetNone);
   const series = stack(rows);
 
@@ -148,19 +160,23 @@ export function renderFreshnessHistogram(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Stacked freshness histogram with optional truth overlay");
+    .attr("aria-label", "Freshness histogram with optional truth overlay");
 
   const g = svg
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const lotColorByKey = new Map<string, string>();
-  segments.forEach((seg, i) => {
-    lotColorByKey.set(
-      `lot_${seg.lot_index}`,
-      segmentColor(seg.lot_id, highlight_lot_id, i),
-    );
-  });
+  if (mode === "aggregated") {
+    lotColorByKey.set("aggregate", "var(--color-belief-bar, #6b8cae)");
+  } else {
+    segments.forEach((seg, i) => {
+      lotColorByKey.set(
+        `lot_${seg.lot_index}`,
+        segmentColor(seg.lot_id, highlight_lot_id, i),
+      );
+    });
+  }
 
   g.selectAll(".freshness-stack-series")
     .data(series)

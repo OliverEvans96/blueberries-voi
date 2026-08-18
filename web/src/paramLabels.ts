@@ -48,8 +48,9 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tier: "Reset",
   },
   sigma: {
-    label: "Picking variability (σ)",
-    tooltip: "Lot-to-lot spread in effective age.",
+    label: "Picking selectivity (1/σ)",
+    tooltip:
+      "Left = uniform picking across lots; right = highly selective (favors fresher lots).",
     tier: "Reset",
   },
   demand_mu: {
