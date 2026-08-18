@@ -41,9 +41,7 @@ def _params_with_profile(profile: DemandProfile | None = None) -> ModelParams:
 def test_homogeneous_no_profile_matches_scipy() -> None:
     params = ModelParams()
     for n in (2, 3, 4):
-        got = protection_demand_quantile(
-            _ALPHA, params, protection_days=n, start_day=0
-        )
+        got = protection_demand_quantile(_ALPHA, params, protection_days=n, start_day=0)
         want = _homogeneous_closed_form(_ALPHA, params, n)
         assert got == pytest.approx(want, rel=0.0, abs=1e-9)
 
@@ -56,36 +54,36 @@ def test_flat_profile_matches_homogeneous_closed_form() -> None:
         demand_vm=2.0,
     )
     params = ModelParams(demand_profile=flat)
-    got = protection_demand_quantile(
-        _ALPHA, params, protection_days=4, start_day=3
-    )
+    got = protection_demand_quantile(_ALPHA, params, protection_days=4, start_day=3)
     want = _homogeneous_closed_form(_ALPHA, params, 4)
     assert got == pytest.approx(want, rel=0.0, abs=1e-9)
 
 
 def test_heterogeneous_window_exceeds_flat_mu() -> None:
-    """Thu 4-day window includes weekend uplift vs flat μ=30."""
-    params = _params_with_profile()
+    """Constructed weekend uplift profile beats flat-μ closed form."""
+    weekend_profile = DemandProfile(
+        scale_target_mu=30.0,
+        dow_factors=(1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.5),
+        week_factors=(1.0,),
+        demand_vm=2.0,
+    )
+    params = ModelParams(demand_profile=weekend_profile)
     flat_params = ModelParams(demand_mu=30.0)
-    prot = 4
-    start_day = 3  # Thursday order day (ADR 0114)
+    prot = 2
+    start_day = 5  # Saturday + Sunday at 1.5x scale
     het = protection_demand_quantile(
         _ALPHA, params, protection_days=prot, start_day=start_day
     )
     flat = protection_demand_quantile(
         _ALPHA, flat_params, protection_days=prot, start_day=start_day
     )
-    assert het > flat + 1.0, f"expected weekend-heavy window > flat; {het} vs {flat}"
+    assert het > flat + 5.0, f"expected uplifted weekend window > flat; {het} vs {flat}"
 
 
 def test_start_day_changes_quantile() -> None:
     params = _params_with_profile()
-    a = protection_demand_quantile(
-        _ALPHA, params, protection_days=3, start_day=1
-    )
-    b = protection_demand_quantile(
-        _ALPHA, params, protection_days=3, start_day=6
-    )
+    a = protection_demand_quantile(_ALPHA, params, protection_days=3, start_day=1)
+    b = protection_demand_quantile(_ALPHA, params, protection_days=3, start_day=6)
     assert a != b
 
 
@@ -136,9 +134,7 @@ def test_rust_python_protection_quantile_parity() -> None:
     if fn is None:
         pytest.skip("protection_demand_quantile_py not exported")
     params = _params_with_profile()
-    py = protection_demand_quantile(
-        _ALPHA, params, protection_days=3, start_day=6
-    )
+    py = protection_demand_quantile(_ALPHA, params, protection_days=3, start_day=6)
     rs = float(
         fn(
             _ALPHA,

@@ -5,8 +5,9 @@ use serde_json::Value;
 use voi_core::{
     crate_name, rollout_order, run_closed_loop_episode, run_voi_crn_cell,
     sequential_wor_composition_probs, CrnBudgets, DayDelta, EngineSession, ShipmentTrace,
-    DemandProfile,
+    DemandProfile, ModelParams,
 };
+use voi_core::policy::protection_demand_quantile;
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
     let json = if std::path::Path::new(source).is_file() {
@@ -32,6 +33,35 @@ fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
 #[pyo3(name = "demand_profile_mu_py", signature = (day, json))]
 fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
     demand_profile_mu_from_json_py(day, json)
+}
+
+#[pyfunction]
+#[pyo3(signature = (alpha, demand_mu, demand_vm, protection_days, start_day, demand_profile_json=None))]
+fn protection_demand_quantile_py(
+    alpha: f64,
+    demand_mu: f64,
+    demand_vm: f64,
+    protection_days: u32,
+    start_day: u32,
+    demand_profile_json: Option<&str>,
+) -> PyResult<f64> {
+    let mut params = ModelParams {
+        demand_mu,
+        demand_vm,
+        ..ModelParams::default()
+    };
+    if let Some(json) = demand_profile_json {
+        params.demand_profile = Some(
+            DemandProfile::from_json(json)
+                .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?,
+        );
+    }
+    Ok(protection_demand_quantile(
+        alpha,
+        &params,
+        protection_days,
+        start_day,
+    ))
 }
 
 #[pyfunction]
@@ -369,6 +399,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("VOI_CORE", crate_name())?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
+    m.add_function(wrap_pyfunction!(protection_demand_quantile_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;

@@ -10,11 +10,9 @@ CI uses a reduced alpha grid (e.g. ``(0.7, 0.8, 0.9)``); desktop defaults are
 recorded in the artifact ``header`` when saving (open question lock).
 
 CAL-A3 / T-081: protection coverage is **day-indexed** under
-``OrderSchedule`` (3/3/4 on Sun/Tue/Thu order days). Use
-``protection_coverage_days`` / ``_protection_demand_quantile(..., protection_days=)``
-so T-083 can retune alpha gates. Until T-084 / CAL-B4, coverage uses
-**homogeneous μ** (i.i.d. daily NB) with day-varying length only;
-heterogeneous / μ(day) is the B4 upgrade path.
+``OrderSchedule`` (3/3/4 on Sun/Tue/Thu order days). With a calendar demand
+profile (CAL-B4 / T-132 / ADR 0134), protection quantiles sum heterogeneous
+μ(day+k) via Monte Carlo; without a profile the homogeneous closed form applies.
 """
 
 from __future__ import annotations
@@ -109,7 +107,9 @@ class _ClosedLoopPolicyAdapter:
             0,
         )
         prot = int(self.schedule.protection_days(seed_day))
-        d_star = _protection_demand_quantile(self.alpha, params, protection_days=prot)
+        d_star = _protection_demand_quantile(
+            self.alpha, params, protection_days=prot, start_day=seed_day
+        )
         if arm_id == "constant":
             # Constant order = case-rounded protection-interval fractile at alpha.
             self._inner: Any = ConstantOrderPolicy(
@@ -171,12 +171,15 @@ def _protection_demand_quantile(
     params: ModelParams,
     *,
     protection_days: int | None = None,
+    start_day: int = 0,
 ) -> float:
-    """Alpha-quantile of n-day homogeneous-μ NB demand (day-indexed length OK)."""
+    """Alpha-quantile of protection-window NB demand."""
     n_days = (
         _PROTECTION_DEMAND_DAYS if protection_days is None else int(protection_days)
     )
-    return protection_demand_quantile(alpha, params, protection_days=n_days)
+    return protection_demand_quantile(
+        alpha, params, protection_days=n_days, start_day=start_day
+    )
 
 
 def evaluate_alpha_episode_profit(

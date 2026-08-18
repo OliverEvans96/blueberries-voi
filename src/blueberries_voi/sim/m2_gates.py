@@ -80,9 +80,12 @@ def _protection_demand_fractile(
     params: ModelParams,
     *,
     protection_days: int,
+    start_day: int = 0,
 ) -> float:
     """F^{-1} of protection-interval demand (matches DampedSurvivalWeightedPolicy)."""
-    return protection_demand_quantile(alpha, params, protection_days=protection_days)
+    return protection_demand_quantile(
+        alpha, params, protection_days=protection_days, start_day=start_day
+    )
 
 
 def _fixture_f_weights() -> tuple[float, float]:
@@ -131,7 +134,9 @@ def assert_beta1_degeneracy() -> GateResult:
     )
     for day in _order_days(schedule):
         prot = int(schedule.protection_days(day))
-        d_star = _protection_demand_fractile(_ALPHA, params, protection_days=prot)
+        d_star = _protection_demand_fractile(
+            _ALPHA, params, protection_days=prot, start_day=day
+        )
         age_blind = CorrectedAgeBlindPolicy(
             alpha=_ALPHA,
             params=params,

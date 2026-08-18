@@ -40,7 +40,9 @@ def damped_sw_order_f_belief(
         n_days = int(schedule.protection_days(day))
     else:
         n_days = _PROTECTION_DEMAND_DAYS
-    d_star = protection_demand_quantile(alpha, params, protection_days=n_days)
+    d_star = protection_demand_quantile(
+        alpha, params, protection_days=n_days, start_day=day
+    )
     raw = rho * max(0.0, d_star - i_tilde)
     return int(case_round(raw, params.case_size))
 
