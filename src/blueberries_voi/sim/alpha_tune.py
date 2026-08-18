@@ -10,11 +10,9 @@ CI uses a reduced alpha grid (e.g. ``(0.7, 0.8, 0.9)``); desktop defaults are
 recorded in the artifact ``header`` when saving (open question lock).
 
 CAL-A3 / T-081: protection coverage is **day-indexed** under
-``OrderSchedule`` (3/3/4 on Sun/Tue/Thu order days). Use
-``protection_coverage_days`` / ``_protection_demand_quantile(..., protection_days=)``
-so T-083 can retune alpha gates. Until T-084 / CAL-B4, coverage uses
-**homogeneous μ** (i.i.d. daily NB) with day-varying length only;
-heterogeneous / μ(day) is the B4 upgrade path.
+``OrderSchedule`` (3/3/4 on Sun/Tue/Thu order days). With a calendar demand
+profile (CAL-B4 / T-132 / ADR 0134), protection quantiles sum heterogeneous
+μ(day+k) via Monte Carlo; without a profile the homogeneous closed form applies.
 """
 
 from __future__ import annotations
