@@ -441,6 +441,63 @@ mod tests {
     }
 
     #[test]
+    fn sw_calendar_higher_alpha_increases_mean_profit_full_run() {
+        use crate::demand_profile::DemandProfile;
+
+        const EMBEDDED_JSON: &str =
+            include_str!("../../../data/freshnet/demand_profile.json");
+        let profile = DemandProfile::from_json(EMBEDDED_JSON).expect("profile");
+        let mut params = ModelParams::default();
+        params.apply_demand_profile(profile);
+        let ships = [ShipmentTrace::smoke_cool()];
+        let costs = AlphaTuneCosts {
+            unit_margin: 2.0,
+            waste_cost: 5.0,
+            stockout_penalty: 3.0,
+        };
+        let rollout = AlphaTuneRolloutBudgets::default();
+        let seeds = [401_902_531_u64, 434_395_762, 1_417_981_267, 1_562_808_462];
+        let mut low = 0.0;
+        let mut high = 0.0;
+        for &seed in &seeds {
+            low += run_alpha_tune_episode(
+                AlphaTuneArm::Sw,
+                0.5,
+                0.8,
+                seed,
+                28,
+                28,
+                1,
+                &params,
+                &ships,
+                &costs,
+                &rollout,
+            )
+            .expect("low")
+            .scored_profit;
+            high += run_alpha_tune_episode(
+                AlphaTuneArm::Sw,
+                0.9,
+                0.8,
+                seed,
+                28,
+                28,
+                1,
+                &params,
+                &ships,
+                &costs,
+                &rollout,
+            )
+            .expect("high")
+            .scored_profit;
+        }
+        assert!(
+            high / f64::from(seeds.len() as u32) > low / f64::from(seeds.len() as u32),
+            "calendar SW: higher alpha should raise mean scored profit over full run"
+        );
+    }
+
+    #[test]
     fn rollout_tune_best_in_ci_grid() {
         let ships = [ShipmentTrace::smoke_cool()];
         let params = ModelParams::default();

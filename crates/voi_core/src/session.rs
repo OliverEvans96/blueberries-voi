@@ -653,8 +653,7 @@ fn committed_demand_profile() -> DemandProfile {
 }
 
 fn apply_demand_profile(params: &mut ModelParams, profile: DemandProfile) {
-    params.demand_vm = profile.demand_vm();
-    params.demand_profile = Some(profile);
+    params.apply_demand_profile(profile);
 }
 
 fn json_f64_vec(value: &serde_json::Value) -> Vec<f64> {

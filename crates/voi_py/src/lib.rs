@@ -11,8 +11,10 @@ use voi_core::{
     AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, EngineSession, RolloutContext,
     RolloutCosts, ShipmentTrace, DemandProfile, ModelParams,
 };
+use voi_core::physics::draw_demand_spawn;
 use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
+use voi_core::spawn_rng::SpawnRng;
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
     let json = if std::path::Path::new(source).is_file() {
@@ -56,7 +58,7 @@ fn protection_demand_quantile_py(
         ..ModelParams::default()
     };
     if let Some(profile) = demand_profile {
-        params.demand_profile = Some(profile.inner.clone());
+        params.apply_demand_profile(profile.inner.clone());
     }
     Ok(protection_demand_quantile(
         alpha,
@@ -64,6 +66,29 @@ fn protection_demand_quantile_py(
         protection_days,
         start_day,
     ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (root_seed, run_id, day, demand_mu, demand_vm, demand_profile=None, stream=":demand"))]
+fn draw_demand_at_day_py(
+    root_seed: u64,
+    run_id: &str,
+    day: u32,
+    demand_mu: f64,
+    demand_vm: f64,
+    demand_profile: Option<&PyDemandProfile>,
+    stream: &str,
+) -> PyResult<u32> {
+    let mut params = ModelParams {
+        demand_mu,
+        demand_vm,
+        ..ModelParams::default()
+    };
+    if let Some(profile) = demand_profile {
+        params.apply_demand_profile(profile.inner.clone());
+    }
+    let mut rng = SpawnRng::spawn_rng(root_seed, run_id, day, stream);
+    Ok(draw_demand_spawn(&mut rng, &params, Some(day)))
 }
 
 #[pyfunction]
@@ -290,7 +315,7 @@ fn evaluate_alpha_tune_outcomes_inner(
         ..ModelParams::default()
     };
     if let Some(profile) = demand_profile {
-        params.demand_profile = Some(profile.inner.clone());
+        params.apply_demand_profile(profile.inner.clone());
     }
     let costs = AlphaTuneCosts {
         unit_margin,
@@ -706,6 +731,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
     m.add_function(wrap_pyfunction!(protection_demand_quantile_py, m)?)?;
+    m.add_function(wrap_pyfunction!(draw_demand_at_day_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;

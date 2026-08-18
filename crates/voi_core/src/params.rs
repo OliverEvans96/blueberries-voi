@@ -62,6 +62,12 @@ impl ModelParams {
             self.demand_mu
         }
     }
+
+    /// Wire a calendar profile and sync ``demand_vm`` (matches ``session`` / ADR 0113).
+    pub fn apply_demand_profile(&mut self, profile: DemandProfile) {
+        self.demand_vm = profile.demand_vm();
+        self.demand_profile = Some(profile);
+    }
 }
 
 #[cfg(test)]
@@ -80,10 +86,9 @@ mod tests {
     #[test]
     fn demand_mu_for_day_profile_backed() {
         let profile = DemandProfile::from_json(EMBEDDED_JSON).expect("embedded profile");
-        let params = ModelParams {
-            demand_profile: Some(profile.clone()),
-            ..ModelParams::default()
-        };
+        let mut params = ModelParams::default();
+        params.apply_demand_profile(profile.clone());
+        assert!((params.demand_vm - profile.demand_vm()).abs() <= 1e-9);
         assert!((params.demand_mu_for_day(7) - profile.mu(7)).abs() <= 1e-9);
         assert!((params.demand_mu_for_day(0) - profile.mu(0)).abs() <= 1e-9);
     }
