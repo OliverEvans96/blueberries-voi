@@ -9,6 +9,7 @@ import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "../mock/generate";
+import { channelsForPreset } from "../obsMask";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODULE = join(HERE, "EventsPane.tsx");
@@ -120,7 +121,14 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     const { EventsPane } = (await loadEventsPane())!;
     render(
       createElement(EventsPane, {
-        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
         showTruth: false,
         events: [F2_DAY],
       }),
@@ -144,7 +152,14 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     };
     render(
       createElement(EventsPane, {
-        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
         showTruth: false,
         events: [day],
       }),
@@ -185,7 +200,14 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     };
     render(
       createElement(EventsPane, {
-        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2a" } },
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2a",
+            obs_channels: channelsForPreset("F2a"),
+          },
+        },
         showTruth: false,
         events: [f2aDay],
       }),
@@ -210,7 +232,14 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     };
     render(
       createElement(EventsPane, {
-        vm: { ...baseVm(), config: { ...DEFAULT_SIM_CONFIG, obs_scenario: "F2" } },
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
         showTruth: false,
         events: [f2NonDelivery],
       }),

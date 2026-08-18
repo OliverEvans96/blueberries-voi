@@ -11,8 +11,13 @@ function shotPath(name: string): string {
   return path.join(SHOT_DIR, `${name}.png`);
 }
 
-function obsChip(page: Page, scenario: string) {
-  return page.locator(`.secondary-chrome [data-obs="${scenario}"]`);
+function obsPresetSelect(page: Page) {
+  return page.locator(".secondary-chrome #obs-preset-select");
+}
+
+async function setObsPreset(page: Page, scenario: string) {
+  await obsPresetSelect(page).selectOption(scenario);
+  await page.waitForTimeout(250);
 }
 
 async function waitForEngine(page: Page) {
@@ -149,7 +154,7 @@ test.describe("T-130 layout v5 — visual QA", () => {
     await econ.screenshot({ path: shotPath("06-economics-pane") });
   });
 
-  test("7: events pane changes per observation scenario", async ({ page }) => {
+  test("7: events pane changes per observation preset", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 3);
@@ -157,8 +162,7 @@ test.describe("T-130 layout v5 — visual QA", () => {
     await expect(events).toBeVisible();
 
     for (const scenario of ["P0", "P1", "F1", "F1s", "F2a", "F2"]) {
-      await obsChip(page, scenario).click();
-      await page.waitForTimeout(250);
+      await setObsPreset(page, scenario);
       await events.screenshot({ path: shotPath(`07-events-${scenario}`) });
     }
   });
@@ -180,17 +184,15 @@ test.describe("T-130 layout v5 — visual QA", () => {
       await expect(dockContent(section)).toBeVisible();
     }
 
-    await obsChip(page, "P0").click();
-    await page.waitForTimeout(150);
+    await setObsPreset(page, "P0");
     await dockTab("arrival").click();
     await page.waitForTimeout(150);
 
-    await obsChip(page, "F2a").click();
-    await page.waitForTimeout(150);
+    await setObsPreset(page, "F2a");
     await dockTab("arrival").click();
     await page.waitForTimeout(150);
 
-    await obsChip(page, "F2").click();
+    await setObsPreset(page, "F2");
     await page.waitForTimeout(150);
     await dockTab("arrival").click();
     await page.waitForTimeout(150);

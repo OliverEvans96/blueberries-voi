@@ -3,14 +3,15 @@
  */
 import { Fragment } from "react";
 import { renderDeliveryTempHistory } from "../charts/deliveryTempMock";
-import { maskFor, type MaskedObsWire } from "../obsMask";
+import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
+import type { ObsChannels } from "../types";
 import { ChartUnavailable } from "./ChartUnavailable";
 
 export type EventsPaneProps = {
   vm: {
     episode_day: number;
     history: { day: number; missed?: number }[];
-    config: { obs_scenario: string };
+    config: { obs_scenario: string; obs_channels?: ObsChannels };
   };
   showTruth: boolean;
   events: MaskedObsWire[];
@@ -65,7 +66,9 @@ export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) 
   const sortedEvents = [...events].sort(
     (a, b) => (b.day ?? 0) - (a.day ?? 0),
   );
-  const obsMask = maskFor(vm.config.obs_scenario);
+  const obsMask = vm.config.obs_channels
+    ? maskFromChannels(vm.config.obs_channels)
+    : maskFor(vm.config.obs_scenario);
   const todayDay = vm.episode_day;
 
   return (

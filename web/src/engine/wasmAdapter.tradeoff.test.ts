@@ -59,6 +59,26 @@ describe("EngineAdapter wire surface (T-127 AC-wire)", () => {
     expect(Array.isArray(ev.days)).toBe(true);
   });
 
+  it("mock tradeoffForecast reacts to episode advance and obs channel switch", async () => {
+    const mock = new MockAdapter(42);
+    await mock.init({});
+    const before = (await mock.tradeoffForecast!()) as TradeoffForecastWire;
+    await mock.step(16);
+    const afterAdvance = (await mock.tradeoffForecast!()) as TradeoffForecastWire;
+    expect(afterAdvance.candidates[1]!.waste_mean).not.toBe(
+      before.candidates[1]!.waste_mean,
+    );
+    await mock.set_obs_channels({
+      pos: "lot_id",
+      waste: "lot_id",
+      deliveries: "pack_date_per_lot",
+    });
+    const afterChannels = (await mock.tradeoffForecast!()) as TradeoffForecastWire;
+    expect(afterChannels.candidates[1]!.waste_mean).not.toBe(
+      afterAdvance.candidates[1]!.waste_mean,
+    );
+  });
+
   it("WasmAdapter class exposes tradeoffForecast and events methods", () => {
     const src = readFileSync(WASM_TS, "utf8");
     expect(src).toMatch(/async tradeoffForecast/);

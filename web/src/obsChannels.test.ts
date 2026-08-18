@@ -69,9 +69,9 @@ describe("T-128 maskFromChannels", () => {
   });
 });
 
-describe("T-128 DecisionRail toggles", () => {
-  it("DecisionRail.tsx uses obs channel toggles not ladder chips", () => {
-    const src = readSrc("react/DecisionRail.tsx");
+describe("T-128 SecondaryChrome toggles", () => {
+  it("SecondaryChrome.tsx uses obs channel toggles not ladder chips", () => {
+    const src = readSrc("react/SecondaryChrome.tsx");
     expect(src).toMatch(/obs-channels|obsChannels|onSetObsChannels/);
     expect(src).not.toMatch(/OBS_LADDER_IDS\.map/);
   });

@@ -352,26 +352,41 @@ export class MockAdapter implements EngineAdapter {
   }
 
   async tradeoffForecast(): Promise<import("../engine/types").TradeoffForecastResult> {
-    const candidates = [0, 8, 16, 24].map((q) => ({
-      q,
-      waste_mean: q * 0.1,
-      waste_p10: q * 0.05,
-      waste_p50: q * 0.1,
-      waste_p90: q * 0.15,
-      missed_mean: Math.max(0, 20 - q * 0.2),
-      missed_p10: 0,
-      missed_p50: Math.max(0, 20 - q * 0.2),
-      missed_p90: Math.max(0, 30 - q * 0.2),
-      joint_hist: {
-        waste_bins: [0, 2, 4, 8],
-        missed_bins: [0, 5, 10, 20],
-        counts: [
-          [1, 0, 0],
-          [0, 1, 0],
-          [0, 0, 1],
-        ],
-      },
-    }));
+    const onHand = onHandInventory(this.state.lots);
+    const day = this.state.history.length;
+    const beliefMass = this.flatBelief.f_marginals.reduce((sum, p) => sum + p, 0);
+    const wasteChannelScale =
+      this.config.obs_channels?.waste === "none"
+        ? 1.12
+        : this.config.obs_channels?.waste === "lot_id"
+          ? 0.92
+          : 1.0;
+    const stateScale = 1 + onHand * 0.02 + day * 0.015 + beliefMass * 0.08;
+
+    const candidates = [0, 8, 16, 24].map((q) => {
+      const wasteMean = q * 0.1 * stateScale * wasteChannelScale;
+      const missedMean = Math.max(0, 20 - q * 0.2) / stateScale;
+      return {
+        q,
+        waste_mean: wasteMean,
+        waste_p10: wasteMean * 0.5,
+        waste_p50: wasteMean,
+        waste_p90: wasteMean * 1.5,
+        missed_mean: missedMean,
+        missed_p10: missedMean * 0.5,
+        missed_p50: missedMean,
+        missed_p90: missedMean * 1.5,
+        joint_hist: {
+          waste_bins: [0, 2, 4, 8],
+          missed_bins: [0, 5, 10, 20],
+          counts: [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ],
+        },
+      };
+    });
     return { candidates };
   }
 
