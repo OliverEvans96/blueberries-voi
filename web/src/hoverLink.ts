@@ -7,6 +7,17 @@ export const CHART_MARGIN = {
   left: 44,
 } as const;
 
+function marginFromSvgAttr(
+  svg: SVGSVGElement,
+  attr: string,
+  fallback: number,
+): number {
+  const raw = svg.getAttribute(attr);
+  if (raw == null) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /** Map pointer X over a chart SVG to a day index using equal-width day bands. */
 export function dayFromClientX(
   svg: SVGSVGElement,
@@ -17,14 +28,17 @@ export function dayFromClientX(
 ): number | null {
   if (days.length === 0) return null;
 
+  const resolvedLeft = marginFromSvgAttr(svg, "data-margin-left", marginLeft);
+  const resolvedRight = marginFromSvgAttr(svg, "data-margin-right", marginRight);
+
   const rect = svg.getBoundingClientRect();
   if (rect.width <= 0) return null;
 
   const viewBox = svg.viewBox.baseVal;
   const svgWidth = viewBox.width > 0 ? viewBox.width : rect.width;
   const localX = ((clientX - rect.left) / rect.width) * svgWidth;
-  const innerX = localX - marginLeft;
-  const innerW = svgWidth - marginLeft - marginRight;
+  const innerX = localX - resolvedLeft;
+  const innerW = svgWidth - resolvedLeft - resolvedRight;
   if (innerX < 0 || innerX > innerW) return null;
 
   const i = Math.min(

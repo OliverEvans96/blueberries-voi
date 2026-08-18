@@ -485,6 +485,15 @@ body {
   font-size: 11px;
 }
 
+.belief-freshness-colorbar .axis text {
+  font-size: 10px;
+}
+
+.belief-freshness-colorbar-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
 .day-col,
 .day-hit {
   fill: transparent;

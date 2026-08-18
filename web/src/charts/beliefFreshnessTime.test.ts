@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { BeliefHistoryDay, Day } from "../types";
 import {
+  BELIEF_FRESHNESS_TIME_MARGIN,
   buildBeliefFreshnessHeatmap,
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
@@ -149,5 +150,48 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(rule?.getAttribute("opacity")).toBe("1");
     setBeliefFreshnessTimeHover(el, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
+  });
+
+  it("clips heatmap, places y-axis label in gutter, and renders units colorbar", () => {
+    const el = host();
+    const history = [
+      sampleDay(0, []),
+      sampleDay(1, []),
+      sampleDay(2, []),
+    ];
+    renderBeliefFreshnessTime(
+      el,
+      history,
+      beliefHistory([0, 1, 2]),
+      false,
+      { width: 720, height: 220 },
+    );
+
+    const svg = el.querySelector("svg.chart-svg");
+    expect(svg?.getAttribute("data-margin-left")).toBe(
+      String(BELIEF_FRESHNESS_TIME_MARGIN.left),
+    );
+    expect(svg?.getAttribute("data-margin-right")).toBe(
+      String(BELIEF_FRESHNESS_TIME_MARGIN.right),
+    );
+
+    expect(el.querySelector(`clipPath#${"belief-freshness-plot-clip"}`)).not.toBeNull();
+    expect(el.querySelector(".belief-freshness-colorbar")).not.toBeNull();
+    expect(el.querySelector(".belief-freshness-colorbar-label")?.textContent).toBe(
+      "Units",
+    );
+
+    const gradient = el.querySelector(
+      "linearGradient#belief-freshness-colorbar-grad",
+    );
+    expect(gradient?.querySelectorAll("stop").length).toBe(4);
+
+    const margin = BELIEF_FRESHNESS_TIME_MARGIN;
+    const innerH = 220 - margin.top - margin.bottom;
+    const yLabels = [...el.querySelectorAll(".axis-label")];
+    const freshnessLabel = yLabels.find((n) => n.textContent === "Freshness f");
+    expect(freshnessLabel).not.toBeNull();
+    expect(Number(freshnessLabel?.getAttribute("y"))).toBe(innerH / 2);
+    expect(Number(freshnessLabel?.getAttribute("x"))).toBe(-40);
   });
 });

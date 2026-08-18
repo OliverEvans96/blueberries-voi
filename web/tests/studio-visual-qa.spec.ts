@@ -96,6 +96,34 @@ test.describe("T-127 round 2 — thorough visual QA", () => {
     // Spoil bars.
     const spoilBars = await page.locator("#chart-spoil rect").count();
     console.log(`chart-spoil rect count: ${spoilBars}`);
+
+    await page.locator("#chart-history").screenshot({
+      path: shotPath("chart-history-after-3-days"),
+    });
+    const chartLayout = await page.evaluate(() => {
+      const svg = document.querySelector("#chart-history svg.chart-svg");
+      const clip = document.querySelector("#chart-history clipPath");
+      const colorbar = document.querySelector(
+        "#chart-history .belief-freshness-colorbar",
+      );
+      const yLabel = document.querySelector("#chart-history .axis-label");
+      return {
+        marginLeft: svg?.getAttribute("data-margin-left"),
+        marginRight: svg?.getAttribute("data-margin-right"),
+        hasClip: clip != null,
+        hasColorbar: colorbar != null,
+        yLabelY: yLabel?.getAttribute("y"),
+        unitsLabel: document.querySelector(
+          "#chart-history .belief-freshness-colorbar-label",
+        )?.textContent,
+      };
+    });
+    console.log("chart-history layout:", JSON.stringify(chartLayout));
+    expect(chartLayout.hasClip).toBe(true);
+    expect(chartLayout.hasColorbar).toBe(true);
+    expect(chartLayout.unitsLabel).toBe("Units");
+    expect(chartLayout.marginLeft).toBe("48");
+    expect(chartLayout.marginRight).toBe("48");
   });
 
   test("3: secondary pane — freshness histogram only, with truth bars", async ({ page }) => {

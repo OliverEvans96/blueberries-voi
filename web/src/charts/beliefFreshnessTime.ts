@@ -4,7 +4,6 @@ import {
   centersToEdges,
   type BeliefFreshnessDay,
 } from "../engine/projector";
-import { CHART_MARGIN } from "../hoverLink";
 import type { BeliefHistoryDay, Day, HoverDay, Lot } from "../types";
 
 export type BeliefFreshnessTimeDims = {
@@ -12,6 +11,19 @@ export type BeliefFreshnessTimeDims = {
   height: number;
   margin: { top: number; right: number; bottom: number; left: number };
 };
+
+/** Chart-specific margins (wider than shared stack charts for label + colorbar). */
+export const BELIEF_FRESHNESS_TIME_MARGIN = {
+  top: 14,
+  right: 48,
+  bottom: 32,
+  left: 48,
+} as const;
+
+const HEATMAP_COLORS = ["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"];
+const PLOT_CLIP_ID = "belief-freshness-plot-clip";
+const COLORBAR_GRAD_ID = "belief-freshness-colorbar-grad";
+const Y_AXIS_LABEL_X = -40;
 
 type LotPoint = Lot & { day: number };
 
@@ -31,6 +43,12 @@ function rootG(
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
   const g = container.querySelector("svg g.chart-root");
   return g ? d3.select(g as SVGGElement) : null;
+}
+
+function heatmapColorScale(maxD: number): d3.ScaleSequential<string> {
+  return d3
+    .scaleSequential(d3.interpolateRgbBasis(HEATMAP_COLORS))
+    .domain([0, maxD]);
 }
 
 /** Style-only hover: classes + one vertical rule. Never rebinds geometry. */
@@ -173,46 +191,114 @@ export function buildBeliefFreshnessHeatmap(
   return cells;
 }
 
+function appendPlotClip(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  innerW: number,
+  innerH: number,
+): void {
+  const defs = g.append("defs");
+  defs
+    .append("clipPath")
+    .attr("id", PLOT_CLIP_ID)
+    .append("rect")
+    .attr("width", innerW)
+    .attr("height", innerH);
+}
+
 function renderBeliefHeatmapLayer(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   series: BeliefFreshnessDay[],
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>,
   innerW: number,
-): void {
+  innerH: number,
+): number {
   const cells = buildBeliefFreshnessHeatmap(series);
-  if (cells.length === 0) return;
+  if (cells.length === 0) return 1;
 
   const maxD = d3.max(cells, (c) => c.value) ?? 1;
-  const color = d3
-    .scaleSequential(
-      d3.interpolateRgbBasis(["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"]),
-    )
-    .domain([0, maxD]);
+  const color = heatmapColorScale(maxD);
 
   const days = [...new Set(cells.map((c) => c.day))].sort((a, b) => a - b);
   const dayHalf =
     days.length > 1
-      ? Math.min(
-          ...days.slice(1).map((d, i) => (d - days[i]!) / 2),
-        )
+      ? Math.min(...days.slice(1).map((d, i) => (d - days[i]!) / 2))
       : 0.5;
 
-  const heatG = g.append("g").attr("class", "belief-freshness-heatmap");
+  const heatG = g
+    .append("g")
+    .attr("class", "belief-freshness-heatmap")
+    .attr("clip-path", `url(#${PLOT_CLIP_ID})`);
   heatG
     .selectAll("rect")
     .data(cells)
     .join("rect")
     .attr("class", "belief-freshness-cell")
     .attr("x", (d) => xScale(d.day - dayHalf))
-    .attr("width", () =>
-      Math.max(1, xScale(dayHalf) - xScale(-dayHalf)),
-    )
+    .attr("width", () => Math.max(1, xScale(dayHalf) - xScale(-dayHalf)))
     .attr("y", (d) => yScale(d.f1))
     .attr("height", (d) => Math.max(0, yScale(d.f0) - yScale(d.f1)))
     .attr("fill", (d) => color(d.value))
     .attr("pointer-events", "none");
   void innerW;
+  void innerH;
+  return maxD;
+}
+
+function renderBeliefFreshnessColorbar(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  innerW: number,
+  innerH: number,
+  maxD: number,
+): void {
+  const barX = innerW + 10;
+  const barW = 10;
+  const defs = g.select<SVGDefsElement>("defs");
+  const gradient = defs
+    .append("linearGradient")
+    .attr("id", COLORBAR_GRAD_ID)
+    .attr("x1", "0%")
+    .attr("y1", "100%")
+    .attr("x2", "0%")
+    .attr("y2", "0%");
+  const last = HEATMAP_COLORS.length - 1;
+  HEATMAP_COLORS.forEach((stopColor, i) => {
+    gradient
+      .append("stop")
+      .attr("offset", `${(i / last) * 100}%`)
+      .attr("stop-color", stopColor);
+  });
+
+  const cbG = g.append("g").attr("class", "belief-freshness-colorbar");
+  cbG
+    .append("rect")
+    .attr("x", barX)
+    .attr("y", 0)
+    .attr("width", barW)
+    .attr("height", innerH)
+    .attr("fill", `url(#${COLORBAR_GRAD_ID})`);
+
+  const scale = d3.scaleLinear().domain([0, maxD]).range([innerH, 0]);
+  cbG
+    .append("g")
+    .attr("class", "axis axis-colorbar")
+    .attr("transform", `translate(${barX + barW},0)`)
+    .call(
+      d3
+        .axisRight(scale)
+        .ticks(2)
+        .tickFormat(d3.format("~s"))
+        .tickSizeOuter(0),
+    )
+    .call((sel) => sel.select(".domain").remove());
+
+  cbG
+    .append("text")
+    .attr("class", "belief-freshness-colorbar-label axis-label")
+    .attr("x", barX + barW / 2)
+    .attr("y", -6)
+    .attr("text-anchor", "middle")
+    .text("Units");
 }
 
 function renderLotConnectionLines(
@@ -262,7 +348,7 @@ export function renderBeliefFreshnessTime(
 ): void {
   const width = dims?.width ?? (container.clientWidth || 720);
   const height = dims?.height ?? 220;
-  const margin = { ...CHART_MARGIN, ...dims?.margin };
+  const margin = { ...BELIEF_FRESHNESS_TIME_MARGIN, ...dims?.margin };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
@@ -275,12 +361,16 @@ export function renderBeliefFreshnessTime(
     .attr("width", "100%")
     .attr("height", height)
     .attr("role", "img")
-    .attr("aria-label", "Belief freshness over time with optional truth overlay");
+    .attr("aria-label", "Belief freshness over time with optional truth overlay")
+    .attr("data-margin-left", margin.left)
+    .attr("data-margin-right", margin.right);
 
   const g = svg
     .append("g")
     .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  appendPlotClip(g, innerW, innerH);
 
   const days = history.map((d) => d.day);
   const [minDay, maxDay] = dayDomain(history);
@@ -301,8 +391,10 @@ export function renderBeliefFreshnessTime(
   );
   const y = d3.scaleLinear().domain([0, maxF]).nice().range([innerH, 0]);
 
+  let heatmapMax = 1;
   if (series.length > 0) {
-    renderBeliefHeatmapLayer(g, series, x, y, innerW);
+    heatmapMax = renderBeliefHeatmapLayer(g, series, x, y, innerW, innerH);
+    renderBeliefFreshnessColorbar(g, innerW, innerH, heatmapMax);
   }
 
   g.append("g")
@@ -324,8 +416,8 @@ export function renderBeliefFreshnessTime(
 
   g.append("text")
     .attr("class", "axis-label")
-    .attr("x", -innerH / 2)
-    .attr("y", -34)
+    .attr("x", Y_AXIS_LABEL_X)
+    .attr("y", innerH / 2)
     .attr("transform", "rotate(-90)")
     .attr("text-anchor", "middle")
     .text("Freshness f");
