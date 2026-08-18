@@ -147,7 +147,9 @@ class _ClosedLoopPolicyAdapter:
             0,
         )
         prot = int(self.schedule.protection_days(seed_day))
-        d_star = _protection_demand_quantile(self.alpha, params, protection_days=prot)
+        d_star = _protection_demand_quantile(
+            self.alpha, params, protection_days=prot, start_day=seed_day
+        )
         if arm_id == "constant":
             # Constant order = case-rounded protection-interval fractile at alpha.
             self._inner: Any = ConstantOrderPolicy(
@@ -210,12 +212,15 @@ def _protection_demand_quantile(
     params: ModelParams,
     *,
     protection_days: int | None = None,
+    start_day: int = 0,
 ) -> float:
-    """Alpha-quantile of n-day homogeneous-μ NB demand (day-indexed length OK)."""
+    """Alpha-quantile of protection-window NB demand."""
     n_days = (
         _PROTECTION_DEMAND_DAYS if protection_days is None else int(protection_days)
     )
-    return protection_demand_quantile(alpha, params, protection_days=n_days)
+    return protection_demand_quantile(
+        alpha, params, protection_days=n_days, start_day=start_day
+    )
 
 
 def _shipments_wire(
@@ -233,6 +238,7 @@ def _evaluate_via_rust_kernel(
     root_seed: int,
     ships: Sequence[ShipmentTrace],
     *,
+    params: ModelParams,
     n_burn: int,
     n_score: int,
     lead_time: int,
@@ -242,6 +248,8 @@ def _evaluate_via_rust_kernel(
     candidate_case_radius: int,
 ) -> AlphaTuneEpisodeOutcomes | None:
     """Return scored outcomes from ``voi_core`` when the PyO3 shim is available."""
+    if params.demand_profile is not None:
+        return None
     if not rust_available() or rust_core is None:
         return None
     fn = getattr(rust_core, "evaluate_alpha_tune_outcomes_py", None)
@@ -375,6 +383,7 @@ def evaluate_alpha_episode_outcomes(
         rho,
         int(root_seed),
         ships,
+        params=p,
         n_burn=n_burn,
         n_score=n_score,
         lead_time=lead_time,
