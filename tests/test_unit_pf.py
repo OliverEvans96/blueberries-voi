@@ -140,7 +140,6 @@ def _hand_p1_totals_loglik(
     params: ModelParams | None = None,
 ) -> float:
     """Deterministic P1 contract (ADR 0135): feasibility gate + binomial waste only."""
-    p = params or ModelParams()
     units = len(freshness)
     alive = sum(1 for f in freshness if f > 0.0)
     if alive < sales:
