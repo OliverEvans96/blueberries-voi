@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-20
+- **The production freshness filter now scores sales the same way for books-only and lot-tracked stores — GSIN totals are no longer noisier than UPC, sold units are removed from particle state after each sale, and lot-level sales use a proper cross-lot split instead of repeated single-path guesses** (T-136).
+
 ## 2026-08-17
 - **The studio cockpit now centers today’s inventory, orders, and shelf-age charts, gives the events log a full-height column, moves observation and tradeoff controls into the secondary pane beside the belief chart, and shows the day-of-week demand profile right next to the demand sliders when you open the Demand tab** (T-130).
 
