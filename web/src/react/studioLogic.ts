@@ -425,7 +425,7 @@ export function initStudio(app: HTMLElement): () => void {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
         el.textContent = showTruth
-          ? "Freshness histogram (truth bars on)"
+          ? "Freshness histogram (truth overlay on)"
           : "Freshness histogram";
       }
       if (kind === "lots") {
@@ -454,7 +454,7 @@ export function initStudio(app: HTMLElement): () => void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
     if (flat) {
       const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
-      renderFreshnessHistogram(els.beliefLg, data, showTruth, 150, "aggregated");
+      renderFreshnessHistogram(els.beliefLg, data, showTruth, 150);
     } else {
       els.beliefLg.replaceChildren();
     }

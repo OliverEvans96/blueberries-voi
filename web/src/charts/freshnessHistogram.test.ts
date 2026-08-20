@@ -1,13 +1,18 @@
 /**
- * T-127 secondary: stacked freshness histogram with truth overlay.
+ * Secondary pane: aggregate belief + truth KDE overlays.
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
 import type { Lot } from "../types";
 import {
+  aggregateBeliefMasses,
+  beliefKdeFromFlat,
+  defaultBandwidth,
   freshnessHistogramDataFromFlat,
   renderFreshnessHistogram,
+  truthKdeFromLots,
+  weightedGaussianKde,
   type FreshnessHistogramData,
 } from "./freshnessHistogram";
 
@@ -40,104 +45,103 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+describe("aggregateBeliefMasses", () => {
+  it("sums per-lot mass into one bin vector", () => {
+    const masses = aggregateBeliefMasses(FLAT);
+    expect(masses).toHaveLength(FLAT.K);
+    expect(masses[0]).toBeCloseTo(10);
+    expect(masses[1]).toBeCloseTo(6);
+    expect(masses[3]).toBeCloseTo(4);
+  });
+});
+
+describe("weightedGaussianKde", () => {
+  it("preserves total mass under the curve", () => {
+    const xGrid = [0, 0.25, 0.5, 0.75, 1];
+    const samples = [
+      { x: 0.2, weight: 5 },
+      { x: 0.8, weight: 3 },
+    ];
+    const bw = 0.1;
+    const densities = weightedGaussianKde(samples, xGrid, bw);
+    const dx = xGrid[1]! - xGrid[0]!;
+    const area = densities.reduce((sum, d) => sum + d * dx, 0);
+    expect(area).toBeCloseTo(8, 0);
+  });
+});
+
+describe("defaultBandwidth", () => {
+  it("derives bandwidth from bin edges", () => {
+    const bw = defaultBandwidth([0, 0.25, 0.5, 0.75, 1]);
+    expect(bw).toBeGreaterThan(0);
+    expect(bw).toBeCloseTo(0.375);
+  });
+});
+
 describe("freshnessHistogramDataFromFlat", () => {
-  it("maps flat belief into per-lot bin masses and picks newest lot_id", () => {
+  it("maps flat belief into aggregate bin masses", () => {
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
     expect(data.f_edges).toHaveLength(FLAT.K + 1);
-    expect(data.segments).toHaveLength(3);
-    expect(data.segments[0]!.masses[0]).toBeCloseTo(10);
-    expect(data.segments[1]!.masses[1]).toBeCloseTo(6);
-    expect(data.segments[2]!.masses[3]).toBeCloseTo(4);
-    expect(data.highlight_lot_id).toBe(3);
+    expect(data.f_centers).toEqual(FLAT.f_grid);
+    expect(data.belief_masses[0]).toBeCloseTo(10);
+    expect(data.belief_masses[1]).toBeCloseTo(6);
+    expect(data.belief_masses[3]).toBeCloseTo(4);
+    expect(data.truth_lots).toEqual(TRUTH_LOTS);
+  });
+});
+
+describe("beliefKdeFromFlat / truthKdeFromLots", () => {
+  it("peaks near concentrated belief and truth mass", () => {
+    const xGrid = [0, 0.125, 0.375, 0.625, 0.875, 1];
+    const f_edges = [0, 0.25, 0.5, 0.75, 1];
+    const belief = beliefKdeFromFlat(FLAT, xGrid);
+    const truth = truthKdeFromLots(TRUTH_LOTS, xGrid, f_edges);
+    expect(belief[1]).toBeGreaterThan(belief[3]!);
+    const truthPeakIdx = truth.indexOf(Math.max(...truth));
+    expect(xGrid[truthPeakIdx]).toBeGreaterThan(0.5);
   });
 });
 
 describe("renderFreshnessHistogram", () => {
-  it("renders stacked segments per freshness bin (not floating bars)", () => {
+  it("renders belief KDE path (no stacked bars)", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, false, 260, "stacked");
+    renderFreshnessHistogram(el, data, false, 260);
 
     const svg = el.querySelector("svg");
     expect(svg).not.toBeNull();
-    const segments = el.querySelectorAll(".freshness-stack-segment");
-    expect(segments.length).toBeGreaterThan(0);
-
-    const bin0Rects = [...segments].filter((node) => {
-      const height = Number(node.getAttribute("height"));
-      const title = node.querySelector("title")?.textContent ?? "";
-      return height > 0 && title.includes("freshness 0.00–0.25");
-    });
-    expect(bin0Rects.length).toBe(1);
-    expect(bin0Rects[0]?.getAttribute("height")).not.toBe("0");
+    expect(el.querySelector(".freshness-belief-kde")).not.toBeNull();
+    expect(el.querySelectorAll(".freshness-stack-segment").length).toBe(0);
+    expect(el.querySelectorAll(".truth-bar").length).toBe(0);
   });
 
-  it("marks the newest delivery lot with highlight class", () => {
-    const el = host();
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, false, 260, "stacked");
-    expect(el.querySelectorAll(".freshness-stack-series--highlight").length).toBe(1);
-  });
-
-  it("stacks the highlight lot underneath other lots in the same bin", () => {
-    const el = host();
-    const data: FreshnessHistogramData = {
-      f_edges: [0, 0.5, 1],
-      segments: [
-        { lot_index: 0, lot_id: 1, masses: [5, 0] },
-        { lot_index: 1, lot_id: 2, masses: [3, 0] },
-      ],
-      truth_lots: [
-        { lot_id: 1, n: 5, mean_f: 0.2 },
-        { lot_id: 2, n: 3, mean_f: 0.2 },
-      ],
-      highlight_lot_id: 2,
-    };
-    renderFreshnessHistogram(el, data, false, 260, "stacked");
-
-    const rects = [...el.querySelectorAll<SVGRectElement>(".freshness-stack-segment")].filter(
-      (node) => (node.querySelector("title")?.textContent ?? "").includes("freshness 0.00–0.50"),
-    );
-    expect(rects).toHaveLength(2);
-
-    const highlight = el.querySelector<SVGRectElement>(
-      ".freshness-stack-series--highlight .freshness-stack-segment",
-    );
-    const other = rects.find((r) => !highlight?.isEqualNode(r));
-    expect(highlight).not.toBeNull();
-    expect(other).not.toBeUndefined();
-    const yHighlight = Number(highlight!.getAttribute("y"));
-    const yOther = Number(other!.getAttribute("y"));
-    expect(yHighlight).toBeGreaterThan(yOther);
-  });
-
-  it("aggregated mode renders a single-color series per bin (T-128)", () => {
-    const el = host();
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, false, 260, "aggregated");
-    expect(el.querySelectorAll(".freshness-stack-series").length).toBe(1);
-    expect(el.querySelectorAll(".freshness-stack-segment").length).toBe(FLAT.K);
-  });
-
-  it("draws truth bars only when showTruth is true", () => {
+  it("draws truth KDE only when showTruth is true", () => {
     const elOff = host();
     const elOn = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
 
-    renderFreshnessHistogram(elOff, data, false, 260, "stacked");
-    renderFreshnessHistogram(elOn, data, true, 260, "stacked");
+    renderFreshnessHistogram(elOff, data, false, 260);
+    renderFreshnessHistogram(elOn, data, true, 260);
 
-    expect(elOff.querySelectorAll(".truth-bar").length).toBe(0);
-    expect(elOn.querySelectorAll(".truth-bar").length).toBe(TRUTH_LOTS.length);
+    expect(elOff.querySelectorAll(".freshness-truth-kde").length).toBe(0);
+    expect(elOn.querySelectorAll(".freshness-truth-kde").length).toBe(1);
+    expect(elOn.querySelectorAll(".freshness-belief-kde").length).toBe(1);
   });
 
-  it("truth bar height scales with Lot.n", () => {
+  it("legend shows Belief and Truth only (no per-lot labels)", () => {
     const el = host();
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
-    renderFreshnessHistogram(el, data, true, 260, "stacked");
+    const data: FreshnessHistogramData = {
+      f_edges: [0, 0.5, 1],
+      f_centers: [0.25, 0.75],
+      belief_masses: [8, 2],
+      truth_lots: [{ lot_id: 1, n: 5, mean_f: 0.2 }],
+    };
+    renderFreshnessHistogram(el, data, true, 260);
 
-    const bars = [...el.querySelectorAll<SVGRectElement>(".truth-bar")];
-    const heights = bars.map((b) => Number(b.getAttribute("height")));
-    expect(Math.max(...heights)).toBeGreaterThan(Math.min(...heights));
+    const labels = [...el.querySelectorAll(".legend-label")].map(
+      (node) => node.textContent,
+    );
+    expect(labels).toEqual(["Belief", "Truth"]);
+    expect(labels.some((label) => label?.startsWith("Lot"))).toBe(false);
   });
 });
