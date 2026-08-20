@@ -229,7 +229,9 @@ export function initStudio(app: HTMLElement): () => void {
   async function fetchTradeoffForecast(): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
-      const result = (await adapter.tradeoffForecast()) as TradeoffForecastResult;
+      const result = (await adapter.tradeoffForecast({
+        n_paths: 200,
+      })) as TradeoffForecastResult;
       tradeoffForecasts = result.candidates ?? [];
     } catch {
       tradeoffForecasts = [];
