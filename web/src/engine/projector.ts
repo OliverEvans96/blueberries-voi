@@ -370,14 +370,30 @@ export class ViewModelProjector {
 
   patchEngineState(snapshot: Pick<
     Snapshot,
-    "belief" | "live_lots" | "pipeline" | "episode_day" | "applied_config"
+    "belief" | "belief_history" | "live_lots" | "pipeline" | "episode_day" | "applied_config"
   >): ViewModel {
     if (snapshot.episode_day != null) {
       this.episodeDay = snapshot.episode_day;
     }
+    if (snapshot.belief_history?.length) {
+      for (const entry of snapshot.belief_history) {
+        if (entry.belief.L <= 0 || entry.belief.K <= 0) continue;
+        const idx = this.beliefHistory.findIndex((b) => b.day === entry.day);
+        if (idx >= 0) {
+          this.beliefHistory[idx] = {
+            day: entry.day,
+            flatBelief: cloneFlat(entry.belief),
+          };
+        }
+      }
+    }
     if (snapshot.belief) {
       this.flatBelief = cloneFlat(snapshot.belief);
-      if (snapshot.belief.L > 0 && snapshot.belief.K > 0) {
+      if (
+        snapshot.belief.L > 0 &&
+        snapshot.belief.K > 0 &&
+        !snapshot.belief_history?.length
+      ) {
         const cloned = cloneFlat(this.flatBelief);
         const lastBh = this.beliefHistory[this.beliefHistory.length - 1];
         if (lastBh != null && lastBh.day === this.episodeDay) {

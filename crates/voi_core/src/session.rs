@@ -30,6 +30,14 @@ fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 {
     )
 }
 
+/// Per-obs-channel filter cache: particle bank + per-day flat beliefs for chart replay.
+#[derive(Clone, Debug)]
+struct RungCache {
+    bank: UnitParticleBank,
+    last_day: i32,
+    beliefs: Vec<serde_json::Value>,
+}
+
 #[derive(Clone, Debug)]
 pub struct EngineSession {
     params: ModelParams,
@@ -57,7 +65,7 @@ pub struct EngineSession {
     obs_scenario: String,
     obs_channels: ObsChannels,
     richest_log: Vec<RichDay>,
-    rungs: HashMap<String, (UnitParticleBank, i32)>,
+    rungs: HashMap<String, RungCache>,
     bank_init: UnitParticleBank,
     catchup_days_last: u32,
 }
@@ -208,6 +216,62 @@ impl EngineSession {
         mask_from_channels(self.obs_channels)
     }
 
+    fn belief_from_bank(&self, bank: &UnitParticleBank) -> serde_json::Value {
+        belief_flat_from_unit_bank(bank, self.l_dim, self.k_dim)
+    }
+
+    fn belief_history_wire(beliefs: &[serde_json::Value]) -> serde_json::Value {
+        let days: Vec<serde_json::Value> = beliefs
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.is_null())
+            .map(|(day, belief)| {
+                serde_json::json!({ "day": day, "belief": belief })
+            })
+            .collect();
+        serde_json::Value::Array(days)
+    }
+
+    fn record_belief_for_day(&mut self, day_idx: u32, bank: &UnitParticleBank) {
+        if !self.enable_filter {
+            return;
+        }
+        let key = self.active_rung_key();
+        let belief = self.belief_from_bank(bank);
+        let entry = self.rungs.entry(key).or_insert_with(|| RungCache {
+            bank: self.bank_init.clone(),
+            last_day: -1,
+            beliefs: vec![],
+        });
+        let i = day_idx as usize;
+        if entry.beliefs.len() <= i {
+            entry.beliefs.resize(i + 1, serde_json::Value::Null);
+        }
+        entry.beliefs[i] = belief;
+        entry.bank = bank.clone();
+        entry.last_day = day_idx as i32;
+    }
+
+    fn persist_active_rung(&mut self) {
+        if !self.enable_filter {
+            return;
+        }
+        let key = self.active_rung_key();
+        let beliefs = self
+            .rungs
+            .get(&key)
+            .map(|r| r.beliefs.clone())
+            .unwrap_or_default();
+        self.rungs.insert(
+            key,
+            RungCache {
+                bank: self.bank.clone(),
+                last_day: self.day as i32 - 1,
+                beliefs,
+            },
+        );
+    }
+
     fn require_init(&self) {
         if !self.initialized {
             panic!("EngineSession.init() must be called before step/act");
@@ -305,10 +369,13 @@ impl EngineSession {
             age_at_receipt,
             pack_date_days,
         };
+        let day_idx = self.day;
         if self.enable_filter {
             let obs = self.mask_active().apply(&rich);
-            let mut fr = stream_rng(self.seed, self.day, 6);
+            let mut fr = stream_rng(self.seed, day_idx, 6);
             filter_step_unit(&mut self.bank, &obs, &self.params, &mut fr);
+            let bank = self.bank.clone();
+            self.record_belief_for_day(day_idx, &bank);
         }
         let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets).iter().sum();
         let delta = DayDelta {
@@ -323,12 +390,6 @@ impl EngineSession {
         self.day += 1;
         self.seq += 1;
         self.richest_log.push(rich);
-        if self.enable_filter {
-            self.rungs.insert(
-                self.active_rung_key(),
-                (self.bank.clone(), self.day as i32 - 1),
-            );
-        }
         delta
     }
 
@@ -550,21 +611,25 @@ impl EngineSession {
             return Ok(self.snapshot_value());
         }
         if self.enable_filter {
-            self.rungs.insert(
-                self.active_rung_key(),
-                (self.bank.clone(), self.day as i32 - 1),
-            );
+            self.persist_active_rung();
         }
         self.obs_channels = channels;
         self.obs_scenario = preset_for_channels(channels)
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
-            let (mut bank, last) = self
+            let cached = self
                 .rungs
                 .get(&key)
                 .cloned()
-                .unwrap_or_else(|| (self.bank_init.clone(), -1));
+                .unwrap_or_else(|| RungCache {
+                    bank: self.bank_init.clone(),
+                    last_day: -1,
+                    beliefs: vec![],
+                });
+            let mut bank = cached.bank;
+            let last = cached.last_day;
+            let mut beliefs = cached.beliefs;
             let now = self.day as i32 - 1;
             let mask = mask_from_channels(channels);
             let mut n = 0u32;
@@ -573,13 +638,37 @@ impl EngineSession {
                 let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 filter_step_unit(&mut bank, &obs, &self.params, &mut fr);
+                let belief = self.belief_from_bank(&bank);
+                let i = day_idx as usize;
+                if beliefs.len() <= i {
+                    beliefs.resize(i + 1, serde_json::Value::Null);
+                }
+                beliefs[i] = belief;
                 n += 1;
             }
             self.catchup_days_last = n;
             self.bank = bank;
-            self.rungs.insert(key, (self.bank.clone(), now));
+            self.rungs.insert(
+                key,
+                RungCache {
+                    bank: self.bank.clone(),
+                    last_day: now,
+                    beliefs: beliefs.clone(),
+                },
+            );
         }
-        Ok(self.snapshot_value())
+        let mut snap = self.snapshot_value();
+        if self.enable_filter {
+            if let Some(rung) = self.rungs.get(&self.active_rung_key()) {
+                if let Some(obj) = snap.as_object_mut() {
+                    obj.insert(
+                        "belief_history".to_string(),
+                        Self::belief_history_wire(&rung.beliefs),
+                    );
+                }
+            }
+        }
+        Ok(snap)
     }
 
     pub fn set_obs_scenario(&mut self, obs_scenario: &str) -> Result<serde_json::Value, String> {
@@ -1289,6 +1378,22 @@ mod tests {
         s.init(1);
         assert!(s.set_obs_scenario("P2").is_err());
         assert!(s.set_obs_scenario("B-state").is_err());
+    }
+
+    #[test]
+    fn set_obs_channels_returns_belief_history_for_episode() {
+        let mut s = EngineSession::new(5);
+        s.init(5);
+        s.set_belief_dims(2, 4);
+        let _ = s.step_n(&[8, 0, 8]);
+        let snap = s.set_obs_scenario("F2").unwrap();
+        let hist = snap["belief_history"]
+            .as_array()
+            .expect("belief_history array");
+        assert_eq!(hist.len(), 3, "one belief per simulated day");
+        assert_eq!(hist[0]["day"], 0);
+        assert_eq!(hist[2]["day"], 2);
+        assert!(hist[0]["belief"]["f_marginals"].is_array());
     }
 
     #[test]

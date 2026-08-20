@@ -184,7 +184,16 @@ export class MockAdapter implements EngineAdapter {
       this.config.obs_scenario,
       12,
     );
-    return this.toSnapshot();
+    const belief_history = this.state.history.map((day) => ({
+      day: day.day,
+      belief: generateFlatBelief(
+        this.state.lots,
+        this.state.rng,
+        this.config.obs_scenario,
+        day.day + 1,
+      ),
+    }));
+    return { ...this.toSnapshot(), belief_history };
   }
 
   async set_obs_channels(channels: ObsChannels): Promise<Snapshot> {
