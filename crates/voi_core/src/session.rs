@@ -19,7 +19,7 @@ use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -226,20 +226,30 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rs = stream_rng(self.seed, self.day, 4);
-            let mut rn = stream_rng(self.seed, self.day, 5);
-            let (f, tau, pack) = arrival_receipt_meta(
-                &mut rs,
-                &mut rn,
-                &self.shipments,
-                &self.params,
-                1.0,
-            );
-            (Some(f), Some(tau), Some(pack))
-        } else {
-            (None, None, None)
-        };
+        let (f_at_receipt, age_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
+            if arrival > 0 {
+                let mut rs = stream_rng(self.seed, self.day, 4);
+                let mut rn = stream_rng(self.seed, self.day, 5);
+                let (f, tau, pack, trace) = arrival_receipt_meta_with_trace(
+                    &mut rs,
+                    &mut rn,
+                    &self.shipments,
+                    &self.params,
+                    1.0,
+                );
+                let lot_id = self.next_lot;
+                self.lot_ids.push(lot_id);
+                self.next_lot += 1;
+                (
+                    Some(f),
+                    Some(tau),
+                    Some(pack),
+                    Some(trace),
+                    vec![lot_id],
+                )
+            } else {
+                (None, None, None, None, Vec::new())
+            };
         let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
             draw_demand_spawn(&mut rng_d, &self.params, Some(self.day))
@@ -282,10 +292,6 @@ impl EngineSession {
         );
         self.freshness = out.freshness;
         self.lot_offsets = out.lot_offsets;
-        if arrival > 0 {
-            self.lot_ids.push(self.next_lot);
-            self.next_lot += 1;
-        }
         let rich = RichDay {
             sales_total: out.sales_total,
             waste_total: out.waste_total,
@@ -293,6 +299,8 @@ impl EngineSession {
             sales_by: out.sales_by.clone(),
             waste_by: out.waste_by.clone(),
             lot_ids: pre_lot_ids,
+            arrival_lot_ids,
+            shipment_trace,
             f_at_receipt,
             age_at_receipt,
             pack_date_days,
@@ -619,8 +627,11 @@ impl EngineSession {
                     "sales_by": obs.sales_by,
                     "waste_by": obs.waste_by,
                     "lot_ids": obs.lot_ids_live,
+                    "arrival_lot_ids": obs.arrival_lot_ids,
                     "pack_date_days": obs.pack_date_days,
                     "age_at_receipt": obs.age_at_receipt,
+                    "temp_times_d": obs.temp_times_d,
+                    "temp_temps_c": obs.temp_temps_c,
                 })
             })
             .collect();

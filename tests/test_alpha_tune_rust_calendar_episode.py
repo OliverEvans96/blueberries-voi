@@ -109,9 +109,7 @@ def test_rust_calendar_full_run_alpha_monotone_in_mean() -> None:
 
     def mean_profit(alpha: float) -> float:
         vals = [
-            evaluate_alpha_episode_outcomes(
-                "sw", alpha, seed, **kwargs
-            ).profit
+            evaluate_alpha_episode_outcomes("sw", alpha, seed, **kwargs).profit
             for seed in _BO_SEEDS
         ]
         return float(statistics.mean(vals))

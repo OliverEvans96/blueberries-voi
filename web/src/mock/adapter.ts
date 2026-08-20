@@ -166,12 +166,12 @@ export class MockAdapter implements EngineAdapter {
       ...this.config,
       obs_channels: { ...channels },
     };
-    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]) {
+    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"] as ScenarioId[]) {
       const preset = channelsForPreset(id);
       if (
-        preset.pos === channels.pos &&
-        preset.waste === channels.waste &&
-        preset.deliveries === channels.deliveries
+        preset.code_type === channels.code_type &&
+        preset.scan_waste === channels.scan_waste &&
+        preset.delivery_history === channels.delivery_history
       ) {
         this.config.obs_scenario = id;
         break;
@@ -356,9 +356,9 @@ export class MockAdapter implements EngineAdapter {
     const day = this.state.history.length;
     const beliefMass = this.flatBelief.f_marginals.reduce((sum, p) => sum + p, 0);
     const wasteChannelScale =
-      this.config.obs_channels?.waste === "none"
+      this.config.obs_channels?.scan_waste === false
         ? 1.12
-        : this.config.obs_channels?.waste === "lot_id"
+        : this.config.obs_channels?.code_type === "gsin"
           ? 0.92
           : 1.0;
     const stateScale = 1 + onHand * 0.02 + day * 0.015 + beliefMass * 0.08;

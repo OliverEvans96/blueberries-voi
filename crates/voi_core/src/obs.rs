@@ -1,6 +1,8 @@
-//! Observation masks and RichObs-shaped FilterObs (ADR 0086 / 0126 / 0133).
+//! Observation masks and RichObs-shaped FilterObs (ADR 0086 / 0126 / global scan model).
 
 use serde::{Deserialize, Serialize};
+
+use crate::shipments::ShipmentTrace;
 
 /// Which RichObs fields are present under a scenario id or channel combo.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -13,36 +15,31 @@ pub struct ObsMask {
     pub pack_date: bool,
     pub age_at_receipt: bool,
     pub lot_ids_live: bool,
+    pub arrival_lot_ids: bool,
+    pub temperature_history: bool,
 }
 
-/// Orthogonal observation channels (ADR 0133).
+/// Global scan observation channels (supersedes ADR 0133 pos/waste/deliveries).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObsChannels {
-    pub pos: PosChannel,
-    pub waste: WasteChannel,
-    pub deliveries: DeliveryChannel,
+    pub code_type: CodeType,
+    pub scan_waste: bool,
+    pub delivery_history: DeliveryHistory,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PosChannel {
-    UpcOnly,
-    LotId,
+pub enum CodeType {
+    Upc,
+    Gsin,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum WasteChannel {
+pub enum DeliveryHistory {
     None,
-    DailyCounts,
-    LotId,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DeliveryChannel {
-    QuantityOnly,
-    PackDatePerLot,
+    PackDate,
+    TemperatureHistory,
 }
 
 /// Richest logged day (DayStepOut + receipt meta). Catch-up applies mask.
@@ -54,6 +51,8 @@ pub struct RichDay {
     pub sales_by: Vec<u32>,
     pub waste_by: Vec<u32>,
     pub lot_ids: Vec<i64>,
+    pub arrival_lot_ids: Vec<i64>,
+    pub shipment_trace: Option<ShipmentTrace>,
     pub f_at_receipt: Option<f64>,
     pub age_at_receipt: Option<f64>,
     pub pack_date_days: Option<i32>,
@@ -68,8 +67,11 @@ pub struct FilterObs {
     pub sales_by: Option<Vec<u32>>,
     pub waste_by: Option<Vec<u32>>,
     pub lot_ids_live: Option<Vec<i64>>,
+    pub arrival_lot_ids: Option<Vec<i64>>,
     pub pack_date_days: Option<i32>,
     pub age_at_receipt: Option<f64>,
+    pub temp_times_d: Option<Vec<f64>>,
+    pub temp_temps_c: Option<Vec<f64>>,
 }
 
 impl Default for FilterObs {
@@ -81,49 +83,51 @@ impl Default for FilterObs {
             sales_by: None,
             waste_by: None,
             lot_ids_live: None,
+            arrival_lot_ids: None,
             pack_date_days: None,
             age_at_receipt: None,
+            temp_times_d: None,
+            temp_temps_c: None,
         }
     }
 }
 
 pub fn validate_channels_json(value: &serde_json::Value) -> Result<ObsChannels, String> {
-    let pos = value
-        .get("pos")
+    let code_type = value
+        .get("code_type")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let waste = value
-        .get("waste")
+    let scan_waste = value
+        .get("scan_waste")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let delivery_history = value
+        .get("delivery_history")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let deliveries = value
-        .get("deliveries")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    parse_channels(pos, waste, deliveries)
+    parse_channels(code_type, scan_waste, delivery_history)
 }
 
-pub fn parse_channels(pos: &str, waste: &str, deliveries: &str) -> Result<ObsChannels, String> {
-    let pos = match pos {
-        "upc_only" => PosChannel::UpcOnly,
-        "lot_id" => PosChannel::LotId,
-        other => return Err(format!("invalid pos channel: {other:?}")),
+pub fn parse_channels(
+    code_type: &str,
+    scan_waste: bool,
+    delivery_history: &str,
+) -> Result<ObsChannels, String> {
+    let code_type = match code_type {
+        "upc" => CodeType::Upc,
+        "gsin" => CodeType::Gsin,
+        other => return Err(format!("invalid code_type: {other:?}")),
     };
-    let waste = match waste {
-        "none" => WasteChannel::None,
-        "daily_counts" => WasteChannel::DailyCounts,
-        "lot_id" => WasteChannel::LotId,
-        other => return Err(format!("invalid waste channel: {other:?}")),
-    };
-    let deliveries = match deliveries {
-        "quantity_only" => DeliveryChannel::QuantityOnly,
-        "pack_date_per_lot" => DeliveryChannel::PackDatePerLot,
-        other => return Err(format!("invalid deliveries channel: {other:?}")),
+    let delivery_history = match delivery_history {
+        "none" => DeliveryHistory::None,
+        "pack_date" => DeliveryHistory::PackDate,
+        "temperature_history" => DeliveryHistory::TemperatureHistory,
+        other => return Err(format!("invalid delivery_history: {other:?}")),
     };
     Ok(ObsChannels {
-        pos,
-        waste,
-        deliveries,
+        code_type,
+        scan_waste,
+        delivery_history,
     })
 }
 
@@ -136,41 +140,41 @@ pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
     }
     match id {
         "P0" => Ok(ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::None,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Upc,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::None,
         }),
         "P1" => Ok(ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Upc,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::None,
         }),
-        "F1" => Ok(ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::QuantityOnly,
-        }),
-        "F1s" => Ok(ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::QuantityOnly,
+        "F1" | "F1s" => Ok(ObsChannels {
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::None,
         }),
         "F2a" => Ok(ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Upc,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::PackDate,
         }),
         "F2" => Ok(ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::PackDate,
+        }),
+        "F3" => Ok(ObsChannels {
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::TemperatureHistory,
         }),
         _ => Err(format!("Unknown scenario for ObsMask: {id:?}")),
     }
 }
 
 pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
-    for id in ["P0", "P1", "F1", "F1s", "F2a", "F2"] {
+    for id in ["P0", "P1", "F1", "F2a", "F2", "F3"] {
         if channels_for_preset(id).ok() == Some(ch) {
             return Some(id);
         }
@@ -179,36 +183,30 @@ pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
 }
 
 pub fn channels_cache_key(ch: ObsChannels) -> String {
-    let pos = match ch.pos {
-        PosChannel::UpcOnly => "upc_only",
-        PosChannel::LotId => "lot_id",
+    let code = match ch.code_type {
+        CodeType::Upc => "upc",
+        CodeType::Gsin => "gsin",
     };
-    let waste = match ch.waste {
-        WasteChannel::None => "none",
-        WasteChannel::DailyCounts => "daily_counts",
-        WasteChannel::LotId => "lot_id",
+    let waste = if ch.scan_waste { "1" } else { "0" };
+    let hist = match ch.delivery_history {
+        DeliveryHistory::None => "none",
+        DeliveryHistory::PackDate => "pack_date",
+        DeliveryHistory::TemperatureHistory => "temp",
     };
-    let deliveries = match ch.deliveries {
-        DeliveryChannel::QuantityOnly => "quantity_only",
-        DeliveryChannel::PackDatePerLot => "pack_date_per_lot",
-    };
-    format!("pos={pos}|waste={waste}|deliveries={deliveries}")
+    format!("code={code}|waste={waste}|hist={hist}")
 }
 
 pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
     serde_json::json!({
-        "pos": match ch.pos {
-            PosChannel::UpcOnly => "upc_only",
-            PosChannel::LotId => "lot_id",
+        "code_type": match ch.code_type {
+            CodeType::Upc => "upc",
+            CodeType::Gsin => "gsin",
         },
-        "waste": match ch.waste {
-            WasteChannel::None => "none",
-            WasteChannel::DailyCounts => "daily_counts",
-            WasteChannel::LotId => "lot_id",
-        },
-        "deliveries": match ch.deliveries {
-            DeliveryChannel::QuantityOnly => "quantity_only",
-            DeliveryChannel::PackDatePerLot => "pack_date_per_lot",
+        "scan_waste": ch.scan_waste,
+        "delivery_history": match ch.delivery_history {
+            DeliveryHistory::None => "none",
+            DeliveryHistory::PackDate => "pack_date",
+            DeliveryHistory::TemperatureHistory => "temperature_history",
         },
     })
 }
@@ -219,28 +217,30 @@ pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
         sales_total: true,
         ..ObsMask::default()
     };
-    if ch.pos == PosChannel::LotId {
+    if ch.code_type == CodeType::Gsin {
         m.sales_by_lot = true;
         m.lot_ids_live = true;
+        m.arrival_lot_ids = true;
     }
-    match ch.waste {
-        WasteChannel::None => {}
-        WasteChannel::DailyCounts => {
-            m.waste_total = true;
-        }
-        WasteChannel::LotId => {
-            m.waste_total = true;
+    if ch.scan_waste {
+        m.waste_total = true;
+        if ch.code_type == CodeType::Gsin {
             m.waste_by_lot = true;
-            m.lot_ids_live = true;
         }
     }
-    if ch.deliveries == DeliveryChannel::PackDatePerLot {
-        m.pack_date = true;
+    match ch.delivery_history {
+        DeliveryHistory::None => {}
+        DeliveryHistory::PackDate => {
+            m.pack_date = true;
+        }
+        DeliveryHistory::TemperatureHistory => {
+            m.temperature_history = true;
+        }
     }
     m
 }
 
-/// Scenario preset → mask. Matches Python ADR 0086 / `mask_for` (ADR 0133 F2 uses pack_date).
+/// Scenario preset → mask. Matches Python ADR 0086 / `mask_for`.
 pub fn mask_for(id: &str) -> Result<ObsMask, String> {
     Ok(mask_from_channels(channels_for_preset(id)?))
 }
@@ -248,6 +248,16 @@ pub fn mask_for(id: &str) -> Result<ObsMask, String> {
 impl ObsMask {
     /// Keep present fields from `rich`; absent = `None` (never invent 0).
     pub fn apply(self, rich: &RichDay) -> FilterObs {
+        let (temp_times_d, temp_temps_c) = if self.temperature_history {
+            rich.shipment_trace.as_ref().map_or((None, None), |t| {
+                (
+                    Some(t.times_d.clone()),
+                    Some(t.temps_c.clone()),
+                )
+            })
+        } else {
+            (None, None)
+        };
         FilterObs {
             sales_tot: if self.sales_total {
                 Some(rich.sales_total as i32)
@@ -275,6 +285,11 @@ impl ObsMask {
             } else {
                 None
             },
+            arrival_lot_ids: if self.arrival_lot_ids {
+                Some(rich.arrival_lot_ids.clone())
+            } else {
+                None
+            },
             pack_date_days: if self.pack_date {
                 rich.pack_date_days
             } else {
@@ -285,6 +300,8 @@ impl ObsMask {
             } else {
                 None
             },
+            temp_times_d,
+            temp_temps_c,
         }
     }
 }
@@ -304,69 +321,71 @@ mod tests {
             ("pack_date", m.pack_date),
             ("age_at_receipt", m.age_at_receipt),
             ("lot_ids_live", m.lot_ids_live),
+            ("arrival_lot_ids", m.arrival_lot_ids),
+            ("temperature_history", m.temperature_history),
         ])
     }
 
     const ALL_CHANNELS: [ObsChannels; 12] = [
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::None,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Upc,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::None,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Upc,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Upc,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::TemperatureHistory,
         },
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Upc,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Upc,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            pos: PosChannel::UpcOnly,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Upc,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::TemperatureHistory,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::None,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Gsin,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::None,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Gsin,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Gsin,
+            scan_waste: false,
+            delivery_history: DeliveryHistory::TemperatureHistory,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::LotId,
-            deliveries: DeliveryChannel::PackDatePerLot,
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::TemperatureHistory,
         },
     ];
 
@@ -377,27 +396,35 @@ mod tests {
             let f = present_fields(&m);
             assert!(f["arrivals"] && f["sales_total"]);
             assert!(!f["age_at_receipt"]);
-            if ch.pos == PosChannel::LotId {
-                assert!(f["sales_by_lot"] && f["lot_ids_live"]);
+            if ch.code_type == CodeType::Gsin {
+                assert!(f["sales_by_lot"] && f["lot_ids_live"] && f["arrival_lot_ids"]);
+            } else {
+                assert!(!f["sales_by_lot"] && !f["lot_ids_live"] && !f["arrival_lot_ids"]);
             }
-            if ch.waste == WasteChannel::None {
-                assert!(!f["waste_total"]);
-            } else if ch.waste == WasteChannel::DailyCounts {
+            if !ch.scan_waste {
+                assert!(!f["waste_total"] && !f["waste_by_lot"]);
+            } else if ch.code_type == CodeType::Upc {
                 assert!(f["waste_total"] && !f["waste_by_lot"]);
             } else {
-                assert!(f["waste_total"] && f["waste_by_lot"] && f["lot_ids_live"]);
+                assert!(f["waste_total"] && f["waste_by_lot"]);
             }
-            if ch.deliveries == DeliveryChannel::PackDatePerLot {
-                assert!(f["pack_date"]);
-            } else {
-                assert!(!f["pack_date"]);
+            match ch.delivery_history {
+                DeliveryHistory::None => {
+                    assert!(!f["pack_date"] && !f["temperature_history"]);
+                }
+                DeliveryHistory::PackDate => {
+                    assert!(f["pack_date"] && !f["temperature_history"]);
+                }
+                DeliveryHistory::TemperatureHistory => {
+                    assert!(!f["pack_date"] && f["temperature_history"]);
+                }
             }
         }
     }
 
     #[test]
     fn preset_round_trip_matches_mask_for() {
-        for id in ["P0", "P1", "F1", "F1s", "F2a", "F2"] {
+        for id in ["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"] {
             let ch = channels_for_preset(id).unwrap();
             let from_ch = mask_from_channels(ch);
             let from_id = mask_for(id).unwrap();
@@ -409,29 +436,32 @@ mod tests {
     #[test]
     fn f2_preset_uses_pack_date_not_age() {
         let ch = channels_for_preset("F2").unwrap();
-        assert_eq!(ch.deliveries, DeliveryChannel::PackDatePerLot);
+        assert_eq!(ch.delivery_history, DeliveryHistory::PackDate);
         let m = mask_from_channels(ch);
-        assert!(m.pack_date && !m.age_at_receipt);
+        assert!(m.pack_date && !m.age_at_receipt && !m.temperature_history);
+    }
+
+    #[test]
+    fn f3_preset_uses_temperature_history() {
+        let ch = channels_for_preset("F3").unwrap();
+        let m = mask_from_channels(ch);
+        assert!(m.temperature_history && !m.pack_date);
     }
 
     #[test]
     fn channels_cache_key_canonical() {
         let ch = ObsChannels {
-            pos: PosChannel::LotId,
-            waste: WasteChannel::DailyCounts,
-            deliveries: DeliveryChannel::QuantityOnly,
+            code_type: CodeType::Gsin,
+            scan_waste: true,
+            delivery_history: DeliveryHistory::None,
         };
-        assert_eq!(
-            channels_cache_key(ch),
-            "pos=lot_id|waste=daily_counts|deliveries=quantity_only"
-        );
+        assert_eq!(channels_cache_key(ch), "code=gsin|waste=1|hist=none");
     }
 
     #[test]
     fn parse_channels_rejects_invalid_enum() {
-        assert!(parse_channels("bad", "none", "quantity_only").is_err());
-        assert!(parse_channels("upc_only", "bad", "quantity_only").is_err());
-        assert!(parse_channels("upc_only", "none", "bad").is_err());
+        assert!(parse_channels("bad", false, "none").is_err());
+        assert!(parse_channels("upc", false, "bad").is_err());
     }
 
     #[test]
@@ -460,15 +490,13 @@ mod tests {
     #[test]
     fn mask_for_f1_adds_sales_by_lot_and_lot_ids_live() {
         let m = mask_for("F1").expect("F1");
-        assert!(m.waste_total && m.sales_by_lot && m.lot_ids_live);
-        assert!(!m.waste_by_lot && !m.pack_date && !m.age_at_receipt);
+        assert!(m.waste_total && m.sales_by_lot && m.lot_ids_live && m.waste_by_lot);
+        assert!(!m.pack_date && !m.age_at_receipt);
     }
 
     #[test]
-    fn mask_for_f1s_adds_waste_by_lot_and_lot_ids_live() {
-        let m = mask_for("F1s").expect("F1s");
-        assert!(m.waste_total && m.waste_by_lot && m.lot_ids_live);
-        assert!(!m.sales_by_lot && !m.pack_date && !m.age_at_receipt);
+    fn mask_for_f1s_matches_f1() {
+        assert_eq!(mask_for("F1s").unwrap(), mask_for("F1").unwrap());
     }
 
     #[test]
@@ -483,7 +511,7 @@ mod tests {
     fn mask_for_f2_has_maps_and_pack_date() {
         let m = mask_for("F2").expect("F2");
         assert!(m.waste_total && m.sales_by_lot && m.waste_by_lot);
-        assert!(m.pack_date && m.lot_ids_live);
+        assert!(m.pack_date && m.lot_ids_live && m.arrival_lot_ids);
         assert!(!m.age_at_receipt);
     }
 
@@ -507,6 +535,8 @@ mod tests {
             sales_by: vec![3, 1],
             waste_by: vec![2, 0],
             lot_ids: vec![10, 11],
+            arrival_lot_ids: vec![12],
+            shipment_trace: None,
             f_at_receipt: Some(0.85),
             age_at_receipt: Some(2.0),
             pack_date_days: Some(3),
@@ -518,8 +548,34 @@ mod tests {
         assert!(obs.sales_by.is_none());
         assert!(obs.waste_by.is_none());
         assert!(obs.lot_ids_live.is_none());
+        assert!(obs.arrival_lot_ids.is_none());
         assert!(obs.pack_date_days.is_none());
         assert!(obs.age_at_receipt.is_none());
+        assert!(obs.temp_times_d.is_none());
+    }
+
+    #[test]
+    fn apply_f3_passes_shipment_trace() {
+        let rich = RichDay {
+            sales_total: 0,
+            waste_total: 0,
+            arrivals: 8,
+            sales_by: vec![],
+            waste_by: vec![],
+            lot_ids: vec![10],
+            arrival_lot_ids: vec![11],
+            shipment_trace: Some(ShipmentTrace {
+                times_d: vec![0.0, 1.0, 2.0],
+                temps_c: vec![1.0, 1.0, 1.0],
+            }),
+            f_at_receipt: Some(0.9),
+            age_at_receipt: Some(1.0),
+            pack_date_days: Some(1),
+        };
+        let obs = mask_for("F3").unwrap().apply(&rich);
+        assert_eq!(obs.temp_times_d.as_deref(), Some(&[0.0, 1.0, 2.0][..]));
+        assert_eq!(obs.temp_temps_c.as_deref(), Some(&[1.0, 1.0, 1.0][..]));
+        assert_eq!(obs.arrival_lot_ids.as_deref(), Some(&[11i64][..]));
     }
 
     #[test]
@@ -531,6 +587,8 @@ mod tests {
             sales_by: vec![4, 0],
             waste_by: vec![0, 1],
             lot_ids: vec![1, 2],
+            arrival_lot_ids: vec![3],
+            shipment_trace: None,
             f_at_receipt: Some(0.9),
             age_at_receipt: Some(1.5),
             pack_date_days: Some(5),
@@ -540,6 +598,7 @@ mod tests {
         assert_eq!(obs.sales_by.as_deref(), Some(&[4u32, 0][..]));
         assert_eq!(obs.waste_by.as_deref(), Some(&[0u32, 1][..]));
         assert_eq!(obs.lot_ids_live.as_deref(), Some(&[1i64, 2][..]));
+        assert_eq!(obs.arrival_lot_ids.as_deref(), Some(&[3i64][..]));
         assert_eq!(obs.pack_date_days, Some(5));
         assert!(obs.age_at_receipt.is_none());
     }

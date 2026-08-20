@@ -17,11 +17,10 @@ MAX_JOINT_FLOATS: float = 5.0e7
 AGE_GRID_LO: float = 0.0
 AGE_GRID_HI: float = 8.0
 
-ScenarioId: TypeAlias = Literal["P0", "P1", "F1", "F1s", "F2a", "F2"]
+ScenarioId: TypeAlias = Literal["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"]
 
-PosChannel: TypeAlias = Literal["upc_only", "lot_id"]
-WasteChannel: TypeAlias = Literal["none", "daily_counts", "lot_id"]
-DeliveryChannel: TypeAlias = Literal["quantity_only", "pack_date_per_lot"]
+CodeType: TypeAlias = Literal["upc", "gsin"]
+DeliveryHistory: TypeAlias = Literal["none", "pack_date", "temperature_history"]
 
 _RICH_FIELD_NAMES: frozenset[str] = frozenset(
     {
@@ -33,18 +32,36 @@ _RICH_FIELD_NAMES: frozenset[str] = frozenset(
         "pack_date",
         "age_at_receipt",
         "lot_ids_live",
+        "arrival_lot_ids",
+        "temperature_history",
     }
 )
 
-# ADR 0086 present-field table (✓ only; "weak" lot_ids_live omitted where optional).
+# ADR 0086 present-field table (global scan model presets).
 _SCENARIO_PRESENT: dict[ScenarioId, frozenset[str]] = {
     "P0": frozenset({"arrivals", "sales_total"}),
     "P1": frozenset({"arrivals", "sales_total", "waste_total"}),
     "F1": frozenset(
-        {"arrivals", "sales_total", "waste_total", "sales_by_lot", "lot_ids_live"}
+        {
+            "arrivals",
+            "sales_total",
+            "waste_total",
+            "sales_by_lot",
+            "waste_by_lot",
+            "lot_ids_live",
+            "arrival_lot_ids",
+        }
     ),
     "F1s": frozenset(
-        {"arrivals", "sales_total", "waste_total", "waste_by_lot", "lot_ids_live"}
+        {
+            "arrivals",
+            "sales_total",
+            "waste_total",
+            "sales_by_lot",
+            "waste_by_lot",
+            "lot_ids_live",
+            "arrival_lot_ids",
+        }
     ),
     "F2a": frozenset({"arrivals", "sales_total", "waste_total", "pack_date"}),
     "F2": frozenset(
@@ -56,40 +73,58 @@ _SCENARIO_PRESENT: dict[ScenarioId, frozenset[str]] = {
             "waste_by_lot",
             "pack_date",
             "lot_ids_live",
+            "arrival_lot_ids",
+        }
+    ),
+    "F3": frozenset(
+        {
+            "arrivals",
+            "sales_total",
+            "waste_total",
+            "sales_by_lot",
+            "waste_by_lot",
+            "lot_ids_live",
+            "arrival_lot_ids",
+            "temperature_history",
         }
     ),
 }
 
-_PRESET_CHANNELS: dict[ScenarioId, dict[str, str]] = {
+_PRESET_CHANNELS: dict[ScenarioId, dict[str, str | bool]] = {
     "P0": {
-        "pos": "upc_only",
-        "waste": "none",
-        "deliveries": "quantity_only",
+        "code_type": "upc",
+        "scan_waste": False,
+        "delivery_history": "none",
     },
     "P1": {
-        "pos": "upc_only",
-        "waste": "daily_counts",
-        "deliveries": "quantity_only",
+        "code_type": "upc",
+        "scan_waste": True,
+        "delivery_history": "none",
     },
     "F1": {
-        "pos": "lot_id",
-        "waste": "daily_counts",
-        "deliveries": "quantity_only",
+        "code_type": "gsin",
+        "scan_waste": True,
+        "delivery_history": "none",
     },
     "F1s": {
-        "pos": "upc_only",
-        "waste": "lot_id",
-        "deliveries": "quantity_only",
+        "code_type": "gsin",
+        "scan_waste": True,
+        "delivery_history": "none",
     },
     "F2a": {
-        "pos": "upc_only",
-        "waste": "daily_counts",
-        "deliveries": "pack_date_per_lot",
+        "code_type": "upc",
+        "scan_waste": True,
+        "delivery_history": "pack_date",
     },
     "F2": {
-        "pos": "lot_id",
-        "waste": "lot_id",
-        "deliveries": "pack_date_per_lot",
+        "code_type": "gsin",
+        "scan_waste": True,
+        "delivery_history": "pack_date",
+    },
+    "F3": {
+        "code_type": "gsin",
+        "scan_waste": True,
+        "delivery_history": "temperature_history",
     },
 }
 
@@ -123,33 +158,30 @@ def is_unobserved(value: object) -> bool:
 
 @dataclass(frozen=True)
 class ObsChannels:
-    """Orthogonal observation channels (ADR 0133)."""
+    """Global scan observation channels."""
 
-    pos: PosChannel
-    waste: WasteChannel
-    deliveries: DeliveryChannel
+    code_type: CodeType
+    scan_waste: bool
+    delivery_history: DeliveryHistory
 
 
-def validate_channels(raw: Mapping[str, str] | ObsChannels) -> ObsChannels:
+def validate_channels(raw: Mapping[str, object] | ObsChannels) -> ObsChannels:
     """Parse and validate channel enums from a mapping."""
     if isinstance(raw, ObsChannels):
         return raw
-    pos = raw.get("pos", "")
-    waste = raw.get("waste", "")
-    deliveries = raw.get("deliveries", "")
-    if pos not in ("upc_only", "lot_id"):
-        msg = f"invalid pos channel: {pos!r}"
+    code_type = str(raw.get("code_type", ""))
+    scan_waste = bool(raw.get("scan_waste", False))
+    delivery_history = str(raw.get("delivery_history", ""))
+    if code_type not in ("upc", "gsin"):
+        msg = f"invalid code_type: {code_type!r}"
         raise ValueError(msg)
-    if waste not in ("none", "daily_counts", "lot_id"):
-        msg = f"invalid waste channel: {waste!r}"
-        raise ValueError(msg)
-    if deliveries not in ("quantity_only", "pack_date_per_lot"):
-        msg = f"invalid deliveries channel: {deliveries!r}"
+    if delivery_history not in ("none", "pack_date", "temperature_history"):
+        msg = f"invalid delivery_history: {delivery_history!r}"
         raise ValueError(msg)
     return ObsChannels(
-        pos=pos,  # type: ignore[arg-type]
-        waste=waste,  # type: ignore[arg-type]
-        deliveries=deliveries,  # type: ignore[arg-type]
+        code_type=code_type,  # type: ignore[arg-type]
+        scan_waste=scan_waste,
+        delivery_history=delivery_history,  # type: ignore[arg-type]
     )
 
 
@@ -167,19 +199,22 @@ def channels_for_preset(scenario: ScenarioId | str) -> ObsChannels:
 
 
 def channels_cache_key(channels: ObsChannels) -> str:
-    return f"pos={channels.pos}|waste={channels.waste}|deliveries={channels.deliveries}"
+    waste = "1" if channels.scan_waste else "0"
+    return f"code={channels.code_type}|waste={waste}|hist={channels.delivery_history}"
 
 
 def mask_from_channels(channels: ObsChannels) -> ObsMask:
     present: set[str] = {"arrivals", "sales_total"}
-    if channels.pos == "lot_id":
-        present.update({"sales_by_lot", "lot_ids_live"})
-    if channels.waste == "daily_counts":
+    if channels.code_type == "gsin":
+        present.update({"sales_by_lot", "lot_ids_live", "arrival_lot_ids"})
+    if channels.scan_waste:
         present.add("waste_total")
-    elif channels.waste == "lot_id":
-        present.update({"waste_total", "waste_by_lot", "lot_ids_live"})
-    if channels.deliveries == "pack_date_per_lot":
+        if channels.code_type == "gsin":
+            present.add("waste_by_lot")
+    if channels.delivery_history == "pack_date":
         present.add("pack_date")
+    elif channels.delivery_history == "temperature_history":
+        present.add("temperature_history")
     return ObsMask(present=frozenset(present))
 
 
@@ -331,17 +366,16 @@ __all__ = [
     "AGE_GRID_LO",
     "MAX_JOINT_FLOATS",
     "UNOBSERVED",
-    "DeliveryChannel",
+    "CodeType",
+    "DeliveryHistory",
     "FilterSummary",
     "ObsChannels",
     "ObsMask",
     "P1Obs",
-    "PosChannel",
     "RichObs",
     "ScenarioId",
     "Unobserved",
     "UnobservedT",
-    "WasteChannel",
     "age_grid",
     "channels_cache_key",
     "channels_for_preset",

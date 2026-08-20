@@ -877,12 +877,12 @@ export function initStudio(app: HTMLElement): () => void {
 
   railHandlers.onSetObsChannels = async (channels: ObsChannels) => {
     let preset: ScenarioId = vm.config.obs_scenario;
-    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]) {
+    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"] as ScenarioId[]) {
       const presetCh = channelsForPreset(id);
       if (
-        presetCh.pos === channels.pos &&
-        presetCh.waste === channels.waste &&
-        presetCh.deliveries === channels.deliveries
+        presetCh.code_type === channels.code_type &&
+        presetCh.scan_waste === channels.scan_waste &&
+        presetCh.delivery_history === channels.delivery_history
       ) {
         preset = id;
         break;
