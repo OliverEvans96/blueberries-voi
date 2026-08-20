@@ -270,16 +270,6 @@ fn run_scenario_episode(
         let demand = draw_demand(&mut rng_d, params, Some(day));
         let mut rng_gamma = rng(root_seed, phys, day, STREAM_GAMMA);
         let mut rng_alloc = rng(root_seed, phys, day, STREAM_ALLOC);
-        let mut rng_ship = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SHIP))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SENSOR))
-        } else {
-            None
-        };
         let input = UnitDayStepIn {
             freshness,
             lot_offsets,
@@ -287,10 +277,10 @@ fn run_scenario_episode(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: None,
+            delivery_f: f_at_receipt,
             units_per_lot: Some(upl),
-            age_at_receipt: None,
-            pack_age_mean: None,
+            age_at_receipt,
+            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step(
             &input,
@@ -298,8 +288,8 @@ fn run_scenario_episode(
             shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;

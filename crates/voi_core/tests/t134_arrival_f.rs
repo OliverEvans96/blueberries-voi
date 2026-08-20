@@ -27,7 +27,7 @@ fn session_passes_precomputed_delivery_f() {
         "session must pass pre-sampled delivery_f like rollout.rs"
     );
     assert!(
-        !src.contains("delivery_f: None,") || src.matches("delivery_f: None").count() <= 1,
+        !src.contains("delivery_f: None,"),
         "session must not leave delivery_f unset on the delivery path"
     );
 }
@@ -49,7 +49,7 @@ fn filter_birth_f2_dirac_from_age_at_receipt() {
     let expected = birth_f_f2_dirac(age, params.eta_ref);
     let mut bank = UnitParticleBank {
         weights: vec![1.0],
-        freshness: vec![vec![]],
+        freshness: vec![vec![0.4; upl]],
     };
     let mut rng = Pcg64::seed_from_u64(99);
     let obs = FilterObs {

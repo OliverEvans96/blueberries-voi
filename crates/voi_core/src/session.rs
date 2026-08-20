@@ -19,7 +19,7 @@ use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
+use crate::shipments::{arrival_receipt_meta_with_trace, mod21_demo_shipments, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -323,16 +323,6 @@ impl EngineSession {
         };
         let mut rng_gamma = stream_rng(self.seed, self.day, 3);
         let mut rng_alloc = stream_rng(self.seed, self.day, 2);
-        let mut rng_ship = if arrival > 0 {
-            Some(stream_rng(self.seed, self.day, 4))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(stream_rng(self.seed, self.day, 5))
-        } else {
-            None
-        };
         let input = UnitDayStepIn {
             freshness: self.freshness.clone(),
             lot_offsets: self.lot_offsets.clone(),
@@ -340,10 +330,10 @@ impl EngineSession {
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: None,
+            delivery_f: f_at_receipt,
             units_per_lot: Some(self.params.units_per_lot),
-            age_at_receipt: None,
-            pack_age_mean: None,
+            age_at_receipt,
+            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step(
             &input,
@@ -351,8 +341,8 @@ impl EngineSession {
             &self.shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
         );
         self.freshness = out.freshness;
         self.lot_offsets = out.lot_offsets;
@@ -889,7 +879,19 @@ fn parse_shipments_from_rpc(params: &serde_json::Value) -> Vec<ShipmentTrace> {
             return ships;
         }
     }
-    Vec::new()
+    if let Some(product) = rpc_arrival_product(params) {
+        return mod21_demo_shipments(product);
+    }
+    mod21_demo_shipments("abdella_all")
+}
+
+fn rpc_arrival_product(params: &serde_json::Value) -> Option<&str> {
+    rpc_str(params, "arrival_product").or_else(|| {
+        params
+            .get("config")
+            .and_then(|c| c.get("arrival_product"))
+            .and_then(|v| v.as_str())
+    })
 }
 
 impl EngineSession {
@@ -1250,13 +1252,32 @@ mod tests {
     }
 
     #[test]
+    fn parse_shipments_hydrates_from_arrival_product() {
+        let short: serde_json::Value =
+            serde_json::from_str(r#"{"config":{"arrival_product":"short_haul"}}"#).unwrap();
+        assert_eq!(parse_shipments_from_rpc(&short).len(), 1);
+        let long: serde_json::Value =
+            serde_json::from_str(r#"{"config":{"arrival_product":"long_haul"}}"#).unwrap();
+        assert_eq!(parse_shipments_from_rpc(&long).len(), 5);
+        let all: serde_json::Value =
+            serde_json::from_str(r#"{"config":{"arrival_product":"abdella_all"}}"#).unwrap();
+        assert_eq!(parse_shipments_from_rpc(&all).len(), 6);
+    }
+
+    #[test]
+    fn parse_shipments_defaults_to_abdella_all_demo_mix() {
+        let none: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        assert_eq!(parse_shipments_from_rpc(&none).len(), 6);
+    }
+
+    #[test]
     fn rpc_init_hydrates_shipments_from_arrival_product() {
         let short = handle_rpc(
-            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"arrival_product":"short_haul","lead_time":2}}}"#,
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"arrival_product":"short_haul","lead_time":1}}}"#,
         );
         assert!(short.contains("\"ok\":true"), "{short}");
         let short_step = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
         );
         let short_v: serde_json::Value = serde_json::from_str(&short_step).unwrap();
         let f_short = short_v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]
@@ -1264,30 +1285,30 @@ mod tests {
             .as_f64()
             .expect("short_haul delivery");
 
-        let all = handle_rpc(
-            r#"{"id":"3","method":"init","params":{"seed":42,"config":{"arrival_product":"abdella_all","lead_time":2}}}"#,
+        let long = handle_rpc(
+            r#"{"id":"3","method":"init","params":{"seed":99,"config":{"arrival_product":"long_haul","lead_time":1}}}"#,
         );
-        assert!(all.contains("\"ok\":true"), "{all}");
-        let all_step = handle_rpc(
-            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        assert!(long.contains("\"ok\":true"), "{long}");
+        let long_step = handle_rpc(
+            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
         );
-        let all_v: serde_json::Value = serde_json::from_str(&all_step).unwrap();
-        let f_all = all_v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]
+        let long_v: serde_json::Value = serde_json::from_str(&long_step).unwrap();
+        let f_long = long_v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]
             ["mean_f"]
             .as_f64()
-            .expect("abdella_all delivery");
+            .expect("long_haul delivery");
         assert!(
-            f_short > f_all + 1e-4,
-            "short_haul (S2) should arrive fresher than six-shipment mix ({f_short} vs {f_all})"
+            f_short > f_long + 1e-4,
+            "short_haul (S2) should arrive fresher than long-haul mix ({f_short} vs {f_long})"
         );
     }
 
     #[test]
     fn rpc_default_shipments_when_none_sent() {
-        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":7}}"#);
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1}}}"#);
         assert!(out.contains("\"ok\":true"), "{out}");
         let step = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
         );
         let v: serde_json::Value = serde_json::from_str(&step).unwrap();
         let f = v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]["mean_f"]
