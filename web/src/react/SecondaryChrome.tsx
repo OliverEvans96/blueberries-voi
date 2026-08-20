@@ -9,29 +9,24 @@ import { SCENARIO_COPY } from "../controls";
 import { channelsForPreset } from "../obsMask";
 import type { ObsChannels, ScenarioId, ViewModel } from "../types";
 
-const POS_OPTIONS: ObsChannels["pos"][] = ["upc_only", "lot_id"];
-const WASTE_OPTIONS: ObsChannels["waste"][] = ["none", "daily_counts", "lot_id"];
-const DELIVERY_OPTIONS: ObsChannels["deliveries"][] = [
-  "quantity_only",
-  "pack_date_per_lot",
+const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "gsin"];
+const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
+  "none",
+  "pack_date",
+  "temperature_history",
 ];
 
-const PRESET_IDS: ScenarioId[] = ["P0", "P1", "F1", "F1s", "F2a", "F2"];
+const PRESET_IDS: ScenarioId[] = ["P0", "P1", "F1", "F2a", "F2", "F3"];
 
-const POS_LABEL: Record<ObsChannels["pos"], string> = {
-  upc_only: "UPC only",
-  lot_id: "Lot ID",
+const CODE_LABEL: Record<ObsChannels["code_type"], string> = {
+  upc: "UPC",
+  gsin: "GSIN (include lot #)",
 };
 
-const WASTE_LABEL: Record<ObsChannels["waste"], string> = {
+const HISTORY_LABEL: Record<ObsChannels["delivery_history"], string> = {
   none: "None",
-  daily_counts: "Daily counts",
-  lot_id: "Lot ID",
-};
-
-const DELIVERY_LABEL: Record<ObsChannels["deliveries"], string> = {
-  quantity_only: "Quantity only",
-  pack_date_per_lot: "Pack date per lot",
+  pack_date: "Pack date",
+  temperature_history: "Temperature history",
 };
 
 export type TradeoffTab = "curve" | "histogram";
@@ -49,7 +44,9 @@ export type SecondaryChromeProps = {
 
 function channelsEqual(a: ObsChannels, b: ObsChannels): boolean {
   return (
-    a.pos === b.pos && a.waste === b.waste && a.deliveries === b.deliveries
+    a.code_type === b.code_type &&
+    a.scan_waste === b.scan_waste &&
+    a.delivery_history === b.delivery_history
   );
 }
 
@@ -107,59 +104,54 @@ export function SecondaryChrome({
         >
           <span className="field-label">Observation channels</span>
 
-          <div className="obs-channel-group" role="group" aria-label="POS channel">
-            <span className="obs-channel-label">POS</span>
+          <div className="obs-channel-group" role="group" aria-label="Code type">
+            <span className="obs-channel-label">Code type</span>
             <div className="chip-row">
-              {POS_OPTIONS.map((pos) => (
+              {CODE_OPTIONS.map((code_type) => (
                 <button
-                  key={pos}
+                  key={code_type}
                   type="button"
-                  className={`obs-chip${channels.pos === pos ? " is-active" : ""}`}
-                  data-obs-pos={pos}
+                  className={`obs-chip${channels.code_type === code_type ? " is-active" : ""}`}
+                  data-obs-code-type={code_type}
                   disabled={catchingUp}
-                  onClick={() => setChannel({ pos })}
+                  onClick={() => setChannel({ code_type })}
                 >
-                  {POS_LABEL[pos]}
+                  {CODE_LABEL[code_type]}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="obs-channel-group" role="group" aria-label="Waste channel">
-            <span className="obs-channel-label">Waste</span>
-            <div className="chip-row">
-              {WASTE_OPTIONS.map((waste) => (
-                <button
-                  key={waste}
-                  type="button"
-                  className={`obs-chip${channels.waste === waste ? " is-active" : ""}`}
-                  data-obs-waste={waste}
-                  disabled={catchingUp}
-                  onClick={() => setChannel({ waste })}
-                >
-                  {WASTE_LABEL[waste]}
-                </button>
-              ))}
-            </div>
+          <div className="obs-channel-group" role="group" aria-label="Scan waste">
+            <span className="obs-channel-label">Scan waste</span>
+            <button
+              type="button"
+              className={`obs-chip${channels.scan_waste ? " is-active" : ""}`}
+              data-obs-scan-waste={String(channels.scan_waste)}
+              disabled={catchingUp}
+              onClick={() => setChannel({ scan_waste: !channels.scan_waste })}
+            >
+              {channels.scan_waste ? "On" : "Off"}
+            </button>
           </div>
 
           <div
             className="obs-channel-group"
             role="group"
-            aria-label="Deliveries channel"
+            aria-label="Delivery history"
           >
-            <span className="obs-channel-label">Deliveries</span>
+            <span className="obs-channel-label">Delivery history</span>
             <div className="chip-row">
-              {DELIVERY_OPTIONS.map((deliveries) => (
+              {HISTORY_OPTIONS.map((delivery_history) => (
                 <button
-                  key={deliveries}
+                  key={delivery_history}
                   type="button"
-                  className={`obs-chip${channels.deliveries === deliveries ? " is-active" : ""}`}
-                  data-obs-deliveries={deliveries}
+                  className={`obs-chip${channels.delivery_history === delivery_history ? " is-active" : ""}`}
+                  data-obs-delivery-history={delivery_history}
                   disabled={catchingUp}
-                  onClick={() => setChannel({ deliveries })}
+                  onClick={() => setChannel({ delivery_history })}
                 >
-                  {DELIVERY_LABEL[deliveries]}
+                  {HISTORY_LABEL[delivery_history]}
                 </button>
               ))}
             </div>

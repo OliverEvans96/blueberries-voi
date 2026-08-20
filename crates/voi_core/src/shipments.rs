@@ -148,17 +148,39 @@ pub fn arrival_receipt_meta<R: rand::Rng + ?Sized>(
     params: &ModelParams,
     spread_scale: f64,
 ) -> (f64, f64, i32) {
-    let f = generate_arrival_f(
+    let (f, tau, pack, _) = arrival_receipt_meta_with_trace(
         rng_ship,
         rng_sensor,
         shipments,
-        params.q10,
-        params.t_ref_c,
+        params,
         spread_scale,
-        params.eta_ref,
     );
-    let tau = f_to_age(f, params.eta_ref);
-    (f, tau, tau.round() as i32)
+    (f, tau, pack)
+}
+
+/// Same as [`arrival_receipt_meta`] but returns the sampled shipment trace for obs wire.
+pub fn arrival_receipt_meta_with_trace<R: rand::Rng + ?Sized>(
+    rng_ship: &mut R,
+    rng_sensor: &mut R,
+    shipments: &[ShipmentTrace],
+    params: &ModelParams,
+    spread_scale: f64,
+) -> (f64, f64, i32, ShipmentTrace) {
+    if shipments.is_empty() {
+        panic!("shipments must be non-empty");
+    }
+    let idx = rng_ship.random_range(0..shipments.len());
+    let trace = shipments[idx].clone();
+    let _: f64 = rng_sensor.random();
+    let ages: Vec<f64> = shipments
+        .iter()
+        .map(|s| shipment_arrival_age(s, params.q10, params.t_ref_c))
+        .collect();
+    let mean: f64 = ages.iter().sum::<f64>() / ages.len() as f64;
+    let age = ages[idx];
+    let tau = mean + spread_scale * (age - mean);
+    let f = age_to_f(tau, params.eta_ref);
+    (f, tau, tau.round() as i32, trace)
 }
 
 #[cfg(test)]

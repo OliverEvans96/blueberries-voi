@@ -1,5 +1,5 @@
 /**
- * Observation masks — TypeScript port of crates/voi_core/src/obs.rs (T-127 / T-128).
+ * Observation masks — TypeScript port of crates/voi_core/src/obs.rs (global scan model).
  */
 export type ObsMask = {
   arrivals: boolean;
@@ -10,16 +10,17 @@ export type ObsMask = {
   pack_date: boolean;
   age_at_receipt: boolean;
   lot_ids_live: boolean;
+  arrival_lot_ids: boolean;
+  temperature_history: boolean;
 };
 
-export type PosChannel = "upc_only" | "lot_id";
-export type WasteChannel = "none" | "daily_counts" | "lot_id";
-export type DeliveryChannel = "quantity_only" | "pack_date_per_lot";
+export type CodeType = "upc" | "gsin";
+export type DeliveryHistory = "none" | "pack_date" | "temperature_history";
 
 export type ObsChannels = {
-  pos: PosChannel;
-  waste: WasteChannel;
-  deliveries: DeliveryChannel;
+  code_type: CodeType;
+  scan_waste: boolean;
+  delivery_history: DeliveryHistory;
 };
 
 export type RichObsWire = {
@@ -30,8 +31,11 @@ export type RichObsWire = {
   sales_by?: number[] | null;
   waste_by?: number[] | null;
   lot_ids?: number[] | null;
+  arrival_lot_ids?: number[] | null;
   age_at_receipt?: number | null;
   pack_date_days?: number | null;
+  temp_times_d?: number[] | null;
+  temp_temps_c?: number[] | null;
 };
 
 export type MaskedObsWire = RichObsWire;
@@ -45,28 +49,27 @@ const DEFAULT_MASK: ObsMask = {
   pack_date: false,
   age_at_receipt: false,
   lot_ids_live: false,
+  arrival_lot_ids: false,
+  temperature_history: false,
 };
 
 export const DEFAULT_OBS_CHANNELS: ObsChannels = {
-  pos: "upc_only",
-  waste: "daily_counts",
-  deliveries: "quantity_only",
+  code_type: "upc",
+  scan_waste: true,
+  delivery_history: "none",
 };
 
 const PRESET_CHANNELS: Record<string, ObsChannels> = {
-  P0: { pos: "upc_only", waste: "none", deliveries: "quantity_only" },
+  P0: { code_type: "upc", scan_waste: false, delivery_history: "none" },
   P1: DEFAULT_OBS_CHANNELS,
-  F1: { pos: "lot_id", waste: "daily_counts", deliveries: "quantity_only" },
-  F1s: { pos: "upc_only", waste: "lot_id", deliveries: "quantity_only" },
-  F2a: {
-    pos: "upc_only",
-    waste: "daily_counts",
-    deliveries: "pack_date_per_lot",
-  },
-  F2: {
-    pos: "lot_id",
-    waste: "lot_id",
-    deliveries: "pack_date_per_lot",
+  F1: { code_type: "gsin", scan_waste: true, delivery_history: "none" },
+  F1s: { code_type: "gsin", scan_waste: true, delivery_history: "none" },
+  F2a: { code_type: "upc", scan_waste: true, delivery_history: "pack_date" },
+  F2: { code_type: "gsin", scan_waste: true, delivery_history: "pack_date" },
+  F3: {
+    code_type: "gsin",
+    scan_waste: true,
+    delivery_history: "temperature_history",
   },
 };
 
@@ -84,7 +87,8 @@ export function channelsForPreset(scenario: string): ObsChannels {
 }
 
 export function channelsCacheKey(ch: ObsChannels): string {
-  return `pos=${ch.pos}|waste=${ch.waste}|deliveries=${ch.deliveries}`;
+  const waste = ch.scan_waste ? "1" : "0";
+  return `code=${ch.code_type}|waste=${waste}|hist=${ch.delivery_history}`;
 }
 
 export function maskFromChannels(ch: ObsChannels): ObsMask {
@@ -93,19 +97,21 @@ export function maskFromChannels(ch: ObsChannels): ObsMask {
     arrivals: true,
     sales_total: true,
   };
-  if (ch.pos === "lot_id") {
+  if (ch.code_type === "gsin") {
     m.sales_by_lot = true;
     m.lot_ids_live = true;
+    m.arrival_lot_ids = true;
   }
-  if (ch.waste === "daily_counts") {
+  if (ch.scan_waste) {
     m.waste_total = true;
-  } else if (ch.waste === "lot_id") {
-    m.waste_total = true;
-    m.waste_by_lot = true;
-    m.lot_ids_live = true;
+    if (ch.code_type === "gsin") {
+      m.waste_by_lot = true;
+    }
   }
-  if (ch.deliveries === "pack_date_per_lot") {
+  if (ch.delivery_history === "pack_date") {
     m.pack_date = true;
+  } else if (ch.delivery_history === "temperature_history") {
+    m.temperature_history = true;
   }
   return m;
 }
@@ -123,7 +129,10 @@ export function applyMask(rich: RichObsWire, mask: ObsMask): MaskedObsWire {
     sales_by: mask.sales_by_lot ? (rich.sales_by ?? null) : null,
     waste_by: mask.waste_by_lot ? (rich.waste_by ?? null) : null,
     lot_ids: mask.lot_ids_live ? (rich.lot_ids ?? null) : null,
+    arrival_lot_ids: mask.arrival_lot_ids ? (rich.arrival_lot_ids ?? null) : null,
     pack_date_days: mask.pack_date ? (rich.pack_date_days ?? null) : null,
     age_at_receipt: mask.age_at_receipt ? (rich.age_at_receipt ?? null) : null,
+    temp_times_d: mask.temperature_history ? (rich.temp_times_d ?? null) : null,
+    temp_temps_c: mask.temperature_history ? (rich.temp_temps_c ?? null) : null,
   };
 }

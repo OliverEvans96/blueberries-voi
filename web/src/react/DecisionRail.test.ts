@@ -1,5 +1,5 @@
 /**
- * T-124 / T-128: Decision rail — channel toggles + truth + tradeoff charts.
+ * T-124 / T-135: Decision rail — scan-model toggles + truth + tradeoff charts.
  */
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -35,17 +35,17 @@ function baseProps(activeSection: SectionId = "physics") {
   };
 }
 
-describe("DecisionRail (T-128 obs channels)", () => {
-  it("renders channel toggle groups and preset select", () => {
+describe("DecisionRail (T-135 obs channels)", () => {
+  it("renders scan-model toggle groups and preset select", () => {
     const props = baseProps();
     render(createElement(DecisionRail, props));
 
     const rail = document.querySelector("aside.decision-rail");
     expect(rail).not.toBeNull();
     expect(document.querySelector("[data-testid='obs-channels']")).not.toBeNull();
-    expect(document.querySelectorAll("[data-obs-pos]").length).toBe(2);
-    expect(document.querySelectorAll("[data-obs-waste]").length).toBe(3);
-    expect(document.querySelectorAll("[data-obs-deliveries]").length).toBe(2);
+    expect(document.querySelectorAll("[data-obs-code-type]").length).toBe(2);
+    expect(document.querySelector("[data-obs-scan-waste]")).not.toBeNull();
+    expect(document.querySelectorAll("[data-obs-delivery-history]").length).toBe(3);
     expect(document.getElementById("obs-preset-select")).not.toBeNull();
 
     const truth = screen.getByRole("switch", { name: /truth|true state/i });
@@ -62,16 +62,16 @@ describe("DecisionRail (T-128 obs channels)", () => {
     expect(props.onSetObsPreset).toHaveBeenCalledWith("F2");
   });
 
-  it("waste channel toggle calls onSetObsChannels", () => {
+  it("code type toggle calls onSetObsChannels", () => {
     const props = baseProps();
     render(createElement(DecisionRail, props));
 
-    const lotWaste = document.querySelector(
-      '[data-obs-waste="lot_id"]',
+    const gsin = document.querySelector(
+      '[data-obs-code-type="gsin"]',
     ) as HTMLButtonElement;
-    fireEvent.click(lotWaste);
+    fireEvent.click(gsin);
     expect(props.onSetObsChannels).toHaveBeenCalledWith(
-      expect.objectContaining({ waste: "lot_id" }),
+      expect.objectContaining({ code_type: "gsin" }),
     );
   });
 });

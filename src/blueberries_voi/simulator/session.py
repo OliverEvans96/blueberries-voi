@@ -214,18 +214,18 @@ class EngineSession:
         self._require_init()
         ch = validate_channels(channels)
         self._config["obs_channels"] = {
-            "pos": ch.pos,
-            "waste": ch.waste,
-            "deliveries": ch.deliveries,
+            "code_type": ch.code_type,
+            "scan_waste": ch.scan_waste,
+            "delivery_history": ch.delivery_history,
         }
         from blueberries_voi.filter.types import channels_for_preset
 
-        for sid in ("P0", "P1", "F1", "F1s", "F2a", "F2"):
+        for sid in ("P0", "P1", "F1", "F1s", "F2a", "F2", "F3"):
             preset = channels_for_preset(sid)
             if (
-                preset.pos == ch.pos
-                and preset.waste == ch.waste
-                and preset.deliveries == ch.deliveries
+                preset.code_type == ch.code_type
+                and preset.scan_waste == ch.scan_waste
+                and preset.delivery_history == ch.delivery_history
             ):
                 self._obs_scenario = sid
                 self._config["obs_scenario"] = sid
@@ -234,7 +234,9 @@ class EngineSession:
         if not callable(fn):
             msg = "PyEngineSession.set_obs_channels is required after T-128"
             raise RuntimeError(msg)
-        return self._coerce_snapshot(fn(ch.pos, ch.waste, ch.deliveries))
+        return self._coerce_snapshot(
+            fn(ch.code_type, ch.scan_waste, ch.delivery_history)
+        )
 
     def host_crossings(self) -> int:
         """Host/FFI crossings (Rust backend)."""

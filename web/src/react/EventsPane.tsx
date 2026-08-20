@@ -1,8 +1,8 @@
 /**
- * Events pane — protection-interval daily log (T-128).
+ * Events pane — protection-interval daily log (T-128 / T-135 scan model).
  */
 import { Fragment } from "react";
-import { renderDeliveryTempHistory } from "../charts/deliveryTempMock";
+import { renderDeliveryTempHistory } from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
 import type { ObsChannels } from "../types";
 import { ChartUnavailable } from "./ChartUnavailable";
@@ -53,7 +53,6 @@ function formatLotBreakdown(
   return parts.length ? parts.join(", ") : null;
 }
 
-
 export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) {
   if (loading) {
     return (
@@ -88,7 +87,6 @@ export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) 
             : null;
           const isDeliveryDay = ev.arrivals > 0;
           const isToday = ev.day === todayDay;
-          const deliveryLotId = ev.lot_ids?.[0] ?? 0;
 
           return (
             <Fragment key={ev.day}>
@@ -110,20 +108,14 @@ export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) 
                     <span className="events-line-value">
                       {ev.arrivals} units
                     </span>
-                    {obsMask.age_at_receipt && ev.age_at_receipt != null ? (
-                      <span className="events-line-detail">
-                        harvested day{" "}
-                        {Math.round((ev.day ?? 0) - ev.age_at_receipt)}
-                      </span>
-                    ) : null}
                     {obsMask.pack_date && ev.pack_date_days != null ? (
                       <span className="events-line-detail">
                         Pack date {ev.pack_date_days} days
                       </span>
                     ) : null}
-                    {obsMask.lot_ids_live && ev.lot_ids?.length ? (
+                    {obsMask.arrival_lot_ids && ev.arrival_lot_ids?.length ? (
                       <span className="events-lots">
-                        Lots {ev.lot_ids.join(", ")}
+                        Lots {ev.arrival_lot_ids.join(", ")}
                       </span>
                     ) : null}
                   </div>
@@ -171,40 +163,28 @@ export function EventsPane({ vm, showTruth, events, loading }: EventsPaneProps) 
                   </div>
                 ) : null}
 
-                {obsMask.pack_date && !isDeliveryDay && ev.pack_date_days != null ? (
-                  <div className="events-line events-line--pack-date">
-                    <span className="events-line-label">Pack date</span>
-                    <span className="events-line-value">
-                      {ev.pack_date_days} days
-                    </span>
-                  </div>
-                ) : null}
-
-                {obsMask.age_at_receipt && ev.age_at_receipt != null ? (
-                  <div className="events-line events-line--age-receipt">
-                    <span className="events-line-label">Age at receipt</span>
-                    <span className="events-line-value">{ev.age_at_receipt}</span>
-                  </div>
-                ) : null}
-
-                {isDeliveryDay ? (
-                  <div className="events-temp-history" data-illustrative="true">
+                {isDeliveryDay && obsMask.temperature_history ? (
+                  <div className="events-temp-history">
                     <div className="chart-caption events-temp-caption">
-                      temp. history (illustrative)
+                      temp. history
                     </div>
-                    <div
-                      className="events-temp-chart-host"
-                      data-day={ev.day}
-                      ref={(node) => {
-                        if (node) {
-                          renderDeliveryTempHistory(
-                            node,
-                            ev.day ?? 0,
-                            deliveryLotId,
-                          );
-                        }
-                      }}
-                    />
+                    {ev.temp_times_d?.length && ev.temp_temps_c?.length ? (
+                      <div
+                        className="events-temp-chart-host"
+                        data-day={ev.day}
+                        ref={(node) => {
+                          if (node) {
+                            renderDeliveryTempHistory(
+                              node,
+                              ev.temp_times_d,
+                              ev.temp_temps_c,
+                            );
+                          }
+                        }}
+                      />
+                    ) : (
+                      <NotObserved />
+                    )}
                   </div>
                 ) : null}
               </article>

@@ -22,8 +22,11 @@ type MaskedDayWire = {
   sales_by?: number[] | null;
   waste_by?: number[] | null;
   lot_ids?: number[] | null;
+  arrival_lot_ids?: number[] | null;
   age_at_receipt?: number | null;
   pack_date_days?: number | null;
+  temp_times_d?: number[] | null;
+  temp_temps_c?: number[] | null;
 };
 
 type EventsPaneModule = {
@@ -217,17 +220,16 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
     expect(screen.queryByText(/1\.5/)).toBeNull();
   });
 
-  it("F2 does not surface age_at_receipt at the channel mask rung", async () => {
+  it("F2 shows pack date on delivery days only", async () => {
     const { EventsPane } = (await loadEventsPane())!;
-    const f2NonDelivery: MaskedDayWire = {
+    const f2Delivery: MaskedDayWire = {
       day: 3,
-      arrivals: 0,
+      arrivals: 12,
       sales_total: 4,
       waste_total: 1,
       sales_by: [4],
       waste_by: [1],
       lot_ids: [101],
-      age_at_receipt: 1.5,
       pack_date_days: 2,
     };
     render(
@@ -241,23 +243,55 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
           },
         },
         showTruth: false,
-        events: [f2NonDelivery],
+        events: [f2Delivery],
       }),
     );
     expect(screen.queryByText(/age at receipt/i)).toBeNull();
     expect(screen.getByText(/pack date/i)).toBeInTheDocument();
   });
 
-  it("delivery day shows illustrative temp chart", async () => {
+  it("F2 delivery day does not show temp chart when history is pack_date", async () => {
     const { EventsPane } = (await loadEventsPane())!;
     const { container } = render(
       createElement(EventsPane, {
-        vm: baseVm(),
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
         showTruth: false,
         events: [F2_DAY],
       }),
     );
-    expect(screen.getByText(/temp\. history \(illustrative\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/temp\. history/i)).toBeNull();
+    expect(container.querySelector(".events-temp-chart-host svg")).toBeNull();
+  });
+
+  it("F3 delivery day shows temp chart from wire trace", async () => {
+    const { EventsPane } = (await loadEventsPane())!;
+    const f3Day: MaskedDayWire = {
+      ...F2_DAY,
+      temp_times_d: [0, 0.5, 1],
+      temp_temps_c: [2, 2.5, 3],
+    };
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          ...baseVm(),
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F3",
+            obs_channels: channelsForPreset("F3"),
+          },
+        },
+        showTruth: false,
+        events: [f3Day],
+      }),
+    );
+    expect(screen.getByText(/temp\. history/i)).toBeInTheDocument();
     expect(container.querySelector(".events-temp-chart-host svg")).not.toBeNull();
     expect(
       container.querySelector(".delivery-temp-line, [data-series='temp']"),

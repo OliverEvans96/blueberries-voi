@@ -3,6 +3,7 @@
  */
 import { STUDIO_SECTIONS } from "./sections";
 import type { ObsChannels, ScenarioId } from "./types";
+import { channelsForPreset } from "./obsMask";
 
 export type Availability = "show" | "dim" | "unavailable";
 
@@ -42,11 +43,11 @@ export const ALL_CONTROL_IDS: string[] = [
 export const ALL_PLOT_IDS: string[] = collectPlotIds();
 
 function spoilageAvailable(ch: ObsChannels): Availability {
-  return ch.waste === "none" ? "unavailable" : "show";
+  return ch.scan_waste ? "show" : "unavailable";
 }
 
 function packDateControlsAvailable(ch: ObsChannels): Availability {
-  return ch.deliveries === "pack_date_per_lot" ? "show" : "dim";
+  return ch.delivery_history === "pack_date" ? "show" : "dim";
 }
 
 export function channelAvailability(
@@ -55,7 +56,7 @@ export function channelAvailability(
 ): Availability {
   if (id === "store-spoilage") return spoilageAvailable(channels);
   if (id === "plot-arrival-prior-rug") {
-    return channels.deliveries === "pack_date_per_lot" ? "show" : "unavailable";
+    return channels.delivery_history === "pack_date" ? "show" : "unavailable";
   }
   if (id === "f2a_transit_sd" || id === "sensor_sigma") {
     return packDateControlsAvailable(channels);
@@ -84,19 +85,7 @@ export function controlAvailability(
 }
 
 function channelsFromLegacyScenario(scenario: ScenarioId): ObsChannels {
-  const map: Record<ScenarioId, ObsChannels> = {
-    P0: { pos: "upc_only", waste: "none", deliveries: "quantity_only" },
-    P1: { pos: "upc_only", waste: "daily_counts", deliveries: "quantity_only" },
-    F1: { pos: "lot_id", waste: "daily_counts", deliveries: "quantity_only" },
-    F1s: { pos: "upc_only", waste: "lot_id", deliveries: "quantity_only" },
-    F2a: {
-      pos: "upc_only",
-      waste: "daily_counts",
-      deliveries: "pack_date_per_lot",
-    },
-    F2: { pos: "lot_id", waste: "lot_id", deliveries: "pack_date_per_lot" },
-  };
-  return map[scenario];
+  return channelsForPreset(scenario);
 }
 
 /** Whether arrival prior receipt rug may render (pack_date channel or showTruth). */

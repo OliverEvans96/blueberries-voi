@@ -69,9 +69,9 @@ describe("EngineAdapter wire surface (T-127 AC-wire)", () => {
       before.candidates[1]!.waste_mean,
     );
     await mock.set_obs_channels({
-      pos: "lot_id",
-      waste: "lot_id",
-      deliveries: "pack_date_per_lot",
+      code_type: "gsin",
+      scan_waste: true,
+      delivery_history: "pack_date",
     });
     const afterChannels = (await mock.tradeoffForecast!()) as TradeoffForecastWire;
     expect(afterChannels.candidates[1]!.waste_mean).not.toBe(

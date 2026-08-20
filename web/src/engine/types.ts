@@ -29,11 +29,19 @@ export type DemandSummary = {
   dow_means: number[];
 };
 
+/** Per-day belief on the wire after obs catch-up replay. */
+export type BeliefHistoryWire = {
+  day: number;
+  belief: FlatBelief;
+};
+
 /** Cold payload from init / reset. */
 export type Snapshot = {
   seq: number;
   episode_day: number;
   belief: FlatBelief;
+  /** Per-day beliefs after obs-channel catch-up replay (set_obs_channels). */
+  belief_history?: BeliefHistoryWire[];
   history?: Day[];
   live_lots?: Lot[];
   pipeline?: PipelineOrder[];

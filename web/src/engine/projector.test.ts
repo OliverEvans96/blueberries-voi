@@ -680,9 +680,49 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     expect(vm.episode_day).toBe(2);
     expect(ageMass(vm.belief.density)[3]!).toBeCloseTo(10);
     expect(vm.belief_history).toHaveLength(2);
-    // Last-day belief trail updated to the new rung; earlier days unchanged.
+    // Without belief_history wire, only the last day is patched (legacy path).
     expect(vm.belief_history[1]!.flatBelief.f_marginals[3]).toBe(1);
     expect(vm.belief_history[0]!.flatBelief.f_marginals[0]).toBe(1);
+  });
+
+  it("patchEngineState with belief_history replays all days for charts", () => {
+    const projector = new ViewModelProjector();
+    projector.applySnapshot(
+      sampleSnapshot({
+        belief: peakedBelief(0),
+        live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
+      }),
+    );
+    projector.applyDelta(
+      sampleDelta({
+        seq: 1,
+        episode_day: 1,
+        day: sampleDay(0),
+        belief: peakedBelief(0),
+      }),
+    );
+    projector.applyDelta(
+      sampleDelta({
+        seq: 2,
+        episode_day: 2,
+        day: sampleDay(1),
+        belief: peakedBelief(1),
+      }),
+    );
+
+    const vm = projector.patchEngineState({
+      belief: peakedBelief(3),
+      belief_history: [
+        { day: 0, belief: peakedBelief(2) },
+        { day: 1, belief: peakedBelief(3) },
+      ],
+      live_lots: [{ lot_id: 1, n: 8, mean_f: 0.857 }],
+      pipeline: [],
+      episode_day: 2,
+    });
+
+    expect(vm.belief_history[0]!.flatBelief.f_marginals[2]).toBe(1);
+    expect(vm.belief_history[1]!.flatBelief.f_marginals[3]).toBe(1);
   });
 
   it("patchEngineState skips belief_history update for empty stub belief", () => {
