@@ -171,27 +171,11 @@ impl EngineSession {
     }
 
     fn seed_particle_bank(&mut self) {
-        use rand::Rng;
-
         let n = self._n_particles.max(1);
-        let l = self.l_dim;
-        let upl = self.params.units_per_lot.max(1);
-        let units = l * upl;
-        let grid = f_grid_k(self.k_dim.max(1));
-        let mut rng = Pcg64::seed_from_u64(self.seed.wrapping_add(0xF117_0000));
-        let freshness: Vec<Vec<f64>> = (0..n)
-            .map(|_| {
-                (0..units)
-                    .map(|_| {
-                        let bin = rng.random_range(0..grid.len());
-                        grid[bin]
-                    })
-                    .collect()
-            })
-            .collect();
+        // ADR 0136: zero-init — empty shelf until observed arrivals (no phantom L×U pre-fill).
         self.bank = UnitParticleBank {
             weights: vec![1.0 / n as f64; n],
-            freshness,
+            freshness: vec![vec![]; n],
         };
         self.bank_init = self.bank.clone();
     }

@@ -9,7 +9,7 @@ use crate::obs::FilterObs;
 use crate::physics::{apply_gamma_aging, age_to_f};
 use crate::shipments::{arrival_age_from_path, shipment_arrival_age, ShipmentTrace};
 use crate::unit_ll::{
-    loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
+    align_lot_map, loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
     p1_totals_loglik, sequential_kernel_path_logprob,
 };
 use crate::ModelParams;
@@ -52,11 +52,21 @@ fn lot_offsets(n_lots: usize, units_per_lot: usize) -> Vec<usize> {
     (0..=n_lots).map(|i| i * units_per_lot).collect()
 }
 
+/// Lot boundaries clamped to actual particle row length (ADR 0136 variable arrivals).
+fn lot_offsets_for_len(len: usize, units_per_lot: usize) -> Vec<usize> {
+    if len == 0 {
+        return vec![0];
+    }
+    let upl = units_per_lot.max(1);
+    let n_lots = len.div_ceil(upl);
+    (0..=n_lots).map(|i| (i * upl).min(len)).collect()
+}
+
 fn n_lots_from_units(units: usize, units_per_lot: usize) -> usize {
-    if units_per_lot == 0 {
+    if units_per_lot == 0 || units == 0 {
         return 0;
     }
-    units / units_per_lot
+    units.div_ceil(units_per_lot)
 }
 
 fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
@@ -105,23 +115,34 @@ fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) 
 fn score_particle<R: Rng + ?Sized>(
     freshness: &mut [f64],
     obs: &FilterObs,
-    offsets: &[usize],
     params: &ModelParams,
     path_rng: &mut R,
 ) -> f64 {
+    let upl = params.units_per_lot.max(1);
+    let offsets = lot_offsets_for_len(freshness.len(), upl);
     if let Some(ref sales_by) = obs.sales_by {
-        let mut ll = loglik_sales_by_units(freshness, sales_by, offsets, params);
+        let n_lots = offsets.len().saturating_sub(1);
+        let aligned = align_lot_map(sales_by, n_lots);
+        if aligned.iter().sum::<u32>() == 0 {
+            let wt = obs.waste_tot.unwrap_or(0);
+            let ll = p1_totals_loglik(freshness, 0, wt, params);
+            if !ll.is_finite() {
+                return ll;
+            }
+            return ll;
+        }
+        let mut ll = loglik_sales_by_units(freshness, &aligned, &offsets, params);
         if !ll.is_finite() {
             return ll;
         }
         if let Some(ref waste_by) = obs.waste_by {
-            let wl = loglik_waste_by_units(freshness, sales_by, waste_by, offsets);
+            let wl = loglik_waste_by_units(freshness, &aligned, waste_by, &offsets);
             if !wl.is_finite() {
                 return wl;
             }
             ll += wl;
         } else if let Some(wt) = obs.waste_tot {
-            let wl = loglik_waste_tot_after_sales_by(freshness, sales_by, wt, offsets);
+            let wl = loglik_waste_tot_after_sales_by(freshness, &aligned, wt, &offsets);
             if !wl.is_finite() {
                 return wl;
             }
@@ -129,7 +150,7 @@ fn score_particle<R: Rng + ?Sized>(
         }
         // Unscored state transition: per-lot WOR removal conditional on sales_by.
         for ell in 0..offsets.len().saturating_sub(1) {
-            let sales = sales_by[ell] as usize;
+            let sales = aligned[ell] as usize;
             if sales > 0 {
                 let sl = &mut freshness[offsets[ell]..offsets[ell + 1]];
                 let _ = sequential_kernel_path_logprob(sl, sales, params, path_rng);
@@ -170,9 +191,6 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         return;
     }
     let upl = params.units_per_lot.max(1);
-    let units = bank.freshness.first().map(|r| r.len()).unwrap_or(0);
-    let n_lots = n_lots_from_units(units, upl);
-    let offsets = lot_offsets(n_lots, upl);
     let step_seed = rng.random::<u64>();
 
     for row in &mut bank.freshness {
@@ -185,7 +203,6 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         let ll = score_particle(
             &mut bank.freshness[p],
             obs,
-            &offsets,
             params,
             &mut path_rng,
         );
@@ -203,14 +220,15 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         *x -= mx;
     }
 
-    if obs.arrivals > 0 && n_lots > 0 {
+    if obs.arrivals > 0 {
+        let n_birth = obs.arrivals as usize;
         for p in 0..n {
             let birth = birth_f(obs, params, rng);
             let row = &mut bank.freshness[p];
             if row.len() >= upl {
                 row.drain(0..upl);
             }
-            row.extend(vec![birth; upl]);
+            row.extend(vec![birth; n_birth]);
         }
     }
 

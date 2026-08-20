@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-20
+- **Episodes now start with an empty shelf everywhere — we removed the “starting inventory” control, fixed ghost stock on the belief chart at day zero, aligned GSIN with UPC when nothing has sold yet, and deliveries add the correct number of units** (T-137).
 - **The production freshness filter now scores sales the same way for books-only and lot-tracked stores — GSIN totals are no longer noisier than UPC, sold units are removed from particle state after each sale, and lot-level sales use a proper cross-lot split instead of repeated single-path guesses** (T-136).
 
 ## 2026-08-17

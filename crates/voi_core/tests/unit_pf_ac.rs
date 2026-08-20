@@ -1160,3 +1160,82 @@ fn multinomial_vs_wor_mc_realistic_l() {
         "empirical WOR lot-share vs multinomial lot_share TV={tv} must be < {TV_MAX}"
     );
 }
+
+#[test]
+fn engine_session_init_belief_mass_zero() {
+    let mut s = voi_core::EngineSession::new(42);
+    s.init(42);
+    s.set_belief_dims(2, 4);
+    s.configure(2, true, 7, 2, 1, vec![], 32, None, None);
+    s.set_obs_scenario("P1").unwrap();
+    let snap = s.snapshot_value();
+    let lc: Vec<f64> = snap["belief"]["lot_counts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|x| x.as_f64())
+        .collect();
+    let mass: f64 = lc.iter().sum();
+    assert!(mass.abs() < 1e-9, "init belief mass must be zero, got {mass}");
+}
+
+#[test]
+fn p1_f1_zero_sales_belief_mass_parity() {
+    use voi_core::EngineSession;
+
+    fn mass_after_zero_days(scenario: &str, days: u32) -> f64 {
+        let mut s = EngineSession::new(42);
+        s.init(42);
+        s.set_belief_dims(2, 4);
+        s.configure(2, true, 7, 2, 1, vec![], 32, None, None);
+        s.set_obs_scenario(scenario).unwrap();
+        for _ in 0..days {
+            s.step(0);
+        }
+        let snap = s.snapshot_value();
+        snap["belief"]["lot_counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .sum()
+    }
+    let p1 = mass_after_zero_days("P1", 8);
+    let f1 = mass_after_zero_days("F1", 8);
+    assert!(p1 <= 0.5, "P1 mass after 8 zero days {p1}");
+    assert!(f1 <= 0.5, "F1 mass after 8 zero days {f1}");
+}
+
+#[test]
+fn filter_birth_matches_arrival_qty_not_upl() {
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::FilterObs;
+    use voi_core::unit_pf::{filter_step_unit, UnitParticleBank};
+    use voi_core::ModelParams;
+
+    let upl = 15usize;
+    let n = 8usize;
+    let mut bank = UnitParticleBank {
+        weights: vec![1.0 / n as f64; n],
+        freshness: vec![vec![]; n],
+    };
+    let obs = FilterObs {
+        sales_tot: Some(0),
+        waste_tot: Some(0),
+        arrivals: 8,
+        ..Default::default()
+    };
+    let params = ModelParams {
+        units_per_lot: upl,
+        ..ModelParams::default()
+    };
+    let mut rng = Pcg64::seed_from_u64(99);
+    filter_step_unit(&mut bank, &obs, &params, &mut rng);
+    let alive: usize = bank
+        .freshness
+        .iter()
+        .map(|row| row.iter().filter(|&&f| f > 0.0).count())
+        .sum();
+    assert_eq!(alive, n * 8, "each particle should birth 8 units, got {alive}");
+}

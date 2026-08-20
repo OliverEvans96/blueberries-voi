@@ -181,11 +181,17 @@ pub fn loglik_sales_by_units(
     params: &ModelParams,
 ) -> f64 {
     let n_lots = offsets.len().saturating_sub(1);
-    if sales_by.len() != n_lots {
-        return f64::NEG_INFINITY;
-    }
+    let sales_by = align_lot_map(sales_by, n_lots);
     for ell in 0..n_lots {
-        let sl = &freshness[offsets[ell]..offsets[ell + 1]];
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        if start >= end {
+            if sales_by[ell] > 0 {
+                return f64::NEG_INFINITY;
+            }
+            continue;
+        }
+        let sl = &freshness[start..end];
         let alive = sl.iter().filter(|&&f| f > 0.0).count();
         let sales = sales_by[ell] as usize;
         if alive < sales {
@@ -202,10 +208,10 @@ pub fn loglik_sales_by_units(
             return f64::NEG_INFINITY;
         }
     }
-    multinomial_log_pmf(sales_by, &lot_share)
+    multinomial_log_pmf(&sales_by, &lot_share)
 }
 
-fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {
+pub(crate) fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {
     if values.len() == l {
         return values.to_vec();
     }

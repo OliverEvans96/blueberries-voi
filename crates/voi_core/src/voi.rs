@@ -1,6 +1,5 @@
 //! SIM-02 CRN cell: shared physics, scenario-masked unit PF, SW+rollout policy.
 
-use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -56,30 +55,12 @@ fn pop_arrival(pending: &mut std::collections::BTreeMap<u32, u32>, day: u32) -> 
     pending.remove(&day).unwrap_or(0)
 }
 
-fn init_filter_bank(
-    n: usize,
-    root_seed: u64,
-    scenario: &str,
-    l: usize,
-    upl: usize,
-    k: usize,
-) -> UnitParticleBank {
-    let units = l * upl.max(1);
-    let grid = f_grid_k(k.max(1));
-    let mut frng = rng(root_seed, filter_tag(scenario), 0, STREAM_FILTER);
-    let freshness: Vec<Vec<f64>> = (0..n)
-        .map(|_| {
-            (0..units)
-                .map(|_| {
-                    let bin = frng.random_range(0..grid.len());
-                    grid[bin]
-                })
-                .collect()
-        })
-        .collect();
+fn init_filter_bank(n: usize, _root_seed: u64, _scenario: &str, _l: usize, _upl: usize, _k: usize) -> UnitParticleBank {
+    let _ = (_root_seed, _scenario, _l, _upl, _k);
+    // ADR 0136: zero-init — match P0 / EngineSession empty bank.
     UnitParticleBank {
         weights: vec![1.0 / n as f64; n],
-        freshness,
+        freshness: vec![vec![]; n],
     }
 }
 
@@ -440,11 +421,15 @@ mod tests {
     }
 
     #[test]
-    fn init_filter_bank_yields_nonempty_ordering_belief() {
-        let bank = init_filter_bank(8, 42, "P0", FILTER_INIT_L, 15, FILTER_INIT_K);
+    fn init_filter_bank_empty_shelf_zero_lot_counts() {
+        let bank = init_filter_bank(8, 42, "P1", FILTER_INIT_L, 15, FILTER_INIT_K);
         let (lot_counts, _, _) = f_belief_from_bank(&bank, FILTER_INIT_L, FILTER_INIT_K);
         assert_eq!(lot_counts.len(), FILTER_INIT_L);
-        assert!(lot_counts.iter().any(|&n| n > 0.0), "counts {lot_counts:?}");
+        let mass: f64 = lot_counts.iter().sum();
+        assert!(
+            mass.abs() < 1e-9,
+            "empty init must yield zero lot_counts mass, got {lot_counts:?}"
+        );
     }
 
     #[test]
