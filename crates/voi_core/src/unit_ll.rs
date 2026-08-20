@@ -1,6 +1,8 @@
-//! Unit-level sequential picking log-likelihoods (C2 Algorithm A / ADR 0130).
+//! Unit-level sequential picking log-likelihoods (C2 Algorithm A / ADR 0130, ADR 0135).
 //!
-//! Promoted from `bench_c2_a_totals_study` and `bench_c2_accuracy`.
+//! Sales **importance weights** are deterministic (feasibility gates + binomial waste +
+//! multinomial cross-lot allocation for F1). Stochastic WOR path draws live only in
+//! `sequential_kernel_path_logprob`, used as an **unscored** state-transition kernel.
 
 use rand::Rng;
 
@@ -45,12 +47,63 @@ pub fn iter_compositions(totals: &[u32], target: i32) -> Vec<Vec<u32>> {
     out
 }
 
-/// Log-probability of a sequential picking path selling `sales` units from alive slots.
-///
-/// Uses f-native picking weights (`picking_weights_f`). Alive units are those with
-/// `f > 0`; picked slots are removed without replacement. `rng` drives the path draw sequence.
-pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
+/// Normalized lot shares from pooled picking weights over **pre-removal** freshness.
+pub fn lot_shares_from_freshness(
     freshness: &[f64],
+    offsets: &[usize],
+    params: &ModelParams,
+) -> Vec<f64> {
+    let n_lots = offsets.len().saturating_sub(1);
+    let pooled_w = picking_weights_f(freshness, params.sigma, params.uniform_picking);
+    let mut lot_share = vec![0.0; n_lots];
+    for ell in 0..n_lots {
+        lot_share[ell] = pooled_w[offsets[ell]..offsets[ell + 1]].iter().sum();
+    }
+    let z: f64 = lot_share.iter().sum();
+    if z <= 0.0 {
+        lot_share
+    } else {
+        lot_share.iter_mut().for_each(|s| *s /= z);
+        lot_share
+    }
+}
+
+/// Log-PMF of `Multinomial(counts; n = sum(counts), p = probs)`.
+pub fn multinomial_log_pmf(counts: &[u32], probs: &[f64]) -> f64 {
+    let n: u32 = counts.iter().sum();
+    if n == 0 {
+        return 0.0;
+    }
+    if counts.len() != probs.len() {
+        return f64::NEG_INFINITY;
+    }
+    let mut log_coef = 0.0f64;
+    let mut nn = n as f64;
+    for &k in counts {
+        for i in 0..k {
+            log_coef += (nn - i as f64).ln() - (i as f64 + 1.0).ln();
+        }
+        nn -= k as f64;
+    }
+    let mut log_p = log_coef;
+    for (&k, &p) in counts.iter().zip(probs.iter()) {
+        if p <= 0.0 && k > 0 {
+            return f64::NEG_INFINITY;
+        }
+        if p > 0.0 && k > 0 {
+            log_p += k as f64 * p.ln();
+        }
+    }
+    log_p
+}
+
+/// Draw and apply a sequential WOR sales path; **mutates** picked slots to `0.0`.
+///
+/// Returns the realized path log-probability as a diagnostic value only — not for
+/// importance weights (ADR 0135). Waste likelihood must be evaluated on freshness
+/// **before** calling this function.
+pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
+    freshness: &mut [f64],
     sales: usize,
     params: &ModelParams,
     rng: &mut R,
@@ -65,7 +118,7 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     for _ in 0..sales {
         let mut tot = 0.0;
         for i in 0..freshness.len() {
-            if alive[i] {
+            if alive[i] && freshness[i] > 0.0 {
                 tot += base_w[i];
             }
         }
@@ -76,7 +129,7 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
         let mut acc = 0.0;
         let mut picked = 0usize;
         for i in 0..freshness.len() {
-            if !alive[i] {
+            if !alive[i] || freshness[i] <= 0.0 {
                 continue;
             }
             acc += base_w[i];
@@ -87,28 +140,25 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
         }
         log_p += (base_w[picked] / tot).ln();
         alive[picked] = false;
+        freshness[picked] = 0.0;
     }
     log_p
 }
 
-/// P1 totals-only log-likelihood: sequential sales kernel + binomial waste on remainders.
+/// P1 totals-only log-likelihood: feasibility gate + binomial waste (deterministic).
 ///
-/// `waste_tot` is the observed spoil count among units still alive after sales. Returns
-/// `-∞` when sales exceed alive count or waste is inconsistent with the dead-fraction model.
-pub fn p1_totals_loglik<R: Rng + ?Sized>(
+/// Sales path probability is **not** scored (ADR 0135). `waste_tot` is evaluated on
+/// pre-removal freshness.
+pub fn p1_totals_loglik(
     freshness: &[f64],
     sales_tot: i32,
     waste_tot: i32,
     params: &ModelParams,
-    rng: &mut R,
 ) -> f64 {
+    let _ = params;
     let units = freshness.len();
     let alive = freshness.iter().filter(|&&f| f > 0.0).count();
     if alive < sales_tot as usize {
-        return f64::NEG_INFINITY;
-    }
-    let ll_sales = sequential_kernel_path_logprob(freshness, sales_tot as usize, params, rng);
-    if !ll_sales.is_finite() {
         return f64::NEG_INFINITY;
     }
     let dead = freshness.iter().filter(|&&f| f <= 0.0).count() as i32;
@@ -118,25 +168,22 @@ pub fn p1_totals_loglik<R: Rng + ?Sized>(
     if pw <= 0.0 {
         return f64::NEG_INFINITY;
     }
-    ll_sales + pw.ln()
+    pw.ln()
 }
 
-/// Per-lot factorized sequential kernel: sum of `sequential_kernel_path_logprob` on each lot slice.
+/// F1 lot-resolved sales log-likelihood: per-lot feasibility + multinomial cross-lot split.
 ///
-/// `offsets` has length `L + 1` with `offsets[ell]..offsets[ell + 1]` the unit segment for lot
-/// `ell`. `sales_by` must have length `L`.
-pub fn loglik_sales_by_units<R: Rng + ?Sized>(
+/// Deterministic; no RNG. P1 is the `n_lots = 1` degenerate case.
+pub fn loglik_sales_by_units(
     freshness: &[f64],
     sales_by: &[u32],
     offsets: &[usize],
     params: &ModelParams,
-    rng: &mut R,
 ) -> f64 {
     let n_lots = offsets.len().saturating_sub(1);
     if sales_by.len() != n_lots {
         return f64::NEG_INFINITY;
     }
-    let mut log_p = 0.0;
     for ell in 0..n_lots {
         let sl = &freshness[offsets[ell]..offsets[ell + 1]];
         let alive = sl.iter().filter(|&&f| f > 0.0).count();
@@ -144,13 +191,18 @@ pub fn loglik_sales_by_units<R: Rng + ?Sized>(
         if alive < sales {
             return f64::NEG_INFINITY;
         }
-        let ll = sequential_kernel_path_logprob(sl, sales, params, rng);
-        if !ll.is_finite() {
+    }
+    let sales_tot: u32 = sales_by.iter().sum();
+    if sales_tot == 0 {
+        return 0.0;
+    }
+    let lot_share = lot_shares_from_freshness(freshness, offsets, params);
+    for (ell, &share) in lot_share.iter().enumerate() {
+        if share <= 0.0 && sales_by[ell] > 0 {
             return f64::NEG_INFINITY;
         }
-        log_p += ll;
     }
-    log_p
+    multinomial_log_pmf(sales_by, &lot_share)
 }
 
 fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {

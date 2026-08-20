@@ -171,14 +171,11 @@ fn sequential_kernel_path_logprob_feasible_finite() {
 #[test]
 fn p1_totals_loglik_impossible_sales_neg_inf() {
     require_unit_ll();
-    use rand::SeedableRng;
-    use rand_pcg::Pcg64;
     use voi_core::{p1_totals_loglik, ModelParams};
 
     let freshness = [0.1, 0.0, 0.0];
     let params = ModelParams::default();
-    let mut rng = Pcg64::seed_from_u64(0);
-    let ll = p1_totals_loglik(&freshness, 2, 0, &params, &mut rng);
+    let ll = p1_totals_loglik(&freshness, 2, 0, &params);
     assert!(
         !ll.is_finite() || ll < -1e100,
         "infeasible sales must yield -inf, got {ll}"
