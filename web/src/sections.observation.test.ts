@@ -28,14 +28,14 @@ describe("Observation section contracts (T-127 shell)", () => {
     expect(layout).toMatch(/id="chart-belief-lg"/);
   });
 
-  it("ships freshnessHistogram chart module with aggregate KDE overlays", () => {
+  it("ships freshnessHistogram chart module with aggregate bar overlays", () => {
     expect(
       existsSync(FRESHNESS_HISTOGRAM_TS),
       "expected web/src/charts/freshnessHistogram.ts",
     ).toBe(true);
     const histogramSrc = readFileSync(FRESHNESS_HISTOGRAM_TS, "utf8");
     expect(histogramSrc).toMatch(/f_edges|FreshnessHistogramData|renderFreshnessHistogram/);
-    expect(histogramSrc).toMatch(/freshness-belief-kde/);
-    expect(histogramSrc).toMatch(/freshness-truth-kde/);
+    expect(histogramSrc).toMatch(/freshness-belief-bar/);
+    expect(histogramSrc).toMatch(/freshness-truth-bar/);
   });
 });

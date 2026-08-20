@@ -3,6 +3,8 @@ import { centersToEdges } from "../engine/projector";
 import type { FlatBelief } from "../engine/types";
 import type { Lot } from "../types";
 
+export const DISPLAY_BIN_COUNT = 5;
+
 export type FreshnessHistogramData = {
   /** Freshness bin edges in [0, 1] (length K+1). */
   f_edges: number[];
@@ -14,13 +16,17 @@ export type FreshnessHistogramData = {
   truth_lots: Lot[];
 };
 
-type WeightedSample = { x: number; weight: number };
+const BELIEF_COLOR = "#e6b800";
+const TRUTH_COLOR = "#2563eb";
+const FILL_OPACITY = 0.25;
+const TOP_STROKE_WIDTH = 2.5;
 
-const KDE_POINTS = 120;
-
-function gaussianKernel(u: number): number {
-  return Math.exp(-0.5 * u * u) / Math.sqrt(2 * Math.PI);
-}
+type HistBin = {
+  index: number;
+  x0: number;
+  x1: number;
+  mass: number;
+};
 
 /** Sum belief mass across all lots for each freshness bin. */
 export function aggregateBeliefMasses(flat: FlatBelief): number[] {
@@ -35,67 +41,50 @@ export function aggregateBeliefMasses(flat: FlatBelief): number[] {
   return masses;
 }
 
-/** Mass-preserving Gaussian KDE on a fixed x grid. */
-export function weightedGaussianKde(
-  samples: readonly WeightedSample[],
-  xGrid: readonly number[],
-  bandwidth: number,
+/** Build evenly spaced histogram edges over `[lo, hi]`. */
+export function histogramEdges(
+  lo: number,
+  hi: number,
+  binCount = DISPLAY_BIN_COUNT,
 ): number[] {
-  if (bandwidth <= 0 || samples.length === 0) {
-    return xGrid.map(() => 0);
+  return Array.from({ length: binCount + 1 }, (_, i) => lo + (i * (hi - lo)) / binCount);
+}
+
+/** Map a freshness value into a histogram bin index. */
+export function binIndexForValue(edges: readonly number[], value: number): number {
+  const n = edges.length - 1;
+  if (n <= 0) return 0;
+  if (value <= edges[0]!) return 0;
+  if (value >= edges[n]!) return n - 1;
+  for (let i = 0; i < n; i++) {
+    if (value < edges[i + 1]!) return i;
   }
-  return xGrid.map((x0) => {
-    let density = 0;
-    for (const { x, weight } of samples) {
-      if (weight <= 0) continue;
-      density += weight * gaussianKernel((x0 - x) / bandwidth) / bandwidth;
-    }
-    return density;
-  });
+  return n - 1;
 }
 
-/** Default bandwidth from average freshness bin width. */
-export function defaultBandwidth(f_edges: readonly number[]): number {
-  if (f_edges.length < 2) return 0.05;
-  const widths = f_edges.slice(1).map((edge, i) => edge - f_edges[i]!);
-  const avgWidth = widths.reduce((sum, w) => sum + w, 0) / widths.length;
-  return Math.max(avgWidth * 1.5, 0.02);
-}
-
-function freshnessXGrid(f_edges: readonly number[]): number[] {
-  const lo = f_edges[0] ?? 0;
-  const hi = f_edges[f_edges.length - 1] ?? 1;
-  return d3.range(lo, hi + (hi - lo) / (KDE_POINTS - 1), (hi - lo) / (KDE_POINTS - 1));
-}
-
-/** Aggregate belief KDE (mass ≈ total units). */
-export function beliefKdeFromFlat(
-  flat: FlatBelief,
-  xGrid: readonly number[],
-  bandwidth?: number,
+/** Rebin source masses (at bin centers) into `targetEdges`. */
+export function rebinMasses(
+  sourceCenters: readonly number[],
+  sourceMasses: readonly number[],
+  targetEdges: readonly number[],
 ): number[] {
-  const f_edges = centersToEdges(flat.f_grid);
-  const bw = bandwidth ?? defaultBandwidth(f_edges);
-  const masses = aggregateBeliefMasses(flat);
-  const samples = flat.f_grid.map((x, i) => ({
-    x,
-    weight: masses[i] ?? 0,
-  }));
-  return weightedGaussianKde(samples, xGrid, bw);
+  const bins = Array.from({ length: targetEdges.length - 1 }, () => 0);
+  for (let i = 0; i < sourceMasses.length; i++) {
+    const idx = binIndexForValue(targetEdges, sourceCenters[i] ?? 0);
+    bins[idx]! += sourceMasses[i] ?? 0;
+  }
+  return bins;
 }
 
-/** Truth KDE from lot means weighted by `n`. */
-export function truthKdeFromLots(
-  lots: readonly Lot[],
-  xGrid: readonly number[],
-  f_edges: readonly number[],
-  bandwidth?: number,
-): number[] {
-  const active = lots.filter((lot) => lot.n > 0);
-  if (active.length === 0) return xGrid.map(() => 0);
-  const bw = bandwidth ?? defaultBandwidth(f_edges);
-  const samples = active.map((lot) => ({ x: lot.mean_f, weight: lot.n }));
-  return weightedGaussianKde(samples, xGrid, bw);
+/** Aggregate truth lot counts into histogram bins by `mean_f`. */
+export function truthMassesInBins(lots: readonly Lot[], edges: readonly number[]): number[] {
+  const bins = Array.from({ length: edges.length - 1 }, () => 0);
+  for (const lot of lots) {
+    if (lot.n <= 0) continue;
+    const idx = binIndexForValue(edges, lot.mean_f);
+    bins[idx]! += lot.n;
+  }
+  return bins;
 }
 
 /** Build chart data from flat belief + optional truth lots. */
@@ -112,13 +101,22 @@ export function freshnessHistogramDataFromFlat(
   };
 }
 
-type KdePoint = { f: number; density: number };
-
-function kdeSeries(xGrid: readonly number[], densities: readonly number[]): KdePoint[] {
-  return xGrid.map((f, i) => ({ f, density: densities[i] ?? 0 }));
+function displayBins(
+  data: FreshnessHistogramData,
+  showTruth: boolean,
+): { edges: number[]; belief: number[]; truth: number[] | null } {
+  const lo = data.f_edges[0] ?? 0;
+  const hi = data.f_edges[data.f_edges.length - 1] ?? 1;
+  const edges = histogramEdges(lo, hi, DISPLAY_BIN_COUNT);
+  const belief = rebinMasses(data.f_centers, data.belief_masses, edges);
+  const truth =
+    showTruth && data.truth_lots.length > 0
+      ? truthMassesInBins(data.truth_lots, edges)
+      : null;
+  return { edges, belief, truth };
 }
 
-/** Aggregate belief + optional truth KDE overlays (no per-lot separation). */
+/** Aggregate belief + optional truth histogram overlays (~5 bars, no per-lot split). */
 export function renderFreshnessHistogram(
   container: HTMLElement,
   data: FreshnessHistogramData,
@@ -129,33 +127,21 @@ export function renderFreshnessHistogram(
   const margin = { top: 16, right: 16, bottom: 40, left: 44 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
-  const { f_edges, f_centers, belief_masses, truth_lots } = data;
+  const { edges, belief, truth } = displayBins(data, showTruth);
 
   container.replaceChildren();
-  if (f_edges.length < 2 || f_centers.length === 0) return;
-
-  const xGrid = freshnessXGrid(f_edges);
-  const bandwidth = defaultBandwidth(f_edges);
-  const beliefSamples = f_centers.map((x, i) => ({
-    x,
-    weight: belief_masses[i] ?? 0,
-  }));
-  const beliefDensities = weightedGaussianKde(beliefSamples, xGrid, bandwidth);
-  const truthDensities =
-    showTruth && truth_lots.length > 0
-      ? truthKdeFromLots(truth_lots, xGrid, f_edges, bandwidth)
-      : null;
+  if (edges.length < 2) return;
 
   const yTop =
     Math.max(
-      d3.max(beliefDensities) ?? 0,
-      truthDensities ? (d3.max(truthDensities) ?? 0) : 0,
+      d3.max(belief) ?? 0,
+      truth ? (d3.max(truth) ?? 0) : 0,
       1,
     ) * 1.08;
 
   const x = d3
     .scaleLinear()
-    .domain([f_edges[0]!, f_edges[f_edges.length - 1]!])
+    .domain([edges[0]!, edges[edges.length - 1]!])
     .range([0, innerW]);
 
   const y = d3.scaleLinear().domain([0, yTop]).nice().range([innerH, 0]);
@@ -166,34 +152,63 @@ export function renderFreshnessHistogram(
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
-    .attr("aria-label", "Freshness belief and truth KDE with optional truth overlay");
+    .attr("aria-label", "Freshness belief and truth histogram with optional truth overlay");
 
   const g = svg
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const area = d3
-    .area<KdePoint>()
-    .x((d) => x(d.f))
-    .y0(innerH)
-    .y1((d) => y(d.density))
-    .curve(d3.curveMonotoneX);
+  const barGap = 2;
+  const toHistBin = (masses: readonly number[]): HistBin[] =>
+    masses.map((mass, index) => ({
+      index,
+      x0: edges[index]!,
+      x1: edges[index + 1]!,
+      mass,
+    }));
 
-  if (truthDensities) {
-    g.append("path")
-      .datum(kdeSeries(xGrid, truthDensities))
-      .attr("class", "freshness-truth-kde")
-      .attr("fill", "var(--color-truth-bar, #1a1a1a)")
-      .attr("fill-opacity", 0.2)
-      .attr("d", area);
+  const drawBars = (
+    bins: HistBin[],
+    fillClass: string,
+    capClass: string,
+    color: string,
+  ): void => {
+    const group = g.append("g").attr("class", fillClass.replace("-bar", "-bars"));
+    group
+      .selectAll("rect")
+      .data(bins.filter((b) => b.mass > 0))
+      .join("rect")
+      .attr("class", fillClass)
+      .attr("x", (d) => x(d.x0) + barGap / 2)
+      .attr("width", (d) => Math.max(0, x(d.x1) - x(d.x0) - barGap))
+      .attr("y", (d) => y(d.mass))
+      .attr("height", (d) => Math.max(0, y(0) - y(d.mass)))
+      .attr("fill", color)
+      .attr("fill-opacity", FILL_OPACITY)
+      .append("title")
+      .text(
+        (d) =>
+          `freshness ${d.x0.toFixed(2)}–${d.x1.toFixed(2)}, ${d.mass.toFixed(2)} units`,
+      );
+
+    group
+      .selectAll("line")
+      .data(bins.filter((b) => b.mass > 0))
+      .join("line")
+      .attr("class", capClass)
+      .attr("x1", (d) => x(d.x0) + barGap / 2)
+      .attr("x2", (d) => x(d.x1) - barGap / 2)
+      .attr("y1", (d) => y(d.mass))
+      .attr("y2", (d) => y(d.mass))
+      .attr("stroke", color)
+      .attr("stroke-width", TOP_STROKE_WIDTH)
+      .attr("stroke-linecap", "square");
+  };
+
+  if (truth) {
+    drawBars(toHistBin(truth), "freshness-truth-bar", "freshness-truth-cap", TRUTH_COLOR);
   }
-
-  g.append("path")
-    .datum(kdeSeries(xGrid, beliefDensities))
-    .attr("class", "freshness-belief-kde")
-    .attr("fill", "var(--color-belief-bar, #6b8cae)")
-    .attr("fill-opacity", 0.35)
-    .attr("d", area);
+  drawBars(toHistBin(belief), "freshness-belief-bar", "freshness-belief-cap", BELIEF_COLOR);
 
   g.append("g")
     .attr("class", "axis axis-y")
@@ -203,7 +218,7 @@ export function renderFreshnessHistogram(
   g.append("g")
     .attr("class", "axis axis-x")
     .attr("transform", `translate(0,${innerH})`)
-    .call(d3.axisBottom(x).ticks(6).tickSizeOuter(0))
+    .call(d3.axisBottom(x).ticks(DISPLAY_BIN_COUNT).tickSizeOuter(0))
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
   g.append("text")
@@ -226,15 +241,11 @@ export function renderFreshnessHistogram(
     .attr("class", "legend freshness-histogram-legend")
     .attr("transform", `translate(${margin.left + 4}, 6)`);
 
-  const legendItems: Array<{ label: string; color: string; opacity: number }> = [
-    { label: "Belief", color: "var(--color-belief-bar, #6b8cae)", opacity: 0.35 },
+  const legendItems: Array<{ label: string; color: string }> = [
+    { label: "Belief", color: BELIEF_COLOR },
   ];
   if (showTruth) {
-    legendItems.push({
-      label: "Truth",
-      color: "var(--color-truth-bar, #1a1a1a)",
-      opacity: 0.2,
-    });
+    legendItems.push({ label: "Truth", color: TRUTH_COLOR });
   }
 
   legendItems.forEach((item, i) => {
@@ -247,7 +258,9 @@ export function renderFreshnessHistogram(
       .attr("height", 10)
       .attr("rx", 2)
       .attr("fill", item.color)
-      .attr("fill-opacity", item.opacity);
+      .attr("fill-opacity", FILL_OPACITY)
+      .attr("stroke", item.color)
+      .attr("stroke-width", TOP_STROKE_WIDTH);
     itemG
       .append("text")
       .attr("class", "legend-label")

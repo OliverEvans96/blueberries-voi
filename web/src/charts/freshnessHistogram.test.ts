@@ -1,5 +1,5 @@
 /**
- * Secondary pane: aggregate belief + truth KDE overlays.
+ * Secondary pane: aggregate belief + truth histogram overlays (~5 bars).
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,12 +7,13 @@ import type { FlatBelief } from "../engine/types";
 import type { Lot } from "../types";
 import {
   aggregateBeliefMasses,
-  beliefKdeFromFlat,
-  defaultBandwidth,
+  binIndexForValue,
+  DISPLAY_BIN_COUNT,
   freshnessHistogramDataFromFlat,
+  histogramEdges,
+  rebinMasses,
   renderFreshnessHistogram,
-  truthKdeFromLots,
-  weightedGaussianKde,
+  truthMassesInBins,
   type FreshnessHistogramData,
 } from "./freshnessHistogram";
 
@@ -55,26 +56,19 @@ describe("aggregateBeliefMasses", () => {
   });
 });
 
-describe("weightedGaussianKde", () => {
-  it("preserves total mass under the curve", () => {
-    const xGrid = [0, 0.25, 0.5, 0.75, 1];
-    const samples = [
-      { x: 0.2, weight: 5 },
-      { x: 0.8, weight: 3 },
-    ];
-    const bw = 0.1;
-    const densities = weightedGaussianKde(samples, xGrid, bw);
-    const dx = xGrid[1]! - xGrid[0]!;
-    const area = densities.reduce((sum, d) => sum + d * dx, 0);
-    expect(area).toBeCloseTo(8, 0);
+describe("rebinMasses / truthMassesInBins", () => {
+  it("rebins source masses into five display bins", () => {
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const rebinned = rebinMasses(FLAT.f_grid, aggregateBeliefMasses(FLAT), edges);
+    expect(rebinned).toHaveLength(DISPLAY_BIN_COUNT);
+    expect(rebinned.reduce((a, b) => a + b, 0)).toBeCloseTo(20);
   });
-});
 
-describe("defaultBandwidth", () => {
-  it("derives bandwidth from bin edges", () => {
-    const bw = defaultBandwidth([0, 0.25, 0.5, 0.75, 1]);
-    expect(bw).toBeGreaterThan(0);
-    expect(bw).toBeCloseTo(0.375);
+  it("assigns truth lot counts by mean_f bin", () => {
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const truth = truthMassesInBins(TRUTH_LOTS, edges);
+    expect(truth.reduce((a, b) => a + b, 0)).toBeCloseTo(20);
+    expect(truth[binIndexForValue(edges, 0.85)]).toBeCloseTo(10);
   });
 });
 
@@ -90,32 +84,24 @@ describe("freshnessHistogramDataFromFlat", () => {
   });
 });
 
-describe("beliefKdeFromFlat / truthKdeFromLots", () => {
-  it("peaks near concentrated belief and truth mass", () => {
-    const xGrid = [0, 0.125, 0.375, 0.625, 0.875, 1];
-    const f_edges = [0, 0.25, 0.5, 0.75, 1];
-    const belief = beliefKdeFromFlat(FLAT, xGrid);
-    const truth = truthKdeFromLots(TRUTH_LOTS, xGrid, f_edges);
-    expect(belief[1]).toBeGreaterThan(belief[3]!);
-    const truthPeakIdx = truth.indexOf(Math.max(...truth));
-    expect(xGrid[truthPeakIdx]).toBeGreaterThan(0.5);
-  });
-});
-
 describe("renderFreshnessHistogram", () => {
-  it("renders belief KDE path (no stacked bars)", () => {
+  it("renders ~5 belief bars with yellow fill and semi-bold caps", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
     renderFreshnessHistogram(el, data, false, 260);
 
     const svg = el.querySelector("svg");
     expect(svg).not.toBeNull();
-    expect(el.querySelector(".freshness-belief-kde")).not.toBeNull();
-    expect(el.querySelectorAll(".freshness-stack-segment").length).toBe(0);
-    expect(el.querySelectorAll(".truth-bar").length).toBe(0);
+    const bars = el.querySelectorAll(".freshness-belief-bar");
+    expect(bars.length).toBeGreaterThan(0);
+    expect(bars.length).toBeLessThanOrEqual(DISPLAY_BIN_COUNT);
+    expect(bars[0]?.getAttribute("fill")).toBe("#e6b800");
+    expect(bars[0]?.getAttribute("fill-opacity")).toBe("0.25");
+    expect(el.querySelectorAll(".freshness-belief-cap").length).toBe(bars.length);
+    expect(el.querySelectorAll(".freshness-truth-bar").length).toBe(0);
   });
 
-  it("draws truth KDE only when showTruth is true", () => {
+  it("draws truth bars only when showTruth is true", () => {
     const elOff = host();
     const elOn = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
@@ -123,9 +109,10 @@ describe("renderFreshnessHistogram", () => {
     renderFreshnessHistogram(elOff, data, false, 260);
     renderFreshnessHistogram(elOn, data, true, 260);
 
-    expect(elOff.querySelectorAll(".freshness-truth-kde").length).toBe(0);
-    expect(elOn.querySelectorAll(".freshness-truth-kde").length).toBe(1);
-    expect(elOn.querySelectorAll(".freshness-belief-kde").length).toBe(1);
+    expect(elOff.querySelectorAll(".freshness-truth-bar").length).toBe(0);
+    expect(elOn.querySelectorAll(".freshness-truth-bar").length).toBeGreaterThan(0);
+    expect(elOn.querySelectorAll(".freshness-belief-bar").length).toBeGreaterThan(0);
+    expect(elOn.querySelector(".freshness-truth-bar")?.getAttribute("fill")).toBe("#2563eb");
   });
 
   it("legend shows Belief and Truth only (no per-lot labels)", () => {

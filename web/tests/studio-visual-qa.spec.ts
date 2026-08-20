@@ -131,7 +131,7 @@ test.describe("T-130 layout v5 — visual QA", () => {
     expect(chartLayout.marginRight).toBe("48");
   });
 
-  test("3: secondary pane — histogram + chrome, truth KDE overlay", async ({ page }) => {
+  test("3: secondary pane — histogram + chrome, truth bar overlay", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 2);
@@ -141,13 +141,13 @@ test.describe("T-130 layout v5 — visual QA", () => {
     await expect(page.locator("[data-testid='secondary-chrome']")).toBeVisible();
     await secondary.screenshot({ path: shotPath("03a-secondary-truth-on") });
 
-    const truthKdeCountOn = await page.locator("#chart-belief-lg .freshness-truth-kde").count();
-    expect(truthKdeCountOn).toBeGreaterThan(0);
+    const truthBarCountOn = await page.locator("#chart-belief-lg .freshness-truth-bar").count();
+    expect(truthBarCountOn).toBeGreaterThan(0);
 
     await page.locator(".secondary-chrome .truth-toggle").click();
     await page.waitForTimeout(200);
-    const truthKdeCountOff = await page.locator("#chart-belief-lg .freshness-truth-kde").count();
-    expect(truthKdeCountOff).toBe(0);
+    const truthBarCountOff = await page.locator("#chart-belief-lg .freshness-truth-bar").count();
+    expect(truthBarCountOff).toBe(0);
   });
 
   test("4: exactly one order-qty control and one advance button", async ({ page }) => {
