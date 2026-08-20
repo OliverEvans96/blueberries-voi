@@ -126,7 +126,18 @@ Histogram PF (Algorithm B) is the right choice when **shape fidelity** (low hist
 
 ---
 
-## Implementation notes
+## Implementation notes (T-136 / ADR 0135 re-baseline)
+
+Production `filter_step_unit` now uses **deterministic** P1 sales weights (feasibility +
+binomial waste only) and **unscored** pooled WOR state removal after a finite likelihood
+(ADR 0135). The legacy `bench_c2_a_totals_study` binary was removed (T-TAU-RETIRE); the
+scripted gate `unit_pf_l20_scripted_mean_f_mae_and_order_match` in `unit_pf_ac.rs` remains
+the regression anchor for P1 mean_f MAE and order match.
+
+**Post-0135 expectations:** mean_f MAE and order match remain under existing thresholds;
+timing is unchanged in order (O(L) multinomial term for F1 only). Headline figures in the
+tables above are **pre-0135** provenance cited by ADR 0130 — re-run a full timing sweep
+when the bench binary is restored or replaced.
 
 - **Filter path:** `filter_step_unit` → `apply_gamma_aging` + obs router (`p1_totals_loglik` / `loglik_sales_by_units`) + `systematic_resample`.
 - **Likelihood:** `unit_ll::p1_totals_loglik` = `sequential_kernel_path_logprob` (alive units) + `binom_pmf(waste, rem, p_die)` where `p_die = dead/total`.
