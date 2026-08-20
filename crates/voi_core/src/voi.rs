@@ -471,10 +471,11 @@ mod tests {
     fn p1_and_f2_scenario_masks_differ() {
         let p1 = mask_for("P1").expect("P1");
         let f2 = mask_for("F2").expect("F2");
-        assert!(f2.age_at_receipt);
-        assert!(f2.sales_by_lot && f2.waste_by_lot);
+        assert!(f2.pack_date);
+        assert!(!f2.age_at_receipt);
+        assert!(f2.sales_by_lot && f2.waste_by_lot && f2.lot_ids_live);
         assert!(p1.waste_total && !p1.sales_by_lot);
-        assert!(!p1.age_at_receipt);
+        assert!(!p1.pack_date && !p1.age_at_receipt);
     }
 
     #[test]

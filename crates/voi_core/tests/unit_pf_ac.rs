@@ -260,6 +260,9 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     const N_LOTS: usize = 20;
     const K_WIRE: usize = 8;
     const MEAN_F_MAE_MAX: f64 = 0.02;
+    // Post-ADR-0135 re-baseline (deterministic P1 sales weight + unscored WOR removal):
+    // release run, SCRIPTED_SEED below — mean_f_mae typically ≪ 0.02; order match 100%.
+    // Pre-0135 (MC path in importance weight, no state mutation): ADR 0130 cited ~0.0014 @ L=20.
     const SCRIPTED_SEED: u64 = 50_000 + N_LOTS as u64 * 1_000;
 
     fn unit_tau(f: f64, eta: f64) -> f64 {
@@ -553,7 +556,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
 
     assert!(
         mean_f_mae < MEAN_F_MAE_MAX,
-        "mean_f MAE {mean_f_mae} must be < {MEAN_F_MAE_MAX}"
+        "mean_f MAE {mean_f_mae} must be < {MEAN_F_MAE_MAX} (post-ADR-0135 re-baseline)"
     );
     assert_eq!(
         truth_order,
@@ -833,29 +836,34 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     require_unit_pf();
     require_unit_ll();
 
-    use voi_core::obs::RichDay;
-    use voi_core::{loglik_sales_by_units, p1_totals_loglik, ModelParams};
+    use voi_core::obs::{mask_for, RichDay};
+    use voi_core::unit_ll::{loglik_sales_by_units, loglik_waste_by_units, p1_totals_loglik};
+    use voi_core::ModelParams;
 
     const UPL: usize = 15;
     let params = ModelParams::default();
     let n_lots = 2;
     let offsets = lot_offsets(n_lots, UPL);
     let total = n_lots * UPL;
+    let n = 64;
 
-    let mut good = vec![0.0; total];
-    for i in 0..UPL {
-        good[i] = 0.08;
+    fn hetero_init(swapped: bool, upl: usize, total: usize) -> Vec<f64> {
+        let mut v = vec![0.0; total];
+        for i in 0..total {
+            let stale = i < upl;
+            let on_stale_lot = stale == !swapped;
+            v[i] = if on_stale_lot { 0.10 } else { 0.90 };
+        }
+        v
     }
-    for i in UPL..total {
-        good[i] = 0.88;
-    }
-    let mut bad = vec![0.88; UPL];
-    bad.extend(vec![0.08; UPL]);
 
+    let truth = hetero_init(false, UPL, total);
+    let truth_mf = lot_mean_f_alive(&truth, &offsets);
+
+    // Skewed split: most sales from the fresh lot (lot 1) — only F1 sees this.
     let sales_by = vec![1u32, 6u32];
-    let sales_tot: i32 = 7;
     let rich = RichDay {
-        sales_total: sales_tot as u32,
+        sales_total: 7,
         waste_total: 0,
         arrivals: 0,
         sales_by: sales_by.clone(),
@@ -865,28 +873,65 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         age_at_receipt: None,
         pack_date_days: None,
     };
+    let obs_f1 = mask_for("F1").unwrap().apply(&rich);
+    let _obs_p1 = mask_for("P1").unwrap().apply(&rich);
 
-    let p1_ll_good = p1_totals_loglik(&good, sales_tot, 0, &params);
-    let p1_ll_bad = p1_totals_loglik(&bad, sales_tot, 0, &params);
-    assert!(p1_ll_good.is_finite() && p1_ll_bad.is_finite());
+    let particles: Vec<Vec<f64>> = (0..n)
+        .map(|p| hetero_init(p >= n / 2, UPL, total))
+        .collect();
+
+    fn weighted_mean_f_mae(
+        particles: &[Vec<f64>],
+        log_weights: &[f64],
+        truth_mf: &[f64],
+        offsets: &[usize],
+        n_lots: usize,
+    ) -> f64 {
+        let mx = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let mut w: Vec<f64> = log_weights.iter().map(|lw| (lw - mx).exp()).collect();
+        let z: f64 = w.iter().sum();
+        if z <= 0.0 {
+            return f64::INFINITY;
+        }
+        w.iter_mut().for_each(|x| *x /= z);
+        let mut pred_mf = vec![0.0; n_lots];
+        for (p, row) in particles.iter().enumerate() {
+            for ell in 0..n_lots {
+                let sl = &row[offsets[ell]..offsets[ell + 1]];
+                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
+                let mf = if alive.is_empty() {
+                    0.0
+                } else {
+                    alive.iter().sum::<f64>() / alive.len() as f64
+                };
+                pred_mf[ell] += w[p] * mf;
+            }
+        }
+        mean_f_mae(truth_mf, &pred_mf)
+    }
+
+    let mut p1_log_w = Vec::with_capacity(n);
+    let mut f1_log_w = Vec::with_capacity(n);
+    for row in &particles {
+        let ll_p1 = p1_totals_loglik(row, 7, 0, &params);
+        p1_log_w.push(ll_p1);
+        let mut ll_f1 = loglik_sales_by_units(row, &sales_by, &offsets, &params);
+        if obs_f1.waste_by.is_some() {
+            ll_f1 += loglik_waste_by_units(row, &sales_by, obs_f1.waste_by.as_ref().unwrap(), &offsets);
+        }
+        f1_log_w.push(ll_f1);
+    }
+
+    let p1_mae = weighted_mean_f_mae(&particles, &p1_log_w, &truth_mf, &offsets, n_lots);
+    let f1_mae = weighted_mean_f_mae(&particles, &f1_log_w, &truth_mf, &offsets, n_lots);
+
     assert!(
-        (p1_ll_good - p1_ll_bad).abs() < 1e-9,
-        "P1 sales weight must not distinguish heterogeneous lot structure"
+        p1_mae > 0.2,
+        "P1 must not resolve swapped heterogeneity (p1_mae={p1_mae})"
     );
-
-    let f1_ll_good = loglik_sales_by_units(&good, &sales_by, &offsets, &params);
-    let f1_ll_bad = loglik_sales_by_units(&bad, &sales_by, &offsets, &params);
-    assert!(f1_ll_good.is_finite() && f1_ll_bad.is_finite());
     assert!(
-        f1_ll_good > f1_ll_bad + 0.5,
-        "F1 multinomial must favor matching lot structure: good={f1_ll_good} bad={f1_ll_bad}"
-    );
-
-    let f1_gap = f1_ll_good - f1_ll_bad;
-    let p1_gap = p1_ll_good - p1_ll_bad;
-    assert!(
-        f1_gap > p1_gap + 0.5,
-        "F1 must strictly outperform P1 on heterogeneous lots: f1_gap={f1_gap} p1_gap={p1_gap}"
+        f1_mae < p1_mae - 0.05,
+        "F1 mean_f MAE must strictly beat P1 on heterogeneous lots: f1={f1_mae} p1={p1_mae}"
     );
 }
 

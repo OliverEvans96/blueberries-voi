@@ -136,8 +136,21 @@ the regression anchor for P1 mean_f MAE and order match.
 
 **Post-0135 expectations:** mean_f MAE and order match remain under existing thresholds;
 timing is unchanged in order (O(L) multinomial term for F1 only). Headline figures in the
-tables above are **pre-0135** provenance cited by ADR 0130 — re-run a full timing sweep
-when the bench binary is restored or replaced.
+tables above are **pre-0135** provenance cited by ADR 0130.
+
+### Post-ADR-0135 proxy re-baseline (T-136)
+
+`bench_c2_a_totals_study` was removed (T-TAU-RETIRE). T-136 re-baselines via the scripted
+regression gate `unit_pf_l20_scripted_mean_f_mae_and_order_match` on production `filter_step_unit`:
+
+| Metric | Pre-0135 (ADR 0130 / study) | Post-0135 (T-136 gate) |
+|--------|----------------------------|-------------------------|
+| mean_f MAE @ L=20 | 0.0014 (bench) / 0.0000 (table) | `< 0.02` (passes; release run) |
+| Order qty match | 100% | 100% |
+| P1 sales weight | MC path in importance weight | Feasibility + waste only (deterministic) |
+| State after sales | Not mutated | Unscored WOR removal |
+
+Full timing sweep deferred until `bench_c2_a_totals_study` is restored or replaced.
 
 - **Filter path:** `filter_step_unit` → `apply_gamma_aging` + obs router + unscored WOR removal + `systematic_resample`.
 - **P1 likelihood (ADR 0135):** feasibility gate + `binom_pmf(waste, rem, p_die)` only — no MC path in the weight.
@@ -146,13 +159,17 @@ when the bench binary is restored or replaced.
 
 ---
 
-## Reproduce
+## Reproduce (post-T-136)
+
+The legacy bench binary is absent. Use the scripted regression gate and ticket AC suite:
 
 ```bash
 export OMP_NUM_THREADS=1
-cargo run -p voi_core --release --bin bench_c2_a_totals_study -- --probe
-cargo run -p voi_core --release --bin bench_c2_a_totals_study
-uv run python experiments/generate_c2_a_totals_report.py
+cargo test -p voi_core --release --test unit_pf_ac -- \
+  --exact unit_pf_l20_scripted_mean_f_mae_and_order_match
+cargo test -p voi_core --test unit_pf_ac
+uv run pytest tests/test_unit_pf.py -q
 ```
 
-Outputs: `outputs/c2_a_totals_study.json`, this report.
+Historical bench (pre-T-TAU-RETIRE): `outputs/c2_a_totals_study.json` from
+`bench_c2_a_totals_study` + `experiments/generate_c2_a_totals_report.py`.
