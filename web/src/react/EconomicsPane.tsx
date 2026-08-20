@@ -26,9 +26,9 @@ export function EconomicsPane({ vm }: EconomicsPaneProps) {
         <h2>Economics</h2>
       </div>
       <div id="chart-pnl-totals" className="pnl-summary" data-testid="pnl-consolidated">
-        <div>Revenue: {pnl?.revenue ?? 0}</div>
-        <div>Cost: {pnl?.cost ?? 0}</div>
-        <div>Profit: {pnl?.profit ?? 0}</div>
+        <div>Revenue: {(pnl?.revenue ?? 0).toFixed(2)}</div>
+        <div>Cost: {(pnl?.cost ?? 0).toFixed(2)}</div>
+        <div>Profit: {(pnl?.profit ?? 0).toFixed(2)}</div>
       </div>
       <div className="economics-chart-block">
         <div className="chart-caption">Cumulative revenue · cost · profit</div>

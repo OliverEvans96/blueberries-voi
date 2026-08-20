@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { salesDemandX } from "./salesDemand";
+import { pickDayTicks } from "./axisTicks";
 
 export type MarginalKind = "sales" | "spoilage" | "stockout";
 
@@ -186,7 +187,7 @@ export function renderMarginal(
       .call(
         d3
           .axisBottom(xAxis)
-          .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+          .tickValues(pickDayTicks(days, innerW))
           .tickSizeOuter(0),
       )
       .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
@@ -289,7 +290,7 @@ export function renderWasteBars(
     .call(
       d3
         .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));

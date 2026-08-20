@@ -3,6 +3,7 @@ import type { FlatBelief } from "../engine/types";
 import type { BeliefHistoryDay, Day, SimConfig } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { effectiveInventoryFromLots } from "../mock/generate";
+import { pickDayTicks } from "./axisTicks";
 
 export type InventoryPoint = {
   day: number;
@@ -191,7 +192,7 @@ export function renderInventoryTarget(
     .call(
       d3
         .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
@@ -354,7 +355,7 @@ export function renderAgeComposition(
     .call(
       d3
         .axisBottom(x)
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));

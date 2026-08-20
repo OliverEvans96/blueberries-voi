@@ -54,6 +54,21 @@ describe("EconomicsPane (T-127 economics-implement)", () => {
     expect(screen.getByText(/Profit: 22/)).toBeInTheDocument();
   });
 
+  it("rounds P&L totals to two decimals", () => {
+    const vm = baseVm();
+    vm.pnl_totals = {
+      ...vm.pnl_totals!,
+      revenue: 30.4567,
+      cost: 8.1,
+      profit: 22.3567,
+    };
+    render(createElement(EconomicsPane, { vm: vm as ViewModel }));
+
+    expect(screen.getByText("Revenue: 30.46")).toBeInTheDocument();
+    expect(screen.getByText("Cost: 8.10")).toBeInTheDocument();
+    expect(screen.getByText("Profit: 22.36")).toBeInTheDocument();
+  });
+
   it("mounts cumulative P&L chart via ref callback", () => {
     render(createElement(EconomicsPane, { vm: baseVm() as ViewModel }));
 

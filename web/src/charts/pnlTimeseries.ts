@@ -1,6 +1,7 @@
 import * as d3 from "d3";
 import type { DayPnL, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
+import { pickDayTicks } from "./axisTicks";
 
 /** Running totals of daily PnL — presentation-only; ViewModel stays daily. */
 export function cumulativePnLSeries(series: DayPnL[]): DayPnL[] {
@@ -139,7 +140,7 @@ export function renderPnLTimeseries(
     .call(
       d3
         .axisBottom(xAxis)
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));

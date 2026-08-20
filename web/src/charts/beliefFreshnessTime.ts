@@ -1,10 +1,10 @@
 import * as d3 from "d3";
 import {
   beliefFreshnessSeries,
-  centersToEdges,
   type BeliefFreshnessDay,
 } from "../engine/projector";
 import type { BeliefHistoryDay, Day, HoverDay, Lot } from "../types";
+import { pickDayTicks } from "./axisTicks";
 
 export type BeliefFreshnessTimeDims = {
   width: number;
@@ -21,6 +21,9 @@ export const BELIEF_FRESHNESS_TIME_MARGIN = {
 } as const;
 
 const HEATMAP_COLORS = ["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"];
+/** Truth-lot overlay: orange reads clearly across the full green ramp (CVD-checked) and pairs with a light stroke halo for the darkest cells. */
+const TRUTH_MARKER_FILL = "#d95926";
+const TRUTH_MARKER_STROKE = "#fdf8ef";
 const PLOT_CLIP_ID = "belief-freshness-plot-clip";
 const COLORBAR_GRAD_ID = "belief-freshness-colorbar-grad";
 const Y_AXIS_LABEL_X = -40;
@@ -129,8 +132,8 @@ export function buildBeliefFreshnessHeatmap(
   if (series.length === 0) return [];
 
   const fEdges = series[0]!.f_edges;
-  const fMin = fEdges[0]!;
-  const fMax = fEdges[fEdges.length - 1]!;
+  const fMin = Math.max(0, fEdges[0]!);
+  const fMax = Math.min(1, fEdges[fEdges.length - 1]!);
   const k = fEdges.length - 1;
   const fineK = Math.max(k, (k - 1) * fSubsteps + 1);
   const fineFEdges = Array.from({ length: fineK + 1 }, (_, i) => {
@@ -322,9 +325,9 @@ function renderLotConnectionLines(
       .attr("class", "lot-connection")
       .attr("d", line)
       .attr("fill", "none")
-      .attr("stroke", "#1f5f86")
+      .attr("stroke", TRUTH_MARKER_FILL)
       .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.6)
+      .attr("stroke-opacity", 0.75)
       .attr("pointer-events", "none")
       .append("title")
       .text(`Lot ${lotId} trajectory`);
@@ -381,15 +384,7 @@ export function renderBeliefFreshnessTime(
     .range([0, innerW]);
 
   const series = beliefFreshnessSeries(beliefHistory);
-  const fEdges =
-    series[0]?.f_edges ??
-    centersToEdges(beliefHistory[0]?.flatBelief.f_grid ?? [0, 1]);
-  const maxF = Math.max(
-    1,
-    fEdges[fEdges.length - 1] ?? 1,
-    d3.max(history, (d) => d3.max(d.lots, (l) => l.mean_f)) ?? 0,
-  );
-  const y = d3.scaleLinear().domain([0, maxF]).nice().range([innerH, 0]);
+  const y = d3.scaleLinear().domain([0, 1]).range([innerH, 0]);
 
   let heatmapMax = 1;
   if (series.length > 0) {
@@ -408,7 +403,7 @@ export function renderBeliefFreshnessTime(
     .call(
       d3
         .axisBottom(x)
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickFormat(d3.format("d"))
         .tickSizeOuter(0),
     )
@@ -476,10 +471,11 @@ export function renderBeliefFreshnessTime(
           .attr("cx", (d) => x(d.day))
           .attr("cy", (d) => y(d.mean_f))
           .attr("r", 0)
-          .attr("fill", "#1f5f86")
-          .attr("fill-opacity", 0.9)
-          .attr("stroke", "#0f3f66")
-          .attr("stroke-opacity", 0.8)
+          .attr("fill", TRUTH_MARKER_FILL)
+          .attr("fill-opacity", 0.95)
+          .attr("stroke", TRUTH_MARKER_STROKE)
+          .attr("stroke-width", 1.5)
+          .attr("stroke-opacity", 0.9)
           .call((s) =>
             s
               .append("title")

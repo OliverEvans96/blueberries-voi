@@ -454,7 +454,7 @@ export function initStudio(app: HTMLElement): () => void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
     if (flat) {
       const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
-      renderFreshnessHistogram(els.beliefLg, data, showTruth, 300, "aggregated");
+      renderFreshnessHistogram(els.beliefLg, data, showTruth, 150, "aggregated");
     } else {
       els.beliefLg.replaceChildren();
     }

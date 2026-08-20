@@ -83,6 +83,44 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(uniqueDays.size).toBeGreaterThan(series.length);
   });
 
+  it("clamps heatmap cell freshness edges to [0, 1] even when input f_edges overshoot", () => {
+    const series = [
+      { day: 0, f_edges: [-0.1, 0.3, 0.7, 1.1], marginal: [2, 5, 3] },
+    ];
+    const cells = buildBeliefFreshnessHeatmap(series, 1, 4);
+    for (const cell of cells) {
+      expect(cell.f0).toBeGreaterThanOrEqual(0);
+      expect(cell.f1).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("caps the freshness y-axis at 1.0 even when f_grid touches the boundary or truth mean_f exceeds it", () => {
+    const el = host();
+    renderBeliefFreshnessTime(
+      el,
+      [sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 1.4 }])],
+      [
+        {
+          day: 0,
+          flatBelief: {
+            L: 1,
+            K: 3,
+            lot_counts: [10],
+            f_marginals: [0.2, 0.5, 0.3],
+            f_grid: [0, 0.5, 1],
+          },
+        },
+      ],
+      true,
+      { width: 720, height: 220 },
+    );
+    const tickValues = [...el.querySelectorAll(".axis-y .tick text")].map((t) =>
+      Number(t.textContent),
+    );
+    expect(tickValues.length).toBeGreaterThan(0);
+    expect(Math.max(...tickValues)).toBeLessThanOrEqual(1);
+  });
+
   it("draws zero lot circles when showTruth is false", () => {
     const el = host();
     renderBeliefFreshnessTime(

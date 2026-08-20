@@ -1,5 +1,6 @@
 import * as d3 from "d3";
 import { CHART_MARGIN } from "../hoverLink";
+import { pickDayTicks } from "./axisTicks";
 
 export type ControllerOrderPoint = {
   day: number;
@@ -66,7 +67,7 @@ export function renderControllerOrders(
     .call(
       d3
         .axisBottom(x)
-        .tickValues(days.filter((_, i) => i % 2 === 0 || days.length < 10))
+        .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));

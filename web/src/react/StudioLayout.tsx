@@ -104,7 +104,7 @@ export function StudioLayout() {
             <D3ChartHost
               id="chart-belief-lg"
               className="chart"
-              ariaLabel="Stacked freshness histogram by lot"
+              ariaLabel="Freshness histogram"
             />
             <div className="chart-caption impact-caption" hidden>
               Age marginal
