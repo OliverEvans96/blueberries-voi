@@ -1250,6 +1250,53 @@ mod tests {
     }
 
     #[test]
+    fn rpc_init_hydrates_shipments_from_arrival_product() {
+        let short = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"arrival_product":"short_haul","lead_time":2}}}"#,
+        );
+        assert!(short.contains("\"ok\":true"), "{short}");
+        let short_step = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let short_v: serde_json::Value = serde_json::from_str(&short_step).unwrap();
+        let f_short = short_v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]
+            ["mean_f"]
+            .as_f64()
+            .expect("short_haul delivery");
+
+        let all = handle_rpc(
+            r#"{"id":"3","method":"init","params":{"seed":42,"config":{"arrival_product":"abdella_all","lead_time":2}}}"#,
+        );
+        assert!(all.contains("\"ok\":true"), "{all}");
+        let all_step = handle_rpc(
+            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let all_v: serde_json::Value = serde_json::from_str(&all_step).unwrap();
+        let f_all = all_v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]
+            ["mean_f"]
+            .as_f64()
+            .expect("abdella_all delivery");
+        assert!(
+            f_short > f_all + 1e-4,
+            "short_haul (S2) should arrive fresher than six-shipment mix ({f_short} vs {f_all})"
+        );
+    }
+
+    #[test]
+    fn rpc_default_shipments_when_none_sent() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":7}}"#);
+        assert!(out.contains("\"ok\":true"), "{out}");
+        let step = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&step).unwrap();
+        let f = v["result"].as_array().unwrap().last().unwrap()["live_lots"][0]["mean_f"]
+            .as_f64()
+            .expect("default demo mix delivery");
+        assert!(f > 0.0 && f < 1.0, "default hydrated shipments must yield live f={f}");
+    }
+
+    #[test]
     fn rpc_init_accepts_nested_config_shipments() {
         let out = handle_rpc(
             r#"{"id":"1","method":"init","params":{"seed":42,"config":{"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[5.0,5.0,5.0]}],"n_particles":64,"H":5,"lead_time":2,"L":2,"K":4,"enable_filter":true,"n_rollout_paths":3,"candidate_case_radius":2,"obs_scenario":"P1"}}}"#,
