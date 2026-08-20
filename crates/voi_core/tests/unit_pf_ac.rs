@@ -169,6 +169,23 @@ fn sequential_kernel_path_logprob_feasible_finite() {
 }
 
 #[test]
+fn sequential_kernel_path_logprob_mutates_freshness() {
+    require_unit_ll();
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::{sequential_kernel_path_logprob, ModelParams};
+
+    let mut freshness = [0.8, 0.6, 0.4, 0.2];
+    let params = ModelParams::default();
+    let mut rng = Pcg64::seed_from_u64(7);
+    let _ = sequential_kernel_path_logprob(&mut freshness, 2, &params, &mut rng);
+    assert!(
+        freshness.iter().filter(|&&f| f <= 0.0).count() >= 2,
+        "sequential_kernel_path_logprob must zero picked units in &mut freshness"
+    );
+}
+
+#[test]
 fn p1_totals_loglik_impossible_sales_neg_inf() {
     require_unit_ll();
     use rand::SeedableRng;
@@ -182,6 +199,46 @@ fn p1_totals_loglik_impossible_sales_neg_inf() {
     assert!(
         !ll.is_finite() || ll < -1e100,
         "infeasible sales must yield -inf, got {ll}"
+    );
+}
+
+#[test]
+fn p1_totals_loglik_signature_has_no_rng() {
+    require_unit_ll();
+    let body = read_src("unit_ll.rs");
+    let sig = body
+        .split("pub fn p1_totals_loglik")
+        .nth(1)
+        .and_then(|s| s.split('{').next())
+        .unwrap_or("");
+    assert!(
+        !sig.contains("rng"),
+        "p1_totals_loglik must not take rng (deterministic sales weight per ADR 0135)"
+    );
+}
+
+#[test]
+fn p1_totals_loglik_deterministic_no_path_mc_in_body() {
+    require_unit_ll();
+    let body = read_src("unit_ll.rs");
+    let fn_body = body
+        .split("pub fn p1_totals_loglik")
+        .nth(1)
+        .and_then(|s| s.split("pub fn ").next())
+        .unwrap_or("");
+    assert!(
+        !fn_body.contains("sequential_kernel_path_logprob"),
+        "P1 sales weight must not call sequential_kernel_path_logprob (deterministic gates only)"
+    );
+}
+
+#[test]
+fn loglik_sales_by_units_uses_multinomial_cross_lot_term() {
+    require_unit_ll();
+    let body = read_src("unit_ll.rs");
+    assert!(
+        body.contains("multinomial") || body.contains("lot_share"),
+        "F1 sales likelihood must score cross-lot split via multinomial lot_share"
     );
 }
 
@@ -512,4 +569,602 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
 fn unit_ll_promoted_to_production() {
     let lib = read_lib_rs();
     assert!(lib.contains("pub mod unit_ll"), "production lib must export unit_ll");
+}
+
+// --- T-136: P1/F1 sales likelihood unification ---
+
+fn lot_offsets(n_lots: usize, units_per_lot: usize) -> Vec<usize> {
+    (0..=n_lots).map(|i| i * units_per_lot).collect()
+}
+
+fn lot_mean_f(units_f: &[f64], offsets: &[usize]) -> Vec<f64> {
+    (0..offsets.len() - 1)
+        .map(|ell| {
+            let sl = &units_f[offsets[ell]..offsets[ell + 1]];
+            sl.iter().sum::<f64>() / sl.len() as f64
+        })
+        .collect()
+}
+
+fn mean_f_mae(truth: &[f64], pred: &[f64]) -> f64 {
+    truth
+        .iter()
+        .zip(pred.iter())
+        .map(|(a, b)| (a - b).abs())
+        .sum::<f64>()
+        / truth.len() as f64
+}
+
+#[test]
+fn score_particle_mutates_freshness_after_finite_p1_ll() {
+    require_unit_pf();
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::FilterObs;
+    use voi_core::{filter_step_unit, ModelParams, UnitParticleBank};
+
+    let upl = 5;
+    let units = upl * 2;
+    let n = 2;
+    let mut rng = Pcg64::seed_from_u64(99);
+    let mut bank = UnitParticleBank {
+        weights: vec![0.5; n],
+        freshness: vec![vec![0.9; units], vec![0.8; units]],
+    };
+    let alive_before: usize = bank.freshness[0].iter().filter(|&&f| f > 0.0).count();
+    let obs = FilterObs {
+        sales_tot: Some(3),
+        waste_tot: Some(0),
+        arrivals: 0,
+        ..Default::default()
+    };
+    filter_step_unit(&mut bank, &obs, &ModelParams::default(), &mut rng);
+    let alive_after: usize = bank.freshness[0].iter().filter(|&&f| f > 0.0).count();
+    assert!(
+        alive_after < alive_before,
+        "after finite P1 likelihood, sold units must be removed from particle freshness"
+    );
+}
+
+#[test]
+fn unit_pf_f1_p1_relative_mean_f_mae() {
+    require_unit_pf();
+    require_unit_ll();
+
+    use rand::Rng;
+    use rand_distr::{Distribution, Gamma};
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::{mask_for, FilterObs, RichDay};
+    use voi_core::{filter_step_unit, ModelParams, UnitParticleBank};
+
+    const DAYS: usize = 10;
+    const UPL: usize = 15;
+    const N_LOTS: usize = 8;
+    const N: usize = 100;
+    const SEED: u64 = 77_001;
+
+    let params = ModelParams::default();
+    let gamma = Gamma::new(params.gamma_shape, params.gamma_scale).expect("gamma");
+    let offsets = lot_offsets(N_LOTS, UPL);
+    let total = N_LOTS * UPL;
+
+    let mut rng = Pcg64::seed_from_u64(SEED);
+    let mut units_f: Vec<f64> = (0..total)
+        .map(|_| 0.4 + rng.random::<f64>() * 0.5)
+        .collect();
+
+    fn run_episode(
+        use_f1: bool,
+        units_f: &mut [f64],
+        offsets: &[usize],
+        params: &ModelParams,
+        gamma: &Gamma<f64>,
+        rng: &mut Pcg64,
+        n: usize,
+        days: usize,
+    ) -> f64 {
+        let total = units_f.len();
+        let mut bank = UnitParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            freshness: (0..n)
+                .map(|_| (0..total).map(|_| 0.4 + rng.random::<f64>() * 0.5).collect())
+                .collect(),
+        };
+        let mut truth = units_f.to_vec();
+        for _ in 0..days {
+            let (sales, waste, sales_by) =
+                simulate_truth_day_with_split(&mut truth, offsets, params, rng, gamma);
+            let rich = RichDay {
+                sales_total: sales as u32,
+                waste_total: waste as u32,
+                arrivals: 1,
+                sales_by: sales_by.clone(),
+                waste_by: vec![0; offsets.len() - 1],
+                lot_ids: (0..offsets.len() - 1).map(|i| i as i64).collect(),
+                f_at_receipt: None,
+                age_at_receipt: None,
+                pack_date_days: None,
+            };
+            let obs = if use_f1 {
+                mask_for("F1").unwrap().apply(&rich)
+            } else {
+                mask_for("P1").unwrap().apply(&rich)
+            };
+            filter_step_unit(&mut bank, &obs, params, rng);
+        }
+        let truth_mf = lot_mean_f(&truth, offsets);
+        let mut pred_mf = vec![0.0; offsets.len() - 1];
+        for p in 0..n {
+            for ell in 0..offsets.len() - 1 {
+                let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
+                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
+                let mf = if alive.is_empty() {
+                    0.0
+                } else {
+                    alive.iter().sum::<f64>() / alive.len() as f64
+                };
+                pred_mf[ell] += mf / n as f64;
+            }
+        }
+        mean_f_mae(&truth_mf, &pred_mf)
+    }
+
+    fn simulate_truth_day_with_split(
+        units_f: &mut [f64],
+        offsets: &[usize],
+        params: &ModelParams,
+        rng: &mut Pcg64,
+        gamma: &Gamma<f64>,
+    ) -> (i32, i32, Vec<u32>) {
+        use voi_core::picking_weights_f;
+        for f in units_f.iter_mut() {
+            if *f > 0.0 {
+                *f = (*f - gamma.sample(rng)).max(0.0);
+            }
+        }
+        let on_hand = units_f.iter().filter(|&&f| f > 0.0).count();
+        let demand = rng.random_range(1..=(on_hand / 3 + 1).max(2)).min(on_hand);
+        let mut sales_by = vec![0u32; offsets.len() - 1];
+        let mut sold = vec![false; units_f.len()];
+        for _ in 0..demand {
+            let idx_alive: Vec<usize> = (0..units_f.len())
+                .filter(|&i| units_f[i] > 0.0 && !sold[i])
+                .collect();
+            if idx_alive.is_empty() {
+                break;
+            }
+            let alive_f: Vec<f64> = idx_alive.iter().map(|&i| units_f[i]).collect();
+            let w = picking_weights_f(&alive_f, params.sigma, params.uniform_picking);
+            let tot: f64 = w.iter().sum();
+            let j = if tot <= 0.0 {
+                idx_alive[rng.random_range(0..idx_alive.len())]
+            } else {
+                let draw = rng.random::<f64>() * tot;
+                let mut acc = 0.0;
+                let mut picked = idx_alive[0];
+                for (i, &wi) in w.iter().enumerate() {
+                    acc += wi;
+                    if draw < acc {
+                        picked = idx_alive[i];
+                        break;
+                    }
+                }
+                picked
+            };
+            sold[j] = true;
+            for ell in 0..offsets.len() - 1 {
+                if j >= offsets[ell] && j < offsets[ell + 1] {
+                    sales_by[ell] += 1;
+                }
+            }
+        }
+        for (u, &s) in units_f.iter_mut().zip(sold.iter()) {
+            if s {
+                *u = 0.0;
+            }
+        }
+        let sales = sold.iter().filter(|&&s| s).count() as i32;
+        let waste = 0i32;
+        (sales, waste, sales_by)
+    }
+
+    let mut rng_p1 = Pcg64::seed_from_u64(SEED);
+    let mut truth_p1 = units_f.clone();
+    let p1_mae = run_episode(
+        false,
+        &mut truth_p1,
+        &offsets,
+        &params,
+        &gamma,
+        &mut rng_p1,
+        N,
+        DAYS,
+    );
+
+    let mut rng_f1 = Pcg64::seed_from_u64(SEED);
+    let mut truth_f1 = units_f.clone();
+    let f1_mae = run_episode(
+        true,
+        &mut truth_f1,
+        &offsets,
+        &params,
+        &gamma,
+        &mut rng_f1,
+        N,
+        DAYS,
+    );
+
+    assert!(
+        f1_mae <= p1_mae + 1e-9,
+        "F1 mean_f MAE {f1_mae} must be <= P1 mean_f MAE {p1_mae}"
+    );
+}
+
+#[test]
+fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
+    require_unit_pf();
+    require_unit_ll();
+
+    use rand::Rng;
+    use rand_distr::{Distribution, Gamma};
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::{mask_for, RichDay};
+    use voi_core::{filter_step_unit, ModelParams, UnitParticleBank};
+
+    const DAYS: usize = 12;
+    const UPL: usize = 15;
+    const N: usize = 150;
+    const SEED: u64 = 88_002;
+
+    let params = ModelParams::default();
+    let gamma = Gamma::new(params.gamma_shape, params.gamma_scale).expect("gamma");
+    let n_lots = 2;
+    let offsets = lot_offsets(n_lots, UPL);
+    let total = n_lots * UPL;
+
+    let mut rng = Pcg64::seed_from_u64(SEED);
+    let mut units_f: Vec<f64> = Vec::with_capacity(total);
+    for i in 0..total {
+        if i < UPL {
+            units_f.push(0.05 + rng.random::<f64>() * 0.15);
+        } else {
+            units_f.push(0.75 + rng.random::<f64>() * 0.2);
+        }
+    }
+
+    fn run_hetero(
+        use_f1: bool,
+        init: &[f64],
+        offsets: &[usize],
+        n_lots: usize,
+        params: &ModelParams,
+        gamma: &Gamma<f64>,
+        seed: u64,
+        n: usize,
+        days: usize,
+    ) -> f64 {
+        use rand::Rng;
+        use voi_core::picking_weights_f;
+        let mut rng = Pcg64::seed_from_u64(seed);
+        let mut truth = init.to_vec();
+        let mut bank = UnitParticleBank {
+            weights: vec![1.0 / n as f64; n],
+            freshness: (0..n)
+                .map(|_| init.to_vec())
+                .collect(),
+        };
+        for _ in 0..days {
+            for f in truth.iter_mut() {
+                if *f > 0.0 {
+                    *f = (*f - gamma.sample(&mut rng)).max(0.0);
+                }
+            }
+            let on_hand = truth.iter().filter(|&&f| f > 0.0).count();
+            let demand = rng.random_range(2..=6.min(on_hand));
+            let mut sales_by = vec![0u32; offsets.len() - 1];
+            let mut sold = vec![false; truth.len()];
+            for _ in 0..demand {
+                let idx_alive: Vec<usize> = (0..truth.len())
+                    .filter(|&i| truth[i] > 0.0 && !sold[i])
+                    .collect();
+                if idx_alive.is_empty() {
+                    break;
+                }
+                let alive_f: Vec<f64> = idx_alive.iter().map(|&i| truth[i]).collect();
+                let w = picking_weights_f(&alive_f, params.sigma, params.uniform_picking);
+                let tot: f64 = w.iter().sum();
+                let draw = rng.random::<f64>() * tot;
+                let mut acc = 0.0;
+                let mut picked = idx_alive[0];
+                for (i, &wi) in w.iter().enumerate() {
+                    acc += wi;
+                    if draw < acc {
+                        picked = idx_alive[i];
+                        break;
+                    }
+                }
+                sold[picked] = true;
+                for ell in 0..offsets.len() - 1 {
+                    if picked >= offsets[ell] && picked < offsets[ell + 1] {
+                        sales_by[ell] += 1;
+                    }
+                }
+            }
+            for (u, &s) in truth.iter_mut().zip(sold.iter()) {
+                if s {
+                    *u = 0.0;
+                }
+            }
+            let sales = sold.iter().filter(|&&s| s).count() as i32;
+            let rich = RichDay {
+                sales_total: sales as u32,
+                waste_total: 0,
+                arrivals: 0,
+                sales_by: sales_by.clone(),
+                waste_by: vec![0; n_lots],
+                lot_ids: vec![1, 2],
+                f_at_receipt: None,
+                age_at_receipt: None,
+                pack_date_days: None,
+            };
+            let obs = if use_f1 {
+                mask_for("F1").unwrap().apply(&rich)
+            } else {
+                mask_for("P1").unwrap().apply(&rich)
+            };
+            filter_step_unit(&mut bank, &obs, params, &mut rng);
+        }
+        let truth_mf = lot_mean_f(&truth, offsets);
+        let mut pred_mf = vec![0.0; n_lots];
+        for p in 0..n {
+            for ell in 0..n_lots {
+                let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
+                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
+                let mf = if alive.is_empty() {
+                    0.0
+                } else {
+                    alive.iter().sum::<f64>() / alive.len() as f64
+                };
+                pred_mf[ell] += mf / n as f64;
+            }
+        }
+        mean_f_mae(&truth_mf, &pred_mf)
+    }
+
+    let p1_mae = run_hetero(
+        false,
+        &units_f,
+        &offsets,
+        n_lots,
+        &params,
+        &gamma,
+        SEED,
+        N,
+        DAYS,
+    );
+    let f1_mae = run_hetero(
+        true,
+        &units_f,
+        &offsets,
+        n_lots,
+        &params,
+        &gamma,
+        SEED,
+        N,
+        DAYS,
+    );
+
+    assert!(
+        f1_mae < p1_mae - 1e-4,
+        "F1 must strictly beat P1 on heterogeneous lots: f1={f1_mae} p1={p1_mae}"
+    );
+}
+
+fn multinomial_log_pmf(counts: &[u32], probs: &[f64]) -> f64 {
+    let n: u32 = counts.iter().sum();
+    if n == 0 {
+        return 0.0;
+    }
+    let mut log_p = 0.0;
+    let mut log_coef = 0.0f64;
+    let mut nn = n as f64;
+    for &k in counts {
+        for i in 0..k {
+            log_coef += (nn - i as f64).ln() - (i as f64 + 1.0).ln();
+        }
+        nn -= k as f64;
+    }
+    log_p += log_coef;
+    for (&k, &p) in counts.iter().zip(probs.iter()) {
+        if p <= 0.0 && k > 0 {
+            return f64::NEG_INFINITY;
+        }
+        if p > 0.0 && k > 0 {
+            log_p += k as f64 * p.ln();
+        }
+    }
+    log_p
+}
+
+#[test]
+fn multinomial_vs_exact_wor_split_small_l() {
+    require_unit_ll();
+    use voi_core::picking_weights_f;
+    use voi_core::ModelParams;
+
+    let params = ModelParams::default();
+    let freshness = [0.9, 0.8, 0.2, 0.1, 0.05, 0.04];
+    let offsets = [0usize, 3, 6];
+    let sales_tot = 3usize;
+
+    let pooled_w = picking_weights_f(&freshness, params.sigma, params.uniform_picking);
+    let mut lot_share = vec![0.0; 2];
+    for ell in 0..2 {
+        lot_share[ell] = pooled_w[offsets[ell]..offsets[ell + 1]].iter().sum();
+    }
+    let z: f64 = lot_share.iter().sum();
+    for s in &mut lot_share {
+        *s /= z;
+    }
+
+    let mut exact = std::collections::HashMap::<Vec<u32>, f64>::new();
+    fn enum_splits(
+        step: usize,
+        remaining: usize,
+        counts: &mut [u32],
+        weights: &[f64],
+        alive: &mut [bool],
+        out: &mut std::collections::HashMap<Vec<u32>, f64>,
+        offsets: &[usize],
+        n_lots: usize,
+    ) {
+        if step == remaining {
+            let key: Vec<u32> = counts.to_vec();
+            *out.entry(key).or_insert(0.0) += 1.0;
+            return;
+        }
+        let mut tot = 0.0;
+        for i in 0..weights.len() {
+            if alive[i] {
+                tot += weights[i];
+            }
+        }
+        if tot <= 0.0 {
+            return;
+        }
+        for i in 0..weights.len() {
+            if !alive[i] {
+                continue;
+            }
+            let p = weights[i] / tot;
+            alive[i] = false;
+            for ell in 0..n_lots {
+                if i >= offsets[ell] && i < offsets[ell + 1] {
+                    counts[ell] += 1;
+                }
+            }
+            enum_splits(step + 1, remaining, counts, weights, alive, out, offsets, n_lots);
+            for ell in 0..n_lots {
+                if i >= offsets[ell] && i < offsets[ell + 1] {
+                    counts[ell] -= 1;
+                }
+            }
+            alive[i] = true;
+            let _ = p;
+        }
+    }
+    let mut counts = vec![0u32; 2];
+    let mut alive = freshness.iter().map(|&f| f > 0.0).collect::<Vec<_>>();
+    enum_splits(
+        0,
+        sales_tot,
+        &mut counts,
+        &pooled_w,
+        &mut alive,
+        &mut exact,
+        &offsets,
+        2,
+    );
+    let z_exact: f64 = exact.values().sum();
+    for v in exact.values_mut() {
+        *v /= z_exact;
+    }
+
+    let mut tv = 0.0;
+    for (counts, p_exact) in &exact {
+        let p_multi = multinomial_log_pmf(counts, &lot_share).exp();
+        tv += (p_exact - p_multi).abs();
+    }
+    assert!(
+        tv < 0.35,
+        "multinomial vs exact WOR split TV={tv} must be < 0.35 at small L"
+    );
+}
+
+#[test]
+fn multinomial_vs_wor_mc_realistic_l() {
+    require_unit_ll();
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::picking_weights_f;
+    use voi_core::ModelParams;
+
+    const L: usize = 20;
+    const UPL: usize = 15;
+    const SALES: usize = 8;
+    const TRIALS: usize = 5000;
+    const TV_MAX: f64 = 0.15;
+
+    let params = ModelParams::default();
+    let total = L * UPL;
+    let offsets = lot_offsets(L, UPL);
+    let freshness: Vec<f64> = (0..total)
+        .map(|i| 0.3 + (i as f64 / total as f64) * 0.6)
+        .collect();
+    let pooled_w = picking_weights_f(&freshness, params.sigma, params.uniform_picking);
+    let mut lot_share = vec![0.0; L];
+    for ell in 0..L {
+        lot_share[ell] = pooled_w[offsets[ell]..offsets[ell + 1]].iter().sum();
+    }
+    let z: f64 = lot_share.iter().sum();
+    for s in &mut lot_share {
+        *s /= z;
+    }
+
+    let mut rng = Pcg64::seed_from_u64(12345);
+    let mut emp = vec![0.0; L];
+    for _ in 0..TRIALS {
+        let mut alive = freshness.iter().map(|&f| f > 0.0).collect::<Vec<_>>();
+        let mut counts = vec![0u32; L];
+        for _ in 0..SALES {
+            let mut tot = 0.0;
+            for i in 0..total {
+                if alive[i] {
+                    tot += pooled_w[i];
+                }
+            }
+            if tot <= 0.0 {
+                break;
+            }
+            let draw = rng.random::<f64>() * tot;
+            let mut acc = 0.0;
+            let mut picked = 0usize;
+            for i in 0..total {
+                if !alive[i] {
+                    continue;
+                }
+                acc += pooled_w[i];
+                if draw < acc {
+                    picked = i;
+                    break;
+                }
+            }
+            alive[picked] = false;
+            for ell in 0..L {
+                if picked >= offsets[ell] && picked < offsets[ell + 1] {
+                    counts[ell] += 1;
+                }
+            }
+        }
+        for ell in 0..L {
+            emp[ell] += counts[ell] as f64 / SALES as f64;
+        }
+    }
+    for e in &mut emp {
+        *e /= TRIALS as f64;
+    }
+
+    let tv: f64 = emp
+        .iter()
+        .zip(lot_share.iter())
+        .map(|(e, p)| (e - p).abs())
+        .sum::<f64>()
+        / 2.0;
+    assert!(
+        tv < TV_MAX,
+        "empirical WOR lot-share vs multinomial lot_share TV={tv} must be < {TV_MAX}"
+    );
 }

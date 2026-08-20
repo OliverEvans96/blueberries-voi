@@ -137,15 +137,13 @@ def _hand_p1_totals_loglik(
     sales: int,
     waste: int,
     *,
-    seed: int = 0,
+    params: ModelParams | None = None,
 ) -> float:
-    """Mirror ``bench_c2_a_totals_study::p1_totals_loglik`` contract."""
+    """Deterministic P1 contract (ADR 0135): feasibility gate + binomial waste only."""
+    p = params or ModelParams()
     units = len(freshness)
     alive = sum(1 for f in freshness if f > 0.0)
     if alive < sales:
-        return float("-inf")
-    ll_sales = _hand_sequential_kernel_path_logprob(freshness, sales, seed=seed)
-    if not math.isfinite(ll_sales):
         return float("-inf")
     dead = sum(1 for f in freshness if f <= 0.0)
     rem = alive - sales
@@ -153,7 +151,7 @@ def _hand_p1_totals_loglik(
     pw = _binom_pmf(waste, rem, p_die)
     if pw <= 0.0:
         return float("-inf")
-    return ll_sales + math.log(pw)
+    return math.log(pw)
 
 
 # --- module wiring (RED: files / lib.rs exports) ---
@@ -233,7 +231,7 @@ def test_sequential_kernel_path_logprob_feasible_finite() -> None:
 
 def test_p1_totals_loglik_feasible_matches_hand_reference() -> None:
     freshness = [0.9, 0.7, 0.5, 0.3, 0.1]
-    want = _hand_p1_totals_loglik(freshness, sales=2, waste=0, seed=11)
+    want = _hand_p1_totals_loglik(freshness, sales=2, waste=0)
     assert math.isfinite(want)
     _require_unit_ll_wired()
     proc = _cargo_unit_pf_ac("p1_totals_loglik_impossible_sales_neg_inf")
@@ -242,16 +240,16 @@ def test_p1_totals_loglik_feasible_matches_hand_reference() -> None:
 
 def test_p1_totals_loglik_impossible_sales_is_neg_inf() -> None:
     freshness = [0.1, 0.0, 0.0]
-    got = _hand_p1_totals_loglik(freshness, sales=2, waste=0, seed=0)
+    got = _hand_p1_totals_loglik(freshness, sales=2, waste=0)
     assert got == float("-inf") or got < -1e100
     _require_unit_ll_wired()
 
 
-def test_loglik_sales_by_units_requires_sales_by_path() -> None:
+def test_loglik_sales_by_units_requires_multinomial_term() -> None:
     _require_unit_ll_wired()
     body = _read(VOI_CORE / "src" / "unit_ll.rs")
     assert "loglik_sales_by_units" in body
-    assert "sequential_kernel_path_logprob" in body
+    assert "multinomial" in body.lower() or "lot_share" in body
 
 
 # --- scripted accuracy / timing gates (bench_c2_a_totals_study) ---
@@ -261,6 +259,26 @@ def test_scripted_l20_mean_f_mae_under_threshold() -> None:
     _require_unit_pf_wired()
     _require_unit_ll_wired()
     proc = _cargo_unit_pf_ac("unit_pf_l20_scripted_mean_f_mae_and_order_match")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_f1_p1_relative_mean_f_mae() -> None:
+    proc = _cargo_unit_pf_ac("unit_pf_f1_p1_relative_mean_f_mae")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_f1_strictly_beats_p1_heterogeneous_lots() -> None:
+    proc = _cargo_unit_pf_ac("unit_pf_f1_strictly_beats_p1_heterogeneous_lots")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_multinomial_approximation_small_l() -> None:
+    proc = _cargo_unit_pf_ac("multinomial_vs_exact_wor_split_small_l")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_multinomial_approximation_realistic_l() -> None:
+    proc = _cargo_unit_pf_ac("multinomial_vs_wor_mc_realistic_l")
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
