@@ -139,9 +139,10 @@ timing is unchanged in order (O(L) multinomial term for F1 only). Headline figur
 tables above are **pre-0135** provenance cited by ADR 0130 — re-run a full timing sweep
 when the bench binary is restored or replaced.
 
-- **Filter path:** `filter_step_unit` → `apply_gamma_aging` + obs router (`p1_totals_loglik` / `loglik_sales_by_units`) + `systematic_resample`.
-- **Likelihood:** `unit_ll::p1_totals_loglik` = `sequential_kernel_path_logprob` (alive units) + `binom_pmf(waste, rem, p_die)` where `p_die = dead/total`.
-- **Bench:** `bench_c2_a_totals_study` delegates to production `unit_pf` (no inline LL copy); `[[bin]]` registered in `Cargo.toml`.
+- **Filter path:** `filter_step_unit` → `apply_gamma_aging` + obs router + unscored WOR removal + `systematic_resample`.
+- **P1 likelihood (ADR 0135):** feasibility gate + `binom_pmf(waste, rem, p_die)` only — no MC path in the weight.
+- **F1 likelihood (ADR 0135):** per-lot feasibility + multinomial cross-lot split from pooled `picking_weights_f` lot shares.
+- **Bench:** legacy `bench_c2_a_totals_study` removed; use `unit_pf_l20_scripted_mean_f_mae_and_order_match` until restored.
 
 ---
 
