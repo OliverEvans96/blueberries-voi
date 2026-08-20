@@ -1,4 +1,4 @@
-"""T-128 RED: ObsChannels mask_from_channels parity with preset ladder."""
+"""T-135: ObsChannels global scan model parity with Rust."""
 
 from __future__ import annotations
 
@@ -41,9 +41,9 @@ def _snap(obs_channels: ObsChannels, obs: str = "P1") -> dict[str, Any]:
         "applied_config": {
             "obs_scenario": obs,
             "obs_channels": {
-                "pos": obs_channels.pos,
-                "waste": obs_channels.waste,
-                "deliveries": obs_channels.deliveries,
+                "code_type": obs_channels.code_type,
+                "scan_waste": obs_channels.scan_waste,
+                "delivery_history": obs_channels.delivery_history,
             },
         },
         "history": [],
@@ -55,14 +55,20 @@ def _snap(obs_channels: ObsChannels, obs: str = "P1") -> dict[str, Any]:
 class _FakePyEngineSession:
     def __init__(self, seed: int = 0) -> None:
         self.seed = int(seed)
-        self.set_obs_channels_calls: list[tuple[str, str, str]] = []
+        self.set_obs_channels_calls: list[tuple[str, bool, str]] = []
 
     def init(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return _snap(channels_for_preset("P1"))
 
-    def set_obs_channels(self, pos: str, waste: str, deliveries: str) -> dict[str, Any]:
-        self.set_obs_channels_calls.append((pos, waste, deliveries))
-        ch = ObsChannels(pos=pos, waste=waste, deliveries=deliveries)
+    def set_obs_channels(
+        self, code_type: str, scan_waste: bool, delivery_history: str
+    ) -> dict[str, Any]:
+        self.set_obs_channels_calls.append((code_type, scan_waste, delivery_history))
+        ch = ObsChannels(
+            code_type=code_type,  # type: ignore[arg-type]
+            scan_waste=scan_waste,
+            delivery_history=delivery_history,  # type: ignore[arg-type]
+        )
         return _snap(ch, obs="F2a")
 
 
@@ -80,14 +86,13 @@ def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSes
     return holder
 
 
-PRESET_IDS = ("P0", "P1", "F1", "F1s", "F2a", "F2")
+PRESET_IDS = ("P0", "P1", "F1", "F1s", "F2a", "F2", "F3")
 
-# All 12 orthogonal combos (pos x waste x deliveries).
 ALL_CHANNELS: tuple[ObsChannels, ...] = tuple(
-    ObsChannels(pos=pos, waste=waste, deliveries=delivery)
-    for pos in ("upc_only", "lot_id")
-    for waste in ("none", "daily_counts", "lot_id")
-    for delivery in ("quantity_only", "pack_date_per_lot")
+    ObsChannels(code_type=code, scan_waste=scan_waste, delivery_history=hist)
+    for code in ("upc", "gsin")
+    for scan_waste in (False, True)
+    for hist in ("none", "pack_date", "temperature_history")
 )
 
 
@@ -100,22 +105,27 @@ def test_mask_from_channels_all_twelve_combos() -> None:
         mask = mask_from_channels(ch)
         present = present_set(mask)
         assert "arrivals" in present and "sales_total" in present
-        if ch.pos == "lot_id":
-            assert "sales_by_lot" in present and "lot_ids_live" in present
+        if ch.code_type == "gsin":
+            assert {"sales_by_lot", "lot_ids_live", "arrival_lot_ids"} <= present
         else:
             assert "sales_by_lot" not in present
-        if ch.waste == "none":
+            assert "arrival_lot_ids" not in present
+        if not ch.scan_waste:
             assert "waste_total" not in present
-        elif ch.waste == "daily_counts":
+        elif ch.code_type == "upc":
             assert "waste_total" in present
             assert "waste_by_lot" not in present
         else:
-            assert "waste_total" in present and "waste_by_lot" in present
-            assert "lot_ids_live" in present
-        if ch.deliveries == "pack_date_per_lot":
+            assert {"waste_total", "waste_by_lot"} <= present
+        if ch.delivery_history == "pack_date":
             assert "pack_date" in present
+            assert "temperature_history" not in present
+        elif ch.delivery_history == "temperature_history":
+            assert "temperature_history" in present
+            assert "pack_date" not in present
         else:
             assert "pack_date" not in present
+            assert "temperature_history" not in present
         assert "age_at_receipt" not in present
 
 
@@ -130,30 +140,31 @@ def test_preset_round_trip_matches_mask_for_without_age() -> None:
 
 def test_f2_preset_uses_pack_date_not_age() -> None:
     ch = channels_for_preset("F2")
-    assert ch.pos == "lot_id" and ch.waste == "lot_id"
-    assert ch.deliveries == "pack_date_per_lot"
+    assert ch.code_type == "gsin" and ch.scan_waste
+    assert ch.delivery_history == "pack_date"
     mask = mask_from_channels(ch)
     assert "pack_date" in mask.present
     assert "age_at_receipt" not in mask.present
 
 
+def test_f1s_matches_f1_under_scan_model() -> None:
+    assert channels_for_preset("F1s") == channels_for_preset("F1")
+
+
 def test_channels_cache_key_canonical() -> None:
-    ch = ObsChannels(pos="lot_id", waste="daily_counts", deliveries="quantity_only")
-    expected = "pos=lot_id|waste=daily_counts|deliveries=quantity_only"
-    assert channels_cache_key(ch) == expected
+    ch = ObsChannels(code_type="gsin", scan_waste=True, delivery_history="none")
+    assert channels_cache_key(ch) == "code=gsin|waste=1|hist=none"
 
 
 def test_validate_channels_rejects_unknown_enum() -> None:
-    with pytest.raises(ValueError, match="pos"):
+    with pytest.raises(ValueError, match="code_type"):
         validate_channels(
-            {"pos": "invalid", "waste": "none", "deliveries": "quantity_only"}
+            {"code_type": "invalid", "scan_waste": False, "delivery_history": "none"}
         )
-    with pytest.raises(ValueError, match="waste"):
+    with pytest.raises(ValueError, match="delivery_history"):
         validate_channels(
-            {"pos": "upc_only", "waste": "bad", "deliveries": "quantity_only"}
+            {"code_type": "upc", "scan_waste": False, "delivery_history": "bad"}
         )
-    with pytest.raises(ValueError, match="deliveries"):
-        validate_channels({"pos": "upc_only", "waste": "none", "deliveries": "bad"})
 
 
 def test_set_obs_channels_on_session(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,15 +172,13 @@ def test_set_obs_channels_on_session(monkeypatch: pytest.MonkeyPatch) -> None:
     session = EngineSession()
     session.init(_config(), seed=42)
     ch = ObsChannels(
-        pos="upc_only",
-        waste="daily_counts",
-        deliveries="pack_date_per_lot",
+        code_type="upc",
+        scan_waste=True,
+        delivery_history="pack_date",
     )
     snap = session.set_obs_channels(ch)
     applied = snap["applied_config"]
-    assert applied["obs_channels"]["deliveries"] == "pack_date_per_lot"
+    assert applied["obs_channels"]["delivery_history"] == "pack_date"
     assert applied["obs_scenario"] == "F2a"
     inner = holder["s"]
-    assert inner.set_obs_channels_calls == [
-        ("upc_only", "daily_counts", "pack_date_per_lot"),
-    ]
+    assert inner.set_obs_channels_calls == [("upc", True, "pack_date")]

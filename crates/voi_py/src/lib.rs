@@ -707,11 +707,11 @@ impl PyEngineSession {
     fn set_obs_channels<'py>(
         &mut self,
         py: Python<'py>,
-        pos: String,
-        waste: String,
-        deliveries: String,
+        code_type: String,
+        scan_waste: bool,
+        delivery_history: String,
     ) -> PyResult<Bound<'py, PyDict>> {
-        let channels = voi_core::obs::parse_channels(&pos, &waste, &deliveries)
+        let channels = voi_core::obs::parse_channels(&code_type, scan_waste, &delivery_history)
             .map_err(pyo3::exceptions::PyValueError::new_err)?;
         let snap = self
             .inner

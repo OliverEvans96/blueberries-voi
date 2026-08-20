@@ -1,5 +1,5 @@
 /**
- * T-128 RED: ObsChannels maskFromChannels parity + DecisionRail toggles.
+ * T-135: ObsChannels global scan model — maskFromChannels parity + UI toggles.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -13,9 +13,9 @@ function readSrc(rel: string): string {
 }
 
 type ObsChannels = {
-  pos: "upc_only" | "lot_id";
-  waste: "none" | "daily_counts" | "lot_id";
-  deliveries: "quantity_only" | "pack_date_per_lot";
+  code_type: "upc" | "gsin";
+  scan_waste: boolean;
+  delivery_history: "none" | "pack_date" | "temperature_history";
 };
 
 type ObsMask = {
@@ -27,6 +27,8 @@ type ObsMask = {
   pack_date: boolean;
   age_at_receipt: boolean;
   lot_ids_live: boolean;
+  arrival_lot_ids: boolean;
+  temperature_history: boolean;
 };
 
 async function loadObsMask() {
@@ -37,54 +39,68 @@ async function loadObsMask() {
   };
 }
 
-const ALL_CHANNELS: ObsChannels[] = (["upc_only", "lot_id"] as const).flatMap((pos) =>
-  (["none", "daily_counts", "lot_id"] as const).flatMap((waste) =>
-    (["quantity_only", "pack_date_per_lot"] as const).map((deliveries) => ({
-      pos,
-      waste,
-      deliveries,
-    })),
+const ALL_CHANNELS: ObsChannels[] = (["upc", "gsin"] as const).flatMap((code_type) =>
+  ([false, true] as const).flatMap((scan_waste) =>
+    (["none", "pack_date", "temperature_history"] as const).map(
+      (delivery_history) => ({
+        code_type,
+        scan_waste,
+        delivery_history,
+      }),
+    ),
   ),
 );
 
-describe("T-128 maskFromChannels", () => {
+describe("T-135 maskFromChannels", () => {
   it("covers all twelve orthogonal combos", async () => {
     const { maskFromChannels } = await loadObsMask();
     for (const ch of ALL_CHANNELS) {
       const m = maskFromChannels(ch);
       expect(m.arrivals && m.sales_total).toBe(true);
       expect(m.age_at_receipt).toBe(false);
-      if (ch.deliveries === "pack_date_per_lot") expect(m.pack_date).toBe(true);
-      if (ch.waste === "none") expect(m.waste_total).toBe(false);
+      if (ch.delivery_history === "pack_date") expect(m.pack_date).toBe(true);
+      if (ch.delivery_history === "temperature_history") {
+        expect(m.temperature_history).toBe(true);
+      }
+      if (!ch.scan_waste) expect(m.waste_total).toBe(false);
+      if (ch.code_type === "gsin") expect(m.arrival_lot_ids).toBe(true);
     }
   });
 
-  it("F2 preset compiles to pack_date channels", async () => {
+  it("F2 preset compiles to pack_date delivery history", async () => {
     const { channelsForPreset, maskFromChannels } = await loadObsMask();
     const ch = channelsForPreset("F2");
-    expect(ch.deliveries).toBe("pack_date_per_lot");
+    expect(ch.delivery_history).toBe("pack_date");
     const m = maskFromChannels(ch);
     expect(m.pack_date).toBe(true);
     expect(m.age_at_receipt).toBe(false);
   });
+
+  it("F3 preset enables temperature history", async () => {
+    const { channelsForPreset, maskFromChannels } = await loadObsMask();
+    const ch = channelsForPreset("F3");
+    expect(ch.delivery_history).toBe("temperature_history");
+    expect(maskFromChannels(ch).temperature_history).toBe(true);
+  });
 });
 
-describe("T-128 SecondaryChrome toggles", () => {
-  it("SecondaryChrome.tsx uses obs channel toggles not ladder chips", () => {
+describe("T-135 SecondaryChrome toggles", () => {
+  it("SecondaryChrome.tsx uses scan-model toggles not ladder chips", () => {
     const src = readSrc("react/SecondaryChrome.tsx");
     expect(src).toMatch(/obs-channels|obsChannels|onSetObsChannels/);
+    expect(src).toMatch(/code_type|scan_waste|delivery_history/);
     expect(src).not.toMatch(/OBS_LADDER_IDS\.map/);
   });
 });
 
-describe("T-128 scenarioAvailability by channels", () => {
+describe("T-135 scenarioAvailability by channels", () => {
   it("scenarioAvailability exports channelAvailability", async () => {
     const mod = await import("./scenarioAvailability");
     expect(mod.channelAvailability).toBeDefined();
     const ch: ObsChannels = {
-      pos: "upc_only",
-      waste: "none",
-      deliveries: "quantity_only",
+      code_type: "upc",
+      scan_waste: false,
+      delivery_history: "none",
     };
     expect(mod.channelAvailability("store-spoilage", ch)).toBe("unavailable");
   });

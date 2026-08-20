@@ -99,18 +99,16 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(m.sales_by_lot || m.waste_by_lot || m.lot_ids_live).toBe(false);
   });
 
-  it("mask_for F1 adds sales_by_lot and lot_ids_live", async () => {
+  it("mask_for F1 adds sales_by_lot, lot_ids_live, and waste_by_lot", async () => {
     const mod = await loadObsMask();
     const m = mod!.maskFor("F1");
-    expect(m.waste_total && m.sales_by_lot && m.lot_ids_live).toBe(true);
-    expect(m.waste_by_lot || m.pack_date || m.age_at_receipt).toBe(false);
+    expect(m.waste_total && m.sales_by_lot && m.lot_ids_live && m.waste_by_lot).toBe(true);
+    expect(m.pack_date || m.age_at_receipt).toBe(false);
   });
 
-  it("mask_for F1s adds waste_by_lot and lot_ids_live", async () => {
+  it("mask_for F1s matches F1 under scan model", async () => {
     const mod = await loadObsMask();
-    const m = mod!.maskFor("F1s");
-    expect(m.waste_total && m.waste_by_lot && m.lot_ids_live).toBe(true);
-    expect(m.sales_by_lot || m.pack_date || m.age_at_receipt).toBe(false);
+    expect(mod!.maskFor("F1s")).toEqual(mod!.maskFor("F1"));
   });
 
   it("mask_for F2a is P1 plus pack_date", async () => {
@@ -120,11 +118,11 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(m.sales_by_lot || m.waste_by_lot || m.lot_ids_live).toBe(false);
   });
 
-  it("mask_for F2 has maps, pack_date, lot_ids — not age_at_receipt", async () => {
+  it("mask_for F2 has maps and pack_date — not age_at_receipt", async () => {
     const mod = await loadObsMask();
     const m = mod!.maskFor("F2");
     expect(m.waste_total && m.sales_by_lot && m.waste_by_lot).toBe(true);
-    expect(m.lot_ids_live && m.pack_date).toBe(true);
+    expect(m.lot_ids_live && m.pack_date && m.arrival_lot_ids).toBe(true);
     expect(m.age_at_receipt).toBe(false);
   });
 

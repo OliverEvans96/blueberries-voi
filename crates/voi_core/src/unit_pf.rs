@@ -7,7 +7,7 @@ use rand::SeedableRng;
 
 use crate::obs::FilterObs;
 use crate::physics::{apply_gamma_aging, age_to_f};
-use crate::shipments::{shipment_arrival_age, ShipmentTrace};
+use crate::shipments::{arrival_age_from_path, shipment_arrival_age, ShipmentTrace};
 use crate::unit_ll::{
     loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
     p1_totals_loglik, sequential_kernel_path_logprob,
@@ -83,8 +83,11 @@ fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
 }
 
 fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
-    if let Some(age) = obs.age_at_receipt {
-        return age_to_f(age, params.eta_ref);
+    if let (Some(times), Some(temps)) = (&obs.temp_times_d, &obs.temp_temps_c) {
+        if times.len() >= 2 && temps.len() == times.len() {
+            let age = arrival_age_from_path(temps, times, params.q10, params.t_ref_c);
+            return age_to_f(age, params.eta_ref);
+        }
     }
     if let Some(pack) = obs.pack_date_days {
         let sd = params.f2a_transit_uncertainty_sd;

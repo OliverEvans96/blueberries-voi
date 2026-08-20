@@ -35,16 +35,15 @@ export type Economics = {
 };
 
 /** Filter observation ladder (≡ Python ``filter.types.ScenarioId``). */
-export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2";
+export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" | "F3";
 
-export type PosChannel = "upc_only" | "lot_id";
-export type WasteChannel = "none" | "daily_counts" | "lot_id";
-export type DeliveryChannel = "quantity_only" | "pack_date_per_lot";
+export type CodeType = "upc" | "gsin";
+export type DeliveryHistory = "none" | "pack_date" | "temperature_history";
 
 export type ObsChannels = {
-  pos: PosChannel;
-  waste: WasteChannel;
-  deliveries: DeliveryChannel;
+  code_type: CodeType;
+  scan_waste: boolean;
+  delivery_history: DeliveryHistory;
 };
 
 /**

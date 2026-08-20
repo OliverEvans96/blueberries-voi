@@ -318,6 +318,8 @@ fn run_scenario_episode(
                 sales_by: out.sales_by.clone(),
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
+                arrival_lot_ids: Vec::new(),
+                shipment_trace: None,
                 f_at_receipt,
                 age_at_receipt,
                 pack_date_days,
@@ -473,7 +475,12 @@ mod tests {
         let f2 = mask_for("F2").expect("F2");
         assert!(f2.pack_date);
         assert!(!f2.age_at_receipt);
-        assert!(f2.sales_by_lot && f2.waste_by_lot && f2.lot_ids_live);
+        assert!(
+            f2.sales_by_lot
+                && f2.waste_by_lot
+                && f2.lot_ids_live
+                && f2.arrival_lot_ids
+        );
         assert!(p1.waste_total && !p1.sales_by_lot);
         assert!(!p1.pack_date && !p1.age_at_receipt);
     }

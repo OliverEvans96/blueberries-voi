@@ -27,14 +27,14 @@ export interface EngineAdapter {
   setObsScenario?(obs_scenario: string): Promise<Snapshot>;
   set_obs_scenario?(obs_scenario: string): Promise<Snapshot>;
   setObsChannels?(channels: {
-    pos: string;
-    waste: string;
-    deliveries: string;
+    code_type: string;
+    scan_waste: boolean;
+    delivery_history: string;
   }): Promise<Snapshot>;
   set_obs_channels?(channels: {
-    pos: string;
-    waste: string;
-    deliveries: string;
+    code_type: string;
+    scan_waste: boolean;
+    delivery_history: string;
   }): Promise<Snapshot>;
   tradeoffForecast?(params?: {
     n_paths?: number;

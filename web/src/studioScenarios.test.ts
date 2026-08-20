@@ -51,8 +51,12 @@ const LOCKED_COPY: Record<
     description: "Narrows the arrival-age prior only.",
   },
   F2: {
-    title: "Age at receipt",
-    description: "Measured age at receipt plus rich lot maps.",
+    title: "GSIN + pack date",
+    description: "Lot-resolved scans with pack date on delivery ASN.",
+  },
+  F3: {
+    title: "Temperature history",
+    description: "Lot-resolved scans with observed cold-chain trace at delivery.",
   },
 };
 
