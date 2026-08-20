@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-20
+- **Delivery lots on the freshness-over-time chart now arrive at different freshness levels instead of stacking on one line — the simulator uses the full shipment mix and keeps each delivery’s age at receipt consistent with what the filter sees** (T-134).
+
 ## 2026-08-17
 - **The studio cockpit now centers today’s inventory, orders, and shelf-age charts, gives the events log a full-height column, moves observation and tradeoff controls into the secondary pane beside the belief chart, and shows the day-of-week demand profile right next to the demand sliders when you open the Demand tab** (T-130).
 
