@@ -1,4 +1,4 @@
-//! Unit-level particle filter for C2 Algorithm A (ADR 0130).
+//! Unit-level particle filter for C2 Algorithm A (ADR 0130 / ADR 0135).
 
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
@@ -10,7 +10,7 @@ use crate::physics::{apply_gamma_aging, age_to_f};
 use crate::shipments::{arrival_age_from_path, shipment_arrival_age, ShipmentTrace};
 use crate::unit_ll::{
     loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
-    p1_totals_loglik,
+    p1_totals_loglik, sequential_kernel_path_logprob,
 };
 use crate::ModelParams;
 
@@ -98,15 +98,19 @@ fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) 
     mix_arrival_f(rng, params)
 }
 
+/// Score particle and apply unscored sales removal after a finite likelihood (ADR 0135).
+///
+/// Waste terms are evaluated on **pre-removal** freshness; WOR removal runs only when the
+/// sales (+ waste) likelihood is finite.
 fn score_particle<R: Rng + ?Sized>(
-    freshness: &[f64],
+    freshness: &mut [f64],
     obs: &FilterObs,
     offsets: &[usize],
     params: &ModelParams,
     path_rng: &mut R,
 ) -> f64 {
     if let Some(ref sales_by) = obs.sales_by {
-        let mut ll = loglik_sales_by_units(freshness, sales_by, offsets, params, path_rng);
+        let mut ll = loglik_sales_by_units(freshness, sales_by, offsets, params);
         if !ll.is_finite() {
             return ll;
         }
@@ -123,12 +127,31 @@ fn score_particle<R: Rng + ?Sized>(
             }
             ll += wl;
         }
+        // Unscored state transition: per-lot WOR removal conditional on sales_by.
+        for ell in 0..offsets.len().saturating_sub(1) {
+            let sales = sales_by[ell] as usize;
+            if sales > 0 {
+                let sl = &mut freshness[offsets[ell]..offsets[ell + 1]];
+                let _ = sequential_kernel_path_logprob(sl, sales, params, path_rng);
+            }
+        }
         return ll;
     }
     match (obs.sales_tot, obs.waste_tot) {
         (Some(sales), waste) => {
             let waste = waste.unwrap_or(0);
-            p1_totals_loglik(freshness, sales, waste, params, path_rng)
+            let ll = p1_totals_loglik(freshness, sales, waste, params);
+            if !ll.is_finite() {
+                return ll;
+            }
+            // Unscored pooled WOR removal (matches truth pick_units_f).
+            let _ = sequential_kernel_path_logprob(
+                freshness,
+                sales as usize,
+                params,
+                path_rng,
+            );
+            ll
         }
         (None, None) => 0.0,
         (None, Some(_)) => 0.0,
@@ -159,7 +182,13 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
     let mut log_like = vec![0.0f64; n];
     for p in 0..n {
         let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(p as u64));
-        let ll = score_particle(&bank.freshness[p], obs, &offsets, params, &mut path_rng);
+        let ll = score_particle(
+            &mut bank.freshness[p],
+            obs,
+            &offsets,
+            params,
+            &mut path_rng,
+        );
         log_like[p] = if ll.is_finite() { ll } else { -1e300 };
     }
 
