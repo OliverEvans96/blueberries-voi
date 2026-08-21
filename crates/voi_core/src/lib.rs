@@ -30,8 +30,9 @@ pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
 pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use unit_ll::{
-    delta_interval_loglik, loglik_sales_by_units, sequential_kernel_path_logprob,
-    spoil_delta_interval, spoil_delta_interval_by_lot, DeltaInterval, DELTA_ANY,
+    contrast_spoilage_weight, delta_interval_loglik, loglik_sales_by_units,
+    sequential_kernel_path_logprob, spoil_delta_interval, spoil_delta_interval_by_lot,
+    DeltaInterval, DELTA_ANY,
 };
 pub use unit_pf::{filter_step_unit, filter_step_unit_with_birth, systematic_resample, UnitParticleBank};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};

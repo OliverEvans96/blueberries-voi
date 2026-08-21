@@ -107,6 +107,47 @@ pub fn delta_interval_loglik(interval: Option<DeltaInterval>, params: &ModelPara
     }
 }
 
+/// Contrast-sensitive spoilage weight for dispersed within-lot births (ADR 0140).
+///
+/// Returns **1.0** when `dispersion_sd <= 0` or within-lot spread is negligible.
+pub fn contrast_spoilage_weight(
+    freshness: &[f64],
+    offsets: &[usize],
+    dispersion_sd: f64,
+) -> f64 {
+    if dispersion_sd <= 0.0 {
+        return 1.0;
+    }
+    let n_lots = offsets.len().saturating_sub(1);
+    if n_lots == 0 {
+        return 1.0;
+    }
+    let mut max_spread = 0.0f64;
+    for ell in 0..n_lots {
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        if start >= end {
+            continue;
+        }
+        let seg: Vec<f64> = freshness[start..end]
+            .iter()
+            .copied()
+            .filter(|&f| f > 0.0)
+            .collect();
+        if seg.len() < 2 {
+            continue;
+        }
+        let min = seg.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max = seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        max_spread = max_spread.max(max - min);
+    }
+    if max_spread <= 1e-9 {
+        1.0
+    } else {
+        1.0 + dispersion_sd * max_spread
+    }
+}
+
 /// Normalized lot shares from pooled picking weights over **pre-removal** freshness.
 pub fn lot_shares_from_freshness(
     freshness: &[f64],

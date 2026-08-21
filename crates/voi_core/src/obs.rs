@@ -302,7 +302,11 @@ impl ObsMask {
             } else {
                 None
             },
-            f_at_receipt: None,
+            f_at_receipt: if self.temperature_history {
+                rich.f_at_receipt
+            } else {
+                None
+            },
             temp_times_d,
             temp_temps_c,
         }

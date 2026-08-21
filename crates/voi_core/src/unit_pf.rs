@@ -310,6 +310,11 @@ fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
 }
 
 fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
+    if params.arrival_dispersion_sd > 0.0 {
+        if let Some(f) = obs.f_at_receipt {
+            return f.clamp(1e-12, 1.0);
+        }
+    }
     if let Some(f) = obs.f_at_receipt {
         return f.clamp(1e-12, 1.0);
     }
@@ -344,14 +349,14 @@ struct DayEvidence {
 }
 
 impl DayEvidence {
-    fn resolve(obs: &FilterObs, bank_ids: &[i64]) -> Self {
+    fn resolve(obs: &FilterObs, bank_ids: &[i64], params: &ModelParams) -> Self {
         let sales_by = obs
             .sales_by
             .as_deref()
             .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids));
-        // Lot-resolved waste is only usable when sales are lot-resolved too: the spoil
-        // interval is read off pre-aging state, which needs the same segment alignment.
-        let waste_by = if sales_by.is_some() {
+        // Lot-resolved waste assumes lot-uniform f (unit_ll); under within-lot dispersion
+        // fall back to pooled waste_tot so F3/GSIN does not phantom-inflate alive counts.
+        let waste_by = if sales_by.is_some() && params.arrival_dispersion_sd <= 0.0 {
             obs.waste_by
                 .as_deref()
                 .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids))
@@ -465,7 +470,7 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     let upl = params.units_per_lot.max(1);
     bank.ensure_segmentation(upl);
     let step_seed = rng.random::<u64>();
-    let ev = DayEvidence::resolve(obs, &bank.lot_ids);
+    let ev = DayEvidence::resolve(obs, &bank.lot_ids, params);
     let offsets = bank.lot_offsets.clone();
 
     let mut log_like = vec![0.0f64; n];
