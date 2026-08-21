@@ -9,6 +9,7 @@ import {
   buildBeliefFreshnessHeatmap,
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
+  truthLotSurvivorRadiusScale,
 } from "./beliefFreshnessTime";
 
 function sampleDay(day: number, lots: Day["lots"]): Day {
@@ -154,6 +155,10 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
   });
 
   it("lot radius scales with survivor count n", () => {
+    const radius = truthLotSurvivorRadiusScale(16, 600, 1);
+    expect(radius(16)).toBeGreaterThan(radius(4));
+    expect(radius(16) / radius(4)).toBeCloseTo(2, 5);
+
     const el = host();
     renderBeliefFreshnessTime(
       el,
@@ -167,11 +172,17 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
       true,
       { width: 720, height: 220 },
     );
+    const circles = [...el.querySelectorAll("circle.lot")];
+    const radii = circles.map((c) => Number(c.getAttribute("r")));
+    expect(radii).toHaveLength(2);
+    expect(Math.max(...radii)).toBeGreaterThan(Math.min(...radii));
+    expect(Math.max(...radii) / Math.min(...radii)).toBeCloseTo(2, 5);
+
     const titles = [...el.querySelectorAll("circle.lot title")].map((t) =>
       t.textContent ?? "",
     );
-    expect(titles.some((t) => t.includes("qty 4"))).toBe(true);
-    expect(titles.some((t) => t.includes("qty 16"))).toBe(true);
+    expect(titles.some((t) => t.includes("survivors 4"))).toBe(true);
+    expect(titles.some((t) => t.includes("survivors 16"))).toBe(true);
   });
 
   it("setBeliefFreshnessTimeHover toggles hover rule without throwing", () => {

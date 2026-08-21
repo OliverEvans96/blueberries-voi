@@ -63,7 +63,7 @@ export function StudioLayout() {
             </div>
             <div className="legend-inline store-legend">
               <span className="chip chip-sales">Sales</span>
-              <span className="chip chip-lots">Lots (size ∝ qty)</span>
+              <span className="chip chip-lots">Lots (size ∝ survivors)</span>
               <span className="chip chip-spoil">Spoilage</span>
               <span className="chip chip-missed">Missed</span>
             </div>
