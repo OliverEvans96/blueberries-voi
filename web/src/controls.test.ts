@@ -266,7 +266,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
 });
 
 describe("T-127 tuning-dock content — projected demand", () => {
-  it("renders projected demand preview and schedule weekdays in DOM", () => {
+  it("renders projected demand preview and week calendar in DOM", () => {
     const host = document.createElement("div");
     mountSectionControlsDom(
       host,
@@ -279,8 +279,10 @@ describe("T-127 tuning-dock content — projected demand", () => {
     );
     const preview = host.querySelector("#demand-preview-list");
     expect(preview?.textContent).toMatch(/μ≈/);
-    const sched = host.querySelector("#schedule-weekdays-readonly");
-    expect(sched?.textContent).toMatch(/Delivery Mon, Wed, Fri/);
-    expect(sched?.textContent).toMatch(/Order Sun, Tue, Thu/);
+    const cal = host.querySelector("#week-calendar");
+    expect(cal).toBeTruthy();
+    expect(cal?.querySelectorAll(".week-calendar-day").length).toBe(7);
+    expect(cal?.querySelector(".is-delivery[data-weekday='0']")).toBeTruthy();
+    expect(cal?.querySelector(".is-order[data-weekday='6']")).toBeTruthy();
   });
 });

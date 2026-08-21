@@ -12,10 +12,14 @@ import type { DemandSummary, ScheduleWire } from "./engine/types";
 import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 import { controlAvailability } from "./scenarioAvailability";
 import {
-  formatWeekdayList,
   projectedDemandDays,
   renderPickingVariability,
 } from "./charts/demandDist";
+import {
+  renderWeekCalendar,
+  scheduleFromConfig,
+  toggleDeliveryDay,
+} from "./calendar/weekCalendar";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -331,7 +335,12 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
-        <p class="meta-readonly" id="schedule-weekdays-readonly">Schedule weekdays —</p>
+        <div class="field week-calendar-field">
+          <span class="field-label">Delivery schedule ${tierBadge("delivery_weekdays")}</span>
+          <div id="week-calendar" class="week-calendar" role="group" aria-label="Delivery and order weekdays"></div>
+          <p class="meta-readonly week-calendar-legend">Filled = delivery · outline = order day</p>
+          <p class="meta-readonly week-calendar-hint" id="week-calendar-hint" hidden>Reset to apply schedule</p>
+        </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
@@ -469,6 +478,31 @@ function mountSectionControlsDom(
     }
   }
 
+  function syncWeekCalendar(s: ControlsState): void {
+    const host = root.querySelector("#week-calendar") as HTMLElement | null;
+    if (!host) return;
+    const sched =
+      s.schedule ??
+      scheduleFromConfig({
+        delivery_weekdays: s.config.delivery_weekdays ?? [0, 2, 4],
+        lead_time: s.config.lead_time,
+      });
+    renderWeekCalendar(host, sched, {
+      disabled: Boolean(s.catchingUp),
+      onToggleDelivery: (weekday) => {
+        const current = s.config.delivery_weekdays ?? [0, 2, 4];
+        const next = toggleDeliveryDay(current, weekday);
+        if (JSON.stringify(next) !== JSON.stringify(current)) {
+          cb.onConfigChange({ delivery_weekdays: next });
+        }
+      },
+    });
+    const hint = root.querySelector("#week-calendar-hint") as HTMLElement | null;
+    if (hint) {
+      hint.hidden = !s.configDirty;
+    }
+  }
+
   function syncDemandChrome(s: ControlsState): void {
     const pickHost = root.querySelector("#picking-var-chart") as HTMLElement | null;
     if (pickHost) {
@@ -483,16 +517,6 @@ function mountSectionControlsDom(
           .join(" · ");
       } else {
         previewEl.textContent = "— (demand_summary pending)";
-      }
-    }
-    const schedEl = root.querySelector("#schedule-weekdays-readonly") as HTMLElement | null;
-    if (schedEl) {
-      if (s.schedule) {
-        const del = formatWeekdayList(s.schedule.delivery_weekdays);
-        const ord = formatWeekdayList(s.schedule.order_weekdays);
-        schedEl.textContent = `Delivery ${del} · Order ${ord} (read-only — weekday edit blocked on backend)`;
-      } else {
-        schedEl.textContent = "Schedule weekdays — (pending init)";
       }
     }
   }
@@ -673,6 +697,7 @@ function mountSectionControlsDom(
   syncEconomics(initial.economics);
   syncConfig(initial.config);
   syncDemandState(initial);
+  syncWeekCalendar(initial);
   syncController(initialController);
 
   return {
@@ -680,6 +705,7 @@ function mountSectionControlsDom(
       syncEconomics(s.economics);
       syncConfig(s.config, Boolean(s.catchingUp));
       syncDemandState(s);
+      syncWeekCalendar(s);
     },
     updateController(s) {
       syncController(s);

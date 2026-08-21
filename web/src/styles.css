@@ -1334,3 +1334,58 @@ input[type="number"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* T-140 week calendar — delivery / order weekday widget */
+.week-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.week-calendar-day {
+  border: 1px solid var(--paper-edge, #d1d5db);
+  border-radius: 6px;
+  padding: 6px 4px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--paper, #fff);
+  color: var(--ink-soft, #374151);
+  cursor: pointer;
+  text-align: center;
+}
+
+.week-calendar-day:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.week-calendar-day.is-delivery {
+  background: color-mix(in srgb, var(--accent, #2563eb) 22%, var(--paper, #fff));
+  border-color: var(--accent, #2563eb);
+}
+
+.week-calendar-day.is-order {
+  border-style: dashed;
+  border-width: 2px;
+  border-color: var(--accent, #2563eb);
+}
+
+.week-calendar-day.is-both {
+  background: color-mix(in srgb, var(--accent, #2563eb) 35%, var(--paper, #fff));
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--accent, #2563eb);
+}
+
+.week-calendar-legend {
+  margin-top: 6px;
+  font-size: 0.75rem;
+}
+
+.week-calendar-hint {
+  margin-top: 4px;
+  color: var(--spoil-strong, #b45309);
+  font-size: 0.78rem;
+}
+

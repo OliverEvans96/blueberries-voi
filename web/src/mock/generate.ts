@@ -1,4 +1,5 @@
 import type { FlatBelief } from "../engine/types";
+import { scheduleFromConfig } from "../calendar/weekCalendar";
 import type {
   ArrivalProduct,
   BeliefGrid,
@@ -49,6 +50,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   demand_vm: 2,
   case_size: 8,
   lead_time: 1,
+  delivery_weekdays: [0, 2, 4],
   base_stock: 48,
   seed: 42,
   obs_scenario: "P1",
@@ -547,6 +549,14 @@ function runDay(
       clamp(target - inv, 0, target * 2),
       cfg.case_size,
     );
+  }
+
+  const orderWeekdays = new Set(
+    scheduleFromConfig(cfg).order_weekdays,
+  );
+  const episodeWd = day % 7;
+  if (!orderWeekdays.has(episodeWd)) {
+    order_qty = 0;
   }
 
   if (order_qty > 0) {

@@ -70,6 +70,7 @@ import {
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
+import { scheduleFromConfig } from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
@@ -144,7 +145,14 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function controlsState() {
-    return { ...controlsFromVm(vm, orderQty, schedule), catchingUp };
+    const previewSchedule =
+      vm.config.delivery_weekdays?.length > 0
+        ? scheduleFromConfig(vm.config)
+        : schedule;
+    return {
+      ...controlsFromVm(vm, orderQty, previewSchedule),
+      catchingUp,
+    };
   }
 
   let orderQty = snapOrder(24);

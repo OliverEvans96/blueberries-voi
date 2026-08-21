@@ -1,6 +1,7 @@
 import type { ViewModel } from "../types";
 import type { ScheduleWire } from "../engine/types";
 import { weekdayLabel } from "../calendar/nextOrderAdvance";
+import { formatWeekdayList } from "../charts/demandDist";
 import { scenarioTitle } from "../scenarioCopy";
 
 export type InsightStripProps = {
@@ -12,7 +13,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function mwfDeliveryHint(schedule: ScheduleWire): string {
+function deliveryScheduleHint(schedule: ScheduleWire): string {
   const days = schedule.delivery_weekdays;
   if (
     days.length === 3 &&
@@ -22,7 +23,7 @@ function mwfDeliveryHint(schedule: ScheduleWire): string {
   ) {
     return "MWF delivery";
   }
-  return "Delivery schedule";
+  return `${formatWeekdayList(days)} delivery`;
 }
 
 export function InsightStrip({ vm, schedule }: InsightStripProps) {
@@ -35,7 +36,7 @@ export function InsightStrip({ vm, schedule }: InsightStripProps) {
         Day {vm.episode_day} / {vm.window_days}
       </span>
       <span className="insight-strip-weekday">{dayLabel}</span>
-      <span className="insight-strip-delivery">{mwfDeliveryHint(schedule)}</span>
+      <span className="insight-strip-delivery">{deliveryScheduleHint(schedule)}</span>
       <span className="insight-strip-scenario">{scenario}</span>
       <span className="insight-strip-profit">
         Episode profit {formatMoney(vm.pnl_totals.profit)}

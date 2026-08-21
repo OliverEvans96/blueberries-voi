@@ -471,6 +471,11 @@ export class ViewModelProjector {
       if (k === "obs_channels") {
         return channelsEqual(a.obs_channels, b.obs_channels);
       }
+      if (k === "delivery_weekdays") {
+        return (
+          JSON.stringify(a.delivery_weekdays) === JSON.stringify(b.delivery_weekdays)
+        );
+      }
       return a[k] === b[k];
     });
   }
