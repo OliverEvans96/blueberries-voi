@@ -3,7 +3,7 @@ import { centersToEdges } from "../engine/projector";
 import type { FlatBelief } from "../engine/types";
 import type { Lot } from "../types";
 
-export const DISPLAY_BIN_COUNT = 5;
+export const DISPLAY_BIN_COUNT = 8;
 
 export type FreshnessHistogramData = {
   /** Freshness bin edges in [0, 1] (length K+1). */
@@ -76,6 +76,29 @@ export function rebinMasses(
   return bins;
 }
 
+/** Rebin source masses (over source bin intervals) into `targetEdges`. */
+export function rebinMassesByInterval(
+  sourceEdges: readonly number[],
+  sourceMasses: readonly number[],
+  targetEdges: readonly number[],
+): number[] {
+  const bins = Array.from({ length: targetEdges.length - 1 }, () => 0);
+  for (let i = 0; i < sourceMasses.length; i++) {
+    const srcLo = sourceEdges[i] ?? 0;
+    const srcHi = sourceEdges[i + 1] ?? srcLo;
+    const width = srcHi - srcLo;
+    if (width <= 0) continue;
+    const mass = sourceMasses[i] ?? 0;
+    for (let j = 0; j < bins.length; j++) {
+      const tgtLo = targetEdges[j] ?? 0;
+      const tgtHi = targetEdges[j + 1] ?? tgtLo;
+      const overlap = Math.max(0, Math.min(srcHi, tgtHi) - Math.max(srcLo, tgtLo));
+      bins[j]! += mass * (overlap / width);
+    }
+  }
+  return bins;
+}
+
 /** Aggregate truth lot counts into histogram bins by `mean_f`. */
 export function truthMassesInBins(lots: readonly Lot[], edges: readonly number[]): number[] {
   const bins = Array.from({ length: edges.length - 1 }, () => 0);
@@ -105,10 +128,8 @@ function displayBins(
   data: FreshnessHistogramData,
   showTruth: boolean,
 ): { edges: number[]; belief: number[]; truth: number[] | null } {
-  const lo = data.f_edges[0] ?? 0;
-  const hi = data.f_edges[data.f_edges.length - 1] ?? 1;
-  const edges = histogramEdges(lo, hi, DISPLAY_BIN_COUNT);
-  const belief = rebinMasses(data.f_centers, data.belief_masses, edges);
+  const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+  const belief = rebinMassesByInterval(data.f_edges, data.belief_masses, edges);
   const truth =
     showTruth && data.truth_lots.length > 0
       ? truthMassesInBins(data.truth_lots, edges)
@@ -116,7 +137,7 @@ function displayBins(
   return { edges, belief, truth };
 }
 
-/** Aggregate belief + optional truth histogram overlays (~5 bars, no per-lot split). */
+/** Aggregate belief + optional truth histogram overlays (~8 bars, no per-lot split). */
 export function renderFreshnessHistogram(
   container: HTMLElement,
   data: FreshnessHistogramData,
