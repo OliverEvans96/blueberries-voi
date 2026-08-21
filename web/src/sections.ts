@@ -38,7 +38,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "physics",
     label: "Physics",
     blurb: "Gamma freshness aging and cold-chain temps shape how long lots stay sellable.",
-    plotIds: [],
+    plotIds: ["plot-arrhenius-temp", "plot-gamma-path"],
     controlSection: "physics",
   },
   {

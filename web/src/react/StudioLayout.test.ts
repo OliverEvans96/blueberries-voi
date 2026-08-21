@@ -29,6 +29,8 @@ const REQUIRED_CHART_IDS = [
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
+  "chart-arrhenius-temp",
+  "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
@@ -126,7 +128,7 @@ describe("StudioLayout cockpit grid (T-127 AC-layout, T-128 v5)", () => {
     ).toBe(true);
   });
 
-  it("all 13 D3ChartHost ids appear exactly once", () => {
+  it("all D3ChartHost ids appear exactly once", () => {
     const { container } = render(createElement(StudioLayout));
     for (const id of REQUIRED_CHART_IDS) {
       const nodes = container.querySelectorAll(`#${id}`);
