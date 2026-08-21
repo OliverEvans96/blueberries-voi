@@ -28,7 +28,9 @@ def test_shelf_belief_round_trip_and_effective_inventory() -> None:
     restored = unflatten_shelf_belief(payload)
     assert restored.lot_counts == belief.lot_counts
     assert restored.f_grid == belief.f_grid
-    on_hand = effective_inventory(restored, pending_orders={2: 4}, f_pipeline_default=0.9)
+    on_hand = effective_inventory(
+        restored, pending_orders={2: 4}, f_pipeline_default=0.9
+    )
     assert on_hand > 0.0
 
 
