@@ -463,6 +463,74 @@ mod tests {
         );
     }
 
+    /// T-138 AC-4: delivery extends via per-unit birth_f_units vector, not uniform fill.
+    mod t138_arrival_dispersion {
+        use super::*;
+
+        fn production_day_step_src() -> &'static str {
+            include_str!("day_step.rs")
+                .split("#[cfg(test)]")
+                .next()
+                .unwrap_or("")
+        }
+
+        #[test]
+        fn delivery_calls_birth_f_units_not_uniform_vec() {
+            let src = production_day_step_src();
+            assert!(
+                src.contains("birth_f_units"),
+                "RED: unit_day_step delivery must call shipments::birth_f_units"
+            );
+            assert!(
+                !src.contains("vec![birth_f; total_units]"),
+                "RED: delivery must not extend with vec![birth_f; total_units]"
+            );
+            assert!(
+                src.contains(":birth") || src.contains("rng_birth"),
+                "RED: within-lot dispersion draws must use dedicated :birth CRN"
+            );
+        }
+
+        #[test]
+        fn delivery_appends_distinct_freshness_when_dispersion_enabled() {
+            let params_src = include_str!("params.rs");
+            assert!(
+                params_src.contains("arrival_dispersion_sd"),
+                "RED: ModelParams must expose arrival_dispersion_sd"
+            );
+            let src = production_day_step_src();
+            assert!(
+                src.contains("birth_f_units"),
+                "RED: cannot spread delivery segment without birth_f_units"
+            );
+            let params = ModelParams::default();
+            let upl = 10usize;
+            let input = UnitDayStepIn {
+                freshness: vec![0.85; upl],
+                lot_offsets: vec![0, upl],
+                demand: Some(0),
+                gamma_decrement: Some(0.0),
+                deliver: true,
+                deliver_units: Some(upl as u32),
+                delivery_f: Some(0.62),
+                units_per_lot: Some(upl),
+                age_at_receipt: None,
+                pack_age_mean: None,
+            };
+            let out = unit_day_step::<Pcg64>(
+                &input, &params, &[], None, None, None, None,
+            );
+            let seg = &out.freshness[upl..];
+            assert_eq!(seg.len(), upl, "delivery must append upl units");
+            let min_f = seg.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max_f = seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            assert!(
+                max_f - min_f > 1e-6,
+                "RED: arrival_dispersion_sd > 0 must yield >=2 distinct birth f values in segment"
+            );
+        }
+    }
+
     #[test]
     fn unit_day_step_delivery_injects_units_per_lot() {
         let params = ModelParams::default();

@@ -517,3 +517,205 @@ fn unit_ll_promoted_to_production() {
     let lib = read_lib_rs();
     assert!(lib.contains("pub mod unit_ll"), "production lib must export unit_ll");
 }
+
+// --- T-138 Stage A: GSIN interval converse + likelihood guards (ADR 0137 baseline) ---
+
+type DeltaInterval = (f64, f64);
+
+fn local_spoil_delta_interval(pre_f: &[f64], w: usize) -> Option<DeltaInterval> {
+    let mut live: Vec<f64> = pre_f.iter().copied().filter(|&f| f > 0.0).collect();
+    let m = live.len();
+    if w > m {
+        return None;
+    }
+    live.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let lo = if w == 0 { 0.0 } else { live[w - 1] };
+    let hi = if w == m { f64::INFINITY } else { live[w] };
+    if hi <= lo {
+        return None;
+    }
+    Some((lo, hi))
+}
+
+fn local_spoil_delta_interval_by_lot(
+    freshness: &[f64],
+    offsets: &[usize],
+    waste_by: &[u32],
+) -> Option<DeltaInterval> {
+    let n_lots = offsets.len().saturating_sub(1);
+    if waste_by.len() != n_lots {
+        return None;
+    }
+    let (mut lo, mut hi) = (0.0_f64, f64::INFINITY);
+    for ell in 0..n_lots {
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        let (l, h) = local_spoil_delta_interval(&freshness[start..end], waste_by[ell] as usize)?;
+        lo = lo.max(l);
+        hi = hi.min(h);
+    }
+    if hi <= lo {
+        return None;
+    }
+    Some((lo, hi))
+}
+
+fn interval_is_proper_subset(inner: DeltaInterval, outer: DeltaInterval) -> bool {
+    let (ilo, ihi) = inner;
+    let (olo, ohi) = outer;
+    ilo > olo + 1e-12 && ihi + 1e-12 < ohi
+}
+
+/// AC-10: with within-lot jitter, GSIN can be a strictly tighter non-empty subset of pooled.
+#[test]
+fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
+    use rand::{Rng, SeedableRng};
+    use rand_pcg::Pcg64;
+
+    let shipments_src = read_src("shipments.rs");
+    assert!(
+        shipments_src.contains("pub fn birth_f_units"),
+        "RED: birth_f_units must exist before dispersion-backed GSIN narrowing is in scope"
+    );
+
+    let mut rng = Pcg64::seed_from_u64(20_260_821);
+    let mut found = false;
+    for _ in 0..5_000 {
+        let n_lots = rng.random_range(2..=4);
+        let mut values: Vec<f64> = Vec::new();
+        while values.len() < n_lots {
+            let v = f64::from(rng.random_range(3..18u32)) * 0.05;
+            if values.iter().all(|&x| (x - v).abs() > 1e-12) {
+                values.push(v);
+            }
+        }
+        let counts: Vec<usize> = (0..n_lots).map(|_| rng.random_range(3..=8)).collect();
+
+        let mut freshness = Vec::new();
+        let mut offsets = vec![0usize];
+        for (&mean, &c) in values.iter().zip(counts.iter()) {
+            for _ in 0..c {
+                let jitter = (rng.random::<f64>() - 0.5) * 0.04;
+                freshness.push((mean + jitter).clamp(1e-6, 1.0));
+            }
+            offsets.push(freshness.len());
+        }
+
+        let waste_by: Vec<u32> = counts
+            .iter()
+            .map(|&c| {
+                if rng.random::<f64>() < 0.35 {
+                    c as u32
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let total: u32 = waste_by.iter().sum();
+        if total == 0 {
+            continue;
+        }
+
+        let pooled = local_spoil_delta_interval(&freshness, total as usize);
+        let gsin = local_spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by);
+        if let (Some(g), Some(p)) = (gsin, pooled) {
+            if interval_is_proper_subset(g, p) {
+                found = true;
+                break;
+            }
+        }
+    }
+    assert!(
+        found,
+        "within-lot jitter must admit at least one strictly tighter non-empty I_gsin subset"
+    );
+}
+
+/// AC-11: lot-uniform freshness recovers ADR 0137 — never a strictly tighter non-empty subset.
+#[test]
+fn gsin_waste_uniform_freshness_never_strictly_narrows() {
+    use rand::{Rng, SeedableRng};
+    use rand_pcg::Pcg64;
+
+    let mut rng = Pcg64::seed_from_u64(20_260_820);
+    let mut identical = 0usize;
+    let mut gsin_empty = 0usize;
+
+    for _ in 0..5_000 {
+        let n_lots = rng.random_range(2..=5);
+        let mut values: Vec<f64> = Vec::new();
+        while values.len() < n_lots {
+            let v = f64::from(rng.random_range(1..20u32)) * 0.05;
+            if values.iter().all(|&x| (x - v).abs() > 1e-12) {
+                values.push(v);
+            }
+        }
+        let counts: Vec<usize> = (0..n_lots).map(|_| rng.random_range(1..=8)).collect();
+
+        let mut freshness = Vec::new();
+        let mut offsets = vec![0usize];
+        for (&v, &c) in values.iter().zip(counts.iter()) {
+            freshness.extend(std::iter::repeat_n(v, c));
+            offsets.push(freshness.len());
+        }
+
+        let waste_by: Vec<u32> = counts
+            .iter()
+            .map(|&c| {
+                if rng.random::<f64>() < 0.4 {
+                    c as u32
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let total: u32 = waste_by.iter().sum();
+
+        let pooled = local_spoil_delta_interval(&freshness, total as usize);
+        let gsin = local_spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by);
+
+        match (gsin, pooled) {
+            (Some(g), Some(p)) => {
+                assert!(
+                    !interval_is_proper_subset(g, p),
+                    "lot-uniform cohorts must not yield strictly tighter non-empty I_gsin"
+                );
+                identical += 1;
+            }
+            (None, _) => gsin_empty += 1,
+            (Some(_), None) => panic!("GSIN cannot admit a decrement the pooled interval rejects"),
+        }
+    }
+
+    assert!(identical > 500, "expected many identical intervals, got {identical}");
+    assert!(gsin_empty > 500, "expected many empty GSIN intervals, got {gsin_empty}");
+}
+
+/// AC-13: shared-decrement likelihood guards — no binomial waste return in production unit_pf.
+#[test]
+fn superseded_binomial_waste_primitives_are_gone() {
+    require_unit_pf();
+    let body = read_src("unit_pf.rs");
+    assert!(
+        !body.contains("binom_pmf") && !body.contains("p_die"),
+        "unit_pf must not reintroduce per-unit binomial waste primitives"
+    );
+}
+
+/// AC-13: production likelihood terms must not take RNG on the spoilage interval path.
+#[test]
+fn production_likelihood_terms_take_no_rng() {
+    require_unit_ll();
+    let body = read_src("unit_ll.rs");
+    for sym in ["delta_interval_loglik", "spoil_delta_interval"] {
+        assert!(
+            body.contains(sym),
+            "RED: unit_ll must export shared-decrement spoilage scorer `{sym}`"
+        );
+    }
+    let pf = read_src("unit_pf.rs");
+    assert!(
+        pf.contains("delta_interval_loglik") || pf.contains("spoil_delta_interval"),
+        "RED: unit_pf aggregate router must score via delta_interval_loglik / spoil_delta_interval"
+    );
+}
