@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
@@ -22,6 +22,9 @@ use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
+
+/// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
+const STREAM_BIRTH: u64 = 7;
 
 fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 {
     Pcg64::seed_from_u64(
@@ -333,6 +336,11 @@ impl EngineSession {
         } else {
             None
         };
+        let mut rng_birth = if arrival > 0 {
+            Some(stream_rng(self.seed, self.day, STREAM_BIRTH))
+        } else {
+            None
+        };
         let input = UnitDayStepIn {
             freshness: self.freshness.clone(),
             lot_offsets: self.lot_offsets.clone(),
@@ -345,7 +353,7 @@ impl EngineSession {
             age_at_receipt: None,
             pack_age_mean: None,
         };
-        let out = unit_day_step(
+        let out = unit_day_step_with_birth(
             &input,
             &self.params,
             &self.shipments,
@@ -353,6 +361,7 @@ impl EngineSession {
             Some(&mut rng_alloc),
             rng_ship.as_mut(),
             rng_sensor.as_mut(),
+            rng_birth.as_mut(),
         );
         self.freshness = out.freshness;
         self.lot_offsets = out.lot_offsets;

@@ -14,6 +14,7 @@ def test_known_streams_importable() -> None:
     assert bv_rng.STREAM_ARRIVAL_SHIP == ":arrival_ship"
     assert bv_rng.STREAM_ARRIVAL_SENSOR == ":arrival_sensor"
     assert bv_rng.STREAM_FILTER_RESAMPLE == ":filter_resample"
+    assert bv_rng.STREAM_BIRTH == ":birth"
 
 
 def test_same_slot_bit_identical() -> None:

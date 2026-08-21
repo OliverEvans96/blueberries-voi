@@ -5,7 +5,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
@@ -25,6 +25,8 @@ const STREAM_GAMMA: u64 = 3;
 const STREAM_SHIP: u64 = 4;
 const STREAM_SENSOR: u64 = 5;
 const STREAM_FILTER: u64 = 6;
+/// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
+const STREAM_BIRTH: u64 = 7;
 
 const FILTER_INIT_L: usize = 3;
 const FILTER_INIT_K: usize = 8;
@@ -280,6 +282,11 @@ fn run_scenario_episode(
         } else {
             None
         };
+        let mut rng_birth = if arrival > 0 {
+            Some(rng(root_seed, phys, day, STREAM_BIRTH))
+        } else {
+            None
+        };
         let input = UnitDayStepIn {
             freshness,
             lot_offsets,
@@ -292,7 +299,7 @@ fn run_scenario_episode(
             age_at_receipt: None,
             pack_age_mean: None,
         };
-        let out = unit_day_step(
+        let out = unit_day_step_with_birth(
             &input,
             params,
             shipments,
@@ -300,6 +307,7 @@ fn run_scenario_episode(
             Some(&mut rng_alloc),
             rng_ship.as_mut(),
             rng_sensor.as_mut(),
+            rng_birth.as_mut(),
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;

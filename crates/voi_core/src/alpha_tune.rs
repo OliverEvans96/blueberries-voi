@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::day_step::{unit_day_step, UnitDayStepIn};
+use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::draw_demand_spawn;
 use crate::policy::{
@@ -21,6 +21,7 @@ const STREAM_ALLOC: &str = ":alloc";
 const STREAM_SPOIL: &str = ":spoil";
 const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
 const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
+const STREAM_BIRTH: &str = ":birth";
 
 /// Ladder arms available for automated alpha tuning (`dp` remains a placeholder).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -278,6 +279,11 @@ pub fn run_alpha_tune_episode(
         } else {
             None
         };
+        let mut rng_birth = if arrival > 0 {
+            Some(SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_BIRTH))
+        } else {
+            None
+        };
         let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship = rng_ship.as_mut().expect("ship rng");
             let mut rng_sensor = rng_sensor.as_mut().expect("sensor rng");
@@ -305,7 +311,7 @@ pub fn run_alpha_tune_episode(
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
-        let out = unit_day_step(
+        let out = unit_day_step_with_birth(
             &input,
             params,
             shipments,
@@ -313,6 +319,7 @@ pub fn run_alpha_tune_episode(
             Some(&mut rng_alloc),
             rng_ship.as_mut(),
             rng_sensor.as_mut(),
+            rng_birth.as_mut(),
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;

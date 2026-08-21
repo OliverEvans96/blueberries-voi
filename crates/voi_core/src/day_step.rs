@@ -522,9 +522,10 @@ mod tests {
                 src.contains("birth_f_units"),
                 "RED: unit_day_step delivery must call shipments::birth_f_units"
             );
+            let uniform_lot_fill = format!("vec![birth_f; total_{}]", "units");
             assert!(
-                !src.contains("vec![birth_f; total_units]"),
-                "RED: delivery must not extend with vec![birth_f; total_units]"
+                !src.contains(&uniform_lot_fill),
+                "RED: delivery must not extend with uniform lot birth fill"
             );
             assert!(
                 src.contains(":birth") || src.contains("rng_birth"),

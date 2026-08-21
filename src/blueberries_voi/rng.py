@@ -13,6 +13,7 @@ STREAM_ALLOC: Final[str] = ":alloc"
 STREAM_ARRIVAL_SHIP: Final[str] = ":arrival_ship"
 STREAM_ARRIVAL_SENSOR: Final[str] = ":arrival_sensor"
 STREAM_FILTER_RESAMPLE: Final[str] = ":filter_resample"
+STREAM_BIRTH: Final[str] = ":birth"
 
 KNOWN_STREAMS: Final[frozenset[str]] = frozenset(
     {
@@ -22,6 +23,7 @@ KNOWN_STREAMS: Final[frozenset[str]] = frozenset(
         STREAM_ARRIVAL_SHIP,
         STREAM_ARRIVAL_SENSOR,
         STREAM_FILTER_RESAMPLE,
+        STREAM_BIRTH,
     }
 )
 
