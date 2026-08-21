@@ -164,6 +164,12 @@ impl EngineSession {
         }
     }
 
+    pub fn set_delivery_schedule(&mut self, delivery: &[u32], lead_time: u32) {
+        self.lead_time = lead_time.max(1);
+        self.schedule = OrderSchedule::from_delivery(delivery, self.lead_time)
+            .unwrap_or_else(|_| OrderSchedule::default());
+    }
+
     fn seed_particle_bank(&mut self) {
         let n = self._n_particles.max(1);
         // ADR 0136: zero-init — empty shelf until observed arrivals (no phantom L×U pre-fill).
@@ -403,6 +409,7 @@ impl EngineSession {
                 "K": self.k_dim,
                 "enable_filter": self.enable_filter,
                 "lead_time": self.lead_time,
+                "delivery_weekdays": self.schedule.delivery_weekday_list(),
                 "obs_scenario": self.obs_scenario,
                 "obs_channels": channels_json(self.obs_channels),
                 "seed": self.seed,
@@ -846,6 +853,27 @@ fn rpc_bool(params: &serde_json::Value, key: &str) -> Option<bool> {
     rpc_field(params, key).and_then(|v| v.as_bool())
 }
 
+fn parse_weekday_list(value: &serde_json::Value) -> Option<Vec<u32>> {
+    let arr = value.as_array()?;
+    let mut days: Vec<u32> = arr
+        .iter()
+        .filter_map(|x| x.as_u64())
+        .map(|n| n as u32)
+        .filter(|&d| d < 7)
+        .collect();
+    days.sort_unstable();
+    days.dedup();
+    if days.is_empty() {
+        None
+    } else {
+        Some(days)
+    }
+}
+
+fn parse_delivery_weekdays_from_rpc(params: &serde_json::Value) -> Option<Vec<u32>> {
+    rpc_field(params, "delivery_weekdays").and_then(parse_weekday_list)
+}
+
 fn rpc_str<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a str> {
     rpc_field(params, key).and_then(|v| v.as_str())
 }
@@ -904,8 +932,9 @@ impl EngineSession {
         let shipments = parse_shipments_from_rpc(params);
         let demand_profile = parse_demand_profile_from_rpc(params);
         let units_per_lot = rpc_u64(params, "units_per_lot").map(|n| n as usize);
+        self.lead_time = lead_time.max(1);
         self.configure(
-            lead_time,
+            self.lead_time,
             enable_filter,
             h,
             n_paths,
@@ -915,7 +944,11 @@ impl EngineSession {
             demand_profile,
             units_per_lot,
         );
-        self.schedule.lead_time_days = self.lead_time;
+        let delivery = parse_delivery_weekdays_from_rpc(params).unwrap_or_else(|| {
+            OrderSchedule::default().delivery_weekday_list()
+        });
+        self.set_delivery_schedule(&delivery, self.lead_time);
+        let _ignored_client_order = rpc_field(params, "order_weekdays");
     }
 }
 
@@ -1303,7 +1336,59 @@ mod tests {
                 v["result"]["schedule"]["lead_time_days"], 4,
                 "{method} must sync schedule lead time"
             );
+            let expected_order = crate::schedule::derive_order_weekdays(&[0, 2, 4], 4);
+            let order: Vec<u32> = v["result"]["schedule"]["order_weekdays"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|x| x.as_u64().map(|n| n as u32))
+                .collect();
+            assert_eq!(order, expected_order, "{method} must re-derive order days");
         }
+    }
+
+    #[test]
+    fn rpc_configure_custom_delivery_derives_order_weekdays() {
+        let req = r#"{"id":"1","method":"init","params":{"seed":1,"config":{"delivery_weekdays":[1,3],"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#;
+        let out = handle_rpc(req);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let delivery: Vec<u32> = v["result"]["schedule"]["delivery_weekdays"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_u64().map(|n| n as u32))
+            .collect();
+        assert_eq!(delivery, vec![1, 3]);
+        let order: Vec<u32> = v["result"]["schedule"]["order_weekdays"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_u64().map(|n| n as u32))
+            .collect();
+        assert_eq!(order, crate::schedule::derive_order_weekdays(&[1, 3], 2));
+        assert_eq!(
+            v["result"]["applied_config"]["delivery_weekdays"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn rpc_configure_ignores_client_order_weekdays() {
+        let req = r#"{"id":"1","method":"init","params":{"seed":1,"delivery_weekdays":[0,2,4],"order_weekdays":[0,1,2],"lead_time":1,"config":{"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#;
+        let out = handle_rpc(req);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let order: Vec<u32> = v["result"]["schedule"]["order_weekdays"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_u64().map(|n| n as u32))
+            .collect();
+        assert_eq!(order, crate::schedule::derive_order_weekdays(&[0, 2, 4], 1));
     }
 
     #[test]

@@ -346,3 +346,48 @@ def test_order_schedule_module_lives_under_track_a() -> None:
     assert path.name == "order_schedule.py"
     assert "sim" in path.parts or "controller" in path.parts
     assert path.is_relative_to(_SRC)
+
+
+# ---------------------------------------------------------------------------
+# T-140: configurable delivery weekdays → derived order days
+# ---------------------------------------------------------------------------
+
+
+def test_derive_order_weekdays_default_mwf_lt1() -> None:
+    derive = _resolve_attr("derive_order_weekdays")
+    assert derive(frozenset({0, 2, 4}), 1) == _DEFAULT_ORDER
+
+
+@pytest.mark.parametrize(
+    ("lead_time", "expected"),
+    [
+        (0, frozenset({0, 2, 4})),
+        (1, frozenset({6, 1, 3})),
+        (2, frozenset({0, 2, 5})),
+    ],
+)
+def test_derive_order_weekdays_lead_time_sweep(
+    lead_time: int, expected: frozenset[int]
+) -> None:
+    derive = _resolve_attr("derive_order_weekdays")
+    assert derive(_DEFAULT_DELIVERY, lead_time) == expected
+
+
+def test_derive_order_weekdays_dedupes_delivery_days() -> None:
+    derive = _resolve_attr("derive_order_weekdays")
+    assert derive([0, 0, 2], 1) == frozenset({6, 1})
+
+
+def test_from_delivery_factory_matches_defaults() -> None:
+    cls = _resolve_attr("OrderSchedule")
+    schedule = cls.from_delivery([0, 2, 4], lead_time_days=1)
+    assert frozenset(schedule.delivery_weekdays) == _DEFAULT_DELIVERY
+    assert frozenset(schedule.order_weekdays) == _DEFAULT_ORDER
+    assert int(schedule.lead_time_days) == 1
+
+
+def test_from_delivery_tuesday_only_lt1() -> None:
+    cls = _resolve_attr("OrderSchedule")
+    schedule = cls.with_delivery([1], lead_time_days=1)
+    assert frozenset(schedule.delivery_weekdays) == frozenset({1})
+    assert frozenset(schedule.order_weekdays) == frozenset({0})

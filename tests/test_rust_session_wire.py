@@ -17,6 +17,7 @@ import pytest
 
 from blueberries_voi.backend import rust_core as _maybe_core
 from blueberries_voi.model.abdella import ShipmentTrace
+from blueberries_voi.sim.order_schedule import derive_order_weekdays
 from blueberries_voi.simulator.session import (
     EngineSession,
     demand_summary_wire,
@@ -188,6 +189,17 @@ def test_rust_init_snapshot_schedule_nonempty() -> None:
     _assert_schedule_populated(snap["schedule"], label="init Snapshot")
     expected = schedule_wire()
     assert snap["schedule"]["epoch"] == expected["epoch"]
+
+
+@_RUST_RUNTIME
+def test_rust_init_custom_delivery_weekdays_derives_order_days() -> None:
+    session = EngineSession()
+    snap = session.init(_cfg(delivery_weekdays=[1, 3], lead_time=2), seed=42)
+    delivery = list(snap["schedule"]["delivery_weekdays"])
+    order = list(snap["schedule"]["order_weekdays"])
+    assert delivery == [1, 3]
+    assert order == sorted(derive_order_weekdays(frozenset({1, 3}), 2))
+    assert snap["applied_config"]["delivery_weekdays"] == [1, 3]
 
 
 @_RUST_RUNTIME

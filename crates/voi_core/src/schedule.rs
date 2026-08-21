@@ -9,23 +9,71 @@ pub struct OrderSchedule {
 
 impl Default for OrderSchedule {
     fn default() -> Self {
-        let mut delivery = [false; 7];
-        delivery[0] = true;
-        delivery[2] = true;
-        delivery[4] = true;
-        let mut order = [false; 7];
-        order[6] = true;
-        order[1] = true;
-        order[3] = true;
-        Self {
-            delivery_weekdays: delivery,
-            order_weekdays: order,
-            lead_time_days: 1,
-        }
+        Self::with_delivery(&[0, 2, 4], 1)
     }
 }
 
+/// ``order_weekday = (delivery - lead_time + 7) % 7`` for each delivery day; dedupe + sort.
+pub fn derive_order_weekdays(delivery: &[u32], lead_time_days: u32) -> Vec<u32> {
+    let lt = lead_time_days % 7;
+    let mut order: Vec<u32> = delivery
+        .iter()
+        .map(|&d| (d + 7 - lt) % 7)
+        .collect();
+    order.sort_unstable();
+    order.dedup();
+    order
+}
+
 impl OrderSchedule {
+    pub fn delivery_weekday_list(&self) -> Vec<u32> {
+        self.delivery_weekdays
+            .iter()
+            .enumerate()
+            .filter(|(_, &on)| on)
+            .map(|(i, _)| i as u32)
+            .collect()
+    }
+
+    pub fn order_weekday_list(&self) -> Vec<u32> {
+        self.order_weekdays
+            .iter()
+            .enumerate()
+            .filter(|(_, &on)| on)
+            .map(|(i, _)| i as u32)
+            .collect()
+    }
+
+    pub fn from_delivery(delivery: &[u32], lead_time_days: u32) -> Result<Self, String> {
+        if delivery.is_empty() {
+            return Err("delivery_weekdays must be non-empty".into());
+        }
+        let mut delivery_flags = [false; 7];
+        for &d in delivery {
+            if d >= 7 {
+                return Err(format!("delivery weekday must be 0..6 (monday0), got {d}"));
+            }
+            delivery_flags[d as usize] = true;
+        }
+        let order = derive_order_weekdays(delivery, lead_time_days);
+        if order.is_empty() {
+            return Err("derived order_weekdays must be non-empty".into());
+        }
+        let mut order_flags = [false; 7];
+        for d in order {
+            order_flags[d as usize] = true;
+        }
+        Ok(Self {
+            delivery_weekdays: delivery_flags,
+            order_weekdays: order_flags,
+            lead_time_days,
+        })
+    }
+
+    pub fn with_delivery(delivery: &[u32], lead_time_days: u32) -> Self {
+        Self::from_delivery(delivery, lead_time_days).unwrap_or_else(|_| Self::default())
+    }
+
     fn weekday(day: u32) -> usize {
         // 2024-01-01 was Monday → weekday 0.
         (day % 7) as usize
@@ -68,5 +116,37 @@ mod tests {
         assert_eq!(s.protection_days(6), 3);
         assert_eq!(s.protection_days(1), 3);
         assert_eq!(s.protection_days(3), 4);
+    }
+
+    #[test]
+    fn derive_order_weekdays_default_mwf_lt1() {
+        assert_eq!(derive_order_weekdays(&[0, 2, 4], 1), vec![1, 3, 6]);
+    }
+
+    #[test]
+    fn derive_order_weekdays_lt0_same_as_delivery() {
+        assert_eq!(derive_order_weekdays(&[0, 2, 4], 0), vec![0, 2, 4]);
+    }
+
+    #[test]
+    fn derive_order_weekdays_lt2() {
+        assert_eq!(derive_order_weekdays(&[0, 2, 4], 2), vec![0, 2, 5]);
+    }
+
+    #[test]
+    fn derive_order_weekdays_dedupes() {
+        assert_eq!(derive_order_weekdays(&[0, 0, 2], 1), vec![1, 6]);
+    }
+
+    #[test]
+    fn from_delivery_tuesday_only_lt1() {
+        let s = OrderSchedule::from_delivery(&[1], 1).unwrap();
+        assert_eq!(s.delivery_weekday_list(), vec![1]);
+        assert_eq!(s.order_weekday_list(), vec![0]);
+    }
+
+    #[test]
+    fn from_delivery_rejects_empty() {
+        assert!(OrderSchedule::from_delivery(&[], 1).is_err());
     }
 }

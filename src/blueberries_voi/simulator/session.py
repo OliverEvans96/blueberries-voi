@@ -82,6 +82,10 @@ class EngineSession:
         self._seq: int = 0
         self._shipments: list[ShipmentTrace] = []
         self._lead_time: int = 1
+        self._delivery_weekdays: frozenset[int] = (
+            DEFAULT_ORDER_SCHEDULE.delivery_weekdays
+        )
+        self._schedule: OrderSchedule = DEFAULT_ORDER_SCHEDULE
         self._enable_filter: bool = True
         self._obs_scenario: ScenarioId | str = "P1"
         self._L: int = 10
@@ -106,6 +110,7 @@ class EngineSession:
         times = [list(map(float, getattr(s, "times_d", []))) for s in self._shipments]
         temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
         init_fn = sess.init
+        delivery = sorted(int(d) for d in self._delivery_weekdays)
         try:
             raw = init_fn(
                 int(self._seed),
@@ -121,19 +126,38 @@ class EngineSession:
                 int(self._K),
                 str(self._obs_scenario),
                 None,
+                delivery,
+                None,
             )
         except TypeError:
-            raw = init_fn(
-                int(self._seed),
-                int(self._lead_time),
-                bool(self._enable_filter),
-                int(self._H),
-                int(self._n_rollout_paths),
-                int(self._candidate_case_radius),
-                times,
-                temps,
-                int(self._n_particles),
-            )
+            try:
+                raw = init_fn(
+                    int(self._seed),
+                    int(self._lead_time),
+                    bool(self._enable_filter),
+                    int(self._H),
+                    int(self._n_rollout_paths),
+                    int(self._candidate_case_radius),
+                    times,
+                    temps,
+                    int(self._n_particles),
+                    int(self._L),
+                    int(self._K),
+                    str(self._obs_scenario),
+                    None,
+                )
+            except TypeError:
+                raw = init_fn(
+                    int(self._seed),
+                    int(self._lead_time),
+                    bool(self._enable_filter),
+                    int(self._H),
+                    int(self._n_rollout_paths),
+                    int(self._candidate_case_radius),
+                    times,
+                    temps,
+                    int(self._n_particles),
+                )
         return self._coerce_snapshot(raw)
 
     def reset(
@@ -283,7 +307,7 @@ class EngineSession:
             snap = dict(raw)
             snap.setdefault("seq", 0)
             snap.setdefault("episode_day", 0)
-            snap.setdefault("schedule", schedule_wire())
+            snap.setdefault("schedule", schedule_wire(self._schedule))
             snap.setdefault("demand_summary", demand_summary_wire())
             snap.setdefault("applied_config", self._applied_config())
             snap.setdefault("history", [])
@@ -314,6 +338,15 @@ class EngineSession:
         self._config = dict(config)
         self._seed = 0 if seed is None else int(seed)
         self._lead_time = int(config.get("lead_time", 1))
+        raw_delivery = config.get("delivery_weekdays")
+        if raw_delivery is None:
+            self._delivery_weekdays = DEFAULT_ORDER_SCHEDULE.delivery_weekdays
+        else:
+            self._delivery_weekdays = frozenset(int(d) for d in raw_delivery)
+        self._schedule = OrderSchedule.with_delivery(
+            self._delivery_weekdays,
+            lead_time_days=self._lead_time,
+        )
         self._enable_filter = bool(config.get("enable_filter", True))
         raw_scenario = config.get("obs_scenario", "P1")
         mask_for(raw_scenario)
@@ -339,6 +372,7 @@ class EngineSession:
             "K": int(self._K),
             "enable_filter": bool(self._enable_filter),
             "lead_time": int(self._lead_time),
+            "delivery_weekdays": sorted(int(d) for d in self._delivery_weekdays),
             "obs_scenario": self._obs_scenario,
             "seed": int(self._seed),
         }

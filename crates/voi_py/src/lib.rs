@@ -440,10 +440,7 @@ fn rollout_order_py(
             ));
         }
     };
-    let schedule = OrderSchedule {
-        lead_time_days: lead_time,
-        ..OrderSchedule::default()
-    };
+    let schedule = OrderSchedule::from_delivery(&[0, 2, 4], lead_time).unwrap_or_default();
     let ctx = RolloutContext {
         root_seed,
         run_id: run_id.to_string(),
@@ -578,7 +575,7 @@ impl PyEngineSession {
         }
     }
 
-    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None, units_per_lot=None))]
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None, delivery_weekdays=None, units_per_lot=None))]
     fn init<'py>(
         &mut self,
         py: Python<'py>,
@@ -595,6 +592,7 @@ impl PyEngineSession {
         k: usize,
         obs_scenario: Option<String>,
         demand_profile_json: Option<String>,
+        delivery_weekdays: Option<Vec<u32>>,
         units_per_lot: Option<usize>,
     ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
@@ -613,6 +611,11 @@ impl PyEngineSession {
             demand_profile,
             units_per_lot,
         );
+        let delivery = delivery_weekdays.unwrap_or_else(|| {
+            OrderSchedule::default().delivery_weekday_list()
+        });
+        self.inner
+            .set_delivery_schedule(&delivery, lead_time.max(1));
         if let Some(scenario) = obs_scenario {
             self.inner
                 .set_obs_scenario(&scenario)
@@ -635,6 +638,7 @@ impl PyEngineSession {
             200,
             2,
             4,
+            None,
             None,
             None,
             None,
