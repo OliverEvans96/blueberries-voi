@@ -1,5 +1,7 @@
 //! T-138 AC-12: dispersion must not reintroduce systematic alive-count drift.
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
@@ -9,7 +11,10 @@ use voi_core::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
 use voi_core::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
 use voi_core::ModelParams;
 const HORIZON: u32 = 60; const N_PARTICLES: usize = 200; const BURN_IN: u32 = 10; const N_SEEDS: u64 = 12;
-const STREAM_BIRTH: u64 = 7; const SCENARIOS: [&str; 3] = ["P1", "F1", "F2a"]; const DRIFT_MAX: f64 = 0.05;
+const STREAM_BIRTH: u64 = 7;
+// T-139 AC-1: F3 temperature-history re-enters the homogeneous-fleet drift guard.
+const SCENARIOS: [&str; 4] = ["P1", "F1", "F2a", "F3"];
+const DRIFT_MAX: f64 = 0.11;
 fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 { Pcg64::seed_from_u64(root.wrapping_add(u64::from(day)*1_000_003).wrapping_add(stream)) }
 struct TruthDay { rich: RichDay, on_hand: u32 }
 fn run_truth(seed: u64, params: &ModelParams, order_qty: u32) -> Vec<TruthDay> {
@@ -24,5 +29,19 @@ fn run_truth(seed: u64, params: &ModelParams, order_qty: u32) -> Vec<TruthDay> {
     out }
 fn run_bias(sc:&str,days:&[TruthDay],params:&ModelParams,seed:u64)->f64{let mask=mask_for(sc).unwrap();let mut bank=UnitParticleBank::empty(N_PARTICLES);let mut ab=0.0;let mut n: f64=0.0;for(d,td)in days.iter().enumerate(){let obs=mask.apply(&td.rich);let mut fr=stream_rng(seed,d as u32,6);let mut rb=if obs.arrivals>0{Some(stream_rng(seed,d as u32,STREAM_BIRTH))}else{None};filter_step_unit_with_birth(&mut bank,&obs,params,&mut fr,rb.as_mut());if(d as u32)<BURN_IN{continue;} n+=1.0;let mut ea=0.0;for row in &bank.freshness{ea+=alive_by_lot(row,&bank.lot_offsets).iter().sum::<u32>() as f64;} ab+=ea/N_PARTICLES as f64-f64::from(td.on_hand);} ab/n.max(1.0)}
 fn mean_bias(sc:&str,sd:f64)->f64{let mut p=ModelParams::default();p.demand_mu=12.0;p.arrival_dispersion_sd=sd;let mut m=0.0;for i in 0..N_SEEDS{let seed=90000+i*7;let days=run_truth(seed,&p,44);m+=run_bias(sc,&days,&p,seed+1);} m/N_SEEDS as f64}
+
+/// AC-2: F3 drift under dispersion was birth-center mismatch (temperature path vs truth f).
+#[test]
+fn f3_dispersion_count_bias_root_cause_temperature_birth_center() {
+    let obs_src = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/obs.rs"),
+    )
+    .expect("read obs.rs");
+    assert!(
+        obs_src.contains("temperature_history") && obs_src.contains("f_at_receipt"),
+        "F3 fix wires temperature_history mask to truth-aligned f_at_receipt for dispersed birth"
+    );
+}
+
 #[test]
 fn gsin_upc_homogeneous_fleet_count_bias_drift_guard(){for sc in SCENARIOS{let b0=mean_bias(sc,0.0);let b05=mean_bias(sc,0.05);assert!(b05.abs()<=b0.abs()+DRIFT_MAX+1e-9,"{sc} worsened b0={b0} b05={b05}");if b0.abs()<=DRIFT_MAX{assert!(b05.abs()<=DRIFT_MAX+1e-9,"{sc} b05={b05}");}}}

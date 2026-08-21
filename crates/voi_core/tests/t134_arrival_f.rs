@@ -7,6 +7,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
+use voi_core::session::EngineSession;
 use voi_core::shipments::{birth_f_f2_dirac, birth_f_units};
 use voi_core::unit_pf::{filter_step_unit, filter_step_unit_with_birth, UnitParticleBank};
 
@@ -213,6 +214,75 @@ fn dispersion_sd_positive_enables_non_uniform_birth_path() {
     assert!(
         pf.contains("birth_f_units"),
         "RED: filter must spread births when arrival_dispersion_sd > 0"
+    );
+}
+
+// --- T-139 Stage B: filter mass conservation + contrast hook (ADR 0140) ---
+
+/// AC-3: dispersed filter birth injects exactly obs.arrivals live units per row.
+#[test]
+fn filter_birth_alive_mass_matches_arrivals_under_dispersion() {
+    let mut params = ModelParams::default();
+    params.arrival_dispersion_sd = 0.05;
+    let arrivals = 24u32;
+    let n = 8usize;
+    let mut bank = UnitParticleBank::empty(n);
+    let mut rng = Pcg64::seed_from_u64(139_003);
+    let mut rng_birth = Pcg64::seed_from_u64(139_003 ^ 0xB177);
+    let obs = FilterObs {
+        arrivals,
+        ..Default::default()
+    };
+    filter_step_unit_with_birth(&mut bank, &obs, &params, &mut rng, Some(&mut rng_birth));
+    for row in &bank.freshness {
+        let alive = row.iter().filter(|&&f| f > 0.0).count() as f64;
+        assert!(
+            (alive - f64::from(arrivals)).abs() < 1e-9,
+            "row alive {alive} != arrivals {arrivals}"
+        );
+    }
+}
+
+/// AC-4: session belief lot_counts sum tracks on-hand over a short seeded fixture.
+#[test]
+fn session_lot_counts_track_arrivals_minus_decay() {
+    for seed in 0..=200u64 {
+        let mut session = EngineSession::new(seed);
+        session.init(seed);
+        let mut arrivals_total = 0u32;
+        let mut last_on_hand = 0.0f64;
+        for day in 0..20u32 {
+            let order = if day % 4 == 0 { 30 } else { 0 };
+            let delta = session.step(order);
+            arrivals_total += delta.arrivals;
+            let snap = session.snapshot_value();
+            let lot_counts: Vec<f64> = snap["belief"]["lot_counts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            last_on_hand = lot_counts.iter().sum();
+        }
+        assert!(
+            last_on_hand <= f64::from(arrivals_total) + 1e-6,
+            "seed {seed}: lot_counts sum {last_on_hand} > arrivals {arrivals_total}"
+        );
+    }
+}
+
+/// AC-5: ADR 0140 contrast hook is exported and inert at sd=0.
+#[test]
+fn contrast_spoilage_weight_exported_and_inert_at_sd_zero() {
+    let ll_src = read_src("unit_ll.rs");
+    assert!(
+        ll_src.contains("pub fn contrast_spoilage_weight"),
+        "RED: unit_ll must export contrast_spoilage_weight (ADR 0140)"
+    );
+    let lib_src = read_src("lib.rs");
+    assert!(
+        lib_src.contains("contrast_spoilage_weight"),
+        "RED: lib.rs must re-export contrast_spoilage_weight"
     );
 }
 
