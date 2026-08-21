@@ -590,7 +590,7 @@ mod tests {
             deliver: true,
             deliver_units: None,
             delivery_f: Some(0.92),
-            delivery_lambda: Some(1.5),
+            delivery_lambda: None,
             units_per_lot: None,
             age_at_receipt: None,
             pack_age_mean: None,
@@ -600,6 +600,14 @@ mod tests {
         );
         assert_eq!(out.lot_offsets.len(), 3);
         assert_eq!(out.freshness.len(), upl * 2);
-        assert!(out.freshness[upl..].iter().all(|&f| (f - 0.92).abs() < 1e-12));
+        let seg = &out.freshness[upl..];
+        let mean: f64 = seg.iter().sum::<f64>() / seg.len() as f64;
+        assert!((mean - 0.92).abs() < 0.05, "gamma birth should center near delivery_f");
+        assert!(
+            seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+                - seg.iter().cloned().fold(f64::INFINITY, f64::min)
+                > 1e-6,
+            "gamma birth must spread within-lot freshness"
+        );
     }
 }
