@@ -29,3 +29,11 @@ def test_paired_bootstrap_reproducible_with_seed() -> None:
 def test_paired_bootstrap_rejects_empty() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         paired_bootstrap_ci([], n_bootstrap=10, rng=np.random.default_rng(0))
+
+
+def test_paired_bootstrap_rejects_invalid_params() -> None:
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match="n_bootstrap"):
+        paired_bootstrap_ci([1.0], n_bootstrap=0, rng=rng)
+    with pytest.raises(ValueError, match="alpha"):
+        paired_bootstrap_ci([1.0], n_bootstrap=10, alpha=0.0, rng=rng)
