@@ -70,6 +70,7 @@ pub struct FilterObs {
     pub arrival_lot_ids: Option<Vec<i64>>,
     pub pack_date_days: Option<i32>,
     pub age_at_receipt: Option<f64>,
+    pub f_at_receipt: Option<f64>,
     pub temp_times_d: Option<Vec<f64>>,
     pub temp_temps_c: Option<Vec<f64>>,
 }
@@ -86,6 +87,7 @@ impl Default for FilterObs {
             arrival_lot_ids: None,
             pack_date_days: None,
             age_at_receipt: None,
+            f_at_receipt: None,
             temp_times_d: None,
             temp_temps_c: None,
         }
@@ -300,6 +302,7 @@ impl ObsMask {
             } else {
                 None
             },
+            f_at_receipt: None,
             temp_times_d,
             temp_temps_c,
         }

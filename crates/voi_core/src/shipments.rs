@@ -188,6 +188,39 @@ pub fn arrival_receipt_meta<R: rand::Rng + ?Sized>(
     (f, tau, pack)
 }
 
+/// Teaching durations (days at 1 °C) calibrated to MOD-21 ages at q10=3, t_ref=0 °C (S1…S6).
+const MOD21_DEMO_DURATIONS_D: [f64; 6] = [5.434, 2.194, 7.582, 6.865, 7.504, 5.405];
+
+fn mod21_demo_trace(duration_d: f64) -> ShipmentTrace {
+    ShipmentTrace {
+        times_d: vec![0.0, duration_d],
+        temps_c: vec![1.0, 1.0],
+    }
+}
+
+/// Embedded Abdella MOD-21 demo traces for WASM / offline paths (no parquet).
+pub fn mod21_demo_shipments(product: &str) -> Vec<ShipmentTrace> {
+    match product {
+        "short_haul" => vec![mod21_demo_trace(MOD21_DEMO_DURATIONS_D[1])],
+        "long_haul" => MOD21_DEMO_DURATIONS_D
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != 1)
+            .map(|(_, &d)| mod21_demo_trace(d))
+            .collect(),
+        _ => MOD21_DEMO_DURATIONS_D
+            .iter()
+            .map(|&d| mod21_demo_trace(d))
+            .collect(),
+    }
+}
+
+/// Ground-truth birth freshness for a shipment trace under `params`.
+pub fn truth_birth_from_trace(trace: &ShipmentTrace, params: &ModelParams) -> f64 {
+    let age = shipment_arrival_age(trace, params.q10, params.t_ref_c);
+    age_to_f(age, params.eta_ref)
+}
+
 /// Same as [`arrival_receipt_meta`] but returns the sampled shipment trace for obs wire.
 pub fn arrival_receipt_meta_with_trace<R: rand::Rng + ?Sized>(
     rng_ship: &mut R,

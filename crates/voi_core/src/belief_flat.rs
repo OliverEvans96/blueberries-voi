@@ -20,65 +20,46 @@ pub fn f_grid_k(k: usize) -> Vec<f64> {
     if k == 1 {
         return vec![0.0];
     }
-    (0..k)
-        .map(|i| i as f64 / ((k - 1) as f64))
-        .collect()
+    (0..k).map(|i| i as f64 / ((k - 1) as f64)).collect()
 }
 
-/// Flatten `UnitParticleBank` onto the f-native `L×K` belief wire (ADR 0130).
+/// Flatten `UnitParticleBank` onto the f-native `L×K` belief wire (ADR 0130 / 0137).
+///
+/// Slots follow the bank's **own** lot segmentation (`lot_offsets`), oldest-first, keeping
+/// the newest `l` lots when the shelf holds more. Nothing re-derives lot widths from row
+/// length: after ADR 0137 a delivery's segment is exactly as wide as the delivery was.
 pub fn belief_flat_from_unit_bank(bank: &UnitParticleBank, l: usize, k: usize) -> Value {
     let grid = f_grid_k(k);
     let n = bank.weights.len();
     let w_sum: f64 = bank.weights.iter().sum();
-    let units_per_lot = if l > 0 && !bank.freshness.is_empty() {
-        bank.freshness[0].len() / l
-    } else {
-        0
-    };
+    let n_lots = bank.n_lots();
+    let first_lot = n_lots.saturating_sub(l);
 
     let mut lot_counts = vec![0.0; l];
-    if w_sum > 0.0 && units_per_lot > 0 {
-        for slot in 0..l {
-            let start = slot * units_per_lot;
-            let end = start + units_per_lot;
+    let mut f_marginals = vec![0.0; l.saturating_mul(k)];
+    if w_sum > 0.0 && n_lots > 0 && k > 0 {
+        for (slot, ell) in (first_lot..n_lots).enumerate() {
+            let start = bank.lot_offsets[ell];
+            let end = bank.lot_offsets[ell + 1];
             let mut acc = 0.0;
             for i in 0..n {
-                let alive = bank
-                    .freshness
-                    .get(i)
-                    .and_then(|row| row.get(start..end))
-                    .map(|units| units.iter().filter(|&&f| f > 0.0).count() as f64)
-                    .unwrap_or(0.0);
-                acc += bank.weights[i] * alive;
+                let w = bank.weights[i];
+                let row = bank.freshness.get(i).map(Vec::as_slice).unwrap_or(&[]);
+                if end > row.len() {
+                    continue;
+                }
+                for &f in &row[start..end] {
+                    if f > 0.0 {
+                        acc += w;
+                        f_marginals[slot * k + nearest_bin(f, &grid)] += w;
+                    }
+                }
             }
             lot_counts[slot] = acc / w_sum;
         }
     }
 
-    let mut f_marginals = vec![0.0; l.saturating_mul(k)];
     if k > 0 {
-        if w_sum > 0.0 && units_per_lot > 0 {
-            for i in 0..n {
-                let w = bank.weights[i];
-                if w == 0.0 {
-                    continue;
-                }
-                let freshness = bank.freshness.get(i).map(Vec::as_slice).unwrap_or(&[]);
-                for slot in 0..l {
-                    let start = slot * units_per_lot;
-                    let end = start + units_per_lot;
-                    if end > freshness.len() {
-                        continue;
-                    }
-                    for &f in &freshness[start..end] {
-                        if f > 0.0 {
-                            let bin = nearest_bin(f, &grid);
-                            f_marginals[slot * k + bin] += w;
-                        }
-                    }
-                }
-            }
-        }
         for slot in 0..l {
             let row = &mut f_marginals[slot * k..(slot + 1) * k];
             let z: f64 = row.iter().sum();
@@ -109,18 +90,17 @@ mod tests {
     use super::*;
 
     fn unit_bank_fixture() -> UnitParticleBank {
-        // L=2, U=3: lot0 [1,1,0], lot1 [1,0.5,0] → alive counts 2 and 2.
-        UnitParticleBank {
-            weights: vec![1.0],
-            freshness: vec![vec![1.0, 1.0, 0.0, 1.0, 0.5, 0.0]],
-        }
+        UnitParticleBank::from_rows_uniform_lots(vec![1.0], vec![vec![1.0, 1.0, 0.0, 1.0, 0.5, 0.0]], 3)
     }
 
     #[test]
     fn belief_flat_from_unit_bank_exports_f_wire_keys() {
         let bank = unit_bank_fixture();
         let v = belief_flat_from_unit_bank(&bank, 2, 3);
-        assert!(v.get("f_grid").is_some(), "production wire must export f_grid");
+        assert!(
+            v.get("f_grid").is_some(),
+            "production wire must export f_grid"
+        );
         assert!(
             v.get("f_marginals").is_some(),
             "production wire must export f_marginals"
@@ -192,10 +172,7 @@ mod tests {
 
     #[test]
     fn belief_flat_from_unit_bank_empty_bank_zero_counts_uniform_marginals() {
-        let bank = UnitParticleBank {
-            weights: vec![],
-            freshness: vec![],
-        };
+        let bank = UnitParticleBank::empty(0);
         let k = 4usize;
         let v = belief_flat_from_unit_bank(&bank, 2, k);
         assert_eq!(v["L"], 2);
@@ -218,13 +195,14 @@ mod tests {
 
     #[test]
     fn belief_flat_from_unit_bank_weighted_particles() {
-        let bank = UnitParticleBank {
-            weights: vec![0.25, 0.75],
-            freshness: vec![
+        let bank = UnitParticleBank::from_rows_uniform_lots(
+            vec![0.25, 0.75],
+            vec![
                 vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
                 vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
             ],
-        };
+            3,
+        );
         let v = belief_flat_from_unit_bank(&bank, 2, 3);
         let counts: Vec<f64> = v["lot_counts"]
             .as_array()

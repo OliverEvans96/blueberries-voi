@@ -19,7 +19,7 @@ use voi_core::obs::{mask_for, RichDay};
 use voi_core::physics::draw_demand;
 use voi_core::policy::effective_inventory_f_belief;
 use voi_core::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
-use voi_core::unit_pf::{filter_step_unit, UnitParticleBank};
+use voi_core::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
 use voi_core::{belief_flat_from_unit_bank, truth_f_belief, ModelParams};
 
 const HORIZON: u32 = 60;
@@ -126,7 +126,7 @@ fn run_truth(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: None,
+            delivery_f: f_at_receipt,
             units_per_lot: Some(params.units_per_lot),
             age_at_receipt: None,
             pack_age_mean: None,
@@ -271,16 +271,24 @@ fn run_channel(scenario: &str, days: &[TruthDay], params: &ModelParams, seed: u6
     let mask = mask_for(scenario).expect("valid scenario");
     let n = N_PARTICLES;
     let upl = params.units_per_lot.max(1);
-    let mut bank = UnitParticleBank {
-        weights: vec![1.0 / n as f64; n],
-        freshness: vec![vec![]; n],
-    };
+    let mut bank = UnitParticleBank::empty(n);
     let mut m = Metrics::default();
     let t0 = std::time::Instant::now();
     for (d, td) in days.iter().enumerate() {
         let obs = mask.apply(&td.rich);
         let mut frng = stream_rng(seed, d as u32, 6);
-        filter_step_unit(&mut bank, &obs, params, &mut frng);
+        let mut rng_birth_filter = if obs.arrivals > 0 {
+            Some(stream_rng(seed, d as u32, STREAM_BIRTH))
+        } else {
+            None
+        };
+        filter_step_unit_with_birth(
+            &mut bank,
+            &obs,
+            params,
+            &mut frng,
+            rng_birth_filter.as_mut(),
+        );
         if (d as u32) < BURN_IN {
             continue;
         }
@@ -475,14 +483,16 @@ fn main() {
     // Order cadence sized so several lots coexist on the shelf — the regime where lot
     // attribution is a live question. mu = 12/day, so 44 units every 3 days ~ 1.2x demand.
     let mut rows = Vec::new();
-    rows.extend(report(
-        "Homogeneous fleet, overlapping lots",
-        &shipments_homogeneous(),
-        params.clone(),
-        3,
-        44,
-        0.0,
-    ));
+    for sd in [0.0_f64, 0.05] {
+        rows.extend(report(
+            "Homogeneous fleet, overlapping lots",
+            &shipments_homogeneous(),
+            params.clone(),
+            3,
+            44,
+            sd,
+        ));
+    }
     rows.extend(report(
         "Heterogeneous fleet, overlapping lots",
         &shipments_heterogeneous(),

@@ -7,8 +7,8 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
-use voi_core::shipments::birth_f_f2_dirac;
-use voi_core::unit_pf::{filter_step_unit, UnitParticleBank};
+use voi_core::shipments::{birth_f_f2_dirac, birth_f_units};
+use voi_core::unit_pf::{filter_step_unit, filter_step_unit_with_birth, UnitParticleBank};
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -74,26 +74,41 @@ fn model_params_arrival_dispersion_sd_distinct_from_f2a_transit() {
 #[test]
 fn birth_f_units_sd_zero_yields_uniform_copies() {
     require_birth_f_units_export();
-    let src = read_src("shipments.rs");
-    assert!(
-        src.contains("dispersion_sd") || src.contains("arrival_dispersion_sd"),
-        "RED: birth_f_units must accept a dispersion sd parameter"
-    );
-    assert!(
-        src.contains("1e-12") || src.contains("mean_f"),
-        "RED: sd=0 path must copy mean_f (documented or branched in shipments.rs)"
-    );
+    let mean_f = 0.62;
+    let n = 12usize;
+    let mut rng = Pcg64::seed_from_u64(138_002);
+    let values = birth_f_units(mean_f, 0.0, n, &mut rng);
+    assert_eq!(values.len(), n);
+    for &f in &values {
+        assert!(f > 0.0 && f <= 1.0, "birth f {f} outside (0, 1]");
+        assert!((f - mean_f).abs() < 1e-12, "sd=0 must copy mean_f");
+    }
 }
 
 /// AC-3: sd > 0 with n >= 8 shows spread across seeds while mean stays near mean_f.
 #[test]
 fn birth_f_units_positive_sd_spreads_and_centers() {
     require_birth_f_units_export();
-    let src = read_src("shipments.rs");
-    assert!(
-        src.contains("0.0") && (src.contains("Normal") || src.contains("trunc")),
-        "RED: birth_f_units must implement truncated spread law for sd > 0"
-    );
+    let mean_f = 0.55;
+    let sd = 0.05;
+    let n = 8usize;
+    let mut spread = false;
+    for seed in 0..100u64 {
+        let mut rng = Pcg64::seed_from_u64(138_003 ^ seed);
+        let values = birth_f_units(mean_f, sd, n, &mut rng);
+        assert_eq!(values.len(), n);
+        let vmin = values.iter().cloned().fold(f64::INFINITY, f64::min);
+        let vmax = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        if vmax - vmin > 1e-6 {
+            spread = true;
+        }
+        let sample_mean = values.iter().sum::<f64>() / n as f64;
+        assert!(
+            (sample_mean - mean_f).abs() <= 3.0 * sd + 1e-9,
+            "seed {seed}: mean {sample_mean} outside 3σ band around {mean_f}"
+        );
+    }
+    assert!(spread, "sd>0 must spread within-lot freshness across seeds");
 }
 
 /// AC-5: filter birth spreads obs.arrivals units via birth_f_units / push_lot vector.
@@ -120,18 +135,26 @@ fn filter_particles_differ_within_lot_under_dispersion() {
     let mut params = ModelParams::default();
     params.arrival_dispersion_sd = 0.05;
     let upl = 8usize;
-    let mut bank = UnitParticleBank {
-        weights: vec![0.5, 0.5],
-        freshness: vec![vec![0.4; upl], vec![0.4; upl]],
-    };
+    let mut bank = UnitParticleBank::from_rows_uniform_lots(
+        vec![0.5, 0.5],
+        vec![vec![0.4; upl], vec![0.4; upl]],
+        upl,
+    );
     let mut rng = Pcg64::seed_from_u64(138_006);
+    let mut rng_birth = Pcg64::seed_from_u64(138_006 ^ 0xB177);
     let obs = FilterObs {
         arrivals: upl as u32,
         ..Default::default()
     };
-    filter_step_unit(&mut bank, &obs, &params, &mut rng);
+    filter_step_unit_with_birth(&mut bank, &obs, &params, &mut rng, Some(&mut rng_birth));
     let any_within_spread = bank.freshness.iter().any(|row| {
-        let seg = &row[..row.len().min(upl)];
+        let n_lots = bank.lot_offsets.len().saturating_sub(1);
+        if n_lots == 0 {
+            return false;
+        }
+        let start = bank.lot_offsets[n_lots - 1];
+        let end = bank.lot_offsets[n_lots];
+        let seg = &row[start..end];
         let min = seg.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         max - min > 1e-6
@@ -223,20 +246,20 @@ fn filter_birth_f2_dirac_from_age_at_receipt() {
     let upl = params.units_per_lot.max(1);
     let age = 2.5;
     let expected = birth_f_f2_dirac(age, params.eta_ref);
-    let mut bank = UnitParticleBank {
-        weights: vec![1.0],
-        freshness: vec![vec![0.4; upl]],
-    };
+    let mut bank = UnitParticleBank::empty(1);
     let mut rng = Pcg64::seed_from_u64(99);
+    let mut rng_birth = Pcg64::seed_from_u64(99 ^ 0xB177);
     let obs = FilterObs {
         arrivals: upl as u32,
         age_at_receipt: Some(age),
         ..Default::default()
     };
-    filter_step_unit(&mut bank, &obs, &params, &mut rng);
+    filter_step_unit_with_birth(&mut bank, &obs, &params, &mut rng, Some(&mut rng_birth));
     let row = &bank.freshness[0];
-    assert_eq!(row.len(), upl, "birth must inject upl units");
-    for &f in row {
+    let start = bank.lot_offsets[0];
+    let end = bank.lot_offsets[1];
+    assert_eq!(end - start, upl, "birth must inject upl units");
+    for &f in &row[start..end] {
         assert!(
             (f - expected).abs() < 1e-12,
             "F2 birth f {f} != dirac({expected})"

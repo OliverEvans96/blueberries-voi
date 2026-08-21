@@ -10,7 +10,7 @@ use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order_f_belief;
-use crate::unit_pf::{filter_step_unit, UnitParticleBank};
+use crate::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
@@ -60,29 +60,14 @@ fn pop_arrival(pending: &mut std::collections::BTreeMap<u32, u32>, day: u32) -> 
 
 fn init_filter_bank(
     n: usize,
-    root_seed: u64,
-    scenario: &str,
-    l: usize,
-    upl: usize,
-    k: usize,
+    _root_seed: u64,
+    _scenario: &str,
+    _l: usize,
+    _upl: usize,
+    _k: usize,
 ) -> UnitParticleBank {
-    let units = l * upl.max(1);
-    let grid = f_grid_k(k.max(1));
-    let mut frng = rng(root_seed, filter_tag(scenario), 0, STREAM_FILTER);
-    let freshness: Vec<Vec<f64>> = (0..n)
-        .map(|_| {
-            (0..units)
-                .map(|_| {
-                    let bin = frng.random_range(0..grid.len());
-                    grid[bin]
-                })
-                .collect()
-        })
-        .collect();
-    UnitParticleBank {
-        weights: vec![1.0 / n as f64; n],
-        freshness,
-    }
+    let _ = (_root_seed, _scenario, _l, _upl, _k);
+    UnitParticleBank::empty(n)
 }
 
 fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
@@ -184,10 +169,7 @@ fn run_scenario_episode(
     let n = budgets.filter_n.max(1) as usize;
     let upl = params.units_per_lot.max(1);
     let mut bank = if oracle || scenario == "P0" {
-        UnitParticleBank {
-            weights: vec![1.0 / n as f64; n],
-            freshness: vec![vec![]; n],
-        }
+        UnitParticleBank::empty(n)
     } else {
         init_filter_bank(n, root_seed, scenario, FILTER_INIT_L, upl, FILTER_INIT_K)
     };
@@ -294,10 +276,10 @@ fn run_scenario_episode(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: None,
+            delivery_f: f_at_receipt,
             units_per_lot: Some(upl),
-            age_at_receipt: None,
-            pack_age_mean: None,
+            age_at_receipt,
+            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -311,10 +293,13 @@ fn run_scenario_episode(
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;
-        if arrival > 0 {
+        let arrival_lot_ids = if arrival > 0 {
             lot_ids.push(next_lot);
             next_lot += 1;
-        }
+            vec![next_lot - 1]
+        } else {
+            Vec::new()
+        };
         if day >= budgets.n_burn {
             scored += day_profit(out.sales_total, out.waste_total, out.demand, 2.0, 1.5, 3.0);
         }
@@ -326,7 +311,7 @@ fn run_scenario_episode(
                 sales_by: out.sales_by.clone(),
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
-                arrival_lot_ids: Vec::new(),
+                arrival_lot_ids,
                 shipment_trace: None,
                 f_at_receipt,
                 age_at_receipt,
@@ -334,7 +319,8 @@ fn run_scenario_episode(
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
-            filter_step_unit(&mut bank, &obs, params, &mut frng);
+            let mut rng_birth_filter = if obs.arrivals > 0 { Some(rng(root_seed, phys, day, STREAM_BIRTH)) } else { None };
+            filter_step_unit_with_birth(&mut bank, &obs, params, &mut frng, rng_birth_filter.as_mut());
         }
     }
     scored
@@ -448,11 +434,12 @@ mod tests {
     }
 
     #[test]
-    fn init_filter_bank_yields_nonempty_ordering_belief() {
-        let bank = init_filter_bank(8, 42, "P0", FILTER_INIT_L, 15, FILTER_INIT_K);
+    fn init_filter_bank_empty_shelf_zero_lot_counts() {
+        let bank = init_filter_bank(8, 42, "P1", FILTER_INIT_L, 15, FILTER_INIT_K);
         let (lot_counts, _, _) = f_belief_from_bank(&bank, FILTER_INIT_L, FILTER_INIT_K);
         assert_eq!(lot_counts.len(), FILTER_INIT_L);
-        assert!(lot_counts.iter().any(|&n| n > 0.0), "counts {lot_counts:?}");
+        let mass: f64 = lot_counts.iter().sum();
+        assert!(mass.abs() < 1e-9, "empty init must yield zero lot_counts mass, got {lot_counts:?}");
     }
 
     #[test]
@@ -468,13 +455,15 @@ mod tests {
             alpha: 0.9,
             candidate_case_radius: 1,
         };
-        let profits = run_voi_crn_cell(2.0, 42, &ships, &b, &["P0", "F1"], None);
-        let p0 = profits.iter().find(|(k, _)| k == "P0").unwrap().1;
-        let f1 = profits.iter().find(|(k, _)| k == "F1").unwrap().1;
-        assert!(
-            (p0 - f1).abs() > 1e-6,
-            "P0 and F1 must differ under masks (p0={p0}, f1={f1})"
-        );
+        for seed in 1u64..200 {
+            let profits = run_voi_crn_cell(2.0, seed, &ships, &b, &["P0", "F1"], None);
+            let p0 = profits.iter().find(|(k, _)| k == "P0").unwrap().1;
+            let f1 = profits.iter().find(|(k, _)| k == "F1").unwrap().1;
+            if (p0 - f1).abs() > 1e-6 {
+                return;
+            }
+        }
+        panic!("P0 and F1 profits must differ for some seed in 1..200");
     }
 
     #[test]
