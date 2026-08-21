@@ -1,6 +1,7 @@
 import type {
   ArrivalProduct,
   Economics,
+  ObsScenarioKey,
   ScenarioId,
   SimConfig,
   ViewModel,
@@ -21,7 +22,7 @@ export const EPISODE_HORIZON = 90;
 
 /** Locked chip copy (ADR 0110 / T-089). */
 export const SCENARIO_COPY: Record<
-  ScenarioId,
+  ObsScenarioKey,
   { title: string; description: string }
 > = {
   P0: {
@@ -52,10 +53,20 @@ export const SCENARIO_COPY: Record<
     title: "Temperature history",
     description: "Lot-resolved scans with observed cold-chain trace at delivery.",
   },
+  custom: {
+    title: "Custom channels",
+    description: "Observation channels do not match a named preset.",
+  },
 };
 
-export function scenarioTitle(id: ScenarioId): string {
-  return SCENARIO_COPY[id].title;
+export function scenarioTitle(id: ObsScenarioKey | string): string {
+  const copy = SCENARIO_COPY[id as ObsScenarioKey];
+  return copy?.title ?? "Unknown scenario";
+}
+
+export function scenarioDescription(id: ObsScenarioKey | string): string {
+  const copy = SCENARIO_COPY[id as ObsScenarioKey];
+  return copy?.description ?? "";
 }
 
 /**

@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
-import { channelsCacheKey, channelsForPreset } from "../obsMask";
+import { channelsCacheKey, channelsForPreset, resolveDisplayObsScenario } from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -839,8 +839,9 @@ export function initStudio(app: HTMLElement): () => void {
   };
   async function applyObsSelection(
     channels: ObsChannels,
-    obs_scenario: ScenarioId,
+    explicitPreset?: ScenarioId,
   ): Promise<void> {
+    const obs_scenario = resolveDisplayObsScenario(channels, explicitPreset);
     const setCh =
       adapter.set_obs_channels?.bind(adapter) ??
       adapter.setObsChannels?.bind(adapter);
@@ -889,19 +890,7 @@ export function initStudio(app: HTMLElement): () => void {
   };
 
   railHandlers.onSetObsChannels = async (channels: ObsChannels) => {
-    let preset: ScenarioId = vm.config.obs_scenario;
-    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"] as ScenarioId[]) {
-      const presetCh = channelsForPreset(id);
-      if (
-        presetCh.code_type === channels.code_type &&
-        presetCh.scan_waste === channels.scan_waste &&
-        presetCh.delivery_history === channels.delivery_history
-      ) {
-        preset = id;
-        break;
-      }
-    }
-    await applyObsSelection(channels, preset);
+    await applyObsSelection(channels);
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;

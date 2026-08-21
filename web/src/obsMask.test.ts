@@ -156,3 +156,37 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(obs.age_at_receipt).toBeNull();
   });
 });
+
+describe("resolveDisplayObsScenario (custom WASM obs_scenario)", () => {
+  it("returns custom for non-preset channel triples", async () => {
+    const mod = await import("./obsMask");
+    expect(
+      mod.resolveDisplayObsScenario({
+        code_type: "upc",
+        scan_waste: true,
+        delivery_history: "temperature_history",
+      }),
+    ).toBe("custom");
+  });
+
+  it("returns F1s when explicit preset disambiguates shared F1 channels", async () => {
+    const mod = await import("./obsMask");
+    expect(
+      mod.resolveDisplayObsScenario(
+        { code_type: "gsin", scan_waste: true, delivery_history: "none" },
+        "F1s",
+      ),
+    ).toBe("F1s");
+  });
+
+  it("returns F3 for temperature_history GSIN preset", async () => {
+    const mod = await import("./obsMask");
+    expect(
+      mod.resolveDisplayObsScenario({
+        code_type: "gsin",
+        scan_waste: true,
+        delivery_history: "temperature_history",
+      }),
+    ).toBe("F3");
+  });
+});

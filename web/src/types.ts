@@ -37,6 +37,9 @@ export type Economics = {
 /** Filter observation ladder (≡ Python ``filter.types.ScenarioId``). */
 export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" | "F3";
 
+/** WASM may emit ``custom`` when channels do not match a named preset. */
+export type ObsScenarioKey = ScenarioId | "custom";
+
 export type CodeType = "upc" | "gsin";
 export type DeliveryHistory = "none" | "pack_date" | "temperature_history";
 
@@ -64,7 +67,7 @@ export type SimConfig = {
   lead_time: number;
   base_stock: number;
   seed: number;
-  obs_scenario: ScenarioId;
+  obs_scenario: ObsScenarioKey;
   obs_channels: ObsChannels;
   window_days: number;
   /** MOD-21: which Abdella corridor mix seeds the arrival prior. */

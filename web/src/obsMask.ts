@@ -1,6 +1,7 @@
 /**
  * Observation masks — TypeScript port of crates/voi_core/src/obs.rs (global scan model).
  */
+import type { ObsScenarioKey, ScenarioId } from "./types";
 export type ObsMask = {
   arrivals: boolean;
   sales_total: boolean;
@@ -72,6 +73,37 @@ const PRESET_CHANNELS: Record<string, ObsChannels> = {
     delivery_history: "temperature_history",
   },
 };
+
+export const OBS_PRESET_IDS: ScenarioId[] = [
+  "P0",
+  "P1",
+  "F1",
+  "F1s",
+  "F2a",
+  "F2",
+  "F3",
+];
+
+export function channelsEqual(a: ObsChannels, b: ObsChannels): boolean {
+  return (
+    a.code_type === b.code_type &&
+    a.scan_waste === b.scan_waste &&
+    a.delivery_history === b.delivery_history
+  );
+}
+
+/** Map live channels to a ladder id, F1s when explicit, or ``custom``. */
+export function resolveDisplayObsScenario(
+  channels: ObsChannels,
+  explicitPreset?: ScenarioId,
+): ObsScenarioKey {
+  for (const id of OBS_PRESET_IDS) {
+    if (!channelsEqual(channels, channelsForPreset(id))) continue;
+    if (explicitPreset === "F1s" && id === "F1") return "F1s";
+    return id;
+  }
+  return "custom";
+}
 
 export function channelsForPreset(scenario: string): ObsChannels {
   if (scenario === "B-state") {

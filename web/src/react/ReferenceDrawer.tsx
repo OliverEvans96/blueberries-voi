@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { SCENARIO_COPY } from "../scenarioCopy";
+import { scenarioDescription, scenarioTitle } from "../scenarioCopy";
 import type { ScenarioId } from "../types";
 import "../styles/referenceDrawer.css";
 
@@ -10,8 +10,8 @@ const GLOSSARY_ENTRIES: { term: string; body: string }[] = [
     body: "Which fields the store manager can see each day — from books-only (P0) to measured age at receipt (F2).",
   },
   ...(["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]).map((id) => ({
-    term: `${id} — ${SCENARIO_COPY[id].title}`,
-    body: SCENARIO_COPY[id].description,
+    term: `${id} — ${scenarioTitle(id)}`,
+    body: scenarioDescription(id),
   })),
   {
     term: "Sim truth overlay",
