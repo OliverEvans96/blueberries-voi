@@ -1,10 +1,14 @@
-# 0135. Wire pre-sampled arrival freshness through session, VOI, and F2 filter birth
+# 0138. Wire pre-sampled arrival freshness through session, VOI, and F2 filter birth
 
 STATUS: ACCEPTED
 DATE: 2026-08-20
 TICKET: T-134
 RELATED: [0130](./0130-f-native-c2-a-unit-pf.md), [0131](./0131-f-native-wire-tau-retirement.md),
+[0135](./0135-unify-p1-f1-sales-likelihood.md), [0137](./0137-observed-lot-segmentation-and-exact-spoilage-likelihood.md),
 MOD-11 / MOD-21 (Abdella arrival mix)
+
+> Provisional **0135** at architect time; renumbered to **0138** at integrate because
+> [0135](./0135-unify-p1-f1-sales-likelihood.md) (T-136 sales likelihood) landed on `main` first.
 
 ## Context
 
