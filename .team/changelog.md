@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-21
+- **Each delivery can now spread units across slightly different freshness levels on the shelf instead of treating every pack in a lot as identical — the simulator and filter share that spread, lot-tracked waste can sharpen beliefs when dispersion is on, and repeatable runs use a dedicated random stream for birth draws** (T-138).
+
 ## 2026-08-17
 - **The studio cockpit now centers today’s inventory, orders, and shelf-age charts, gives the events log a full-height column, moves observation and tradeoff controls into the secondary pane beside the belief chart, and shows the day-of-week demand profile right next to the demand sliders when you open the Demand tab** (T-130).
 
