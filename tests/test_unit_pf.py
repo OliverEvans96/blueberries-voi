@@ -39,7 +39,8 @@ def _require_unit_ll_wired() -> None:
     body = _read(VOI_CORE / "src" / "unit_ll.rs")
     for sym in (
         "sequential_kernel_path_logprob",
-        "p1_totals_loglik",
+        "spoil_delta_interval",
+        "delta_interval_loglik",
         "loglik_sales_by_units",
     ):
         if sym not in body and sym not in lib:
@@ -125,32 +126,27 @@ def _hand_sequential_kernel_path_logprob(
     return log_p
 
 
-def _binom_pmf(k: int, n: int, p: float) -> float:
-    if k < 0 or k > n or n < 0:
-        return 0.0
-    p = min(1.0, max(0.0, p))
-    return math.comb(n, k) * (p**k) * ((1.0 - p) ** (n - k))
-
-
-def _hand_p1_totals_loglik(
+def _hand_spoil_delta_interval(
     freshness: list[float],
-    sales: int,
     waste: int,
-    *,
-    params: ModelParams | None = None,
-) -> float:
-    """Deterministic P1 contract (ADR 0135): feasibility gate + binomial waste only."""
-    units = len(freshness)
-    alive = sum(1 for f in freshness if f > 0.0)
-    if alive < sales:
-        return float("-inf")
-    dead = sum(1 for f in freshness if f <= 0.0)
-    rem = alive - sales
-    p_die = min(1.0, max(0.0, dead / units))
-    pw = _binom_pmf(waste, rem, p_die)
-    if pw <= 0.0:
-        return float("-inf")
-    return math.log(pw)
+) -> tuple[float, float] | None:
+    """Deterministic spoilage contract (ADR 0137).
+
+    The store ages by one shared gamma decrement ``d`` per day, so a unit with pre-aging
+    freshness ``f > 0`` spoils iff ``f <= d``. Observing ``waste`` spoils therefore pins
+    ``d`` to ``[g_waste, g_{waste+1})`` over the sorted live freshness values. ``None``
+    means no decrement produces exactly that count — including the tie case, where two
+    units share a value and can only ever spoil together.
+    """
+    live = sorted(f for f in freshness if f > 0.0)
+    m = len(live)
+    if waste > m:
+        return None
+    lo = 0.0 if waste == 0 else live[waste - 1]
+    hi = math.inf if waste == m else live[waste]
+    if hi <= lo:
+        return None
+    return (lo, hi)
 
 
 # --- module wiring (RED: files / lib.rs exports) ---
@@ -171,7 +167,7 @@ def test_lib_rs_reexports_unit_pf_public_api() -> None:
     for sym in (
         "filter_step_unit",
         "UnitParticleBank",
-        "p1_totals_loglik",
+        "delta_interval_loglik",
         "loglik_sales_by_units",
     ):
         assert sym in lib, f"lib.rs must re-export `{sym}` for session/VOI wiring"
@@ -237,20 +233,52 @@ def test_sequential_kernel_path_logprob_feasible_finite() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_p1_totals_loglik_feasible_matches_hand_reference() -> None:
+def test_spoil_delta_interval_matches_hand_reference() -> None:
     freshness = [0.9, 0.7, 0.5, 0.3, 0.1]
-    want = _hand_p1_totals_loglik(freshness, sales=2, waste=0)
-    assert math.isfinite(want)
+    # Two spoils means the decrement cleared 0.1 and 0.3 but not 0.5.
+    assert _hand_spoil_delta_interval(freshness, waste=2) == (0.3, 0.5)
+    # Nothing spoiled: the decrement stayed below the freshest-to-die threshold.
+    assert _hand_spoil_delta_interval(freshness, waste=0) == (0.0, 0.1)
+    # Everything spoiled: unbounded above.
+    assert _hand_spoil_delta_interval(freshness, waste=5) == (0.9, math.inf)
     _require_unit_ll_wired()
-    proc = _cargo_unit_pf_ac("p1_totals_loglik_impossible_sales_neg_inf")
+    proc = _cargo_unit_pf_ac(
+        "lot_resolved_spoil_interval_is_contained_in_the_pooled_one"
+    )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_p1_totals_loglik_impossible_sales_is_neg_inf() -> None:
-    freshness = [0.1, 0.0, 0.0]
-    got = _hand_p1_totals_loglik(freshness, sales=2, waste=0)
-    assert got == float("-inf") or got < -1e100
+def test_spoil_delta_interval_impossible_count_is_none() -> None:
+    """A tied cohort spoils together: a split across it is unreachable, not unlikely."""
+    assert _hand_spoil_delta_interval([0.3, 0.3, 0.2], waste=2) is None
+    assert _hand_spoil_delta_interval([0.1, 0.0, 0.0], waste=2) is None
     _require_unit_ll_wired()
+
+
+def test_aggregate_sales_weight_rejects_infeasible_totals() -> None:
+    _require_unit_pf_wired()
+    proc = _cargo_unit_pf_ac("aggregate_totals_weight_rejects_infeasible_sales")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_superseded_binomial_waste_primitives_are_removed() -> None:
+    """ADR 0137: the ``Binomial(waste; rem, dead/units)`` model is gone, not just muted.
+
+    Leaving it exported invites a future caller to rewire the filter onto a waste model
+    the shared-decrement physics does not support.
+    """
+    _require_unit_ll_wired()
+    body = _read(VOI_CORE / "src" / "unit_ll.rs")
+    lib = _read(VOI_CORE / "src" / "lib.rs")
+    for sym in (
+        "p1_totals_loglik",
+        "loglik_waste_by_units",
+        "loglik_waste_tot_after_sales_by",
+        "binom_pmf",
+    ):
+        why = "superseded by ADR 0137"
+        assert sym not in body, f"unit_ll.rs must not define `{sym}` ({why})"
+        assert sym not in lib, f"lib.rs must not re-export `{sym}` ({why})"
 
 
 def test_loglik_sales_by_units_requires_multinomial_term() -> None:

@@ -102,12 +102,31 @@ the evidence** changes:
 
 Each GSIN term is a refinement of the corresponding UPC term on the same state.
 
-### 4. Superseded primitives
+### 4. Superseded primitives are removed, not muted
 
-`p1_totals_loglik`, `loglik_waste_by_units`, and `loglik_waste_tot_after_sales_by` are no
-longer on the production path. They remain exported and documented as research/parity only,
-with the reason recorded on each. Removing them is a follow-up ticket (PyO3 parity tests in
-`tests/test_unit_pf.py` and `tests/test_age_likelihood.py` still reference the model).
+`p1_totals_loglik`, `loglik_waste_by_units`, and `loglik_waste_tot_after_sales_by` — together
+with the `binom_pmf` and `iter_compositions` helpers they were the only callers of — are
+**deleted** from `unit_ll`, not left exported as "research use only". A dead
+`Binomial(waste; rem, dead/units)` on the public surface is a standing invitation to rewire
+the filter back onto a waste model the shared-decrement physics does not support, and a
+second definition of "the waste likelihood" defeats the unification this ADR is for.
+
+`lib.rs` now re-exports the terms that replace them (`spoil_delta_interval`,
+`spoil_delta_interval_by_lot`, `delta_interval_loglik`, `DeltaInterval`, `DELTA_ANY`).
+
+The acceptance tests that pinned the old primitives (T-136's "P1 weight is deterministic",
+"P1 takes no rng") pinned a *contract*, not a function name, so they were re-pointed at the
+surviving terms rather than deleted:
+
+| Retired test | Replacement | Contract preserved |
+|--------------|-------------|--------------------|
+| `p1_totals_loglik_impossible_sales_neg_inf` | `aggregate_totals_weight_rejects_infeasible_sales` | sales beyond the alive count rules out every particle |
+| `p1_totals_loglik_signature_has_no_rng` | `production_likelihood_terms_take_no_rng` | no rng in any weight term |
+| `p1_totals_loglik_deterministic_no_path_mc_in_body` | `production_likelihood_terms_have_no_path_mc_in_body` | no sampled sales path inside a weight |
+| — | `superseded_binomial_waste_primitives_are_gone` | the removed names cannot come back |
+
+`tests/test_age_likelihood.py` referenced the same model but is skipped at module level
+(`T-TAU-RETIRE`), so nothing there depended on the removal.
 
 ## Consequences
 

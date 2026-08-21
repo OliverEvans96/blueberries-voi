@@ -24,3 +24,10 @@ cargo test -p voi_core --test unit_pf_ac -- --exact \
   unit_pf_f1_p1_relative_mean_f_mae \
   unit_pf_f1_strictly_beats_p1_heterogeneous_lots
 ```
+
+> **Superseded by ADR 0137.** `p1_totals_loglik` and the binomial waste primitives were
+> removed from `unit_ll`; the test names in the table above no longer exist. The contracts
+> they pinned (deterministic weight, no rng, no MC path in the weight) now live in
+> `production_likelihood_terms_take_no_rng`,
+> `production_likelihood_terms_have_no_path_mc_in_body`, and
+> `aggregate_totals_weight_rejects_infeasible_sales` in `crates/voi_core/tests/unit_pf_ac.rs`.

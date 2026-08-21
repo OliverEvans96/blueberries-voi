@@ -37,7 +37,8 @@ fn require_unit_ll() {
     let body = read_src("unit_ll.rs");
     for sym in [
         "sequential_kernel_path_logprob",
-        "p1_totals_loglik",
+        "spoil_delta_interval",
+        "delta_interval_loglik",
         "loglik_sales_by_units",
     ] {
         if !body.contains(sym) && !lib.contains(sym) {
@@ -228,48 +229,100 @@ fn sequential_kernel_path_logprob_mutates_freshness() {
     );
 }
 
+/// ADR 0137: the aggregate (UPC) sales weight is a one-sided feasibility gate on the
+/// post-aging state. A day that demands more units than any particle holds alive must
+/// rule out every particle, not merely down-weight them.
 #[test]
-fn p1_totals_loglik_impossible_sales_neg_inf() {
-    require_unit_ll();
-    use voi_core::{p1_totals_loglik, ModelParams};
+fn aggregate_totals_weight_rejects_infeasible_sales() {
+    require_unit_pf();
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::{filter_step_unit, FilterObs, ModelParams, UnitParticleBank};
 
-    let freshness = [0.1, 0.0, 0.0];
-    let params = ModelParams::default();
-    let ll = p1_totals_loglik(&freshness, 2, 0, &params);
-    assert!(
-        !ll.is_finite() || ll < -1e100,
-        "infeasible sales must yield -inf, got {ll}"
+    let n = 4;
+    // One lot of three slots, only one of them alive.
+    let mut bank =
+        UnitParticleBank::from_rows_uniform_lots(vec![0.25; n], vec![vec![0.1, 0.0, 0.0]; n], 3);
+    let obs = FilterObs {
+        sales_tot: Some(2),
+        waste_tot: Some(0),
+        arrivals: 0,
+        ..Default::default()
+    };
+    let mut rng = Pcg64::seed_from_u64(11);
+    let diag = filter_step_unit(&mut bank, &obs, &ModelParams::default(), &mut rng);
+    assert_eq!(
+        diag.infeasible, n,
+        "sales beyond the alive count must be infeasible for every particle"
     );
 }
 
-#[test]
-fn p1_totals_loglik_signature_has_no_rng() {
-    require_unit_ll();
+/// Extract the signature (up to the opening brace) and body of one `pub fn` in `unit_ll.rs`.
+fn unit_ll_fn(name: &str) -> (String, String) {
     let body = read_src("unit_ll.rs");
-    let sig = body
-        .split("pub fn p1_totals_loglik")
+    let tail = body
+        .split(&format!("pub fn {name}"))
         .nth(1)
-        .and_then(|s| s.split('{').next())
-        .unwrap_or("");
-    assert!(
-        !sig.contains("rng"),
-        "p1_totals_loglik must not take rng (deterministic sales weight per ADR 0135)"
-    );
+        .unwrap_or_else(|| panic!("unit_ll.rs must define `{name}`"))
+        .to_string();
+    let sig = tail.split('{').next().unwrap_or("").to_string();
+    let fn_body = tail.split("pub fn ").next().unwrap_or("").to_string();
+    (sig, fn_body)
 }
 
+/// ADR 0135/0137: every importance-weight term is deterministic given the particle state.
+/// Randomness lives in the proposal (adapted aging, unscored WOR removal), never in the
+/// weight — an rng in one of these signatures would put Monte Carlo noise into the filter.
 #[test]
-fn p1_totals_loglik_deterministic_no_path_mc_in_body() {
+fn production_likelihood_terms_take_no_rng() {
+    require_unit_ll();
+    for name in [
+        "spoil_delta_interval",
+        "spoil_delta_interval_by_lot",
+        "delta_interval_loglik",
+        "loglik_sales_by_units",
+    ] {
+        let (sig, _) = unit_ll_fn(name);
+        assert!(
+            !sig.contains("rng"),
+            "{name} must not take rng (deterministic weight per ADR 0135)"
+        );
+    }
+}
+
+/// The scored terms must not reach for the sampled sales path either: that path is drawn
+/// for state removal only, and its log-probability is a diagnostic (ADR 0135).
+#[test]
+fn production_likelihood_terms_have_no_path_mc_in_body() {
+    require_unit_ll();
+    for name in ["delta_interval_loglik", "loglik_sales_by_units"] {
+        let (_, fn_body) = unit_ll_fn(name);
+        assert!(
+            !fn_body.contains("sequential_kernel_path_logprob"),
+            "{name} must not call sequential_kernel_path_logprob (deterministic gates only)"
+        );
+    }
+}
+
+/// ADR 0137 removed the pre-0137 binomial waste primitives outright rather than leaving
+/// them exported: an unused `Binomial(waste; rem, dead/units)` term is a live invitation
+/// to rewire the filter back onto a model the physics does not support.
+#[test]
+fn superseded_binomial_waste_primitives_are_gone() {
     require_unit_ll();
     let body = read_src("unit_ll.rs");
-    let fn_body = body
-        .split("pub fn p1_totals_loglik")
-        .nth(1)
-        .and_then(|s| s.split("pub fn ").next())
-        .unwrap_or("");
-    assert!(
-        !fn_body.contains("sequential_kernel_path_logprob"),
-        "P1 sales weight must not call sequential_kernel_path_logprob (deterministic gates only)"
-    );
+    let lib = read_lib_rs();
+    for sym in [
+        "p1_totals_loglik",
+        "loglik_waste_by_units",
+        "loglik_waste_tot_after_sales_by",
+        "binom_pmf",
+    ] {
+        assert!(
+            !body.contains(sym) && !lib.contains(sym),
+            "`{sym}` was superseded by ADR 0137 and must not be reintroduced"
+        );
+    }
 }
 
 #[test]
@@ -841,7 +894,10 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     require_unit_ll();
 
     use voi_core::obs::{mask_for, RichDay};
-    use voi_core::unit_ll::{loglik_sales_by_units, loglik_waste_by_units, p1_totals_loglik};
+    use voi_core::unit_ll::{
+        delta_interval_loglik, loglik_sales_by_units, spoil_delta_interval,
+        spoil_delta_interval_by_lot,
+    };
     use voi_core::ModelParams;
 
     const UPL: usize = 15;
@@ -919,17 +975,23 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         mean_f_mae(truth_mf, &pred_mf)
     }
 
+    // Score exactly as production does (ADR 0137): a shared spoilage-interval term at the
+    // resolution the channel observes, plus the sales term that channel can support.
     let mut p1_log_w = Vec::with_capacity(n);
     let mut f1_log_w = Vec::with_capacity(n);
     for row in &particles {
-        let ll_p1 = p1_totals_loglik(row, 7, 0, &params);
-        p1_log_w.push(ll_p1);
-        let mut ll_f1 = loglik_sales_by_units(row, &sales_by, &offsets, &params);
-        if obs_f1.waste_by.is_some() {
-            ll_f1 +=
-                loglik_waste_by_units(row, &sales_by, obs_f1.waste_by.as_ref().unwrap(), &offsets);
-        }
-        f1_log_w.push(ll_f1);
+        let waste_ll_p1 = delta_interval_loglik(spoil_delta_interval(row, 0), &params);
+        let alive = row.iter().filter(|&&f| f > 0.0).count();
+        p1_log_w.push(if alive < 7 {
+            f64::NEG_INFINITY
+        } else {
+            waste_ll_p1
+        });
+
+        let waste_by = obs_f1.waste_by.as_ref().expect("F1 exposes waste_by");
+        let waste_ll_f1 =
+            delta_interval_loglik(spoil_delta_interval_by_lot(row, &offsets, waste_by), &params);
+        f1_log_w.push(waste_ll_f1 + loglik_sales_by_units(row, &sales_by, &offsets, &params));
     }
 
     let p1_mae = weighted_mean_f_mae(&particles, &p1_log_w, &truth_mf, &offsets, n_lots);
