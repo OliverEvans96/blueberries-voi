@@ -6,7 +6,9 @@ pub use crate::params::ModelParams;
 use crate::physics::{
     apply_gamma_aging, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
 };
-use crate::shipments::{delivery_birth_f, ShipmentTrace};
+use crate::shipments::{birth_f_units, delivery_birth_f, ShipmentTrace};
+use rand_pcg::Pcg64;
+use rand::SeedableRng;
 
 /// Input for one f-native day on the virtual `L×U` grid.
 #[derive(Clone, Debug)]
@@ -157,6 +159,29 @@ pub fn unit_day_step<R: Rng + ?Sized>(
     rng_ship: Option<&mut R>,
     rng_sensor: Option<&mut R>,
 ) -> UnitDayStepOut {
+    unit_day_step_with_birth(
+        input,
+        params,
+        shipments,
+        rng_gamma,
+        rng_alloc,
+        rng_ship,
+        rng_sensor,
+        None,
+    )
+}
+
+/// Same as [`unit_day_step`] with optional dedicated `:birth` CRN for within-lot spread.
+pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
+    input: &UnitDayStepIn,
+    params: &ModelParams,
+    shipments: &[ShipmentTrace],
+    rng_gamma: Option<&mut R>,
+    rng_alloc: Option<&mut R>,
+    rng_ship: Option<&mut R>,
+    rng_sensor: Option<&mut R>,
+    rng_birth: Option<&mut R>,
+) -> UnitDayStepOut {
     let mut freshness = input.freshness.clone();
     let mut lot_offsets = input.lot_offsets.clone();
     let l = lot_offsets.len().saturating_sub(1);
@@ -199,7 +224,23 @@ pub fn unit_day_step<R: Rng + ?Sized>(
             .unwrap_or(units_per_lot as u32)
             .max(1) as usize;
         let start = freshness.len();
-        freshness.extend(vec![birth_f; total_units]);
+        let birth_segment = if let Some(rng) = rng_birth {
+            birth_f_units(
+                birth_f,
+                params.arrival_dispersion_sd,
+                total_units,
+                rng,
+            )
+        } else {
+            let mut fallback_birth = Pcg64::seed_from_u64(0);
+            birth_f_units(
+                birth_f,
+                params.arrival_dispersion_sd,
+                total_units,
+                &mut fallback_birth,
+            )
+        };
+        freshness.extend(birth_segment);
         lot_offsets.push(start + total_units);
     }
 
@@ -504,6 +545,8 @@ mod tests {
                 "RED: cannot spread delivery segment without birth_f_units"
             );
             let params = ModelParams::default();
+            let mut params = params;
+            params.arrival_dispersion_sd = 0.05;
             let upl = 10usize;
             let input = UnitDayStepIn {
                 freshness: vec![0.85; upl],
@@ -517,8 +560,9 @@ mod tests {
                 age_at_receipt: None,
                 pack_age_mean: None,
             };
-            let out = unit_day_step::<Pcg64>(
-                &input, &params, &[], None, None, None, None,
+            let mut rng_birth = Pcg64::seed_from_u64(138_004);
+            let out = unit_day_step_with_birth::<Pcg64>(
+                &input, &params, &[], None, None, None, None, Some(&mut rng_birth),
             );
             let seg = &out.freshness[upl..];
             assert_eq!(seg.len(), upl, "delivery must append upl units");
