@@ -277,6 +277,7 @@ fn run_scenario_episode(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: f_at_receipt,
+            delivery_lambda: None,
             units_per_lot: Some(upl),
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
@@ -320,7 +321,14 @@ fn run_scenario_episode(
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
             let mut rng_birth_filter = if obs.arrivals > 0 { Some(rng(root_seed, phys, day, STREAM_BIRTH)) } else { None };
-            filter_step_unit_with_birth(&mut bank, &obs, params, &mut frng, rng_birth_filter.as_mut());
+            filter_step_unit_with_birth(
+                &mut bank,
+                &obs,
+                params,
+                shipments,
+                &mut frng,
+                rng_birth_filter.as_mut(),
+            );
         }
     }
     scored

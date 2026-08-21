@@ -1,7 +1,7 @@
 //! Injected shipment traces (no parquet). Python `ShipmentTrace` numeric path.
 
 use rand::Rng;
-use rand_distr::{Distribution, Normal};
+use rand_distr::{Distribution, Gamma, Normal};
 
 use crate::physics::{age_to_f, f_to_age, q10_age_increment};
 use crate::params::ModelParams;
@@ -39,6 +39,79 @@ pub fn arrival_age_from_path(temps_c: &[f64], times_d: &[f64], q10: f64, t_ref_c
 
 pub fn shipment_arrival_age(ship: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 {
     arrival_age_from_path(&ship.temps_c, &ship.times_d, q10, t_ref_c)
+}
+
+/// Calendar transit duration (days), not Q10-warped age.
+pub fn calendar_transit_days(trace: &ShipmentTrace) -> f64 {
+    let t = &trace.times_d;
+    if t.len() < 2 {
+        return 0.0;
+    }
+    (t[t.len() - 1] - t[0]).max(0.0)
+}
+
+/// Duration-averaged Q10 factor Λ/d for a trace (ADR 0141 φ̄ prior).
+pub fn phi_bar_from_trace(trace: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 {
+    let d = calendar_transit_days(trace);
+    if d <= 1e-12 {
+        return 1.0;
+    }
+    shipment_arrival_age(trace, q10, t_ref_c) / d
+}
+
+/// φ̄ summaries for every trace in a fleet.
+pub fn phi_bar_fleet(shipments: &[ShipmentTrace], q10: f64, t_ref_c: f64) -> Vec<f64> {
+    shipments
+        .iter()
+        .map(|s| phi_bar_from_trace(s, q10, t_ref_c))
+        .collect()
+}
+
+/// Expected warped transit age E[age | Λ] under Gamma(kΛ, θ).
+pub fn mean_age_from_lambda(lambda: f64, params: &ModelParams) -> f64 {
+    params.gamma_shape * lambda * params.gamma_scale
+}
+
+/// One unit's transit age ~ Gamma(kΛ, θ) (ADR 0141).
+pub fn draw_gamma_arrival_age<R: Rng + ?Sized>(
+    rng: &mut R,
+    lambda: f64,
+    params: &ModelParams,
+) -> f64 {
+    let shape = (params.gamma_shape * lambda).max(1e-9);
+    let dist = Gamma::new(shape, params.gamma_scale).expect("gamma arrival params");
+    dist.sample(rng)
+}
+
+/// Per-unit birth freshness from unified gamma-in-warped-time model.
+pub fn birth_f_units_gamma<R: Rng + ?Sized>(
+    lambda: f64,
+    n: usize,
+    params: &ModelParams,
+    rng: &mut R,
+) -> Vec<f64> {
+    (0..n)
+        .map(|_| {
+            age_to_f(
+                draw_gamma_arrival_age(rng, lambda, params),
+                params.eta_ref,
+            )
+        })
+        .collect()
+}
+
+/// Bootstrap φ̄ from fleet for pack-date epistemic uncertainty.
+pub fn sample_phi_bar_from_fleet<R: Rng + ?Sized>(
+    rng: &mut R,
+    shipments: &[ShipmentTrace],
+    q10: f64,
+    t_ref_c: f64,
+) -> f64 {
+    if shipments.is_empty() {
+        panic!("shipments must be non-empty");
+    }
+    let idx = rng.random_range(0..shipments.len());
+    phi_bar_from_trace(&shipments[idx], q10, t_ref_c)
 }
 
 /// Bootstrap a shipment then shrink toward the mean (τ days; private Q10 cache).
@@ -151,13 +224,10 @@ pub fn delivery_birth_f<R: Rng + ?Sized>(
     if let Some(age) = age_at_receipt {
         return birth_f_f2_dirac(age, params.eta_ref);
     }
-    if let Some(mean) = pack_age_mean {
-        return birth_f_f2a_gaussian(
-            rng_sensor,
-            mean,
-            params.eta_ref,
-            params.f2a_transit_uncertainty_sd,
-        );
+    if let Some(d) = pack_age_mean {
+        let phi = sample_phi_bar_from_fleet(rng_sensor, shipments, params.q10, params.t_ref_c);
+        let lambda = d.max(0.0) * phi;
+        return age_to_f(mean_age_from_lambda(lambda, params), params.eta_ref);
     }
     generate_arrival_f(
         rng_ship,
@@ -235,15 +305,11 @@ pub fn arrival_receipt_meta_with_trace<R: rand::Rng + ?Sized>(
     let idx = rng_ship.random_range(0..shipments.len());
     let trace = shipments[idx].clone();
     let _: f64 = rng_sensor.random();
-    let ages: Vec<f64> = shipments
-        .iter()
-        .map(|s| shipment_arrival_age(s, params.q10, params.t_ref_c))
-        .collect();
-    let mean: f64 = ages.iter().sum::<f64>() / ages.len() as f64;
-    let age = ages[idx];
-    let tau = mean + spread_scale * (age - mean);
-    let f = age_to_f(tau, params.eta_ref);
-    (f, tau, tau.round() as i32, trace)
+    let lambda = shipment_arrival_age(&trace, params.q10, params.t_ref_c);
+    let tau = lambda;
+    let pack = calendar_transit_days(&trace).round() as i32;
+    let f = age_to_f(mean_age_from_lambda(lambda, params), params.eta_ref);
+    (f, tau, pack, trace)
 }
 
 #[cfg(test)]

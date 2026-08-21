@@ -18,6 +18,10 @@ fn read_lib_rs() -> String {
     read_src("lib.rs")
 }
 
+fn demo_shipments() -> Vec<voi_core::ShipmentTrace> {
+    voi_core::shipments::mod21_demo_shipments("short_haul")
+}
+
 fn unit_ll_wired() -> bool {
     manifest_dir().join("src/unit_ll.rs").is_file() && read_lib_rs().contains("pub mod unit_ll")
 }
@@ -189,13 +193,15 @@ fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
     require_unit_ll();
     use rand::{Rng, SeedableRng};
     use rand_pcg::Pcg64;
-    use voi_core::shipments::birth_f_units;
+    use voi_core::shipments::birth_f_units_gamma;
+    use voi_core::ModelParams;
     use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
 
     let mean = 0.55;
     assert!(spoil_delta_interval(&vec![mean; 8], 2).is_none());
     let mut brng = Pcg64::seed_from_u64(138_010);
-    let dispersed = birth_f_units(mean, 0.05, 8, &mut brng);
+    let params = ModelParams::default();
+    let dispersed = birth_f_units_gamma(2.0, 8, &params, &mut brng);
     let per_lot = spoil_delta_interval(&dispersed, 2).expect("dispersion unlocks partial-lot interval");
     let pooled = spoil_delta_interval(&dispersed, 2).expect("pooled interval");
     assert!(per_lot.1 > per_lot.0 + 1e-12);
@@ -360,7 +366,7 @@ fn aggregate_totals_weight_rejects_infeasible_sales() {
         ..Default::default()
     };
     let mut rng = Pcg64::seed_from_u64(11);
-    let diag = filter_step_unit(&mut bank, &obs, &ModelParams::default(), &mut rng);
+    let diag = filter_step_unit(&mut bank, &obs, &ModelParams::default(), &demo_shipments(), &mut rng);
     assert_eq!(
         diag.infeasible, n,
         "sales beyond the alive count must be infeasible for every particle"
@@ -626,7 +632,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
             arrivals: 0,
             ..Default::default()
         };
-        filter_step_unit(&mut bank, &obs, &params, &mut rng);
+        filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
     }
 
     let truth_mf = lot_mean_f(&units_f, &offsets);
@@ -791,7 +797,7 @@ fn score_particle_mutates_freshness_after_finite_p1_ll() {
         arrivals: 0,
         ..Default::default()
     };
-    filter_step_unit(&mut bank, &obs, &ModelParams::default(), &mut rng);
+    filter_step_unit(&mut bank, &obs, &ModelParams::default(), &demo_shipments(), &mut rng);
     let alive_after: usize = bank.freshness[0].iter().filter(|&&f| f > 0.0).count();
     assert!(
         alive_after < alive_before,
@@ -881,7 +887,7 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             } else {
                 mask_for("P1").unwrap().apply(rich)
             };
-            filter_step_unit(&mut bank, &obs, params, &mut bank_rng);
+            filter_step_unit(&mut bank, &obs, params, &demo_shipments(), &mut bank_rng);
         }
         let truth_mf = lot_mean_f_alive(final_truth, offsets);
         let pred_mf: Vec<f64> = bank
@@ -1407,7 +1413,7 @@ fn filter_birth_matches_arrival_qty_not_upl() {
         ..ModelParams::default()
     };
     let mut rng = Pcg64::seed_from_u64(99);
-    filter_step_unit(&mut bank, &obs, &params, &mut rng);
+    filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
     let alive: usize = bank
         .freshness
         .iter()

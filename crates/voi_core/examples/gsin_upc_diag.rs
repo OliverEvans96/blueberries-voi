@@ -18,7 +18,7 @@ use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
 use voi_core::obs::{mask_for, RichDay};
 use voi_core::physics::draw_demand;
 use voi_core::policy::effective_inventory_f_belief;
-use voi_core::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
+use voi_core::shipments::{arrival_receipt_meta_with_trace, shipment_arrival_age, ShipmentTrace};
 use voi_core::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
 use voi_core::{belief_flat_from_unit_bank, truth_f_belief, ModelParams};
 
@@ -55,6 +55,25 @@ fn shipments_heterogeneous() -> Vec<ShipmentTrace> {
         ShipmentTrace {
             times_d: vec![0.0, 4.0],
             temps_c: vec![1.0, 1.0],
+        },
+    ]
+}
+
+/// Thermal fleet: fixed calendar duration, varying temperature (ADR 0141 φ̄ prior).
+fn shipments_thermal() -> Vec<ShipmentTrace> {
+    let d = 2.0;
+    vec![
+        ShipmentTrace {
+            times_d: vec![0.0, d],
+            temps_c: vec![1.0, 1.0],
+        },
+        ShipmentTrace {
+            times_d: vec![0.0, d],
+            temps_c: vec![4.0, 4.0],
+        },
+        ShipmentTrace {
+            times_d: vec![0.0, d],
+            temps_c: vec![8.0, 8.0],
         },
     ]
 }
@@ -119,6 +138,9 @@ fn run_truth(
         } else {
             None
         };
+        let delivery_lambda = shipment_trace.as_ref().map(|trace| {
+            shipment_arrival_age(trace, params.q10, params.t_ref_c)
+        });
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
             lot_offsets: lot_offsets.clone(),
@@ -127,9 +149,10 @@ fn run_truth(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: f_at_receipt,
+            delivery_lambda,
             units_per_lot: Some(params.units_per_lot),
             age_at_receipt: None,
-            pack_age_mean: None,
+            pack_age_mean: pack_date_days.map(f64::from),
         };
         let step = unit_day_step_with_birth(
             &input,
@@ -267,7 +290,13 @@ fn effective_sample_size(weights: &[f64]) -> f64 {
         .sum::<f64>()
 }
 
-fn run_channel(scenario: &str, days: &[TruthDay], params: &ModelParams, seed: u64) -> Metrics {
+fn run_channel(
+    scenario: &str,
+    days: &[TruthDay],
+    params: &ModelParams,
+    shipments: &[ShipmentTrace],
+    seed: u64,
+) -> Metrics {
     let mask = mask_for(scenario).expect("valid scenario");
     let n = N_PARTICLES;
     let upl = params.units_per_lot.max(1);
@@ -286,6 +315,7 @@ fn run_channel(scenario: &str, days: &[TruthDay], params: &ModelParams, seed: u6
             &mut bank,
             &obs,
             params,
+            shipments,
             &mut frng,
             rng_birth_filter.as_mut(),
         );
@@ -414,13 +444,11 @@ fn json_series(s: &Series) -> String {
 fn report(
     title: &str,
     shipments: &[ShipmentTrace],
-    mut params: ModelParams,
+    params: ModelParams,
     order_every: u32,
     order_qty: u32,
-    arrival_dispersion_sd: f64,
 ) -> Vec<String> {
-    params.arrival_dispersion_sd = arrival_dispersion_sd;
-    println!("\n=== {title} (arrival_dispersion_sd={arrival_dispersion_sd:.2}) ===");
+    println!("\n=== {title} (gamma arrival, ADR 0141) ===");
     println!(
         "{:<5} {:>8} {:>8} {:>10} {:>9} {:>10} {:>8} {:>8} {:>7} {:>7}",
         "chan",
@@ -447,7 +475,7 @@ fn report(
                     0
                 }
             });
-            let m = run_channel(scenario, &days, &params, seed + 1);
+            let m = run_channel(scenario, &days, &params, shipments, seed + 1);
             if i == 0 {
                 first_series = m.series.clone();
             }
@@ -470,7 +498,7 @@ fn report(
             "{scenario:<5} {cnt:>8.3} {bias:>8.3} {sf:>10.4} {lf:>9.4} {lc:>10.3} {tvm:>8.3} {ei:>8.3} {ess:>7.1} {ms:>7.2}"
         );
         rows.push(format!(
-            r#"{{"regime":"{title}","channel":"{scenario}","arrival_dispersion_sd":{arrival_dispersion_sd:.6},"count_mae":{cnt:.6},"count_bias":{bias:.6},"store_mean_f_mae":{sf:.6},"lot_mean_f_mae":{lf:.6},"lot_count_mae":{lc:.6},"hist_tv":{tvm:.6},"eff_inv_mae":{ei:.6},"ess":{ess:.3},"ms_per_day":{ms:.4},"series":{}}}"#,
+            r#"{{"regime":"{title}","channel":"{scenario}","count_mae":{cnt:.6},"count_bias":{bias:.6},"store_mean_f_mae":{sf:.6},"lot_mean_f_mae":{lf:.6},"lot_count_mae":{lc:.6},"hist_tv":{tvm:.6},"eff_inv_mae":{ei:.6},"ess":{ess:.3},"ms_per_day":{ms:.4},"series":{}}}"#,
             json_series(&first_series)
         ));
     }
@@ -483,23 +511,19 @@ fn main() {
     // Order cadence sized so several lots coexist on the shelf — the regime where lot
     // attribution is a live question. mu = 12/day, so 44 units every 3 days ~ 1.2x demand.
     let mut rows = Vec::new();
-    for sd in [0.0_f64, 0.05] {
-        rows.extend(report(
-            "Homogeneous fleet, overlapping lots",
-            &shipments_homogeneous(),
-            params.clone(),
-            3,
-            44,
-            sd,
-        ));
-    }
+    rows.extend(report(
+        "Homogeneous fleet, overlapping lots",
+        &shipments_homogeneous(),
+        params.clone(),
+        3,
+        44,
+    ));
     rows.extend(report(
         "Heterogeneous fleet, overlapping lots",
         &shipments_heterogeneous(),
         params.clone(),
         3,
         44,
-        0.0,
     ));
     rows.extend(report(
         "Heterogeneous fleet, deep shelf",
@@ -507,18 +531,14 @@ fn main() {
         params.clone(),
         3,
         72,
-        0.0,
     ));
-    for sd in [0.0_f64, 0.05, 0.10] {
-        rows.extend(report(
-            "Dispersion sweep",
-            &shipments_heterogeneous(),
-            params.clone(),
-            3,
-            44,
-            sd,
-        ));
-    }
+    rows.extend(report(
+        "Thermal fleet, overlapping lots",
+        &shipments_thermal(),
+        params.clone(),
+        3,
+        44,
+    ));
     if let Some(path) = std::env::args().nth(1) {
         let json = format!("[\n  {}\n]\n", rows.join(",\n  "));
         std::fs::write(&path, json).expect("write diagnostic json");

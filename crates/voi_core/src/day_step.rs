@@ -6,7 +6,9 @@ pub use crate::params::ModelParams;
 use crate::physics::{
     apply_gamma_aging, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
 };
-use crate::shipments::{birth_f_units, delivery_birth_f, ShipmentTrace};
+use crate::shipments::{
+    birth_f_units_gamma, delivery_birth_f, ShipmentTrace,
+};
 use rand_pcg::Pcg64;
 use rand::SeedableRng;
 
@@ -22,8 +24,10 @@ pub struct UnitDayStepIn {
     pub deliver: bool,
     /// Total units to inject when `deliver` (default one lot width).
     pub deliver_units: Option<u32>,
-    /// Birth freshness for delivered units (`delivery_birth_f` when `None`).
+    /// Birth freshness lot mean for wire (`delivery_birth_f` when `None`).
     pub delivery_f: Option<f64>,
+    /// Q10-warped transit duration Λ for gamma birth draws (ADR 0141).
+    pub delivery_lambda: Option<f64>,
     /// Units injected per delivery (default `params.units_per_lot`, typically 15).
     pub units_per_lot: Option<usize>,
     /// F2 Dirac birth from measured age at receipt (τ days).
@@ -208,16 +212,20 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
             .units_per_lot
             .unwrap_or(params.units_per_lot)
             .max(1);
-        let birth_f = input.delivery_f.unwrap_or_else(|| {
-            delivery_birth_f(
-                rng_ship.expect("rng_ship required for delivery birth f"),
-                rng_sensor.expect("rng_sensor required for delivery birth f"),
-                shipments,
-                params,
-                1.0,
-                input.age_at_receipt,
-                input.pack_age_mean,
-            )
+        let lambda = input.delivery_lambda.unwrap_or_else(|| {
+            let mean_f = input.delivery_f.unwrap_or_else(|| {
+                delivery_birth_f(
+                    rng_ship.expect("rng_ship required for delivery birth f"),
+                    rng_sensor.expect("rng_sensor required for delivery birth f"),
+                    shipments,
+                    params,
+                    1.0,
+                    input.age_at_receipt,
+                    input.pack_age_mean,
+                )
+            });
+            let mean_age = crate::physics::f_to_age(mean_f, params.eta_ref);
+            mean_age / (params.gamma_shape * params.gamma_scale).max(1e-12)
         });
         let total_units = input
             .deliver_units
@@ -225,20 +233,10 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
             .max(1) as usize;
         let start = freshness.len();
         let birth_segment = if let Some(rng) = rng_birth {
-            birth_f_units(
-                birth_f,
-                params.arrival_dispersion_sd,
-                total_units,
-                rng,
-            )
+            birth_f_units_gamma(lambda, total_units, params, rng)
         } else {
             let mut fallback_birth = Pcg64::seed_from_u64(0);
-            birth_f_units(
-                birth_f,
-                params.arrival_dispersion_sd,
-                total_units,
-                &mut fallback_birth,
-            )
+            birth_f_units_gamma(lambda, total_units, params, &mut fallback_birth)
         };
         freshness.extend(birth_segment);
         lot_offsets.push(start + total_units);
@@ -440,6 +438,7 @@ mod tests {
             deliver: false,
             deliver_units: None,
             delivery_f: None,
+            delivery_lambda: None,
             units_per_lot: None,
             age_at_receipt: None,
             pack_age_mean: None,
@@ -475,6 +474,7 @@ mod tests {
             deliver: false,
             deliver_units: None,
             delivery_f: None,
+            delivery_lambda: None,
             units_per_lot: None,
             age_at_receipt: None,
             pack_age_mean: None,
@@ -516,11 +516,11 @@ mod tests {
         }
 
         #[test]
-        fn delivery_calls_birth_f_units_not_uniform_vec() {
+        fn delivery_calls_birth_f_units_gamma_not_uniform_vec() {
             let src = production_day_step_src();
             assert!(
-                src.contains("birth_f_units"),
-                "RED: unit_day_step delivery must call shipments::birth_f_units"
+                src.contains("birth_f_units_gamma"),
+                "unit_day_step delivery must call birth_f_units_gamma"
             );
             let uniform_lot_fill = format!("vec![birth_f; total_{}]", "units");
             assert!(
@@ -534,21 +534,15 @@ mod tests {
         }
 
         #[test]
-        fn delivery_appends_distinct_freshness_when_dispersion_enabled() {
-            let params_src = include_str!("params.rs");
-            assert!(
-                params_src.contains("arrival_dispersion_sd"),
-                "RED: ModelParams must expose arrival_dispersion_sd"
-            );
+        fn delivery_appends_distinct_freshness_under_gamma_arrival() {
             let src = production_day_step_src();
             assert!(
-                src.contains("birth_f_units"),
-                "RED: cannot spread delivery segment without birth_f_units"
+                src.contains("birth_f_units_gamma"),
+                "delivery segment must use birth_f_units_gamma"
             );
             let params = ModelParams::default();
-            let mut params = params;
-            params.arrival_dispersion_sd = 0.05;
             let upl = 10usize;
+            let lambda = 2.0;
             let input = UnitDayStepIn {
                 freshness: vec![0.85; upl],
                 lot_offsets: vec![0, upl],
@@ -557,13 +551,21 @@ mod tests {
                 deliver: true,
                 deliver_units: Some(upl as u32),
                 delivery_f: Some(0.62),
+                delivery_lambda: Some(lambda),
                 units_per_lot: Some(upl),
                 age_at_receipt: None,
                 pack_age_mean: None,
             };
             let mut rng_birth = Pcg64::seed_from_u64(138_004);
             let out = unit_day_step_with_birth::<Pcg64>(
-                &input, &params, &[], None, None, None, None, Some(&mut rng_birth),
+                &input,
+                &params,
+                &[],
+                None,
+                None,
+                None,
+                None,
+                Some(&mut rng_birth),
             );
             let seg = &out.freshness[upl..];
             assert_eq!(seg.len(), upl, "delivery must append upl units");
@@ -571,7 +573,7 @@ mod tests {
             let max_f = seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
             assert!(
                 max_f - min_f > 1e-6,
-                "RED: arrival_dispersion_sd > 0 must yield >=2 distinct birth f values in segment"
+                "gamma arrival must yield >=2 distinct birth f values in segment"
             );
         }
     }
@@ -588,6 +590,7 @@ mod tests {
             deliver: true,
             deliver_units: None,
             delivery_f: Some(0.92),
+            delivery_lambda: Some(1.5),
             units_per_lot: None,
             age_at_receipt: None,
             pack_age_mean: None,

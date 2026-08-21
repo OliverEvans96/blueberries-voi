@@ -313,6 +313,9 @@ impl EngineSession {
         } else {
             None
         };
+        let delivery_lambda = shipment_trace.as_ref().map(|trace| {
+            crate::shipments::shipment_arrival_age(trace, self.params.q10, self.params.t_ref_c)
+        });
         let input = UnitDayStepIn {
             freshness: self.freshness.clone(),
             lot_offsets: self.lot_offsets.clone(),
@@ -321,6 +324,7 @@ impl EngineSession {
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: f_at_receipt,
+            delivery_lambda,
             units_per_lot: Some(self.params.units_per_lot),
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
@@ -355,7 +359,14 @@ impl EngineSession {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx, STREAM_BIRTH)) } else { None };
-            filter_step_unit_with_birth(&mut self.bank, &obs, &self.params, &mut fr, rng_birth_filter.as_mut());
+            filter_step_unit_with_birth(
+                &mut self.bank,
+                &obs,
+                &self.params,
+                &self.shipments,
+                &mut fr,
+                rng_birth_filter.as_mut(),
+            );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
         }
@@ -620,7 +631,14 @@ impl EngineSession {
                 let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx as u32, STREAM_BIRTH)) } else { None };
-                filter_step_unit_with_birth(&mut bank, &obs, &self.params, &mut fr, rng_birth_filter.as_mut());
+                filter_step_unit_with_birth(
+                    &mut bank,
+                    &obs,
+                    &self.params,
+                    &self.shipments,
+                    &mut fr,
+                    rng_birth_filter.as_mut(),
+                );
                 let belief = self.belief_from_bank(&bank);
                 let i = day_idx as usize;
                 if beliefs.len() <= i {

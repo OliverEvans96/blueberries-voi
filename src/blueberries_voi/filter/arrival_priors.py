@@ -1,4 +1,4 @@
-"""Cohort-birth arrival-age priors (SCN-F2a / SCN-F2; plan §3.3).
+"""Cohort-birth arrival-age priors (SCN-F2a / SCN-F2; ADR 0141 gamma arrival).
 
 Writes only into the delivery ``age_post`` channel — no sales/waste soft terms.
 """
@@ -16,10 +16,6 @@ from blueberries_voi.filter.types import is_unobserved
 if TYPE_CHECKING:
     from blueberries_voi.filter.types import RichObs
     from blueberries_voi.model import ModelParams
-
-# Documented default transit-uncertainty width for F2a (T-013 open question).
-# Must keep F2a SD strictly below the cold Abdella mix under the Stage A grid.
-F2A_TRANSIT_UNCERTAINTY_SD: float = 0.75
 
 
 def _normalize(weights: np.ndarray) -> np.ndarray:
@@ -45,7 +41,6 @@ def _gaussian_on_grid(grid: np.ndarray, mean: float, sd: float) -> np.ndarray:
 
 @lru_cache(maxsize=8)
 def _abdella_arrival_ages(q10: float, t_ref_c: float) -> tuple[float, ...]:
-    # Lazy: keep interactive filter import free of eager Abdella parquet I/O.
     from blueberries_voi.model.abdella import (
         default_abdella_root,
         load_abdella_shipments,
@@ -56,6 +51,27 @@ def _abdella_arrival_ages(q10: float, t_ref_c: float) -> tuple[float, ...]:
     return tuple(
         float(shipment_arrival_age(s, q10=q10, t_ref_c=t_ref_c)) for s in ships
     )
+
+
+@lru_cache(maxsize=8)
+def _abdella_phi_bar(q10: float, t_ref_c: float) -> tuple[float, ...]:
+    """Duration-averaged Q10 factor Λ/d per Abdella trace (fleet φ̄ prior)."""
+    from blueberries_voi.model.abdella import (
+        default_abdella_root,
+        load_abdella_shipments,
+        shipment_arrival_age,
+    )
+
+    ships = load_abdella_shipments(default_abdella_root())
+    phis: list[float] = []
+    for s in ships:
+        times = s.times_d
+        if len(times) < 2:
+            continue
+        d = max(float(times[-1] - times[0]), 1e-12)
+        lam = float(shipment_arrival_age(s, q10=q10, t_ref_c=t_ref_c))
+        phis.append(lam / d)
+    return tuple(phis)
 
 
 def cold_abdella_arrival_age_prior(
@@ -78,22 +94,28 @@ def arrival_age_prior_f2a(
     as_of: date | None = None,
     receipt_date: date | None = None,
 ) -> np.ndarray:
-    """Length-K prior narrowed from ASN pack date + transit uncertainty.
+    """Pack-date prior: calendar transit days × fleet φ̄ (ADR 0141).
 
-    Calendar transit days ``(receipt - pack)`` locate the prior when a receipt
-    day is supplied; otherwise the centre falls back to the cold-mix mean age
-    while retaining the documented F2a width (still narrower than the cold mix).
+    Epistemic width comes from the empirical spread of ``phi_bar`` over the
+    Abdella fleet, not a hand-set ``f2a_transit_sd``.
     """
     receipt = as_of if as_of is not None else receipt_date
+    phis = np.asarray(_abdella_phi_bar(params.q10, params.t_ref_c), dtype=float)
+    phi_mean = float(phis.mean()) if phis.size else 1.0
+    phi_sd = float(phis.std()) if phis.size > 1 else 0.05
     if receipt is not None:
-        mean = float(max((receipt - pack_date).days, 0))
+        calendar_d = float(max((receipt - pack_date).days, 0))
+        mean_age = calendar_d * phi_mean
+        # Uncertainty on Λ from not knowing truck temperature → φ̄ spread.
+        sd_age = max(calendar_d * phi_sd, 1e-9)
     else:
         ages = np.asarray(
             _abdella_arrival_ages(params.q10, params.t_ref_c),
             dtype=float,
         )
-        mean = float(ages.mean())
-    return _gaussian_on_grid(grid, mean, F2A_TRANSIT_UNCERTAINTY_SD)
+        mean_age = float(ages.mean())
+        sd_age = max(float(ages.std()), 1e-9)
+    return _gaussian_on_grid(grid, mean_age, sd_age)
 
 
 def arrival_age_prior_f2(
@@ -127,7 +149,6 @@ def delivery_birth_age_prior(
 
 
 __all__ = [
-    "F2A_TRANSIT_UNCERTAINTY_SD",
     "arrival_age_prior_f2",
     "arrival_age_prior_f2a",
     "cold_abdella_arrival_age_prior",

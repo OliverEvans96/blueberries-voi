@@ -80,8 +80,6 @@ export type SimConfig = {
    * (Arrhenius shift of effective arrival age).
    */
   transit_temp_bias_c: number;
-  /** F2a transit-uncertainty SD (arrival_priors.F2A_TRANSIT_UNCERTAINTY_SD). */
-  f2a_transit_sd: number;
   /**
    * Reserved STREAM_ARRIVAL_SENSOR: Gaussian noise on lot age at receipt
    * (0 = unused, matching current Python sim).

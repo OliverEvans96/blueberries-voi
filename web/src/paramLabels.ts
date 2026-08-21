@@ -93,11 +93,6 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tooltip: "°C offset on transit path vs published traces.",
     tier: "Reset",
   },
-  f2a_transit_sd: {
-    label: "F2a transit uncertainty",
-    tooltip: "Prior width from pack-date ASN — active on F2a rung.",
-    tier: "Reset",
-  },
   sensor_sigma: {
     label: "Receipt age sensor noise",
     tooltip: "Gaussian noise on measured age at receipt (F2).",

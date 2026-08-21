@@ -27,10 +27,6 @@ pub struct ModelParams {
     pub gamma_scale: f64,
     /// Fixed virtual grid width per lot (`L×U` truth).
     pub units_per_lot: usize,
-    /// F2a pack-date transit uncertainty on τ days before `age_to_f`.
-    pub f2a_transit_uncertainty_sd: f64,
-    /// Aleatoric within-lot birth spread on freshness `f` (not F2a transit epistemic sd).
-    pub arrival_dispersion_sd: f64,
 }
 
 impl Default for ModelParams {
@@ -50,8 +46,6 @@ impl Default for ModelParams {
             gamma_shape: 2.0,
             gamma_scale: 0.08,
             units_per_lot: DEFAULT_UNITS_PER_LOT,
-            f2a_transit_uncertainty_sd: 0.75,
-            arrival_dispersion_sd: 0.0,
         }
     }
 }

@@ -58,7 +58,6 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   arrival_product: "abdella_all",
   spread_scale: 1,
   transit_temp_bias_c: 0,
-  f2a_transit_sd: 0.75,
   sensor_sigma: 0,
 };
 
@@ -165,7 +164,7 @@ export function arrivalFreshnessPriorPdf(
   const freshes = mix.map((a) =>
     ageToF(meanShrink(a, mix, cfg.spread_scale) * factor, cfg.eta_ref),
   );
-  const bw = Math.max(0.015, cfg.f2a_transit_sd * 0.055);
+  const bw = Math.max(0.015, cfg.spread_scale * 0.055);
   const dx = fMax / (nGrid - 1);
   const pts: { f: number; density: number }[] = [];
   for (let i = 0; i < nGrid; i++) {
@@ -202,7 +201,14 @@ export function f2aPriorPdf(
   const meanAge =
     (ages.reduce((s, a) => s + a, 0) / ages.length) * transitAgeFactor(cfg);
   const meanF = ageToF(meanAge, cfg.eta_ref);
-  const sd = Math.max(0.015, cfg.f2a_transit_sd / cfg.eta_ref);
+  const ageMean = ages.reduce((s, a) => s + a, 0) / ages.length;
+  const ageStd =
+    ages.length > 1
+      ? Math.sqrt(
+          ages.reduce((s, a) => s + (a - ageMean) ** 2, 0) / ages.length,
+        )
+      : 0.75;
+  const sd = Math.max(0.015, (ageStd * transitAgeFactor(cfg)) / cfg.eta_ref);
   const fMax = 1;
   const pts: { f: number; density: number }[] = [];
   const dx = fMax / (nGrid - 1);

@@ -223,15 +223,7 @@ const CONFIG_SLIDERS: SliderSpec[] = [
     format: (v) => v.toFixed(1),
     group: "arrival",
   },
-  {
-    id: "f2a_transit_sd",
-    label: "F2a transit SD",
-    min: 0.1,
-    max: 2,
-    step: 0.05,
-    format: (v) => v.toFixed(2),
-    group: "arrival",
-  },
+
   {
     id: "sensor_sigma",
     label: "sensor σ (age)",

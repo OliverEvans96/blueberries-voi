@@ -35,7 +35,8 @@ use crate::physics::{
     age_to_f, apply_gamma_decrement, draw_gamma_decrement, draw_gamma_decrement_truncated,
 };
 use crate::shipments::{
-    arrival_age_from_path, birth_f_f2_dirac, birth_f_units, shipment_arrival_age, ShipmentTrace,
+    arrival_age_from_path, birth_f_f2_dirac, birth_f_units_gamma,
+    sample_phi_bar_from_fleet, shipment_arrival_age, ShipmentTrace,
 };
 use crate::unit_ll::{
     contrast_spoilage_weight, delta_interval_loglik, loglik_sales_by_units,
@@ -287,54 +288,49 @@ pub fn project_lot_map(
     Some(out)
 }
 
-fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
-    let ships = [
-        ShipmentTrace {
-            times_d: vec![0.0, 0.5],
-            temps_c: vec![1.0, 1.0],
-        },
-        ShipmentTrace::smoke_cool(),
-        ShipmentTrace {
-            times_d: vec![0.0, 4.0],
-            temps_c: vec![1.0, 1.0],
-        },
-    ];
-    let idx = rng.random_range(0..ships.len());
-    let _: f64 = rng.random();
-    let ages: Vec<f64> = ships
-        .iter()
-        .map(|s| shipment_arrival_age(s, params.q10, params.t_ref_c))
-        .collect();
-    let mean: f64 = ages.iter().sum::<f64>() / ages.len() as f64;
-    let age = ages[idx];
-    age_to_f(mean + (age - mean), params.eta_ref)
-}
-
-fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
-    if params.arrival_dispersion_sd > 0.0 {
-        if let Some(f) = obs.f_at_receipt {
-            return f.clamp(1e-12, 1.0);
-        }
-    }
-    if let Some(f) = obs.f_at_receipt {
-        return f.clamp(1e-12, 1.0);
-    }
-    if let Some(age) = obs.age_at_receipt {
-        return birth_f_f2_dirac(age, params.eta_ref);
-    }
+/// Resolve warped transit duration Λ from observation channel (ADR 0141).
+fn resolve_arrival_lambda<R: Rng + ?Sized>(
+    obs: &FilterObs,
+    shipments: &[ShipmentTrace],
+    params: &ModelParams,
+    rng: &mut R,
+) -> f64 {
     if let (Some(times), Some(temps)) = (&obs.temp_times_d, &obs.temp_temps_c) {
         if times.len() >= 2 && temps.len() == times.len() {
-            let age = arrival_age_from_path(temps, times, params.q10, params.t_ref_c);
-            return age_to_f(age, params.eta_ref);
+            return arrival_age_from_path(temps, times, params.q10, params.t_ref_c);
         }
     }
-    if let Some(pack) = obs.pack_date_days {
-        let sd = params.f2a_transit_uncertainty_sd;
-        let dist = Normal::new(f64::from(pack), sd).expect("sd > 0");
-        let age = dist.sample(rng).max(0.0);
-        return age_to_f(age, params.eta_ref);
+    if let Some(d) = obs.pack_date_days {
+        let phi = sample_phi_bar_from_fleet(rng, shipments, params.q10, params.t_ref_c);
+        return f64::from(d).max(0.0) * phi;
     }
-    mix_arrival_f(rng, params)
+    if shipments.is_empty() {
+        panic!("shipments must be non-empty for default arrival lambda");
+    }
+    let idx = rng.random_range(0..shipments.len());
+    shipment_arrival_age(&shipments[idx], params.q10, params.t_ref_c)
+}
+
+fn lot_segment_has_spread(freshness: &[f64], offsets: &[usize]) -> bool {
+    let n_lots = offsets.len().saturating_sub(1);
+    for ell in 0..n_lots {
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        if start >= end {
+            continue;
+        }
+        let seg = &freshness[start..end];
+        let alive: Vec<f64> = seg.iter().copied().filter(|&f| f > 0.0).collect();
+        if alive.len() < 2 {
+            continue;
+        }
+        let min = alive.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max = alive.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        if max - min > 1e-9 {
+            return true;
+        }
+    }
+    false
 }
 
 /// Per-day observation resolved onto the bank's own lot segments.
@@ -350,14 +346,18 @@ struct DayEvidence {
 }
 
 impl DayEvidence {
-    fn resolve(obs: &FilterObs, bank_ids: &[i64], params: &ModelParams) -> Self {
+    fn resolve(
+        obs: &FilterObs,
+        bank_ids: &[i64],
+        freshness: &[f64],
+        offsets: &[usize],
+    ) -> Self {
         let sales_by = obs
             .sales_by
             .as_deref()
             .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids));
-        // Lot-resolved waste assumes lot-uniform f (unit_ll); under within-lot dispersion
-        // fall back to pooled waste_tot so F3/GSIN does not phantom-inflate alive counts.
-        let waste_by = if sales_by.is_some() && params.arrival_dispersion_sd <= 0.0 {
+        // Lot-resolved waste assumes lot-uniform f; under within-lot gamma spread use pooled total.
+        let waste_by = if sales_by.is_some() && !lot_segment_has_spread(freshness, offsets) {
             obs.waste_by
                 .as_deref()
                 .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids))
@@ -452,15 +452,17 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
     bank: &mut UnitParticleBank,
     obs: &FilterObs,
     params: &ModelParams,
+    shipments: &[ShipmentTrace],
     rng: &mut R,
 ) -> StepDiagnostics {
-    filter_step_unit_with_birth(bank, obs, params, rng, None::<&mut R>)
+    filter_step_unit_with_birth(bank, obs, params, shipments, rng, None::<&mut R>)
 }
 
 pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank: &mut UnitParticleBank,
     obs: &FilterObs,
     params: &ModelParams,
+    shipments: &[ShipmentTrace],
     rng: &mut R,
     mut rng_birth: Option<&mut B>,
 ) -> StepDiagnostics {
@@ -471,18 +473,18 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     let upl = params.units_per_lot.max(1);
     bank.ensure_segmentation(upl);
     let step_seed = rng.random::<u64>();
-    let ev = DayEvidence::resolve(obs, &bank.lot_ids, params);
     let offsets = bank.lot_offsets.clone();
 
     let mut log_like = vec![0.0f64; n];
     for p in 0..n {
         let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(p as u64));
         let row = &mut bank.freshness[p];
+        let ev = DayEvidence::resolve(obs, &bank.lot_ids, row, &offsets);
 
         // 1. Spoilage: score the observed decrement interval, then age from within it.
         let (interval, mut ll) = ev.delta_interval(row, &offsets, params);
-        if params.arrival_dispersion_sd > 0.0 {
-            ll += contrast_spoilage_weight(row, &offsets, params.arrival_dispersion_sd).ln();
+        if lot_segment_has_spread(row, &offsets) {
+            ll += contrast_spoilage_weight(row, &offsets, 1.0).ln();
         }
         let decrement = match interval {
             Some((lo, hi)) => draw_gamma_decrement_truncated(&mut path_rng, params, lo, hi),
@@ -543,14 +545,14 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
         let mut fallback_birth = Pcg64::seed_from_u64(birth_seed.wrapping_add(0xB177_0001));
         let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
         for _ in 0..n {
-            let lot_mean_f = birth_f(obs, params, rng);
+            let lambda = resolve_arrival_lambda(obs, shipments, params, rng);
             if let Some(b) = rng_birth.as_mut() {
-                per_particle.push(birth_f_units(lot_mean_f, params.arrival_dispersion_sd, arrivals, b));
+                per_particle.push(birth_f_units_gamma(lambda, arrivals, params, b));
             } else {
-                per_particle.push(birth_f_units(
-                    lot_mean_f,
-                    params.arrival_dispersion_sd,
+                per_particle.push(birth_f_units_gamma(
+                    lambda,
                     arrivals,
+                    params,
                     &mut fallback_birth,
                 ));
             }
@@ -565,8 +567,15 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::Rng;
     use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+
+    use crate::obs::FilterObs;
+    use crate::params::ModelParams;
+    use crate::shipments::mod21_demo_shipments;
+
+    use super::{filter_step_unit, project_lot_map, UnitParticleBank};
 
     #[test]
     fn unit_pf_filter_step_p1_updates_weights() {
@@ -592,7 +601,8 @@ mod tests {
             ..Default::default()
         };
         let params = ModelParams::default();
-        filter_step_unit(&mut bank, &obs, &params, &mut rng);
+        let ships = mod21_demo_shipments("short_haul");
+        filter_step_unit(&mut bank, &obs, &params, &ships, &mut rng);
         let s: f64 = bank.weights.iter().sum();
         assert!((s - 1.0).abs() < 1e-9);
         assert_eq!(bank.freshness.len(), n);
@@ -618,7 +628,8 @@ mod tests {
             lot_ids_live: Some(vec![0, 1]),
             ..Default::default()
         };
-        filter_step_unit(&mut bank, &obs, &ModelParams::default(), &mut rng);
+        let ships = mod21_demo_shipments("short_haul");
+        filter_step_unit(&mut bank, &obs, &ModelParams::default(), &ships, &mut rng);
         assert_eq!(bank.freshness.len(), n);
     }
 
@@ -635,7 +646,8 @@ mod tests {
                 arrivals: qty,
                 ..Default::default()
             };
-            filter_step_unit(&mut bank, &obs, &params, &mut rng);
+            let ships = mod21_demo_shipments("short_haul");
+            filter_step_unit(&mut bank, &obs, &params, &ships, &mut rng);
         }
         assert_eq!(bank.lot_offsets, vec![0, 8, 32, 48]);
         assert_eq!(bank.n_lots(), 3);

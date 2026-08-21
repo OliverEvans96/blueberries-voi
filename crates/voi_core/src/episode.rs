@@ -48,6 +48,7 @@ pub fn run_closed_loop_episode(
             deliver: order > 0,
             deliver_units: if order > 0 { Some(order) } else { None },
             delivery_f: Some(1.0),
+            delivery_lambda: None,
             units_per_lot: Some(upl),
             age_at_receipt: None,
             pack_age_mean: None,

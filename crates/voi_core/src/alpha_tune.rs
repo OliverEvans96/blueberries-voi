@@ -307,6 +307,7 @@ pub fn run_alpha_tune_episode(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_f: f_at_receipt,
+            delivery_lambda: None,
             units_per_lot: Some(upl),
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),

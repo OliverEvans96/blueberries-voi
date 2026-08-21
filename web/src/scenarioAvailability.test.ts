@@ -85,13 +85,6 @@ describe("T-124 scenarioAvailability ADR 0086 / T-119 gates (AC-avail)", () => {
     }
   });
 
-  it("f2a_transit_sd is dim without pack_date_per_lot and show on F2a/F2", () => {
-    for (const scenario of ["P0", "P1", "F1", "F1s"] as const) {
-      expect(controlAvailability("f2a_transit_sd", scenario)).toBe("dim");
-    }
-    expect(controlAvailability("f2a_transit_sd", "F2a")).toBe("show");
-    expect(controlAvailability("f2a_transit_sd", "F2")).toBe("show");
-  });
 
   it("sensor_sigma is dim without pack_date_per_lot and show on F2a/F2", () => {
     for (const scenario of ["P0", "P1", "F1", "F1s"] as const) {

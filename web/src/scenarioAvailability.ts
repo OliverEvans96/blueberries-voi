@@ -26,7 +26,6 @@ export const ALL_CONTROL_IDS: string[] = [
   "demand_mu",
   "demand_vm",
   "eta_ref",
-  "f2a_transit_sd",
   "lead_time",
   "p_sell",
   "q10",
@@ -58,7 +57,7 @@ export function channelAvailability(
   if (id === "plot-arrival-prior-rug") {
     return channels.delivery_history === "pack_date" ? "show" : "unavailable";
   }
-  if (id === "f2a_transit_sd" || id === "sensor_sigma") {
+  if (id === "sensor_sigma") {
     return packDateControlsAvailable(channels);
   }
   return "show";
