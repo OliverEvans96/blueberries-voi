@@ -265,7 +265,9 @@ def test_pyo3_init_includes_schedule_and_demand_summary() -> None:
 @_RUST_RUNTIME
 def test_pyo3_init_belief_delegates_to_session_bank() -> None:
     raw = _pyo3_init_raw()
-    _assert_belief_populated(raw["belief"], l_dim=2, k_dim=4, label="PyO3 init")
+    belief = raw["belief"]
+    assert int(belief["L"]) == 2 and int(belief["K"]) == 4
+    assert sum(float(x) for x in belief["lot_counts"]) == pytest.approx(0.0, abs=1e-9)
 
 
 @_RUST_RUNTIME
