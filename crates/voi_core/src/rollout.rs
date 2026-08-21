@@ -16,6 +16,7 @@ const STREAM_ALLOC: &str = ":alloc";
 const STREAM_SPOIL: &str = ":spoil";
 const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
 const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
+const STREAM_BIRTH: &str = ":birth";
 const ORACLE_K: usize = 5;
 
 /// SIM-01=B profit coefficients for rollout path scoring.
@@ -113,27 +114,61 @@ pub fn day_profit(
     margin * f64::from(sales) - waste_cost * f64::from(waste) - stockout * f64::from(lost)
 }
 
+fn sample_f_from_lot_marginal(
+    f_marginals: &[f64],
+    ell: usize,
+    k: usize,
+    f_grid: &[f64],
+    rng: &mut SpawnRng,
+) -> f64 {
+    let start = ell * k;
+    let mut total = 0.0;
+    for bin in 0..k {
+        total += f_marginals.get(start + bin).copied().unwrap_or(0.0).max(0.0);
+    }
+    let u = if total > 0.0 {
+        rng.next_f64() * total
+    } else {
+        0.0
+    };
+    let mut cum = 0.0;
+    for bin in 0..k {
+        cum += f_marginals.get(start + bin).copied().unwrap_or(0.0).max(0.0);
+        if u <= cum {
+            return f_grid[bin].clamp(1e-12, 1.0);
+        }
+    }
+    f_grid[k.saturating_sub(1)].clamp(1e-12, 1.0)
+}
+
 fn unit_state_from_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
     f_grid: &[f64],
     units_per_lot: usize,
+    root_seed: u64,
+    run_id: &str,
+    day: u32,
 ) -> (Vec<f64>, Vec<usize>) {
     let l = lot_counts.len();
     let k = f_grid.len();
     let u = units_per_lot.max(1);
+    let mut rng_birth = SpawnRng::spawn_rng(root_seed, run_id, day, STREAM_BIRTH);
     let mut freshness = Vec::new();
     let mut lot_offsets = vec![0usize];
     for ell in 0..l {
-        let mut e_f = 0.0;
-        for bin in 0..k {
-            let p = f_marginals.get(ell * k + bin).copied().unwrap_or(0.0);
-            e_f += p * f_grid[bin];
-        }
         let n = lot_counts[ell].round().max(0.0) as usize;
         let alive = n.min(u);
         let dead = u.saturating_sub(alive);
-        freshness.extend(std::iter::repeat_n(e_f.max(0.0), alive));
+        for _ in 0..alive {
+            freshness.push(sample_f_from_lot_marginal(
+                f_marginals,
+                ell,
+                k,
+                f_grid,
+                &mut rng_birth,
+            ));
+        }
         freshness.extend(std::iter::repeat_n(0.0, dead));
         lot_offsets.push(freshness.len());
     }
@@ -214,8 +249,15 @@ fn path_value_f_belief(
 ) -> f64 {
     let path_run = format!("{}|rollout|p{path}", ctx.run_id);
     let upl = params.units_per_lot.max(1);
-    let (mut freshness, mut lot_offsets) =
-        unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
+    let (mut freshness, mut lot_offsets) = unit_state_from_f_belief(
+        lot_counts,
+        f_marginals,
+        f_grid,
+        upl,
+        ctx.root_seed,
+        &path_run,
+        ctx.day0,
+    );
     let mut pending = pending0.clone();
     let mut profit = 0.0;
 
@@ -316,8 +358,15 @@ fn path_arrival_units_sum(
 ) -> u32 {
     let path_run = format!("{}|rollout|p{path}", ctx.run_id);
     let upl = params.units_per_lot.max(1);
-    let (mut freshness, mut lot_offsets) =
-        unit_state_from_f_belief(lot_counts, f_marginals, f_grid, upl);
+    let (mut freshness, mut lot_offsets) = unit_state_from_f_belief(
+        lot_counts,
+        f_marginals,
+        f_grid,
+        upl,
+        ctx.root_seed,
+        &path_run,
+        ctx.day0,
+    );
     let mut pending = pending0.clone();
     let mut delivered = 0u32;
 
