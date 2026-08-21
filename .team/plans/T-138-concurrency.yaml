@@ -1,0 +1,92 @@
+ticket: T-138
+parent_tip: main
+optimize: balanced
+batch_below:
+  max_files: 2
+  max_prod_loc: 80
+max_parallel: 4
+description: >
+  Stage A — heterogeneous arrivals: within-lot birth dispersion on truth and filter,
+  STREAM_BIRTH CRN, rollout belief init fix. Shared-decrement likelihood unchanged.
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-138.md
+      - .team/adr/0139-heterogeneous-arrivals-within-lot-dispersion.md
+      - .team/plans/T-138-concurrency.yaml
+    deps: []
+
+  - id: qa-arrivals
+    role: qa
+    files:
+      - crates/voi_core/tests/unit_pf_ac.rs
+      - crates/voi_core/tests/t134_arrival_f.rs
+      - crates/voi_core/src/day_step.rs
+      - .team/qa/T-138-tests.md
+    deps: [architect]
+
+  - id: impl-params-shipments
+    role: implement
+    shard: params-shipments
+    files:
+      - crates/voi_core/src/params.rs
+      - crates/voi_core/src/shipments.rs
+    deps: [qa-arrivals]
+
+  - id: impl-daystep
+    role: implement
+    shard: daystep
+    files:
+      - crates/voi_core/src/day_step.rs
+    deps: [impl-params-shipments]
+
+  - id: impl-unit-pf-birth
+    role: implement
+    shard: unit-pf-birth
+    files:
+      - crates/voi_core/src/unit_pf.rs
+    deps: [impl-params-shipments, qa-arrivals]
+
+  - id: impl-rollout-init
+    role: implement
+    shard: rollout-init
+    files:
+      - crates/voi_core/src/rollout.rs
+    deps: [impl-unit-pf-birth]
+
+  - id: impl-crn-streams
+    role: implement
+    shard: crn-streams
+    files:
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/voi.rs
+      - crates/voi_core/src/alpha_tune.rs
+      - src/blueberries_voi/rng.py
+      - tests/test_rng.py
+    deps: [impl-daystep, impl-rollout-init]
+
+  - id: impl-diag-sweep
+    role: implement
+    shard: diag-sweep
+    files:
+      - crates/voi_core/examples/gsin_upc_diag.rs
+      - experiments/regen_gsin_upc_data.sh
+    deps: [impl-crn-streams]
+
+  - id: merge
+    role: merge
+    merge_last: true
+    deps: [impl-diag-sweep]
+    files: [.team/changelog.md]
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-138.md]
+    deps: [merge]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-138.md]
+    deps: [merge]
