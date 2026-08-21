@@ -831,7 +831,8 @@ export function initStudio(app: HTMLElement): () => void {
       return;
     }
     autopilot.play();
-    syncAutopilotChrome();
+    // tick() may pause synchronously when config_dirty; sync after it runs.
+    queueMicrotask(syncAutopilotChrome);
   };
   railHandlers.onAutopilotPause = () => {
     autopilot.pause();

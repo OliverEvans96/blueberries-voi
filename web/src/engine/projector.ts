@@ -20,6 +20,7 @@ import {
   onHandInventory,
 } from "../mock/generate";
 import { effectiveInventoryFromFlatBelief } from "../charts/inventoryTarget";
+import { channelsEqual } from "../obsMask";
 import type {
   DayDelta,
   DemandSummary,
@@ -465,9 +466,13 @@ export class ViewModelProjector {
   }
 
   private configsEqual(a: SimConfig, b: SimConfig): boolean {
-    return (Object.keys(a) as (keyof SimConfig)[]).every((k) =>
-      k === "obs_scenario" ? true : a[k] === b[k],
-    );
+    return (Object.keys(a) as (keyof SimConfig)[]).every((k) => {
+      if (k === "obs_scenario") return true;
+      if (k === "obs_channels") {
+        return channelsEqual(a.obs_channels, b.obs_channels);
+      }
+      return a[k] === b[k];
+    });
   }
 
   private buildViewModel(): ViewModel {
