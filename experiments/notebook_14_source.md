@@ -374,6 +374,12 @@ short-circuit to `-inf` before doing any work.
    approximation (ADR 0135), validated at small and realistic lot counts. It matters little
    here because `sigma = 0.5` makes the signal weak either way.
 3. **VOI monotonicity** — see the caveat in §4. Policy/cost issue, not a filter issue.
-4. **Legacy waste primitives** (`p1_totals_loglik`, `loglik_waste_by_units`,
-   `loglik_waste_tot_after_sales_by`) are off the production path but still exported for
-   PyO3 parity tests. Removing them is a follow-up.
+*Closed since this notebook was written:* the legacy binomial waste primitives
+(`p1_totals_loglik`, `loglik_waste_by_units`, `loglik_waste_tot_after_sales_by`, and the
+`binom_pmf` / `iter_compositions` helpers only they used) have been **deleted** from
+`unit_ll` rather than left exported as research-only. Leaving a
+`Binomial(waste; rem, dead/units)` on the public surface is a standing invitation to rewire
+the filter onto a waste model the shared-decrement physics does not support. The acceptance
+tests that pinned them were re-pointed at the surviving terms — the contract they protect
+(*every weight term is deterministic; randomness lives only in the proposal*) is unchanged.
+See ADR 0137 §4.

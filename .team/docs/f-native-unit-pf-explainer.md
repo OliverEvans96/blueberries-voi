@@ -14,9 +14,10 @@ Each alive inventory item carries one scalar **freshness** `f ∈ [0, 1]`. A val
 
 The particle filter keeps **N** hypotheses. Each particle is a full copy of the inventory grid:
 
-- **L** virtual lot **slots** (fixed width)
-- **U** unit slots per lot (default **15**)
-- So each particle holds **N × (L×U)** scalar `f` values
+- One **segment per observed delivery**, exactly as wide as that delivery (ADR 0137)
+- So each particle holds one `f` per unit currently on the shelf, and every particle shares
+  the same segmentation — arrival quantity is on the wire under every mask, so particles
+  cannot disagree about *how many* units arrived, only about *how fresh* they were
 
 Particles disagree about the exact `f` on every unit slot. That is the full belief; nothing coarser is stored inside the filter.
 
@@ -26,11 +27,11 @@ Charts and the ordering policy do not consume raw particles. `belief_flat_from_u
 
 | Field | Meaning |
 |-------|---------|
-| `lot_counts[L]` | Expected alive units per virtual lot slot (weighted over particles) |
-| `f_marginals[L×K]` | Per-slot **histogram** over freshness bins |
+| `lot_counts[L]` | Expected alive units in each of the newest **L** lots (weighted over particles) |
+| `f_marginals[L×K]` | Per-lot **histogram** over freshness bins |
 | `f_grid[K]` | Bin centers in `[0, 1]` |
 
-So: **unit-level inside the filter**, **histogram per virtual lot slot on the wire**. The histogram is a projection for display and control, not the internal state.
+So: **unit-level inside the filter**, **histogram per lot on the wire**. The histogram is a projection for display and control, not the internal state.
 
 ---
 
@@ -40,7 +41,7 @@ This follows the spirit of **FIL-11** and **ADR 0105** (arrival-only age), expre
 
 ### Birth `f` is set once at delivery
 
-When a delivery is observed (`arrivals > 0`), each particle appends a new cohort of **U** units, all sharing one birth freshness drawn from the knowledge scenario:
+When a delivery is observed (`arrivals > 0`), each particle appends a new cohort of exactly `arrivals` units, all sharing one birth freshness drawn from the knowledge scenario:
 
 | Scenario | Birth rule |
 |----------|------------|
@@ -54,17 +55,18 @@ That birth draw happens **once per delivery event**, not updated by later sales 
 
 On each day with observations:
 
-1. **Predict:** apply gamma aging to every `f` on every particle (shared MOD-02 clock in freshness space).
-2. **Reweight:** score each particle with the observation likelihood (see §3). Weights change; **`f` values on that particle are not edited by the likelihood**.
-3. **Deliver (if any):** FIFO shift on the virtual grid — drop the oldest lot slot, append the new birth cohort (§4).
-4. **Resample:** systematic resample copies **entire** particle freshness vectors from parents. Surviving particles inherit a complete `L×U` state; there is no backward smoothing or per-unit Bayesian edit from the likelihood.
+1. **Predict + score spoilage together:** the day's waste observation pins the shared gamma decrement to an interval (§3); the particle is weighted by that interval's gamma mass and then aged by a decrement drawn *from within* it. This is the fully adapted proposal — the aging draw is conditioned on the observation rather than blind to it (ADR 0137).
+2. **Reweight on sales:** score each particle with the sales likelihood (see §3), then remove the sold units by an unscored WOR draw (ADR 0135).
+3. **Deliver (if any):** append one new segment, exactly as wide as the observed delivery (§4).
+4. **Resample:** systematic resample copies **entire** particle freshness vectors from parents; there is no backward smoothing or per-unit Bayesian edit from the likelihood.
+5. **Retire:** drop leading lots that hold no live unit in **any** particle.
 
 So in-store sales and waste **inform which particles are plausible**, not **rewrite freshness at receipt**. The filter does not “learn” that an old cohort was younger than believed; it only kills or keeps whole-world hypotheses.
 
 ### P1 totals vs F1 per-lot
 
 - **P1** (`sales_total` / `waste_total` only): one likelihood pools **all** alive units on the particle — “did this world produce these totals?”
-- **F1** (`sales_by` present): the same unit grid is scored **per virtual lot slot** — “did lot slot ℓ sell this many?”
+- **F1** (`sales_by` present): the same unit grid is scored **per observed lot** — “did lot ℓ sell this many?”
 
 Factorization is in the **likelihood routing**, not in separate filter banks.
 
@@ -72,48 +74,73 @@ Factorization is in the **likelihood routing**, not in separate filter banks.
 
 ## 3. Observation routing
 
-`filter_step_unit` chooses one scoring path per day (first match wins):
+`filter_step_unit` runs the **same four stages for every channel** (ADR 0137). Only the
+*resolution* of the evidence changes:
 
-```
-sales_by present?
-  yes → loglik_sales_by_units (per-lot sequential picking kernel)
-        then, if waste_by present → loglik_waste_by_units
-        else if waste_tot present → loglik_waste_tot_after_sales_by
-  no  → if sales_tot (and optional waste_tot) → p1_totals_loglik
-        else → 0 (no score)
-```
+| Stage | UPC (aggregate) | GSIN (lot-resolved) |
+|-------|-----------------|---------------------|
+| Spoilage → decrement interval | pooled `waste_tot` | intersection over per-lot `waste_by` |
+| Sales feasibility | pooled `alive ≥ sales_tot` | per-lot `alive_ℓ ≥ sales_ℓ` |
+| Cross-lot allocation | *(structurally unobservable)* | `Multinomial(sales_by; lot_share)` |
+| Sales removal | one pooled WOR draw | per-lot WOR conditional on `sales_ℓ` |
+
+### Why spoilage is an interval, not a coin flip
+
+The whole store ages by **one** shared gamma decrement `δ` per day, so a unit with pre-aging
+freshness `f > 0` spoils iff `f ≤ δ`. Observing that `w` units spoiled therefore does not
+merely reweight the particle — it confines `δ` to `[g_w, g_{w+1})`, where `g_j` is the `j`-th
+smallest live freshness in the observed group. The likelihood is that interval's gamma mass
+(`delta_interval_loglik`); the state update draws `δ` from the gamma truncated to it.
 
 Important details:
 
-- **`sales_by` dominates.** If per-lot sales are observed, totals-only scoring is **not** used, even when `sales_total` is also on the wire.
-- **`waste_by` without `sales_by` is ignored** — there is no per-lot waste kernel on the totals-only path.
-- **`waste_tot` after `sales_by`** conditions waste on the already-scored sales allocation for that particle.
+- **GSIN refines UPC; it never contradicts it.** UPC sees the store total and gets the pooled
+  interval; GSIN sees `w_ℓ` per lot and gets `⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot
+  counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always**.
+- **Ties are informative.** A cohort born at one freshness spoils *together*, so some splits
+  are unreachable rather than merely unlikely — a constraint only GSIN can see.
+- **`sales_by` dominates.** If per-lot sales are observed, the pooled feasibility gate is not
+  used, even when `sales_total` is also on the wire.
+- **The weight is deterministic.** Randomness lives in the proposal (adapted aging, unscored
+  WOR removal), never in the importance weight (ADR 0135).
 
-Mixed **F1** scenarios (uneven `sales_by` with fixed totals) therefore produce a **different** posterior than **P1**, because the per-lot kernel breaks exchangeability across lot slots.
+The pre-0137 primitives (`p1_totals_loglik`, `loglik_waste_by_units`,
+`loglik_waste_tot_after_sales_by`) scored waste as `Binomial(waste; rem, dead/units)`. That
+had no derivation from the physics and has been **removed**, not merely bypassed.
+
+Mixed **F1** scenarios (uneven `sales_by` with fixed totals) produce a **different** posterior
+than **P1**, because the per-lot terms break exchangeability across lots. With only **one**
+live lot the two channels observe identical evidence and correctly agree.
 
 ---
 
-## 4. Virtual lot slots vs ground-truth lots
+## 4. Lot segmentation
 
 ### Ground truth
 
-Lots **grow** with each delivery. Each lot has a stable `lot_id` for logging and truth overlays. `lot_offsets` is variable length.
+Lots **grow** with each delivery. Each lot has a stable `lot_id` for logging and truth
+overlays. `lot_offsets` is variable length.
 
 ### Filter
 
-The filter uses a **fixed** `L × U` grid — **virtual lot slots** indexed `0 … L−1`:
+Since ADR 0137 the filter uses **the same shape**. `UnitParticleBank` carries
+`lot_offsets` and `lot_ids` shared by every particle:
 
-- Slot **0** = oldest delivery cohort still in the window  
-- Slot **L−1** = newest  
+1. On delivery, append **one** segment of exactly `arrivals` units — no fixed-width eviction.
+2. Under GSIN, `arrival_lot_ids` supplies real identities and `sales_by` / `waste_by` are
+   matched to segments **by id** (`project_lot_map`), never by position. An observation that
+   attributes a nonzero count to a lot the bank does not hold degrades that day to aggregate
+   scoring rather than killing every particle. Under UPC the ids are internal and monotone.
+3. Leading segments that hold no live unit in **any** particle are retired
+   (`prune_dead_prefix`), so the row tracks the live window instead of growing forever.
 
-On delivery, the filter **does not** push a new offset like the simulator. It:
+Before ADR 0137 the filter guessed its own boundaries as fixed `units_per_lot` chunks and
+drained one chunk per delivery. That partition was unrelated to truth's, which silently
+returned `-inf` from the GSIN likelihood almost every day and inflated the row by
+`arrivals − units_per_lot` per delivery.
 
-1. **Drops** the `U` units in slot 0 (`drain(0..U)` — FIFO eviction of the oldest virtual cohort).
-2. **Appends** `U` new units with birth `f` at the end (newest slot).
-
-The filter state **does not track `lot_id`**. IDs on the wire (`lot_ids`, `live_lots`) exist for **truth overlay** and scenario masks only.
-
-**U** is a capacity per cohort (default 15), not necessarily the physical case size. It bounds grid width; alive count per slot can be lower when units die.
+`belief_flat_from_unit_bank` reads the bank's segmentation (newest **L** lots, oldest first,
+zero-padded) rather than re-deriving one.
 
 ---
 
@@ -123,7 +150,7 @@ Two different “ordering” ideas:
 
 | Mechanism | Rule |
 |-----------|------|
-| **Virtual lot eviction on delivery** | **FIFO** — oldest slot cleared when a new delivery arrives |
+| **Lot retirement** | **FIFO** — a leading lot is dropped once no particle believes any unit in it is alive |
 | **Customer picking (sales)** | **Freshness-weighted sequential WOR** — each sale draws among alive units with weights from `f` (via τ), without replacement, one unit at a time |
 
 Ground-truth `pick_units_f` and the unit likelihoods share that sequential WOR kernel. Old units can remain alive under fresh-biased picking; they are not forced out because they arrived first.
@@ -132,7 +159,7 @@ Ground-truth `pick_units_f` and the unit likelihoods share that sequential WOR k
 
 ## 6. Forgetting old deliveries and choosing L
 
-The filter keeps a **sliding window** of the last **L** delivery cohorts on a fixed grid. Cohorts that fall off slot 0 are **forgotten** — not merged, not smoothed backward.
+The filter itself keeps every lot that any particle still believes in, so nothing live is ever dropped. **L** now sizes only the **wire projection**: `belief_flat_from_unit_bank` exports the newest **L** lots, oldest first. Lots beyond that window are invisible to charts and the ordering policy — not merged, not smoothed backward.
 
 ### How to pick L
 
@@ -142,7 +169,7 @@ Choose **L** large enough that:
 L \geq \text{peak concurrent open cohorts with alive units}
 \]
 
-under your delivery cadence and spoilage dynamics (see MOD-13: without a date pull, 8–10 concurrent cohorts is plausible on a 2-day cadence). When the window is sized correctly, slot 0 should be **dead** (all `f = 0`) at the moment it is shifted off — the eviction is then harmless. If **L** is too small, the filter silently drops live units.
+under your delivery cadence and spoilage dynamics (see MOD-13: without a date pull, 8–10 concurrent cohorts is plausible on a 2-day cadence). When the window is sized correctly, the oldest exported lot is already **dead** (all `f = 0`), so the projection loses nothing. If **L** is too small, the *wire* under-reports on-hand inventory even though the filter's own state is intact.
 
 ### Default `L = 10`
 
@@ -152,9 +179,9 @@ The production default was raised from `2` to **`10`** (`DEFAULT_L_DIM`) so typi
 
 ## 7. Distribution per lot
 
-For one virtual lot slot **ℓ** on one particle:
+For one lot **ℓ** on one particle:
 
-- **U** scalar freshness values (many zero if units are dead)
+- One scalar freshness value per unit in that delivery (many zero if units are dead)
 
 Across **N** particles:
 
@@ -165,7 +192,7 @@ On the wire:
 - **`f_marginals[ℓ, :]`** — histogram with **K** bins over `[0, 1]`, row-normalized  
 - **`lot_counts[ℓ]`** — expected alive count (units with `f > 0`)
 
-So “distribution per lot” means: **per-slot histogram across particles**, built by binning alive units’ `f` values, not a parametric family.
+So “distribution per lot” means: **per-lot histogram across particles**, built by binning alive units’ `f` values, not a parametric family.
 
 ---
 
@@ -190,7 +217,7 @@ w(f) = \frac{\mathbb{E}[T_{\mathrm{rem}} \mid f]}{T_{\mathrm{nom}}}
 \tilde I = \sum_{\ell=0}^{L-1} n_\ell \, \mathbb{E}[w(f) \mid \ell] + q_{\mathrm{pipeline}} \, f_{\mathrm{pipe}}
 \]
 
-Here \(n_\ell =\) `lot_counts[ℓ]` (expected alive units in virtual lot slot ℓ) and the expectation over \(f\) uses row `f_marginals[ℓ, ·]` against `f_grid`. Pipeline units use default birth freshness \(f_{\mathrm{pipe}}\) (typically 1.0).
+Here \(n_\ell =\) `lot_counts[ℓ]` (expected alive units in lot ℓ) and the expectation over \(f\) uses row `f_marginals[ℓ, ·]` against `f_grid`. Pipeline units use default birth freshness \(f_{\mathrm{pipe}}\) (typically 1.0).
 
 ### Link to gamma aging
 
@@ -247,7 +274,9 @@ Legacy **τ** / `age_marginals` wire fields belong to the pre–f-native count f
 ## References
 
 - ADR 0105 — arrival-only age; no in-store age learning  
-- ADR 0130 — f-native `L×U` unit grid and unit particle filter  
+- ADR 0130 — f-native unit grid and unit particle filter  
+- ADR 0135 — deterministic sales weight, unscored WOR removal  
+- ADR 0137 — observed lot segmentation and exact spoilage likelihood  
 - `crates/voi_core/src/unit_pf.rs` — `filter_step_unit`  
 - `crates/voi_core/src/belief_flat.rs` — wire projection  
 - `crates/voi_core/src/day_step.rs` — ground-truth unit physics  
