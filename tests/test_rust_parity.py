@@ -109,7 +109,9 @@ def test_engine_session_ten_day_trajectory_fixed_orders() -> None:
     assert days == list(range(10))
 
     init_lot_counts = list(snap["belief"]["lot_counts"])
-    assert any(float(x) != 0.0 for x in init_lot_counts), "init belief empty"
+    assert sum(float(x) for x in init_lot_counts) == pytest.approx(0.0), (
+        "init belief must be empty shelf (ADR 0136)"
+    )
 
     for i, (delta, order) in enumerate(zip(deltas, orders, strict=True)):
         assert int(delta["day"]["order_qty"]) == order, f"day {i} order mismatch"
@@ -127,7 +129,10 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
         root_seed=_CRN_ROOT_SEED,
         scenarios=list(VOI_SCENARIOS),
         n_burn=2,
-        n_score=6,
+        # See test_rust_voi_crn_masks: rungs only separate once the horizon is long
+        # enough for belief differences to change a case-rounded order. This gate also
+        # asserts pairwise separation (P0/F1, P1/F2), which needs longer still.
+        n_score=30,
         filter_n=24,
         H=2,
         n_rollout_paths=2,
@@ -146,6 +151,7 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
 
     p0 = float(profits["P0"])
     f1 = float(profits["F1"])
-    bstate = float(profits["B-state"])
+    p1 = float(profits["P1"])
+    f2 = float(profits["F2"])
     assert not math.isclose(p0, f1, abs_tol=1e-6)
-    assert not math.isclose(p0, bstate, abs_tol=1e-6)
+    assert not math.isclose(p1, f2, abs_tol=1e-6)

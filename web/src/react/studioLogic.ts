@@ -49,6 +49,10 @@ import {
   renderArrivalShift,
 } from "../charts/arrivalPrior";
 import {
+  renderArrheniusTemp,
+  renderGammaFreshnessPath,
+} from "../charts/physicsTeaching";
+import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
   EPISODE_HORIZON,
@@ -198,6 +202,8 @@ export function initStudio(app: HTMLElement): () => void {
     ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
     arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
     arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
+    arrheniusTemp: document.querySelector("#chart-arrhenius-temp") as HTMLElement,
+    gammaPath: document.querySelector("#chart-gamma-path") as HTMLElement,
     controllerOrders: document.querySelector(
       "#chart-controller-orders",
     ) as HTMLElement,
@@ -563,6 +569,12 @@ export function initStudio(app: HTMLElement): () => void {
     }
     if (plotVisible("plot-arrival-shift")) {
       renderArrivalShift(els.arrivalShift, vm.config, 150);
+    }
+    if (plotVisible("plot-arrhenius-temp")) {
+      renderArrheniusTemp(els.arrheniusTemp, vm.config, 160);
+    }
+    if (plotVisible("plot-gamma-path")) {
+      renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
     }
     if (plotVisible("plot-controller-orders")) {
       renderControllerOrders(els.controllerOrders, vm.history, 160);

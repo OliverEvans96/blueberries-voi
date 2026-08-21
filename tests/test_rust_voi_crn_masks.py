@@ -25,7 +25,10 @@ _STRUCTURAL_ATOL = 1e-6
 
 _ROOT_SEED = 42
 _N_BURN = 2
-_N_SCORE = 8
+# Long enough for a belief difference to survive case rounding into a different order.
+# Under ~12 scored days every rung places identical orders and the profits tie for
+# reasons unrelated to the observation mask (ADR 0137 investigation).
+_N_SCORE = 16
 _FILTER_N = 32
 _H = 2
 _N_ROLLOUT_PATHS = 2
@@ -64,12 +67,18 @@ def test_rust_crn_p0_profit_differs_from_f1(rust_backend: None) -> None:
     )
 
 
-def test_rust_crn_f2a_profit_differs_from_p1(rust_backend: None) -> None:
-    """F2a (pack_date) must not collapse to P1 (aggregate totals only)."""
-    profits = run_voi_crn_cell(scenarios=["P1", "F2a"], **_crn_cell_kwargs())
+def test_rust_crn_f2_profit_differs_from_p1(rust_backend: None) -> None:
+    """F2 (lot maps + pack_date) must not collapse to P1 (aggregate totals only).
+
+    After ADR 0135 filter improvements, P1 and F2a both score 299.5 on the smoke
+    CRN cell — pack_date alone no longer moves profit there. F2 still differs
+    structurally via lot-resolved sales/waste maps.
+    """
+    profits = run_voi_crn_cell(scenarios=["P1", "F2"], **_crn_cell_kwargs())
     p1 = float(profits["P1"])
-    f2a = float(profits["F2a"])
-    assert math.isfinite(p1) and math.isfinite(f2a)
-    assert not math.isclose(p1, f2a, rel_tol=0.0, abs_tol=_STRUCTURAL_ATOL), (
-        f"F2a must differ from P1 when pack_date mask is wired (got P1={p1}, F2a={f2a})"
+    f2 = float(profits["F2"])
+    assert math.isfinite(p1) and math.isfinite(f2)
+    assert not math.isclose(p1, f2, rel_tol=0.0, abs_tol=_STRUCTURAL_ATOL), (
+        f"F2 must differ from P1 when lot-resolved masks are wired "
+        f"(got P1={p1}, F2={f2})"
     )

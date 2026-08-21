@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step, ModelParams, UnitDayStepIn};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
@@ -13,13 +13,13 @@ use crate::obs::{
 };
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn};
-use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
-use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
-use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta_with_trace, mod21_demo_shipments, ShipmentTrace};
+use crate::spawn_rng::SpawnRng;
+use crate::tradeoff::tradeoff_forecast;
+use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -97,10 +97,7 @@ impl EngineSession {
             enable_filter: true,
             schedule: OrderSchedule::default(),
             shipments: vec![ShipmentTrace::smoke_cool()],
-            bank: UnitParticleBank {
-                weights: vec![1.0 / n as f64; n],
-                freshness: vec![vec![]; n],
-            },
+            bank: UnitParticleBank::empty(n),
             next_lot: 1,
             seq: 0,
             l_dim: DEFAULT_L_DIM,
@@ -109,10 +106,7 @@ impl EngineSession {
             obs_channels: channels_for_preset("P1").unwrap(),
             richest_log: Vec::new(),
             rungs: HashMap::new(),
-            bank_init: UnitParticleBank {
-                weights: vec![1.0 / n as f64; n],
-                freshness: vec![vec![]; n],
-            },
+            bank_init: UnitParticleBank::empty(n),
             catchup_days_last: 0,
         }
     }
@@ -153,10 +147,7 @@ impl EngineSession {
         let n = n_particles.max(1);
         self._n_particles = n;
         self.params.units_per_lot = units_per_lot.unwrap_or(DEFAULT_UNITS_PER_LOT).max(1);
-        self.bank = UnitParticleBank {
-            weights: vec![1.0 / n as f64; n],
-            freshness: vec![vec![]; n],
-        };
+        self.bank = UnitParticleBank::empty(n);
         if !shipments.is_empty() {
             self.shipments = shipments;
         }
@@ -171,28 +162,9 @@ impl EngineSession {
     }
 
     fn seed_particle_bank(&mut self) {
-        use rand::Rng;
-
         let n = self._n_particles.max(1);
-        let l = self.l_dim;
-        let upl = self.params.units_per_lot.max(1);
-        let units = l * upl;
-        let grid = f_grid_k(self.k_dim.max(1));
-        let mut rng = Pcg64::seed_from_u64(self.seed.wrapping_add(0xF117_0000));
-        let freshness: Vec<Vec<f64>> = (0..n)
-            .map(|_| {
-                (0..units)
-                    .map(|_| {
-                        let bin = rng.random_range(0..grid.len());
-                        grid[bin]
-                    })
-                    .collect()
-            })
-            .collect();
-        self.bank = UnitParticleBank {
-            weights: vec![1.0 / n as f64; n],
-            freshness,
-        };
+        // ADR 0136: zero-init — empty shelf until observed arrivals (no phantom L×U pre-fill).
+        self.bank = UnitParticleBank::empty(n);
         self.bank_init = self.bank.clone();
     }
 
@@ -225,9 +197,7 @@ impl EngineSession {
             .iter()
             .enumerate()
             .filter(|(_, b)| !b.is_null())
-            .map(|(day, belief)| {
-                serde_json::json!({ "day": day, "belief": belief })
-            })
+            .map(|(day, belief)| serde_json::json!({ "day": day, "belief": belief }))
             .collect();
         serde_json::Value::Array(days)
     }
@@ -304,13 +274,7 @@ impl EngineSession {
                 let lot_id = self.next_lot;
                 self.lot_ids.push(lot_id);
                 self.next_lot += 1;
-                (
-                    Some(f),
-                    Some(tau),
-                    Some(pack),
-                    Some(trace),
-                    vec![lot_id],
-                )
+                (Some(f), Some(tau), Some(pack), Some(trace), vec![lot_id])
             } else {
                 (None, None, None, None, Vec::new())
             };
@@ -367,7 +331,9 @@ impl EngineSession {
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
         }
-        let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets).iter().sum();
+        let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets)
+            .iter()
+            .sum();
         let delta = DayDelta {
             demand: out.demand,
             sales_total: out.sales_total,
@@ -495,11 +461,7 @@ impl EngineSession {
             let k = self.k_dim.max(1);
             let grid = f_grid_k(k);
             let uniform = 1.0 / k as f64;
-            (
-                vec![0.0; self.l_dim],
-                vec![uniform; self.l_dim * k],
-                grid,
-            )
+            (vec![0.0; self.l_dim], vec![uniform; self.l_dim * k], grid)
         }
     }
 
@@ -608,15 +570,11 @@ impl EngineSession {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
-            let cached = self
-                .rungs
-                .get(&key)
-                .cloned()
-                .unwrap_or_else(|| RungCache {
-                    bank: self.bank_init.clone(),
-                    last_day: -1,
-                    beliefs: vec![],
-                });
+            let cached = self.rungs.get(&key).cloned().unwrap_or_else(|| RungCache {
+                bank: self.bank_init.clone(),
+                last_day: -1,
+                beliefs: vec![],
+            });
             let mut bank = cached.bank;
             let last = cached.last_day;
             let mut beliefs = cached.beliefs;
@@ -735,8 +693,7 @@ impl EngineSession {
 }
 
 const SCHEDULE_EPOCH: &str = "2024-01-01";
-const EMBEDDED_DEMAND_PROFILE: &str =
-    include_str!("../../../data/freshnet/demand_profile.json");
+const EMBEDDED_DEMAND_PROFILE: &str = include_str!("../../../data/freshnet/demand_profile.json");
 
 fn committed_demand_profile() -> DemandProfile {
     DemandProfile::from_json(EMBEDDED_DEMAND_PROFILE).expect("embedded demand profile")
@@ -1146,6 +1103,10 @@ mod tests {
             s.step(0);
         }
         s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None, None);
+        // `configure` resets the bank, so arrivals must be observed after it to give the
+        // belief any mass at all.
+        s.step(64);
+        s.step(0);
         s
     }
 
@@ -1224,8 +1185,12 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["ok"], true, "{out}");
         let schedule = &v["result"]["schedule"];
-        assert!(schedule["delivery_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
-        assert!(schedule["order_weekdays"].as_array().is_some_and(|a| !a.is_empty()));
+        assert!(schedule["delivery_weekdays"]
+            .as_array()
+            .is_some_and(|a| !a.is_empty()));
+        assert!(schedule["order_weekdays"]
+            .as_array()
+            .is_some_and(|a| !a.is_empty()));
         assert_eq!(schedule["epoch"], SCHEDULE_EPOCH);
         let summary = &v["result"]["demand_summary"];
         assert!(summary["scale_mu"].as_f64().is_some_and(|x| x > 0.0));
@@ -1331,9 +1296,8 @@ mod tests {
         assert_eq!(cfg["n_rollout_paths"], 3);
         assert_eq!(cfg["candidate_case_radius"], 2);
         assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
-        let warm = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
-        );
+        let warm =
+            handle_rpc(r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#);
         let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
         let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
         let f_warm = warm_last["live_lots"][0]["mean_f"]
@@ -1343,9 +1307,8 @@ mod tests {
             r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
         );
         assert_eq!(smoke.contains("\"ok\":true"), true);
-        let cool = handle_rpc(
-            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
-        );
+        let cool =
+            handle_rpc(r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#);
         let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
         let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
         let f_cool = cool_last["live_lots"][0]["mean_f"]
@@ -1379,14 +1342,16 @@ mod tests {
         let _ = handle_rpc(
             r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
         );
-        let out = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
-        );
+        let out =
+            handle_rpc(r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#);
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["ok"], true, "{out}");
         let last = v["result"].as_array().unwrap().last().unwrap();
         let lots = last["live_lots"].as_array().expect("live_lots array");
-        assert!(!lots.is_empty(), "arrival after lead_time must surface live_lots");
+        assert!(
+            !lots.is_empty(),
+            "arrival after lead_time must surface live_lots"
+        );
         assert!(lots[0]["lot_id"].is_number());
         assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
         assert!(lots[0]["mean_f"].is_number());
@@ -1695,35 +1660,37 @@ mod tests {
         );
     }
 
-    /// AC: uneven sales_by → F1 posterior differs from P1.
+    /// AC: sales split across two live lots → F1 posterior differs from P1.
+    ///
+    /// The split is the *only* thing F1 sees that P1 does not, so the fixture must reach a
+    /// day where it exists. With one live lot the two channels observe identical evidence
+    /// and must agree — asserting a difference there would be asserting a bug.
     #[test]
     fn f1_vs_p1_belief_differs_after_uneven_sales() {
+        const ORDER: u32 = 120;
         let mut f1 = EngineSession::new(42);
         f1.init(42);
-        f1.set_belief_dims(2, 8);
+        f1.set_belief_dims(4, 8);
         f1.set_obs_scenario("F1").unwrap();
         let mut p1 = EngineSession::new(42);
         p1.init(42);
-        p1.set_belief_dims(2, 8);
+        p1.set_belief_dims(4, 8);
         p1.set_obs_scenario("P1").unwrap();
-        let mut two_lots = false;
+        let mut split_seen = false;
         for _ in 0..40 {
-            let d0 = f1.step(64);
-            let d1 = p1.step(64);
-            assert_eq!(d0.sales_total, d1.sales_total);
-            let n_live = f1
-                .snapshot_value()["live_lots"]
-                .as_array()
-                .map(Vec::len)
-                .unwrap_or(0);
-            if n_live >= 2 {
-                two_lots = true;
-                if d0.sales_total > 0 {
-                    break;
-                }
+            let d0 = f1.step(ORDER);
+            let d1 = p1.step(ORDER);
+            assert_eq!(d0.sales_total, d1.sales_total, "physics must be shared");
+            let last = f1.richest_log.last().expect("day logged");
+            if last.sales_by.iter().filter(|&&s| s > 0).count() >= 2 {
+                split_seen = true;
+                break;
             }
         }
-        assert!(two_lots, "fixture must reach two live lots with sales");
+        assert!(
+            split_seen,
+            "fixture must reach a day whose sales split across two live lots"
+        );
         let b_f1 = f1.snapshot_value()["belief"].clone();
         let b_p1 = p1.snapshot_value()["belief"].clone();
         assert!(
@@ -1733,8 +1700,38 @@ mod tests {
         );
         assert_eq!(
             f1.snapshot_value()["live_lots"],
-            p1.snapshot_value()["live_lots"]
+            p1.snapshot_value()["live_lots"],
+            "observation channel must not touch ground truth"
         );
+    }
+
+    /// AC: with one live lot, F1 and P1 see the same evidence and must agree exactly.
+    #[test]
+    fn f1_matches_p1_while_only_one_lot_is_live() {
+        let mut f1 = EngineSession::new(42);
+        f1.init(42);
+        f1.set_belief_dims(2, 8);
+        f1.set_obs_scenario("F1").unwrap();
+        let mut p1 = EngineSession::new(42);
+        p1.init(42);
+        p1.set_belief_dims(2, 8);
+        p1.set_obs_scenario("P1").unwrap();
+        for _ in 0..6 {
+            f1.step(64);
+            p1.step(64);
+            let live = f1.snapshot_value()["live_lots"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or(0);
+            if live > 1 {
+                return;
+            }
+            assert_eq!(
+                f1.snapshot_value()["belief"],
+                p1.snapshot_value()["belief"],
+                "single-lot GSIN evidence is exactly the UPC aggregate"
+            );
+        }
     }
 
     /// AC: catch-up to F2 matches never-switched F2 (CRN); belief is not oracle-only.
@@ -1862,7 +1859,10 @@ mod tests {
             .act(Some("damped_sw"), None, Some(0.99), None, None, None, None)
             .order_qty;
 
-        assert!(q_high >= q_low, "higher alpha should not reduce damped_sw order");
+        assert!(
+            q_high >= q_low,
+            "higher alpha should not reduce damped_sw order"
+        );
     }
 
     const _SEED: u64 = 99;

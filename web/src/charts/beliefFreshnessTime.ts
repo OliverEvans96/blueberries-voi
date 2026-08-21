@@ -41,6 +41,19 @@ export function dayDomain(history: Day[]): [number, number] {
   return [Math.min(...days), Math.max(...days)];
 }
 
+/** Sqrt scale: marker area ∝ lot survivor count `n`. */
+export function truthLotSurvivorRadiusScale(
+  maxSurvivors: number,
+  innerW: number,
+  daySpan: number,
+): (n: number) => number {
+  const maxN = Math.max(1, maxSurvivors);
+  const rMax = Math.min(14, (innerW / Math.max(1, daySpan)) * 0.35);
+  const rMin = 3;
+  const k = rMax / Math.sqrt(maxN);
+  return (n: number) => Math.max(rMin, k * Math.sqrt(Math.max(0, n)));
+}
+
 function rootG(
   container: HTMLElement,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
@@ -366,7 +379,9 @@ export function renderBeliefFreshnessTime(
     .attr("role", "img")
     .attr("aria-label", "Belief freshness over time with optional truth overlay")
     .attr("data-margin-left", margin.left)
-    .attr("data-margin-right", margin.right);
+    .attr("data-margin-right", margin.right)
+    .attr("data-margin-top", margin.top)
+    .attr("data-margin-bottom", margin.bottom);
 
   const g = svg
     .append("g")
@@ -443,10 +458,7 @@ export function renderBeliefFreshnessTime(
 
   const maxN =
     d3.max(truthHistory, (d) => d3.max(d.lots, (l) => l.n)) ?? 1;
-  const r = d3
-    .scaleSqrt()
-    .domain([0, maxN])
-    .range([3, Math.min(14, (innerW / daySpan) * 0.35)]);
+  const r = truthLotSurvivorRadiusScale(maxN, innerW, daySpan);
 
   const points: LotPoint[] = truthHistory.flatMap((d) =>
     d.lots.map((lot) => ({ day: d.day, ...lot })),
@@ -470,7 +482,7 @@ export function renderBeliefFreshnessTime(
           .attr("data-day", (d) => d.day)
           .attr("cx", (d) => x(d.day))
           .attr("cy", (d) => y(d.mean_f))
-          .attr("r", 0)
+          .attr("r", (d) => r(d.n))
           .attr("fill", TRUTH_MARKER_FILL)
           .attr("fill-opacity", 0.95)
           .attr("stroke", TRUTH_MARKER_STROKE)
@@ -481,20 +493,15 @@ export function renderBeliefFreshnessTime(
               .append("title")
               .text(
                 (d) =>
-                  `Day ${d.day} · lot ${d.lot_id}\nf ${d.mean_f.toFixed(2)} · qty ${d.n}`,
+                  `Day ${d.day} · lot ${d.lot_id}\nf ${d.mean_f.toFixed(2)} · survivors ${d.n}`,
               ),
-          )
-          .call((s) =>
-            s.transition().duration(280).attr("r", (d) => r(d.n)),
           ),
       (update) =>
         update
           .attr("data-day", (d) => d.day)
-          .transition()
-          .duration(280)
           .attr("cx", (d) => x(d.day))
           .attr("cy", (d) => y(d.mean_f))
           .attr("r", (d) => r(d.n)),
-      (exit) => exit.transition().duration(180).attr("r", 0).remove(),
+      (exit) => exit.remove(),
     );
 }

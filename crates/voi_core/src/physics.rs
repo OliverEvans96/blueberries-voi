@@ -46,6 +46,179 @@ pub fn draw_gamma_decrement<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) 
     dist.sample(rng)
 }
 
+/// Store-temperature-adjusted scale of the daily gamma freshness decrement.
+pub fn gamma_decrement_scale(params: &ModelParams) -> f64 {
+    params.gamma_scale * store_temp_factor(params.t_store_c, params.t_ref_c, params.q10)
+}
+
+/// Lanczos `ln Γ(x)` (g = 7, n = 9); ~15 significant digits on `x > 0`.
+pub fn ln_gamma(x: f64) -> f64 {
+    const C: [f64; 9] = [
+        0.999_999_999_999_809_9,
+        676.520_368_121_885_1,
+        -1_259.139_216_722_402_8,
+        771.323_428_777_653_1,
+        -176.615_029_162_140_6,
+        12.507_343_278_686_905,
+        -0.138_571_095_265_720_12,
+        9.984_369_578_019_572e-6,
+        1.505_632_735_149_311_6e-7,
+    ];
+    if x < 0.5 {
+        // Reflection: Γ(x)Γ(1-x) = π / sin(πx).
+        return (std::f64::consts::PI / (std::f64::consts::PI * x).sin()).ln() - ln_gamma(1.0 - x);
+    }
+    let z = x - 1.0;
+    let mut a = C[0];
+    for (i, &c) in C.iter().enumerate().skip(1) {
+        a += c / (z + i as f64);
+    }
+    let t = z + 7.5;
+    0.5 * (2.0 * std::f64::consts::PI).ln() + (z + 0.5) * t.ln() - t + a.ln()
+}
+
+/// Series expansion of the regularized lower incomplete gamma `P(a, x)` (`x < a + 1`).
+fn gamma_p_series(a: f64, x: f64) -> f64 {
+    let mut ap = a;
+    let mut del = 1.0 / a;
+    let mut sum = del;
+    for _ in 0..500 {
+        ap += 1.0;
+        del *= x / ap;
+        sum += del;
+        if del.abs() < sum.abs() * 1e-16 {
+            break;
+        }
+    }
+    sum * (-x + a * x.ln() - ln_gamma(a)).exp()
+}
+
+/// Continued fraction for the regularized upper incomplete gamma `Q(a, x)` (`x ≥ a + 1`).
+fn gamma_q_continued_fraction(a: f64, x: f64) -> f64 {
+    const TINY: f64 = 1e-300;
+    let mut b = x + 1.0 - a;
+    let mut c = 1.0 / TINY;
+    let mut d = 1.0 / b;
+    let mut h = d;
+    for i in 1..500 {
+        let an = -(i as f64) * (i as f64 - a);
+        b += 2.0;
+        d = an * d + b;
+        if d.abs() < TINY {
+            d = TINY;
+        }
+        c = b + an / c;
+        if c.abs() < TINY {
+            c = TINY;
+        }
+        d = 1.0 / d;
+        let del = d * c;
+        h *= del;
+        if (del - 1.0).abs() < 1e-16 {
+            break;
+        }
+    }
+    (-x + a * x.ln() - ln_gamma(a)).exp() * h
+}
+
+/// Regularized lower incomplete gamma `P(a, x) = γ(a, x) / Γ(a)`.
+pub fn gamma_p(a: f64, x: f64) -> f64 {
+    if x <= 0.0 || a <= 0.0 {
+        return 0.0;
+    }
+    if x.is_infinite() {
+        return 1.0;
+    }
+    if x < a + 1.0 {
+        gamma_p_series(a, x).clamp(0.0, 1.0)
+    } else {
+        (1.0 - gamma_q_continued_fraction(a, x)).clamp(0.0, 1.0)
+    }
+}
+
+/// Regularized upper incomplete gamma `Q(a, x) = 1 - P(a, x)`, accurate in the tail.
+pub fn gamma_q(a: f64, x: f64) -> f64 {
+    if x <= 0.0 || a <= 0.0 {
+        return 1.0;
+    }
+    if x.is_infinite() {
+        return 0.0;
+    }
+    if x < a + 1.0 {
+        (1.0 - gamma_p_series(a, x)).clamp(0.0, 1.0)
+    } else {
+        gamma_q_continued_fraction(a, x).clamp(0.0, 1.0)
+    }
+}
+
+/// CDF of the daily store freshness decrement at `x`.
+pub fn gamma_decrement_cdf(x: f64, params: &ModelParams) -> f64 {
+    gamma_p(params.gamma_shape, x / gamma_decrement_scale(params))
+}
+
+/// `P(lo ≤ δ < hi)` for the daily decrement, evaluated on the better-conditioned tail.
+pub fn gamma_decrement_interval_prob(lo: f64, hi: f64, params: &ModelParams) -> f64 {
+    if !(hi > lo) {
+        return 0.0;
+    }
+    let a = params.gamma_shape;
+    let s = gamma_decrement_scale(params);
+    let lo_s = (lo / s).max(0.0);
+    let hi_s = hi / s;
+    // Upper-tail difference avoids cancellation when both CDFs are near 1.
+    if lo_s >= a + 1.0 {
+        (gamma_q(a, lo_s) - gamma_q(a, hi_s)).max(0.0)
+    } else {
+        (gamma_p(a, hi_s) - gamma_p(a, lo_s)).max(0.0)
+    }
+}
+
+/// Inverse CDF of the daily decrement by monotone bisection (`u ∈ [0, 1]`).
+pub fn gamma_decrement_quantile(u: f64, params: &ModelParams) -> f64 {
+    let u = u.clamp(0.0, 1.0);
+    if u <= 0.0 {
+        return 0.0;
+    }
+    let mean = gamma_decrement_for_store(params);
+    let mut hi = mean.max(1e-12) * 4.0;
+    while gamma_decrement_cdf(hi, params) < u && hi < 1e12 {
+        hi *= 2.0;
+    }
+    let mut lo = 0.0;
+    for _ in 0..80 {
+        let mid = 0.5 * (lo + hi);
+        if gamma_decrement_cdf(mid, params) < u {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+/// Draw the daily decrement conditioned on `lo ≤ δ < hi` (fully adapted aging proposal).
+///
+/// Falls back to the interval floor when the conditioning event has no numerical mass.
+pub fn draw_gamma_decrement_truncated<R: Rng + ?Sized>(
+    rng: &mut R,
+    params: &ModelParams,
+    lo: f64,
+    hi: f64,
+) -> f64 {
+    let c_lo = gamma_decrement_cdf(lo.max(0.0), params);
+    let c_hi = if hi.is_infinite() {
+        1.0
+    } else {
+        gamma_decrement_cdf(hi, params)
+    };
+    if !(c_hi > c_lo) {
+        return lo.max(0.0);
+    }
+    let u = c_lo + rng.random::<f64>() * (c_hi - c_lo);
+    let d = gamma_decrement_quantile(u, params);
+    d.clamp(lo.max(0.0), if hi.is_infinite() { f64::MAX } else { hi })
+}
+
 /// Apply a fixed gamma decrement to alive slots; `f ≤ 0` marks spoil.
 pub fn apply_gamma_decrement(freshness: &mut [f64], decrement: f64) {
     if decrement <= 0.0 {
@@ -59,7 +232,11 @@ pub fn apply_gamma_decrement(freshness: &mut [f64], decrement: f64) {
 }
 
 /// Stochastic gamma aging step for unit freshness.
-pub fn apply_gamma_aging<R: Rng + ?Sized>(freshness: &mut [f64], rng: &mut R, params: &ModelParams) {
+pub fn apply_gamma_aging<R: Rng + ?Sized>(
+    freshness: &mut [f64],
+    rng: &mut R,
+    params: &ModelParams,
+) {
     let decrement = draw_gamma_decrement(rng, params);
     apply_gamma_decrement(freshness, decrement);
 }

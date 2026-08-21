@@ -63,7 +63,6 @@ export type SimConfig = {
   case_size: number;
   lead_time: number;
   base_stock: number;
-  starting_inv: number;
   seed: number;
   obs_scenario: ScenarioId;
   obs_channels: ObsChannels;
