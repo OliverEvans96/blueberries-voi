@@ -499,6 +499,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderSalesDemand(els.salesDemand, vm.history, 130);
     const spoilSlot = resolveStoreSpoilageSlot({
       scenario: vm.config.obs_scenario,
+      channels: vm.config.obs_channels,
       showTruth,
     });
     if (spoilSlot.kind === "unavailable") {
@@ -862,7 +863,7 @@ export function initStudio(app: HTMLElement): () => void {
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
       vm = projector.patchEngineState(snap);
-      projector.setConfig({ obs_channels: channels, obs_scenario });
+      vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
       renderAll();
       void refreshRemotePanes();

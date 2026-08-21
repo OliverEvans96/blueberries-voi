@@ -68,6 +68,18 @@ describe("store spoilage slot gating (T-124)", () => {
       expect(slot.kind, scenario).toBe("series");
     }
   });
+
+  it("custom channels with temperature_history resolve via channels, not scenario preset", () => {
+    const slot = resolveStoreSpoilageSlot({
+      channels: {
+        code_type: "upc",
+        scan_waste: true,
+        delivery_history: "temperature_history",
+      },
+      showTruth: false,
+    });
+    expect(slot.kind).toBe("series");
+  });
 });
 
 describe("ChartUnavailable hatch containment (T-126 AC-hatch)", () => {
