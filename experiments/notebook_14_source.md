@@ -32,7 +32,18 @@ channels, only the code type changes.
 `cargo run -p voi_core --release --example gsin_upc_diag`. The *before* files come from
 the same harness run on `team/T-137/implement` (pre-ADR-0137); the *after* files from
 `team/T-140/implement` (ADR 0141 unified gamma arrival). Regenerate the after side with
-`experiments/regen_gsin_upc_data.sh` from the T-140 implement tip.
+`experiments/regen_gsin_upc_data.sh` (belief metrics) and
+`experiments/regen_voi_profits.py` (§4 closed loop) from the T-140 implement tip.
+
+The diag harness runs four fleet regimes; the *before* run predates the thermal fixture and
+carries the first three, so before/after panels are restricted to the shared set.
+
+> **Harness note.** The T-138 rewrite of `gsin_upc_diag` reintroduced, in the *measurement*
+> code, the same fixed-`units_per_lot` partition that ADR 0137 removed from the filter, and
+> read ESS back off `bank.weights` *after* the step's resample — where they are uniform by
+> construction. Per-lot MAE and ESS in any regeneration between T-138 and this one are not
+> meaningful. Both now read the bank's observed `lot_offsets` and the filter's own
+> pre-resample `StepDiagnostics.ess`.
 
 <!-- code -->
 import json
@@ -53,8 +64,19 @@ voi_after = json.loads((DATA / "voi_profits_after.json").read_text())
 
 RUNGS = ["P0", "P1", "F1", "F2a", "F2", "F3"]
 GSIN = {"F1", "F2", "F3"}
-REGIMES = [r["regime"] for r in after]
-REGIMES = list(dict.fromkeys(REGIMES))
+REGIMES = list(dict.fromkeys(r["regime"] for r in after))
+
+# Regimes are addressed by name, never by position. The *before* run predates the
+# thermal fixture, so the two files no longer carry the same regime list, and a
+# positional index would silently retarget every figure the moment one is added.
+HOMOG = "Homogeneous fleet, overlapping lots"
+HET = "Heterogeneous fleet, overlapping lots"
+DEEP = "Heterogeneous fleet, deep shelf"
+THERMAL = "Thermal fleet, overlapping lots"
+
+BEFORE_REGIMES = set(dict.fromkeys(r["regime"] for r in before))
+SHARED = [r for r in REGIMES if r in BEFORE_REGIMES]  # before/after comparable
+AFTER_ONLY = [r for r in REGIMES if r not in BEFORE_REGIMES]
 
 # Categorical slots 1-3 of the validated default palette (all-pairs clean, light mode).
 C_BEFORE, C_AFTER, C_THIRD = "#2a78d6", "#eb6834", "#1baf7a"
@@ -116,7 +138,7 @@ def grouped_bars(ax, labels, series, colors, fmt="{:.2f}", ylabel="", legend=Tru
 
 print(f"{len(REGIMES)} regimes:")
 for r in REGIMES:
-    print(" -", r)
+    print(" -", r, "" if r in BEFORE_REGIMES else "(after only)")
 
 <!-- markdown -->
 ## 1. The defect: GSIN believed in inventory that was not there
@@ -125,7 +147,7 @@ for r in REGIMES:
 truth, averaged over days after burn-in. Positive means the filter thinks the shelf holds
 more than it does.
 
-Before the fix, the GSIN rungs carried **+24 to +29 units** of phantom mass. The mechanism
+Before the fix, the GSIN rungs carried **+24 to +25 units** of phantom mass. The mechanism
 was not statistical: the filter partitioned each particle row into fixed `units_per_lot`
 chunks while truth appends one variable-width segment per delivery. Once those partitions
 diverged, `waste_by.len() != n_lots` made the lot-resolved likelihood return `-inf` for
@@ -133,8 +155,8 @@ every particle, the weights normalised to uniform, and GSIN ran as a blind boots
 filter — with a fixed-width drain on each arrival inflating the row every delivery.
 
 <!-- code -->
-fig, axes = plt.subplots(1, len(REGIMES), figsize=(14, 3.8), sharey=True)
-for ax, regime in zip(axes, REGIMES):
+fig, axes = plt.subplots(1, len(SHARED), figsize=(14, 3.8), sharey=True)
+for ax, regime in zip(axes, SHARED):
     b, a = pick(before, regime), pick(after, regime)
     grouped_bars(
         ax, RUNGS,
@@ -165,7 +187,7 @@ exactly. P0 is the one rung left with count uncertainty, because it never sees w
 its residual is now honest posterior spread rather than a mechanical drain (see §5).
 
 <!-- code -->
-regime = REGIMES[-1]  # deep shelf: the hardest case
+regime = DEEP  # the hardest case
 a = pick(after, regime)
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.8), sharey=True)
 for ax, rungs, title in [
@@ -194,9 +216,11 @@ plt.show()
 
 <!-- markdown -->
 P1 and F1 sit exactly on truth (the lines are indistinguishable). P0 traces a smooth
-sawtooth through truth's lumpy one: a whole delivery cohort is born at one freshness and
-therefore spoils on a single day, and without a waste channel P0 can only average over when
-that happens.
+sawtooth through truth's lumpy one. Note the mechanism has changed under ADR 0141: births
+are now per-unit Gamma draws, so a delivery no longer shares a single freshness and no
+longer retires in one lump — but the store still ages on one shared decrement, so cohorts
+still leave over a day or two. Without a waste channel P0 can only average over when that
+happens.
 
 ## 2. What GSIN actually buys: attribution, not level
 
@@ -220,7 +244,7 @@ fixtures.
 
 <!-- code -->
 fig, axes = plt.subplots(1, 2, figsize=(13, 4))
-regime = REGIMES[-1]
+regime = DEEP
 a = pick(after, regime)
 pairs = [("P1", "F1"), ("F2a", "F2")]
 labels = [f"{u} → {g}" for u, g in pairs]
@@ -244,7 +268,7 @@ for u, g in pairs:
         print(f"{u+' → '+g:<12} {key:<24} {a[u][key]:>10.4f} {a[g][key]:>10.4f}")
 
 <!-- markdown -->
-**Per-lot inventory becomes exact under GSIN** (MAE `0.000` vs `0.22–0.44` for UPC): once
+**Per-lot inventory becomes exact under GSIN** (MAE `0.000` vs `0.34–0.65` for UPC): once
 sales and spoils are attributed to named lots, the per-lot count is conserved the same way
 the store total is. That is the channel's headline value.
 
@@ -258,32 +282,108 @@ answer and worth stating plainly:
 
 Freshness level is bought by the **`delivery_history`** axis instead, which is exactly the
 orthogonality ADR 0133 designs for: `code_type` resolves *where the stock is*,
-`delivery_history` resolves *how fresh it is*. Under ADR 0141, calendar pack date and
-temperature history are nested conditioning on progressively more of the transit segment —
-compare the *Thermal fleet* regime when interpreting F2→F3, not only duration-heterogeneous
-lots.
+`delivery_history` resolves *how fresh it is*.
+
+## 2b. The delivery-history ladder is a variance decomposition
+
+This is where ADR 0141 changed the answer, so it gets its own figure.
+
+Under the old F2a/F2 formula the pack-date channel emitted a rounded *warped* age scored
+against a hand-set `f2a_transit_sd = 0.75`, when the true rounding residual was about
+`0.29`. Pack date was therefore quietly under-informative, and the F2 → F3 step inherited
+the slack as an apparent gain. Under ADR 0141 pack date is honest — calendar transit
+duration, with epistemic width bootstrapped from the fleet's own temperature factor φ̄ —
+and the ladder separates along the physics instead.
+
+Each rung conditions on more of the transit segment, so each can only buy what the fleet
+actually varies:
+
+- **Homogeneous fleet** — one trace, nothing to learn. Both steps are flat.
+- **Heterogeneous fleet** — transit *duration* varies. Calendar pack date is very nearly
+  sufficient; temperature history adds essentially nothing on top of it.
+- **Thermal fleet** — duration is fixed at 2 days and *temperature* varies. Pack date is
+  now literally uninformative (F2a and F2 are bit-identical to P1 and F1), and the whole
+  delivery-history gain lands on the temperature trace.
+
+Total variation against the truth freshness histogram is the metric to read here. Mean-f
+moves too (`0.0843 → 0.0813` on the thermal fleet), but the ladder is really about
+distribution *shape*, and TV is where that shows up.
 
 <!-- code -->
-regime = REGIMES[1]  # heterogeneous fleet: delivery history has something to explain
-a = pick(after, regime)
-fig, ax = plt.subplots(figsize=(8, 4))
+LADDER = [("F1", "none"), ("F2", "pack date"), ("F3", "temp trace")]
+SHORT = {
+    HOMOG: "Homogeneous\n(one trace)",
+    HET: "Heterogeneous\n(overlapping)",
+    DEEP: "Heterogeneous\n(deep shelf)",
+    THERMAL: "Thermal\n(fixed duration)",
+}
+tv = {r: [pick(after, r)[rung]["hist_tv"] for rung, _ in LADDER] for r in REGIMES}
+labels = [SHORT[r] for r in REGIMES]
+
+fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.4))
+
+# Left: the level each rung reaches. Right: the *step gain*, which is the claim —
+# plotting the gain keeps a true zero baseline instead of truncating a bar axis to
+# make a 3% difference in level visible.
 grouped_bars(
-    ax, ["none", "pack date", "temp trace"],
-    {"store mean-f MAE": [a["F1"]["store_mean_f_mae"], a["F2"]["store_mean_f_mae"],
-                          a["F3"]["store_mean_f_mae"]]},
-    [C_THIRD], fmt="{:.4f}", ylabel="store mean freshness MAE",
+    axes[0], labels,
+    {lab: [tv[r][j] for r in REGIMES] for j, (_, lab) in enumerate(LADDER)},
+    [C_BEFORE, C_AFTER, C_THIRD], fmt="{:.3f}",
+    ylabel="freshness histogram TV distance", legend=False, label_size=6.6,
 )
-ax.set_xlabel("delivery_history channel (all at code_type = gsin)")
-ax.set_title("Freshness level is bought by delivery history, not by lot codes", fontsize=11)
-fig.tight_layout()
+axes[0].set_title("Level reached at each rung", fontsize=10.5, pad=30)
+
+grouped_bars(
+    axes[1], labels,
+    {"F1 → F2  (pack date)": [100 * (tv[r][0] - tv[r][1]) / tv[r][0] for r in REGIMES],
+     "F2 → F3  (temp trace)": [100 * (tv[r][1] - tv[r][2]) / tv[r][1] for r in REGIMES]},
+    [C_AFTER, C_THIRD], fmt="{:.1f}%", ylabel="TV distance reduced by the step (%)",
+    legend=False, label_size=7.5,
+)
+axes[1].set_title("What the step itself buys", fontsize=10.5, pad=30)
+
+# One legend per panel: the same two hues carry different meanings on the left
+# (a rung) and the right (the step between two rungs), so a shared key would lie.
+for ax, ncol in zip(axes, (3, 2)):
+    ax.tick_params(axis="x", labelsize=8.5)
+    ax.set_xlabel("fleet regime", labelpad=8)
+    ax.legend(*ax.get_legend_handles_labels(), frameon=False, fontsize=8.5, ncol=ncol,
+              loc="upper left", bbox_to_anchor=(-0.01, 1.13), handlelength=1.1,
+              columnspacing=1.4, handletextpad=0.5)
+fig.suptitle("What each delivery_history rung buys, by what the fleet varies "
+             "(all at code_type = gsin)", y=1.06, fontsize=12)
+fig.tight_layout(rect=(0, 0, 1, 0.97))
 plt.show()
 
+print(f"{'regime':<38} {'F1→F2 (pack date)':>19} {'F2→F3 (temp trace)':>20}")
+for r in REGIMES:
+    f1, f2, f3 = tv[r]
+    print(f"{r:<38} {100 * (f1 - f2) / f1:>18.1f}% {100 * (f2 - f3) / f2:>19.1f}%")
+
 <!-- markdown -->
+Read across the two steps and they are almost perfectly complementary: `+13.3%` / `+0.3%`
+on the duration-heterogeneous fleet, `0.0%` / `+10.0%` on the thermal one. Neither channel
+is dominant — each prices exactly the component of transit variance it observes, which is
+the orthogonality claim ADR 0133 makes and ADR 0141 finally makes measurable.
+
+The practical consequence for the VOI story: **there is no fleet-independent price for
+delivery history.** Quoting the F2 → F3 gain without saying what the fleet varies is
+quoting a number that ranges from zero to the entire ladder.
+
 ## 3. Before and after, every metric
 
 `lot_mean_f_mae` before the fix is dominated by the misalignment itself — the filter's
 "lot 2" was not truth's lot 2 — so the before/after gap on the per-lot metrics measures the
 bug, not a modelling improvement.
+
+The *before* run predates the thermal fixture, so every before/after panel is restricted to
+the three regimes both runs share.
+
+One panel deserves a call-out rather than a victory lap: **P0's store count MAE went the
+wrong way** (`8.63 → 19.10` on the deep shelf), and its bias flipped sign (`−8.39 → +6.04`).
+The pre-0137 P0 under-counted; today's over-counts, and by more. Every rung that observes
+spoilage is exact, so this is not a conservation failure — it is open item 1 below, and it
+is the one place where the *before* column is still the better number.
 
 <!-- code -->
 KEYS = [
@@ -293,7 +393,7 @@ KEYS = [
     ("store_mean_f_mae", "store mean-f MAE", "{:.3f}"),
     ("eff_inv_mae", "effective-inventory MAE", "{:.2f}"),
 ]
-regime = REGIMES[-1]
+regime = DEEP
 b, a = pick(before, regime), pick(after, regime)
 fig, axes = plt.subplots(1, len(KEYS), figsize=(16, 3.6))
 for ax, (key, title, fmt) in zip(axes, KEYS):
@@ -353,16 +453,26 @@ Before the fix the GSIN rungs earned roughly **a third** of the UPC rungs' profi
 running blind produces a belief the controller cannot use. After, every rung lands within a
 few percent of the others and of the `B-state` oracle.
 
-**Caveat, and it is a real one.** Profit is still not monotone in information: `P0` is not
-reliably the worst and the `B-state` oracle is not reliably the best. Because the oracle
-uses ground truth directly and *still* underperforms, that ordering is a property of the
-policy and cost structure (lost-sale 3.0 vs waste 1.5 rewards over-ordering), not of the
-filter. It needs a controller/α-tuning ticket; it is out of scope for the filter fix.
+All seven rungs now sit inside a **2% band** (1076–1098), and the absolute level fell by
+roughly 30 units across the board versus the ADR 0137 run. That drop is physics, not
+regression: per-unit Gamma birth spreads freshness within each delivery, so a cohort no
+longer spoils in one lump. `B-state` moved with everything else even though the oracle
+never touches the filter, which is the check that the shift is the truth trajectory
+changing rather than belief accuracy changing.
+
+**Caveat, and it is a real one.** Profit is still not monotone in information — and under
+ADR 0141 the inversion is starker, not milder: the `B-state` oracle is now the *lowest*
+mean of the seven, and `P1` the highest. Because the oracle uses ground truth directly and
+still finishes last, that ordering is a property of the policy and cost structure
+(lost-sale 3.0 vs waste 1.5 rewards over-ordering), not of the filter. Four seeds at a
+2% spread also cannot resolve a real ranking here — the honest reading is *no rung is
+reliably better than any other*, which is itself the finding. It needs a controller/α-tuning
+ticket; it is out of scope for the filter fix.
 
 ## 5. Cost, and what is left
 
 <!-- code -->
-regime = REGIMES[-1]
+regime = DEEP
 b, a = pick(before, regime), pick(after, regime)
 fig, ax = plt.subplots(figsize=(9, 3.8))
 grouped_bars(
@@ -383,7 +493,8 @@ short-circuit to `-inf` before doing any work.
 ### Open items
 
 1. **P0 count bias.** P0 has no spoilage channel, and its only sales constraint is
-   one-sided (`alive >= sales`), so over-stocked particles are never penalised. The
+   one-sided (`alive >= sales`), so over-stocked particles are never penalised. Gamma birth
+   shrank it by roughly a third (deep shelf `+10.1 → +6.0` units) but did not remove it. The
    principled fix is a demand-censoring term — score `P(D >= sales)` rather than
    `P(D = sales)` when a particle stocks out — which needs the calendar day threaded into
    `filter_step_unit`.
