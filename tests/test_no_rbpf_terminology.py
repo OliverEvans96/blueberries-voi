@@ -12,7 +12,7 @@ _BANNED = "r" + "bpf"
 
 def test_no_legacy_particle_filter_acronym() -> None:
     result = subprocess.run(
-        ["rg", "-i", _BANNED, ".", "--glob", "!notebooks/**"],
+        ["rg", "-i", _BANNED, "."],
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
