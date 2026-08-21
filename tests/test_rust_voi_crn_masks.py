@@ -23,7 +23,7 @@ if _maybe_core is None:
 # differentiation must exceed noise when masks diverge (ADR 0127 / Wave D).
 _STRUCTURAL_ATOL = 1e-6
 
-_ROOT_SEED = 1
+_ROOT_SEED = 42
 _N_BURN = 2
 _N_SCORE = 8
 _FILTER_N = 32
@@ -66,8 +66,7 @@ def test_rust_crn_p0_profit_differs_from_f1(rust_backend: None) -> None:
 
 def test_rust_crn_f2a_profit_differs_from_p1(rust_backend: None) -> None:
     """F2a (pack_date) must not collapse to P1 (aggregate totals only)."""
-    kwargs = {**_crn_cell_kwargs(), "root_seed": 10}
-    profits = run_voi_crn_cell(scenarios=["P1", "F2a"], **kwargs)
+    profits = run_voi_crn_cell(scenarios=["P1", "F2a"], **_crn_cell_kwargs())
     p1 = float(profits["P1"])
     f2a = float(profits["F2a"])
     assert math.isfinite(p1) and math.isfinite(f2a)

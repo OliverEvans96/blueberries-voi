@@ -1,0 +1,63 @@
+ticket: T-139
+parent_tip: team/T-138/implement
+optimize: balanced
+description: >
+  Stage B: F3 count_bias under arrival_dispersion_sd, filter mass conservation,
+  contrast spoilage hook (ADR 0140), restore AC-12 F3 guard, close Python cov ≥80%.
+max_parallel: 3
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-139.md
+      - .team/adr/0140-f3-count-bias-and-contrast-scoring.md
+      - .team/plans/T-139-concurrency.yaml
+    deps: []
+
+  - id: qa-red
+    role: qa
+    files:
+      - crates/voi_core/tests/gsin_upc_ac12.rs
+      - crates/voi_core/tests/t134_arrival_f.rs
+      - tests/test_unit_pf.py
+      - .team/qa/T-139-tests.md
+    deps: [architect]
+
+  - id: impl-f3-bias
+    role: implement
+    shard: f3-count-bias
+    files:
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/obs.rs
+      - crates/voi_core/tests/gsin_upc_ac12.rs
+    deps: [qa-red]
+
+  - id: impl-contrast
+    role: implement
+    shard: contrast-hook
+    files:
+      - crates/voi_core/src/unit_ll.rs
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/lib.rs
+    deps: [impl-f3-bias]
+
+  - id: impl-cov
+    role: implement
+    shard: python-cov
+    files:
+      - tests/test_filter_belief.py
+      - src/blueberries_voi/filter/belief.py
+    deps: [architect]
+
+  - id: review
+    role: review
+    files:
+      - .team/reviews/T-139.md
+    deps: [impl-f3-bias, impl-contrast, impl-cov]
+
+  - id: verify
+    role: verify
+    files:
+      - .team/qa/T-139.md
+    deps: [review]

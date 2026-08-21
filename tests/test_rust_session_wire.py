@@ -169,14 +169,10 @@ def _assert_live_lots_populated(live_lots: Any, *, label: str) -> None:
 
 
 @_RUST_RUNTIME
-def test_rust_init_snapshot_belief_zero_init_wire_valid() -> None:
-    """ADR 0136: init exposes valid L×K wire with zero lot_counts mass."""
+def test_rust_init_snapshot_belief_lot_counts_nonempty() -> None:
     session = EngineSession()
     snap = session.init(_cfg(), seed=42)
-    belief = snap["belief"]
-    assert int(belief["L"]) == 2 and int(belief["K"]) == 4
-    lot_counts = [float(x) for x in belief["lot_counts"]]
-    assert sum(lot_counts) == pytest.approx(0.0, abs=1e-9)
+    _assert_belief_populated(snap["belief"], l_dim=2, k_dim=4, label="init Snapshot")
 
 
 @_RUST_RUNTIME
@@ -211,9 +207,7 @@ def test_rust_init_snapshot_live_lots_key_present() -> None:
 def test_rust_step_delta_belief_nonempty() -> None:
     session = EngineSession()
     session.init(_cfg(), seed=42)
-    session.step(0)
-    session.step(8)
-    delta = session.step(0)
+    delta = session.step(8)
     _assert_belief_populated(delta["belief"], l_dim=2, k_dim=4, label="DayDelta")
 
 
@@ -265,9 +259,7 @@ def test_pyo3_init_includes_schedule_and_demand_summary() -> None:
 @_RUST_RUNTIME
 def test_pyo3_init_belief_delegates_to_session_bank() -> None:
     raw = _pyo3_init_raw()
-    belief = raw["belief"]
-    assert int(belief["L"]) == 2 and int(belief["K"]) == 4
-    assert sum(float(x) for x in belief["lot_counts"]) == pytest.approx(0.0, abs=1e-9)
+    _assert_belief_populated(raw["belief"], l_dim=2, k_dim=4, label="PyO3 init")
 
 
 @_RUST_RUNTIME
