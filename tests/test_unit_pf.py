@@ -39,7 +39,7 @@ def _require_unit_ll_wired() -> None:
     body = _read(VOI_CORE / "src" / "unit_ll.rs")
     for sym in (
         "sequential_kernel_path_logprob",
-        "p1_totals_loglik",
+        "delta_interval_loglik",
         "loglik_sales_by_units",
     ):
         if sym not in body and sym not in lib:
@@ -174,7 +174,7 @@ def test_lib_rs_reexports_unit_pf_public_api() -> None:
     for sym in (
         "filter_step_unit",
         "UnitParticleBank",
-        "p1_totals_loglik",
+        "delta_interval_loglik",
         "loglik_sales_by_units",
     ):
         assert sym in lib, f"lib.rs must re-export `{sym}` for session/VOI wiring"
@@ -193,10 +193,11 @@ def test_f1_mask_exposes_sales_by_for_per_lot_ll() -> None:
     assert proc.returncode == 0, proc.stderr
 
 
-def test_filter_step_unit_p1_router_uses_p1_totals_loglik() -> None:
+def test_filter_step_unit_p1_router_uses_delta_interval_loglik() -> None:
     _require_unit_pf_wired()
     body = _read(VOI_CORE / "src" / "unit_pf.rs")
-    assert "p1_totals_loglik" in body
+    assert "delta_interval_loglik" in body
+    assert "p1_totals_loglik" not in body
 
 
 def test_filter_step_unit_f1_router_uses_loglik_sales_by_units() -> None:
@@ -231,20 +232,9 @@ def test_sequential_kernel_path_logprob_feasible_finite() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_p1_totals_loglik_feasible_matches_hand_reference() -> None:
-    freshness = [0.9, 0.7, 0.5, 0.3, 0.1]
-    want = _hand_p1_totals_loglik(freshness, sales=2, waste=0, seed=11)
-    assert math.isfinite(want)
-    _require_unit_ll_wired()
-    proc = _cargo_unit_pf_ac("p1_totals_loglik_impossible_sales_neg_inf")
+def test_superseded_p1_totals_loglik_stays_removed() -> None:
+    proc = _cargo_unit_pf_ac("superseded_binomial_waste_primitives_are_gone")
     assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
-def test_p1_totals_loglik_impossible_sales_is_neg_inf() -> None:
-    freshness = [0.1, 0.0, 0.0]
-    got = _hand_p1_totals_loglik(freshness, sales=2, waste=0, seed=0)
-    assert got == float("-inf") or got < -1e100
-    _require_unit_ll_wired()
 
 
 def test_loglik_sales_by_units_requires_sales_by_path() -> None:

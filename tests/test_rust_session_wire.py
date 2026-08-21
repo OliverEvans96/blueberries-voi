@@ -86,7 +86,7 @@ def _pyo3_init_raw(*, seed: int = 42) -> Mapping[str, Any]:
 
 
 def _assert_belief_populated(
-    belief: Any, *, l_dim: int, k_dim: int, label: str
+    belief: Any, *, l_dim: int, k_dim: int, label: str, require_mass: bool = True
 ) -> None:
     assert isinstance(belief, Mapping), f"{label}.belief must be a mapping"
     missing = _FLAT_BELIEF_KEYS - set(belief)
@@ -119,13 +119,14 @@ def _assert_belief_populated(
         assert 0.0 <= fv <= 1.0, (
             f"{label}.belief.f_grid[{i}]={fv} outside freshness [0, 1]"
         )
-    assert any(float(x) != 0.0 for x in lot_counts), (
-        f"{label}.belief.lot_counts must be non-empty "
-        f"(filter bank wired), got {lot_counts!r}"
-    )
-    assert any(float(x) != 0.0 for x in f_marginals), (
-        f"{label}.belief.f_marginals must be non-empty, got stub zeros"
-    )
+    if require_mass:
+        assert any(float(x) != 0.0 for x in lot_counts), (
+            f"{label}.belief.lot_counts must be non-empty "
+            f"(filter bank wired), got {lot_counts!r}"
+        )
+        assert any(float(x) != 0.0 for x in f_marginals), (
+            f"{label}.belief.f_marginals must be non-empty, got stub zeros"
+        )
 
 
 def _assert_schedule_populated(schedule: Any, *, label: str) -> None:
@@ -169,10 +170,15 @@ def _assert_live_lots_populated(live_lots: Any, *, label: str) -> None:
 
 
 @_RUST_RUNTIME
-def test_rust_init_snapshot_belief_lot_counts_nonempty() -> None:
+def test_rust_init_snapshot_belief_zero_mass() -> None:
+    """ADR 0136: filter bank starts empty until observed arrivals."""
     session = EngineSession()
     snap = session.init(_cfg(), seed=42)
-    _assert_belief_populated(snap["belief"], l_dim=2, k_dim=4, label="init Snapshot")
+    _assert_belief_populated(
+        snap["belief"], l_dim=2, k_dim=4, label="init Snapshot", require_mass=False
+    )
+    mass = sum(float(x) for x in snap["belief"]["lot_counts"])
+    assert mass == pytest.approx(0.0, abs=1e-9)
 
 
 @_RUST_RUNTIME
@@ -207,7 +213,9 @@ def test_rust_init_snapshot_live_lots_key_present() -> None:
 def test_rust_step_delta_belief_nonempty() -> None:
     session = EngineSession()
     session.init(_cfg(), seed=42)
-    delta = session.step(8)
+    session.step(0)
+    session.step(8)
+    delta = session.step(0)
     _assert_belief_populated(delta["belief"], l_dim=2, k_dim=4, label="DayDelta")
 
 
@@ -259,7 +267,11 @@ def test_pyo3_init_includes_schedule_and_demand_summary() -> None:
 @_RUST_RUNTIME
 def test_pyo3_init_belief_delegates_to_session_bank() -> None:
     raw = _pyo3_init_raw()
-    _assert_belief_populated(raw["belief"], l_dim=2, k_dim=4, label="PyO3 init")
+    _assert_belief_populated(
+        raw["belief"], l_dim=2, k_dim=4, label="PyO3 init", require_mass=False
+    )
+    mass = sum(float(x) for x in raw["belief"]["lot_counts"])
+    assert mass == pytest.approx(0.0, abs=1e-9)
 
 
 @_RUST_RUNTIME
