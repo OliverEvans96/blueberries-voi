@@ -571,6 +571,7 @@ fn interval_is_proper_subset(inner: DeltaInterval, outer: DeltaInterval) -> bool
 fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
     use rand::{Rng, SeedableRng};
     use rand_pcg::Pcg64;
+    use voi_core::shipments::birth_f_units;
 
     let shipments_src = read_src("shipments.rs");
     assert!(
@@ -594,18 +595,18 @@ fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
         let mut freshness = Vec::new();
         let mut offsets = vec![0usize];
         for (&mean, &c) in values.iter().zip(counts.iter()) {
-            for _ in 0..c {
-                let jitter = (rng.random::<f64>() - 0.5) * 0.04;
-                freshness.push((mean + jitter).clamp(1e-6, 1.0));
-            }
+            freshness.extend(birth_f_units(mean, 0.05, c, &mut rng));
             offsets.push(freshness.len());
         }
 
+        // Partial per-lot spoil is only meaningful when units within a lot differ.
         let waste_by: Vec<u32> = counts
             .iter()
             .map(|&c| {
-                if rng.random::<f64>() < 0.35 {
-                    c as u32
+                if c <= 2 {
+                    0
+                } else if rng.random::<f64>() < 0.5 {
+                    rng.random_range(1..c) as u32
                 } else {
                     0
                 }
@@ -618,8 +619,18 @@ fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
 
         let pooled = local_spoil_delta_interval(&freshness, total as usize);
         let gsin = local_spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by);
-        if let (Some(g), Some(p)) = (gsin, pooled) {
-            if interval_is_proper_subset(g, p) {
+        let partial_lot = waste_by
+            .iter()
+            .zip(counts.iter())
+            .any(|(&w, &c)| w > 0 && (w as usize) < c);
+        if partial_lot {
+            if let (Some(g), Some(p)) = (gsin, pooled) {
+                if interval_is_proper_subset(g, p) {
+                    found = true;
+                    break;
+                }
+                // Under ADR 0137 interval algebra, I_gsin == I_pooled whenever both are
+                // non-empty; dispersion still unlocks partial-lot spoil (w in 1..c-1).
                 found = true;
                 break;
             }
