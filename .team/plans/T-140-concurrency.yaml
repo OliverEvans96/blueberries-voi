@@ -1,0 +1,107 @@
+ticket: T-140
+parent_tip: team/T-139/implement
+optimize: balanced
+batch_below:
+  max_files: 2
+  max_prod_loc: 100
+max_parallel: 4
+description: >
+  Stage C — unified gamma-in-warped-time arrival model: derive σ_within from shelf gamma,
+  φ̄ temperature prior, calendar pack_date (not rounded τ), thermal fleet, remove
+  f2a_transit_uncertainty_sd and mix_arrival_f. Notebook 14 + ADR 0133 orthogonality update.
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-140.md
+      - .team/adr/0141-unified-gamma-arrival-model.md
+      - .team/plans/T-140-concurrency.yaml
+    deps: []
+
+  - id: qa-shipments
+    role: qa
+    files:
+      - crates/voi_core/src/shipments.rs
+      - crates/voi_core/examples/gsin_upc_diag.rs
+      - .team/qa/T-140-shipments-tests.md
+    deps: [architect]
+
+  - id: qa-arrival-birth
+    role: qa
+    files:
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/obs.rs
+      - crates/voi_core/tests/t140_arrival_gamma.rs
+      - .team/qa/T-140-birth-tests.md
+    deps: [architect]
+
+  - id: qa-notebook
+    role: qa
+    files:
+      - experiments/notebook_14_source.md
+      - .team/qa/T-140-notebook-tests.md
+    deps: [architect]
+
+  - id: impl-shipments-unified
+    role: implement
+    shard: shipments-unified
+    files:
+      - crates/voi_core/src/shipments.rs
+      - crates/voi_core/src/params.rs
+    deps: [qa-shipments]
+
+  - id: impl-obs-session
+    role: implement
+    shard: obs-session
+    files:
+      - crates/voi_core/src/obs.rs
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/day_step.rs
+    deps: [impl-shipments-unified, qa-arrival-birth]
+
+  - id: impl-unit-pf-arrival
+    role: implement
+    shard: unit-pf-arrival
+    files:
+      - crates/voi_core/src/unit_pf.rs
+    deps: [impl-shipments-unified, qa-arrival-birth]
+
+  - id: impl-python-ts
+    role: implement
+    shard: python-ts
+    files:
+      - src/blueberries_voi/filter/arrival_priors.py
+      - web/src/scenarioAvailability.ts
+      - web/src/controls.ts
+      - web/src/paramLabels.ts
+      - web/src/types.ts
+      - web/src/mock/generate.ts
+    deps: [impl-obs-session]
+
+  - id: impl-diag-notebook
+    role: implement
+    shard: diag-notebook
+    files:
+      - crates/voi_core/examples/gsin_upc_diag.rs
+      - experiments/notebook_14_source.md
+      - crates/voi_core/tests/t134_arrival_f.rs
+    deps: [impl-unit-pf-arrival, impl-obs-session, qa-notebook]
+
+  - id: merge
+    role: merge
+    merge_last: true
+    deps: [impl-diag-notebook, impl-python-ts]
+    files:
+      - .team/changelog.md
+      - .team/adr/0133-observation-channel-toggles.md
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-140.md]
+    deps: [merge]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-140.md]
+    deps: [merge]
