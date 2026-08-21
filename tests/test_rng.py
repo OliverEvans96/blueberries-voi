@@ -48,3 +48,38 @@ def test_unknown_stream_raises() -> None:
         assert "unknown stream" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_stream_birth_in_known_streams() -> None:
+    assert bv_rng.STREAM_BIRTH in bv_rng.KNOWN_STREAMS
+
+
+def test_birth_stream_independent_of_arrival_ship() -> None:
+    birth = bv_rng.spawn_rng(138, run_id="parity", day=7, stream=bv_rng.STREAM_BIRTH)
+    ship = bv_rng.spawn_rng(
+        138, run_id="parity", day=7, stream=bv_rng.STREAM_ARRIVAL_SHIP
+    )
+    assert not np.array_equal(birth.random(10), ship.random(10))
+
+
+def test_birth_spawn_rng_matches_rust_next_u64_fixture() -> None:
+    """Shared AC-8 fixture: first ``next_u64`` from ``SpawnRng(..., \":birth\")``."""
+    from blueberries_voi import _core
+
+    fn = getattr(_core, "spawn_rng_next_u64_py", None)
+    if fn is None:
+        import pytest
+
+        pytest.skip("spawn_rng_next_u64_py not exported")
+    root_seed = 138
+    run_id = "parity"
+    day = 7
+    rust_u64 = fn(root_seed, run_id, day, bv_rng.STREAM_BIRTH)
+    assert rust_u64 == 3_144_966_429_211_324_941
+    birth = bv_rng.spawn_rng(
+        root_seed, run_id=run_id, day=day, stream=bv_rng.STREAM_BIRTH
+    )
+    repeat = bv_rng.spawn_rng(
+        root_seed, run_id=run_id, day=day, stream=bv_rng.STREAM_BIRTH
+    )
+    assert np.array_equal(birth.random(5), repeat.random(5))

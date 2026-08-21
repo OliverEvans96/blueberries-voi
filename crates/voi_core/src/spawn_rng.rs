@@ -161,6 +161,14 @@ mod tests {
         assert_ne!(demand.next_f64(), spoil.next_f64());
     }
 
+    /// AC-8 shared fixture with ``tests/test_rng.py::test_birth_spawn_rng_matches_rust_next_u64_fixture``.
+    #[test]
+    fn ac8_birth_stream_next_u64_fixture() {
+        use rand::RngCore;
+        let mut birth = SpawnRng::spawn_rng(138, "parity", 7, ":birth");
+        assert_eq!(birth.next_u64(), 3_144_966_429_211_324_941);
+    }
+
     #[test]
     fn spawn_rng_negative_binomial_mean_in_band() {
         let mu = 24.318_236_947_2_f64;

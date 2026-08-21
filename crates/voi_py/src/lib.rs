@@ -92,6 +92,14 @@ fn draw_demand_at_day_py(
 }
 
 #[pyfunction]
+#[pyo3(signature = (root_seed, run_id, day, stream))]
+fn spawn_rng_next_u64_py(root_seed: u64, run_id: &str, day: u32, stream: &str) -> PyResult<u64> {
+    use rand::RngCore;
+    let mut rng = SpawnRng::spawn_rng(root_seed, run_id, day, stream);
+    Ok(rng.next_u64())
+}
+
+#[pyfunction]
 fn sequential_wor_py(counts: Vec<u32>, sales_tot: i32, weights: Vec<f64>) -> Vec<(Vec<u32>, f64)> {
     sequential_wor_composition_probs(&counts, sales_tot, &weights)
 }
@@ -732,6 +740,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
     m.add_function(wrap_pyfunction!(protection_demand_quantile_py, m)?)?;
     m.add_function(wrap_pyfunction!(draw_demand_at_day_py, m)?)?;
+    m.add_function(wrap_pyfunction!(spawn_rng_next_u64_py, m)?)?;
     m.add_function(wrap_pyfunction!(sequential_wor_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;

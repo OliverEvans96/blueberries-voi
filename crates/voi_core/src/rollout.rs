@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::day_step::{unit_day_step, UnitDayStepIn};
+use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::{draw_demand_spawn, f_to_age, weibull_survival};
 use crate::policy::{damped_sw_order_f_belief, effective_inventory_f_belief};
@@ -306,6 +306,16 @@ fn path_value_f_belief(
         } else {
             (None, None, None)
         };
+        let mut rng_birth = if arrival > 0 {
+            Some(SpawnRng::spawn_rng(
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                STREAM_BIRTH,
+            ))
+        } else {
+            None
+        };
 
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
@@ -319,7 +329,7 @@ fn path_value_f_belief(
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
-        let out = unit_day_step(
+        let out = unit_day_step_with_birth(
             &input,
             params,
             &ctx.shipments,
@@ -327,6 +337,7 @@ fn path_value_f_belief(
             Some(&mut rng_alloc),
             None,
             None,
+            rng_birth.as_mut(),
         );
         profit += day_profit(
             out.sales_total,
@@ -418,6 +429,16 @@ fn path_arrival_units_sum(
         } else {
             (None, None, None)
         };
+        let mut rng_birth = if arrival > 0 {
+            Some(SpawnRng::spawn_rng(
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                STREAM_BIRTH,
+            ))
+        } else {
+            None
+        };
 
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
@@ -431,7 +452,7 @@ fn path_arrival_units_sum(
             age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
-        let out = unit_day_step(
+        let out = unit_day_step_with_birth(
             &input,
             params,
             &ctx.shipments,
@@ -439,6 +460,7 @@ fn path_arrival_units_sum(
             Some(&mut rng_alloc),
             None,
             None,
+            rng_birth.as_mut(),
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;
