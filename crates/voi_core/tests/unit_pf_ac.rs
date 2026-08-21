@@ -86,13 +86,49 @@ fn filter_step_unit_uses_systematic_resample_not_multinomial() {
     );
 }
 
+/// ADR 0137: the aggregate (UPC) path is the coarse case of the shared spoilage term,
+/// not a second likelihood. It must score the decrement interval like every other channel
+/// and must not carry a private binomial waste model.
 #[test]
-fn p1_router_scores_via_p1_totals_loglik() {
+fn aggregate_router_shares_the_spoil_interval_term() {
     require_unit_pf();
     let body = read_src("unit_pf.rs");
     assert!(
-        body.contains("p1_totals_loglik"),
-        "P1 totals path must call unit_ll::p1_totals_loglik"
+        body.contains("spoil_delta_interval") && body.contains("delta_interval_loglik"),
+        "aggregate path must score the shared decrement interval"
+    );
+    assert!(
+        !body.contains("binom_pmf") && !body.contains("p_die"),
+        "unit_pf must not reintroduce a per-unit binomial waste model"
+    );
+}
+
+/// ADR 0137: GSIN refines UPC on the *same* state, so the lot-resolved spoilage interval
+/// is the intersection of the per-lot intervals — never a wider or unrelated set.
+#[test]
+fn lot_resolved_spoil_interval_is_contained_in_the_pooled_one() {
+    require_unit_ll();
+    use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
+
+    // Lot 0 = [0.30, 0.30] (a tied cohort), lot 1 = [0.20].
+    let freshness = vec![0.30, 0.30, 0.20];
+    let offsets = vec![0, 2, 3];
+
+    // One unit spoiled somewhere: the pooled total cannot say which, so it stays feasible.
+    let (plo, phi) = spoil_delta_interval(&freshness, 1).expect("pooled admits one spoil");
+
+    // GSIN attributing it to lot 0 is impossible: tied units always spoil together.
+    assert!(
+        spoil_delta_interval_by_lot(&freshness, &offsets, &[1, 0]).is_none(),
+        "identical freshness in a lot spoils together; only GSIN can rule that split out"
+    );
+
+    // GSIN attributing it to lot 1 lands inside the pooled interval, never outside it.
+    let (glo, ghi) =
+        spoil_delta_interval_by_lot(&freshness, &offsets, &[0, 1]).expect("lot 1 spoils");
+    assert!(
+        glo >= plo && ghi <= phi,
+        "GSIN interval [{glo},{ghi}) must lie inside pooled [{plo},{phi})"
     );
 }
 
@@ -169,7 +205,10 @@ fn sequential_kernel_path_logprob_feasible_finite() {
     let params = ModelParams::default();
     let mut rng = Pcg64::seed_from_u64(7);
     let ll = sequential_kernel_path_logprob(&mut freshness, 2, &params, &mut rng);
-    assert!(ll.is_finite(), "feasible path logprob must be finite, got {ll}");
+    assert!(
+        ll.is_finite(),
+        "feasible path logprob must be finite, got {ll}"
+    );
 }
 
 #[test]
@@ -249,14 +288,15 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     require_unit_ll();
 
     use rand::Rng;
-    use rand_distr::{Distribution, Gamma};
     use rand::SeedableRng;
+    use rand_distr::{Distribution, Gamma};
     use rand_pcg::Pcg64;
     use voi_core::obs::FilterObs;
-    use voi_core::policy::{
-        damped_sw_order_f_belief, effective_inventory_f_belief,
+    use voi_core::policy::{damped_sw_order_f_belief, effective_inventory_f_belief};
+    use voi_core::{
+        belief_flat_from_unit_bank, filter_step_unit, picking_weights_f, ModelParams,
+        UnitParticleBank,
     };
-    use voi_core::{filter_step_unit, picking_weights_f, ModelParams, UnitParticleBank};
 
     const DAYS: usize = 14;
     const UNITS_PER_LOT: usize = 15;
@@ -300,9 +340,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         if k <= 1 {
             return vec![0.0];
         }
-        (0..k)
-            .map(|i| i as f64 / ((k - 1) as f64))
-            .collect()
+        (0..k).map(|i| i as f64 / ((k - 1) as f64)).collect()
     }
 
     fn f_to_bin(f: f64, grid: &[f64]) -> usize {
@@ -311,44 +349,6 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
             .min_by(|(_, a), (_, b)| (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap())
             .map(|(i, _)| i)
             .unwrap_or(0)
-    }
-
-    fn belief_wire_from_particles(
-        freshness: &[Vec<f64>],
-        weights: &[f64],
-        offsets: &[usize],
-        k_wire: usize,
-    ) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-        let l = offsets.len() - 1;
-        let grid = f_grid_k(k_wire);
-        let z: f64 = weights.iter().sum();
-        let mut lot_counts = vec![0.0; l];
-        let mut f_marginals = vec![0.0; l * k_wire];
-        for (p, row) in freshness.iter().enumerate() {
-            let w = if z > 0.0 { weights[p] / z } else { 0.0 };
-            for ell in 0..l {
-                let sl = &row[offsets[ell]..offsets[ell + 1]];
-                let alive = sl.iter().filter(|&&f| f > 0.0).count() as f64;
-                lot_counts[ell] += w * alive;
-                if alive > 0.0 {
-                    for &f in sl {
-                        if f > 0.0 {
-                            let b = f_to_bin(f, &grid);
-                            f_marginals[ell * k_wire + b] += w / alive;
-                        }
-                    }
-                }
-            }
-        }
-        for ell in 0..l {
-            let s: f64 = (0..k_wire).map(|b| f_marginals[ell * k_wire + b]).sum();
-            if s > 0.0 {
-                for b in 0..k_wire {
-                    f_marginals[ell * k_wire + b] /= s;
-                }
-            }
-        }
-        (lot_counts, f_marginals, grid)
     }
 
     fn gamma_decrement(rng: &mut Pcg64, gamma: &Gamma<f64>) -> f64 {
@@ -368,18 +368,12 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         let mut sold = vec![false; n_units];
         let to_sell = demand.min(alive.iter().filter(|&&a| a).count());
         for _ in 0..to_sell {
-            let idx_alive: Vec<usize> = (0..n_units)
-                .filter(|&i| alive[i] && !sold[i])
-                .collect();
+            let idx_alive: Vec<usize> = (0..n_units).filter(|&i| alive[i] && !sold[i]).collect();
             if idx_alive.is_empty() {
                 break;
             }
             let alive_f: Vec<f64> = idx_alive.iter().map(|&i| units_f[i]).collect();
-            let w = picking_weights_f(
-                &alive_f,
-                params.sigma,
-                params.uniform_picking,
-            );
+            let w = picking_weights_f(&alive_f, params.sigma, params.uniform_picking);
             let tot: f64 = w.iter().sum();
             let j = if tot <= 0.0 {
                 idx_alive[rng.random_range(0..idx_alive.len())]
@@ -449,12 +443,17 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     let mut units_f: Vec<f64> = (0..total)
         .map(|_| 0.45 + rng.random::<f64>() * 0.5)
         .collect();
-    let mut bank = UnitParticleBank {
-        weights: vec![1.0 / N_PARTICLES as f64; N_PARTICLES],
-        freshness: (0..N_PARTICLES)
-            .map(|_| (0..total).map(|_| 0.45 + rng.random::<f64>() * 0.5).collect())
+    let mut bank = UnitParticleBank::from_rows_uniform_lots(
+        vec![1.0 / N_PARTICLES as f64; N_PARTICLES],
+        (0..N_PARTICLES)
+            .map(|_| {
+                (0..total)
+                    .map(|_| 0.45 + rng.random::<f64>() * 0.5)
+                    .collect()
+            })
             .collect(),
-    };
+        UNITS_PER_LOT,
+    );
 
     for _day in 0..DAYS {
         let (sales, waste) = simulate_truth_day(&mut units_f, &offsets, &params, &mut rng, &gamma);
@@ -468,19 +467,12 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     }
 
     let truth_mf = lot_mean_f(&units_f, &offsets);
-    let mut pred_mf = vec![0.0; N_LOTS];
-    for p in 0..N_PARTICLES {
-        for ell in 0..N_LOTS {
-            let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
-            let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
-            let mf = if alive.is_empty() {
-                0.0
-            } else {
-                alive.iter().sum::<f64>() / alive.len() as f64
-            };
-            pred_mf[ell] += mf / N_PARTICLES as f64;
-        }
-    }
+    // Retired lots are dead in truth too, so the aligned view compares element-wise.
+    let pred_mf: Vec<f64> = bank
+        .lot_summary_aligned(N_LOTS)
+        .into_iter()
+        .map(|(_, mean_f)| mean_f)
+        .collect();
 
     let mean_f_mae = pred_mf
         .iter()
@@ -519,17 +511,23 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
             }
         }
     }
-    let truth_eff = effective_inventory_f_belief(
-        &truth_counts_f,
-        &truth_f_marginals,
-        &f_grid,
-        0,
-        1.0,
-    );
+    let truth_eff =
+        effective_inventory_f_belief(&truth_counts_f, &truth_f_marginals, &f_grid, 0, 1.0);
 
-    let uniform_w = vec![1.0 / N_PARTICLES as f64; N_PARTICLES];
-    let (pred_lc, pred_fm, pred_grid) =
-        belief_wire_from_particles(&bank.freshness, &uniform_w, &offsets, K_WIRE);
+    // Read the belief through the production studio wire rather than a local copy of it,
+    // so this gate also covers `belief_flat`'s lot alignment.
+    let wire = belief_flat_from_unit_bank(&bank, N_LOTS, K_WIRE);
+    let json_vec = |key: &str| -> Vec<f64> {
+        wire[key]
+            .as_array()
+            .map(|a| a.iter().filter_map(serde_json::Value::as_f64).collect())
+            .unwrap_or_default()
+    };
+    let (pred_lc, pred_fm, pred_grid) = (
+        json_vec("lot_counts"),
+        json_vec("f_marginals"),
+        json_vec("f_grid"),
+    );
     let belief_eff = effective_inventory_f_belief(&pred_lc, &pred_fm, &pred_grid, 0, 1.0);
     let _ = (truth_eff, belief_eff);
 
@@ -546,16 +544,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         1.0,
     );
     let pred_order = damped_sw_order_f_belief(
-        &pred_lc,
-        &pred_fm,
-        &pred_grid,
-        0,
-        7,
-        &params,
-        0.9,
-        0.8,
-        None,
-        1.0,
+        &pred_lc, &pred_fm, &pred_grid, 0, 7, &params, 0.9, 0.8, None, 1.0,
     );
 
     assert!(
@@ -563,8 +552,7 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
         "mean_f MAE {mean_f_mae} must be < {MEAN_F_MAE_MAX} (post-ADR-0135 re-baseline)"
     );
     assert_eq!(
-        truth_order,
-        pred_order,
+        truth_order, pred_order,
         "damped-SW order must match f-truth controller"
     );
 }
@@ -572,7 +560,10 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
 #[test]
 fn unit_ll_promoted_to_production() {
     let lib = read_lib_rs();
-    assert!(lib.contains("pub mod unit_ll"), "production lib must export unit_ll");
+    assert!(
+        lib.contains("pub mod unit_ll"),
+        "production lib must export unit_ll"
+    );
 }
 
 // --- T-136: P1/F1 sales likelihood unification ---
@@ -625,10 +616,11 @@ fn score_particle_mutates_freshness_after_finite_p1_ll() {
     let units = upl * 2;
     let n = 2;
     let mut rng = Pcg64::seed_from_u64(99);
-    let mut bank = UnitParticleBank {
-        weights: vec![0.5; n],
-        freshness: vec![vec![0.9; units], vec![0.8; units]],
-    };
+    let mut bank = UnitParticleBank::from_rows_uniform_lots(
+        vec![0.5; n],
+        vec![vec![0.9; units], vec![0.8; units]],
+        upl,
+    );
     let alive_before: usize = bank.freshness[0].iter().filter(|&&f| f > 0.0).count();
     let obs = FilterObs {
         sales_tot: Some(3),
@@ -650,8 +642,8 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
     require_unit_ll();
 
     use rand::Rng;
-    use rand_distr::{Distribution, Gamma};
     use rand::SeedableRng;
+    use rand_distr::{Distribution, Gamma};
     use rand_pcg::Pcg64;
     use voi_core::obs::{mask_for, RichDay};
     use voi_core::{filter_step_unit, ModelParams, UnitParticleBank};
@@ -675,14 +667,14 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
 
     let mut script: Vec<RichDay> = Vec::with_capacity(DAYS);
     for _ in 0..DAYS {
-        let (sales, waste, sales_by) =
+        let (sales, waste, sales_by, waste_by) =
             simulate_truth_day_with_split(&mut units_f, &offsets, &params, &mut truth_rng, &gamma);
         script.push(RichDay {
             sales_total: sales as u32,
             waste_total: waste as u32,
             arrivals: 0,
             sales_by,
-            waste_by: vec![0; N_LOTS],
+            waste_by,
             lot_ids: (0..N_LOTS).map(|i| i as i64).collect(),
             arrival_lot_ids: vec![],
             shipment_trace: None,
@@ -705,12 +697,11 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
     ) -> f64 {
         let total = init.len();
         let mut bank_rng = Pcg64::seed_from_u64(seed);
-        let mut bank = UnitParticleBank {
-            weights: vec![1.0 / n as f64; n],
-            freshness: (0..n)
+        let mut bank = UnitParticleBank::from_rows_uniform_lots(
+            vec![1.0 / n as f64; n],
+            (0..n)
                 .map(|p| {
-                    init
-                        .iter()
+                    init.iter()
                         .enumerate()
                         .map(|(i, &f)| {
                             let noise = ((p * 13 + i * 29) % 100) as f64 / 800.0 - 0.06;
@@ -719,7 +710,8 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
                         .collect()
                 })
                 .collect(),
-        };
+            UPL,
+        );
         for rich in script {
             let obs = if use_f1 {
                 mask_for("F1").unwrap().apply(rich)
@@ -729,19 +721,12 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             filter_step_unit(&mut bank, &obs, params, &mut bank_rng);
         }
         let truth_mf = lot_mean_f_alive(final_truth, offsets);
-        let mut pred_mf = vec![0.0; offsets.len() - 1];
-        for p in 0..n {
-            for ell in 0..offsets.len() - 1 {
-                let sl = &bank.freshness[p][offsets[ell]..offsets[ell + 1]];
-                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
-                let mf = if alive.is_empty() {
-                    0.0
-                } else {
-                    alive.iter().sum::<f64>() / alive.len() as f64
-                };
-                pred_mf[ell] += mf / n as f64;
-            }
-        }
+        let pred_mf: Vec<f64> = bank
+            .lot_summary_aligned(offsets.len() - 1)
+            .into_iter()
+            .map(|(_, mean_f)| mean_f)
+            .collect();
+        let _ = n;
         mean_f_mae(&truth_mf, &pred_mf)
     }
 
@@ -778,22 +763,35 @@ fn simulate_truth_day_with_split(
     params: &voi_core::ModelParams,
     rng: &mut rand_pcg::Pcg64,
     gamma: &rand_distr::Gamma<f64>,
-) -> (i32, i32, Vec<u32>) {
+) -> (i32, i32, Vec<u32>, Vec<u32>) {
     use rand::Rng;
     use rand_distr::Distribution;
     use voi_core::picking_weights_f;
-    for f in units_f.iter_mut() {
-        if *f > 0.0 {
-            *f = (*f - gamma.sample(rng)).max(0.0);
+    // One shared decrement per store-day, exactly as `physics::apply_gamma_aging` does —
+    // and the spoilage it causes must be *reported*, or the filter is fed an observation
+    // its own physics says is impossible.
+    let dec = gamma.sample(rng);
+    let l = offsets.len() - 1;
+    let mut waste_by = vec![0u32; l];
+    for i in 0..units_f.len() {
+        if units_f[i] > 0.0 {
+            let after = (units_f[i] - dec).max(0.0);
+            if after <= 0.0 {
+                for ell in 0..l {
+                    if i >= offsets[ell] && i < offsets[ell + 1] {
+                        waste_by[ell] += 1;
+                    }
+                }
+            }
+            units_f[i] = after;
         }
     }
+    let waste: i32 = waste_by.iter().sum::<u32>() as i32;
     let on_hand = units_f.iter().filter(|&&f| f > 0.0).count();
     if on_hand == 0 {
-        return (0, 0, vec![0; offsets.len() - 1]);
+        return (0, waste, vec![0; l], waste_by);
     }
-    let demand = rng
-        .random_range(1..=(on_hand / 3 + 1).max(2))
-        .min(on_hand);
+    let demand = rng.random_range(1..=(on_hand / 3 + 1).max(2)).min(on_hand);
     let mut sales_by = vec![0u32; offsets.len() - 1];
     let mut sold = vec![false; units_f.len()];
     for _ in 0..demand {
@@ -834,7 +832,7 @@ fn simulate_truth_day_with_split(
         }
     }
     let sales = sold.iter().filter(|&&s| s).count() as i32;
-    (sales, 0, sales_by)
+    (sales, waste, sales_by, waste_by)
 }
 
 #[test]
@@ -895,7 +893,10 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         offsets: &[usize],
         n_lots: usize,
     ) -> f64 {
-        let mx = log_weights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let mx = log_weights
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
         let mut w: Vec<f64> = log_weights.iter().map(|lw| (lw - mx).exp()).collect();
         let z: f64 = w.iter().sum();
         if z <= 0.0 {
@@ -925,7 +926,8 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         p1_log_w.push(ll_p1);
         let mut ll_f1 = loglik_sales_by_units(row, &sales_by, &offsets, &params);
         if obs_f1.waste_by.is_some() {
-            ll_f1 += loglik_waste_by_units(row, &sales_by, obs_f1.waste_by.as_ref().unwrap(), &offsets);
+            ll_f1 +=
+                loglik_waste_by_units(row, &sales_by, obs_f1.waste_by.as_ref().unwrap(), &offsets);
         }
         f1_log_w.push(ll_f1);
     }
@@ -1176,7 +1178,10 @@ fn engine_session_init_belief_mass_zero() {
         .filter_map(|x| x.as_f64())
         .collect();
     let mass: f64 = lc.iter().sum();
-    assert!(mass.abs() < 1e-9, "init belief mass must be zero, got {mass}");
+    assert!(
+        mass.abs() < 1e-9,
+        "init belief mass must be zero, got {mass}"
+    );
 }
 
 #[test]
@@ -1216,10 +1221,7 @@ fn filter_birth_matches_arrival_qty_not_upl() {
 
     let upl = 15usize;
     let n = 8usize;
-    let mut bank = UnitParticleBank {
-        weights: vec![1.0 / n as f64; n],
-        freshness: vec![vec![]; n],
-    };
+    let mut bank = UnitParticleBank::empty(n);
     let obs = FilterObs {
         sales_tot: Some(0),
         waste_tot: Some(0),
@@ -1237,5 +1239,9 @@ fn filter_birth_matches_arrival_qty_not_upl() {
         .iter()
         .map(|row| row.iter().filter(|&&f| f > 0.0).count())
         .sum();
-    assert_eq!(alive, n * 8, "each particle should birth 8 units, got {alive}");
+    assert_eq!(
+        alive,
+        n * 8,
+        "each particle should birth 8 units, got {alive}"
+    );
 }

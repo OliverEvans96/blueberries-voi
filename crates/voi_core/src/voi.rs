@@ -4,15 +4,15 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step, ModelParams, UnitDayStepIn};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order_f_belief;
-use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::unit_pf::{filter_step_unit, UnitParticleBank};
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
@@ -55,16 +55,24 @@ fn pop_arrival(pending: &mut std::collections::BTreeMap<u32, u32>, day: u32) -> 
     pending.remove(&day).unwrap_or(0)
 }
 
-fn init_filter_bank(n: usize, _root_seed: u64, _scenario: &str, _l: usize, _upl: usize, _k: usize) -> UnitParticleBank {
+fn init_filter_bank(
+    n: usize,
+    _root_seed: u64,
+    _scenario: &str,
+    _l: usize,
+    _upl: usize,
+    _k: usize,
+) -> UnitParticleBank {
     let _ = (_root_seed, _scenario, _l, _upl, _k);
     // ADR 0136: zero-init — match P0 / EngineSession empty bank.
-    UnitParticleBank {
-        weights: vec![1.0 / n as f64; n],
-        freshness: vec![vec![]; n],
-    }
+    UnitParticleBank::empty(n)
 }
 
-fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+fn f_belief_from_bank(
+    bank: &UnitParticleBank,
+    l: usize,
+    k: usize,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let v = belief_flat_from_unit_bank(bank, l, k);
     let lot_counts: Vec<f64> = v["lot_counts"]
         .as_array()
@@ -103,9 +111,7 @@ pub fn truth_f_belief(
                 let bin = f_grid
                     .iter()
                     .enumerate()
-                    .min_by(|(_, a), (_, b)| {
-                        (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap()
-                    })
+                    .min_by(|(_, a), (_, b)| (*a - f).abs().partial_cmp(&(*b - f).abs()).unwrap())
                     .map(|(i, _)| i)
                     .unwrap_or(0);
                 f_marginals[ell * k + bin] += 1.0;
@@ -163,10 +169,7 @@ fn run_scenario_episode(
     let n = budgets.filter_n.max(1) as usize;
     let upl = params.units_per_lot.max(1);
     let mut bank = if oracle || scenario == "P0" {
-        UnitParticleBank {
-            weights: vec![1.0 / n as f64; n],
-            freshness: vec![vec![]; n],
-        }
+        UnitParticleBank::empty(n)
     } else {
         init_filter_bank(n, root_seed, scenario, FILTER_INIT_L, upl, FILTER_INIT_K)
     };
@@ -236,13 +239,8 @@ fn run_scenario_episode(
         let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
             let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
-                &mut rng_ship,
-                &mut rng_sensor,
-                shipments,
-                params,
-                1.0,
-            );
+            let (f, tau, pack) =
+                arrival_receipt_meta(&mut rng_ship, &mut rng_sensor, shipments, params, 1.0);
             (Some(f), Some(tau), Some(pack))
         } else {
             (None, None, None)
@@ -284,10 +282,13 @@ fn run_scenario_episode(
         );
         freshness = out.freshness;
         lot_offsets = out.lot_offsets;
-        if arrival > 0 {
+        let arrival_lot_ids = if arrival > 0 {
             lot_ids.push(next_lot);
             next_lot += 1;
-        }
+            vec![next_lot - 1]
+        } else {
+            Vec::new()
+        };
         if day >= budgets.n_burn {
             scored += day_profit(out.sales_total, out.waste_total, out.demand, 2.0, 1.5, 3.0);
         }
@@ -299,13 +300,15 @@ fn run_scenario_episode(
                 sales_by: out.sales_by.clone(),
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
-                arrival_lot_ids: Vec::new(),
+                arrival_lot_ids,
                 shipment_trace: None,
                 f_at_receipt,
                 age_at_receipt,
                 pack_date_days,
             };
-            let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
+            let obs = mask_for(scenario)
+                .expect("valid VOI filter scenario")
+                .apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
             filter_step_unit(&mut bank, &obs, params, &mut frng);
         }
@@ -432,12 +435,17 @@ mod tests {
         );
     }
 
+    /// AC: the observation mask changes the closed loop.
+    ///
+    /// Needs a horizon long enough for belief differences to survive case rounding — over
+    /// ~10 days every rung places the same case-rounded orders and the profits tie for
+    /// reasons that have nothing to do with the filter.
     #[test]
     fn p0_and_f1_profits_differ_on_seed_42() {
         let ships = [ShipmentTrace::smoke_cool()];
         let b = CrnBudgets {
             n_burn: 2,
-            n_score: 8,
+            n_score: 20,
             filter_n: 32,
             h: 2,
             n_rollout_paths: 2,
@@ -460,12 +468,7 @@ mod tests {
         let f2 = mask_for("F2").expect("F2");
         assert!(f2.pack_date);
         assert!(!f2.age_at_receipt);
-        assert!(
-            f2.sales_by_lot
-                && f2.waste_by_lot
-                && f2.lot_ids_live
-                && f2.arrival_lot_ids
-        );
+        assert!(f2.sales_by_lot && f2.waste_by_lot && f2.lot_ids_live && f2.arrival_lot_ids);
         assert!(p1.waste_total && !p1.sales_by_lot);
         assert!(!p1.pack_date && !p1.age_at_receipt);
     }
@@ -528,10 +531,9 @@ mod tests {
 
     #[test]
     fn crn_calendar_profile_changes_b_state_profit() {
-        let profile = DemandProfile::from_json(include_str!(
-            "../../../data/freshnet/demand_profile.json"
-        ))
-        .expect("embedded profile");
+        let profile =
+            DemandProfile::from_json(include_str!("../../../data/freshnet/demand_profile.json"))
+                .expect("embedded profile");
         let ships = [ShipmentTrace::smoke_cool()];
         let b = CrnBudgets {
             n_burn: 0,

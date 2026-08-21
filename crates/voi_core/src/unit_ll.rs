@@ -1,13 +1,98 @@
-//! Unit-level sequential picking log-likelihoods (C2 Algorithm A / ADR 0130, ADR 0135).
+//! Unit-level observation log-likelihoods (C2 Algorithm A / ADR 0130, 0135, 0137).
 //!
-//! Sales **importance weights** are deterministic (feasibility gates + binomial waste +
-//! multinomial cross-lot allocation for F1). Stochastic WOR path draws live only in
-//! `sequential_kernel_path_logprob`, used as an **unscored** state-transition kernel.
+//! Every term is **deterministic** given the particle state. Stochastic draws live only in
+//! `sequential_kernel_path_logprob` (unscored sales removal) and in the adapted aging
+//! proposal, which samples the daily decrement from the interval this module derives.
+//!
+//! ## Spoilage is an interval constraint on one shared latent
+//!
+//! Ground truth ages the whole store with a **single** gamma decrement `δ` per day
+//! (`physics::apply_gamma_aging`), so a unit with pre-aging freshness `f > 0` spoils iff
+//! `f ≤ δ`. Observing that `w` units spoiled therefore does not merely *reweight* the
+//! particle — it confines `δ` to the half-open interval `[g_w, g_{w+1})`, where `g_j` is
+//! the `j`-th smallest pre-aging freshness in the observed group (`g_0 = 0`,
+//! `g_{m+1} = ∞`). The likelihood is the gamma mass of that interval; the state update
+//! samples `δ` from the gamma truncated to it.
+//!
+//! ## Why GSIN dominates UPC by construction
+//!
+//! UPC observes only the store total `w`, giving the pooled interval `I_pooled`.
+//! GSIN observes `w_ℓ` per lot, giving `I_gsin = ⋂_ℓ I_ℓ`. Every `δ` consistent with the
+//! per-lot counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always**: the
+//! richer channel can only sharpen the posterior over `δ`, never blur it. GSIN adds a
+//! second term UPC cannot have — the multinomial cross-lot sales split.
 
 use rand::Rng;
 
-use crate::physics::picking_weights_f;
+use crate::physics::{gamma_decrement_interval_prob, picking_weights_f};
 use crate::ModelParams;
+
+/// Half-open interval `[lo, hi)` of daily decrements consistent with an observation.
+pub type DeltaInterval = (f64, f64);
+
+/// The unconstrained interval: any non-negative decrement.
+pub const DELTA_ANY: DeltaInterval = (0.0, f64::INFINITY);
+
+/// Decrements `δ` for which exactly `w` of `pre_f`'s live units spoil.
+///
+/// Returns `None` when no `δ` produces exactly `w` spoils — including the tie case where
+/// two units share a freshness value and therefore always spoil together.
+pub fn spoil_delta_interval(pre_f: &[f64], w: usize) -> Option<DeltaInterval> {
+    let mut live: Vec<f64> = pre_f.iter().copied().filter(|&f| f > 0.0).collect();
+    let m = live.len();
+    if w > m {
+        return None;
+    }
+    live.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let lo = if w == 0 { 0.0 } else { live[w - 1] };
+    let hi = if w == m { f64::INFINITY } else { live[w] };
+    if hi <= lo {
+        return None;
+    }
+    Some((lo, hi))
+}
+
+/// Intersect the per-lot spoilage intervals (GSIN `waste_by`).
+///
+/// `waste_by` is indexed by the bank's own lot segments; callers must project the observed
+/// map onto those segments first (`unit_pf::project_lot_map`).
+pub fn spoil_delta_interval_by_lot(
+    freshness: &[f64],
+    offsets: &[usize],
+    waste_by: &[u32],
+) -> Option<DeltaInterval> {
+    let n_lots = offsets.len().saturating_sub(1);
+    if waste_by.len() != n_lots {
+        return None;
+    }
+    let (mut lo, mut hi) = DELTA_ANY;
+    for ell in 0..n_lots {
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        let (l, h) = spoil_delta_interval(&freshness[start..end], waste_by[ell] as usize)?;
+        lo = lo.max(l);
+        hi = hi.min(h);
+    }
+    if hi <= lo {
+        return None;
+    }
+    Some((lo, hi))
+}
+
+/// Log gamma mass of a decrement interval — the spoilage log-likelihood term.
+pub fn delta_interval_loglik(interval: Option<DeltaInterval>, params: &ModelParams) -> f64 {
+    match interval {
+        None => f64::NEG_INFINITY,
+        Some((lo, hi)) => {
+            let p = gamma_decrement_interval_prob(lo, hi, params);
+            if p > 0.0 {
+                p.ln()
+            } else {
+                f64::NEG_INFINITY
+            }
+        }
+    }
+}
 
 pub fn binom_pmf(k: i32, n: i32, p: f64) -> f64 {
     if k < 0 || k > n || n < 0 {
@@ -108,11 +193,7 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     params: &ModelParams,
     rng: &mut R,
 ) -> f64 {
-    let base_w = picking_weights_f(
-        freshness,
-        params.sigma,
-        params.uniform_picking,
-    );
+    let base_w = picking_weights_f(freshness, params.sigma, params.uniform_picking);
     let mut alive = vec![true; freshness.len()];
     let mut log_p = 0.0;
     for _ in 0..sales {
@@ -145,10 +226,14 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     log_p
 }
 
-/// P1 totals-only log-likelihood: feasibility gate + binomial waste (deterministic).
+/// **Superseded (ADR 0137) — research/parity use only.**
 ///
-/// Sales path probability is **not** scored (ADR 0135). `waste_tot` is evaluated on
-/// pre-removal freshness.
+/// P1 totals log-likelihood with an ad-hoc waste term: `Binomial(waste; alive - sales,
+/// dead/units)`, treating the fraction of already-dead slots as a per-unit death
+/// probability. That has no derivation from the physics: spoilage is not an independent
+/// per-unit coin flip, it is the deterministic consequence of one shared gamma decrement
+/// (`spoil_delta_interval`). Production scoring no longer calls this; it is kept for
+/// PyO3 parity tests and the pre-0137 comparison in `experiments/`.
 pub fn p1_totals_loglik(
     freshness: &[f64],
     sales_tot: i32,
@@ -223,7 +308,10 @@ pub(crate) fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {
     padded
 }
 
-/// Per-lot binomial waste after observed `sales_by` (F2 / F1s lot-resolved wire).
+/// **Superseded (ADR 0137) — research/parity use only.** See `p1_totals_loglik`.
+///
+/// Per-lot binomial waste after observed `sales_by`; also factorizes over lots, which the
+/// shared decrement makes false.
 pub fn loglik_waste_by_units(
     freshness: &[f64],
     sales_by: &[u32],
@@ -262,6 +350,8 @@ pub fn loglik_waste_by_units(
     log_p
 }
 
+/// **Superseded (ADR 0137) — research/parity use only.** See `p1_totals_loglik`.
+///
 /// Aggregate waste total after lot-resolved sales (legacy `log_p_known_sales_and_waste`).
 pub fn loglik_waste_tot_after_sales_by(
     freshness: &[f64],

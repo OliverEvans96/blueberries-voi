@@ -129,7 +129,10 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
         root_seed=_CRN_ROOT_SEED,
         scenarios=list(VOI_SCENARIOS),
         n_burn=2,
-        n_score=6,
+        # See test_rust_voi_crn_masks: rungs only separate once the horizon is long
+        # enough for belief differences to change a case-rounded order. This gate also
+        # asserts pairwise separation (P0/F1, P1/F2), which needs longer still.
+        n_score=30,
         filter_n=24,
         H=2,
         n_rollout_paths=2,

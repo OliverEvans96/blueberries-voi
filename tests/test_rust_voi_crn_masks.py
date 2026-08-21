@@ -25,7 +25,10 @@ _STRUCTURAL_ATOL = 1e-6
 
 _ROOT_SEED = 42
 _N_BURN = 2
-_N_SCORE = 8
+# Long enough for a belief difference to survive case rounding into a different order.
+# Under ~12 scored days every rung places identical orders and the profits tie for
+# reasons unrelated to the observation mask (ADR 0137 investigation).
+_N_SCORE = 16
 _FILTER_N = 32
 _H = 2
 _N_ROLLOUT_PATHS = 2

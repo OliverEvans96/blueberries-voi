@@ -190,10 +190,19 @@ def test_f1_mask_exposes_sales_by_for_per_lot_ll() -> None:
     assert proc.returncode == 0, proc.stderr
 
 
-def test_filter_step_unit_p1_router_uses_p1_totals_loglik() -> None:
+def test_filter_step_unit_aggregate_router_shares_spoil_interval() -> None:
+    """ADR 0137: UPC is the coarse case of one shared spoilage term, not its own model.
+
+    The aggregate path used to carry a private ``Binomial(waste; rem, dead/units)``
+    weight with no derivation from the physics. Spoilage is now scored as the gamma
+    mass of the decrement interval the observation implies, identically for every
+    channel.
+    """
     _require_unit_pf_wired()
     body = _read(VOI_CORE / "src" / "unit_pf.rs")
-    assert "p1_totals_loglik" in body
+    assert "spoil_delta_interval" in body
+    assert "delta_interval_loglik" in body
+    assert "binom_pmf" not in body, "no per-unit binomial waste model in the filter"
 
 
 def test_filter_step_unit_f1_router_uses_loglik_sales_by_units() -> None:
