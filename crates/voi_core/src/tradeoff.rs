@@ -163,8 +163,7 @@ pub fn tradeoff_forecast(
         let missed_mean = missed_samples.iter().sum::<f64>() / n as f64;
         let waste_bins = vec![0.0, 1.0, 2.0, 4.0, 8.0, 16.0];
         let missed_bins = vec![0.0, 2.0, 4.0, 8.0, 16.0, 32.0];
-        let mut counts =
-            vec![vec![0u32; missed_bins.len() - 1]; waste_bins.len() - 1];
+        let mut counts = vec![vec![0u32; missed_bins.len() - 1]; waste_bins.len() - 1];
         for i in 0..waste_samples.len() {
             let wi = bin_index(waste_samples[i], &waste_bins);
             let mi = bin_index(missed_samples[i], &missed_bins);
@@ -207,16 +206,16 @@ mod tests {
 
     #[test]
     fn tradeoff_returns_candidates_with_bands() {
-        let bank = UnitParticleBank {
-            weights: vec![0.5, 0.5],
-            freshness: vec![vec![1.0, 0.9], vec![0.8, 0.7]],
-        };
+        let bank = UnitParticleBank::from_rows_uniform_lots(
+            vec![0.5, 0.5],
+            vec![vec![1.0, 0.9], vec![0.8, 0.7]],
+            2,
+        );
         let params = ModelParams::default();
         let schedule = OrderSchedule::default();
         let v = tradeoff_forecast(&bank, 2, &params, &schedule, 0, 42, 4, Some(3));
         let cands = v["candidates"].as_array().unwrap();
         assert!(!cands.is_empty());
-        assert!(cands[0]["waste_p90"].as_f64().unwrap()
-            >= cands[0]["waste_p10"].as_f64().unwrap());
+        assert!(cands[0]["waste_p90"].as_f64().unwrap() >= cands[0]["waste_p10"].as_f64().unwrap());
     }
 }

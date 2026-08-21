@@ -2,6 +2,12 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-20
+- **Lot-tracked (GSIN) stores now get the accurate belief they were supposed to: the filter had been guessing where one delivery ended and the next began, which silently switched its lot-level learning off entirely. It now takes the lot boundaries straight from the delivery record, so belief inventory matches the real shelf exactly, per-lot counts are exact, and simulated profit for the GSIN settings jumped from roughly a third of the books-only settings to matching them** (ADR 0137).
+- **Spoilage is now read the way it actually happens — one shared ageing step for the whole store on a given day, rather than each pack spoiling on its own coin flip — which is both more defensible and what lets lot-level data sharpen the picture instead of blurring it** (ADR 0137).
+- **Episodes now start with an empty shelf everywhere — we removed the “starting inventory” control, fixed ghost stock on the belief chart at day zero, aligned GSIN with UPC when nothing has sold yet, and deliveries add the correct number of units** (T-137).
+- **The production freshness filter now scores sales the same way for books-only and lot-tracked stores — GSIN totals are no longer noisier than UPC, sold units are removed from particle state after each sale, and lot-level sales use a proper cross-lot split instead of repeated single-path guesses** (T-136).
+
 ## 2026-08-17
 - **The studio cockpit now centers today’s inventory, orders, and shelf-age charts, gives the events log a full-height column, moves observation and tradeoff controls into the secondary pane beside the belief chart, and shows the day-of-week demand profile right next to the demand sliders when you open the Demand tab** (T-130).
 

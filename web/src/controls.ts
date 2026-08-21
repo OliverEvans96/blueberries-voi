@@ -204,7 +204,6 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
-  { id: "starting_inv", label: "starting inventory", min: 0, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   {
     id: "spread_scale",
     label: "spread_scale (FIL-11)",
