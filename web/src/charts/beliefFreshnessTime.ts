@@ -379,7 +379,9 @@ export function renderBeliefFreshnessTime(
     .attr("role", "img")
     .attr("aria-label", "Belief freshness over time with optional truth overlay")
     .attr("data-margin-left", margin.left)
-    .attr("data-margin-right", margin.right);
+    .attr("data-margin-right", margin.right)
+    .attr("data-margin-top", margin.top)
+    .attr("data-margin-bottom", margin.bottom);
 
   const g = svg
     .append("g")
