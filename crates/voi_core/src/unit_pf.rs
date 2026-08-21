@@ -1,16 +1,17 @@
 //! Unit-level particle filter for C2 Algorithm A (ADR 0130).
 
 use rand::Rng;
+use rand::SeedableRng;
 use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
-use rand::SeedableRng;
 
 use crate::obs::FilterObs;
-use crate::physics::{apply_gamma_aging, age_to_f};
-use crate::shipments::{arrival_age_from_path, shipment_arrival_age, ShipmentTrace};
+use crate::physics::{age_to_f, apply_gamma_aging};
+use crate::shipments::{
+    arrival_age_from_path, birth_f_f2_dirac, birth_f_units, shipment_arrival_age, ShipmentTrace,
+};
 use crate::unit_ll::{
-    loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by,
-    p1_totals_loglik,
+    loglik_sales_by_units, loglik_waste_by_units, loglik_waste_tot_after_sales_by, p1_totals_loglik,
 };
 use crate::ModelParams;
 
@@ -59,6 +60,17 @@ fn n_lots_from_units(units: usize, units_per_lot: usize) -> usize {
     units / units_per_lot
 }
 
+/// Inject one delivery: per-particle birth vectors (length `arrivals`) from `birth_f_units`.
+fn push_lot(bank: &mut UnitParticleBank, per_particle: &[Vec<f64>], arrivals: usize) {
+    for (row, births) in bank.freshness.iter_mut().zip(per_particle.iter()) {
+        debug_assert_eq!(births.len(), arrivals);
+        if row.len() >= arrivals {
+            row.drain(0..arrivals);
+        }
+        row.extend(births.iter().copied());
+    }
+}
+
 fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
     let ships = [
         ShipmentTrace {
@@ -83,6 +95,9 @@ fn mix_arrival_f<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
 }
 
 fn birth_f<R: Rng + ?Sized>(obs: &FilterObs, params: &ModelParams, rng: &mut R) -> f64 {
+    if let Some(age) = obs.age_at_receipt {
+        return birth_f_f2_dirac(age, params.eta_ref);
+    }
     if let (Some(times), Some(temps)) = (&obs.temp_times_d, &obs.temp_temps_c) {
         if times.len() >= 2 && temps.len() == times.len() {
             let age = arrival_age_from_path(temps, times, params.q10, params.t_ref_c);
@@ -174,20 +189,24 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         *x -= mx;
     }
 
-    if obs.arrivals > 0 && n_lots > 0 {
-        for p in 0..n {
-            let birth = birth_f(obs, params, rng);
-            let row = &mut bank.freshness[p];
-            if row.len() >= upl {
-                row.drain(0..upl);
-            }
-            row.extend(vec![birth; upl]);
-        }
-    }
-
     let idx = systematic_resample(&log_w);
     bank.freshness = idx.iter().map(|&j| bank.freshness[j].clone()).collect();
     bank.weights = vec![1.0 / n as f64; n];
+
+    if obs.arrivals > 0 {
+        let arrivals = obs.arrivals as usize;
+        let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
+        for _ in 0..n {
+            let lot_mean_f = birth_f(obs, params, rng);
+            per_particle.push(birth_f_units(
+                lot_mean_f,
+                params.arrival_dispersion_sd,
+                arrivals,
+                rng,
+            ));
+        }
+        push_lot(bank, &per_particle, arrivals);
+    }
 }
 
 #[cfg(test)]
@@ -204,7 +223,11 @@ mod tests {
         let mut bank = UnitParticleBank {
             weights: vec![0.25; n],
             freshness: (0..n)
-                .map(|_| (0..units).map(|_| 0.5 + rng.random::<f64>() * 0.3).collect())
+                .map(|_| {
+                    (0..units)
+                        .map(|_| 0.5 + rng.random::<f64>() * 0.3)
+                        .collect()
+                })
                 .collect(),
         };
         let obs = FilterObs {
@@ -228,10 +251,7 @@ mod tests {
         let mut rng = Pcg64::seed_from_u64(2);
         let bank = UnitParticleBank {
             weights: vec![0.5, 0.5],
-            freshness: vec![
-                vec![0.8; units],
-                vec![0.6; units],
-            ],
+            freshness: vec![vec![0.8; units], vec![0.6; units]],
         };
         let mut bank = bank;
         let obs = FilterObs {

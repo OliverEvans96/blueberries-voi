@@ -117,7 +117,8 @@ fn filter_birth_uses_birth_f_units_per_particle() {
 fn filter_particles_differ_within_lot_under_dispersion() {
     require_arrival_dispersion_sd_field();
     require_birth_f_units_export();
-    let params = ModelParams::default();
+    let mut params = ModelParams::default();
+    params.arrival_dispersion_sd = 0.05;
     let upl = 8usize;
     let mut bank = UnitParticleBank {
         weights: vec![0.5, 0.5],
