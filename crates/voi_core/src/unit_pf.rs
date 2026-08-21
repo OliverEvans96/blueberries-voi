@@ -38,8 +38,9 @@ use crate::shipments::{
     arrival_age_from_path, birth_f_f2_dirac, birth_f_units, shipment_arrival_age, ShipmentTrace,
 };
 use crate::unit_ll::{
-    delta_interval_loglik, loglik_sales_by_units, sequential_kernel_path_logprob,
-    spoil_delta_interval, spoil_delta_interval_by_lot, DeltaInterval, DELTA_ANY,
+    contrast_spoilage_weight, delta_interval_loglik, loglik_sales_by_units,
+    sequential_kernel_path_logprob, spoil_delta_interval, spoil_delta_interval_by_lot,
+    DeltaInterval, DELTA_ANY,
 };
 use crate::ModelParams;
 
@@ -480,6 +481,9 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
 
         // 1. Spoilage: score the observed decrement interval, then age from within it.
         let (interval, mut ll) = ev.delta_interval(row, &offsets, params);
+        if params.arrival_dispersion_sd > 0.0 {
+            ll += contrast_spoilage_weight(row, &offsets, params.arrival_dispersion_sd).ln();
+        }
         let decrement = match interval {
             Some((lo, hi)) => draw_gamma_decrement_truncated(&mut path_rng, params, lo, hi),
             None => draw_gamma_decrement(&mut path_rng, params),
