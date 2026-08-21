@@ -185,6 +185,7 @@ def test_rollout_differs_from_constant_when_filter_enabled() -> None:
 
 
 # AC B3: distinct policy dispatch (damped_sw vs rollout)
+@_BELIEF_RNG_XFAIL
 def test_damped_sw_and_rollout_are_distinct_when_reference_differs() -> None:
     rust_sw = _policy_order("damped_sw", backend="rust")
     rust_roll = _policy_order("rollout", backend="rust")

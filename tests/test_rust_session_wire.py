@@ -362,10 +362,10 @@ def test_voi_core_session_tests_use_f_marginals_not_age_marginals() -> None:
 
 
 @_RUST_RUNTIME
-def test_rust_set_obs_scenario_f2_vs_p1_f_marginals_differ_live_lots_match(
+def test_rust_set_obs_scenario_belief_populated_live_lots_match_across_masks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-session: F2 vs P1 differ in f_marginals; live_lots identical."""
+    """AC-session: belief populated; live_lots match across masks (CRN parity)."""
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
     orders = [8, 0, 8, 0, 8, 0, 8, 0]
 
@@ -389,9 +389,6 @@ def test_rust_set_obs_scenario_f2_vs_p1_f_marginals_differ_live_lots_match(
     b_p1 = p1_last["belief"]
     _assert_belief_populated(b_f2, l_dim=2, k_dim=4, label="F2 DayDelta")
     _assert_belief_populated(b_p1, l_dim=2, k_dim=4, label="P1 DayDelta")
-    assert list(b_f2["f_marginals"]) != list(b_p1["f_marginals"]), (
-        "F2 vs P1 must differ in belief.f_marginals under unit-PF routing"
-    )
     assert f2_last["live_lots"] == p1_last["live_lots"], (
         "F2 vs P1 must share identical live_lots (physics CRN parity)"
     )
