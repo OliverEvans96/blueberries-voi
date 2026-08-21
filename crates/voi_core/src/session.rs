@@ -1297,24 +1297,31 @@ mod tests {
         assert_eq!(cfg["candidate_case_radius"], 2);
         assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
         let warm = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"2","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
-        let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
-        let f_warm = warm_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(warm_v["ok"], true, "{warm}");
+        let warm_steps = warm_v["result"].as_array().unwrap();
+        let f_warm = warm_steps
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("warm shipment arrival must populate live_lots");
         let smoke = handle_rpc(
             r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
         );
         assert_eq!(smoke.contains("\"ok\":true"), true);
         let cool = handle_rpc(
-            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"4","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
-        let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
-        let f_cool = cool_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(cool_v["ok"], true, "{cool}");
+        let f_cool = cool_v["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("smoke shipment arrival must populate live_lots");
         assert!(
             f_warm < f_cool - 1e-6,
