@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
-import { channelsCacheKey, channelsForPreset } from "../obsMask";
+import { channelsCacheKey, channelsForPreset, resolveDisplayObsScenario } from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -49,6 +49,10 @@ import {
   renderArrivalShift,
 } from "../charts/arrivalPrior";
 import {
+  renderArrheniusTemp,
+  renderGammaFreshnessPath,
+} from "../charts/physicsTeaching";
+import {
   controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
   EPISODE_HORIZON,
@@ -66,6 +70,7 @@ import {
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
+import { scheduleFromConfig } from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
@@ -140,7 +145,14 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function controlsState() {
-    return { ...controlsFromVm(vm, orderQty, schedule), catchingUp };
+    const previewSchedule =
+      vm.config.delivery_weekdays?.length > 0
+        ? scheduleFromConfig(vm.config)
+        : schedule;
+    return {
+      ...controlsFromVm(vm, orderQty, previewSchedule),
+      catchingUp,
+    };
   }
 
   let orderQty = snapOrder(24);
@@ -198,6 +210,8 @@ export function initStudio(app: HTMLElement): () => void {
     ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
     arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
     arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
+    arrheniusTemp: document.querySelector("#chart-arrhenius-temp") as HTMLElement,
+    gammaPath: document.querySelector("#chart-gamma-path") as HTMLElement,
     controllerOrders: document.querySelector(
       "#chart-controller-orders",
     ) as HTMLElement,
@@ -493,6 +507,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderSalesDemand(els.salesDemand, vm.history, 130);
     const spoilSlot = resolveStoreSpoilageSlot({
       scenario: vm.config.obs_scenario,
+      channels: vm.config.obs_channels,
       showTruth,
     });
     if (spoilSlot.kind === "unavailable") {
@@ -563,6 +578,12 @@ export function initStudio(app: HTMLElement): () => void {
     }
     if (plotVisible("plot-arrival-shift")) {
       renderArrivalShift(els.arrivalShift, vm.config, 150);
+    }
+    if (plotVisible("plot-arrhenius-temp")) {
+      renderArrheniusTemp(els.arrheniusTemp, vm.config, 160);
+    }
+    if (plotVisible("plot-gamma-path")) {
+      renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
     }
     if (plotVisible("plot-controller-orders")) {
       renderControllerOrders(els.controllerOrders, vm.history, 160);
@@ -818,7 +839,8 @@ export function initStudio(app: HTMLElement): () => void {
       return;
     }
     autopilot.play();
-    syncAutopilotChrome();
+    // tick() may pause synchronously when config_dirty; sync after it runs.
+    queueMicrotask(syncAutopilotChrome);
   };
   railHandlers.onAutopilotPause = () => {
     autopilot.pause();
@@ -826,8 +848,9 @@ export function initStudio(app: HTMLElement): () => void {
   };
   async function applyObsSelection(
     channels: ObsChannels,
-    obs_scenario: ScenarioId,
+    explicitPreset?: ScenarioId,
   ): Promise<void> {
+    const obs_scenario = resolveDisplayObsScenario(channels, explicitPreset);
     const setCh =
       adapter.set_obs_channels?.bind(adapter) ??
       adapter.setObsChannels?.bind(adapter);
@@ -850,7 +873,7 @@ export function initStudio(app: HTMLElement): () => void {
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
       vm = projector.patchEngineState(snap);
-      projector.setConfig({ obs_channels: channels, obs_scenario });
+      vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
       renderAll();
       void refreshRemotePanes();
@@ -876,19 +899,7 @@ export function initStudio(app: HTMLElement): () => void {
   };
 
   railHandlers.onSetObsChannels = async (channels: ObsChannels) => {
-    let preset: ScenarioId = vm.config.obs_scenario;
-    for (const id of ["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"] as ScenarioId[]) {
-      const presetCh = channelsForPreset(id);
-      if (
-        presetCh.code_type === channels.code_type &&
-        presetCh.scan_waste === channels.scan_waste &&
-        presetCh.delivery_history === channels.delivery_history
-      ) {
-        preset = id;
-        break;
-      }
-    }
-    await applyObsSelection(channels, preset);
+    await applyObsSelection(channels);
   };
   railHandlers.onShowTruthChange = (show) => {
     showTruth = show;

@@ -79,6 +79,8 @@ export function renderMarginal(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
+  if (innerW <= 0) return;
+
   const svg = d3
     .select(container)
     .append("svg")
@@ -94,7 +96,8 @@ export function renderMarginal(
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const days = history.map((d) => d.day);
-  const step = days.length > 0 ? innerW / days.length : innerW;
+  const step =
+    days.length > 0 ? Math.max(0, innerW / days.length) : Math.max(0, innerW);
 
   const values = history.map((d) => {
     if (kind === "sales") return d.sales_total;
@@ -220,7 +223,7 @@ export function renderWasteBars(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0) return;
+  if (history.length === 0 || innerW <= 0) return;
 
   const svg = d3
     .select(container)
@@ -237,7 +240,8 @@ export function renderWasteBars(
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const days = history.map((d) => d.day);
-  const step = days.length > 0 ? innerW / days.length : innerW;
+  const step =
+    days.length > 0 ? Math.max(0, innerW / days.length) : Math.max(0, innerW);
   const barW = Math.max(1, step * 0.76);
   const maxV = yMax != null ? Math.max(1, yMax) : wasteBarYMax(history);
   const y = d3.scaleLinear().domain([0, maxV]).range([innerH, 0]);

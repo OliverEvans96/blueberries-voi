@@ -80,4 +80,34 @@ describe("InsightStrip (T-124 AC-ia)", () => {
     );
     expect(screen.getByText(/Pack date on ASN/i)).toBeInTheDocument();
   });
+
+  it("renders custom WASM obs_scenario without throwing", () => {
+    render(
+      createElement(InsightStrip, {
+        vm: sampleViewModel({
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "custom" as typeof DEFAULT_SIM_CONFIG.obs_scenario,
+          },
+        }),
+        schedule: SCHEDULE,
+      }),
+    );
+    expect(screen.getByText(/Custom channels/i)).toBeInTheDocument();
+  });
+
+  it("falls back for unknown obs_scenario strings", () => {
+    render(
+      createElement(InsightStrip, {
+        vm: sampleViewModel({
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "bogus" as typeof DEFAULT_SIM_CONFIG.obs_scenario,
+          },
+        }),
+        schedule: SCHEDULE,
+      }),
+    );
+    expect(screen.getByText(/Unknown scenario/i)).toBeInTheDocument();
+  });
 });

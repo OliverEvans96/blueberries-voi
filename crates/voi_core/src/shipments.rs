@@ -376,4 +376,19 @@ mod tests {
         let f = f_at_receipt_from_age(tau, eta);
         assert!((f_to_age(f, eta) - tau).abs() < 1e-9);
     }
+
+    #[test]
+    fn mod21_demo_shipments_product_mix() {
+        assert_eq!(super::mod21_demo_shipments("abdella_all").len(), 6);
+        assert_eq!(super::mod21_demo_shipments("long_haul").len(), 5);
+        assert_eq!(super::mod21_demo_shipments("short_haul").len(), 1);
+    }
+
+    #[test]
+    fn truth_birth_from_trace_in_unit_interval() {
+        let params = ModelParams::default();
+        let trace = super::mod21_demo_shipments("short_haul")[0].clone();
+        let f = super::truth_birth_from_trace(&trace, &params);
+        assert!(f > 0.0 && f <= 1.0, "f={f}");
+    }
 }

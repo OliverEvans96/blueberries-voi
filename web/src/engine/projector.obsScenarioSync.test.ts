@@ -105,4 +105,30 @@ describe("ViewModelProjector.patchEngineState obs_scenario sync (T-126 AC-obschi
     expect(vm.config.obs_scenario).toBe("F2");
     expect(vm.config.case_size).toBe(baselineCaseSize);
   });
+
+  it("patchEngineState then setConfig with equivalent obs_channels stays clean (Autopilot gate)", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+      config: { ...DEFAULT_SIM_CONFIG },
+    });
+    projector.applySnapshot(sampleSnapshot());
+    projector.markConfigApplied();
+    const channels = {
+      code_type: "gsin" as const,
+      scan_waste: true,
+      delivery_history: "pack_date" as const,
+    };
+    projector.patchEngineState({
+      ...obsScenarioPatch("F2"),
+      applied_config: {
+        obs_scenario: "F2",
+        obs_channels: { ...channels },
+      },
+    });
+    const vm = projector.setConfig({
+      obs_channels: channels,
+      obs_scenario: "F2",
+    });
+    expect(vm.config_dirty).toBe(false);
+  });
 });

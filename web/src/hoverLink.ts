@@ -18,7 +18,59 @@ function marginFromSvgAttr(
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Map pointer X over a chart SVG to a day index using equal-width day bands. */
+export type ChartPlotMargins = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+};
+
+function plotMarginsFromSvg(
+  svg: SVGSVGElement,
+  fallback: ChartPlotMargins = CHART_MARGIN,
+): ChartPlotMargins {
+  return {
+    top: marginFromSvgAttr(svg, "data-margin-top", fallback.top),
+    right: marginFromSvgAttr(svg, "data-margin-right", fallback.right),
+    bottom: marginFromSvgAttr(svg, "data-margin-bottom", fallback.bottom),
+    left: marginFromSvgAttr(svg, "data-margin-left", fallback.left),
+  };
+}
+
+/** Map pointer position over a chart SVG to a day index within the inner plot. */
+export function dayFromPointer(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+  days: readonly number[],
+  marginFallback: ChartPlotMargins = CHART_MARGIN,
+): number | null {
+  if (days.length === 0) return null;
+
+  const margin = plotMarginsFromSvg(svg, marginFallback);
+
+  const rect = svg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const viewBox = svg.viewBox.baseVal;
+  const svgWidth = viewBox.width > 0 ? viewBox.width : rect.width;
+  const svgHeight = viewBox.height > 0 ? viewBox.height : rect.height;
+  const localX = ((clientX - rect.left) / rect.width) * svgWidth;
+  const localY = ((clientY - rect.top) / rect.height) * svgHeight;
+  const innerX = localX - margin.left;
+  const innerY = localY - margin.top;
+  const innerW = svgWidth - margin.left - margin.right;
+  const innerH = svgHeight - margin.top - margin.bottom;
+  if (innerX < 0 || innerX > innerW || innerY < 0 || innerY > innerH) return null;
+
+  const i = Math.min(
+    days.length - 1,
+    Math.max(0, Math.floor((innerX / innerW) * days.length)),
+  );
+  return days[i] ?? null;
+}
+
+/** @deprecated Prefer {@link dayFromPointer} for y-aware hit testing. */
 export function dayFromClientX(
   svg: SVGSVGElement,
   clientX: number,
@@ -26,26 +78,22 @@ export function dayFromClientX(
   marginLeft = CHART_MARGIN.left,
   marginRight = CHART_MARGIN.right,
 ): number | null {
-  if (days.length === 0) return null;
-
-  const resolvedLeft = marginFromSvgAttr(svg, "data-margin-left", marginLeft);
-  const resolvedRight = marginFromSvgAttr(svg, "data-margin-right", marginRight);
-
   const rect = svg.getBoundingClientRect();
-  if (rect.width <= 0) return null;
-
   const viewBox = svg.viewBox.baseVal;
-  const svgWidth = viewBox.width > 0 ? viewBox.width : rect.width;
-  const localX = ((clientX - rect.left) / rect.width) * svgWidth;
-  const innerX = localX - resolvedLeft;
-  const innerW = svgWidth - resolvedLeft - resolvedRight;
-  if (innerX < 0 || innerX > innerW) return null;
-
-  const i = Math.min(
-    days.length - 1,
-    Math.max(0, Math.floor((innerX / innerW) * days.length)),
+  const svgHeight = viewBox.height > 0 ? viewBox.height : rect.height;
+  const marginTop = marginFromSvgAttr(svg, "data-margin-top", CHART_MARGIN.top);
+  const marginBottom = marginFromSvgAttr(
+    svg,
+    "data-margin-bottom",
+    CHART_MARGIN.bottom,
   );
-  return days[i] ?? null;
+  const midY =
+    rect.top + ((marginTop + (svgHeight - marginBottom)) / 2 / svgHeight) * rect.height;
+  return dayFromPointer(svg, clientX, midY, days, {
+    ...CHART_MARGIN,
+    left: marginLeft,
+    right: marginRight,
+  });
 }
 
 export type HoverPoint = { clientX: number; clientY: number } | null;
@@ -56,8 +104,8 @@ export type LinkedHoverHandlers = {
 
 /**
  * One shared hover controller for stacked/linked charts.
- * Uses pointermove + day-from-x; only clears when leaving the whole region
- * (not when crossing captions / chart gaps).
+ * Uses pointermove + day-from-xy; clears when leaving the plot band or
+ * non-chart gaps inside the linked region.
  */
 export function attachLinkedHover(
   root: HTMLElement,
@@ -66,17 +114,25 @@ export function attachLinkedHover(
 ): () => void {
   const onMove = (event: PointerEvent): void => {
     const target = event.target as Element | null;
-    if (!target) return;
-    const svg = target.closest("svg.chart-svg") as SVGSVGElement | null;
-    if (!svg || !root.contains(svg)) return;
+    if (!target) {
+      handlers.onDay(null, null);
+      return;
+    }
 
-    const day = dayFromClientX(svg, event.clientX, getDays());
-    // Keep prior day while over y-axis gutter / legend; only set when resolved
+    const svg = target.closest("svg.chart-svg") as SVGSVGElement | null;
+    if (!svg || !root.contains(svg)) {
+      handlers.onDay(null, null);
+      return;
+    }
+
+    const day = dayFromPointer(svg, event.clientX, event.clientY, getDays());
     if (day != null) {
       handlers.onDay(day, {
         clientX: event.clientX,
         clientY: event.clientY,
       });
+    } else {
+      handlers.onDay(null, null);
     }
   };
 

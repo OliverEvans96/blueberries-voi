@@ -33,7 +33,6 @@ export const ALL_CONTROL_IDS: string[] = [
   "sensor_sigma",
   "sigma",
   "spread_scale",
-  "starting_inv",
   "t_ref_c",
   "t_store_c",
   "transit_temp_bias_c",

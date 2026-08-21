@@ -1,7 +1,7 @@
 import type { SectionId } from "../sections";
 import type { ObsChannels, ScenarioId, ViewModel } from "../types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
-import { SCENARIO_COPY } from "../controls";
+import { scenarioTitle } from "../controls";
 import { channelsForPreset } from "../obsMask";
 import {
   nearestForecast,
@@ -182,7 +182,7 @@ export function DecisionRail({
             </option>
             {PRESET_IDS.map((id) => (
               <option key={id} value={id}>
-                {id} — {SCENARIO_COPY[id].title}
+                {id} — {scenarioTitle(id)}
               </option>
             ))}
           </select>

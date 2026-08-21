@@ -5,7 +5,7 @@ import {
   renderTradeoffCurve,
   renderTradeoffHistogram,
 } from "../charts/tradeoffForecast";
-import { SCENARIO_COPY } from "../controls";
+import { scenarioTitle } from "../controls";
 import { channelsForPreset } from "../obsMask";
 import type { ObsChannels, ScenarioId, ViewModel } from "../types";
 
@@ -176,7 +176,7 @@ export function SecondaryChrome({
               </option>
               {PRESET_IDS.map((id) => (
                 <option key={id} value={id}>
-                  {id} — {SCENARIO_COPY[id].title}
+                  {id} — {scenarioTitle(id)}
                 </option>
               ))}
             </select>

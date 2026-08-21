@@ -83,4 +83,77 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
 
     detach();
   });
+
+  it("clears highlight when pointer is right of the inner plot band", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerMove(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    fireEvent.pointerMove(svg, {
+      clientX: 295,
+      clientY: 90,
+      bubbles: true,
+    });
+
+    expect(onDay).toHaveBeenCalledWith(null, null);
+
+    detach();
+  });
+
+  it("clears highlight when pointer is above the inner plot band", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerMove(svg, {
+      clientX: 160,
+      clientY: 90,
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    fireEvent.pointerMove(svg, {
+      clientX: 160,
+      clientY: 55,
+      bubbles: true,
+    });
+
+    expect(onDay).toHaveBeenCalledWith(null, null);
+
+    detach();
+  });
+
+  it("clears highlight over captions inside the linked region", () => {
+    const { root, svg } = makeChartRoot();
+    const caption = document.createElement("div");
+    caption.className = "chart-caption";
+    root.appendChild(caption);
+
+    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const detach = attachLinkedHover(root, () => [1, 2, 3], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerMove(svg, { clientX: 160, clientY: 90, bubbles: true });
+    onDay.mockClear();
+
+    fireEvent.pointerMove(caption, { clientX: 150, clientY: 40, bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(null, null);
+
+    detach();
+  });
 });

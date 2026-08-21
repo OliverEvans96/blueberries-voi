@@ -12,6 +12,8 @@ const D3_CHART_IDS = [
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
+  "chart-arrhenius-temp",
+  "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
@@ -63,7 +65,7 @@ export function StudioLayout() {
             </div>
             <div className="legend-inline store-legend">
               <span className="chip chip-sales">Sales</span>
-              <span className="chip chip-lots">Lots (size ∝ qty)</span>
+              <span className="chip chip-lots">Lots (size ∝ survivors)</span>
               <span className="chip chip-spoil">Spoilage</span>
               <span className="chip chip-missed">Missed</span>
             </div>
@@ -292,6 +294,26 @@ export function StudioLayout() {
                     id="chart-arrival-shift"
                     className="chart"
                     ariaLabel="Transit temperature shift"
+                  />
+                </div>
+                <div className="focus-plot" data-plot="plot-arrhenius-temp" hidden>
+                  <div className="chart-caption impact-caption">
+                    Q10 aging rate vs temperature
+                  </div>
+                  <D3ChartHost
+                    id="chart-arrhenius-temp"
+                    className="chart"
+                    ariaLabel="Q10 aging rate versus store temperature"
+                  />
+                </div>
+                <div className="focus-plot" data-plot="plot-gamma-path" hidden>
+                  <div className="chart-caption impact-caption">
+                    Gamma freshness mean ± σ until expiry
+                  </div>
+                  <D3ChartHost
+                    id="chart-gamma-path"
+                    className="chart"
+                    ariaLabel="Unit freshness mean and standard deviation envelope"
                   />
                 </div>
               </div>

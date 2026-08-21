@@ -5,7 +5,6 @@ import type {
   DemandSummary,
   EngineConfig,
   FlatBelief,
-  ScheduleWire,
   Snapshot,
 } from "../engine/types";
 import type {
@@ -27,16 +26,9 @@ import {
   stepSimulation,
   type SimState,
 } from "./generate";
+import { scheduleFromConfig } from "../calendar/weekCalendar";
 
 export { generateFlatBelief } from "./generate";
-
-/** Coherent OrderSchedule stubs when live engine is absent (T-085 / ADR 0114). */
-const MOCK_SCHEDULE: ScheduleWire = {
-  delivery_weekdays: [0, 2, 4],
-  order_weekdays: [6, 1, 3],
-  lead_time_days: 1,
-  epoch: "2024-01-01",
-};
 
 /** Chart-ready demand summary stub (~FreshNet scale 30 × DOW factors). */
 const MOCK_DEMAND_SUMMARY: DemandSummary = {
@@ -48,6 +40,11 @@ function configsEqual(a: SimConfig, b: SimConfig): boolean {
   return (Object.keys(a) as (keyof SimConfig)[]).every((k) => {
     if (k === "obs_channels") {
       return JSON.stringify(a.obs_channels) === JSON.stringify(b.obs_channels);
+    }
+    if (k === "delivery_weekdays") {
+      return (
+        JSON.stringify(a.delivery_weekdays) === JSON.stringify(b.delivery_weekdays)
+      );
     }
     return a[k] === b[k];
   });
@@ -348,11 +345,7 @@ export class MockAdapter implements EngineAdapter {
       live_lots: this.state.lots.map((l) => ({ ...l })),
       pipeline: this.pipeline(),
       applied_config: { ...this.appliedConfig },
-      schedule: {
-        ...MOCK_SCHEDULE,
-        delivery_weekdays: [...MOCK_SCHEDULE.delivery_weekdays],
-        order_weekdays: [...MOCK_SCHEDULE.order_weekdays],
-      },
+      schedule: scheduleFromConfig(this.appliedConfig),
       demand_summary: {
         ...MOCK_DEMAND_SUMMARY,
         dow_means: [...MOCK_DEMAND_SUMMARY.dow_means],

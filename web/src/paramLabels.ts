@@ -73,14 +73,15 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tooltip: "Target on-hand for replenishment policy.",
     tier: "Reset",
   },
-  starting_inv: {
-    label: "Starting inventory",
-    tooltip: "Units on hand at episode start.",
-    tier: "Reset",
-  },
   lead_time: {
     label: "Lead time (days)",
     tooltip: "Days from order to delivery — flows to session schedule.",
+    tier: "Reset",
+  },
+  delivery_weekdays: {
+    label: "Delivery days",
+    tooltip:
+      "Click weekdays when deliveries arrive; order markers shift with lead time. Applies on Reset.",
     tier: "Reset",
   },
   spread_scale: {

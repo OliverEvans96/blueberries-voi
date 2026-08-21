@@ -1,5 +1,5 @@
 /**
- * Secondary pane: aggregate belief + truth histogram overlays (~5 bars).
+ * Secondary pane: aggregate belief + truth histogram overlays (~8 bars).
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ import {
   freshnessHistogramDataFromFlat,
   histogramEdges,
   rebinMasses,
+  rebinMassesByInterval,
   renderFreshnessHistogram,
   truthMassesInBins,
   type FreshnessHistogramData,
@@ -31,7 +32,7 @@ const FLAT: FlatBelief = {
   f_marginals: [
     1, 0, 0, 0,
     0, 1, 0, 0,
-    0, 0, 0, 1,
+    0, 0, 1, 0,
   ],
 };
 
@@ -52,16 +53,38 @@ describe("aggregateBeliefMasses", () => {
     expect(masses).toHaveLength(FLAT.K);
     expect(masses[0]).toBeCloseTo(10);
     expect(masses[1]).toBeCloseTo(6);
-    expect(masses[3]).toBeCloseTo(4);
+    expect(masses[2]).toBeCloseTo(4);
   });
 });
 
-describe("rebinMasses / truthMassesInBins", () => {
-  it("rebins source masses into five display bins", () => {
+describe("DISPLAY_BIN_COUNT", () => {
+  it("uses eight evenly spaced display bins on [0, 1]", () => {
+    expect(DISPLAY_BIN_COUNT).toBe(8);
+    expect(histogramEdges(0, 1, DISPLAY_BIN_COUNT)).toHaveLength(9);
+  });
+});
+
+describe("rebinMasses / rebinMassesByInterval / truthMassesInBins", () => {
+  it("rebins source masses into display bins (point assignment)", () => {
     const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
     const rebinned = rebinMasses(FLAT.f_grid, aggregateBeliefMasses(FLAT), edges);
     expect(rebinned).toHaveLength(DISPLAY_BIN_COUNT);
     expect(rebinned.reduce((a, b) => a + b, 0)).toBeCloseTo(20);
+  });
+
+  it("interval rebin assigns non-zero mass to center display bin for FLAT", () => {
+    const data = freshnessHistogramDataFromFlat(FLAT);
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const rebinned = rebinMassesByInterval(
+      data.f_edges,
+      data.belief_masses,
+      edges,
+    );
+    expect(rebinned.reduce((a, b) => a + b, 0)).toBeCloseTo(20);
+    const centerIdx = binIndexForValue(edges, 0.5625);
+    expect(rebinned[centerIdx]).toBeGreaterThan(0);
+    const byPoint = rebinMasses(data.f_centers, data.belief_masses, edges);
+    expect(byPoint[centerIdx]).toBeCloseTo(0);
   });
 
   it("assigns truth lot counts by mean_f bin", () => {
@@ -79,13 +102,13 @@ describe("freshnessHistogramDataFromFlat", () => {
     expect(data.f_centers).toEqual(FLAT.f_grid);
     expect(data.belief_masses[0]).toBeCloseTo(10);
     expect(data.belief_masses[1]).toBeCloseTo(6);
-    expect(data.belief_masses[3]).toBeCloseTo(4);
+    expect(data.belief_masses[2]).toBeCloseTo(4);
     expect(data.truth_lots).toEqual(TRUTH_LOTS);
   });
 });
 
 describe("renderFreshnessHistogram", () => {
-  it("renders ~5 belief bars with yellow fill and semi-bold caps", () => {
+  it("renders ~8 belief bars with yellow fill and semi-bold caps", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
     renderFreshnessHistogram(el, data, false, 260);

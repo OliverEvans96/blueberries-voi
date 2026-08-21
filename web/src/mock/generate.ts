@@ -1,4 +1,5 @@
 import type { FlatBelief } from "../engine/types";
+import { scheduleFromConfig } from "../calendar/weekCalendar";
 import type {
   ArrivalProduct,
   BeliefGrid,
@@ -49,8 +50,8 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   demand_vm: 2,
   case_size: 8,
   lead_time: 1,
+  delivery_weekdays: [0, 2, 4],
   base_stock: 48,
-  starting_inv: 72,
   seed: 42,
   obs_scenario: "P1",
   obs_channels: DEFAULT_OBS_CHANNELS,
@@ -508,38 +509,6 @@ export function generateBelief(
   return { f_edges, count_edges, density };
 }
 
-function buildStartingLots(cfg: SimConfig, rng: () => number): Lot[] {
-  const cs = Math.max(1, Math.round(cfg.case_size));
-  const total = snapCases(cfg.starting_inv, cs);
-  if (total <= 0) return [];
-  const nLots = 3;
-  const lots: Lot[] = [];
-  let allocated = 0;
-  for (let i = 0; i < nLots; i++) {
-    const raw =
-      i === nLots - 1
-        ? total - allocated
-        : snapCases(Math.round(total / nLots), cs);
-    const n = Math.max(0, Math.min(total - allocated, raw));
-    if (n > 0) {
-      lots.push({
-        lot_id: i + 1,
-        n,
-        mean_f: Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000,
-      });
-      allocated += n;
-    }
-  }
-  if (allocated < total) {
-    lots.push({
-      lot_id: lots.length + 1,
-      n: total - allocated,
-      mean_f: Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000,
-    });
-  }
-  return lots;
-}
-
 function runDay(
   day: number,
   lots: Lot[],
@@ -588,6 +557,14 @@ function runDay(
     );
   }
 
+  const orderWeekdays = new Set(
+    scheduleFromConfig(cfg).order_weekdays,
+  );
+  const episodeWd = day % 7;
+  if (!orderWeekdays.has(episodeWd)) {
+    order_qty = 0;
+  }
+
   if (order_qty > 0) {
     pending.push({ arriveOn: day + Math.max(0, Math.round(cfg.lead_time)), qty: order_qty });
   }
@@ -613,8 +590,8 @@ function runDay(
 export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
-  const lots = buildStartingLots(config, rng);
-  const nextLotId = lots.reduce((m, l) => Math.max(m, l.lot_id), 0) + 1;
+  const lots: Lot[] = [];
+  const nextLotId = 1;
   const pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];
 

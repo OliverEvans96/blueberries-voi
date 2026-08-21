@@ -1,2 +1,2 @@
 /** Re-export locked chip copy from controls (ADR 0110). */
-export { SCENARIO_COPY, scenarioTitle } from "./controls";
+export { SCENARIO_COPY, scenarioDescription, scenarioTitle } from "./controls";

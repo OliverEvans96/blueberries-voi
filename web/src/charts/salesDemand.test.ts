@@ -4,7 +4,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import type { Day } from "../types";
-import { renderSalesDemand, setSalesDemandHover } from "./salesDemand";
+import { renderSalesDemand, salesDemandX, setSalesDemandHover } from "./salesDemand";
 
 function sampleDay(
   day: number,
@@ -76,5 +76,29 @@ describe("renderSalesDemand stockout gap (T-127)", () => {
     expect(el.querySelector(".hover-rule")?.getAttribute("opacity")).toBe("1");
     setSalesDemandHover(el, null);
     expect(el.querySelector(".hover-rule")?.getAttribute("opacity")).toBe("0");
+  });
+});
+
+describe("renderSalesDemand narrow plot (T-139)", () => {
+  it("skips draw when innerW <= 0", () => {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: 40 });
+    document.body.appendChild(el);
+    renderSalesDemand(el, [sampleDay(0, 5, 10), sampleDay(1, 8, 8)]);
+    expect(el.querySelector("svg.chart-svg")).toBeNull();
+  });
+
+  it("uses non-negative day-hit widths when squeezed", () => {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: 80 });
+    document.body.appendChild(el);
+    renderSalesDemand(el, [sampleDay(0, 5, 10), sampleDay(1, 8, 8), sampleDay(2, 3, 9)]);
+    for (const rect of el.querySelectorAll(".day-hit")) {
+      expect(Number(rect.getAttribute("width"))).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("salesDemandX never returns negative x for negative innerW", () => {
+    expect(salesDemandX([0, 1, 2], -10, 1)).toBeGreaterThanOrEqual(0);
   });
 });
