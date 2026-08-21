@@ -46,7 +46,8 @@ export function salesDemandX(
   innerW: number,
   day: number,
 ): number {
-  const step = days.length > 0 ? innerW / days.length : innerW;
+  const step =
+    days.length > 0 ? Math.max(0, innerW / days.length) : Math.max(0, innerW);
   const i = days.indexOf(day);
   return i * step + step / 2;
 }
@@ -68,7 +69,7 @@ export function renderSalesDemand(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0) return;
+  if (history.length === 0 || innerW <= 0) return;
 
   const svg = d3
     .select(container)
@@ -85,7 +86,7 @@ export function renderSalesDemand(
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const days = history.map((d) => d.day);
-  const step = innerW / days.length;
+  const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 
   const yMax =
