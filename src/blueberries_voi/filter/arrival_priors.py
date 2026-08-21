@@ -94,7 +94,7 @@ def arrival_age_prior_f2a(
     as_of: date | None = None,
     receipt_date: date | None = None,
 ) -> np.ndarray:
-    """Pack-date prior: calendar transit days × fleet φ̄ (ADR 0141).
+    """Pack-date prior: calendar transit days x fleet phi_bar (ADR 0141).
 
     Epistemic width comes from the empirical spread of ``phi_bar`` over the
     Abdella fleet, not a hand-set ``f2a_transit_sd``.

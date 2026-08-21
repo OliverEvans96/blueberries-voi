@@ -7,9 +7,9 @@ import inspect
 
 def test_arrival_priors_no_f2a_transit_constant() -> None:
     """RED: F2A_TRANSIT_UNCERTAINTY_SD must be removed from arrival_priors."""
-    from blueberries_voi import filter
+    from blueberries_voi.filter import arrival_priors
 
-    src = inspect.getsource(filter.arrival_priors)
+    src = inspect.getsource(arrival_priors)
     assert "F2A_TRANSIT_UNCERTAINTY_SD" not in src, (
         "RED: drop hand-set F2A_TRANSIT_UNCERTAINTY_SD (ADR 0141)"
     )
