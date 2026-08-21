@@ -77,9 +77,19 @@ a group whose sorted positive freshness values are `g_1 ≤ … ≤ g_m` confine
 
 UPC observes the store total and gets the pooled interval. GSIN observes `w_ℓ` per lot and
 gets `⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot counts is consistent with their sum,
-so **`I_gsin ⊆ I_pooled` always**: the richer channel can only sharpen the posterior over
-`δ`, never blur it. Ties within a lot (a cohort born at one freshness spoils together) make
-some splits impossible — a constraint only GSIN can see.
+so **`I_gsin ⊆ I_pooled` always**: the richer channel can never blur the posterior over `δ`.
+
+**It also never sharpens it, in this model.** Births are lot-uniform and aging is one shared
+decrement, so every live unit in a lot carries the same `f` and a lot spoils *all or
+nothing*. Under that structure the store's order statistics **are** the lot values, so the
+total already determines which lots died. Measured over 20 000 random cohort-consistent
+shelves (`gsin_waste_never_narrows_the_pooled_interval`), `I_gsin` was **exactly**
+`I_pooled` in 91% of cases and **empty** in the other 9% — a strictly tighter non-empty
+interval never occurred.
+
+So `waste_by` is a **falsification** channel, not a sharpening one: it kills particles whose
+lots are ordered wrongly by freshness. That is real information, but it is information about
+the *contrast* between lots, not about the freshness *level* — see the consequences below.
 
 This is exact for this generative model, not an approximation: births assign one freshness
 to a whole delivery and aging applies one decrement to the store, so a particle row holds
@@ -134,9 +144,24 @@ surviving terms rather than deleted:
   an adapted spoilage step, `alive_t = alive_{t-1} - waste_t - sales_t + arrivals_t` holds
   in every particle. Store count error is **0.000** for every rung with `scan_waste` on.
 - **GSIN dominates UPC on every measured metric**, decisively on lot attribution (per-lot
-  count MAE 0.000 vs 0.22–0.44) and modestly on freshness level and ESS. The gain is
-  concentrated in *attribution*, not *level* — level is bought by `delivery_history`
-  (pack date / temperature trace), which is the orthogonal axis ADR 0133 intends.
+  count MAE 0.000 vs 0.22–0.44) and marginally on freshness level and ESS.
+- **The level gain is small for a structural reason, not a tuning one.** Both GSIN terms are
+  *contrast* observations and are close to blind to the common freshness level:
+  - `waste_by` never narrows the decrement interval (above); it only rejects mis-ordered
+    particles.
+  - `sales_by` is scored by `Multinomial(sales_by; lot_share)` with
+    `lot_share_ℓ ∝ n_ℓ · f_ℓ^σ`. The `n_ℓ` are now known exactly under **every** mask, and
+    the share vector is a ratio — **exactly** invariant to rescaling all `f` by a constant,
+    and flattened further by `σ = 0.5` (a 3× freshness contrast yields only a 1.7× pick-rate
+    contrast).
+
+  The control experiment is in the data: on the *homogeneous* fleet, where lots arrive at
+  near-identical freshness and there is no contrast to resolve, `P1 → F1` moves store
+  mean-`f` MAE by **0.0000** (0.0848 → 0.0848). On the heterogeneous fleet it moves 0.1188 →
+  0.1173. Compare the two *level* channels on the same rows: adding waste totals is
+  `P0 → P1` = 0.1419 → 0.1188 (−16%), and adding pack date is `P1 → F2a` = 0.1188 → 0.0883
+  (−26%). Level is bought on the `delivery_history` axis, which is exactly the orthogonality
+  ADR 0133 intends — GSIN buys attribution.
 - **P0 is the one rung whose count error is not pinned**, because it has no spoilage
   observation. Its bias moved from −8.4 (an artifact of the old fixed drain) to +10.1
   (unpenalized over-stocked particles: the sales feasibility gate is one-sided). The

@@ -104,6 +104,84 @@ fn aggregate_router_shares_the_spoil_interval_term() {
     );
 }
 
+/// ADR 0137, measured claim: what `waste_by` actually buys.
+///
+/// Births are lot-uniform and aging applies one shared decrement, so every live unit in a
+/// lot carries the same freshness and a lot spoils **all or nothing**. The store's order
+/// statistics are therefore just the lot values, and the store total already determines
+/// which lots died. So on any cohort-consistent observation the per-lot intersection is
+/// either *exactly* the pooled interval or **empty** — never a strictly tighter non-empty
+/// one. `waste_by` falsifies particles whose lots are mis-ordered by freshness; it does not
+/// sharpen the posterior over the decrement, and it says nothing about the overall level.
+#[test]
+fn gsin_waste_never_narrows_the_pooled_interval() {
+    require_unit_ll();
+    use rand::{Rng, SeedableRng};
+    use rand_pcg::Pcg64;
+    use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
+
+    let mut rng = Pcg64::seed_from_u64(20_260_820);
+    let (mut identical, mut gsin_empty) = (0usize, 0usize);
+
+    for _ in 0..20_000 {
+        let n_lots = rng.random_range(2..=5);
+        // Distinct per-lot freshness; a cohort shares one value, as births and aging leave it.
+        let mut values: Vec<f64> = Vec::new();
+        while values.len() < n_lots {
+            let v = f64::from(rng.random_range(1..20u32)) * 0.05;
+            if values.iter().all(|&x| (x - v).abs() > 1e-12) {
+                values.push(v);
+            }
+        }
+        let counts: Vec<usize> = (0..n_lots).map(|_| rng.random_range(1..=8)).collect();
+
+        let mut freshness = Vec::new();
+        let mut offsets = vec![0usize];
+        for (&v, &c) in values.iter().zip(counts.iter()) {
+            freshness.extend(std::iter::repeat_n(v, c));
+            offsets.push(freshness.len());
+        }
+
+        // A cohort-consistent observation: each lot dies whole or not at all.
+        let waste_by: Vec<u32> = counts
+            .iter()
+            .map(|&c| {
+                if rng.random::<f64>() < 0.4 {
+                    c as u32
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let total: u32 = waste_by.iter().sum();
+
+        let pooled = spoil_delta_interval(&freshness, total as usize);
+        let gsin = spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by);
+
+        match (gsin, pooled) {
+            (Some(g), Some(p)) => {
+                assert_eq!(
+                    g, p,
+                    "cohort structure makes the per-lot intersection exactly the pooled interval"
+                );
+                identical += 1;
+            }
+            (None, _) => gsin_empty += 1,
+            (Some(_), None) => panic!("GSIN cannot admit a decrement the pooled interval rejects"),
+        }
+    }
+
+    // Both outcomes must actually occur, or the test is vacuous.
+    assert!(
+        identical > 1_000,
+        "expected many identical intervals, got {identical}"
+    );
+    assert!(
+        gsin_empty > 1_000,
+        "expected many particles falsified by lot ordering, got {gsin_empty}"
+    );
+}
+
 /// ADR 0137: GSIN refines UPC on the *same* state, so the lot-resolved spoilage interval
 /// is the intersection of the per-lot intervals — never a wider or unrelated set.
 #[test]
@@ -989,8 +1067,10 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         });
 
         let waste_by = obs_f1.waste_by.as_ref().expect("F1 exposes waste_by");
-        let waste_ll_f1 =
-            delta_interval_loglik(spoil_delta_interval_by_lot(row, &offsets, waste_by), &params);
+        let waste_ll_f1 = delta_interval_loglik(
+            spoil_delta_interval_by_lot(row, &offsets, waste_by),
+            &params,
+        );
         f1_log_w.push(waste_ll_f1 + loglik_sales_by_units(row, &sales_by, &offsets, &params));
     }
 

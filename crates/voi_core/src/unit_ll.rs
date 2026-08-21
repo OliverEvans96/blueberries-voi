@@ -14,13 +14,26 @@
 //! `g_{m+1} = ∞`). The likelihood is the gamma mass of that interval; the state update
 //! samples `δ` from the gamma truncated to it.
 //!
-//! ## Why GSIN dominates UPC by construction
+//! ## What GSIN adds over UPC, and what it does not
 //!
-//! UPC observes only the store total `w`, giving the pooled interval `I_pooled`.
-//! GSIN observes `w_ℓ` per lot, giving `I_gsin = ⋂_ℓ I_ℓ`. Every `δ` consistent with the
-//! per-lot counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always**: the
-//! richer channel can only sharpen the posterior over `δ`, never blur it. GSIN adds a
-//! second term UPC cannot have — the multinomial cross-lot sales split.
+//! UPC observes only the store total `w`, giving the pooled interval `I_pooled`. GSIN
+//! observes `w_ℓ` per lot, giving `I_gsin = ⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot
+//! counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always** — the richer
+//! channel can never blur the posterior over `δ`.
+//!
+//! In *this* model it also never sharpens it. Births are lot-uniform (`unit_pf::push_lot`
+//! writes one freshness to a whole delivery) and aging applies one shared decrement, so
+//! every live unit in a lot carries the same `f` and a lot spoils **all or nothing**. Under
+//! that structure the store's order statistics *are* the lot values, so the total already
+//! determines which lots died: `I_gsin` is either exactly `I_pooled` or **empty**, never a
+//! strictly tighter non-empty interval (pinned by
+//! `unit_pf_ac::gsin_waste_never_narrows_the_pooled_interval`).
+//!
+//! So `waste_by` is a **falsification** channel rather than a sharpening one — it kills
+//! particles whose lots are ordered wrongly by freshness. Like the multinomial cross-lot
+//! sales split (the second term UPC cannot have), it is informative about the *contrast*
+//! between lots, not about the overall freshness level. Level is bought on the orthogonal
+//! `delivery_history` axis (ADR 0133).
 
 use rand::Rng;
 
