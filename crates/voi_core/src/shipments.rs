@@ -90,6 +90,36 @@ pub fn f_at_receipt_from_age(age_at_receipt: f64, eta_ref: f64) -> f64 {
     age_to_f(age_at_receipt.max(0.0), eta_ref)
 }
 
+/// Aleatoric within-lot birth spread on freshness `f` around lot mean.
+///
+/// `dispersion_sd = 0.0` returns `n` copies of `mean_f` (within `1e-12`).
+/// For `dispersion_sd > 0`, draws truncated Normal on `f` in `(0, 1]`.
+pub fn birth_f_units<R: Rng + ?Sized>(
+    mean_f: f64,
+    dispersion_sd: f64,
+    n: usize,
+    rng: &mut R,
+) -> Vec<f64> {
+    let center = mean_f.clamp(1e-12, 1.0);
+    if dispersion_sd <= 0.0 {
+        return vec![center; n];
+    }
+    let sd = dispersion_sd.max(1e-9);
+    let dist = Normal::new(center, sd).expect("birth_f_units normal params");
+    (0..n)
+        .map(|_| {
+            let mut f = dist.sample(rng);
+            // truncate to (0, 1]
+            if f <= 0.0 {
+                f = 1e-12;
+            } else if f > 1.0 {
+                f = 1.0;
+            }
+            f
+        })
+        .collect()
+}
+
 /// F2: Dirac birth freshness from measured age at receipt (τ days).
 pub fn birth_f_f2_dirac(age_at_receipt: f64, eta_ref: f64) -> f64 {
     f_at_receipt_from_age(age_at_receipt, eta_ref)
