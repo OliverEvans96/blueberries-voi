@@ -38,17 +38,17 @@ pub fn gamma_decrement_for_store(params: &ModelParams) -> f64 {
     params.gamma_shape * params.gamma_scale * factor
 }
 
-/// Draw a stochastic gamma freshness decrement (shape fixed, scale × Q10 factor).
-pub fn draw_gamma_decrement<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
+/// Shape-scaled daily gamma: `Gamma(k·φ, θ)` at store temperature (ADR 0144).
+fn store_gamma_shape(params: &ModelParams) -> f64 {
     let factor = store_temp_factor(params.t_store_c, params.t_ref_c, params.q10);
-    let scale = params.gamma_scale * factor;
-    let dist = Gamma::new(params.gamma_shape, scale).expect("gamma params");
-    dist.sample(rng)
+    params.gamma_shape * factor
 }
 
-/// Store-temperature-adjusted scale of the daily gamma freshness decrement.
-pub fn gamma_decrement_scale(params: &ModelParams) -> f64 {
-    params.gamma_scale * store_temp_factor(params.t_store_c, params.t_ref_c, params.q10)
+/// Draw a stochastic gamma freshness decrement (`Gamma(k·φ, θ)` per day).
+pub fn draw_gamma_decrement<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams) -> f64 {
+    let shape = store_gamma_shape(params);
+    let dist = Gamma::new(shape, params.gamma_scale).expect("gamma params");
+    dist.sample(rng)
 }
 
 /// Lanczos `ln Γ(x)` (g = 7, n = 9); ~15 significant digits on `x > 0`.
@@ -153,7 +153,7 @@ pub fn gamma_q(a: f64, x: f64) -> f64 {
 
 /// CDF of the daily store freshness decrement at `x`.
 pub fn gamma_decrement_cdf(x: f64, params: &ModelParams) -> f64 {
-    gamma_p(params.gamma_shape, x / gamma_decrement_scale(params))
+    gamma_p(store_gamma_shape(params), x / params.gamma_scale)
 }
 
 /// `P(lo ≤ δ < hi)` for the daily decrement, evaluated on the better-conditioned tail.
@@ -161,8 +161,8 @@ pub fn gamma_decrement_interval_prob(lo: f64, hi: f64, params: &ModelParams) -> 
     if !(hi > lo) {
         return 0.0;
     }
-    let a = params.gamma_shape;
-    let s = gamma_decrement_scale(params);
+    let a = store_gamma_shape(params);
+    let s = params.gamma_scale;
     let lo_s = (lo / s).max(0.0);
     let hi_s = hi / s;
     // Upper-tail difference avoids cancellation when both CDFs are near 1.
@@ -273,7 +273,7 @@ impl GammaDecrementTable {
     }
 
     pub fn for_params(params: &ModelParams) -> Self {
-        Self::new(params.gamma_shape, gamma_decrement_scale(params))
+        Self::new(store_gamma_shape(params), params.gamma_scale)
     }
 
     pub fn new(shape: f64, scale: f64) -> Self {
@@ -345,8 +345,8 @@ impl GammaDecrementTable {
     }
 
     pub fn matches_params(&self, params: &ModelParams) -> bool {
-        (self.shape - params.gamma_shape).abs() < 1e-12
-            && (self.scale - gamma_decrement_scale(params)).abs() < 1e-12
+        (self.shape - store_gamma_shape(params)).abs() < 1e-12
+            && (self.scale - params.gamma_scale).abs() < 1e-12
     }
 
     pub fn rebuild_if_needed(&mut self, params: &ModelParams) {
