@@ -3,18 +3,21 @@
 use std::fs;
 use std::path::PathBuf;
 
-use rand::SeedableRng;
 use rand::Rng;
+use rand::SeedableRng;
 use rand_distr::{Distribution, Gamma, LogNormal};
 use rand_pcg::Pcg64;
+use voi_core::arrival::{
+    resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel, STREAM_ARRIVAL_DURATION,
+    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+};
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
 use voi_core::physics::{
-    draw_gamma_decrement, gamma_decrement_cdf, gamma_p, gamma_q,
-    store_temp_factor, GammaDecrementTable,
+    draw_gamma_decrement, gamma_decrement_cdf, gamma_p, gamma_q, store_temp_factor,
+    GammaDecrementTable,
 };
 use voi_core::session::EngineSession;
-use voi_core::arrival::{resolve_arrival_f_law_phi_bar, ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP};
 use voi_core::shipments::{arrival_exposure_from_path, ShipmentTrace};
 use voi_core::spawn_rng::SpawnRng;
 
@@ -62,8 +65,7 @@ fn ac2_1_gamma_shape_scaling_not_scale() {
         "RED: gamma_decrement_scale must be deleted"
     );
     assert!(
-        physics.contains("params.gamma_shape * factor")
-            || physics.contains("gamma_shape * factor"),
+        physics.contains("params.gamma_shape * factor") || physics.contains("gamma_shape * factor"),
         "RED: GammaDecrementTable::for_params must scale shape"
     );
     assert!(
@@ -157,8 +159,7 @@ fn ac2_4_reference_life_invariant_and_eta_choke_point() {
 
     let session_src = read_src("session.rs");
     assert!(
-        session_src.contains("set_reference_life")
-            || session_src.contains("reference_life"),
+        session_src.contains("set_reference_life") || session_src.contains("reference_life"),
         "RED: apply_rpc_configure must call reference-life derivation when eta_ref supplied"
     );
     assert!(
@@ -202,7 +203,10 @@ fn ac2_5_transit_shelf_exposure_relationship() {
 #[test]
 fn ac2_6_arrival_artifact_schema() {
     let path = repo_root().join("data/abdella/arrival_model.json");
-    assert!(path.is_file(), "RED: data/abdella/arrival_model.json must exist");
+    assert!(
+        path.is_file(),
+        "RED: data/abdella/arrival_model.json must exist"
+    );
     let json: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
     for key in [
@@ -267,7 +271,10 @@ fn ac2_7_single_embed_and_parity() {
 #[test]
 fn ac2_8_calibration_note_script_exists() {
     let script = repo_root().join("scripts/arrival_calibration_note.py");
-    assert!(script.is_file(), "RED: scripts/arrival_calibration_note.py must exist");
+    assert!(
+        script.is_file(),
+        "RED: scripts/arrival_calibration_note.py must exist"
+    );
 }
 
 /// AC2.9: `ArrivalModel` analytic CDF uses gamma_p/gamma_q, not grid mass.
@@ -278,9 +285,18 @@ fn ac2_9_arrival_conditional_law_analytic() {
         "RED: crates/voi_core/src/arrival.rs must exist"
     );
     let src = read_src("arrival.rs");
-    assert!(src.contains("ArrivalModel"), "RED: ArrivalModel not defined");
-    assert!(src.contains("gamma_p"), "RED: must use gamma_p for P(f > x | Λ)");
-    assert!(src.contains("gamma_q"), "RED: must use gamma_q for P(f = 0 | Λ)");
+    assert!(
+        src.contains("ArrivalModel"),
+        "RED: ArrivalModel not defined"
+    );
+    assert!(
+        src.contains("gamma_p"),
+        "RED: must use gamma_p for P(f > x | Λ)"
+    );
+    assert!(
+        src.contains("gamma_q"),
+        "RED: must use gamma_q for P(f = 0 | Λ)"
+    );
 
     // Pin the closed form at representative Λ.
     let k = 2.0;
@@ -298,9 +314,7 @@ fn ac2_9_arrival_conditional_law_analytic() {
     let mut gt = 0usize;
     let mut zero = 0usize;
     for _ in 0..n {
-        let d: f64 = Gamma::new(k * lambda, theta)
-            .unwrap()
-            .sample(&mut rng);
+        let d: f64 = Gamma::new(k * lambda, theta).unwrap().sample(&mut rng);
         let f = (1.0 - d).max(0.0);
         if f > x {
             gt += 1;
@@ -312,7 +326,10 @@ fn ac2_9_arrival_conditional_law_analytic() {
     let mc_gt = gt as f64 / n as f64;
     let mc_zero = zero as f64 / n as f64;
     assert!((mc_gt - p_gt).abs() < 0.02, "mc_gt={mc_gt} analytic={p_gt}");
-    assert!((mc_zero - p_zero).abs() < 0.02, "mc_zero={mc_zero} analytic={p_zero}");
+    assert!(
+        (mc_zero - p_zero).abs() < 0.02,
+        "mc_zero={mc_zero} analytic={p_zero}"
+    );
 }
 
 /// AC2.11: restored bc26218 heterogeneous-fleet assertions (strict).
@@ -429,26 +446,16 @@ fn pearson_corr(xs: &[f64], ys: &[f64]) -> f64 {
     num / (den_x.sqrt() * den_y.sqrt())
 }
 
-fn law_mean_f_from_samples(model: &mut ArrivalModel, pack: Option<i32>, phi: Option<f64>) -> f64 {
-    let mut rng = Pcg64::seed_from_u64(150_211);
-    let n = 20_000usize;
-    let mut acc = 0.0;
-    for _ in 0..n {
-        acc += model.sample_filter_birth_units(pack, phi, 1, &mut rng)[0];
-    }
-    acc / n as f64
+fn law_mean_f_from_samples(model: &mut ArrivalModel, condition: ArrivalCondition) -> f64 {
+    model.filter_law_mean_f(condition)
 }
 
-fn law_sd_and_atom(
-    model: &mut ArrivalModel,
-    pack: Option<i32>,
-    phi: Option<f64>,
-) -> (f64, f64) {
+fn law_sd_and_atom(model: &mut ArrivalModel, condition: ArrivalCondition) -> (f64, f64) {
     let mut rng = Pcg64::seed_from_u64(150_219);
     let n = 30_000usize;
     let mut samples = Vec::with_capacity(n);
     for _ in 0..n {
-        samples.push(model.sample_filter_birth_units(pack, phi, 1, &mut rng)[0]);
+        samples.push(model.sample_filter_birth_units(condition, 1, &mut rng)[0]);
     }
     let atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
     let (mean, sd) = empirical_mean_sd(&samples);
@@ -466,44 +473,52 @@ fn collect_truth_deliveries(seed: u64, orders: &[u32]) -> Vec<DeliveryTruth> {
     let mut sess = EngineSession::new(seed);
     sess.init(seed);
     sess.set_obs_scenario("P0").unwrap();
-    let model = ArrivalModel::embedded();
     let params = ModelParams::default();
+    let mut model = ArrivalModel::embedded();
+    model.sync_params(&params);
     let mut seen_lots = 0usize;
     let mut out = Vec::new();
     for (day, &q) in orders.iter().enumerate() {
-        let before = sess
-            .snapshot_value()["live_lots"]
+        let before = sess.snapshot_value()["live_lots"]
             .as_array()
             .map(|a| a.len())
             .unwrap_or(0);
         let _ = sess.step(q);
-        let lots = sess
-            .snapshot_value()["live_lots"]
+        let lots = sess.snapshot_value()["live_lots"]
             .as_array()
             .cloned()
             .unwrap_or_default();
         if lots.len() > before {
             let lot = &lots[lots.len() - 1];
-            let truth_mean_f = lot["mean_f"].as_f64().unwrap_or(0.0);
             let day_u32 = day as u32;
             let mut rng_dur =
                 SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_DURATION);
             let mut rng_temp = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_TEMP);
             let mut rng_pos = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_POS);
-            let mut rng_gamma =
-                SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_GAMMA);
+            let mut rng_gamma = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_GAMMA);
             let draw = model.draw_truth_delivery(
                 "abdella_all",
-                params.units_per_lot.max(1),
+                8,
                 &mut rng_dur,
                 &mut rng_temp,
                 &mut rng_pos,
                 &mut rng_gamma,
             );
+            let trace = ShipmentTrace {
+                times_d: vec![0.0, draw.duration_d],
+                temps_c: vec![draw.t_bar, draw.t_bar],
+            };
+            let exposure_lambda = arrival_exposure_from_path(
+                &trace.temps_c,
+                &trace.times_d,
+                params.q10,
+                params.t_ref_c,
+            );
+            let truth_mean_f = lot["mean_f"].as_f64().unwrap_or(0.0);
             out.push(DeliveryTruth {
                 truth_mean_f,
                 pack_date_days: draw.pack_date_days,
-                exposure_lambda: draw.duration_d * draw.phi_bar,
+                exposure_lambda,
             });
             seen_lots = lots.len();
         }
@@ -578,20 +593,18 @@ fn ac2_11a_empirical_ladder_tracking_mae() {
     let truth: Vec<f64> = deliveries.iter().map(|d| d.truth_mean_f).collect();
 
     let mut model = ArrivalModel::embedded();
+    model.sync_params(&ModelParams::default());
     let pred_p0: Vec<f64> = deliveries
         .iter()
-        .map(|_| law_mean_f_from_samples(&mut model, None, None))
+        .map(|_| law_mean_f_from_samples(&mut model, ArrivalCondition::Prior))
         .collect();
     let pred_f2: Vec<f64> = deliveries
         .iter()
-        .map(|d| law_mean_f_from_samples(&mut model, Some(d.pack_date_days), None))
+        .map(|d| law_mean_f_from_samples(&mut model, ArrivalCondition::Duration(d.pack_date_days)))
         .collect();
     let pred_f3: Vec<f64> = deliveries
         .iter()
-        .map(|d| {
-            let phi = d.exposure_lambda / f64::from(d.pack_date_days).max(1.0);
-            law_mean_f_from_samples(&mut model, None, Some(phi))
-        })
+        .map(|d| law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(d.exposure_lambda)))
         .collect();
 
     let mae_p0 = mae(&pred_p0, &truth);
@@ -617,14 +630,13 @@ fn ac2_19_quadrature_d_and_tbar_independent_product() {
     let (nodes, _) = artifact_quadrature();
     let mut d_vals = Vec::new();
     let mut phi_vals = Vec::new();
-    for node in nodes {
-        let delay_mean = expected_delay(corridor);
-        let delay_span = corridor.delay_scale * 2.0;
-        let d = (corridor.d_min + delay_mean + delay_span * (2.0 * node - 1.0)).max(0.0);
-        let t_span = model.sigma_t * 2.5;
-        let t_bar = (model.mu_t + t_span * (2.0 * node - 1.0)).max(model.temp_floor_c);
-        d_vals.push(d);
-        phi_vals.push(model.phi_bar_from_t_bar(t_bar));
+    for u_d in &nodes {
+        let d = model.quadrature_duration_days(corridor, *u_d);
+        for u_t in &nodes {
+            let t_bar = model.quadrature_t_bar_c(*u_t);
+            d_vals.push(d);
+            phi_vals.push(model.phi_bar_from_t_bar(t_bar));
+        }
     }
     let corr = pearson_corr(&d_vals, &phi_vals).abs();
     assert!(
@@ -642,9 +654,7 @@ fn ac2_19_quadrature_integrates_modeled_densities() {
     let mut quad_d = Vec::new();
     let mut quad_w = Vec::new();
     for (node, weight) in nodes.into_iter().zip(weights) {
-        let delay_mean = expected_delay(corridor);
-        let delay_span = corridor.delay_scale * 2.0;
-        let d = (corridor.d_min + delay_mean + delay_span * (2.0 * node - 1.0)).max(0.0);
+        let d = model.quadrature_duration_days(corridor, node);
         quad_d.push(d);
         quad_w.push(weight);
     }
@@ -683,7 +693,10 @@ fn ac2_19_sigma_pos_in_filter_law() {
     let path = repo_root().join("data/abdella/arrival_model.json");
     let mut payload: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
-    let phi = ArrivalModel::embedded().phi_bar_from_t_bar(payload["mu_T"].as_f64().unwrap());
+    let embedded = ArrivalModel::embedded();
+    let phi = embedded.phi_bar_from_t_bar(payload["mu_T"].as_f64().unwrap());
+    let corridor = embedded.corridor("abdella_all");
+    let lot_lambda = expected_delay(corridor) * phi;
 
     let mut low = payload.clone();
     low["sigma_pos"] = serde_json::json!(0.02);
@@ -694,8 +707,8 @@ fn ac2_19_sigma_pos_in_filter_law() {
         ArrivalModel::from_json(&serde_json::to_string(&low).unwrap()).expect("low sigma_pos");
     let mut model_high =
         ArrivalModel::from_json(&serde_json::to_string(&high).unwrap()).expect("high sigma_pos");
-    let (sd_low, _) = law_sd_and_atom(&mut model_low, None, Some(phi));
-    let (sd_high, _) = law_sd_and_atom(&mut model_high, None, Some(phi));
+    let (sd_low, _) = law_sd_and_atom(&mut model_low, ArrivalCondition::Exposure(lot_lambda));
+    let (sd_high, _) = law_sd_and_atom(&mut model_high, ArrivalCondition::Exposure(lot_lambda));
     assert!(
         sd_high > sd_low + 0.01,
         "RED: raising sigma_pos must widen the filter law (low={sd_low:.4}, high={sd_high:.4})"
@@ -722,9 +735,8 @@ fn ac2_19_atom_single_count_and_unconditional_moments() {
     let mc_atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
     let (mc_mean, _) = empirical_mean_sd(&samples);
 
-    let phi = model.phi_bar_from_t_bar(model.mu_t);
-    let filter_mean = law_mean_f_from_samples(&mut model, None, Some(phi));
-    let (_, filter_atom) = law_sd_and_atom(&mut model, None, Some(phi));
+    let filter_mean = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda));
+    let (_, filter_atom) = law_sd_and_atom(&mut model, ArrivalCondition::Exposure(lambda));
 
     assert!(
         (filter_atom - analytic_atom).abs() < 0.02,
@@ -755,7 +767,7 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     }
 
     let mut model = ArrivalModel::embedded();
-    let mixed_mean = law_mean_f_from_samples(&mut model, None, None);
+    let mixed_mean = law_mean_f_from_samples(&mut model, ArrivalCondition::Prior);
 
     let abdella_only = json["corridors"]["abdella_all"].clone();
     let single_json = serde_json::json!({
@@ -772,9 +784,9 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
         "quadrature": json["quadrature"],
         "corridors": {"abdella_all": abdella_only},
     });
-    let mut single =
-        ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap()).expect("single corridor");
-    let single_mean = law_mean_f_from_samples(&mut single, None, None);
+    let mut single = ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap())
+        .expect("single corridor");
+    let single_mean = law_mean_f_from_samples(&mut single, ArrivalCondition::Prior);
     assert!(
         (mixed_mean - single_mean).abs() < 0.02,
         "RED: P0 prior must not average corridors (mix_weight); mixed={mixed_mean:.4} abdella_only={single_mean:.4}"
@@ -812,9 +824,14 @@ fn ac2_20_f3_laws_differ_when_duration_differs_at_same_phi_bar() {
     .unwrap();
     assert!((phi_short - phi_long).abs() < 1e-6, "fixture: same phi_bar");
 
+    let lambda_short =
+        arrival_exposure_from_path(&trace_short.temps_c, &trace_short.times_d, q10, t_ref);
+    let lambda_long =
+        arrival_exposure_from_path(&trace_long.temps_c, &trace_long.times_d, q10, t_ref);
+
     let mut model = ArrivalModel::embedded();
-    let mean_short = law_mean_f_from_samples(&mut model, None, Some(phi_short));
-    let mean_long = law_mean_f_from_samples(&mut model, None, Some(phi_long));
+    let mean_short = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_short));
+    let mean_long = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_long));
     assert!(
         (mean_short - mean_long).abs() > 0.02,
         "RED: F3 laws must differ when duration differs at fixed phi_bar; short={mean_short:.4} long={mean_long:.4}"
@@ -839,12 +856,8 @@ fn ac2_20_f3_law_sufficient_in_lambda_not_phi_bar() {
         times_d: vec![0.0, duration_short],
         temps_c: vec![t_hot, t_hot],
     };
-    let lambda_short = arrival_exposure_from_path(
-        &trace_short.temps_c,
-        &trace_short.times_d,
-        q10,
-        t_ref,
-    );
+    let lambda_short =
+        arrival_exposure_from_path(&trace_short.temps_c, &trace_short.times_d, q10, t_ref);
     assert!(
         (lambda_target - lambda_short).abs() < 0.05,
         "fixture: paths must share Λ; long={lambda_target:.4} short={lambda_short:.4}"
@@ -869,8 +882,8 @@ fn ac2_20_f3_law_sufficient_in_lambda_not_phi_bar() {
     );
 
     let mut model = ArrivalModel::embedded();
-    let mean_long = law_mean_f_from_samples(&mut model, None, Some(phi_long));
-    let mean_short = law_mean_f_from_samples(&mut model, None, Some(phi_short));
+    let mean_long = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_target));
+    let mean_short = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_short));
     assert!(
         (mean_long - mean_short).abs() < 0.02,
         "RED: F3 law must depend on Λ only; equal Λ paths gave means {mean_long:.4} vs {mean_short:.4}"
@@ -899,14 +912,16 @@ fn ac2_12_within_lot_arrival_f_spread() {
     let params = ModelParams::default();
     let model = ArrivalModel::embedded();
     let mut rng = Pcg64::seed_from_u64(150_212);
-    let units: Vec<f64> = model.draw_truth_delivery(
-        "abdella_all",
-        params.units_per_lot,
-        &mut rng,
-        &mut Pcg64::seed_from_u64(150_213),
-        &mut Pcg64::seed_from_u64(150_214),
-        &mut Pcg64::seed_from_u64(150_215),
-    ).unit_f;
+    let units: Vec<f64> = model
+        .draw_truth_delivery(
+            "abdella_all",
+            params.units_per_lot,
+            &mut rng,
+            &mut Pcg64::seed_from_u64(150_213),
+            &mut Pcg64::seed_from_u64(150_214),
+            &mut Pcg64::seed_from_u64(150_215),
+        )
+        .unit_f;
 
     let unique: std::collections::BTreeSet<u64> = units
         .iter()

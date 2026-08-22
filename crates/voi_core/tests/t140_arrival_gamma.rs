@@ -9,9 +9,11 @@ use std::path::PathBuf;
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
-use voi_core::arrival::ArrivalModel;
+use voi_core::arrival::{ArrivalCondition, ArrivalModel};
 use voi_core::params::ModelParams;
-use voi_core::shipments::{calendar_transit_days, phi_bar_fleet, phi_bar_from_trace, ShipmentTrace};
+use voi_core::shipments::{
+    calendar_transit_days, phi_bar_fleet, phi_bar_from_trace, ShipmentTrace,
+};
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -98,10 +100,8 @@ fn shipments_thermal_phi_bar_non_degenerate() {
     let traces = shipments_thermal_traces();
     let params = ModelParams::default();
     let phis = phi_bar_fleet(&traces, params.q10, params.t_ref_c);
-    let distinct: std::collections::HashSet<_> = phis
-        .iter()
-        .map(|p| (p * 1e6).round() as i64)
-        .collect();
+    let distinct: std::collections::HashSet<_> =
+        phis.iter().map(|p| (p * 1e6).round() as i64).collect();
     assert!(
         distinct.len() >= 2,
         "thermal fleet phi_bar must be non-degenerate, got {phis:?}"
@@ -118,7 +118,7 @@ fn arrival_model_spreads_units_at_fixed_exposure() {
     let mut spread = false;
     for seed in 0..50u64 {
         let mut rng = Pcg64::seed_from_u64(140_001 ^ seed);
-        let values = model.sample_filter_birth_units(Some(3), None, n, &mut rng);
+        let values = model.sample_filter_birth_units(ArrivalCondition::Duration(3), n, &mut rng);
         assert_eq!(values.len(), n);
         for &f in &values {
             assert!(f >= 0.0 && f <= 1.0, "f={f}");
