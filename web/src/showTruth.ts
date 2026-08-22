@@ -1,6 +1,6 @@
 /** Studio presentation flag: reveal sim truth overlays (ADR 0125). */
 
-export const SHOW_TRUTH_STORAGE_KEY = "blueberries-voi-studio-show-truth";
+export const SHOW_TRUTH_STORAGE_KEY = "bv-studio:show-truth";
 
 export function loadShowTruth(): boolean {
   try {

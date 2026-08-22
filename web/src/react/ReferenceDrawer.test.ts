@@ -32,7 +32,17 @@ const SAMPLE_VOI: VoiReferenceData = {
 };
 
 function renderDrawer() {
-  return render(createElement(ReferenceDrawer));
+  return render(
+    createElement(
+      "div",
+      { className: "bv-studio", "data-testid": "studio-scope" },
+      createElement(ReferenceDrawer),
+    ),
+  );
+}
+
+function studioScope(): HTMLElement {
+  return document.querySelector(".bv-studio") as HTMLElement;
 }
 
 function getDialog(): HTMLDialogElement | null {
@@ -43,7 +53,7 @@ function getTabs() {
   return screen.getAllByRole("tab");
 }
 
-function pressKey(key: string, target: EventTarget = document.body) {
+function pressKey(key: string, target: EventTarget = studioScope()) {
   fireEvent.keyDown(target, { key, bubbles: true });
 }
 

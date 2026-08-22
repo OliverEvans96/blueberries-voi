@@ -6,6 +6,7 @@ import type {
   Day,
   Economics,
   Lot,
+  ObsScenarioKey,
   ScenarioId,
   SimConfig,
 } from "../types";
@@ -417,7 +418,7 @@ function beliefBlur(scenario: ScenarioId): number {
 export function generateFlatBelief(
   lots: Lot[],
   rng: () => number,
-  scenario: ScenarioId = "P1",
+  scenario: ObsScenarioKey = "P1",
   K = 12,
 ): FlatBelief {
   const L = lots.length;
@@ -436,7 +437,7 @@ export function generateFlatBelief(
     { length: K },
     (_, i) => i / Math.max(1, K - 1),
   );
-  const blurF = beliefBlur(scenario);
+  const blurF = beliefBlur(scenario === "custom" ? "P1" : scenario);
   const f_marginals: number[] = [];
 
   for (let l = 0; l < L; l++) {

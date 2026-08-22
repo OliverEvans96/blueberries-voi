@@ -9,7 +9,7 @@ import type { Lot } from "./types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHOW_TRUTH_TS = join(HERE, "showTruth.ts");
-const SHOW_TRUTH_KEY = "blueberries-voi-studio-show-truth";
+const SHOW_TRUTH_KEY = "bv-studio:show-truth";
 
 const MEMORY_STORE = new Map<string, string>();
 

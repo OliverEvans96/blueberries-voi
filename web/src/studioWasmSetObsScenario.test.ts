@@ -10,7 +10,7 @@ import { MockAdapter } from "./mock/adapter";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB_SRC = HERE;
 const WASM_ADAPTER = join(HERE, "engine/wasmAdapter.ts");
-const WASM_WORKER = join(WEB_SRC, "../../packaging/wasm/worker.js");
+const WASM_WORKER = join(HERE, "engine/wasmWorker.ts");
 
 describe("T-114 WasmAdapter forwards set_obs_scenario", () => {
   it("wasmAdapter.ts mentions set_obs_scenario", () => {
@@ -18,7 +18,7 @@ describe("T-114 WasmAdapter forwards set_obs_scenario", () => {
     expect(src).toMatch(/set_obs_scenario/);
   });
 
-  it("packaging/wasm/worker.js lists set_obs_scenario with other RPC methods", () => {
+  it("wasmWorker.ts lists set_obs_scenario with other RPC methods", () => {
     const src = readFileSync(WASM_WORKER, "utf8");
     expect(src).toMatch(/set_obs_scenario/);
     expect(src).toMatch(/init/);
