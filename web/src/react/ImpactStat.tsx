@@ -22,6 +22,7 @@ export function ImpactStat({
       data-testid="impact-stat"
       data-impact-label={label}
     >
+      <strong className="impact-stat-label">{label}:</strong>{" "}
       <span className="impact-stat-value">
         {absolute} units ({pctText})
       </span>
