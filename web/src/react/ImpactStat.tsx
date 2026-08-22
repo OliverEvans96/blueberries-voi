@@ -17,16 +17,14 @@ export function ImpactStat({
     `${(percent * 100).toFixed(1)}% of cumulative ${label.includes("missed") ? "demand" : "orders"}`;
 
   return (
-    <div
+    <p
       className="impact-stat"
       data-testid="impact-stat"
       data-impact-label={label}
     >
-      <div className="impact-stat-head">
-        <span className="impact-stat-label">{label}</span>
-        <span className="impact-stat-abs">{absolute}</span>
-      </div>
-      <div className="impact-stat-pct">{pctText}</div>
-    </div>
+      <span className="impact-stat-value">
+        {absolute} units ({pctText})
+      </span>
+    </p>
   );
 }

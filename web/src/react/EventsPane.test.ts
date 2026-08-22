@@ -17,9 +17,17 @@ type MaskedDayWire = {
   waste_total?: number | null;
   sales_by?: number[] | null;
   waste_by?: number[] | null;
+  arrivals_by?: number[] | null;
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
   pack_date_days?: number | null;
+  temp_times_d?: number[] | null;
+  temp_temps_c?: number[] | null;
+  temp_traces_by_lot?: Array<{
+    lot_id: number;
+    times_d: number[];
+    temps_c: number[];
+  }> | null;
 };
 
 const SCHEDULE: ScheduleWire = {
@@ -48,7 +56,7 @@ const F2_DAY: MaskedDayWire = {
 };
 
 describe("EventsPane (T-148 v6)", () => {
-  it("shows last five days from max(1, episode_day-4) through episode_day", () => {
+  it("shows last five completed days newest-first, excluding today", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: { episode_day: 7, config: DEFAULT_SIM_CONFIG },
@@ -58,8 +66,8 @@ describe("EventsPane (T-148 v6)", () => {
     );
     const cards = container.querySelectorAll(".events-day-card");
     expect(cards.length).toBe(5);
-    expect(cards[0]?.getAttribute("data-day")).toBe("3");
-    expect(cards[4]?.getAttribute("data-day")).toBe("7");
+    expect(cards[0]?.getAttribute("data-day")).toBe("6");
+    expect(cards[4]?.getAttribute("data-day")).toBe("2");
   });
 
   it("renders three column tables per day", () => {
@@ -70,16 +78,16 @@ describe("EventsPane (T-148 v6)", () => {
         events: [P0_DAY, F2_DAY],
       }),
     );
-    expect(container.querySelectorAll("[data-testid='events-columns']").length).toBe(3);
-    expect(container.querySelectorAll("[data-testid='events-col-delivered']").length).toBe(3);
-    expect(container.querySelectorAll("[data-testid='events-col-sold']").length).toBe(3);
-    expect(container.querySelectorAll("[data-testid='events-col-spoiled']").length).toBe(3);
+    expect(container.querySelectorAll("[data-testid='events-columns']").length).toBe(2);
+    expect(container.querySelectorAll("[data-testid='events-col-delivered']").length).toBe(2);
+    expect(container.querySelectorAll("[data-testid='events-col-sold']").length).toBe(2);
+    expect(container.querySelectorAll("[data-testid='events-col-spoiled']").length).toBe(2);
   });
 
   it("P0 hides waste — shows not-observed in spoiled column", () => {
     render(
       createElement(EventsPane, {
-        vm: { episode_day: 1, config: DEFAULT_SIM_CONFIG },
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY],
       }),
@@ -91,7 +99,7 @@ describe("EventsPane (T-148 v6)", () => {
     render(
       createElement(EventsPane, {
         vm: {
-          episode_day: 2,
+          episode_day: 3,
           config: {
             ...DEFAULT_SIM_CONFIG,
             obs_scenario: "F2",
@@ -107,27 +115,126 @@ describe("EventsPane (T-148 v6)", () => {
     expect(screen.getByText(/pack date 3 days/i)).toBeInTheDocument();
   });
 
-  it("shows delivery and order chips from schedule", () => {
+  it("delivery lot rows sum to delivery total", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F1",
+            obs_channels: channelsForPreset("F1"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            arrival_lot_ids: [201, 202],
+            arrivals_by: [10, 6],
+            sales_total: 4,
+            waste_total: 0,
+          },
+        ],
+      }),
+    );
+    const deliveredCol = container.querySelector(
+      "[data-testid='events-col-delivered']",
+    );
+    const lotQty = Array.from(
+      deliveredCol?.querySelectorAll(".events-table-lot td") ?? [],
+    ).map((el) => Number(el.textContent));
+    expect(lotQty.reduce((s, n) => s + n, 0)).toBe(16);
+  });
+
+  it("shows delivery and order markers on the left", () => {
     render(
       createElement(EventsPane, {
-        vm: { episode_day: 1, config: DEFAULT_SIM_CONFIG },
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY],
       }),
     );
-    expect(screen.getByText("Delivery")).toBeInTheDocument();
-    expect(screen.queryByText("Order")).toBeNull();
+    expect(screen.getByText("delivery day")).toBeInTheDocument();
+    expect(screen.queryByText("order day")).toBeNull();
   });
 
-  it("shows loading state when loading=true", () => {
+  it("shows day number only in heading", () => {
     render(
       createElement(EventsPane, {
-        vm: { episode_day: 1, config: DEFAULT_SIM_CONFIG },
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [P0_DAY],
+      }),
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "Day 1" })).toBeInTheDocument();
+    expect(screen.queryByText(/Monday|Jan/i)).toBeNull();
+  });
+
+  it("shows initial loading only when there is no event data", () => {
+    render(
+      createElement(EventsPane, {
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [],
         loading: true,
       }),
     );
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
+  });
+
+  it("keeps stale cards visible while refreshing", () => {
+    render(
+      createElement(EventsPane, {
+        vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [P0_DAY],
+        refreshing: true,
+      }),
+    );
+    expect(screen.getByText("Day 1")).toBeInTheDocument();
+    expect(screen.getByText(/updating/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Loading events/i)).toBeNull();
+  });
+
+  it("F3 delivery day shows temperature history chart", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F3",
+            obs_channels: channelsForPreset("F3"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 1,
+            arrivals: 8,
+            arrival_lot_ids: [301, 302],
+            arrivals_by: [5, 3],
+            sales_total: 4,
+            waste_total: 0,
+            temp_traces_by_lot: [
+              {
+                lot_id: 301,
+                times_d: [-3, -2, -1, 0],
+                temps_c: [2, 2.2, 2.4, 2.6],
+              },
+              {
+                lot_id: 302,
+                times_d: [-3, -2, -1, 0],
+                temps_c: [2.5, 2.7, 2.9, 3.1],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
+    expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
   });
 });

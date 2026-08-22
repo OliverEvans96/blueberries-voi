@@ -9,7 +9,7 @@ import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import { ObsControlsPane } from "./ObsControlsPane";
 
 describe("ObsControlsPane (T-148)", () => {
-  it("renders channel chips, preset select, and truth toggle", () => {
+  it("renders channel chips and truth toggle without preset select", () => {
     const onShowTruthChange = vi.fn();
     render(
       createElement(ObsControlsPane, {
@@ -23,6 +23,7 @@ describe("ObsControlsPane (T-148)", () => {
 
     expect(screen.getByTestId("obs-controls-pane")).toBeInTheDocument();
     expect(screen.getByTestId("obs-channels")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/preset/i)).toBeNull();
     expect(screen.getByLabelText(/show true state/i)).toHaveAttribute(
       "aria-checked",
       "true",
@@ -46,6 +47,5 @@ describe("ObsControlsPane (T-148)", () => {
     expect(screen.getByLabelText(/code type/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/scan waste/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/delivery history/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/preset/i)).toBeInTheDocument();
   });
 });

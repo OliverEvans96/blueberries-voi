@@ -246,6 +246,7 @@ export function ReferenceDrawer({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (!document.querySelector(".bv-studio")) return;
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 

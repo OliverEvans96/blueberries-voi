@@ -162,12 +162,11 @@ describe("T-087 DOW profile from demand_summary", () => {
     ).toBe(false);
   });
 
-  it("react/studioLogic.ts renders demand DOW when demand section is active (T-130 colocation)", () => {
+  it("react/studioLogic.ts colocates demand DOW chart when demand section is active", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
-    expect(main).toMatch(/activeSection\s*===\s*["']demand["']/);
-    expect(main).not.toMatch(
-      /plotVisible\s*\(\s*["']plot-demand["']\s*\)/,
-    );
+    expect(main).toMatch(/id\s*===\s*["']demand["']/);
+    expect(main).toMatch(/chart-demand-host/);
+    expect(main).toMatch(/renderDemandDist/);
   });
 });
 

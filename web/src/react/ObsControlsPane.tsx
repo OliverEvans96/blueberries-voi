@@ -1,7 +1,5 @@
 import "../styles/obsControls.css";
-import { scenarioTitle } from "../controls";
-import { channelsForPreset } from "../obsMask";
-import type { ObsChannels, ScenarioId, ViewModel } from "../types";
+import type { ObsChannels, ViewModel } from "../types";
 
 const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "gsin"];
 const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
@@ -9,8 +7,6 @@ const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
   "pack_date",
   "temperature_history",
 ];
-
-const PRESET_IDS: ScenarioId[] = ["P0", "P1", "F1", "F2a", "F2", "F3"];
 
 const CODE_LABEL: Record<ObsChannels["code_type"], string> = {
   upc: "UPC",
@@ -28,36 +24,18 @@ export type ObsControlsPaneProps = {
   showTruth: boolean;
   catchingUp?: boolean;
   onSetObsChannels: (channels: ObsChannels) => void;
-  onSetObsPreset: (id: ScenarioId) => void;
+  onSetObsPreset: (id: import("../types").ScenarioId) => void;
   onShowTruthChange: (show: boolean) => void;
 };
-
-function channelsEqual(a: ObsChannels, b: ObsChannels): boolean {
-  return (
-    a.code_type === b.code_type &&
-    a.scan_waste === b.scan_waste &&
-    a.delivery_history === b.delivery_history
-  );
-}
-
-function activePreset(channels: ObsChannels): ScenarioId | null {
-  for (const id of PRESET_IDS) {
-    if (channelsEqual(channels, channelsForPreset(id))) return id;
-  }
-  return null;
-}
 
 export function ObsControlsPane({
   showTruth,
   onSetObsChannels,
-  onSetObsPreset,
   onShowTruthChange,
   vm,
   catchingUp = false,
 }: ObsControlsPaneProps) {
-  const channels =
-    vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario);
-  const preset = activePreset(channels);
+  const channels = vm.config.obs_channels;
 
   const setChannel = (partial: Partial<ObsChannels>) => {
     onSetObsChannels({ ...channels, ...partial });
@@ -69,13 +47,12 @@ export function ObsControlsPane({
       data-testid="obs-controls-pane"
       aria-label="Observation controls"
     >
-      <div className="panel-head">
+      <div className="panel-head obs-panel-head">
         <h2>Observation</h2>
+        <p className="obs-panel-lead">What the filter can see each day</p>
       </div>
 
       <section className="obs-channels" data-testid="obs-channels">
-        <span className="field-label">Observation channels</span>
-
         <div className="obs-channel-group" role="group" aria-label="Code type">
           <span className="obs-channel-label">Code type</span>
           <div className="chip-row">
@@ -96,15 +73,26 @@ export function ObsControlsPane({
 
         <div className="obs-channel-group" role="group" aria-label="Scan waste">
           <span className="obs-channel-label">Scan waste</span>
-          <button
-            type="button"
-            className={`obs-chip${channels.scan_waste ? " is-active" : ""}`}
-            data-obs-scan-waste={String(channels.scan_waste)}
-            disabled={catchingUp}
-            onClick={() => setChannel({ scan_waste: !channels.scan_waste })}
-          >
-            {channels.scan_waste ? "On" : "Off"}
-          </button>
+          <div className="chip-row">
+            <button
+              type="button"
+              className={`obs-chip${channels.scan_waste ? " is-active" : ""}`}
+              data-obs-scan-waste="true"
+              disabled={catchingUp}
+              onClick={() => setChannel({ scan_waste: true })}
+            >
+              On
+            </button>
+            <button
+              type="button"
+              className={`obs-chip${!channels.scan_waste ? " is-active" : ""}`}
+              data-obs-scan-waste="false"
+              disabled={catchingUp}
+              onClick={() => setChannel({ scan_waste: false })}
+            >
+              Off
+            </button>
+          </div>
         </div>
 
         <div
@@ -113,7 +101,7 @@ export function ObsControlsPane({
           aria-label="Delivery history"
         >
           <span className="obs-channel-label">Delivery history</span>
-          <div className="chip-row">
+          <div className="chip-row chip-row--wrap">
             {HISTORY_OPTIONS.map((delivery_history) => (
               <button
                 key={delivery_history}
@@ -129,31 +117,6 @@ export function ObsControlsPane({
           </div>
         </div>
 
-        <div className="obs-preset-row">
-          <label className="obs-preset-label" htmlFor="obs-preset-select">
-            Preset
-          </label>
-          <select
-            id="obs-preset-select"
-            className="obs-preset-select"
-            value={preset ?? ""}
-            disabled={catchingUp}
-            onChange={(e) => {
-              const id = e.target.value as ScenarioId;
-              if (id) onSetObsPreset(id);
-            }}
-          >
-            <option value="" disabled={preset !== null}>
-              Custom
-            </option>
-            {PRESET_IDS.map((id) => (
-              <option key={id} value={id}>
-                {id} — {scenarioTitle(id)}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <p
           className="obs-catchup-progress"
           id="obs-catchup-progress"
@@ -164,7 +127,10 @@ export function ObsControlsPane({
       </section>
 
       <div className="obs-controls-truth">
-        <span className="truth-toggle-label">Sim truth overlay</span>
+        <div className="obs-truth-copy">
+          <span className="truth-toggle-label">Sim truth overlay</span>
+          <span className="truth-toggle-hint">Show ground-truth inventory paths</span>
+        </div>
         <button
           type="button"
           className={`truth-toggle${showTruth ? " truth-toggle--on" : ""}`}

@@ -11,12 +11,24 @@ function shotPath(name: string): string {
   return path.join(SHOT_DIR, `${name}.png`);
 }
 
-function obsPresetSelect(page: Page) {
-  return page.locator("#obs-preset-select");
+function obsChannels(page: Page) {
+  return page.locator("[data-testid='obs-controls-pane']");
 }
 
-async function setObsPreset(page: Page, scenario: string) {
-  await obsPresetSelect(page).selectOption(scenario);
+async function setObsChannels(
+  page: Page,
+  partial: { scanWaste?: boolean; codeType?: "upc" | "gsin" },
+) {
+  if (partial.codeType) {
+    await obsChannels(page)
+      .locator(`[data-obs-code-type='${partial.codeType}']`)
+      .click();
+  }
+  if (partial.scanWaste != null) {
+    await obsChannels(page)
+      .locator(`[data-obs-scan-waste='${partial.scanWaste}']`)
+      .click();
+  }
   await page.waitForTimeout(250);
 }
 
@@ -128,6 +140,7 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(events).toBeVisible();
     await expect(events.locator(".events-day-card")).toHaveCount(5);
     await expect(events.locator("[data-testid='events-columns']").first()).toBeVisible();
+    await expect(events.locator(".events-day-card[data-day='7']")).toHaveCount(0);
   });
 
   test("7: tuning dock without observation tab", async ({ page }) => {
@@ -143,13 +156,13 @@ test.describe("T-148 layout v6 — visual QA", () => {
     }
   });
 
-  test("8: obs preset changes events pane", async ({ page }) => {
+  test("8: obs channel changes keep events pane visible", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 3);
-    for (const scenario of ["P0", "F2"]) {
-      await setObsPreset(page, scenario);
-      await expect(page.locator("#events-pane-host")).toBeVisible();
-    }
+    await setObsChannels(page, { scanWaste: false });
+    await expect(page.locator("#events-pane-host")).toBeVisible();
+    await setObsChannels(page, { codeType: "gsin", scanWaste: true });
+    await expect(page.locator("#events-pane-host")).toBeVisible();
   });
 });

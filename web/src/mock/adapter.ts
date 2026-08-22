@@ -15,7 +15,7 @@ import type {
   SimConfig,
   StepInput,
 } from "../types";
-import { channelsForPreset } from "../obsMask";
+import { channelsForPreset, maskFor, applyMask } from "../obsMask";
 import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
@@ -401,19 +401,124 @@ export class MockAdapter implements EngineAdapter {
   async events(params: {
     since_day: number;
   }): Promise<import("../engine/types").EventsResult> {
+    const mask = maskFor(this.config.obs_scenario);
     const days = this.state.history
       .filter((d) => d.day >= params.since_day)
-      .map((d) => ({
-        day: d.day,
-        arrivals: d.arrivals ?? 0,
-        sales_total: d.sales_total,
-        waste_total: d.waste_total,
-        sales_by: null,
-        waste_by: null,
-        lot_ids: null,
-        pack_date_days: null,
-        age_at_receipt: null,
-      }));
+      .map((d) => {
+        const rich = this.richDayFromHistory(d);
+        const masked = applyMask(rich, mask);
+        return {
+          day: d.day,
+          arrivals: masked.arrivals,
+          sales_total: masked.sales_total ?? null,
+          waste_total: masked.waste_total ?? null,
+          sales_by: masked.sales_by ?? null,
+          waste_by: masked.waste_by ?? null,
+          arrivals_by: masked.arrivals_by ?? null,
+          lot_ids: masked.lot_ids ?? null,
+          arrival_lot_ids: masked.arrival_lot_ids ?? null,
+          pack_date_days: masked.pack_date_days ?? null,
+          age_at_receipt: masked.age_at_receipt ?? null,
+          temp_times_d: masked.temp_times_d ?? null,
+          temp_temps_c: masked.temp_temps_c ?? null,
+          temp_traces_by_lot: masked.temp_traces_by_lot ?? null,
+        };
+      });
     return { since_day: params.since_day, days };
+  }
+
+  private richDayFromHistory(day: import("../types").Day): import("../obsMask").RichObsWire {
+    const exits = day.unit_exits ?? [];
+    const lotIds = [...new Set(day.lots.map((l) => l.lot_id))].sort(
+      (a, b) => a - b,
+    );
+    const salesBy = lotIds.map(
+      (id) =>
+        exits.filter((e) => e.lot_id === id && e.cause === "sold").length,
+    );
+    const wasteBy = lotIds.map(
+      (id) =>
+        exits.filter((e) => e.lot_id === id && e.cause === "spoiled").length,
+    );
+
+    const arrivalMeta = this.arrivalMetaForDay(day);
+    const temp = this.tempTraceForDay(day, arrivalMeta.lotIds);
+
+    return {
+      day: day.day,
+      arrivals: day.arrivals,
+      sales_total: day.sales_total,
+      waste_total: day.waste_total,
+      sales_by: salesBy,
+      waste_by: wasteBy,
+      lot_ids: lotIds,
+      arrival_lot_ids: arrivalMeta.lotIds,
+      arrivals_by: arrivalMeta.qtys,
+      pack_date_days:
+        day.arrivals > 0
+          ? Math.max(1, Math.round((1 - (day.f_at_receipt ?? 0.85)) * 14))
+          : null,
+      age_at_receipt: day.f_at_receipt,
+      temp_times_d: temp.times,
+      temp_temps_c: temp.temps,
+      temp_traces_by_lot: temp.byLot,
+    };
+  }
+
+  private arrivalMetaForDay(day: import("../types").Day): {
+    lotIds: number[];
+    qtys: number[];
+  } {
+    if (day.arrivals <= 0) return { lotIds: [], qtys: [] };
+    const prev = this.state.history.find((h) => h.day === day.day - 1);
+    const prevIds = new Set((prev?.lots ?? []).map((l) => l.lot_id));
+    const newLots = day.lots.filter((l) => !prevIds.has(l.lot_id));
+    if (newLots.length > 0) {
+      if (newLots.length === 1) {
+        return {
+          lotIds: [newLots[0]!.lot_id],
+          qtys: [day.arrivals],
+        };
+      }
+      const totalN = newLots.reduce((s, l) => s + l.n, 0) || 1;
+      return {
+        lotIds: newLots.map((l) => l.lot_id),
+        qtys: newLots.map((l) =>
+          Math.round((day.arrivals * l.n) / totalN),
+        ),
+      };
+    }
+    const newest = day.lots[day.lots.length - 1];
+    if (newest) {
+      return { lotIds: [newest.lot_id], qtys: [day.arrivals] };
+    }
+    return { lotIds: [], qtys: [] };
+  }
+
+  private tempTraceForDay(
+    day: import("../types").Day,
+    arrivalLotIds: number[],
+  ): {
+    times: number[] | null;
+    temps: number[] | null;
+    byLot: import("../obsMask").TempTraceByLot[] | null;
+  } {
+    if (day.arrivals <= 0 || arrivalLotIds.length === 0) {
+      return { times: null, temps: null, byLot: null };
+    }
+    const span = 3;
+    const times = [0, 1, 2, 3].map((i) => i - span);
+    const baseTemp = 2 + (day.day % 5) * 0.3;
+    const byLot = arrivalLotIds.map((lotId, i) => ({
+      lot_id: lotId,
+      times_d: times,
+      temps_c: times.map((_, j) => baseTemp + i * 0.4 + j * 0.25),
+    }));
+    const first = byLot[0]!;
+    return {
+      times: first.times_d,
+      temps: first.temps_c,
+      byLot,
+    };
   }
 }
