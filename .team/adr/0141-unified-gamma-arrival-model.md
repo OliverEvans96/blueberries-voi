@@ -1,8 +1,12 @@
 # 0141. Unified gamma-in-warped-time arrival model (Stage C)
 
-STATUS: PROPOSED
+STATUS: SUPERSEDED BY 0144
 DATE: 2026-08-21
 TICKET: T-140
+SUPERSEDED BY: [0144](./0144-f-native-hierarchical-arrival-model.md) (T-150) — same gamma-in-
+warped-time idea, but drawn in f-space with no `eta_ref` division, with `d` / `T_bar` from a
+committed hierarchical artifact instead of a fleet-trace bootstrap, and with `gamma_scale`
+recalibrated so `k·θ·η_ref = 1`.
 RELATED: [0133](./0133-observation-channel-toggles.md) (delivery_history ladder),
 [0139](./0139-heterogeneous-arrivals-within-lot-dispersion.md) (Stage A dispersion — superseded birth law),
 [0131](./0131-f-native-wire-tau-retirement.md) (F2a Gaussian on τ — retired),
