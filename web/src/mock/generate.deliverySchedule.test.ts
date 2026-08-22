@@ -1,39 +1,55 @@
 /**
- * T-151 (bugfix): mock physics engine's order-day weekday gate must use the
- * same Monday=0 convention (day 1 == Monday) as `scheduleFromConfig` /
- * `EventsPane`'s `isDeliveryDay`, so arrivals actually land on the days the
- * UI labels "delivery day". Regression for the delivery-temp-chart never
- * rendering: `showTempChart` requires `deliveryDay && deliveredTotal > 0`,
- * which was never simultaneously true because `runDay` gated orders on
- * `day % 7` instead of the `(day - 1) % 7` convention used everywhere else.
+ * T-151 (bugfix): the Events pane's "delivery day" / "order day" badges
+ * must line up with the days the real simulation flow actually places
+ * orders / receives arrivals on.
+ *
+ * The studio's "Place Order" control (`advanceEpisode` in studioLogic.ts)
+ * doesn't step one raw day at a time — it calls `buildStepNOrders`, which
+ * picks the next order day via `nextOrderDayFromSchedule` /
+ * `weekdayMonday0` (epoch-anchored: `schedule.epoch` "2024-01-01" is a
+ * Monday, so day 0 == Monday). This is the authoritative weekday
+ * convention: `runDay`'s own `day % 7` order gate already agrees with it
+ * (epoch day 0 == weekday 0), so `generate.ts` needs no change.
+ *
+ * `EventsPane.tsx` used to compute badges with its own local
+ * `(day - 1) % 7` helper — a day 1 == Monday convention that disagreed
+ * with the epoch anchor by exactly one day, so its "delivery day" badge
+ * never coincided with an actual arrival. The regression coverage below
+ * drives the real `buildStepNOrders` + `stepSimulation` round trip and
+ * checks arrivals against the authoritative `weekdayMonday0`, so a
+ * reintroduced mismatch between EventsPane's badge convention and the
+ * real order/arrival timing would be caught by `EventsPane.test.ts`
+ * (badge-vs-schedule) even though this file only exercises the physics
+ * engine.
  */
 import { describe, expect, it } from "vitest";
 import { scheduleFromConfig } from "../calendar/weekCalendar";
+import { buildStepNOrders, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import { DEFAULT_SIM_CONFIG, createInitialState, stepSimulation } from "./generate";
 
-function monday0Weekday(day: number): number {
-  return (((day - 1) % 7) + 7) % 7;
-}
-
 describe("mock physics engine delivery-day alignment (T-151 bugfix)", () => {
-  it("arrivals land on the days the schedule labels as delivery days", () => {
+  it("real Place-Order flow (buildStepNOrders + stepSimulation) lands arrivals on schedule delivery days", () => {
     const cfg = { ...DEFAULT_SIM_CONFIG };
     const schedule = scheduleFromConfig(cfg);
     let state = createInitialState(cfg);
-    const orderQty = cfg.case_size * 5;
+    let currentDay = state.day;
 
     const arrivalDays: number[] = [];
-    for (let i = 0; i < 14; i++) {
-      const { state: next, dayRecord } = stepSimulation(state, orderQty, cfg);
-      state = next;
-      if (dayRecord.arrivals > 0) {
-        arrivalDays.push(dayRecord.day);
+    for (let click = 0; click < 6; click++) {
+      const orders = buildStepNOrders(currentDay, cfg.case_size * 3, schedule);
+      for (const orderQty of orders) {
+        const { state: next, dayRecord } = stepSimulation(state, orderQty, cfg);
+        state = next;
+        if (dayRecord.arrivals > 0) {
+          arrivalDays.push(dayRecord.day);
+        }
       }
+      currentDay = state.day;
     }
 
     expect(arrivalDays.length).toBeGreaterThan(0);
     for (const day of arrivalDays) {
-      expect(schedule.delivery_weekdays).toContain(monday0Weekday(day));
+      expect(schedule.delivery_weekdays).toContain(weekdayMonday0(day, schedule));
     }
   });
 });

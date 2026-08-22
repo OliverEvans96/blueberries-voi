@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { renderDeliveryTempMultiLot } from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
+import { weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
 
@@ -20,16 +21,18 @@ export type EventsPaneProps = {
   refreshing?: boolean;
 };
 
-function monday0Weekday(day: number): number {
-  return ((day - 1) % 7 + 7) % 7;
-}
-
+// Delegate to the same epoch-anchored weekday helper the studio's own
+// order-day advance logic (`buildStepNOrders` / `nextOrderDayFromSchedule`
+// in calendar/nextOrderAdvance.ts) uses — a local `(day - 1) % 7`
+// reimplementation here previously disagreed with that authoritative
+// convention by exactly one day, so these badges never matched the days
+// real deliveries/orders actually landed on (T-151 bugfix).
 function isDeliveryDay(day: number, schedule: ScheduleWire): boolean {
-  return schedule.delivery_weekdays.includes(monday0Weekday(day));
+  return schedule.delivery_weekdays.includes(weekdayMonday0(day, schedule));
 }
 
 function isOrderDay(day: number, schedule: ScheduleWire): boolean {
-  return schedule.order_weekdays.includes(monday0Weekday(day));
+  return schedule.order_weekdays.includes(weekdayMonday0(day, schedule));
 }
 
 type LotRow = { label: string; qty: number };
