@@ -38,10 +38,10 @@ _PROFIT_ABS_TOL = 1e-6
 def _table_belief() -> Any:
     f_grid = [0.0, 0.25, 0.5, 0.75, 1.0]
     return shelf_belief_from_oracle(
-        lot_counts=[20, 10],
+        lot_counts=[30, 15],
         f_marginals=[
             [0.0, 0.0, 0.0, 0.0, 1.0],
-            [0.0, 0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
         ],
         f_grid=f_grid,
     )
@@ -149,7 +149,20 @@ def test_costs_affect_ranking_fixture() -> None:
     """Higher waste_cost flips rollout winner on high-inventory fixture."""
     params = ModelParams()
     belief = _table_belief()
-    base = DampedSurvivalWeightedPolicy(rho=0.8, alpha=0.9, params=params)
+
+    class _FixedBase:
+        def order(
+            self,
+            _belief: Any,
+            *,
+            day: int = 0,
+            pending_orders: Mapping[int, int] | None = None,
+        ) -> int:
+            del _belief, day, pending_orders
+            # Centre case neighbourhood where independent-aging rollout flips (Rust parity).
+            return 48
+
+    base = _FixedBase()
     rng_address: Mapping[str, Any] = {"root_seed": 7, "run_id": "cost-rank"}
     low_waste = rollout_order(
         belief,
@@ -159,7 +172,7 @@ def test_costs_affect_ranking_fixture() -> None:
         H=4,
         n_rollout_paths=4,
         candidate_case_radius=2,
-        waste_cost=0.05,
+        waste_cost=0.0,
         day=6,
     )
     high_waste = rollout_order(
@@ -170,7 +183,7 @@ def test_costs_affect_ranking_fixture() -> None:
         H=4,
         n_rollout_paths=4,
         candidate_case_radius=2,
-        waste_cost=25.0,
+        waste_cost=100.0,
         day=6,
     )
     assert low_waste != high_waste

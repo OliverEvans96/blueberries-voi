@@ -16,10 +16,10 @@ use rand_pcg::Pcg64;
 
 use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
 use voi_core::obs::{mask_for, RichDay};
-use voi_core::physics::draw_demand;
+use voi_core::physics::{draw_demand, GammaDecrementTable};
 use voi_core::policy::effective_inventory_f_belief;
 use voi_core::shipments::{arrival_receipt_meta_with_trace, shipment_arrival_age, ShipmentTrace};
-use voi_core::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
+use voi_core::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use voi_core::{belief_flat_from_unit_bank, truth_f_belief, ModelParams};
 
 const HORIZON: u32 = 60;
@@ -302,6 +302,7 @@ fn run_channel(
     let upl = params.units_per_lot.max(1);
     let mut bank = UnitParticleBank::empty(n);
     let mut m = Metrics::default();
+    let mut gamma_table = GammaDecrementTable::for_params(params);
     let t0 = std::time::Instant::now();
     for (d, td) in days.iter().enumerate() {
         let obs = mask.apply(&td.rich);
@@ -311,13 +312,14 @@ fn run_channel(
         } else {
             None
         };
-        filter_step_unit_with_birth(
+        filter_step_unit_with_birth_cached(
             &mut bank,
             &obs,
             params,
             shipments,
             &mut frng,
             rng_birth_filter.as_mut(),
+            &mut gamma_table,
         );
         if (d as u32) < BURN_IN {
             continue;

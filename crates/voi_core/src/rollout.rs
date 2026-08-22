@@ -616,10 +616,11 @@ mod tests {
         let p = ModelParams::default();
         let k = 5usize;
         let f_grid = f_grid_k(k);
-        let lot_counts = vec![20.0, 10.0];
+        let lot_counts = vec![30.0, 15.0];
         let mut f_marginals = vec![0.0; 2 * k];
+        // High stale inventory under independent per-unit aging: waste_cost flips winner.
         f_marginals[k - 1] = 1.0;
-        f_marginals[2 * k - 2] = 1.0;
+        f_marginals[2 * k - 1] = 1.0;
         let base = damped_sw_order_f_belief(
             &lot_counts,
             &f_marginals,

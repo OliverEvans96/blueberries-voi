@@ -27,18 +27,17 @@
 
 use rand::Rng;
 use rand::SeedableRng;
-use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
 
 use crate::obs::FilterObs;
-use crate::physics::{age_to_f, apply_gamma_aging_independent, GammaDecrementTable};
+use crate::physics::{apply_gamma_aging_independent, GammaDecrementTable};
 use crate::shipments::{
-    arrival_age_from_path, birth_f_f2_dirac, birth_f_units_gamma,
-    sample_phi_bar_from_fleet, shipment_arrival_age, ShipmentTrace,
+    arrival_age_from_path, birth_f_units_gamma, sample_phi_bar_from_fleet, shipment_arrival_age,
+    ShipmentTrace,
 };
 use crate::unit_ll::{
     apply_pb_aging_proposal, loglik_sales_by_units, pb_loglik_by_lot, pb_loglik_pooled,
-    pb_sample_deaths, sequential_kernel_path_logprob,
+    pb_sample_deaths, sequential_kernel_path_logprob, spoil_probs_from_freshness,
 };
 use crate::ModelParams;
 

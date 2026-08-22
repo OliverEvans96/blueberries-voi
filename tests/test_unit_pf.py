@@ -217,11 +217,7 @@ def _hand_pb_loglik_by_lot(
 ) -> float:
     ll = 0.0
     for ell, w in enumerate(waste_by):
-        seg = [
-            f
-            for f in freshness[offsets[ell] : offsets[ell + 1]]
-            if f > 0.0
-        ]
+        seg = [f for f in freshness[offsets[ell] : offsets[ell + 1]] if f > 0.0]
         probs = _hand_spoil_probs_from_freshness(seg)
         ll += _hand_pb_log_pmf(probs, w)
     return ll
@@ -324,11 +320,6 @@ def test_superseded_interval_spoil_primitives_are_gone() -> None:
 
 def test_superseded_p1_totals_loglik_stays_removed() -> None:
     proc = _cargo_unit_pf_ac("superseded_binomial_waste_primitives_are_gone")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
-def test_superseded_interval_spoil_primitives_are_gone() -> None:
-    proc = _cargo_unit_pf_ac("superseded_interval_spoil_primitives_are_gone")
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
