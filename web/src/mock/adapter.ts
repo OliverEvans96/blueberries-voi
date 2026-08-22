@@ -418,7 +418,6 @@ export class MockAdapter implements EngineAdapter {
           lot_ids: masked.lot_ids ?? null,
           arrival_lot_ids: masked.arrival_lot_ids ?? null,
           pack_date_days: masked.pack_date_days ?? null,
-          age_at_receipt: masked.age_at_receipt ?? null,
           temp_times_d: masked.temp_times_d ?? null,
           temp_temps_c: masked.temp_temps_c ?? null,
           temp_traces_by_lot: masked.temp_traces_by_lot ?? null,
@@ -458,7 +457,6 @@ export class MockAdapter implements EngineAdapter {
         day.arrivals > 0
           ? Math.max(1, Math.round((1 - (day.f_at_receipt ?? 0.85)) * 14))
           : null,
-      age_at_receipt: day.f_at_receipt,
       temp_times_d: temp.times,
       temp_temps_c: temp.temps,
       temp_traces_by_lot: temp.byLot,

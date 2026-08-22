@@ -166,7 +166,6 @@ export type EventDayWire = {
   lot_ids: number[] | null;
   arrival_lot_ids: number[] | null;
   pack_date_days: number | null;
-  age_at_receipt: number | null;
   temp_times_d: number[] | null;
   temp_temps_c: number[] | null;
   temp_traces_by_lot: TempTraceByLotWire[] | null;

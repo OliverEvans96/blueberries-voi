@@ -120,6 +120,15 @@ describe("obsMask (T-127 AC-obs-mask)", () => {
     expect(() => mod!.maskFor("B-state")).toThrow(/bypass|B-state|fabricate/i);
   });
 
+  it("mask types omit the retired receipt-age observation channel", async () => {
+    const mod = await loadObsMask();
+    const mask = mod!.maskFor("F2");
+    const retired = ["age", "at", "receipt"].join("_");
+    expect(Object.keys(mask)).not.toContain(retired);
+    const obs = mod!.applyMask(RICH, mask);
+    expect(Object.keys(obs)).not.toContain(retired);
+  });
+
   it("applyMask P0 omits waste — never invents zero", async () => {
     const mod = await loadObsMask();
     const obs = mod!.applyMask(RICH, mod!.maskFor("P0"));

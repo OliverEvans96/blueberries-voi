@@ -7,8 +7,6 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use voi_core::day_step::{unit_day_step, UnitDayStepIn};
 use voi_core::params::ModelParams;
-use voi_core::shipments::ShipmentTrace;
-
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -247,16 +245,12 @@ fn ac1_6_exposure_language_in_doc_comments() {
     );
 }
 
-/// AC1.7: `age_at_receipt` is inert when production supplies `delivery_lambda` / `delivery_f`.
+/// AC1.7: pre-sampled `delivery_unit_f` (session truth path) yields deterministic delivery.
 #[test]
-fn ac1_7_age_at_receipt_inert_on_production_delivery_path() {
+fn ac1_7_delivery_unit_f_deterministic_on_production_path() {
     let params = ModelParams::default();
-    let trace = ShipmentTrace {
-        times_d: vec![0.0, 3.0],
-        temps_c: vec![1.0, 1.0],
-    };
-    let lambda = voi_core::shipments::shipment_arrival_age(&trace, params.q10, params.t_ref_c);
-    let delivery_f = Some(0.85);
+    let units = params.units_per_lot;
+    let delivery_unit_f = vec![0.85; units];
 
     let base = UnitDayStepIn {
         freshness: vec![],
@@ -264,38 +258,36 @@ fn ac1_7_age_at_receipt_inert_on_production_delivery_path() {
         demand: None,
         gamma_decrement: None,
         deliver: true,
-        deliver_units: Some(params.units_per_lot as u32),
-        delivery_f,
-        delivery_lambda: Some(lambda),
-        units_per_lot: Some(params.units_per_lot),
-        pack_age_mean: None,
+        deliver_units: Some(units as u32),
+        delivery_unit_f: Some(delivery_unit_f),
+        units_per_lot: Some(units),
     };
 
     let mut rng_a = Pcg64::seed_from_u64(150);
     let out_a = unit_day_step(
         &base,
         &params,
-        &[trace.clone()],
+        &[],
         Some(&mut rng_a),
         None,
-        Some(&mut Pcg64::seed_from_u64(151)),
-        Some(&mut Pcg64::seed_from_u64(152)),
+        None,
+        None,
     );
 
     let mut rng_b = Pcg64::seed_from_u64(150);
     let out_b = unit_day_step(
         &base,
         &params,
-        &[trace],
+        &[],
         Some(&mut rng_b),
         None,
-        Some(&mut Pcg64::seed_from_u64(151)),
-        Some(&mut Pcg64::seed_from_u64(152)),
+        None,
+        None,
     );
 
     assert_eq!(
         out_a.freshness, out_b.freshness,
-        "production delivery path must be deterministic when delivery_lambda and delivery_f are set"
+        "production delivery path must be deterministic when delivery_unit_f is pre-sampled"
     );
     assert_eq!(out_a.lot_offsets, out_b.lot_offsets);
 }
