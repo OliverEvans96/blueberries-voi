@@ -98,6 +98,30 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(belief!.querySelector("#operator-bar-host")).not.toBeNull();
   });
 
+  it("belief column tradeoff uses Curve/Histogram tab toggle", () => {
+    const { container } = render(createElement(StudioLayout));
+    const belief = container.querySelector(".cockpit-pane--belief");
+    const tablist = belief!.querySelector(
+      '.belief-tradeoff-tabs[role="tablist"]',
+    );
+    expect(tablist).not.toBeNull();
+    expect(tablist).toHaveAttribute("aria-label", "Tradeoff view");
+    const tabs = tablist!.querySelectorAll('[role="tab"]');
+    expect(tabs.length).toBe(2);
+    expect(tabs[0]!.textContent).toBe("Curve");
+    expect(tabs[1]!.textContent).toBe("Histogram");
+    expect(tabs[0]).toHaveAttribute("data-tradeoff-tab", "curve");
+    expect(tabs[1]).toHaveAttribute("data-tradeoff-tab", "histogram");
+  });
+
+  it("belief column shows only the curve chart by default", () => {
+    const { container } = render(createElement(StudioLayout));
+    const curve = container.querySelector("#tradeoff-curve-host");
+    const hist = container.querySelector("#tradeoff-histogram-host");
+    expect(curve?.hasAttribute("hidden")).toBe(false);
+    expect(hist?.hasAttribute("hidden")).toBe(true);
+  });
+
   it("tuning dock omits Observation tab", () => {
     const { container } = render(createElement(StudioLayout));
     const observationTab = container.querySelector(

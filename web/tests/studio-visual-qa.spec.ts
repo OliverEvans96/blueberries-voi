@@ -123,7 +123,9 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await page.goto("/");
     await waitForEngine(page);
     const belief = page.locator(".cockpit-pane--belief");
+    await expect(belief.locator('.belief-tradeoff-tabs [role="tab"]')).toHaveCount(2);
     await expect(belief.locator("#tradeoff-curve-host")).toBeVisible();
+    await expect(belief.locator("#tradeoff-histogram-host")).toBeHidden();
     await page.waitForTimeout(200);
     const curvePaths = await belief
       .locator("#tradeoff-curve-host path, #tradeoff-curve-host line")
