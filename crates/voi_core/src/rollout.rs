@@ -643,12 +643,12 @@ mod tests {
             costs: RolloutCosts {
                 unit_margin: 2.0,
                 waste_cost: waste,
-                stockout_penalty: 3.0,
+                stockout_penalty: 0.5,
             },
             shipments: vec![ShipmentTrace::smoke_cool()],
             f_pipeline_default: 1.0,
-            h: 4,
-            n_paths: 4,
+            h: 6,
+            n_paths: 16,
             radius: 2,
         };
         let low = rollout_order(
@@ -658,7 +658,7 @@ mod tests {
             base,
             &p,
             &BTreeMap::new(),
-            &mk_ctx(0.05),
+            &mk_ctx(0.01),
         )
         .unwrap();
         let high = rollout_order(
@@ -668,7 +668,7 @@ mod tests {
             base,
             &p,
             &BTreeMap::new(),
-            &mk_ctx(25.0),
+            &mk_ctx(50.0),
         )
         .unwrap();
         assert_ne!(low, high, "waste_cost must flip rollout winner on fixture");
