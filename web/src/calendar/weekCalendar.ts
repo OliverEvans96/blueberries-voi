@@ -77,17 +77,6 @@ export function renderWeekCalendar(
   const orderSet = new Set(schedule.order_weekdays);
   const disabled = opts.disabled ?? false;
 
-  const header = document.createElement("div");
-  header.className = "week-calendar-header";
-  header.setAttribute("aria-hidden", "true");
-  for (const label of WEEKDAY_HEADERS_SUNDAY_FIRST) {
-    const span = document.createElement("span");
-    span.className = "week-calendar-header-cell";
-    span.textContent = label;
-    header.appendChild(span);
-  }
-  host.appendChild(header);
-
   const grid = document.createElement("div");
   grid.className = "week-calendar-grid";
   host.appendChild(grid);
@@ -103,7 +92,10 @@ export function renderWeekCalendar(
     else if (isDelivery) btn.classList.add("is-delivery");
     else if (isOrder) btn.classList.add("is-order");
 
-    const label = WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`;
+    const label =
+      WEEKDAY_HEADERS_SUNDAY_FIRST[
+        SUNDAY_FIRST_MONDAY0_ORDER.indexOf(wd as typeof SUNDAY_FIRST_MONDAY0_ORDER[number])
+      ] ?? WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`;
     const roles: string[] = [];
     if (isDelivery) roles.push("delivery");
     if (isOrder) roles.push("order");
@@ -117,7 +109,7 @@ export function renderWeekCalendar(
         ? `${label}, ${roles.join(" and ")}`
         : `${label}, click to add delivery`,
     );
-    btn.textContent = "";
+    btn.textContent = label;
     btn.setAttribute("aria-pressed", isDelivery ? "true" : "false");
     btn.disabled = disabled;
 
