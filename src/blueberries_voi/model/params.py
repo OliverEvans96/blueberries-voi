@@ -46,7 +46,7 @@ class ModelParams:
 
 @dataclass
 class Cohort:
-    """One live inventory lot (count + effective age)."""
+    """One live inventory lot (count + cumulative thermal exposure, reference-days)."""
 
     n: int
     tau: float

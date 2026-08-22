@@ -158,10 +158,6 @@ pub fn generate_arrival_f<R: rand::Rng + ?Sized>(
     age_to_f(tau, eta_ref)
 }
 
-/// Wire helper: map measured τ-days at receipt to freshness.
-pub fn f_at_receipt_from_age(age_at_receipt: f64, eta_ref: f64) -> f64 {
-    age_to_f(age_at_receipt.max(0.0), eta_ref)
-}
 
 /// Aleatoric within-lot birth spread on freshness `f` around lot mean.
 ///
@@ -193,10 +189,6 @@ pub fn birth_f_units<R: Rng + ?Sized>(
         .collect()
 }
 
-/// F2: Dirac birth freshness from measured age at receipt (τ days).
-pub fn birth_f_f2_dirac(age_at_receipt: f64, eta_ref: f64) -> f64 {
-    f_at_receipt_from_age(age_at_receipt, eta_ref)
-}
 
 /// F2a: Gaussian draw on pack-date transit age (τ days) mapped to freshness.
 pub fn birth_f_f2a_gaussian<R: Rng + ?Sized>(
@@ -218,12 +210,8 @@ pub fn delivery_birth_f<R: Rng + ?Sized>(
     shipments: &[ShipmentTrace],
     params: &ModelParams,
     spread_scale: f64,
-    age_at_receipt: Option<f64>,
     pack_age_mean: Option<f64>,
 ) -> f64 {
-    if let Some(age) = age_at_receipt {
-        return birth_f_f2_dirac(age, params.eta_ref);
-    }
     if let Some(d) = pack_age_mean {
         let phi = sample_phi_bar_from_fleet(rng_sensor, shipments, params.q10, params.t_ref_c);
         let lambda = d.max(0.0) * phi;
@@ -360,22 +348,13 @@ mod tests {
     }
 
     #[test]
-    fn f2_dirac_and_f2a_paths() {
+    fn f2a_path() {
         let params = ModelParams::default();
-        let f2 = birth_f_f2_dirac(2.0, params.eta_ref);
-        assert!((f2 - age_to_f(2.0, params.eta_ref)).abs() < 1e-12);
         let mut rng = Pcg64::seed_from_u64(7);
         let f2a = birth_f_f2a_gaussian(&mut rng, 3.0, params.eta_ref, 0.75);
         assert!(f2a >= 0.0 && f2a <= 1.0);
     }
 
-    #[test]
-    fn f_at_receipt_from_age_roundtrip() {
-        let eta = 14.0;
-        let tau = 2.5;
-        let f = f_at_receipt_from_age(tau, eta);
-        assert!((f_to_age(f, eta) - tau).abs() < 1e-9);
-    }
 
     #[test]
     fn mod21_demo_shipments_product_mix() {

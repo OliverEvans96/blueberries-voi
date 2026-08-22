@@ -106,18 +106,18 @@ fn run_truth(
         *pending.entry(day + lead_time).or_insert(0) += order;
         let arrival = pending.remove(&day).unwrap_or(0);
         let pre_lot_ids = lot_ids.clone();
-        let (f_at_receipt, age_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
+        let (f_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
             if arrival > 0 {
                 let mut rs = stream_rng(seed, day, 4);
                 let mut rn = stream_rng(seed, day, 5);
-                let (f, tau, pack, trace) =
+                let (f, _tau, pack, trace) =
                     arrival_receipt_meta_with_trace(&mut rs, &mut rn, shipments, params, 1.0);
                 let lot_id = next_lot;
                 lot_ids.push(lot_id);
                 next_lot += 1;
-                (Some(f), Some(tau), Some(pack), Some(trace), vec![lot_id])
+                (Some(f), Some(pack), Some(trace), vec![lot_id])
             } else {
-                (None, None, None, None, Vec::new())
+                (None, None, None, Vec::new())
             };
         let mut rng_d = stream_rng(seed, day, 1);
         let demand = draw_demand(&mut rng_d, params, Some(day));
@@ -151,7 +151,6 @@ fn run_truth(
             delivery_f: f_at_receipt,
             delivery_lambda,
             units_per_lot: Some(params.units_per_lot),
-            age_at_receipt: None,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let step = unit_day_step_with_birth(
@@ -192,7 +191,6 @@ fn run_truth(
                 arrival_lot_ids,
                 shipment_trace,
                 f_at_receipt,
-                age_at_receipt,
                 pack_date_days,
             },
             on_hand,

@@ -46,7 +46,7 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
       screen.getByRole("tab", { name: "Sales & stockouts" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "Age & spoilage" }),
+      screen.getByRole("tab", { name: "Freshness & spoilage" }),
     ).toBeInTheDocument();
   });
 
@@ -79,19 +79,19 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
       screen.getByRole("tab", { name: "Sales & stockouts" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("tab", { name: "Age & spoilage" }),
+      screen.getByRole("tab", { name: "Freshness & spoilage" }),
     ).toHaveAttribute("aria-selected", "false");
 
     expect(viewPanelFor("sales-mock").hasAttribute("hidden")).toBe(false);
     expect(viewPanelFor("age-mock").hasAttribute("hidden")).toBe(true);
   });
 
-  it("controlled: age-spoilage active shows age panel and hides sales panel", () => {
+  it("controlled: freshness-spoilage active shows age panel and hides sales panel", () => {
     render(
       createElement(StoreChartTabs, {
         salesView: SALES_MOCK,
         ageView: AGE_MOCK,
-        activeView: "age-spoilage",
+        activeView: "freshness-spoilage",
       }),
     );
 
@@ -99,7 +99,7 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
       screen.getByRole("tab", { name: "Sales & stockouts" }),
     ).toHaveAttribute("aria-selected", "false");
     expect(
-      screen.getByRole("tab", { name: "Age & spoilage" }),
+      screen.getByRole("tab", { name: "Freshness & spoilage" }),
     ).toHaveAttribute("aria-selected", "true");
 
     expect(viewPanelFor("sales-mock").hasAttribute("hidden")).toBe(true);
@@ -117,9 +117,9 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Age & spoilage" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Freshness & spoilage" }));
     expect(onSelectView).toHaveBeenCalledTimes(1);
-    expect(onSelectView).toHaveBeenCalledWith("age-spoilage");
+    expect(onSelectView).toHaveBeenCalledWith("freshness-spoilage");
 
     fireEvent.click(screen.getByRole("tab", { name: "Sales & stockouts" }));
     expect(onSelectView).toHaveBeenCalledTimes(2);
@@ -139,8 +139,8 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
     expect(viewPanelFor("sales-mock").hasAttribute("hidden")).toBe(false);
     expect(viewPanelFor("age-mock").hasAttribute("hidden")).toBe(true);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Age & spoilage" }));
-    expect(onSelectView).toHaveBeenCalledWith("age-spoilage");
+    fireEvent.click(screen.getByRole("tab", { name: "Freshness & spoilage" }));
+    expect(onSelectView).toHaveBeenCalledWith("freshness-spoilage");
     expect(viewPanelFor("sales-mock").hasAttribute("hidden")).toBe(true);
     expect(viewPanelFor("age-mock").hasAttribute("hidden")).toBe(false);
 
@@ -155,14 +155,14 @@ describe("StoreChartTabs (T-126 AC-storetabs)", () => {
       createElement(StoreChartTabs, {
         salesView: SALES_MOCK,
         ageView: AGE_MOCK,
-        defaultView: "age-spoilage" satisfies StoreChartView,
+        defaultView: "freshness-spoilage" satisfies StoreChartView,
       }),
     );
 
     expect(viewPanelFor("sales-mock").hasAttribute("hidden")).toBe(true);
     expect(viewPanelFor("age-mock").hasAttribute("hidden")).toBe(false);
     expect(
-      screen.getByRole("tab", { name: "Age & spoilage" }),
+      screen.getByRole("tab", { name: "Freshness & spoilage" }),
     ).toHaveAttribute("aria-selected", "true");
   });
 });

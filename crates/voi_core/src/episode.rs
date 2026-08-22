@@ -50,7 +50,6 @@ pub fn run_closed_loop_episode(
             delivery_f: Some(1.0),
             delivery_lambda: None,
             units_per_lot: Some(upl),
-            age_at_receipt: None,
             pack_age_mean: None,
         };
         let mut rng_gamma = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 3));

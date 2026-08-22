@@ -102,7 +102,7 @@ export type SimConfig = {
   spread_scale: number;
   /**
    * MOD-18 teaching knob: °C bias on transit path vs published traces
-   * (Arrhenius shift of effective arrival age).
+   * (Arrhenius shift of arrival cumulative thermal exposure).
    */
   transit_temp_bias_c: number;
   /**
@@ -127,10 +127,10 @@ export type BeliefGrid = {
   f_edges: number[];
   freshness_edges?: number[];
   count_edges: number[];
-  /** Age / freshness bins × count bins (K × C) after lot-mass rebin (ADR 0109). */
+  /** Freshness bins × count bins (K × C) after lot-mass rebin (ADR 0109). */
   density: number[][];
-  /** Merged age / freshness mass length K; optional presentation field. */
-  age_marginal?: number[];
+  /** Merged freshness mass length K; optional presentation field. */
+  f_marginal?: number[];
 };
 
 export type PipelineOrder = {

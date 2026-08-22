@@ -16,7 +16,7 @@ type InventoryOpts = {
   belief_history?: BeliefDay[];
 };
 
-type AgeRow = { day: number; young: number; mid: number; old: number };
+type FreshnessRow = { day: number; fresh: number; mid: number; stale: number };
 
 const LOT_DAY: Day = {
   day: 0,
@@ -95,37 +95,37 @@ describe("age composition lots vs belief (T-115)", () => {
   it("truth lots path: freshness thirds from lot mean_f and n", () => {
     const fn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
-    ).ageCompositionSeries;
-    expect(typeof fn, "expected ageCompositionSeries export").toBe("function");
+    ).fCompositionSeries;
+    expect(typeof fn, "expected fCompositionSeries export").toBe("function");
     const rows = fn!([LOT_DAY]);
-    expect(rows[0]).toEqual({ day: 0, young: 15, mid: 3, old: 0 });
+    expect(rows[0]).toEqual({ day: 0, fresh: 15, mid: 3, stale: 0 });
   });
 
   it("belief path: bands from expected ages, not truth lots", () => {
     const fn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
-        ageCompositionSeriesFromBelief?: (beliefHistory: BeliefDay[]) => AgeRow[];
+        ) => FreshnessRow[];
+        fCompositionSeriesFromBelief?: (beliefHistory: BeliefDay[]) => FreshnessRow[];
       }
-    ).ageCompositionSeriesFromBelief;
+    ).fCompositionSeriesFromBelief;
     const seriesFn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
-    ).ageCompositionSeries;
+    ).fCompositionSeries;
 
-    let rows: AgeRow[];
+    let rows: FreshnessRow[];
     if (typeof fn === "function") {
       rows = fn(BELIEF_HISTORY);
     } else {
@@ -136,10 +136,10 @@ describe("age composition lots vs belief (T-115)", () => {
       });
     }
     // lot 0: all mass at high f; lot 1: all mass at low f
-    expect(rows[0]!.young).toBeCloseTo(3.6);
-    expect(rows[0]!.old).toBeCloseTo(0);
+    expect(rows[0]!.fresh).toBeCloseTo(3.6);
+    expect(rows[0]!.stale).toBeCloseTo(0);
     expect(rows[0]!.mid).toBeCloseTo(3.32);
-    expect(rows[0]!.young + rows[0]!.mid + rows[0]!.old).not.toBe(18);
+    expect(rows[0]!.fresh + rows[0]!.mid + rows[0]!.stale).not.toBe(18);
   });
 });
 
@@ -330,9 +330,9 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
         freshnessCompositionSeriesFromBelief?: (
           beliefHistory: BeliefDay[],
         ) => Array<{ day: number; fresh: number; mid: number; stale: number }>;
-        ageCompositionSeriesFromBelief?: (
+        fCompositionSeriesFromBelief?: (
           beliefHistory: BeliefDay[],
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
     ).freshnessCompositionSeriesFromBelief;
 
@@ -347,15 +347,15 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
     } else {
       const legacy = (
         inv as {
-          ageCompositionSeriesFromBelief: (
+          fCompositionSeriesFromBelief: (
             beliefHistory: BeliefDay[],
-          ) => AgeRow[];
+          ) => FreshnessRow[];
         }
-      ).ageCompositionSeriesFromBelief(F_BELIEF_HISTORY)[0]!;
+      ).fCompositionSeriesFromBelief(F_BELIEF_HISTORY)[0]!;
       row = {
-        fresh: legacy.young,
+        fresh: legacy.fresh,
         mid: legacy.mid,
-        stale: legacy.old,
+        stale: legacy.stale,
       };
     }
     expect(row.stale).toBeCloseTo(expected.stale);
@@ -379,9 +379,9 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
         freshnessCompositionSeriesFromBelief?: (
           beliefHistory: BeliefDay[],
         ) => Array<{ mid: number; stale: number; fresh: number }>;
-        ageCompositionSeriesFromBelief?: (
+        fCompositionSeriesFromBelief?: (
           beliefHistory: BeliefDay[],
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
     ).freshnessCompositionSeriesFromBelief;
     const history = [{ day: 0, flatBelief: asFWireBelief(flat) }];
@@ -391,11 +391,11 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
     } else {
       mid = (
         inv as {
-          ageCompositionSeriesFromBelief: (
+          fCompositionSeriesFromBelief: (
             h: BeliefDay[],
-          ) => AgeRow[];
+          ) => FreshnessRow[];
         }
-      ).ageCompositionSeriesFromBelief(history)[0]!.mid;
+      ).fCompositionSeriesFromBelief(history)[0]!.mid;
     }
     expect(mid).toBeCloseTo(7);
   });

@@ -11,7 +11,7 @@ use crate::spawn_rng::{negative_binomial_gamma_poisson, SpawnRng};
 
 const SURV_FLOOR: f64 = 1e-300;
 
-/// Map effective age τ (days) to unit freshness `f ∈ [0, 1]` (bench C2-A convention).
+/// Map cumulative thermal exposure τ (reference-days) to unit freshness `f ∈ [0, 1]` (bench C2-A convention).
 pub fn age_to_f(tau: f64, eta_ref: f64) -> f64 {
     if eta_ref <= 0.0 {
         panic!("eta_ref must be positive");
@@ -19,7 +19,7 @@ pub fn age_to_f(tau: f64, eta_ref: f64) -> f64 {
     (1.0 - tau / eta_ref).clamp(0.0, 1.0)
 }
 
-/// Inverse of [`age_to_f`]: freshness to effective age τ days.
+/// Inverse of [`age_to_f`]: freshness to cumulative thermal exposure τ (reference-days).
 pub fn f_to_age(f: f64, eta_ref: f64) -> f64 {
     if eta_ref <= 0.0 {
         panic!("eta_ref must be positive");

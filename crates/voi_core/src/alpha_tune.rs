@@ -284,19 +284,19 @@ pub fn run_alpha_tune_episode(
         } else {
             None
         };
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+        let (f_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship = rng_ship.as_mut().expect("ship rng");
             let mut rng_sensor = rng_sensor.as_mut().expect("sensor rng");
-            let (f, tau, pack) = arrival_receipt_meta(
+            let (f, _tau, pack) = arrival_receipt_meta(
                 rng_ship,
                 rng_sensor,
                 shipments,
                 params,
                 1.0,
             );
-            (Some(f), Some(tau), Some(pack))
+            (Some(f), Some(pack))
         } else {
-            (None, None, None)
+            (None, None)
         };
 
         let input = UnitDayStepIn {
@@ -309,7 +309,6 @@ pub fn run_alpha_tune_episode(
             delivery_f: f_at_receipt,
             delivery_lambda: None,
             units_per_lot: Some(upl),
-            age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(

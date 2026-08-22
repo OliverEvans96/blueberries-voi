@@ -86,7 +86,7 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   },
   spread_scale: {
     label: "Arrival spread (FIL-11)",
-    tooltip: "Tightens or widens arrival-age mix.",
+    tooltip: "Tightens or widens arrival freshness mix.",
     tier: "Reset",
   },
   transit_temp_bias_c: {

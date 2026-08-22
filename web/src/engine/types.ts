@@ -145,7 +145,6 @@ export type EventDayWire = {
   waste_by: number[] | null;
   lot_ids: number[] | null;
   pack_date_days: number | null;
-  age_at_receipt: number | null;
 };
 
 export type EventsResult = {

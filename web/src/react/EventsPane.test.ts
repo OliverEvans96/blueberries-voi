@@ -23,7 +23,6 @@ type MaskedDayWire = {
   waste_by?: number[] | null;
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
-  age_at_receipt?: number | null;
   pack_date_days?: number | null;
   temp_times_d?: number[] | null;
   temp_temps_c?: number[] | null;
@@ -199,7 +198,6 @@ describe("EventsPane (T-127 AC-events-ui)", () => {
       waste_by: null,
       lot_ids: null,
       pack_date_days: 4,
-      age_at_receipt: null,
     };
     render(
       createElement(EventsPane, {

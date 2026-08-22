@@ -109,10 +109,6 @@ export function fMarginalFromFlat(flat: FlatBelief): number[] {
   return m;
 }
 
-/** @deprecated use fMarginalFromFlat */
-export function ageMarginalFromFlat(flat: FlatBelief): number[] {
-  return fMarginalFromFlat(flat);
-}
 
 /** Per-day freshness marginal series for the Primary freshness×time heatmap. */
 export type BeliefFreshnessDay = {
@@ -155,7 +151,7 @@ export function beliefGridFromFlat(
   truthLots?: ReadonlyArray<{ n: number }>,
 ): BeliefGrid {
   if (flat.L <= 0 || flat.K <= 0) {
-    return { density: [], f_edges: [], count_edges: [], age_marginal: [] };
+    return { density: [], f_edges: [], count_edges: [], f_marginal: [] };
   }
 
   const { L, K, lot_counts, f_grid, f_marginals } = flat;
@@ -192,7 +188,7 @@ export function beliefGridFromFlat(
     f_edges: bin_edges,
     freshness_edges: bin_edges,
     count_edges,
-    age_marginal: merged,
+    f_marginal: merged,
   };
 }
 

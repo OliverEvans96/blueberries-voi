@@ -26,7 +26,7 @@ const GAMMA_SHAPE = 2.0;
 const GAMMA_SCALE = 0.08;
 
 /**
- * Abdella shipment effective ages at ModelParams defaults (q10=3, t_ref=0°C),
+ * Abdella shipment cumulative thermal exposure at ModelParams defaults (q10=3, t_ref=0°C),
  * from shipment_arrival_age on the six MOD-21 traces (S1…S6).
  */
 const ABDELLA_AGES_BASE: Record<string, number> = {
@@ -153,7 +153,7 @@ export function storeTempFactor(cfg: SimConfig): number {
   return Math.max(1.01, cfg.q10) ** ((cfg.t_store_c - cfg.t_ref_c) / 10);
 }
 
-/** Map effective age τ (days) to unit freshness f ∈ [0, 1]. */
+/** Map cumulative thermal exposure τ (reference-days) to unit freshness f ∈ [0, 1]. */
 export function ageToF(tauDays: number, etaRef: number): number {
   if (etaRef <= 0) return 0;
   return clamp(1 - tauDays / etaRef, 0, 1);
@@ -167,7 +167,7 @@ function baseMixAges(cfg: SimConfig): number[] {
 }
 
 /**
- * Pushforward arrival-age samples (MOD-11=C / generate_arrival_age):
+ * Pushforward arrival-exposure samples (MOD-11=C / generate_arrival_age):
  * bootstrap mix → shrink by spread_scale → transit temp bias → sensor noise.
  */
 export function sampleArrivalAge(cfg: SimConfig, rng: () => number): number {
@@ -183,7 +183,7 @@ export function sampleArrivalAge(cfg: SimConfig, rng: () => number): number {
   return clamp(noisy, 0, cfg.eta_ref);
 }
 
-/** Freshness at receipt from the arrival-age mix. */
+/** Freshness at receipt from the arrival-exposure mix. */
 export function sampleArrivalFreshness(cfg: SimConfig, rng: () => number): number {
   return ageToF(sampleArrivalAge(cfg, rng), cfg.eta_ref);
 }

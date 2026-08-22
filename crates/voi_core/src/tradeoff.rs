@@ -83,7 +83,6 @@ fn simulate_protection_path(
             delivery_f: Some(1.0),
             delivery_lambda: None,
             units_per_lot: Some(params.units_per_lot),
-            age_at_receipt: None,
             pack_age_mean: None,
         };
         let out = unit_day_step(

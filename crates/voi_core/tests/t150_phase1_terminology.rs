@@ -258,7 +258,7 @@ fn ac1_7_age_at_receipt_inert_on_production_delivery_path() {
     let lambda = voi_core::shipments::shipment_arrival_age(&trace, params.q10, params.t_ref_c);
     let delivery_f = Some(0.85);
 
-    let mut base = UnitDayStepIn {
+    let base = UnitDayStepIn {
         freshness: vec![],
         lot_offsets: vec![0],
         demand: None,
@@ -268,36 +268,34 @@ fn ac1_7_age_at_receipt_inert_on_production_delivery_path() {
         delivery_f,
         delivery_lambda: Some(lambda),
         units_per_lot: Some(params.units_per_lot),
-        age_at_receipt: None,
         pack_age_mean: None,
     };
 
-    let mut rng = Pcg64::seed_from_u64(150);
-    let out_none = unit_day_step(
+    let mut rng_a = Pcg64::seed_from_u64(150);
+    let out_a = unit_day_step(
         &base,
         &params,
         &[trace.clone()],
-        Some(&mut rng),
+        Some(&mut rng_a),
         None,
         Some(&mut Pcg64::seed_from_u64(151)),
         Some(&mut Pcg64::seed_from_u64(152)),
     );
 
-    base.age_at_receipt = Some(99.0);
-    let mut rng2 = Pcg64::seed_from_u64(150);
-    let out_some = unit_day_step(
+    let mut rng_b = Pcg64::seed_from_u64(150);
+    let out_b = unit_day_step(
         &base,
         &params,
         &[trace],
-        Some(&mut rng2),
+        Some(&mut rng_b),
         None,
         Some(&mut Pcg64::seed_from_u64(151)),
         Some(&mut Pcg64::seed_from_u64(152)),
     );
 
     assert_eq!(
-        out_none.freshness, out_some.freshness,
-        "RED: age_at_receipt must not affect delivery when delivery_lambda and delivery_f are set"
+        out_a.freshness, out_b.freshness,
+        "production delivery path must be deterministic when delivery_lambda and delivery_f are set"
     );
-    assert_eq!(out_none.lot_offsets, out_some.lot_offsets);
+    assert_eq!(out_a.lot_offsets, out_b.lot_offsets);
 }

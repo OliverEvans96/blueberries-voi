@@ -412,7 +412,6 @@ export class MockAdapter implements EngineAdapter {
         waste_by: null,
         lot_ids: null,
         pack_date_days: null,
-        age_at_receipt: null,
       }));
     return { since_day: params.since_day, days };
   }

@@ -238,19 +238,19 @@ fn run_scenario_episode(
         enqueue(&mut pending, day, budgets.lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
         let pre_lot_ids = lot_ids.clone();
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+        let (f_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
             let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
+            let (f, _tau, pack) = arrival_receipt_meta(
                 &mut rng_ship,
                 &mut rng_sensor,
                 shipments,
                 params,
                 1.0,
             );
-            (Some(f), Some(tau), Some(pack))
+            (Some(f), Some(pack))
         } else {
-            (None, None, None)
+            (None, None)
         };
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
         let demand = draw_demand(&mut rng_d, params, Some(day));
@@ -281,7 +281,6 @@ fn run_scenario_episode(
             delivery_f: f_at_receipt,
             delivery_lambda: None,
             units_per_lot: Some(upl),
-            age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
@@ -317,8 +316,7 @@ fn run_scenario_episode(
                 arrival_lot_ids,
                 shipment_trace: None,
                 f_at_receipt,
-                age_at_receipt,
-                pack_date_days,
+                    pack_date_days,
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
@@ -484,7 +482,7 @@ mod tests {
         assert!(f2.pack_date);
         assert!(f2.sales_by_lot && f2.waste_by_lot && f2.arrival_lot_ids);
         assert!(p1.waste_total && !p1.sales_by_lot);
-        assert!(!p1.age_at_receipt && !f2.age_at_receipt);
+
     }
 
     #[test]

@@ -35,11 +35,11 @@ import {
 } from "../charts/marginals";
 import { renderDemandDist } from "../charts/demandDist";
 import {
-  ageCompositionSeries,
-  ageCompositionSeriesFromBelief,
+  fCompositionSeries,
+  fCompositionSeriesFromBelief,
   inventorySeries,
   inventorySeriesFromBelief,
-  renderAgeComposition,
+  renderFreshnessComposition,
   renderInventoryTarget,
 } from "../charts/inventoryTarget";
 import { renderControllerOrders } from "../charts/controllerOrders";
@@ -530,14 +530,13 @@ export function initStudio(app: HTMLElement): () => void {
     renderInventoryTarget(els.inventory, vm.history, vm.config, 76, invSeries);
     renderControllerOrders(els.controllerOrders, vm.history, 76);
     const ageRows = showTruth
-      ? ageCompositionSeries(vm.history)
-      : ageCompositionSeriesFromBelief(vm.belief_history);
-    renderAgeComposition(
+      ? fCompositionSeries(vm.history)
+      : fCompositionSeriesFromBelief(vm.belief_history);
+    renderFreshnessComposition(
       els.ageComp,
       vm.history,
       76,
       ageRows,
-      showTruth ? "age" : "freshness",
     );
   }
 
@@ -592,14 +591,13 @@ export function initStudio(app: HTMLElement): () => void {
     }
     if (plotVisible("plot-age-comp")) {
       const ageRows = showTruth
-        ? ageCompositionSeries(vm.history)
-        : ageCompositionSeriesFromBelief(vm.belief_history);
-      renderAgeComposition(
+        ? fCompositionSeries(vm.history)
+        : fCompositionSeriesFromBelief(vm.belief_history);
+      renderFreshnessComposition(
         els.ageComp,
         vm.history,
         140,
         ageRows,
-        showTruth ? "age" : "freshness",
       );
     }
     // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not

@@ -145,7 +145,6 @@ fn p1_mask_obs_sales_by_stays_none() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs = mask_for("P1").expect("P1").apply(&rich);
@@ -166,7 +165,6 @@ fn f1_mask_exposes_sales_by_for_router() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs = mask_for("F1").expect("F1").apply(&rich);
@@ -731,7 +729,6 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             arrival_lot_ids: vec![],
             shipment_trace: None,
             f_at_receipt: None,
-            age_at_receipt: None,
             pack_date_days: None,
         });
     }
@@ -929,7 +926,6 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs_f1 = mask_for("F1").unwrap().apply(&rich);

@@ -290,21 +290,21 @@ fn path_value_f_belief(
         let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+        let (f_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship =
                 SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
             let mut rng_sensor =
                 SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
+            let (f, _tau, pack) = arrival_receipt_meta(
                 &mut rng_ship,
                 &mut rng_sensor,
                 &ctx.shipments,
                 params,
                 ctx.f_pipeline_default,
             );
-            (Some(f), Some(tau), Some(pack))
+            (Some(f), Some(pack))
         } else {
-            (None, None, None)
+            (None, None)
         };
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
@@ -327,7 +327,6 @@ fn path_value_f_belief(
             delivery_f: f_at_receipt,
             delivery_lambda: None,
             units_per_lot: Some(upl),
-            age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
@@ -414,21 +413,21 @@ fn path_arrival_units_sum(
         let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
+        let (f_at_receipt, pack_date_days) = if arrival > 0 {
             let mut rng_ship =
                 SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
             let mut rng_sensor =
                 SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
+            let (f, _tau, pack) = arrival_receipt_meta(
                 &mut rng_ship,
                 &mut rng_sensor,
                 &ctx.shipments,
                 params,
                 ctx.f_pipeline_default,
             );
-            (Some(f), Some(tau), Some(pack))
+            (Some(f), Some(pack))
         } else {
-            (None, None, None)
+            (None, None)
         };
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
@@ -451,7 +450,6 @@ fn path_arrival_units_sum(
             delivery_f: f_at_receipt,
             delivery_lambda: None,
             units_per_lot: Some(upl),
-            age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(

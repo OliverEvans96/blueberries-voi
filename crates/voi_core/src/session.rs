@@ -274,11 +274,11 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let (f_at_receipt, age_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
+        let (f_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
             if arrival > 0 {
                 let mut rs = stream_rng(self.seed, self.day, 4);
                 let mut rn = stream_rng(self.seed, self.day, 5);
-                let (f, tau, pack, trace) = arrival_receipt_meta_with_trace(
+                let (f, _tau, pack, trace) = arrival_receipt_meta_with_trace(
                     &mut rs,
                     &mut rn,
                     &self.shipments,
@@ -290,13 +290,12 @@ impl EngineSession {
                 self.next_lot += 1;
                 (
                     Some(f),
-                    Some(tau),
                     Some(pack),
                     Some(trace),
                     vec![lot_id],
                 )
             } else {
-                (None, None, None, None, Vec::new())
+                (None, None, None, Vec::new())
             };
         let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
@@ -335,7 +334,6 @@ impl EngineSession {
             delivery_f: f_at_receipt,
             delivery_lambda,
             units_per_lot: Some(self.params.units_per_lot),
-            age_at_receipt,
             pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
@@ -360,7 +358,6 @@ impl EngineSession {
             arrival_lot_ids,
             shipment_trace,
             f_at_receipt,
-            age_at_receipt,
             pack_date_days,
         };
         let day_idx = self.day;
@@ -784,7 +781,6 @@ impl EngineSession {
                     "lot_ids": obs.lot_ids_live,
                     "arrival_lot_ids": obs.arrival_lot_ids,
                     "pack_date_days": obs.pack_date_days,
-                    "age_at_receipt": obs.age_at_receipt,
                     "temp_times_d": obs.temp_times_d,
                     "temp_temps_c": obs.temp_temps_c,
                 })

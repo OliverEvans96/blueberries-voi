@@ -47,7 +47,7 @@ export const SCENARIO_COPY: Record<
   },
   F2a: {
     title: "Pack date on ASN",
-    description: "Narrows the arrival-age prior only.",
+    description: "Narrows the arrival freshness prior only.",
   },
   F2: {
     title: "GSIN + pack date",
@@ -240,7 +240,7 @@ const CONFIG_SLIDERS: SliderSpec[] = [
 
   {
     id: "sensor_sigma",
-    label: "sensor σ (age)",
+    label: "sensor σ (exposure)",
     min: 0,
     max: 1.5,
     step: 0.05,
@@ -337,7 +337,7 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="arrival" hidden>
         <p class="hint">
-          MOD-11/18/21: arrival age from transit mix + Arrhenius shift.
+          MOD-11/18/21: arrival exposure from transit mix + Arrhenius shift.
           Daily lead time stays 1 (no pipeline Gantt).
         </p>
         <div class="field">

@@ -13,7 +13,6 @@ pub struct ObsMask {
     pub sales_by_lot: bool,
     pub waste_by_lot: bool,
     pub pack_date: bool,
-    pub age_at_receipt: bool,
     pub lot_ids_live: bool,
     pub arrival_lot_ids: bool,
     pub temperature_history: bool,
@@ -54,7 +53,6 @@ pub struct RichDay {
     pub arrival_lot_ids: Vec<i64>,
     pub shipment_trace: Option<ShipmentTrace>,
     pub f_at_receipt: Option<f64>,
-    pub age_at_receipt: Option<f64>,
     pub pack_date_days: Option<i32>,
 }
 
@@ -69,7 +67,6 @@ pub struct FilterObs {
     pub lot_ids_live: Option<Vec<i64>>,
     pub arrival_lot_ids: Option<Vec<i64>>,
     pub pack_date_days: Option<i32>,
-    pub age_at_receipt: Option<f64>,
     pub f_at_receipt: Option<f64>,
     pub temp_times_d: Option<Vec<f64>>,
     pub temp_temps_c: Option<Vec<f64>>,
@@ -86,7 +83,6 @@ impl Default for FilterObs {
             lot_ids_live: None,
             arrival_lot_ids: None,
             pack_date_days: None,
-            age_at_receipt: None,
             f_at_receipt: None,
             temp_times_d: None,
             temp_temps_c: None,
@@ -297,11 +293,6 @@ impl ObsMask {
             } else {
                 None
             },
-            age_at_receipt: if self.age_at_receipt {
-                rich.age_at_receipt
-            } else {
-                None
-            },
             f_at_receipt: if self.temperature_history {
                 rich.f_at_receipt
             } else {
@@ -326,7 +317,6 @@ mod tests {
             ("sales_by_lot", m.sales_by_lot),
             ("waste_by_lot", m.waste_by_lot),
             ("pack_date", m.pack_date),
-            ("age_at_receipt", m.age_at_receipt),
             ("lot_ids_live", m.lot_ids_live),
             ("arrival_lot_ids", m.arrival_lot_ids),
             ("temperature_history", m.temperature_history),
@@ -402,8 +392,7 @@ mod tests {
             let m = mask_from_channels(ch);
             let f = present_fields(&m);
             assert!(f["arrivals"] && f["sales_total"]);
-            assert!(!f["age_at_receipt"]);
-            if ch.code_type == CodeType::Gsin {
+                if ch.code_type == CodeType::Gsin {
                 assert!(f["sales_by_lot"] && f["lot_ids_live"] && f["arrival_lot_ids"]);
             } else {
                 assert!(!f["sales_by_lot"] && !f["lot_ids_live"] && !f["arrival_lot_ids"]);
@@ -436,7 +425,6 @@ mod tests {
             let from_ch = mask_from_channels(ch);
             let from_id = mask_for(id).unwrap();
             assert_eq!(from_ch, from_id);
-            assert!(!from_ch.age_at_receipt);
         }
     }
 
@@ -445,7 +433,7 @@ mod tests {
         let ch = channels_for_preset("F2").unwrap();
         assert_eq!(ch.delivery_history, DeliveryHistory::PackDate);
         let m = mask_from_channels(ch);
-        assert!(m.pack_date && !m.age_at_receipt && !m.temperature_history);
+        assert!(m.pack_date);
     }
 
     #[test]
@@ -481,7 +469,6 @@ mod tests {
         assert!(!f["sales_by_lot"]);
         assert!(!f["waste_by_lot"]);
         assert!(!f["pack_date"]);
-        assert!(!f["age_at_receipt"]);
         assert!(!f["lot_ids_live"]);
     }
 
@@ -490,7 +477,7 @@ mod tests {
         let m = mask_for("P1").expect("P1");
         assert!(m.arrivals && m.sales_total && m.waste_total);
         assert!(!m.sales_by_lot && !m.waste_by_lot);
-        assert!(!m.pack_date && !m.age_at_receipt);
+        assert!(!m.pack_date);
         assert!(!m.lot_ids_live);
     }
 
@@ -498,7 +485,7 @@ mod tests {
     fn mask_for_f1_adds_sales_by_lot_and_lot_ids_live() {
         let m = mask_for("F1").expect("F1");
         assert!(m.waste_total && m.sales_by_lot && m.lot_ids_live && m.waste_by_lot);
-        assert!(!m.pack_date && !m.age_at_receipt);
+        assert!(!m.pack_date);
     }
 
     #[test]
@@ -510,7 +497,7 @@ mod tests {
     fn mask_for_f2a_is_p1_plus_pack_date() {
         let m = mask_for("F2a").expect("F2a");
         assert!(m.waste_total && m.pack_date);
-        assert!(!m.sales_by_lot && !m.waste_by_lot && !m.age_at_receipt);
+        assert!(!m.sales_by_lot && !m.waste_by_lot);
         assert!(!m.lot_ids_live);
     }
 
@@ -519,7 +506,6 @@ mod tests {
         let m = mask_for("F2").expect("F2");
         assert!(m.waste_total && m.sales_by_lot && m.waste_by_lot);
         assert!(m.pack_date && m.lot_ids_live && m.arrival_lot_ids);
-        assert!(!m.age_at_receipt);
     }
 
     #[test]
@@ -545,7 +531,6 @@ mod tests {
             arrival_lot_ids: vec![12],
             shipment_trace: None,
             f_at_receipt: Some(0.85),
-            age_at_receipt: Some(2.0),
             pack_date_days: Some(3),
         };
         let obs = mask_for("P0").unwrap().apply(&rich);
@@ -557,7 +542,6 @@ mod tests {
         assert!(obs.lot_ids_live.is_none());
         assert!(obs.arrival_lot_ids.is_none());
         assert!(obs.pack_date_days.is_none());
-        assert!(obs.age_at_receipt.is_none());
         assert!(obs.temp_times_d.is_none());
     }
 
@@ -576,7 +560,6 @@ mod tests {
                 temps_c: vec![1.0, 1.0, 1.0],
             }),
             f_at_receipt: Some(0.9),
-            age_at_receipt: Some(1.0),
             pack_date_days: Some(1),
         };
         let obs = mask_for("F3").unwrap().apply(&rich);
@@ -597,7 +580,6 @@ mod tests {
             arrival_lot_ids: vec![3],
             shipment_trace: None,
             f_at_receipt: Some(0.9),
-            age_at_receipt: Some(1.5),
             pack_date_days: Some(5),
         };
         let obs = mask_for("F2").unwrap().apply(&rich);
@@ -607,6 +589,5 @@ mod tests {
         assert_eq!(obs.lot_ids_live.as_deref(), Some(&[1i64, 2][..]));
         assert_eq!(obs.arrival_lot_ids.as_deref(), Some(&[3i64][..]));
         assert_eq!(obs.pack_date_days, Some(5));
-        assert!(obs.age_at_receipt.is_none());
     }
 }

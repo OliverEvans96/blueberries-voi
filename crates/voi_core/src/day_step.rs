@@ -31,8 +31,6 @@ pub struct UnitDayStepIn {
     pub delivery_lambda: Option<f64>,
     /// Units injected per delivery (default `params.units_per_lot`, typically 15).
     pub units_per_lot: Option<usize>,
-    /// F2 Dirac birth from measured age at receipt (τ days).
-    pub age_at_receipt: Option<f64>,
     /// F2a Gaussian pack-date transit age mean (τ days).
     pub pack_age_mean: Option<f64>,
 }
@@ -268,7 +266,6 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
                     shipments,
                     params,
                     1.0,
-                    input.age_at_receipt,
                     input.pack_age_mean,
                 )
             });
@@ -489,7 +486,6 @@ mod tests {
             delivery_f: None,
             delivery_lambda: None,
             units_per_lot: None,
-            age_at_receipt: None,
             pack_age_mean: None,
         };
         let mut rng_gamma = Pcg64::seed_from_u64(1);
@@ -525,7 +521,6 @@ mod tests {
             delivery_f: None,
             delivery_lambda: None,
             units_per_lot: None,
-            age_at_receipt: None,
             pack_age_mean: None,
         };
         let mut rng = Pcg64::seed_from_u64(42);
@@ -602,7 +597,6 @@ mod tests {
                 delivery_f: Some(0.62),
                 delivery_lambda: Some(lambda),
                 units_per_lot: Some(upl),
-                age_at_receipt: None,
                 pack_age_mean: None,
             };
             let mut rng_birth = Pcg64::seed_from_u64(138_004);
@@ -641,7 +635,6 @@ mod tests {
             delivery_f: Some(0.92),
             delivery_lambda: None,
             units_per_lot: None,
-            age_at_receipt: None,
             pack_age_mean: None,
         };
         let out = unit_day_step::<rand_pcg::Pcg64>(
