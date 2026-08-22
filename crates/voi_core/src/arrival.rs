@@ -416,15 +416,6 @@ impl ArrivalModel {
         self.f2_cache.get(&d_days).unwrap().variance_f
     }
 
-    pub fn variance_f_given_phi_bar(&mut self, phi_bar: f64) -> f64 {
-        let key = (phi_bar * 1_000_000.0).round() as u64;
-        if !self.f3_cache.contains_key(&key) {
-            let cache = self.build_marginal_cdf(None, Some(phi_bar));
-            self.f3_cache.insert(key, cache);
-        }
-        self.f3_cache.get(&key).unwrap().variance_f
-    }
-
     pub fn sample_unit_f_from_cache<R: Rng + ?Sized>(
         &self,
         cache: &ArrivalCdfCache,
@@ -570,17 +561,6 @@ mod tests {
         let json = r#"{"schema_version":99,"mu_T":1,"sigma_T":1,"sigma_pos":0.1,"q10":3,"T_ref":0,"gamma_shape":2,"gamma_scale":0.03,"reference_life_days":14,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"x":{"d_min":1,"delay_shape":1,"delay_scale":1}}}"#;
         let err = ArrivalModel::from_json(json).unwrap_err();
         assert!(matches!(err, ArrivalModelError::UnknownSchemaVersion(99)));
-    }
-
-    #[test]
-    fn monotone_ladder_variance_strict() {
-        let mut model = ArrivalModel::embedded();
-        let var_marg = model.marginal_variance_f();
-        let var_d = model.variance_f_given_d(4);
-        let phi = model.phi_bar_from_t_bar(2.7);
-        let var_phi = model.variance_f_given_phi_bar(phi);
-        assert!(var_phi < var_d, "var_phi={var_phi} var_d={var_d}");
-        assert!(var_d < var_marg, "var_d={var_d} var_marg={var_marg}");
     }
 
     #[test]

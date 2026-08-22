@@ -4,7 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use rand::SeedableRng;
-use rand_distr::{Distribution, Gamma};
+use rand::Rng;
+use rand_distr::{Distribution, Gamma, LogNormal};
 use rand_pcg::Pcg64;
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
@@ -13,8 +14,9 @@ use voi_core::physics::{
     store_temp_factor, GammaDecrementTable,
 };
 use voi_core::session::EngineSession;
-use voi_core::arrival::ArrivalModel;
-use voi_core::shipments::ShipmentTrace;
+use voi_core::arrival::{resolve_arrival_f_law_phi_bar, ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP};
+use voi_core::shipments::{arrival_exposure_from_path, ShipmentTrace};
+use voi_core::spawn_rng::SpawnRng;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -313,21 +315,6 @@ fn ac2_9_arrival_conditional_law_analytic() {
     assert!((mc_zero - p_zero).abs() < 0.02, "mc_zero={mc_zero} analytic={p_zero}");
 }
 
-/// AC2.10: monotone ladder — Var(f | φ̄) < Var(f | d) < Var(f) strict on committed artifact.
-#[test]
-fn ac2_10_monotone_ladder_variance() {
-    let src = read_src("arrival.rs");
-    assert!(
-        src.contains("variance") || src.contains("Var"),
-        "RED: arrival.rs must expose variance helpers for ladder guard"
-    );
-    // Runtime check delegates to Python/Rust parity test once parser lands.
-    let path = repo_root().join("data/abdella/arrival_model.json");
-    if !path.is_file() {
-        panic!("RED: cannot evaluate ladder monotonicity without committed artifact");
-    }
-}
-
 /// AC2.11: restored bc26218 heterogeneous-fleet assertions (strict).
 #[test]
 fn ac2_11_f2_marginals_differ_from_p0() {
@@ -416,6 +403,484 @@ fn json_f64s(v: &serde_json::Value, key: &str) -> Vec<f64> {
         .iter()
         .filter_map(|x| x.as_f64())
         .collect()
+}
+
+fn pearson_corr(xs: &[f64], ys: &[f64]) -> f64 {
+    assert_eq!(xs.len(), ys.len());
+    let n = xs.len() as f64;
+    if n < 2.0 {
+        return 0.0;
+    }
+    let mx = xs.iter().sum::<f64>() / n;
+    let my = ys.iter().sum::<f64>() / n;
+    let mut num = 0.0;
+    let mut den_x = 0.0;
+    let mut den_y = 0.0;
+    for (&x, &y) in xs.iter().zip(ys.iter()) {
+        let dx = x - mx;
+        let dy = y - my;
+        num += dx * dy;
+        den_x += dx * dx;
+        den_y += dy * dy;
+    }
+    if den_x <= 0.0 || den_y <= 0.0 {
+        return 0.0;
+    }
+    num / (den_x.sqrt() * den_y.sqrt())
+}
+
+fn law_mean_f_from_samples(model: &mut ArrivalModel, pack: Option<i32>, phi: Option<f64>) -> f64 {
+    let mut rng = Pcg64::seed_from_u64(150_211);
+    let n = 20_000usize;
+    let mut acc = 0.0;
+    for _ in 0..n {
+        acc += model.sample_filter_birth_units(pack, phi, 1, &mut rng)[0];
+    }
+    acc / n as f64
+}
+
+fn law_sd_and_atom(
+    model: &mut ArrivalModel,
+    pack: Option<i32>,
+    phi: Option<f64>,
+) -> (f64, f64) {
+    let mut rng = Pcg64::seed_from_u64(150_219);
+    let n = 30_000usize;
+    let mut samples = Vec::with_capacity(n);
+    for _ in 0..n {
+        samples.push(model.sample_filter_birth_units(pack, phi, 1, &mut rng)[0]);
+    }
+    let atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
+    let (mean, sd) = empirical_mean_sd(&samples);
+    (sd, atom)
+}
+
+#[derive(Clone, Debug)]
+struct DeliveryTruth {
+    truth_mean_f: f64,
+    pack_date_days: i32,
+    exposure_lambda: f64,
+}
+
+fn collect_truth_deliveries(seed: u64, orders: &[u32]) -> Vec<DeliveryTruth> {
+    let mut sess = EngineSession::new(seed);
+    sess.init(seed);
+    sess.set_obs_scenario("P0").unwrap();
+    let model = ArrivalModel::embedded();
+    let params = ModelParams::default();
+    let mut seen_lots = 0usize;
+    let mut out = Vec::new();
+    for (day, &q) in orders.iter().enumerate() {
+        let before = sess
+            .snapshot_value()["live_lots"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let _ = sess.step(q);
+        let lots = sess
+            .snapshot_value()["live_lots"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        if lots.len() > before {
+            let lot = &lots[lots.len() - 1];
+            let truth_mean_f = lot["mean_f"].as_f64().unwrap_or(0.0);
+            let day_u32 = day as u32;
+            let mut rng_dur =
+                SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_DURATION);
+            let mut rng_temp = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_TEMP);
+            let mut rng_pos = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_POS);
+            let mut rng_gamma =
+                SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_GAMMA);
+            let draw = model.draw_truth_delivery(
+                "abdella_all",
+                params.units_per_lot.max(1),
+                &mut rng_dur,
+                &mut rng_temp,
+                &mut rng_pos,
+                &mut rng_gamma,
+            );
+            out.push(DeliveryTruth {
+                truth_mean_f,
+                pack_date_days: draw.pack_date_days,
+                exposure_lambda: draw.duration_d * draw.phi_bar,
+            });
+            seen_lots = lots.len();
+        }
+    }
+    let _ = seen_lots;
+    out
+}
+
+fn artifact_quadrature() -> (Vec<f64>, Vec<f64>) {
+    let path = repo_root().join("data/abdella/arrival_model.json");
+    let json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
+    let quad = &json["quadrature"];
+    let nodes = quad["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    let weights = quad["weights"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    (nodes, weights)
+}
+
+fn expected_delay(corridor: &voi_core::arrival::ArrivalCorridor) -> f64 {
+    corridor.d_min + corridor.delay_shape * corridor.delay_scale
+}
+
+fn lot_lambda_law_mean(model: &ArrivalModel, lot_lambda: f64) -> f64 {
+    let mut rng = Pcg64::seed_from_u64(150_311);
+    let n = 15_000usize;
+    let mut acc = 0.0;
+    for _ in 0..n {
+        let psi = LogNormal::new(0.0, model.sigma_pos)
+            .expect("lognormal")
+            .sample(&mut rng)
+            .max(1e-6);
+        let lam = ArrivalModel::floor_lambda(lot_lambda * psi);
+        let loss = Gamma::new(model.gamma_shape * lam, model.gamma_scale)
+            .expect("gamma")
+            .sample(&mut rng);
+        acc += (1.0 - loss).max(0.0);
+    }
+    acc / n as f64
+}
+
+fn mae(predicted: &[f64], truth: &[f64]) -> f64 {
+    assert_eq!(predicted.len(), truth.len());
+    predicted
+        .iter()
+        .zip(truth.iter())
+        .map(|(p, t)| (p - t).abs())
+        .sum::<f64>()
+        / predicted.len() as f64
+}
+
+/// AC2.11a: empirical ladder tracking — MAE(F3) < MAE(F2) < MAE(P0), P0 ≥ 3× F2.
+#[test]
+fn ac2_11a_empirical_ladder_tracking_mae() {
+    let seed = 150_211;
+    let orders: Vec<u32> = (0..60).map(|i| if i % 2 == 0 { 8 } else { 0 }).collect();
+    let deliveries = collect_truth_deliveries(seed, &orders);
+    assert!(
+        deliveries.len() >= 20,
+        "fixture must produce at least 20 deliveries; got {}",
+        deliveries.len()
+    );
+    let truth: Vec<f64> = deliveries.iter().map(|d| d.truth_mean_f).collect();
+
+    let mut model = ArrivalModel::embedded();
+    let pred_p0: Vec<f64> = deliveries
+        .iter()
+        .map(|_| law_mean_f_from_samples(&mut model, None, None))
+        .collect();
+    let pred_f2: Vec<f64> = deliveries
+        .iter()
+        .map(|d| law_mean_f_from_samples(&mut model, Some(d.pack_date_days), None))
+        .collect();
+    let pred_f3: Vec<f64> = deliveries
+        .iter()
+        .map(|d| {
+            let phi = d.exposure_lambda / f64::from(d.pack_date_days).max(1.0);
+            law_mean_f_from_samples(&mut model, None, Some(phi))
+        })
+        .collect();
+
+    let mae_p0 = mae(&pred_p0, &truth);
+    let mae_f2 = mae(&pred_f2, &truth);
+    let mae_f3 = mae(&pred_f3, &truth);
+
+    assert!(
+        mae_f3 < mae_f2 && mae_f2 < mae_p0,
+        "RED: ladder MAE must order F3 < F2 < P0 strictly; got F3={mae_f3:.4} F2={mae_f2:.4} P0={mae_p0:.4}"
+    );
+    assert!(
+        mae_p0 >= 3.0 * mae_f2,
+        "RED: MAE(P0) must be at least 3× MAE(F2); got P0={mae_p0:.4} F2={mae_f2:.4} ratio={:.2}",
+        mae_p0 / mae_f2.max(1e-12)
+    );
+}
+
+/// AC2.19 (a): P0/P1 quadrature must integrate d and T_bar as a product, not one shared index.
+#[test]
+fn ac2_19_quadrature_d_and_tbar_independent_product() {
+    let model = ArrivalModel::embedded();
+    let corridor = model.corridor("abdella_all");
+    let (nodes, _) = artifact_quadrature();
+    let mut d_vals = Vec::new();
+    let mut phi_vals = Vec::new();
+    for node in nodes {
+        let delay_mean = expected_delay(corridor);
+        let delay_span = corridor.delay_scale * 2.0;
+        let d = (corridor.d_min + delay_mean + delay_span * (2.0 * node - 1.0)).max(0.0);
+        let t_span = model.sigma_t * 2.5;
+        let t_bar = (model.mu_t + t_span * (2.0 * node - 1.0)).max(model.temp_floor_c);
+        d_vals.push(d);
+        phi_vals.push(model.phi_bar_from_t_bar(t_bar));
+    }
+    let corr = pearson_corr(&d_vals, &phi_vals).abs();
+    assert!(
+        corr < 0.5,
+        "RED: d and phi_bar quadrature nodes must not be rank-correlated (product rule); |r|={corr:.4}"
+    );
+}
+
+/// AC2.19 (b): quadrature nodes must integrate against modeled densities, not uniform ±span.
+#[test]
+fn ac2_19_quadrature_integrates_modeled_densities() {
+    let model = ArrivalModel::embedded();
+    let corridor = model.corridor("abdella_all");
+    let (nodes, weights) = artifact_quadrature();
+    let mut quad_d = Vec::new();
+    let mut quad_w = Vec::new();
+    for (node, weight) in nodes.into_iter().zip(weights) {
+        let delay_mean = expected_delay(corridor);
+        let delay_span = corridor.delay_scale * 2.0;
+        let d = (corridor.d_min + delay_mean + delay_span * (2.0 * node - 1.0)).max(0.0);
+        quad_d.push(d);
+        quad_w.push(weight);
+    }
+    let w_sum: f64 = quad_w.iter().sum();
+    let quad_mean = quad_d
+        .iter()
+        .zip(quad_w.iter())
+        .map(|(d, w)| d * w / w_sum)
+        .sum::<f64>();
+    let quad_var = quad_d
+        .iter()
+        .zip(quad_w.iter())
+        .map(|(d, w)| {
+            let dx = d - quad_mean;
+            w / w_sum * dx * dx
+        })
+        .sum::<f64>();
+    let quad_sd = quad_var.sqrt();
+
+    let target_mean = corridor.d_min + corridor.delay_shape * corridor.delay_scale;
+    let target_sd = corridor.delay_scale * (corridor.delay_shape).sqrt();
+
+    assert!(
+        (quad_mean - target_mean).abs() < 0.15,
+        "RED: quadrature mean duration {quad_mean:.3} must match shifted-gamma {target_mean:.3}"
+    );
+    assert!(
+        (quad_sd - target_sd).abs() < 0.15,
+        "RED: quadrature sd duration {quad_sd:.3} must match shifted-gamma {target_sd:.3} (uniform window integrates wrong law)"
+    );
+}
+
+/// AC2.19 (c): sigma_pos must enter every rung law, including F3.
+#[test]
+fn ac2_19_sigma_pos_in_filter_law() {
+    let path = repo_root().join("data/abdella/arrival_model.json");
+    let mut payload: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
+    let phi = ArrivalModel::embedded().phi_bar_from_t_bar(payload["mu_T"].as_f64().unwrap());
+
+    let mut low = payload.clone();
+    low["sigma_pos"] = serde_json::json!(0.02);
+    let mut high = payload.clone();
+    high["sigma_pos"] = serde_json::json!(0.20);
+
+    let mut model_low =
+        ArrivalModel::from_json(&serde_json::to_string(&low).unwrap()).expect("low sigma_pos");
+    let mut model_high =
+        ArrivalModel::from_json(&serde_json::to_string(&high).unwrap()).expect("high sigma_pos");
+    let (sd_low, _) = law_sd_and_atom(&mut model_low, None, Some(phi));
+    let (sd_high, _) = law_sd_and_atom(&mut model_high, None, Some(phi));
+    assert!(
+        sd_high > sd_low + 0.01,
+        "RED: raising sigma_pos must widen the filter law (low={sd_low:.4}, high={sd_high:.4})"
+    );
+}
+
+/// AC2.19 (d): atom counted once; mean/sd include the f=0 atom mass.
+#[test]
+fn ac2_19_atom_single_count_and_unconditional_moments() {
+    let mut model = ArrivalModel::embedded();
+    let lambda = 6.5;
+    let analytic_atom = model.p_f_zero(lambda);
+    let mut rng = Pcg64::seed_from_u64(150_220);
+    let n = 40_000usize;
+    let mut samples = Vec::with_capacity(n);
+    for _ in 0..n {
+        samples.push({
+            let loss = Gamma::new(model.gamma_shape * lambda, model.gamma_scale)
+                .unwrap()
+                .sample(&mut rng);
+            (1.0 - loss).max(0.0)
+        });
+    }
+    let mc_atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
+    let (mc_mean, _) = empirical_mean_sd(&samples);
+
+    let phi = model.phi_bar_from_t_bar(model.mu_t);
+    let filter_mean = law_mean_f_from_samples(&mut model, None, Some(phi));
+    let (_, filter_atom) = law_sd_and_atom(&mut model, None, Some(phi));
+
+    assert!(
+        (filter_atom - analytic_atom).abs() < 0.02,
+        "RED: filter atom {filter_atom:.4} must match analytic {analytic_atom:.4}"
+    );
+    assert!(
+        (filter_atom - mc_atom).abs() < 0.03,
+        "RED: filter atom must not double-count CDF mass; filter={filter_atom:.4} mc={mc_atom:.4}"
+    );
+    assert!(
+        (filter_mean - mc_mean).abs() < 0.05,
+        "RED: filter mean {filter_mean:.4} must include atom (unconditional), mc={mc_mean:.4}"
+    );
+}
+
+/// AC2.19: prior integrates configured corridor only; mix_weight deleted from artifact.
+#[test]
+fn ac2_19_prior_single_corridor_no_mix_weight() {
+    let path = repo_root().join("data/abdella/arrival_model.json");
+    let json_text = fs::read_to_string(&path).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&json_text).expect("parse artifact");
+    let corridors = json["corridors"].as_object().expect("corridors object");
+    for (name, c) in corridors {
+        assert!(
+            c.get("mix_weight").is_none(),
+            "RED: mix_weight must be deleted from corridor {name}"
+        );
+    }
+
+    let mut model = ArrivalModel::embedded();
+    let mixed_mean = law_mean_f_from_samples(&mut model, None, None);
+
+    let abdella_only = json["corridors"]["abdella_all"].clone();
+    let single_json = serde_json::json!({
+        "schema_version": json["schema_version"],
+        "mu_T": json["mu_T"],
+        "sigma_T": json["sigma_T"],
+        "temp_floor_c": json["temp_floor_c"],
+        "sigma_pos": json["sigma_pos"],
+        "q10": json["q10"],
+        "T_ref": json["T_ref"],
+        "gamma_shape": json["gamma_shape"],
+        "gamma_scale": json["gamma_scale"],
+        "reference_life_days": json["reference_life_days"],
+        "quadrature": json["quadrature"],
+        "corridors": {"abdella_all": abdella_only},
+    });
+    let mut single =
+        ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap()).expect("single corridor");
+    let single_mean = law_mean_f_from_samples(&mut single, None, None);
+    assert!(
+        (mixed_mean - single_mean).abs() < 0.02,
+        "RED: P0 prior must not average corridors (mix_weight); mixed={mixed_mean:.4} abdella_only={single_mean:.4}"
+    );
+}
+
+/// AC2.20 (a): equal phi_bar but different durations must yield different F3 laws.
+#[test]
+fn ac2_20_f3_laws_differ_when_duration_differs_at_same_phi_bar() {
+    let q10 = 3.0_f64;
+    let t_ref = 0.0_f64;
+    let phi = 1.35_f64;
+    let t_c = t_ref + 10.0 * phi.ln() / q10.ln();
+    let trace_short = ShipmentTrace {
+        times_d: vec![0.0, 4.0],
+        temps_c: vec![t_c, t_c],
+    };
+    let trace_long = ShipmentTrace {
+        times_d: vec![0.0, 8.0],
+        temps_c: vec![t_c, t_c],
+    };
+    let phi_short = resolve_arrival_f_law_phi_bar(
+        Some(&trace_short.temps_c),
+        Some(&trace_short.times_d),
+        q10,
+        t_ref,
+    )
+    .unwrap();
+    let phi_long = resolve_arrival_f_law_phi_bar(
+        Some(&trace_long.temps_c),
+        Some(&trace_long.times_d),
+        q10,
+        t_ref,
+    )
+    .unwrap();
+    assert!((phi_short - phi_long).abs() < 1e-6, "fixture: same phi_bar");
+
+    let mut model = ArrivalModel::embedded();
+    let mean_short = law_mean_f_from_samples(&mut model, None, Some(phi_short));
+    let mean_long = law_mean_f_from_samples(&mut model, None, Some(phi_long));
+    assert!(
+        (mean_short - mean_long).abs() > 0.02,
+        "RED: F3 laws must differ when duration differs at fixed phi_bar; short={mean_short:.4} long={mean_long:.4}"
+    );
+}
+
+/// AC2.20 (b): equal Λ but different durations must yield the same F3 law.
+#[test]
+fn ac2_20_f3_law_sufficient_in_lambda_not_phi_bar() {
+    let q10 = 3.0_f64;
+    let t_ref = 0.0_f64;
+    let trace_long = ShipmentTrace {
+        times_d: vec![0.0, 2.0, 4.0, 6.0],
+        temps_c: vec![2.0, 2.0, 2.0, 2.0],
+    };
+    let lambda_target =
+        arrival_exposure_from_path(&trace_long.temps_c, &trace_long.times_d, q10, t_ref);
+    let duration_short = 4.0_f64;
+    let phi_short_target = lambda_target / duration_short;
+    let t_hot = t_ref + 10.0 * phi_short_target.ln() / q10.ln();
+    let trace_short = ShipmentTrace {
+        times_d: vec![0.0, duration_short],
+        temps_c: vec![t_hot, t_hot],
+    };
+    let lambda_short = arrival_exposure_from_path(
+        &trace_short.temps_c,
+        &trace_short.times_d,
+        q10,
+        t_ref,
+    );
+    assert!(
+        (lambda_target - lambda_short).abs() < 0.05,
+        "fixture: paths must share Λ; long={lambda_target:.4} short={lambda_short:.4}"
+    );
+    let phi_long = resolve_arrival_f_law_phi_bar(
+        Some(&trace_long.temps_c),
+        Some(&trace_long.times_d),
+        q10,
+        t_ref,
+    )
+    .unwrap();
+    let phi_short = resolve_arrival_f_law_phi_bar(
+        Some(&trace_short.temps_c),
+        Some(&trace_short.times_d),
+        q10,
+        t_ref,
+    )
+    .unwrap();
+    assert!(
+        (phi_long - phi_short).abs() > 0.05,
+        "fixture: phi_bar must differ when duration differs at fixed Λ"
+    );
+
+    let mut model = ArrivalModel::embedded();
+    let mean_long = law_mean_f_from_samples(&mut model, None, Some(phi_long));
+    let mean_short = law_mean_f_from_samples(&mut model, None, Some(phi_short));
+    assert!(
+        (mean_long - mean_short).abs() < 0.02,
+        "RED: F3 law must depend on Λ only; equal Λ paths gave means {mean_long:.4} vs {mean_short:.4}"
+    );
+
+    let law_at_lambda = lot_lambda_law_mean(&model, lambda_target);
+    assert!(
+        (mean_long - law_at_lambda).abs() < 0.05,
+        "RED: F3 must be Dirac on Λ integrating only psi_pos+gamma; filter={mean_long:.4} lambda-law={law_at_lambda:.4}"
+    );
 }
 
 /// AC2.12: within-lot spread — truth path uses ArrivalModel per unit, not delivery_birth_f scalar.

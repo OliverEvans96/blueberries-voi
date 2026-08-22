@@ -1,62 +1,58 @@
 # T-150 — RED criterion → test map (qa)
 
-Recorded after focused RED runs on `team/T-150/qa` (2026-08-22).
+Recorded after focused RED runs on `team/T-150/qa-r2-implement` (2026-08-22 correction round).
 
-## Commands run (RED evidence)
+## Commands run (RED evidence — correction round)
 
 ```bash
-# Rust (focused integration tests only)
-cargo test -p voi_core --test t150_phase1_terminology --test t150_phase2_arrival_model --no-fail-fast
-# → phase1: 1 passed, 6 failed | phase2: 2 passed, 17 failed
+# Rust — new / corrected Phase 2 tests only
+cargo test -p voi_core --test t150_phase2_arrival_model ac2_11a_empirical -- --nocapture
+cargo test -p voi_core --test t150_phase2_arrival_model ac2_19_ -- --nocapture
+cargo test -p voi_core --test t150_phase2_arrival_model ac2_20_f3 -- --nocapture
+# → ac2_11a: FAILED | ac2_19: 5 failed, 0 passed | ac2_20: 2 failed
 
-# Python 3.11 (focused file only)
-uv run --python 3.11 pytest tests/test_t150_arrival_model.py -v
-# → 5 failed, 1 passed, 3 skipped (_core not built)
-
-# Web (focused vitest file only)
-cd web && npm test -- src/t150_arrival.test.ts
-# → 8 failed
+# Python 3.11 — AC2.18 only
+uv sync --all-extras --python 3.11
+.venv/bin/python -m pytest tests/test_t150_arrival_model.py::test_ac2_18_arrival_artifact_anchored_to_abdella_shipments -v
+# → FAILED (sigma_T ratio 6.83× observed)
 ```
 
-### Excerpt — Rust phase 1 (representative)
+### Excerpt — AC2.18 (Python, committed artifact)
 
 ```
-test ac1_1_age_at_receipt_absent_from_live_path ... FAILED
-  RED: age_at_receipt must be removed from crates/voi_core/src
-test ac1_7_age_at_receipt_inert_on_production_delivery_path ... ok
+FAILED test_ac2_18_arrival_artifact_anchored_to_abdella_shipments
+AssertionError: RED: sigma_T ratio 6.83 must be in [0.5, 2.0]
+  (artifact=3.6, observed sd(T_i)=0.527)
 ```
 
-### Excerpt — Rust phase 2 (representative)
+### Excerpt — AC2.11a (Rust)
 
 ```
-test ac2_3_shape_scaling_spread_at_old_params ... FAILED
-  RED: sd 0.173 must match shape-scaling 0.141, not scale-scaling 0.176
-test ac2_4_reference_life_invariant_and_eta_choke_point ... FAILED
-  RED: default must satisfy k*theta*eta_ref == 1; got 2.24
-test ac2_11_f2_marginals_differ_from_p0 ... FAILED
-  assertion `left != right` failed (flat ladder — bc26218 regression)
-test ac2_2_gamma_additivity_and_timestep_invariance ... ok  # target math only
-test ac2_11_p0_p1_posteriors_differ ... ok  # already holds today
+RED: ladder MAE must order F3 < F2 < P0 strictly; got F3=0.3381 F2=0.1059 P0=0.3267
 ```
 
-### Excerpt — Python
+### Excerpt — AC2.19 / AC2.20 (Rust, representative)
 
 ```
-FAILED test_ac2_6_arrival_artifact_committed_schema
-  RED: data/abdella/arrival_model.json must exist
-SKIPPED test_ac2_17_python_rust_arrival_artifact_parity
-  blueberries_voi._core not built
-PASSED test_ac1_3_python_legacy_paths_allowlisted
+ac2_19_quadrature_d_and_tbar_independent_product: |r|=0.9325 (shared quadrature index)
+ac2_19_quadrature_integrates_modeled_densities: quad mean d 4.700 vs shifted-gamma 2.800
+ac2_19_sigma_pos_in_filter_law: sd unchanged when sigma_pos 0.02→0.20 (0.2419 vs 0.2419)
+ac2_19_atom_single_count_and_unconditional_moments: filter atom 0.0962 vs analytic 0.0006
+ac2_19_prior_single_corridor_no_mix_weight: mix_weight still on abdella_all
+ac2_20_f3_laws_differ_when_duration_differs_at_same_phi_bar: means 0.3894 vs 0.3894 (phi_bar-only cache)
+ac2_20_f3_law_sufficient_in_lambda_not_phi_bar: equal Λ means 0.4315 vs 0.2341 (must match)
 ```
 
-### Excerpt — Web
+## Guard supersession (correction round)
 
-```
-× AC1.5: StoreChartTabs tab label has no age framing
-  expected not to match /Age & spoilage/
-× AC3.2: dead studio knobs wired or removed
-  RED: studio knob spread_scale must be wired in session.rs or removed from web
-```
+**Withdrawn AC2.10** — removed in this commit before implementer touches the artifact:
+
+| Removed | Location |
+|---------|----------|
+| `ac2_10_monotone_ladder_variance` | `crates/voi_core/tests/t150_phase2_arrival_model.rs` |
+| `monotone_ladder_variance_strict` | `crates/voi_core/src/arrival.rs` (`#[cfg(test)]`) |
+| AC2.10 row | this map (placeholder below) |
+| `ArrivalModel::variance_f_given_phi_bar` | `crates/voi_core/src/arrival.rs` — **deleted** (only callers were the withdrawn tests) |
 
 ## Coverage of acceptance criteria
 
@@ -72,7 +68,7 @@ PASSED test_ac1_3_python_legacy_paths_allowlisted
 | AC1.6 | `t150_phase1_terminology.rs::ac1_6_exposure_language_in_doc_comments` | **assertion failure** — `physics.rs` / `params.py` still use age framing |
 | AC1.7 | `t150_phase1_terminology.rs::ac1_7_age_at_receipt_inert_on_production_delivery_path` | **passes today** — pins inertness when `delivery_lambda` + `delivery_f` set; numeric no-regression for phase 1 verified by implementer via `git diff` (no golden edits) |
 
-### Phase 2 (17 criteria)
+### Phase 2 (20 criteria — AC2.10 withdrawn, not renumbered)
 
 | ID | Test | RED mode |
 |----|------|----------|
@@ -85,14 +81,18 @@ PASSED test_ac1_3_python_legacy_paths_allowlisted
 | AC2.7 | `t150_phase2_arrival_model.rs::ac2_7_single_embed_and_parity` | **assertion failure** — zero embeds in `crates/voi_core/src` |
 | AC2.8 | `t150_phase2_arrival_model.rs::ac2_8_calibration_note_script_exists` + `test_t150_arrival_model.py::test_ac2_8_calibration_note_script_and_outputs` | **assertion failure** — script and `calibration_note.md` absent |
 | AC2.9 | `t150_phase2_arrival_model.rs::ac2_9_arrival_conditional_law_analytic` | **assertion failure** — `arrival.rs` missing; inline MC vs `gamma_p`/`gamma_q` baseline included |
-| AC2.10 | `t150_phase2_arrival_model.rs::ac2_10_monotone_ladder_variance` | **assertion failure** — no artifact / variance helpers |
+| *(AC2.10 withdrawn)* | *Monotone `Var(f\|φ̄) < Var(f\|d) < Var(f)` guard retired per ADR 0144 Correction 1 — tests deleted in this round* | *n/a* |
 | AC2.11 | `t150_phase2_arrival_model.rs::ac2_11_f2_marginals_differ_from_p0`, `ac2_11_caught_up_f2_not_collapsed_to_p0`, `ac2_11_p0_p1_posteriors_differ` | **assertion failure** (F2/P0/catch-up); P0≠P1 **passes** today |
+| AC2.11a | `t150_phase2_arrival_model.rs::ac2_11a_empirical_ladder_tracking_mae` | **assertion failure** — MAE ordering violated on committed artifact (`F3=0.34 F2=0.11 P0=0.33`; need `F3 < F2 < P0` strict and `P0 ≥ 3× F2`) |
 | AC2.12 | `t150_phase2_arrival_model.rs::ac2_12_within_lot_arrival_f_spread` | **assertion failure** — truth path still uses `delivery_birth_f`; `live_lots` lacks spread fields |
 | AC2.13 | `t150_phase2_arrival_model.rs::ac2_13_filter_obs_no_freshness_valued_arrival` | **assertion failure** — `FilterObs.age_at_receipt` / `f_at_receipt` still present |
 | AC2.14 | `t150_phase2_arrival_model.rs::ac2_14_truth_path_f_native_arrival` | **assertion failure** — `f_to_age` round trip and `birth_f_units_gamma` on truth path |
 | AC2.15 | `t150_phase2_arrival_model.rs::ac2_15_filter_path_and_shipments_cleanup` | **assertion failure** — `resolve_arrival_lambda` and superseded `shipments.rs` helpers remain |
 | AC2.16 | `t150_phase2_arrival_model.rs::ac2_16_lambda_floor_finite_cdf` | **assertion failure** — `arrival.rs` floor not implemented (analytic `gamma_p`/`gamma_q` baseline passes) |
 | AC2.17 | `t150_phase2_arrival_model.rs::ac2_17_rust_embed_parses_committed_artifact` + `test_t150_arrival_model.py::test_ac2_17_python_rust_arrival_artifact_parity` | **assertion failure** / **skipped** — no `pub mod arrival`; PyO3 parity blocked until `_core` built |
+| AC2.18 | `tests/test_t150_arrival_model.py::test_ac2_18_arrival_artifact_anchored_to_abdella_shipments` | **assertion failure** — `sigma_T=3.6` is 6.8× observed Arrhenius sd (`0.527`); duration share under artifact laws ≪ 0.90 with `delay_scale=0.30` |
+| AC2.19 | `t150_phase2_arrival_model.rs::ac2_19_quadrature_d_and_tbar_independent_product`, `ac2_19_quadrature_integrates_modeled_densities`, `ac2_19_sigma_pos_in_filter_law`, `ac2_19_atom_single_count_and_unconditional_moments`, `ac2_19_prior_single_corridor_no_mix_weight` | **assertion failure** — all five `build_marginal_cdf` defects present (see excerpts above) |
+| AC2.20 | `t150_phase2_arrival_model.rs::ac2_20_f3_laws_differ_when_duration_differs_at_same_phi_bar`, `ac2_20_f3_law_sufficient_in_lambda_not_phi_bar` | **assertion failure** — F3 cache keyed on `φ̄` only: same `φ̄` ignores duration; equal `Λ` with different `φ̄` yields different laws |
 
 ### Phase 3 (8 criteria)
 
@@ -114,10 +114,6 @@ PASSED test_ac1_3_python_legacy_paths_allowlisted
 | AC1.7 (numeric no-regression) | Property is “no edited numeric expectation in diff”; AC1.7 inertness test passes as baseline | Implementer + reviewer `git diff`; verifier full suite on phase-1-only commit |
 | AC3.8 | Role gate: verifier only | `ruff`, `mypy`, full `pytest` cov, `cargo test -p voi_core` on Python 3.11 |
 
-## Guard supersession
-
-No existing guard/closeout tests were weakened. T-140 (`t140_arrival_gamma.rs`) and T-141 tests remain; T-150 supersession lands in phase 2 when `shipments.rs` / `unit_pf.rs` helpers are removed (AC2.15).
-
 ## Implementer notes
 
 1. **Do not assert uniform 14× correction** across rungs. Pack-date / temperature branches were ~14× too cheap; P0/P1 default nets ~2.24× via `f_to_age` + `k·θ` division (`day_step.rs:270-276`). Per-branch tests only.
@@ -125,3 +121,5 @@ No existing guard/closeout tests were weakened. T-140 (`t140_arrival_gamma.rs`) 
 3. **AC1.7 passes today** — do not break the production path that sets `delivery_lambda` + `delivery_f` when removing `age_at_receipt`.
 4. **PyO3 tests skip until `_core` built** — re-run `test_ac2_17`, `test_ac3_1`, `test_ac3_3` after maturin build.
 5. **Phase 3 marker** — create `data/abdella/.t150_physics_epoch` when α table, VOI CRN goldens, and notebooks 13/14 are regenerated for the new physics epoch.
+6. **Correction round priorities** — land target artifact (`sigma_T=0.4`, `delay_scale=1.0`, delete `mix_weight`) per AC2.18; rewrite `build_marginal_cdf` as a product rule over modeled densities with `ψ_pos`; F3 cache keyed on exact `Λ` (`ArrivalCondition::Exposure`), not `exposure/duration`; delete `resolve_arrival_f_law_phi_bar` division path.
+7. **AC2.11a** — do not add `sd(f|F3) < sd(f|F2)` at tight tolerance; tracking MAE separates rungs, residual spread does not (`φ̄` ≈ 1.6% of `Var(log Λ)`).
