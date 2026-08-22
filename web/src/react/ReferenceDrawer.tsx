@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import type { QForecastEntry } from "../charts/tradeoffForecast";
-import {
-  nearestForecast,
-  renderTradeoffCurve,
-  renderTradeoffHistogram,
-} from "../charts/tradeoffForecast";
 import { scenarioDescription, scenarioTitle } from "../scenarioCopy";
 import type { ScenarioId } from "../types";
 import "../styles/referenceDrawer.css";
@@ -37,9 +31,7 @@ const SHORTCUTS = [
   { keys: "T", action: "Toggle sim truth overlay (when focused)" },
 ];
 
-type ReferenceTab = "glossary" | "voi" | "shortcuts" | "controller";
-
-type TradeoffTab = "curve" | "histogram";
+type ReferenceTab = "glossary" | "voi" | "shortcuts";
 
 type VoiReferenceRow = {
   scenario: string;
@@ -54,9 +46,6 @@ type VoiReferenceData = {
 };
 
 const STUB_URL = "/voi-reference.json";
-
-const CONTROLLER_CONTEXT =
-  "Most informative when shelf life is similar to or longer than the protection interval.";
 
 function VoiReferenceContent() {
   const [data, setData] = useState<VoiReferenceData | null>(null);
@@ -117,111 +106,24 @@ function VoiReferenceContent() {
   );
 }
 
-function ControllerTradeoffPanel({
-  tradeoffForecasts,
-  orderQty,
-}: {
-  tradeoffForecasts: QForecastEntry[];
-  orderQty: number;
-}) {
-  const [activeTab, setActiveTab] = useState<TradeoffTab>("curve");
-  const curveHostRef = useRef<HTMLDivElement>(null);
-  const histHostRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const host = curveHostRef.current;
-    if (!host || activeTab !== "curve") return;
-    renderTradeoffCurve(host, tradeoffForecasts, orderQty);
-  }, [tradeoffForecasts, orderQty, activeTab]);
-
-  useEffect(() => {
-    const host = histHostRef.current;
-    if (!host || activeTab !== "histogram") return;
-    renderTradeoffHistogram(
-      host,
-      nearestForecast(tradeoffForecasts, orderQty),
-      orderQty,
-    );
-  }, [tradeoffForecasts, orderQty, activeTab]);
-
-  return (
-    <section className="reference-controller" aria-label="Controller tradeoff">
-      <p className="reference-controller-context">{CONTROLLER_CONTEXT}</p>
-      <div
-        className="tradeoff-tab-strip"
-        role="tablist"
-        aria-label="Tradeoff view"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "curve"}
-          className={activeTab === "curve" ? "is-active" : ""}
-          onClick={() => setActiveTab("curve")}
-        >
-          Curve
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "histogram"}
-          className={activeTab === "histogram" ? "is-active" : ""}
-          onClick={() => setActiveTab("histogram")}
-        >
-          Histogram
-        </button>
-      </div>
-      <div className="tradeoff-chart-panel">
-        {activeTab === "curve" ? (
-          <div>
-            <div className="chart-caption">Tradeoff curve</div>
-            <div
-              id="tradeoff-curve-host"
-              ref={curveHostRef}
-              className="tradeoff-chart-host tradeoff-curve"
-              data-testid="tradeoff-curve"
-            />
-          </div>
-        ) : (
-          <div>
-            <div className="chart-caption">Joint histogram</div>
-            <div
-              id="tradeoff-histogram-host"
-              ref={histHostRef}
-              className="tradeoff-chart-host tradeoff-histogram"
-              data-testid="tradeoff-histogram"
-            />
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export type ReferenceDrawerProps = {
   /** Portal host under the studio mount (T-142 embed scoping). */
   portalContainerRef?: RefObject<HTMLElement | null>;
   /** Hide visible trigger buttons — open via keyboard shortcut only. */
   hideTriggers?: boolean;
-  tradeoffForecasts?: QForecastEntry[];
-  orderQty?: number;
 };
 
 export function ReferenceDrawer({
   portalContainerRef,
   hideTriggers = false,
-  tradeoffForecasts = [],
-  orderQty = 0,
 }: ReferenceDrawerProps = {}) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReferenceTab>("glossary");
   const [voiMounted, setVoiMounted] = useState(false);
-  const [controllerMounted, setControllerMounted] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   const openDrawer = (tab: ReferenceTab) => {
     if (tab === "voi") setVoiMounted(true);
-    if (tab === "controller") setControllerMounted(true);
     setActiveTab(tab);
     setOpen(true);
   };
@@ -270,7 +172,6 @@ export function ReferenceDrawer({
 
   const selectTab = (tab: ReferenceTab) => {
     if (tab === "voi") setVoiMounted(true);
-    if (tab === "controller") setControllerMounted(true);
     setActiveTab(tab);
   };
 
@@ -297,13 +198,6 @@ export function ReferenceDrawer({
         onClick={() => openDrawer("voi")}
       >
         VOI reference
-      </button>
-      <button
-        type="button"
-        className="reference-drawer-trigger reference-drawer-trigger--controller"
-        onClick={() => openDrawer("controller")}
-      >
-        Controller
       </button>
       <button
         type="button"
@@ -346,14 +240,6 @@ export function ReferenceDrawer({
                   <button
                     type="button"
                     role="tab"
-                    aria-selected={activeTab === "controller"}
-                    onClick={() => selectTab("controller")}
-                  >
-                    Controller
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
                     aria-selected={activeTab === "shortcuts"}
                     onClick={() => selectTab("shortcuts")}
                   >
@@ -378,13 +264,6 @@ export function ReferenceDrawer({
                 ) : null}
 
                 {activeTab === "voi" && voiMounted ? <VoiReferenceContent /> : null}
-
-                {activeTab === "controller" && controllerMounted ? (
-                  <ControllerTradeoffPanel
-                    tradeoffForecasts={tradeoffForecasts}
-                    orderQty={orderQty}
-                  />
-                ) : null}
 
                 {activeTab === "shortcuts" ? (
                   <ul className="shortcut-list">

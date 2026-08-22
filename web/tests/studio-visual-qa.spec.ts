@@ -119,16 +119,15 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(page.locator("#btn-reset")).toHaveCount(1);
   });
 
-  test("5: controller tradeoff in reference drawer", async ({ page }) => {
+  test("5: controller tradeoff in belief column", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    await page.keyboard.press("?");
-    const dialog = page.locator("dialog.reference-drawer");
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "Controller" }).click();
+    const belief = page.locator(".cockpit-pane--belief");
+    await expect(belief.locator("#tradeoff-curve-host")).toBeVisible();
     await page.waitForTimeout(200);
-    await expect(dialog.getByText(/shelf life is similar/i)).toBeVisible();
-    const curvePaths = await dialog.locator("#tradeoff-curve-host path, #tradeoff-curve-host line").count();
+    const curvePaths = await belief
+      .locator("#tradeoff-curve-host path, #tradeoff-curve-host line")
+      .count();
     expect(curvePaths).toBeGreaterThan(0);
   });
 

@@ -26,7 +26,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   it("cockpit layout preserves chart-stockout host for hover wiring (T-128 hidden)", () => {
     expect(layoutSrc).toMatch(/id="chart-stockout"/);
     expect(layoutSrc).toMatch(/id="chart-history"/);
-    expect(layoutSrc).toMatch(/id="chart-spoil"/);
+    expect(layoutSrc).not.toMatch(/id="chart-spoil"/);
     expect(layoutSrc).toMatch(/visually-hidden/);
     expect(layoutSrc).toMatch(/ariaLabel="Missed sales by day"/);
   });
@@ -57,8 +57,16 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setOrdersWasteHover\(\s*els\.controllerOrders/);
+    expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
+    expect(fn).toMatch(/setInventoryTargetHover\(\s*els\.inventory/);
+    expect(fn).toMatch(/setAgeCompositionHover\(\s*els\.ageComp/);
+    expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
+  });
+
+  it("renderRunStripCharts renders combined orders + waste in metrics column", () => {
+    expect(logicSrc).toMatch(/renderOrdersWaste\(\s*els\.controllerOrders/);
   });
 
   it("renderStore shares marginalYMax / yMax for sales and stockout", () => {
@@ -72,7 +80,6 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(
       /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
     );
-    expect(fn).toMatch(/renderWasteBars\(\s*els\.spoil/);
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {

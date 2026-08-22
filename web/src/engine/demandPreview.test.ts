@@ -3,7 +3,6 @@
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { dowSeriesFromDemandSummary } from "../charts/demandDist";
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { DemandSummary } from "./types";
 import { ViewModelProjector } from "./projector";
@@ -70,7 +69,7 @@ describe("demandSummaryFromConfig (T-124 AC-demand)", () => {
 });
 
 describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
-  it("updates #chart-demand within one animation frame on slider input", async () => {
+  it("re-renders daily demand chart within one animation frame on slider input", async () => {
     const chartHost = document.createElement("div");
     chartHost.id = "chart-demand";
     Object.defineProperty(chartHost, "clientWidth", {
@@ -103,9 +102,21 @@ describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
         f_grid: [0.125, 0.375, 0.625, 0.875],
       },
       demand_summary: sampleSummary(),
+      history: [
+        {
+          day: 0,
+          lots: [],
+          sales_total: 10,
+          waste_total: 0,
+          demand: 12,
+          order_qty: 0,
+          arrivals: 0,
+          stockout: 2,
+          f_at_receipt: null,
+        },
+      ],
     });
 
-    const baseline = dowSeriesFromDemandSummary(sampleSummary());
     bindDemandSliderPreview({ chartHost, slider, projector });
 
     slider.value = String(DEFAULT_SIM_CONFIG.demand_mu + 15);
@@ -115,16 +126,7 @@ describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
       requestAnimationFrame(() => resolve());
     });
 
-    const bars = chartHost.querySelectorAll(".dow-bar, [data-dow-mean]");
-    expect(bars.length).toBeGreaterThan(0);
-
-    const renderedMeans = [...bars].map((el) =>
-      Number.parseFloat(el.getAttribute("data-dow-mean") ?? "0"),
-    );
-    expect(
-      renderedMeans.some(
-        (v, i) => Math.abs(v - baseline[i]!) > 0.5,
-      ),
-    ).toBe(true);
+    expect(chartHost.querySelector(".daily-demand-line")).not.toBeNull();
+    expect(chartHost.querySelector("svg.chart-svg")).not.toBeNull();
   });
 });

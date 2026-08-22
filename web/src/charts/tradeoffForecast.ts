@@ -39,18 +39,20 @@ export function renderTradeoffCurve(
   host: HTMLElement,
   data: QForecastEntry[],
   currentQ: number,
+  heightScale = 1,
 ): void {
   const width = Math.max(host.clientWidth || 0, 280);
   const svg = ensureSvg(host);
-  renderTradeoffCurveSvg(svg, data, currentQ, width);
+  renderTradeoffCurveSvg(svg, data, currentQ, width, heightScale);
 }
 
 export function renderTradeoffHistogram(
   host: HTMLElement,
   hist: JointHist,
   currentQ?: number,
+  heightScale = 1,
 ): void {
   const width = Math.max(host.clientWidth || 0, 280);
   const svg = ensureSvg(host);
-  renderTradeoffHistogramSvg(svg, hist, currentQ ?? 0, width);
+  renderTradeoffHistogramSvg(svg, hist, currentQ ?? 0, width, heightScale);
 }

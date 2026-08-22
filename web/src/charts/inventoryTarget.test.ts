@@ -3,7 +3,7 @@
  * T-C2-A RED: E[f] effective inventory and freshness bands (not τ / Weibull).
  */
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Day } from "../types";
@@ -414,5 +414,42 @@ describe("renderAgeComposition freshness legend (T-148)", () => {
       container.querySelectorAll(".legend-label"),
     ).map((el) => el.textContent?.trim());
     expect(labels).toEqual(["fresh", "fair", "old"]);
+  });
+});
+
+describe("inventory target hover (T-151)", () => {
+  function host(width = 320): HTMLElement {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { value: width, configurable: true });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("setInventoryTargetHover toggles hover rule opacity and x position", () => {
+    const el = host();
+    inv.renderInventoryTarget(el, [LOT_DAY], DEFAULT_SIM_CONFIG, 120);
+    inv.setInventoryTargetHover(el, 0);
+    const rule = el.querySelector(".hover-rule");
+    expect(rule?.getAttribute("opacity")).toBe("1");
+    const x1 = Number(rule?.getAttribute("x1"));
+    inv.setInventoryTargetHover(el, null);
+    expect(rule?.getAttribute("opacity")).toBe("0");
+    expect(x1).toBeGreaterThan(0);
+  });
+
+  it("setAgeCompositionHover toggles hover rule opacity and x position", () => {
+    const el = host();
+    inv.renderAgeComposition(el, [LOT_DAY], 120);
+    inv.setAgeCompositionHover(el, 0);
+    const rule = el.querySelector(".hover-rule");
+    expect(rule?.getAttribute("opacity")).toBe("1");
+    const x1 = Number(rule?.getAttribute("x1"));
+    inv.setAgeCompositionHover(el, null);
+    expect(rule?.getAttribute("opacity")).toBe("0");
+    expect(x1).toBeGreaterThan(0);
   });
 });
