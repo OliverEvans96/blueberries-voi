@@ -238,11 +238,6 @@
   gap: 0.25rem;
 }
 
-.tuning-future-chip[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .visually-hidden {
   position: absolute;
   width: 1px;

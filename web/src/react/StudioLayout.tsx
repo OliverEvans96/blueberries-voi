@@ -215,14 +215,6 @@ export function StudioLayout() {
                     </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="tuning-future-chip"
-                  disabled
-                  aria-disabled="true"
-                >
-                  Future
-                </button>
               </div>
               <div className="tuning-dock-body">
                 <div className="focus-header">
