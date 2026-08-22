@@ -271,25 +271,6 @@ impl Metrics {
     }
 }
 
-fn bank_lot_layout(bank: &UnitParticleBank, units_per_lot: usize) -> (usize, Vec<usize>) {
-    let upl = units_per_lot.max(1);
-    let units = bank.freshness.first().map(|r| r.len()).unwrap_or(0);
-    let n_lots = units / upl;
-    let lot_offsets: Vec<usize> = (0..=n_lots).map(|i| i * upl).collect();
-    (n_lots, lot_offsets)
-}
-
-fn effective_sample_size(weights: &[f64]) -> f64 {
-    let z: f64 = weights.iter().sum();
-    if z <= 0.0 {
-        return 0.0;
-    }
-    1.0 / weights
-        .iter()
-        .map(|&w| (w / z).powi(2))
-        .sum::<f64>()
-}
-
 fn run_channel(
     scenario: &str,
     days: &[TruthDay],
@@ -299,7 +280,6 @@ fn run_channel(
 ) -> Metrics {
     let mask = mask_for(scenario).expect("valid scenario");
     let n = N_PARTICLES;
-    let upl = params.units_per_lot.max(1);
     let mut bank = UnitParticleBank::empty(n);
     let mut m = Metrics::default();
     let mut gamma_table = GammaDecrementTable::for_params(params);
@@ -312,7 +292,7 @@ fn run_channel(
         } else {
             None
         };
-        filter_step_unit_with_birth_cached(
+        let diag = filter_step_unit_with_birth_cached(
             &mut bank,
             &obs,
             params,
@@ -325,7 +305,7 @@ fn run_channel(
             continue;
         }
         m.n += 1.0;
-        let ess = effective_sample_size(&bank.weights);
+        let ess = diag.ess;
         m.ess_sum += ess;
 
         // Store-level: expected live count, mean f, and freshness histogram.
@@ -364,7 +344,7 @@ fn run_channel(
         m.series.ess.push(ess);
 
         // Per-lot, aligned by arrival order from the newest.
-        let (n_bank, lot_offsets) = bank_lot_layout(&bank, upl);
+        let n_bank = bank.n_lots();
         for j in 0..td.lots.len() {
             let (t_count, t_mean_f) = td.lots[td.lots.len() - 1 - j];
             if j >= n_bank {
@@ -376,7 +356,7 @@ fn run_channel(
                 continue;
             }
             let ell = n_bank - 1 - j;
-            let (start, end) = (lot_offsets[ell], lot_offsets[ell + 1]);
+            let (start, end) = (bank.lot_offsets[ell], bank.lot_offsets[ell + 1]);
             let mut c = 0.0;
             let mut mf = 0.0;
             let mut mf_w = 0.0;
