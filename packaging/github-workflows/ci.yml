@@ -1,7 +1,7 @@
 # Canonical CI workflow source.
 #
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
-# (or symlink) this file to `.github/workflows/ci.yml` before CI picks up changes.
+# this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
 # Quality job: single Python from repo pin (`.python-version` → 3.11).
 name: CI

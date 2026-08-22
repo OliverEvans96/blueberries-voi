@@ -7,7 +7,7 @@
 #   - successful CI on main/master → moving tag `studio-latest` (prod tarball)
 #   - push tag studio-v*  → immutable semver release (optional manual pins)
 #
-# Tag namespace `studio-v*` avoids the legacy Python `v*` slim-wheel release workflow.
+# Tag namespace `studio-v*` avoids the retired Python slim-wheel workflow (delete live release-slim-wheel.yml if present).
 name: Release studio
 
 on:
