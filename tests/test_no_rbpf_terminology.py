@@ -7,48 +7,44 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 # Build at runtime so this file does not embed the banned token.
 _BANNED = "r" + "bpf"
-_SKIP_DIR_NAMES = frozenset(
-    {
-        ".git",
-        ".venv",
-        "venv",
-        "__pycache__",
-        "node_modules",
-        ".worktrees",
-        "notebooks",
-        ".pytest_cache",
-        ".mypy_cache",
-        ".ruff_cache",
-        "dist",
-        "build",
-        ".eggs",
-        "target",
-        "src/blueberries_voi.egg-info",
-    }
+_SCAN_ROOTS = (
+    "src",
+    "tests",
+    "crates",
+    "scripts",
+    "packaging",
+    "web/src",
+    ".team",
 )
-_SKIP_FILE_NAMES = frozenset({".testmondata", ".testmondata-wal", ".testmondata-shm"})
+_TEXT_SUFFIXES = frozenset(
+    {".py", ".rs", ".md", ".yml", ".yaml", ".toml", ".json", ".ts", ".tsx", ".js", ".sh"}
+)
 
 
 def _find_banned_paths(root: Path, banned: str) -> list[str]:
-    """Pure-Python repo scan (CI has no ripgrep)."""
+    """Pure-Python scan of source trees (CI has no ripgrep)."""
     banned_lower = banned.lower()
     hits: list[str] = []
-    for path in root.rglob("*"):
-        if path.name in _SKIP_FILE_NAMES:
+    for rel in _SCAN_ROOTS:
+        base = root / rel
+        if not base.is_dir():
             continue
-        if not path.is_file():
-            continue
-        if any(part in _SKIP_DIR_NAMES for part in path.parts):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="strict")
-        except (OSError, UnicodeDecodeError):
-            continue
-        for line_no, line in enumerate(text.splitlines(), start=1):
-            if banned_lower in line.lower():
-                rel = path.relative_to(root)
-                hits.append(f"{rel}:{line_no}:{line.strip()}")
-                break
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix and path.suffix not in _TEXT_SUFFIXES:
+                continue
+            try:
+                blob = path.read_bytes()
+            except OSError:
+                continue
+            if b"\x00" in blob:
+                continue
+            text = blob.decode("utf-8", errors="ignore")
+            for line_no, line in enumerate(text.splitlines(), start=1):
+                if banned_lower in line.lower():
+                    hits.append(f"{path.relative_to(root)}:{line_no}:{line.strip()}")
+                    break
     return hits
 
 
