@@ -249,7 +249,7 @@ Truth is correspondingly smoother than it was, and P0 tracks it far better than 
 earlier epoch (§3) — but with no waste channel it still has to average over when spoilage
 lands.
 
-## 2. What GSIN actually buys: attribution, not level
+## 2. What GSIN actually buys, and at which scale
 
 With the counts pinned, the honest comparison is *per lot*. Both channels observe the
 delivery stream, so the bank's j-th-newest segment is truth's j-th-newest lot for either
@@ -336,9 +336,10 @@ differ by an order of magnitude:
   spoiled is informative about *that lot's* freshness, which is a question UPC cannot even
   pose.
 
-Freshness level is bought by the **`delivery_history`** axis instead, which is exactly the
-orthogonality ADR 0133 designs for: `code_type` resolves *where the stock is*,
-`delivery_history` resolves *how fresh it is*.
+*Store-level* freshness is bought by the **`delivery_history`** axis instead, which is
+exactly the orthogonality ADR 0133 designs for: `code_type` resolves *where the stock is* —
+and, since ADR 0143, how fresh each lot is — while `delivery_history` resolves how fresh the
+shelf is overall.
 
 ## 2b. The delivery-history ladder is a variance decomposition
 
