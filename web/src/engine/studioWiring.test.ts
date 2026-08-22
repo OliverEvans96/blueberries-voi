@@ -83,8 +83,6 @@ const PROD_ENV: StudioEnv = {
   MODE: "production",
   DEV: false,
   PROD: true,
-  VITE_WASM_WORKER_URL: "/packaging/wasm/worker.js",
-  VITE_WASM_PKG_URL: "/wasm/",
 };
 
 describe("T-125 studio adapter selection (wasm default)", () => {
@@ -133,7 +131,7 @@ describe("T-125 studio adapter selection (wasm default)", () => {
     expect(adapter).toBeInstanceOf(WasmAdapter);
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
     const urlStr = String(FakeWorker.instances[0]!.url);
-    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).toMatch(/wasmWorker\.ts/);
     expect(urlStr).not.toMatch(/pyodide/);
     expect(urlStr).not.toMatch(/github\.com\/oliver/);
   });
@@ -147,7 +145,7 @@ describe("T-125 studio adapter selection (wasm default)", () => {
     expect(typeof (adapter as EngineAdapter).step).toBe("function");
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
     const urlStr = String(FakeWorker.instances[0]!.url);
-    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).toMatch(/wasmWorker\.ts/);
     expect(urlStr).not.toMatch(/pyodide/);
   });
 
@@ -158,7 +156,7 @@ describe("T-125 studio adapter selection (wasm default)", () => {
     expect(adapter).toBeInstanceOf(WasmAdapter);
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
     const urlStr = String(FakeWorker.instances[0]!.url);
-    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(urlStr).toMatch(/wasmWorker\.ts/);
     expect(urlStr).not.toMatch(/pyodide/);
   });
 

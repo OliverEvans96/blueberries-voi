@@ -87,6 +87,7 @@ export function reportStudioAdapterError(
   message: string,
   target?: StudioErrorTarget | null,
   cause?: unknown,
+  root?: ParentNode | null,
 ): void {
   const prefix = studioErrorConsolePrefix(message);
   if (cause instanceof Error) {
@@ -99,6 +100,7 @@ export function reportStudioAdapterError(
 
   const el =
     target ??
+    (root?.querySelector("#studio-error") as StudioErrorTarget | null) ??
     (typeof document !== "undefined"
       ? (document.querySelector("#studio-error") as StudioErrorTarget | null)
       : null);

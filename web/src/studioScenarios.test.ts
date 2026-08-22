@@ -271,10 +271,7 @@ describe("T-089 WASM / mock forward obs_scenario; mock drops P2", () => {
       },
     );
     try {
-      const adapter = new WasmAdapter({
-        workerUrl: "/packaging/wasm/worker.js",
-        pkgUrl: "/wasm/",
-      });
+      const adapter = new WasmAdapter();
       await adapter.init({ obs_scenario: "F1s" });
       await adapter.reset({ obs_scenario: "F2" });
       const worker = FakeWorker.instances[0]!;

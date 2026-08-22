@@ -118,10 +118,7 @@ describe("T-113 WasmAdapter forward set_obs_scenario", () => {
       },
     );
     try {
-      const adapter = new WasmAdapter({
-        workerUrl: "/packaging/wasm/worker.js",
-        pkgUrl: "/wasm/",
-      });
+      const adapter = new WasmAdapter();
       const fn =
         (adapter as unknown as { setObsScenario?: (id: string) => Promise<Snapshot> })
           .setObsScenario ??

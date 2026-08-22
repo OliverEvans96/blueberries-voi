@@ -99,23 +99,23 @@ describe("T-125 local env defaults (WASM worker + pkg)", () => {
     vi.restoreAllMocks();
   });
 
-  it("resolveLocalStudioDefaults exposes WASM worker + pkg URLs (not pyodide wheel)", () => {
+  it("resolveLocalStudioDefaults exposes bundled worker (no external pkg URL)", () => {
     const defaults = resolveLocalStudioDefaults();
-    expect(defaults.workerUrl).toMatch(/packaging\/wasm\/worker\.js/);
+    expect(defaults.workerUrl).toBe("bundled");
     expect(defaults.workerUrl).not.toMatch(/pyodide/);
-    expect(defaults.wheelUrl).toMatch(/\/wasm\//);
+    expect(defaults.wheelUrl).toBe("");
     expect(defaults.wheelUrl).not.toMatch(/\/wheels\/.+\.whl/);
     expect(defaults.wheelUrl).not.toMatch(/github\.com\/oliver\//);
   });
 
-  it("createStudioAdapter wasm defaults use local WASM worker + pkg URLs", () => {
+  it("createStudioAdapter wasm defaults use bundled worker (no pkgUrl query)", () => {
     createStudioAdapter({
       env: { MODE: "production", PROD: true },
     });
     expect(FakeWorker.instances.length).toBeGreaterThanOrEqual(1);
     const urlStr = decodeURIComponent(String(FakeWorker.instances[0]!.url));
-    expect(urlStr).toMatch(/packaging\/wasm\/worker\.js/);
-    expect(urlStr).toMatch(/pkgUrl=/);
+    expect(urlStr).toMatch(/wasmWorker\.ts/);
+    expect(urlStr).not.toMatch(/pkgUrl=|assetBaseUrl=/);
     expect(urlStr).not.toMatch(/pyodide/);
     expect(urlStr).not.toMatch(/\/wheels\/.+\.whl|wheelUrl=/);
     expect(urlStr).not.toMatch(/github\.com\/oliver\//);
@@ -130,12 +130,12 @@ describe("T-125 local env defaults (WASM worker + pkg)", () => {
     const envHit = envCandidates.find((p) => existsSync(p));
     const adapterSrc = readFileSync(STUDIO_ADAPTER_TS, "utf8");
     const hasCodeDefaults =
-      /packaging\/wasm\/worker\.js/.test(adapterSrc) &&
-      /\/wasm\//.test(adapterSrc) &&
+      /BUNDLED_WASM_WORKER|bundled/.test(adapterSrc) &&
+      /wasmWorker\.ts/.test(adapterSrc) &&
       !/DEFAULT_PYODIDE_WHEEL_URL/.test(adapterSrc);
     if (envHit) {
       const text = readFileSync(envHit, "utf8");
-      expect(text).toMatch(/VITE_WASM_WORKER_URL|VITE_WASM_PKG_URL/);
+      expect(text).toMatch(/VITE_WASM_WORKER_URL|VITE_WASM_ASSET_BASE_URL|bundled/i);
       expect(text).not.toMatch(/VITE_PYODIDE_WORKER_URL|VITE_PYODIDE_WHEEL_URL/);
       expect(text).not.toMatch(
         /VITE_PYODIDE_WHEEL_URL\s*=\s*https:\/\/github\.com\/oliver\//,
@@ -143,7 +143,7 @@ describe("T-125 local env defaults (WASM worker + pkg)", () => {
     }
     expect(
       envHit || hasCodeDefaults,
-      "need .env.example (or equiv) or code defaults with WASM worker + /wasm pkg",
+      "need .env.example (or equiv) or code defaults with bundled wasm worker",
     ).toBeTruthy();
   });
 });

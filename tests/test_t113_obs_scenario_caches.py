@@ -1,7 +1,7 @@
 """T-125 migrated T-113: EngineSession.set_obs_scenario (PyO3) + WASM worker dispatch.
 
 Locks `.team/specs/T-125.md` AC-mixed: catch-up via Rust ``PyEngineSession`` and
-``packaging/wasm/worker.js`` — no FastAPI or ``packaging/pyodide/session_rpc.py``.
+``web/src/engine/wasmWorker.ts`` — no FastAPI or ``packaging/pyodide/session_rpc.py``.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from blueberries_voi.simulator.belief import empty_flat_belief
 from blueberries_voi.simulator.session import EngineSession
 
 _REPO = Path(__file__).resolve().parents[1]
-_WASM_WORKER = _REPO / "packaging" / "wasm" / "worker.js"
+_WASM_WORKER = _REPO / "web" / "src" / "engine" / "wasmWorker.ts"
 _PYODIDE_RPC = _REPO / "packaging" / "pyodide" / "session_rpc.py"
 _API_PKG = "blueberries_voi.api"
 
@@ -116,7 +116,7 @@ def _install_fake(monkeypatch: pytest.MonkeyPatch) -> dict[str, _FakePyEngineSes
 
 
 def _wasm_worker_source() -> str:
-    assert _WASM_WORKER.is_file(), "packaging/wasm/worker.js must exist (T-125)"
+    assert _WASM_WORKER.is_file(), "web/src/engine/wasmWorker.ts must exist (T-144)"
     return _WASM_WORKER.read_text(encoding="utf-8")
 
 

@@ -174,10 +174,7 @@ describe("engine status tracker follows init, not Worker construction", () => {
     const tracker = createEngineStatusTracker("loading");
     expect(tracker.get()).toBe("loading");
 
-    const adapter = new WasmAdapter({
-      workerUrl: "/packaging/wasm/worker.js",
-      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
-    });
+    const adapter = new WasmAdapter();
     expect(HoldInitWorker.instances.length).toBeGreaterThanOrEqual(1);
     expect(tracker.get()).toBe("loading");
 
@@ -191,10 +188,7 @@ describe("engine status tracker follows init, not Worker construction", () => {
 
   it("turns error when init rejects (wasm bind / worker failure)", async () => {
     const tracker = createEngineStatusTracker("loading");
-    const adapter = new WasmAdapter({
-      workerUrl: "/packaging/wasm/worker.js",
-      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
-    });
+    const adapter = new WasmAdapter();
     const pending = tracker.follow(adapter.init({}));
     HoldInitWorker.instances[0]!.releaseInit(false, "Failed to fetch wasm module");
     await expect(pending).rejects.toThrow(/wasm|InitError/i);
