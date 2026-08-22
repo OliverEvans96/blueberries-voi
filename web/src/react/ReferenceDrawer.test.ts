@@ -23,7 +23,7 @@ const GLOSSARY_TERMS = [
   "Base-stock",
 ];
 
-const SHORTCUT_KEYS = ["1–8", "← →", "↑ ↓", "?", "T"];
+const SHORTCUT_KEYS = ["1–7", "← →", "↑ ↓", "?", "T"];
 
 const SAMPLE_VOI: VoiReferenceData = {
   generated_at: "2024-06-01T12:00:00.000Z",
@@ -49,8 +49,14 @@ function getDialog(): HTMLDialogElement | null {
   return document.querySelector("dialog.reference-drawer");
 }
 
+function getDrawerNavTabs() {
+  return document.querySelectorAll(
+    ".reference-drawer-tabs [role='tab']",
+  ) as NodeListOf<HTMLElement>;
+}
+
 function getTabs() {
-  return screen.getAllByRole("tab");
+  return Array.from(getDrawerNavTabs());
 }
 
 function pressKey(key: string, target: EventTarget = studioScope()) {
@@ -74,7 +80,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders three header triggers and no open drawer by default", () => {
+  it("renders four header triggers and no open drawer by default", () => {
     renderDrawer();
 
     expect(
@@ -83,6 +89,9 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     expect(
       screen.getByRole("button", { name: "VOI reference" }),
     ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--voi");
+    expect(
+      screen.getByRole("button", { name: "Controller" }),
+    ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--controller");
     expect(
       screen.getByRole("button", { name: "Shortcuts" }),
     ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--shortcuts");
@@ -103,11 +112,13 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     expect(tabs.map((t) => t.textContent)).toEqual([
       "Glossary",
       "VOI reference",
+      "Controller",
       "Shortcuts",
     ]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[1]).toHaveAttribute("aria-selected", "false");
     expect(tabs[2]).toHaveAttribute("aria-selected", "false");
+    expect(tabs[3]).toHaveAttribute("aria-selected", "false");
     expect(screen.getByText("Observation scenario")).toBeInTheDocument();
     expect(screen.queryByText("Jump to studio section")).not.toBeInTheDocument();
   });
@@ -117,9 +128,9 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
     const tabs = getTabs();
-    expect(tabs[2]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[3]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Jump to studio section")).toBeInTheDocument();
-    expect(screen.getByText("1–8")).toBeInTheDocument();
+    expect(screen.getByText("1–7")).toBeInTheDocument();
   });
 
   it("opens on VOI reference when the VOI trigger is clicked", async () => {
@@ -144,7 +155,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
 
     expect(getDialog()).not.toBeNull();
     const tabs = getTabs();
-    expect(tabs[2]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[3]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Toggle sim truth overlay (when focused)")).toBeInTheDocument();
     expect(screen.queryByText("Observation scenario")).not.toBeInTheDocument();
   });

@@ -98,8 +98,39 @@ export function dayFromClientX(
 
 export type HoverPoint = { clientX: number; clientY: number } | null;
 
+/** Which linked chart initiated the hover (null when cleared). */
+export type HoverChartSource =
+  | "sales"
+  | "spoilage"
+  | "stockout"
+  | "freshness"
+  | "other"
+  | null;
+
+export function hoverChartSourceFromSvg(svg: SVGSVGElement): HoverChartSource {
+  const host =
+    svg.parentElement instanceof HTMLElement &&
+    svg.parentElement.id.startsWith("chart-")
+      ? svg.parentElement
+      : (svg.closest("[id^='chart-']") as HTMLElement | null);
+  if (!host) return "other";
+  switch (host.id) {
+    case "chart-sales":
+    case "chart-sales-demand":
+      return "sales";
+    case "chart-spoil":
+      return "spoilage";
+    case "chart-stockout":
+      return "stockout";
+    case "chart-history":
+      return "freshness";
+    default:
+      return "other";
+  }
+}
+
 export type LinkedHoverHandlers = {
-  onDay: (day: HoverDay, point: HoverPoint) => void;
+  onDay: (day: HoverDay, point: HoverPoint, source: HoverChartSource) => void;
 };
 
 /**
@@ -115,31 +146,36 @@ export function attachLinkedHover(
   const onMove = (event: PointerEvent): void => {
     const target = event.target as Element | null;
     if (!target) {
-      handlers.onDay(null, null);
+      handlers.onDay(null, null, null);
       return;
     }
 
     const svg = target.closest("svg.chart-svg") as SVGSVGElement | null;
     if (!svg || !root.contains(svg)) {
-      handlers.onDay(null, null);
+      handlers.onDay(null, null, null);
       return;
     }
 
+    const source = hoverChartSourceFromSvg(svg);
     const day = dayFromPointer(svg, event.clientX, event.clientY, getDays());
     if (day != null) {
-      handlers.onDay(day, {
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
+      handlers.onDay(
+        day,
+        {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        },
+        source,
+      );
     } else {
-      handlers.onDay(null, null);
+      handlers.onDay(null, null, null);
     }
   };
 
   const onLeave = (event: PointerEvent): void => {
     const next = event.relatedTarget as Node | null;
     if (next && root.contains(next)) return;
-    handlers.onDay(null, null);
+    handlers.onDay(null, null, null);
   };
 
   root.addEventListener("pointermove", onMove);

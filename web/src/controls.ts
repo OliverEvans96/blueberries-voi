@@ -305,24 +305,18 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="demand" hidden>
         <p class="hint">Negative-binomial-ish demand from mean and V/M; 1/σ shapes lot picking spread.</p>
-        <div class="demand-controls-layout">
-          <div class="demand-controls-sliders">
-            ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
-            <div class="field">
-              <span class="field-label">Picking variability shape</span>
-              <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
-            </div>
-            <div class="field">
-              <span class="field-label">Next few days (projected μ)</span>
-              <p class="meta-readonly" id="demand-preview-list">—</p>
-            </div>
-            <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
-            ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
+        <div class="demand-controls-sliders">
+          ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
+          <div class="field">
+            <span class="field-label">Picking variability shape</span>
+            <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
           </div>
-          <div class="demand-controls-chart">
-            <div class="chart-caption impact-caption">DOW demand · protection 3 / 3 / 4</div>
-            <div id="demand-chart-slot" class="chart demand-chart-slot" role="img" aria-label="Day of week demand profile"></div>
+          <div class="field">
+            <span class="field-label">Next few days (projected μ)</span>
+            <p class="meta-readonly" id="demand-preview-list">—</p>
           </div>
+          <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
+          ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
         </div>
       </div>
       <div class="controls-block" data-section="logistics" hidden>
@@ -330,7 +324,20 @@ function mountSectionControlsDom(
         <div class="field week-calendar-field">
           <span class="field-label">Delivery schedule ${tierBadge("delivery_weekdays")}</span>
           <div id="week-calendar" class="week-calendar" role="group" aria-label="Delivery and order weekdays"></div>
-          <p class="meta-readonly week-calendar-legend">Filled = delivery · outline = order day</p>
+          <div class="week-calendar-legend" role="note" aria-label="Calendar legend">
+            <span class="week-calendar-legend-item">
+              <span class="week-calendar-swatch is-delivery" aria-hidden="true"></span>
+              Delivery day
+            </span>
+            <span class="week-calendar-legend-item">
+              <span class="week-calendar-swatch is-order" aria-hidden="true"></span>
+              Order day
+            </span>
+            <span class="week-calendar-legend-item">
+              <span class="week-calendar-swatch is-both" aria-hidden="true"></span>
+              Both
+            </span>
+          </div>
           <p class="meta-readonly week-calendar-hint" id="week-calendar-hint" hidden>Reset to apply schedule</p>
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
@@ -349,16 +356,6 @@ function mountSectionControlsDom(
           </div>
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
-      </div>
-      <div class="controls-block" data-section="observation" hidden>
-        <p class="hint">
-          Knowledge changes what the store sees, so future orders can change.
-          Use the observation scenario chips on the Secondary pane to switch rungs.
-        </p>
-        <div class="obs-scenario-copy" id="obs-scenario-copy">
-          <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
-          <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
-        </div>
       </div>
       <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">

@@ -50,7 +50,7 @@ describe("T-142 studio mount scoping", () => {
     expect(drawerSrc).toMatch(/portalContainerRef/);
     expect(drawerSrc).not.toMatch(/createPortal\([\s\S]*document\.body/);
     expect(layoutSrc).toMatch(/bv-studio-portal-root/);
-    expect(layoutSrc).toMatch(/portalContainerRef=\{portalRef\}/);
+    expect(layoutSrc).toMatch(/reference-drawer-host/);
   });
 
   it("localStorage keys are namespaced under bv-studio:", () => {

@@ -49,7 +49,7 @@ describe("controllerOrders series helper (T-099)", () => {
     expect(typeof mod.renderControllerOrders).toBe("function");
   });
 
-  it("renderControllerOrders draws vertical bars not a line (T-130)", async () => {
+  it("renderControllerOrders draws a line not bars (T-148)", async () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
@@ -65,8 +65,7 @@ describe("controllerOrders series helper (T-099)", () => {
       ],
       80,
     );
-    const bars = container.querySelectorAll(".order-bar, rect.order-bar");
-    expect(bars.length).toBeGreaterThan(0);
-    expect(container.querySelector(".order-line, path.order-line")).toBeNull();
+    expect(container.querySelector("path.order-line")).not.toBeNull();
+    expect(container.querySelector(".order-bar, rect.order-bar")).toBeNull();
   });
 });

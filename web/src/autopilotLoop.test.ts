@@ -391,7 +391,7 @@ describe("Decision rail Autopilot Play/Pause (T-100)", () => {
     ).toMatch(/autopilot-toggle/);
     expect(src).toMatch(/onAutopilotPlay\s*\(\s*\)/);
     expect(src).toMatch(/onAutopilotPause\s*\(\s*\)/);
-    expect(src).toMatch(/disabled=\{autopilotRunning \|\| atEnd\}/);
+    expect(src).toMatch(/disabled=\{autopilotRunning \|\| atEnd \|\| advancing\}/);
   });
 
   it("react/studioLogic.ts wires createAutopilotLoop (adapter.act path, not generate autopilot)", () => {

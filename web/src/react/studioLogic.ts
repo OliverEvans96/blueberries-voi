@@ -4,7 +4,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
-import { channelsCacheKey, channelsForPreset, resolveDisplayObsScenario } from "../obsMask";
+import {
+  applyMask,
+  channelsCacheKey,
+  channelsForPreset,
+  maskFor,
+  maskFromChannels,
+  resolveDisplayObsScenario,
+  type RichObsWire,
+} from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -20,6 +28,7 @@ import {
 import {
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
+  type BeliefFreshnessHoverFocus,
 } from "../charts/beliefFreshnessTime";
 import {
   freshnessHistogramDataFromFlat,
@@ -43,6 +52,8 @@ import {
   renderInventoryTarget,
 } from "../charts/inventoryTarget";
 import { renderControllerOrders } from "../charts/controllerOrders";
+import { renderPnLTimeseries } from "../charts/pnlTimeseries";
+import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
   renderArrivalPrior,
@@ -60,7 +71,11 @@ import {
   type ControllerControlsState,
 } from "../controls";
 import { createAutopilotLoop } from "../autopilotLoop";
-import { attachLinkedHover, type HoverPoint } from "../hoverLink";
+import {
+  attachLinkedHover,
+  type HoverChartSource,
+  type HoverPoint,
+} from "../hoverLink";
 import {
   STUDIO_SECTIONS,
   loadSection,
@@ -69,23 +84,22 @@ import {
 } from "../sections";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
-import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
+import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import { scheduleFromConfig } from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
-import { ChapterTabs } from "./ChapterTabs";
 import { ChartUnavailable } from "./ChartUnavailable";
 import { DayInspector } from "./DayInspector";
-import { SecondaryChrome } from "./SecondaryChrome";
-import { EconomicsPane } from "./EconomicsPane";
 import { EventsPane } from "./EventsPane";
-import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
-import { InsightStrip } from "./InsightStrip";
+import { ImpactStat } from "./ImpactStat";
+import { ObsControlsPane } from "./ObsControlsPane";
 import { OperatorBar } from "./OperatorBar";
 import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
+import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
+import { computeImpactTotals } from "../metrics/impactTotals";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
@@ -168,6 +182,7 @@ export function initStudio(app: HTMLElement): () => void {
   let advancing = false; // manual Advance in flight (T-149)
   let hoveredDay: HoverDay = null;
   let hoveredPoint: HoverPoint = null;
+  let hoveredChartSource: HoverChartSource = null;
   let activeSection: SectionId = loadSection();
   let controllerState: ControllerControlsState = {
     ...DEFAULT_CONTROLLER_CONTROLS,
@@ -176,6 +191,7 @@ export function initStudio(app: HTMLElement): () => void {
   let tradeoffForecasts: QForecastEntry[] = [];
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
+  let eventsRefreshing = false;
   let lastEventsKey = "";
 
   function controllerToActOpts(): ActOpts {
@@ -197,7 +213,8 @@ export function initStudio(app: HTMLElement): () => void {
   let autopilot!: ReturnType<typeof createAutopilotLoop>;
 
   function syncAutopilotChrome(): void {
-    renderSecondaryChrome();
+    renderOperatorBar();
+    renderObsControlsPane();
   }
 
   const els = {
@@ -220,29 +237,26 @@ export function initStudio(app: HTMLElement): () => void {
     arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
     gammaPath: q<HTMLElement>("#chart-gamma-path")!,
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
+    pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
     focusTitle: q<HTMLElement>("#focus-title")!,
     focusBlurb: q<HTMLElement>("#focus-blurb")!,
     focusPane: q<HTMLElement>(".tuning-dock")!,
   };
 
-  const economicsPaneHost = q<HTMLElement>("#economics-pane-host");
+  const pnlTotalsHost = q<HTMLElement>("#pnl-totals-host");
+  const impactMissedHost = q<HTMLElement>("#impact-missed-host");
+  const impactWasteHost = q<HTMLElement>("#impact-waste-host");
+  const obsControlsHost = q<HTMLElement>("#obs-controls-pane-host");
   const eventsPaneHost = q<HTMLElement>("#events-pane-host");
-  const economicsPaneRoot = economicsPaneHost ? createRoot(economicsPaneHost) : null;
+  const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
-
-  const insightStripHost = q<HTMLElement>("#insight-strip-host");
-  const guidedPathsHost = q<HTMLElement>("#guided-paths-host");
-  const chapterTabsHost = q<HTMLElement>("#chapter-tabs-host");
-  const secondaryChromeHost = q<HTMLElement>("#secondary-chrome-host");
+  const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
+  const impactMissedRoot = impactMissedHost ? createRoot(impactMissedHost) : null;
+  const impactWasteRoot = impactWasteHost ? createRoot(impactWasteHost) : null;
+  const referenceDrawerRoot = referenceDrawerHost
+    ? createRoot(referenceDrawerHost)
+    : null;
   const operatorBarHost = q<HTMLElement>("#operator-bar-host");
-  const insightStripRoot = insightStripHost
-    ? createRoot(insightStripHost)
-    : null;
-  const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
-  const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
-  const secondaryChromeRoot = secondaryChromeHost
-    ? createRoot(secondaryChromeHost)
-    : null;
   const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
 
   const loadingHost = q<HTMLElement>("#studio-loading-host");
@@ -301,26 +315,61 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function fetchEvents(): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
-    const sinceDay = previousOrderDayFromSchedule(vm.episode_day, schedule);
+    const sinceDay = Math.max(1, vm.episode_day - 5);
     const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
     if (key === lastEventsKey) return;
     lastEventsKey = key;
-    eventsLoading = true;
+    if (eventDays.length === 0) {
+      eventsLoading = true;
+    } else {
+      eventsRefreshing = true;
+    }
     renderEventsPane();
     try {
       const result = await adapter.events({ since_day: sinceDay });
       eventDays = result.days ?? [];
     } catch {
-      eventDays = [];
+      if (eventDays.length === 0) eventDays = [];
     } finally {
       eventsLoading = false;
+      eventsRefreshing = false;
       renderEventsPane();
     }
   }
 
-  function renderEconomicsPane(): void {
-    if (!economicsPaneRoot) return;
-    economicsPaneRoot.render(createElement(EconomicsPane, { vm }));
+  function renderMetricsPane(): void {
+    if (pnlTotalsHost) {
+      renderPnLTotals(pnlTotalsHost, vm);
+    }
+    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, 130);
+    const impact = computeImpactTotals(vm.history);
+    if (impactMissedRoot) {
+      impactMissedRoot.render(
+        createElement(ImpactStat, {
+          label: "Total missed sales",
+          absolute: impact.missedTotal,
+          percent: impact.missedPct,
+          percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
+        }),
+      );
+    }
+    if (impactWasteRoot) {
+      impactWasteRoot.render(
+        createElement(ImpactStat, {
+          label: "Total waste",
+          absolute: impact.wasteTotal,
+          percent: impact.wastePct,
+          percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
+        }),
+      );
+    }
+  }
+
+  function maskedEventDays(): ReturnType<typeof applyMask>[] {
+    const mask = vm.config.obs_channels
+      ? maskFromChannels(vm.config.obs_channels)
+      : maskFor(vm.config.obs_scenario);
+    return eventDays.map((day) => applyMask(day as RichObsWire, mask));
   }
 
   function renderEventsPane(): void {
@@ -329,15 +378,12 @@ export function initStudio(app: HTMLElement): () => void {
       createElement(EventsPane, {
         vm: {
           episode_day: vm.episode_day,
-          history: vm.history.map((d) => ({
-            day: d.day,
-            missed: d.stockout,
-          })),
           config: vm.config,
         },
-        showTruth,
-        events: eventDays,
+        schedule,
+        events: maskedEventDays(),
         loading: eventsLoading,
+        refreshing: eventsRefreshing,
       }),
     );
   }
@@ -350,66 +396,22 @@ export function initStudio(app: HTMLElement): () => void {
   const dayInspectorRoot = createRoot(dayInspectorPortal);
   let spoilageUnavailableRoot: Root | null = null;
 
-  function renderInsightStrip(): void {
-    if (!insightStripRoot || !schedule) return;
-    insightStripRoot.render(
-      createElement(InsightStrip, { vm, schedule }),
-    );
-  }
-
-  function renderDayInspector(): void {
-    dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
-    );
-  }
-
-  function hintAutoplay(): void {
-    const toggleBtn = q<HTMLButtonElement>("#btn-autopilot-toggle");
-    if (!toggleBtn) return;
-    toggleBtn.classList.add("autopilot-hint");
-    window.setTimeout(() => toggleBtn.classList.remove("autopilot-hint"), 2400);
-  }
-
-  function onGuidedPathSelect(path: GuidedPath): void {
-    void railHandlers.onSetObsPreset(path.scenario);
-    setSection(path.section);
-    if (path.autoplayHint) {
-      hintAutoplay();
-    }
-  }
-
-  function renderGuidedPaths(): void {
-    if (!guidedPathsRoot) return;
-    guidedPathsRoot.render(
-      createElement(GuidedPaths, { onSelect: onGuidedPathSelect }),
-    );
-  }
-
-  function renderChapterTabs(): void {
-    if (!chapterTabsRoot) return;
-    chapterTabsRoot.render(
-      createElement(ChapterTabs, {
-        activeSection,
-        onSelectSection: setSection,
-      }),
-    );
-  }
-
-  function renderSecondaryChrome(): void {
-    if (secondaryChromeRoot) {
-      secondaryChromeRoot.render(
-        createElement(SecondaryChrome, {
+  function renderObsControlsPane(): void {
+    if (obsControlsRoot) {
+      obsControlsRoot.render(
+        createElement(ObsControlsPane, {
           vm,
           showTruth,
           catchingUp,
-          orderQty,
           onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
           onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
           onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
-          tradeoffForecasts,
         }),
       );
     }
+  }
+
+  function renderOperatorBar(): void {
     if (operatorBarRoot) {
       operatorBarRoot.render(
         createElement(OperatorBar, {
@@ -425,11 +427,30 @@ export function initStudio(app: HTMLElement): () => void {
           onOrderChange: (qty) => {
             orderQty = snapOrder(qty);
             sectionControlsApi.update(controlsState());
-            renderSecondaryChrome();
+            renderReferenceDrawer();
+            renderOperatorBar();
           },
         }),
       );
     }
+  }
+
+  function renderReferenceDrawer(): void {
+    if (referenceDrawerRoot) {
+      referenceDrawerRoot.render(
+        createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+          hideTriggers: true,
+          tradeoffForecasts,
+          orderQty,
+        }),
+      );
+    }
+  }
+
+  function renderDayInspector(): void {
+    dayInspectorRoot.render(
+      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+    );
   }
 
   const railHandlers = {
@@ -442,15 +463,34 @@ export function initStudio(app: HTMLElement): () => void {
     onShowTruthChange: (_on: boolean) => {},
   };
 
-  function applyHoverStyles(day: HoverDay): void {
+  function beliefFreshnessHoverFocus(
+    source: HoverChartSource,
+  ): BeliefFreshnessHoverFocus {
+    if (source === "sales") return "sales";
+    if (source === "spoilage") return "spoiled";
+    return "default";
+  }
+
+  function applyHoverStyles(
+    day: HoverDay,
+    source: HoverChartSource = hoveredChartSource,
+  ): void {
     setMarginalHover(els.sales, day);
     setMarginalHover(els.stockout, day);
-    setBeliefFreshnessTimeHover(els.history, day);
+    setBeliefFreshnessTimeHover(
+      els.history,
+      day,
+      beliefFreshnessHoverFocus(source),
+    );
     setSalesDemandHover(els.salesDemand, day);
     setWasteBarsHover(els.spoil, day);
   }
 
-  function onHoverDay(day: HoverDay, point: HoverPoint): void {
+  function onHoverDay(
+    day: HoverDay,
+    point: HoverPoint,
+    source: HoverChartSource,
+  ): void {
     const sameDay = hoveredDay === day;
     const samePoint =
       (point === null && hoveredPoint === null) ||
@@ -458,14 +498,16 @@ export function initStudio(app: HTMLElement): () => void {
         hoveredPoint !== null &&
         point.clientX === hoveredPoint.clientX &&
         point.clientY === hoveredPoint.clientY);
-    if (sameDay && samePoint) return;
+    const sameSource = hoveredChartSource === source;
+    if (sameDay && samePoint && sameSource) return;
     hoveredDay = day;
     hoveredPoint = point;
+    hoveredChartSource = source;
     els.hoverNote.textContent =
       day == null
         ? "Hover a day to highlight it everywhere"
         : `Day ${day} highlighted`;
-    applyHoverStyles(day);
+    applyHoverStyles(day, source);
     renderDayInspector();
   }
 
@@ -499,12 +541,6 @@ export function initStudio(app: HTMLElement): () => void {
             : "Freshness × time";
       }
     });
-    const observation = STUDIO_SECTIONS.find((s) => s.id === "observation");
-    if (observation && activeSection === "observation") {
-      els.focusBlurb.textContent = showTruth
-        ? `${observation.blurb} Truth unit trajectories overlay when enabled.`
-        : observation.blurb;
-    }
   }
 
   function plotVisible(plotId: string): boolean {
@@ -579,6 +615,8 @@ export function initStudio(app: HTMLElement): () => void {
       renderWasteBars(els.spoil, vm.history, 86, wasteBarYMax(vm.history));
     }
     renderCockpitBelief();
+    renderMetricsPane();
+    renderRunStripCharts();
     applyHoverStyles(hoveredDay);
   }
 
@@ -602,9 +640,7 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not
-    // .focus-plot[data-plot="plot-demand"] — gate on active section instead.
-    if (activeSection === "demand" && schedule) {
+    if (plotVisible("plot-demand") && schedule) {
       renderDemandDist(
         els.demand,
         vm.demand_summary,
@@ -651,7 +687,6 @@ export function initStudio(app: HTMLElement): () => void {
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
-    renderChapterTabs();
     syncTuningDockTabs();
 
     els.focusTitle.textContent = meta.label;
@@ -668,7 +703,7 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusPane.classList.add("focus-flash");
 
     if (id === "demand") {
-      const slot = q<HTMLElement>("#demand-chart-slot");
+      const slot = q<HTMLElement>("#chart-demand-host");
       if (slot && els.demand.parentElement !== slot) {
         slot.appendChild(els.demand);
       }
@@ -690,13 +725,12 @@ export function initStudio(app: HTMLElement): () => void {
     syncTruthCaptions();
     renderStore();
     renderActiveFocusPlots();
-    renderInsightStrip();
-    renderGuidedPaths();
-    renderChapterTabs();
     renderDayInspector();
-    renderEconomicsPane();
+    renderMetricsPane();
     renderEventsPane();
-    renderSecondaryChrome();
+    renderObsControlsPane();
+    renderOperatorBar();
+    renderReferenceDrawer();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
     sectionControlsApi.update(state);
@@ -705,8 +739,8 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function refreshRemotePanes(): Promise<void> {
     await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
-    renderSecondaryChrome();
-    renderEconomicsPane();
+    renderReferenceDrawer();
+    renderMetricsPane();
   }
 
   function wireDemandPreview(): void {
@@ -730,7 +764,7 @@ export function initStudio(app: HTMLElement): () => void {
         throw new Error("schedule missing — init/reset before advance");
       }
       advancing = true;
-      renderSecondaryChrome();
+      renderOperatorBar();
       beginStudioLoading("Advancing…");
       const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
       const deltas = await adapter.step_n(orders);
@@ -741,7 +775,7 @@ export function initStudio(app: HTMLElement): () => void {
         const completed = deltas[deltas.length - 1]!.episode_day;
         vm = { ...vm, episode_day: completed + 1 };
       }
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     } catch (err) {
@@ -753,7 +787,7 @@ export function initStudio(app: HTMLElement): () => void {
     } finally {
       advancing = false;
       endStudioLoading();
-      renderSecondaryChrome();
+      renderOperatorBar();
     }
   }
 
@@ -768,7 +802,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     } catch (err) {
@@ -805,7 +839,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (vm.episode_day >= EPISODE_HORIZON) {
         autopilot.pause();
       }
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     },
@@ -825,7 +859,8 @@ export function initStudio(app: HTMLElement): () => void {
       if (typeof q === "number") {
         orderQty = snapOrder(q);
         sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
-        renderSecondaryChrome();
+        renderReferenceDrawer();
+        renderOperatorBar();
       }
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
@@ -841,7 +876,7 @@ export function initStudio(app: HTMLElement): () => void {
       onEconomicsChange(partial: Partial<Economics>) {
         // Local reproject only — never round-trip to the engine.
         vm = projector.setEconomics(partial);
-        renderEconomicsPane();
+        renderMetricsPane();
         sectionControlsApi.update(controlsState());
       },
       onConfigChange(partial: Partial<SimConfig>) {
@@ -851,7 +886,8 @@ export function initStudio(app: HTMLElement): () => void {
           orderQty = snapOrder(orderQty);
         }
         sectionControlsApi.update(controlsState());
-        renderSecondaryChrome();
+        renderReferenceDrawer();
+        renderOperatorBar();
         renderActiveFocusPlots();
         // Autopilot pauses when staged config is dirty (AC).
         if (vm.config_dirty && autopilot.isRunning()) {
@@ -874,7 +910,7 @@ export function initStudio(app: HTMLElement): () => void {
         orderQty,
         config: { ...vm.config, case_size: caseSize },
       });
-      renderSecondaryChrome();
+        renderObsControlsPane();
     },
     controllerState,
   );
@@ -922,7 +958,7 @@ export function initStudio(app: HTMLElement): () => void {
     }
     catchingUp = true;
     sectionControlsApi.update(controlsState());
-    renderSecondaryChrome();
+    renderObsControlsPane();
     beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
@@ -941,7 +977,7 @@ export function initStudio(app: HTMLElement): () => void {
       catchingUp = false;
       endStudioLoading();
       sectionControlsApi.update(controlsState());
-      renderSecondaryChrome();
+      renderObsControlsPane();
       if (resumeAfter) {
         autopilot.play();
         syncAutopilotChrome();

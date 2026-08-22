@@ -29,7 +29,6 @@ const CONTROLS_TS = join(HERE, "controls.ts");
 /** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
 const TUNING_DOCK_SECTIONS: SectionId[] = [
   "demand",
-  "observation",
   "arrival",
   "physics",
   "logistics",
@@ -94,7 +93,7 @@ describe("T-127 controls data-section rename", () => {
     expect(src).not.toMatch(/data-section=["']play["']/);
     expect(src).not.toMatch(/data-section=["']belief["']/);
     expect(src).not.toMatch(/data-section=["']controller["']/);
-    expect(src).toMatch(/data-section=["']observation["']/);
+    expect(src).not.toMatch(/data-section=["']observation["']/);
     expect(src).toMatch(/data-section=["']autopilot["']/);
   });
 
@@ -284,5 +283,10 @@ describe("T-127 tuning-dock content — projected demand", () => {
     expect(cal?.querySelectorAll(".week-calendar-day").length).toBe(7);
     expect(cal?.querySelector(".is-delivery[data-weekday='0']")).toBeTruthy();
     expect(cal?.querySelector(".is-order[data-weekday='6']")).toBeTruthy();
+    const legend = host.querySelector(".week-calendar-legend");
+    expect(legend?.textContent).toMatch(/Delivery day/);
+    expect(legend?.textContent).toMatch(/Order day/);
+    expect(legend?.textContent).toMatch(/Both/);
+    expect(legend?.textContent).not.toMatch(/Filled = delivery/);
   });
 });

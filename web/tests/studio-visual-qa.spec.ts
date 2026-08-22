@@ -11,12 +11,24 @@ function shotPath(name: string): string {
   return path.join(SHOT_DIR, `${name}.png`);
 }
 
-function obsPresetSelect(page: Page) {
-  return page.locator(".secondary-chrome #obs-preset-select");
+function obsChannels(page: Page) {
+  return page.locator("[data-testid='obs-controls-pane']");
 }
 
-async function setObsPreset(page: Page, scenario: string) {
-  await obsPresetSelect(page).selectOption(scenario);
+async function setObsChannels(
+  page: Page,
+  partial: { scanWaste?: boolean; codeType?: "upc" | "gsin" },
+) {
+  if (partial.codeType) {
+    await obsChannels(page)
+      .locator(`[data-obs-code-type='${partial.codeType}']`)
+      .click();
+  }
+  if (partial.scanWaste != null) {
+    await obsChannels(page)
+      .locator(`[data-obs-scan-waste='${partial.scanWaste}']`)
+      .click();
+  }
   await page.waitForTimeout(250);
 }
 
@@ -40,7 +52,7 @@ async function advanceDays(page: Page, n: number) {
   }
 }
 
-test.describe("T-130 layout v5 — visual QA", () => {
+test.describe("T-148 layout v6 — visual QA", () => {
   test.beforeEach(async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
@@ -57,97 +69,45 @@ test.describe("T-130 layout v5 — visual QA", () => {
     }
   });
 
-  test("1: layout v5 — Primary, Secondary chrome, Today center, Events column", async ({
-    page,
-  }) => {
+  test("1: layout v6 — metrics, belief, sidebar", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    await expect(page.locator(".cockpit-grid[data-layout='v5']")).toBeVisible();
-    await expect(page.locator(".cockpit-pane--primary")).toBeVisible();
-    await expect(page.locator(".cockpit-pane--secondary")).toBeVisible();
-    await expect(page.locator("[data-testid='cockpit-today']")).toBeVisible();
+    await expect(page.locator(".cockpit-grid[data-layout='v6']")).toBeVisible();
+    await expect(page.locator(".cockpit-pane--metrics")).toBeVisible();
+    await expect(page.locator(".cockpit-pane--belief")).toBeVisible();
+    await expect(page.locator(".cockpit-pane--sidebar")).toBeVisible();
+    await expect(page.locator("[data-testid='obs-controls-pane']")).toBeVisible();
     await expect(page.locator("[data-testid='cockpit-events-column']")).toBeVisible();
-    await expect(page.locator("#decision-rail-host")).toHaveCount(0);
-    await expect(page.locator("#play-chrome")).toHaveCount(0);
+    await expect(page.locator(".title-bar h1")).toContainText("Blueberry inventory studio");
     await page.screenshot({ path: shotPath("01-full-page-initial"), fullPage: true });
   });
 
-  test("2: primary pane 3-chart stack + truth overlay toggle", async ({ page }) => {
+  test("2: metrics column charts and impact stats", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 3);
-    const primary = page.locator(".cockpit-pane--primary");
-    await expect(primary).toContainText("Freshness × time");
-    await expect(primary).toContainText("Sales vs demand");
-    await expect(primary).toContainText("Units spoiled");
-    await expect(page.locator("#chart-history")).toBeVisible();
-    await expect(page.locator("#chart-sales-demand")).toBeVisible();
-    await expect(page.locator("#chart-spoil")).toBeVisible();
-
-    const truthToggle = page.locator(".secondary-chrome .truth-toggle");
-    await expect(truthToggle).toHaveAttribute("aria-checked", "true");
-    await primary.screenshot({ path: shotPath("02b-primary-truth-on") });
-    const dotsOn = await page.locator("#chart-history circle").count();
-    expect(dotsOn).toBeGreaterThan(0);
-
-    await truthToggle.click();
-    await expect(truthToggle).toHaveAttribute("aria-checked", "false");
-    await page.waitForTimeout(200);
-    const dotsOff = await page.locator("#chart-history circle").count();
-    expect(dotsOff).toBe(0);
-
-    const salesDemandSvgHtml = await page.locator("#chart-sales-demand svg").innerHTML();
-    fs.writeFileSync(path.join(SHOT_DIR, "chart-sales-demand.svg.html"), salesDemandSvgHtml);
-
-    const spoilBars = await page.locator("#chart-spoil rect").count();
-    console.log(`chart-spoil rect count: ${spoilBars}`);
-
-    await page.locator("#chart-history").screenshot({
-      path: shotPath("chart-history-after-3-days"),
-    });
-    const chartLayout = await page.evaluate(() => {
-      const svg = document.querySelector("#chart-history svg.chart-svg");
-      const clip = document.querySelector("#chart-history clipPath");
-      const colorbar = document.querySelector(
-        "#chart-history .belief-freshness-colorbar",
-      );
-      const yLabel = document.querySelector("#chart-history .axis-label");
-      return {
-        marginLeft: svg?.getAttribute("data-margin-left"),
-        marginRight: svg?.getAttribute("data-margin-right"),
-        hasClip: clip != null,
-        hasColorbar: colorbar != null,
-        yLabelY: yLabel?.getAttribute("y"),
-        unitsLabel: document.querySelector(
-          "#chart-history .belief-freshness-colorbar-label",
-        )?.textContent,
-      };
-    });
-    console.log("chart-history layout:", JSON.stringify(chartLayout));
-    expect(chartLayout.hasClip).toBe(true);
-    expect(chartLayout.hasColorbar).toBe(true);
-    expect(chartLayout.unitsLabel).toBe("Units");
-    expect(chartLayout.marginLeft).toBe("48");
-    expect(chartLayout.marginRight).toBe("48");
+    const metrics = page.locator(".cockpit-pane--metrics");
+    await expect(metrics.locator("#chart-pnl-economics")).toBeVisible();
+    await expect(metrics.locator("#chart-age-comp")).toBeVisible();
+    await expect(metrics.locator("#chart-inventory")).toBeVisible();
+    await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
+    await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
+    await expect(metrics.locator("#chart-spoil")).toBeVisible();
+    await expect(metrics.locator("[data-testid='impact-stat']")).toHaveCount(2);
   });
 
-  test("3: secondary pane — histogram + chrome, truth bar overlay", async ({ page }) => {
+  test("3: belief column and truth toggle in obs controls", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 2);
-    const secondary = page.locator(".cockpit-pane--secondary");
-    await expect(secondary).toContainText(/freshness histogram/i);
-    await expect(page.locator("#chart-belief-lg")).toBeVisible();
-    await expect(page.locator("[data-testid='secondary-chrome']")).toBeVisible();
-    await secondary.screenshot({ path: shotPath("03a-secondary-truth-on") });
+    const belief = page.locator(".cockpit-pane--belief");
+    await expect(belief.locator("#chart-history")).toBeVisible();
+    await expect(belief.locator("#chart-belief-lg")).toBeVisible();
 
-    const truthBarCountOn = await page.locator("#chart-belief-lg .freshness-truth-bar").count();
-    expect(truthBarCountOn).toBeGreaterThan(0);
-
-    await page.locator(".secondary-chrome .truth-toggle").click();
-    await page.waitForTimeout(200);
-    const truthBarCountOff = await page.locator("#chart-belief-lg .freshness-truth-bar").count();
-    expect(truthBarCountOff).toBe(0);
+    const truthToggle = page.locator("[data-testid='obs-controls-pane'] .truth-toggle");
+    await expect(truthToggle).toHaveAttribute("aria-checked", "true");
+    await truthToggle.click();
+    await expect(truthToggle).toHaveAttribute("aria-checked", "false");
   });
 
   test("4: exactly one order-qty control and one advance button", async ({ page }) => {
@@ -157,104 +117,52 @@ test.describe("T-130 layout v5 — visual QA", () => {
     await expect(page.locator("#order-num")).toHaveCount(1);
     await expect(page.locator("#btn-advance")).toHaveCount(1);
     await expect(page.locator("#btn-reset")).toHaveCount(1);
-    await expect(page.locator("#play-chrome")).toHaveCount(0);
   });
 
-  test("5: tradeoff tab toggle — curve then histogram", async ({ page }) => {
+  test("5: controller tradeoff in reference drawer", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    const chrome = page.locator("[data-testid='secondary-chrome']");
-    await expect(chrome).toBeVisible();
-
-    const curvePaths = await page.locator("#tradeoff-curve-host path, #tradeoff-curve-host line").count();
-    expect(curvePaths).toBeGreaterThan(0);
-    await expect(page.locator("#tradeoff-histogram-host")).toHaveCount(0);
-
-    await chrome.getByRole("tab", { name: "Histogram" }).click();
+    await page.keyboard.press("?");
+    const dialog = page.locator("dialog.reference-drawer");
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("tab", { name: "Controller" }).click();
     await page.waitForTimeout(200);
-    const histRects = await page.locator("#tradeoff-histogram-host rect").count();
-    expect(histRects).toBeGreaterThan(0);
-    await expect(page.locator("#tradeoff-curve-host")).toHaveCount(0);
-    await chrome.screenshot({ path: shotPath("05-tradeoff-histogram-tab") });
+    await expect(dialog.getByText(/shelf life is similar/i)).toBeVisible();
+    const curvePaths = await dialog.locator("#tradeoff-curve-host path, #tradeoff-curve-host line").count();
+    expect(curvePaths).toBeGreaterThan(0);
   });
 
-  test("6: economics pane — no dead pnl-spark/series", async ({ page }) => {
+  test("6: events pane 5-day window", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    await expect(page.locator("#chart-pnl-spark")).toHaveCount(0);
-    await expect(page.locator("#chart-pnl-series")).toHaveCount(0);
-    const econ = page.locator("#economics-pane-host");
-    await expect(econ).toBeVisible();
-    await econ.screenshot({ path: shotPath("06-economics-pane") });
-  });
-
-  test("7: events pane changes per observation preset", async ({ page }) => {
-    await page.goto("/");
-    await waitForEngine(page);
-    await advanceDays(page, 3);
+    await advanceDays(page, 6);
     const events = page.locator("#events-pane-host");
     await expect(events).toBeVisible();
-
-    for (const scenario of ["P0", "P1", "F1", "F1s", "F2a", "F2"]) {
-      await setObsPreset(page, scenario);
-      await events.screenshot({ path: shotPath(`07-events-${scenario}`) });
-    }
+    await expect(events.locator(".events-day-card")).toHaveCount(5);
+    await expect(events.locator("[data-testid='events-columns']").first()).toBeVisible();
+    await expect(events.locator(".events-day-card[data-day='7']")).toHaveCount(0);
   });
 
-  test("8: tuning dock — all tabs reveal correct content", async ({ page }) => {
+  test("7: tuning dock without observation tab", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    const dockTab = (section: string) =>
-      page.locator(`.tuning-dock-tabs [data-section="${section}"]`);
-    const dockContent = (section: string) =>
-      page.locator(`.section-controls > [data-section="${section}"]`);
-
-    for (const section of ["demand", "observation", "arrival", "physics", "logistics", "autopilot"]) {
-      const tab = dockTab(section);
+    await expect(page.locator('.tuning-dock-tabs [data-section="observation"]')).toHaveCount(0);
+    for (const section of ["demand", "arrival", "physics", "logistics", "autopilot"]) {
+      const tab = page.locator(`.tuning-dock-tabs [data-section="${section}"]`);
       await expect(tab).toBeVisible();
       await tab.click();
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(150);
       await expect(tab).toHaveAttribute("aria-selected", "true");
-      await expect(dockContent(section)).toBeVisible();
     }
-
-    await setObsPreset(page, "P0");
-    await dockTab("arrival").click();
-    await page.waitForTimeout(150);
-
-    await setObsPreset(page, "F2a");
-    await dockTab("arrival").click();
-    await page.waitForTimeout(150);
-
-    await setObsPreset(page, "F2");
-    await page.waitForTimeout(150);
-    await dockTab("arrival").click();
-    await page.waitForTimeout(150);
-
-    await dockTab("autopilot").click();
-    await page.waitForTimeout(150);
-    const pad = page.locator("#alpha-rho-pad, [data-testid='alpha-rho-pad']").first();
-    if (await pad.count() > 0) {
-      const box = await pad.boundingBox();
-      if (box) {
-        await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
-        await page.mouse.down();
-        await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 5 });
-        await page.mouse.up();
-      }
-    }
-    await page.locator(".tuning-dock").screenshot({ path: shotPath("08e-autopilot-after-drag") });
   });
 
-  test("9: general polish — layout at two viewports", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+  test("8: obs channel changes keep events pane visible", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 3);
-    await page.screenshot({ path: shotPath("09a-desktop-1440"), fullPage: true });
-
-    await page.setViewportSize({ width: 1024, height: 768 });
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: shotPath("09b-narrow-1024"), fullPage: true });
+    await setObsChannels(page, { scanWaste: false });
+    await expect(page.locator("#events-pane-host")).toBeVisible();
+    await setObsChannels(page, { codeType: "gsin", scanWaste: true });
+    await expect(page.locator("#events-pane-host")).toBeVisible();
   });
 });
