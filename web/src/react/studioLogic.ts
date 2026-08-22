@@ -602,7 +602,7 @@ export function initStudio(app: HTMLElement): () => void {
         spoilageUnavailableRoot!.render(
           createElement(ChartUnavailable, {
             plotId: "store-spoilage",
-            caption: "Daily waste is not observed at this knowledge rung.",
+            caption: "Daily waste is not observed.",
           }),
         );
       });
