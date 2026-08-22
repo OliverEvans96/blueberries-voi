@@ -145,7 +145,8 @@ export function ReferenceDrawer({ portalContainerRef }: ReferenceDrawerProps = {
     const scope = scopeRef.current?.closest(".bv-studio") ?? scopeRef.current;
     if (!scope) return;
 
-    const onKey = (event: KeyboardEvent) => {
+    const onKey: EventListener = (ev) => {
+      const event = ev as KeyboardEvent;
       if (!scope.contains(event.target as Node)) return;
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;

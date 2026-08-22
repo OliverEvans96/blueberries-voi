@@ -3,7 +3,7 @@
  *
  * Env flags (documented in `.team/qa/T-057-smoke.md` and `web/.env.example`):
  * - `VITE_ENGINE_ADAPTER` — explicit override: `wasm` | `mock`
- * - `VITE_WASM_WORKER_URL` / `VITE_WASM_PKG_URL` — WasmAdapter URLs
+ * - `VITE_WASM_WORKER_URL` / `VITE_WASM_PKG_URL` / `VITE_WASM_ASSET_BASE_URL` — optional CDN overrides
  */
 
 import type { EngineAdapter } from "./adapter";
@@ -25,7 +25,11 @@ export type StudioEnv = {
   VITE_ENGINE_ADAPTER?: string;
   VITE_WASM_WORKER_URL?: string;
   VITE_WASM_PKG_URL?: string;
+  VITE_WASM_ASSET_BASE_URL?: string;
 };
+
+/** Sentinel for resolveLocalStudioDefaults — worker is bundled by Vite (T-144). */
+export const BUNDLED_WASM_WORKER = "bundled";
 
 export type CreateStudioAdapterOpts = {
   env?: StudioEnv;
@@ -36,20 +40,17 @@ export type CreateStudioAdapterOpts = {
   fetch?: typeof fetch;
 };
 
-const DEFAULT_WASM_WORKER_URL = "/packaging/wasm/worker.js";
-const DEFAULT_WASM_PKG_URL = "/wasm/";
-
 export type LocalStudioDefaults = {
   workerUrl: string;
   /** WASM pkg base URL (legacy field name retained for callers). */
   wheelUrl: string;
 };
 
-/** Local readiness URLs — WASM worker + pkg from Vite middleware. */
+/** Local readiness — bundled worker + pkg via Vite graph (T-144). */
 export function resolveLocalStudioDefaults(): LocalStudioDefaults {
   return {
-    workerUrl: DEFAULT_WASM_WORKER_URL,
-    wheelUrl: DEFAULT_WASM_PKG_URL,
+    workerUrl: BUNDLED_WASM_WORKER,
+    wheelUrl: "",
   };
 }
 
@@ -132,15 +133,25 @@ export function createStudioAdapter(
   const kind = opts.kind ?? resolveStudioAdapterKind(env);
 
   if (kind === "wasm") {
+    const wasmOpts: { workerUrl?: string; assetBaseUrl?: string; pkgUrl?: string } =
+      {};
+    const envWorker = env.VITE_WASM_WORKER_URL?.trim();
     const fromOpts = opts.workerUrl;
     const optsLooksPyodide =
       typeof fromOpts === "string" && /pyodide/i.test(fromOpts);
-    const workerUrl =
-      env.VITE_WASM_WORKER_URL
-      ?? (fromOpts && !optsLooksPyodide ? fromOpts : undefined)
-      ?? DEFAULT_WASM_WORKER_URL;
-    const pkgUrl = opts.pkgUrl ?? env.VITE_WASM_PKG_URL ?? DEFAULT_WASM_PKG_URL;
-    return new WasmAdapter({ workerUrl, pkgUrl });
+    if (envWorker) {
+      wasmOpts.workerUrl = envWorker;
+    } else if (fromOpts && !optsLooksPyodide) {
+      wasmOpts.workerUrl = fromOpts;
+    }
+    const assetBase =
+      env.VITE_WASM_ASSET_BASE_URL?.trim()
+      ?? env.VITE_WASM_PKG_URL?.trim()
+      ?? opts.pkgUrl?.trim();
+    if (assetBase) {
+      wasmOpts.assetBaseUrl = assetBase;
+    }
+    return new WasmAdapter(wasmOpts);
   }
 
   return new MockAdapter();
