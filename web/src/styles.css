@@ -724,10 +724,6 @@
   padding: 8px;
 }
 
-.order-row input[type="range"] {
-  height: 10px;
-}
-
 .btn-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -943,7 +939,6 @@ input[type="number"] {
 
 .obs-chip {
   appearance: none;
-  flex: 1;
   border: 1px solid var(--paper-edge);
   background: #fffdf8;
   color: var(--ink-soft);
@@ -953,12 +948,22 @@ input[type="number"] {
   font-weight: 600;
   font-size: 0.82rem;
   cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .obs-chip.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #f4f7f4;
+  background: color-mix(in srgb, var(--accent) 32%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--paper-edge));
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.obs-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .meta-line {
@@ -968,19 +973,31 @@ input[type="number"] {
 
 .pnl-totals {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pnl-row {
-  display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 12px;
 }
 
-.pnl-row--emphasis {
-  padding-top: 2px;
+.pnl-totals-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.pnl-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.pnl-item--emphasis .pnl-value {
+  font-weight: 750;
+}
+
+.pnl-sep {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .pnl-label {
