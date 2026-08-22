@@ -29,10 +29,10 @@ belief is compared with truth.
 channels, only the code type changes.
 
 **Data.** `experiments/data/*.json`, produced by
-`cargo run -p voi_core --release --example gsin_upc_diag`. The *before* files come from
-the same harness run on `team/T-137/implement` (pre-ADR-0137); the *after* files from
-`team/T-140/implement` (ADR 0141 unified gamma arrival). Regenerate the after side with
-`experiments/regen_gsin_upc_data.sh` from the T-140 implement tip.
+`cargo run -p voi_core --release --example gsin_upc_diag`. `gsin_upc_pre_t141.json` snapshots
+the T-140 harness (shared-δ interval spoilage); `gsin_upc_after.json` is T-141
+(**independent per-unit gamma aging** + Poisson-binomial filter, ADR 0143). Regenerate the
+after side with `experiments/regen_gsin_upc_data.sh`.
 
 <!-- code -->
 import json
@@ -151,11 +151,13 @@ fig.tight_layout()
 plt.show()
 
 <!-- markdown -->
-After the fix the bias is **exactly zero** for every rung that observes spoilage.
+After the fix the bias is **exactly zero** for every rung that observes spoilage (T-141 /
+ADR 0143: independent per-unit decrements in truth, Poisson-binomial adapted proposal in
+the filter, per-lot death draws under GSIN).
 
 That is not a tuning result, it is conservation. With an empty shelf at day 0, observed
-arrivals, observed sales, and a spoilage step that samples the daily decrement *from the
-interval the observation implies*, every particle satisfies
+arrivals, observed sales, and a spoilage step that backward-samples **which units died**
+to match the day's waste count, every particle satisfies
 
 ```
 alive_t = alive_{t-1} - waste_t - sales_t + arrivals_t
@@ -205,6 +207,13 @@ delivery stream, so the bank's j-th-newest segment is truth's j-th-newest lot fo
 one; the metrics below align on that. Only GSIN additionally learns which lot each sale and
 each spoil came from.
 
+**T-141 / ADR 0143.** Ground truth ages each live unit with an independent gamma draw;
+the filter scores spoilage with an exact Poisson-binomial DP and backward-samples deaths
+(per-lot under GSIN). Store `count_bias` is **0.000** on every spoilage rung across all
+four diag regimes (24 rows). Homogeneous `P1→F1`: store mean-f MAE **`0.0225→0.0219`**
+(GSIN wins on level); per-lot mean-f MAE **`0.284→0.305`** (picking still weak). Store
+count MAE stays **`0.000`** on both rungs — conservation, not attribution.
+
 **T-140 / ADR 0141.** Pack date on the F2a/F2 rungs is **calendar transit duration**
 (`receipt − pack` in days), not a rounded warped-τ surrogate. Epistemic width on that
 channel comes from bootstrapping the fleet temperature factor φ̄, not a hand-set
@@ -244,9 +253,10 @@ for u, g in pairs:
         print(f"{u+' → '+g:<12} {key:<24} {a[u][key]:>10.4f} {a[g][key]:>10.4f}")
 
 <!-- markdown -->
-**Per-lot inventory becomes exact under GSIN** (MAE `0.000` vs `0.22–0.44` for UPC): once
-sales and spoils are attributed to named lots, the per-lot count is conserved the same way
-the store total is. That is the channel's headline value.
+**Store count is exact under spoilage rungs** (`count_mae` and `count_bias` both `0.000`
+for P1/F1/F2a/F2/F3): once sales and spoils are observed, the adapted PB proposal removes
+exactly the right number of units. Per-lot *count* MAE remains higher than store level
+because aligning segments by arrival order still leaves freshness-level error within lots.
 
 The freshness *level* improves only slightly (a few percent). This is the physically honest
 answer and worth stating plainly:
@@ -376,9 +386,10 @@ fig.tight_layout()
 plt.show()
 
 <!-- markdown -->
-Runtime is unchanged in order (single-digit ms/day at N=200, against a 500 ms studio
-budget). The GSIN rungs look *slower* than before only because their likelihood used to
-short-circuit to `-inf` before doing any work.
+Runtime rises to **~50–200 ms/day** at N=200 on the PB filter path (still well under the
+500 ms studio budget). The GSIN rungs cost more than the pre-0143 interval shortcut because
+each spoilage day runs a Poisson-binomial DP plus truncated-gamma survivors rather than
+short-circuiting on a shared δ.
 
 ### Open items
 

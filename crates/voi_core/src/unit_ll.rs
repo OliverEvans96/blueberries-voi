@@ -175,6 +175,37 @@ pub fn pb_sample_deaths<R: Rng + ?Sized>(
     (deaths, log_q)
 }
 
+/// GSIN: independent per-lot backward death draws (indices global in `freshness`).
+pub fn pb_sample_deaths_by_lot<R: Rng + ?Sized>(
+    freshness: &[f64],
+    offsets: &[usize],
+    waste_by: &[u32],
+    table: &GammaDecrementTable,
+    rng: &mut R,
+) -> (Vec<usize>, f64) {
+    let n_lots = offsets.len().saturating_sub(1);
+    if waste_by.len() != n_lots {
+        return (Vec::new(), f64::NEG_INFINITY);
+    }
+    let mut deaths = Vec::new();
+    let mut log_q = 0.0;
+    for ell in 0..n_lots {
+        let start = offsets[ell].min(freshness.len());
+        let end = offsets[ell + 1].min(freshness.len());
+        let w = waste_by[ell] as usize;
+        let (mut local, lq) = pb_sample_deaths(&freshness[start..end], w, table, rng);
+        if local.len() != w || !lq.is_finite() {
+            return (Vec::new(), f64::NEG_INFINITY);
+        }
+        for idx in &mut local {
+            *idx += start;
+        }
+        deaths.extend(local);
+        log_q += lq;
+    }
+    (deaths, log_q)
+}
+
 /// Apply adapted aging: sampled deaths spoil; survivors get truncated gamma decrements.
 pub fn apply_pb_aging_proposal<R: Rng + ?Sized>(
     freshness: &mut [f64],

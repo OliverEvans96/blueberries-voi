@@ -31,6 +31,7 @@ pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use unit_ll::{
     loglik_sales_by_units, pb_log_pmf, pb_loglik_by_lot, pb_loglik_pooled, pb_sample_deaths,
+    pb_sample_deaths_by_lot,
     sequential_kernel_path_logprob, spoil_probs_from_freshness,
 };
 pub use unit_pf::{

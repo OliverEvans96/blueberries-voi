@@ -37,7 +37,8 @@ use crate::shipments::{
 };
 use crate::unit_ll::{
     apply_pb_aging_proposal, loglik_sales_by_units, pb_loglik_by_lot, pb_loglik_pooled,
-    pb_sample_deaths, sequential_kernel_path_logprob, spoil_probs_from_freshness,
+    pb_sample_deaths, pb_sample_deaths_by_lot, sequential_kernel_path_logprob,
+    spoil_probs_from_freshness,
 };
 use crate::ModelParams;
 
@@ -468,7 +469,11 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
         let (w_obs, mut ll) = ev.pb_spoilage_loglik(row, &offsets, table);
         if ev.waste_tot.is_some() {
             if ll.is_finite() {
-                let (deaths, _log_q) = pb_sample_deaths(row, w_obs, table, &mut path_rng);
+                let (deaths, _log_q) = if let Some(by) = &ev.waste_by {
+                    pb_sample_deaths_by_lot(row, &offsets, by, table, &mut path_rng)
+                } else {
+                    pb_sample_deaths(row, w_obs, table, &mut path_rng)
+                };
                 if deaths.len() == w_obs {
                     apply_pb_aging_proposal(row, &deaths, params, &mut path_rng);
                 } else {
