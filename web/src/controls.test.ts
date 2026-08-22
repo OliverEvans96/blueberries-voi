@@ -29,7 +29,6 @@ const CONTROLS_TS = join(HERE, "controls.ts");
 /** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
 const TUNING_DOCK_SECTIONS: SectionId[] = [
   "demand",
-  "observation",
   "arrival",
   "physics",
   "logistics",
@@ -94,7 +93,7 @@ describe("T-127 controls data-section rename", () => {
     expect(src).not.toMatch(/data-section=["']play["']/);
     expect(src).not.toMatch(/data-section=["']belief["']/);
     expect(src).not.toMatch(/data-section=["']controller["']/);
-    expect(src).toMatch(/data-section=["']observation["']/);
+    expect(src).not.toMatch(/data-section=["']observation["']/);
     expect(src).toMatch(/data-section=["']autopilot["']/);
   });
 

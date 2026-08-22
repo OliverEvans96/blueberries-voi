@@ -350,16 +350,6 @@ function mountSectionControlsDom(
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
       </div>
-      <div class="controls-block" data-section="observation" hidden>
-        <p class="hint">
-          Knowledge changes what the store sees, so future orders can change.
-          Use the observation scenario chips on the Secondary pane to switch rungs.
-        </p>
-        <div class="obs-scenario-copy" id="obs-scenario-copy">
-          <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
-          <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
-        </div>
-      </div>
       <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">
           Policy and rollout budgets feed Autopilot / act — physics still needs Reset.

@@ -5,7 +5,6 @@ export type SectionId =
   | "demand"
   | "logistics"
   | "arrival"
-  | "observation"
   | "autopilot";
 
 export type StudioSection = {
@@ -64,14 +63,6 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     controlSection: "arrival",
   },
   {
-    id: "observation",
-    label: "Observation",
-    blurb:
-      "Knowledge changes what the store sees, so future orders can change. Use the decision rail to switch observation rungs.",
-    plotIds: [],
-    controlSection: "observation",
-  },
-  {
     id: "autopilot",
     label: "Autopilot",
     blurb:
@@ -85,7 +76,8 @@ export const SECTION_STORAGE_KEY = "bv-studio:section";
 
 const LEGACY_SECTION_IDS: Record<string, SectionId> = {
   play: "demand",
-  belief: "observation",
+  belief: "demand",
+  observation: "demand",
   controller: "autopilot",
 };
 

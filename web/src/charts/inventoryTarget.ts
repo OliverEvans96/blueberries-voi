@@ -275,9 +275,9 @@ export function renderAgeComposition(
   const bands =
     bandMode === "freshness"
       ? ([
-          { key: "young", label: "≥⅔ f", lo: 0, hi: 0, cls: "age-young" },
-          { key: "mid", label: "[⅓,⅔) f", lo: 0, hi: 0, cls: "age-mid" },
-          { key: "old", label: "<⅓ f", lo: 0, hi: 0, cls: "age-old" },
+          { key: "young", label: "Peak", lo: 0, hi: 0, cls: "age-young" },
+          { key: "mid", label: "Good", lo: 0, hi: 0, cls: "age-mid" },
+          { key: "old", label: "Markdown", lo: 0, hi: 0, cls: "age-old" },
         ] as const)
       : ([
           { key: "young", label: "≥⅔ f", lo: 0, hi: 0, cls: "age-young" },

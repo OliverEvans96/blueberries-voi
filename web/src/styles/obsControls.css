@@ -1,0 +1,57 @@
+.obs-controls-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--paper-edge);
+}
+
+.obs-controls-pane .field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.obs-controls-pane .obs-channel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.obs-controls-pane .obs-channel-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.obs-controls-pane .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.obs-controls-pane .obs-preset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.obs-controls-pane .obs-preset-select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--paper-edge);
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.obs-controls-truth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.obs-controls-truth .truth-toggle-label {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}

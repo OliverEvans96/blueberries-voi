@@ -15,7 +15,7 @@ export const STUDIO_CHAPTERS: StudioChapter[] = [
   {
     id: "understand",
     title: "Understand",
-    sectionIds: ["observation", "demand", "arrival"],
+    sectionIds: ["demand", "arrival"],
   },
   {
     id: "tune",

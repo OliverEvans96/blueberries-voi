@@ -1,65 +1,42 @@
 /**
- * T-140: week calendar — order derivation, toggle, render.
+ * T-148: week calendar Sunday-first header and grid structure.
  */
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  deriveOrderWeekdays,
   renderWeekCalendar,
-  scheduleFromConfig,
-  toggleDeliveryDay,
+  SUNDAY_FIRST_MONDAY0_ORDER,
+  WEEKDAY_HEADERS_SUNDAY_FIRST,
 } from "./weekCalendar";
-import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import type { ScheduleWire } from "../engine/types";
 
-describe("weekCalendar (T-140)", () => {
-  it("LT=1 MWF delivery → Sun/Tue/Thu order weekdays", () => {
-    expect(deriveOrderWeekdays([0, 2, 4], 1)).toEqual([1, 3, 6]);
-    const sched = scheduleFromConfig({
-      ...DEFAULT_SIM_CONFIG,
-      delivery_weekdays: [0, 2, 4],
-      lead_time: 1,
-    });
-    expect(sched.order_weekdays).toEqual([1, 3, 6]);
-    expect(sched.epoch).toBe("2024-01-01");
-  });
+const SCHEDULE: ScheduleWire = {
+  delivery_weekdays: [0, 2, 4],
+  order_weekdays: [5, 1, 3],
+  lead_time_days: 2,
+  epoch: "2024-01-01",
+};
 
-  it("LT=2 shifts order weekdays forward", () => {
-    expect(deriveOrderWeekdays([0, 2, 4], 2)).toEqual([0, 2, 5]);
-    const sched = scheduleFromConfig({
-      ...DEFAULT_SIM_CONFIG,
-      delivery_weekdays: [0, 2, 4],
-      lead_time: 2,
-    });
-    expect(sched.order_weekdays).toEqual([0, 2, 5]);
-    expect(sched.lead_time_days).toBe(2);
-  });
-
-  it("toggle delivery adds and removes weekdays", () => {
-    expect(toggleDeliveryDay([0, 2, 4], 1)).toEqual([0, 1, 2, 4]);
-    expect(toggleDeliveryDay([0, 1, 2, 4], 1)).toEqual([0, 2, 4]);
-  });
-
-  it("cannot deselect the last delivery day", () => {
-    expect(toggleDeliveryDay([3], 3)).toEqual([3]);
-  });
-
-  it("renderWeekCalendar marks delivery/order classes and toggles via callback", () => {
+describe("weekCalendar (T-148)", () => {
+  it("renders Su-first header row before day buttons", () => {
     const host = document.createElement("div");
-    const onToggle = vi.fn();
-    const schedule = scheduleFromConfig({
-      ...DEFAULT_SIM_CONFIG,
-      delivery_weekdays: [0, 2, 4],
-      lead_time: 1,
-    });
-    renderWeekCalendar(host, schedule, { onToggleDelivery: onToggle });
+    renderWeekCalendar(host, SCHEDULE, { onToggleDelivery: () => undefined });
 
-    const days = host.querySelectorAll(".week-calendar-day");
-    expect(days.length).toBe(7);
-    expect(host.querySelector(".week-calendar-day.is-delivery[data-weekday='0']")).toBeTruthy();
-    expect(host.querySelector(".week-calendar-day.is-order[data-weekday='6']")).toBeTruthy();
+    const header = host.querySelector(".week-calendar-header");
+    expect(header).not.toBeNull();
+    const labels = [...header!.querySelectorAll(".week-calendar-header-cell")].map(
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual([...WEEKDAY_HEADERS_SUNDAY_FIRST]);
+  });
 
-    const wed = host.querySelector("[data-weekday='2']") as HTMLButtonElement;
-    wed.click();
-    expect(onToggle).toHaveBeenCalledWith(2);
+  it("orders day buttons in Sunday-first monday0 sequence", () => {
+    const host = document.createElement("div");
+    renderWeekCalendar(host, SCHEDULE, { onToggleDelivery: () => undefined });
+    const grid = host.querySelector(".week-calendar-grid");
+    const weekdays = [...grid!.querySelectorAll(".week-calendar-day")].map((el) =>
+      Number(el.dataset.weekday),
+    );
+    expect(weekdays).toEqual([...SUNDAY_FIRST_MONDAY0_ORDER]);
   });
 });

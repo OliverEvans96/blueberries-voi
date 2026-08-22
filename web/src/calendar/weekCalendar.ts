@@ -3,6 +3,20 @@
  * Epoch 2024-01-01 (Monday = 0); order weekdays derived from delivery + lead time.
  */
 import { WEEKDAY_LABELS_MONDAY0 } from "../charts/demandDist";
+
+/** Sunday-first short headers for the logistics calendar widget (T-148). */
+export const WEEKDAY_HEADERS_SUNDAY_FIRST = [
+  "Su",
+  "Mo",
+  "Tu",
+  "We",
+  "Th",
+  "Fr",
+  "Sa",
+] as const;
+
+/** monday0 indices in Sunday-first display order. */
+export const SUNDAY_FIRST_MONDAY0_ORDER = [6, 0, 1, 2, 3, 4, 5] as const;
 import type { ScheduleWire } from "../engine/types";
 import type { SimConfig } from "../types";
 
@@ -63,7 +77,22 @@ export function renderWeekCalendar(
   const orderSet = new Set(schedule.order_weekdays);
   const disabled = opts.disabled ?? false;
 
-  for (let wd = 0; wd < 7; wd += 1) {
+  const header = document.createElement("div");
+  header.className = "week-calendar-header";
+  header.setAttribute("aria-hidden", "true");
+  for (const label of WEEKDAY_HEADERS_SUNDAY_FIRST) {
+    const span = document.createElement("span");
+    span.className = "week-calendar-header-cell";
+    span.textContent = label;
+    header.appendChild(span);
+  }
+  host.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "week-calendar-grid";
+  host.appendChild(grid);
+
+  for (const wd of SUNDAY_FIRST_MONDAY0_ORDER) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "week-calendar-day";
@@ -89,6 +118,6 @@ export function renderWeekCalendar(
     if (!disabled) {
       btn.addEventListener("click", () => opts.onToggleDelivery(wd));
     }
-    host.appendChild(btn);
+    grid.appendChild(btn);
   }
 }
