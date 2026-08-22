@@ -560,6 +560,28 @@
   stroke-opacity: 0.75;
 }
 
+.unit-terminal {
+  pointer-events: none;
+}
+
+.is-hovering .unit-terminal {
+  opacity: 0.25;
+}
+
+.is-hovering .unit-terminal.unit-terminal--active {
+  opacity: 1;
+}
+
+.belief-freshness-truth-legend .legend-label {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.belief-freshness-truth-legend line,
+.belief-freshness-truth-legend circle {
+  pointer-events: none;
+}
+
 .bar--sales {
   fill: var(--sales);
 }

@@ -226,6 +226,7 @@ function asDay(
     day: d.day,
     lots: lotsSrc.map((l) => ({ ...l })),
     units: unitsSrc.map((u) => ({ ...u })),
+    unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
     sales_total: d.sales_total ?? 0,
     waste_total: d.waste_total ?? 0,
     demand: d.demand ?? 0,
@@ -301,6 +302,7 @@ export class ViewModelProjector {
       ...d,
       lots: d.lots.map((l) => ({ ...l })),
       units: (d.units ?? []).map((u) => ({ ...u })),
+      unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       stockout: stockoutFromDayFields(d.demand, d.sales_total, d.stockout),
     }));
     this.beliefHistory = this.history.map((d) => ({
@@ -507,6 +509,7 @@ export class ViewModelProjector {
         ...d,
         lots: d.lots.map((l) => ({ ...l })),
         units: (d.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       })),
       economics: { ...this.economics },
       config: { ...this.config },

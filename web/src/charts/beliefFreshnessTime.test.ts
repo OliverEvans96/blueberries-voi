@@ -3,19 +3,27 @@
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import type { BeliefHistoryDay, Day, Unit } from "../types";
+import type { BeliefHistoryDay, Day, Unit, UnitExit } from "../types";
 import {
   BELIEF_FRESHNESS_TIME_MARGIN,
   buildBeliefFreshnessHeatmap,
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
+  unitTerminalDots,
+  UNIT_TERMINAL_SOLD,
+  UNIT_TERMINAL_SPOILED,
 } from "./beliefFreshnessTime";
 
-function sampleDay(day: number, units: Unit[]): Day {
+function sampleDay(
+  day: number,
+  units: Unit[],
+  unitExits: UnitExit[] = [],
+): Day {
   return {
     day,
     lots: [],
     units,
+    unit_exits: unitExits,
     sales_total: 10,
     waste_total: 1,
     demand: 12,
@@ -153,10 +161,51 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(el.querySelectorAll(".lot-connection").length).toBe(0);
     const path = el.querySelector(".unit-trajectory");
     expect(path?.getAttribute("d")).toBeTruthy();
-    expect(path?.getAttribute("stroke")).toBe("#d95926");
+    expect(path?.getAttribute("stroke")).toBe("#f97316");
     expect(path?.getAttribute("stroke-width")).toBe("0.75");
     expect(Number(path?.getAttribute("stroke-opacity"))).toBeCloseTo(0.4, 5);
     expect(path?.getAttribute("fill")).toBe("none");
+  });
+
+  it("draws terminal dots for sold and spoiled unit exits with legend", () => {
+    const el = host();
+    renderBeliefFreshnessTime(
+      el,
+      [
+        sampleDay(0, [{ unit_id: 1, lot_id: 1, f: 0.85 }]),
+        sampleDay(
+          1,
+          [],
+          [
+            { unit_id: 1, lot_id: 1, f: 0.72, cause: "sold" },
+            { unit_id: 2, lot_id: 1, f: 0.4, cause: "spoiled" },
+          ],
+        ),
+      ],
+      beliefHistory([0, 1]),
+      true,
+      { width: 720, height: 220 },
+    );
+    expect(el.querySelectorAll(".unit-terminal").length).toBe(2);
+    const sold = el.querySelector(".unit-terminal--sold");
+    const spoiled = el.querySelector(".unit-terminal--spoiled");
+    expect(sold?.getAttribute("fill")).toBe(UNIT_TERMINAL_SOLD);
+    expect(spoiled?.getAttribute("fill")).toBe("#c026d3");
+    expect(sold?.getAttribute("fill")).toBe("#0891b2");
+    expect(Number(sold?.getAttribute("r"))).toBeCloseTo(1.25, 5);
+    const legend = el.querySelector(".belief-freshness-truth-legend");
+    expect(legend).not.toBeNull();
+    expect(legend?.parentElement?.classList.contains("chart-root")).toBe(false);
+    expect(legend?.getAttribute("transform")).toContain("translate(48, 3)");
+  });
+
+  it("unitTerminalDots flattens history unit_exits with day index", () => {
+    const dots = unitTerminalDots([
+      sampleDay(2, [], [{ unit_id: 3, lot_id: 1, f: 0.5, cause: "sold" }]),
+    ]);
+    expect(dots).toEqual([
+      { day: 2, unit_id: 3, lot_id: 1, f: 0.5, cause: "sold" },
+    ]);
   });
 
   it("setBeliefFreshnessTimeHover toggles hover rule without throwing", () => {
@@ -211,10 +260,13 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
 
     const margin = BELIEF_FRESHNESS_TIME_MARGIN;
     const innerH = 220 - margin.top - margin.bottom;
-    const yLabels = [...el.querySelectorAll(".axis-label")];
-    const freshnessLabel = yLabels.find((n) => n.textContent === "Freshness f");
+    const freshnessLabel = el.querySelector(".axis-label-y");
     expect(freshnessLabel).not.toBeNull();
-    expect(Number(freshnessLabel?.getAttribute("y"))).toBe(innerH / 2);
-    expect(Number(freshnessLabel?.getAttribute("x"))).toBe(-40);
+    expect(freshnessLabel?.textContent).toBe("Freshness f");
+    expect(freshnessLabel?.getAttribute("transform")).toContain("rotate(-90)");
+    expect(freshnessLabel?.getAttribute("transform")).toContain(
+      String(innerH / 2),
+    );
+    expect(freshnessLabel?.getAttribute("transform")).toContain("-36");
   });
 });

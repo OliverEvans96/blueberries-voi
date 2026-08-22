@@ -21,11 +21,23 @@ export type Unit = {
   f: number;
 };
 
+export type UnitExitCause = "sold" | "spoiled";
+
+/** Unit removed from inventory on a day (truth trajectory terminal). */
+export type UnitExit = {
+  unit_id: number;
+  lot_id: number;
+  f: number;
+  cause: UnitExitCause;
+};
+
 export type Day = {
   day: number;
   lots: Lot[];
   /** Live units on this day (truth overlay); optional on wire. */
   units?: Unit[];
+  /** Units that exited inventory on this day (sold or spoiled). */
+  unit_exits?: UnitExit[];
   sales_total: number;
   waste_total: number;
   demand: number;

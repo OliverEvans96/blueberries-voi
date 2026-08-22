@@ -305,6 +305,7 @@ export class MockAdapter implements EngineAdapter {
         ...dayRecord,
         lots: dayRecord.lots.map((l) => ({ ...l })),
         units: (dayRecord.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (dayRecord.unit_exits ?? []).map((e) => ({ ...e })),
       },
       drop_oldest: false,
       belief: {
@@ -344,6 +345,7 @@ export class MockAdapter implements EngineAdapter {
         ...d,
         lots: d.lots.map((l) => ({ ...l })),
         units: (d.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       })),
       live_lots: this.state.lots.map((l) => ({ ...l })),
       live_units: this.state.units.map((u) => ({ ...u })),

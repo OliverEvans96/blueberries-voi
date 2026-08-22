@@ -433,6 +433,7 @@ export function initStudio(app: HTMLElement): () => void {
       ...d,
       lots: [],
       units: [],
+      unit_exits: [],
       f_at_receipt: null,
     }));
   }

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, UnitExit, UnitExitCause, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
@@ -389,6 +389,7 @@ impl EngineSession {
             order_qty: order,
             arrivals: arrival,
             episode_day: self.day,
+            unit_exits: out.unit_exits,
         };
         self.day += 1;
         self.seq += 1;
@@ -436,6 +437,7 @@ impl EngineSession {
                 "waste_total": d.waste_total,
                 "demand": d.demand,
                 "L": d.on_hand,
+                "unit_exits": self.unit_exits_wire(&d.unit_exits),
             },
             "live_lots": self.live_lots_value(),
             "live_units": self.live_units_value(),
@@ -476,6 +478,26 @@ impl EngineSession {
             })
             .collect();
         serde_json::Value::Array(units)
+    }
+
+    fn unit_exits_wire(&self, exits: &[UnitExit]) -> serde_json::Value {
+        let items: Vec<serde_json::Value> = exits
+            .iter()
+            .map(|exit| {
+                let ell = self.lot_index_for_unit(exit.unit_idx);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({
+                    "unit_id": exit.unit_idx,
+                    "lot_id": lot_id,
+                    "f": exit.f,
+                    "cause": match exit.cause {
+                        UnitExitCause::Spoiled => "spoiled",
+                        UnitExitCause::Sold => "sold",
+                    },
+                })
+            })
+            .collect();
+        serde_json::Value::Array(items)
     }
 
     fn live_lots_value(&self) -> serde_json::Value {
@@ -997,6 +1019,7 @@ pub struct DayDelta {
     pub order_qty: u32,
     pub arrivals: u32,
     pub episode_day: u32,
+    pub unit_exits: Vec<UnitExit>,
 }
 
 #[derive(Deserialize)]

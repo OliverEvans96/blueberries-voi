@@ -10,6 +10,7 @@ import type {
   ScenarioId,
   SimConfig,
   Unit,
+  UnitExit,
 } from "../types";
 import { DEFAULT_OBS_CHANNELS } from "../obsMask";
 
@@ -328,9 +329,10 @@ function ageAndSpoilUnits(
   units: Unit[],
   cfg: SimConfig,
   rng: () => number,
-): { units: Unit[]; waste: number } {
+): { units: Unit[]; waste: number; exits: UnitExit[] } {
   let waste = 0;
   const next: Unit[] = [];
+  const exits: UnitExit[] = [];
   for (const unit of units) {
     const decrement = drawGammaDecrement(cfg, rng);
     const fAfter = Math.max(0, unit.f - decrement);
@@ -342,17 +344,24 @@ function ageAndSpoilUnits(
       next.push({ ...unit, f: fAfter });
     } else {
       waste += 1;
+      exits.push({
+        unit_id: unit.unit_id,
+        lot_id: unit.lot_id,
+        f: unit.f,
+        cause: "spoiled",
+      });
     }
   }
-  return { units: next, waste };
+  return { units: next, waste, exits };
 }
 
 function applySalesUnits(
   units: Unit[],
   demand: number,
-): { units: Unit[]; sales: number; stockout: number } {
+): { units: Unit[]; sales: number; stockout: number; exits: UnitExit[] } {
   let remaining = demand;
   let sales = 0;
+  const exits: UnitExit[] = [];
   const ordered = [...units].sort(
     (a, b) => b.f - a.f || a.lot_id - b.lot_id || a.unit_id - b.unit_id,
   );
@@ -364,11 +373,18 @@ function applySalesUnits(
     }
     sales += 1;
     remaining -= 1;
+    exits.push({
+      unit_id: unit.unit_id,
+      lot_id: unit.lot_id,
+      f: unit.f,
+      cause: "sold",
+    });
   }
   return {
     units: units.filter((u) => keep.has(u.unit_id)),
     sales,
     stockout: remaining,
+    exits,
   };
 }
 
@@ -583,6 +599,7 @@ function runDay(
   const demand = sampleDemand(rng, cfg, day);
   const sold = applySalesUnits(stateUnits, demand);
   stateUnits = sold.units;
+  const unitExits = [...aged.exits, ...sold.exits];
 
   const stateLots = aggregateLotsFromUnits(stateUnits);
 
@@ -617,6 +634,7 @@ function runDay(
       day,
       lots: stateLots.map((l) => ({ ...l })),
       units: stateUnits.map((u) => ({ ...u })),
+      unit_exits: unitExits.map((e) => ({ ...e })),
       sales_total: sold.sales,
       waste_total: aged.waste,
       demand,
