@@ -1,5 +1,9 @@
 import * as d3 from "d3";
 import type { DemandSummary, ScheduleWire } from "../engine/types";
+import type { Day, HoverDay } from "../types";
+import { CHART_MARGIN } from "../hoverLink";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
+import { salesDemandX } from "./salesDemand";
 
 const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -161,6 +165,129 @@ export function renderPickingVariability(
     .attr("x", 0)
     .attr("y", -2)
     .text(`w ∝ f^σ (σ=${sigma.toFixed(2)})`);
+}
+
+function demandRootG(
+  container: HTMLElement,
+): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  const g = container.querySelector("svg g.chart-root");
+  return g ? d3.select(g as SVGGElement) : null;
+}
+
+/** Style-only hover for daily demand chart. */
+export function setDemandHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = demandRootG(container);
+  if (!g) return;
+
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGRectElement, Day>(".day-hit").classed(
+    "day-hit--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const days = g
+    .selectAll<SVGRectElement, Day>(".day-hit")
+    .data();
+  const innerW = Number(g.attr("data-inner-w") ?? 0);
+  if (!innerW || !days.length) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const dayNums = days.map((d) => d.day);
+  const x = salesDemandX(dayNums, innerW, hoveredDay);
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
+}
+
+/** Realized daily demand over the episode window. */
+export function renderDailyDemand(
+  container: HTMLElement,
+  history: Day[],
+  height = 140,
+): void {
+  const width = container.clientWidth > 60 ? container.clientWidth : 320;
+  const margin = { top: 14, right: CHART_MARGIN.right, bottom: 28, left: 40 };
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  container.replaceChildren();
+  if (innerW <= 0) return;
+
+  const svg = d3
+    .select(container)
+    .append("svg")
+    .attr("class", "chart-svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("width", "100%")
+    .attr("height", height)
+    .attr("aria-label", "Daily demand over episode days");
+
+  const g = svg
+    .append("g")
+    .attr("class", "chart-root")
+    .attr("data-inner-w", String(innerW))
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const days = padDaysToMinRange(history.map((d) => d.day));
+  const step = Math.max(0, innerW / days.length);
+  const x = (day: number): number => salesDemandX(days, innerW, day);
+  const yMax = d3.max(history, (d) => d.demand) ?? 1;
+  const y = d3.scaleLinear().domain([0, yMax * 1.1]).nice().range([innerH, 0]);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(history, (d) => String((d as Day).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
+
+  g.append("g")
+    .attr("class", "axis axis-y")
+    .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove());
+
+  g.append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(
+      d3
+        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+        .tickValues(pickDayTicks(days, innerW))
+        .tickSizeOuter(0),
+    )
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  const lineDemand = d3
+    .line<Day>()
+    .x((d) => x(d.day))
+    .y((d) => y(d.demand))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .datum(history)
+    .attr("class", "sd-line sd-demand daily-demand-line")
+    .attr("fill", "none")
+    .attr("d", lineDemand);
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
 }
 
 export type ProtectionCoverageRow = {

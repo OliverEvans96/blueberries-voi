@@ -22,7 +22,7 @@ export const GUIDED_PATHS: GuidedPath[] = [
   {
     id: "shrink-story",
     title: "Shrink gun story",
-    description: "P1 default rung with Observation ladder.",
+    description: "P1 default with Observation ladder.",
     scenario: "P1",
     section: "demand",
   },

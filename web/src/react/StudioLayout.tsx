@@ -4,7 +4,6 @@ const D3_CHART_IDS = [
   "chart-sales",
   "chart-stockout",
   "chart-history",
-  "chart-spoil",
   "chart-sales-demand",
   "chart-demand",
   "chart-inventory",
@@ -16,6 +15,8 @@ const D3_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
+  "chart-inventory-focus",
+  "chart-orders-waste-focus",
 ] as const;
 
 /** Static studio shell — Cockpit Grid layout v6 (T-148). */
@@ -72,11 +73,13 @@ export function StudioLayout() {
                 className="chart"
                 ariaLabel="Inventory versus base stock target"
               />
-              <div className="chart-caption impact-caption">Order quantity</div>
+              <div className="chart-caption impact-caption">
+                Order quantity &amp; spoilage
+              </div>
               <D3ChartHost
                 id="chart-controller-orders"
                 className="chart"
-                ariaLabel="Controller order quantities"
+                ariaLabel="Order quantity and spoilage over days"
               />
               <div id="impact-missed-host" data-testid="impact-missed-host" />
               <div className="chart-caption impact-caption">Sales &amp; demand</div>
@@ -86,12 +89,6 @@ export function StudioLayout() {
                 ariaLabel="Sales versus demand with stockout gap"
               />
               <div id="impact-waste-host" data-testid="impact-waste-host" />
-              <div className="chart-caption">Units spoiled</div>
-              <D3ChartHost
-                id="chart-spoil"
-                className="chart"
-                ariaLabel="Units spoiled by day"
-              />
             </div>
           </section>
 
@@ -135,6 +132,53 @@ export function StudioLayout() {
               aria-label="Belief age marginal"
               hidden
             />
+            <div className="chart-caption impact-caption">
+              Controller tradeoff
+            </div>
+            <div
+              className="belief-tradeoff-panel"
+              data-testid="belief-tradeoff-panel"
+            >
+              <div
+                className="tuning-cluster-tabs belief-tradeoff-tabs"
+                role="tablist"
+                aria-label="Tradeoff view"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  data-tradeoff-tab="curve"
+                  aria-selected="true"
+                  aria-controls="tradeoff-curve-host"
+                >
+                  Curve
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  data-tradeoff-tab="histogram"
+                  aria-selected="false"
+                  aria-controls="tradeoff-histogram-host"
+                >
+                  Histogram
+                </button>
+              </div>
+              <div
+                id="tradeoff-curve-host"
+                className="tradeoff-chart-host tradeoff-curve chart"
+                data-testid="tradeoff-curve"
+                role="img"
+                aria-label="Tradeoff curve"
+              />
+              <div
+                id="tradeoff-histogram-host"
+                className="tradeoff-chart-host tradeoff-histogram chart"
+                data-testid="tradeoff-histogram"
+                role="img"
+                aria-label="Tradeoff joint histogram"
+                hidden
+              />
+            </div>
             <div id="operator-bar-host" />
           </section>
 
@@ -226,13 +270,101 @@ export function StudioLayout() {
                   <div className="focus-plots tuning-plots">
                     <div className="focus-plot" data-plot="plot-demand" hidden>
                       <div className="chart-caption impact-caption">
-                        DOW demand · protection 3 / 3 / 4
+                        Daily demand
                       </div>
                       <div
                         id="chart-demand-host"
                         className="chart demand-chart-slot"
                         role="img"
-                        aria-label="Day of week demand profile"
+                        aria-label="Daily demand over episode days"
+                      />
+                    </div>
+                    <div
+                      className="focus-plot"
+                      data-plot="plot-picking-variability"
+                      hidden
+                    >
+                      <div className="chart-caption impact-caption">
+                        Picking variability shape
+                      </div>
+                      <div
+                        id="picking-var-chart"
+                        className="chart picking-var-chart"
+                        role="img"
+                        aria-label="Picking weight curve"
+                      />
+                    </div>
+                    <div
+                      className="focus-plot"
+                      data-plot="plot-logistics-calendar"
+                      hidden
+                    >
+                      <div className="field week-calendar-field">
+                        <span className="field-label">Delivery schedule</span>
+                        <div
+                          id="week-calendar"
+                          className="week-calendar"
+                          role="group"
+                          aria-label="Delivery and order weekdays"
+                        />
+                        <div
+                          className="week-calendar-legend"
+                          role="note"
+                          aria-label="Calendar legend"
+                        >
+                          <span className="week-calendar-legend-item">
+                            <span
+                              className="week-calendar-swatch is-delivery"
+                              aria-hidden="true"
+                            />
+                            Delivery day
+                          </span>
+                          <span className="week-calendar-legend-item">
+                            <span
+                              className="week-calendar-swatch is-order"
+                              aria-hidden="true"
+                            />
+                            Order day
+                          </span>
+                          <span className="week-calendar-legend-item">
+                            <span
+                              className="week-calendar-swatch is-both"
+                              aria-hidden="true"
+                            />
+                            Both
+                          </span>
+                        </div>
+                        <p
+                          className="meta-readonly week-calendar-hint"
+                          id="week-calendar-hint"
+                          hidden
+                        >
+                          Reset to apply schedule
+                        </p>
+                      </div>
+                    </div>
+                    <div className="focus-plot" data-plot="plot-inventory" hidden>
+                      <div className="chart-caption impact-caption">
+                        Effective inventory preview
+                      </div>
+                      <D3ChartHost
+                        id="chart-inventory-focus"
+                        className="chart"
+                        ariaLabel="Inventory versus base stock target preview"
+                      />
+                    </div>
+                    <div
+                      className="focus-plot"
+                      data-plot="plot-controller-orders"
+                      hidden
+                    >
+                      <div className="chart-caption impact-caption">
+                        Order quantity &amp; spoilage
+                      </div>
+                      <D3ChartHost
+                        id="chart-orders-waste-focus"
+                        className="chart"
+                        ariaLabel="Order quantity and spoilage preview"
                       />
                     </div>
                     <div className="focus-plot" data-plot="plot-arrival-prior" hidden>

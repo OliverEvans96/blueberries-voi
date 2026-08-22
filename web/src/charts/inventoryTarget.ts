@@ -1,9 +1,81 @@
 import * as d3 from "d3";
 import type { FlatBelief } from "../engine/types";
-import type { BeliefHistoryDay, Day, SimConfig } from "../types";
+import type { BeliefHistoryDay, Day, HoverDay, SimConfig } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { effectiveInventoryFromLots } from "../mock/generate";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
+import { salesDemandX } from "./salesDemand";
+
+function rootG(
+  container: HTMLElement,
+): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  const g = container.querySelector("svg g.chart-root");
+  return g ? d3.select(g as SVGGElement) : null;
+}
+
+/** Style-only hover for effective-inventory vs target chart. */
+export function setInventoryTargetHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = rootG(container);
+  if (!g) return;
+
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGRectElement, InventoryPoint>(".day-hit").classed(
+    "day-hit--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const days = g
+    .selectAll<SVGRectElement, InventoryPoint>(".day-hit")
+    .data();
+  const innerW = Number(g.attr("data-inner-w") ?? 0);
+  if (!innerW || !days.length) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const dayNums = days.map((d) => d.day);
+  const x = salesDemandX(dayNums, innerW, hoveredDay);
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
+}
+
+/** Style-only hover for on-hand freshness-band composition chart. */
+export function setAgeCompositionHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = rootG(container);
+  if (!g) return;
+
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGRectElement, AgeCompositionRow>(".day-hit").classed(
+    "day-hit--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const days = g
+    .selectAll<SVGRectElement, AgeCompositionRow>(".day-hit")
+    .data();
+  const innerW = Number(g.attr("data-inner-w") ?? 0);
+  if (!innerW || !days.length) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const dayNums = days.map((d) => d.day);
+  const x = salesDemandX(dayNums, innerW, hoveredDay);
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
+}
 
 export type InventoryPoint = {
   day: number;
@@ -151,12 +223,14 @@ export function renderInventoryTarget(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
+  if (innerW <= 0) return;
+
   const series = seriesOverride ?? inventorySeries(history, config);
-  if (series.length === 0) return;
 
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
@@ -164,14 +238,26 @@ export function renderInventoryTarget(
 
   const g = svg
     .append("g")
+    .attr("class", "chart-root")
+    .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = series.map((d) => d.day);
-  const step = innerW / days.length;
-  const x = (day: number): number => {
-    const i = days.indexOf(day);
-    return i * step + step / 2;
-  };
+  const days = padDaysToMinRange(series.map((d) => d.day));
+  const step = Math.max(0, innerW / days.length);
+  const x = (day: number): number => salesDemandX(days, innerW, day);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(series, (d) => String((d as InventoryPoint).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
 
   const target = config.base_stock;
   const yMax = Math.max(
@@ -234,6 +320,13 @@ export function renderInventoryTarget(
     .attr("fill", "none")
     .attr("d", lineEff);
 
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
+
   const legend = svg
     .append("g")
     .attr("class", "legend")
@@ -270,7 +363,7 @@ export function renderAgeComposition(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0 && !rowsOverride?.length) return;
+  if (innerW <= 0) return;
 
   const bands =
     bandMode === "freshness"
@@ -291,6 +384,7 @@ export function renderAgeComposition(
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
@@ -301,9 +395,26 @@ export function renderAgeComposition(
 
   const g = svg
     .append("g")
+    .attr("class", "chart-root")
+    .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = rows.map((r) => r.day);
+  const days = padDaysToMinRange(rows.map((r) => r.day));
+  const step = Math.max(0, innerW / days.length);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(rows, (d) => String((d as AgeCompositionRow).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
+
   const x = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.18);
   const yMax = d3.max(rows, (r) => r.young + r.mid + r.old) ?? 1;
   const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
@@ -359,6 +470,13 @@ export function renderAgeComposition(
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
 
   const legend = svg
     .append("g")

@@ -17,8 +17,9 @@ describe("ImpactStat", () => {
         percentCaption: "18% of cumulative demand",
       }),
     );
-    expect(
-      screen.getByText("180 units (18% of cumulative demand)"),
-    ).toBeInTheDocument();
+    const stat = screen.getByTestId("impact-stat");
+    expect(stat.textContent).toBe(
+      "Total missed sales: 180 units (18% of cumulative demand)",
+    );
   });
 });

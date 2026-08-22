@@ -22,7 +22,6 @@ const REQUIRED_CHART_IDS = [
   "chart-sales",
   "chart-stockout",
   "chart-history",
-  "chart-spoil",
   "chart-sales-demand",
   "chart-demand",
   "chart-inventory",
@@ -34,6 +33,8 @@ const REQUIRED_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
+  "chart-inventory-focus",
+  "chart-orders-waste-focus",
 ] as const;
 
 function stripComments(src: string): string {
@@ -84,15 +85,41 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(metrics!.querySelector("#chart-inventory")).not.toBeNull();
     expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-spoil")).toBeNull();
   });
 
-  it("belief column hosts history, histogram, and operator bar", () => {
+  it("belief column hosts tradeoff charts and operator bar", () => {
     const { container } = render(createElement(StudioLayout));
     const belief = container.querySelector(".cockpit-pane--belief");
+    expect(belief!.querySelector("#tradeoff-curve-host")).not.toBeNull();
+    expect(belief!.querySelector("#tradeoff-histogram-host")).not.toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
     expect(belief!.querySelector("#operator-bar-host")).not.toBeNull();
+  });
+
+  it("belief column tradeoff uses Curve/Histogram tab toggle", () => {
+    const { container } = render(createElement(StudioLayout));
+    const belief = container.querySelector(".cockpit-pane--belief");
+    const tablist = belief!.querySelector(
+      '.belief-tradeoff-tabs[role="tablist"]',
+    );
+    expect(tablist).not.toBeNull();
+    expect(tablist).toHaveAttribute("aria-label", "Tradeoff view");
+    const tabs = tablist!.querySelectorAll('[role="tab"]');
+    expect(tabs.length).toBe(2);
+    expect(tabs[0]!.textContent).toBe("Curve");
+    expect(tabs[1]!.textContent).toBe("Histogram");
+    expect(tabs[0]).toHaveAttribute("data-tradeoff-tab", "curve");
+    expect(tabs[1]).toHaveAttribute("data-tradeoff-tab", "histogram");
+  });
+
+  it("belief column shows only the curve chart by default", () => {
+    const { container } = render(createElement(StudioLayout));
+    const curve = container.querySelector("#tradeoff-curve-host");
+    const hist = container.querySelector("#tradeoff-histogram-host");
+    expect(curve?.hasAttribute("hidden")).toBe(false);
+    expect(hist?.hasAttribute("hidden")).toBe(true);
   });
 
   it("tuning dock omits Observation tab", () => {
@@ -112,6 +139,18 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(container.querySelector("#chart-demand-host")).not.toBeNull();
     expect(
       container.querySelector('.focus-plot[data-plot="plot-demand"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-picking-variability"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-logistics-calendar"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-inventory"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-controller-orders"]'),
     ).not.toBeNull();
   });
 

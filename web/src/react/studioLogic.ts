@@ -1,7 +1,6 @@
 /** Studio runtime (T-121) — logic migrated from main.ts; shell in StudioLayout.tsx. */
 import { createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
 import {
@@ -37,12 +36,13 @@ import {
 import {
   marginalYMax,
   renderMarginal,
-  renderWasteBars,
   setMarginalHover,
-  setWasteBarsHover,
-  wasteBarYMax,
 } from "../charts/marginals";
-import { renderDemandDist } from "../charts/demandDist";
+import {
+  renderDailyDemand,
+  renderPickingVariability,
+  setDemandHover,
+} from "../charts/demandDist";
 import {
   ageCompositionSeries,
   ageCompositionSeriesFromBelief,
@@ -50,9 +50,14 @@ import {
   inventorySeriesFromBelief,
   renderAgeComposition,
   renderInventoryTarget,
+  setAgeCompositionHover,
+  setInventoryTargetHover,
 } from "../charts/inventoryTarget";
-import { renderControllerOrders } from "../charts/controllerOrders";
-import { renderPnLTimeseries } from "../charts/pnlTimeseries";
+import {
+  renderOrdersWaste,
+  setOrdersWasteHover,
+} from "../charts/controllerOrders";
+import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
@@ -85,12 +90,19 @@ import {
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
-import { scheduleFromConfig } from "../calendar/weekCalendar";
+import {
+  renderWeekCalendar,
+  scheduleFromConfig,
+  toggleDeliveryDay,
+} from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
-import { resolveStoreSpoilageSlot } from "./chartSlots";
-import { ChartUnavailable } from "./ChartUnavailable";
+import {
+  nearestForecast,
+  renderTradeoffCurve,
+  renderTradeoffHistogram,
+} from "../charts/tradeoffForecast";
 import { DayInspector } from "./DayInspector";
 import { EventsPane } from "./EventsPane";
 import { ImpactStat } from "./ImpactStat";
@@ -189,6 +201,8 @@ export function initStudio(app: HTMLElement): () => void {
   };
   let bootstrapped = false;
   let tradeoffForecasts: QForecastEntry[] = [];
+  type TradeoffTab = "curve" | "histogram";
+  let tradeoffTab: TradeoffTab = "curve";
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
   let eventsRefreshing = false;
@@ -222,7 +236,6 @@ export function initStudio(app: HTMLElement): () => void {
     sales: q<HTMLElement>("#chart-sales")!,
     stockout: q<HTMLElement>("#chart-stockout")!,
     history: q<HTMLElement>("#chart-history")!,
-    spoil: q<HTMLElement>("#chart-spoil")!,
     belief: q<HTMLElement>("#chart-belief")!,
     beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
     beliefLg: q<HTMLElement>("#chart-belief-lg")!,
@@ -237,6 +250,11 @@ export function initStudio(app: HTMLElement): () => void {
     arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
     gammaPath: q<HTMLElement>("#chart-gamma-path")!,
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
+    ordersWasteFocus: q<HTMLElement>("#chart-orders-waste-focus")!,
+    inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
+    pickingVar: q<HTMLElement>("#picking-var-chart")!,
+    tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
+    tradeoffHistogram: q<HTMLElement>("#tradeoff-histogram-host")!,
     pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
     focusTitle: q<HTMLElement>("#focus-title")!,
     focusBlurb: q<HTMLElement>("#focus-blurb")!,
@@ -394,7 +412,97 @@ export function initStudio(app: HTMLElement): () => void {
     app.appendChild(dayInspectorPortal);
   }
   const dayInspectorRoot = createRoot(dayInspectorPortal);
-  let spoilageUnavailableRoot: Root | null = null;
+
+  function renderTradeoffBeliefColumn(): void {
+    if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
+    if (tradeoffTab === "curve") {
+      renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+      return;
+    }
+    renderTradeoffHistogram(
+      els.tradeoffHistogram,
+      nearestForecast(tradeoffForecasts, orderQty),
+      orderQty,
+      0.7,
+    );
+  }
+
+  function syncTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+        const selected = id === tradeoffTab;
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+      },
+    );
+    if (els.tradeoffCurve) {
+      const showCurve = tradeoffTab === "curve";
+      els.tradeoffCurve.hidden = !showCurve;
+      els.tradeoffCurve.style.display = showCurve ? "" : "none";
+    }
+    if (els.tradeoffHistogram) {
+      const showHist = tradeoffTab === "histogram";
+      els.tradeoffHistogram.hidden = !showHist;
+      els.tradeoffHistogram.style.display = showHist ? "" : "none";
+    }
+  }
+
+  function setTradeoffTab(id: TradeoffTab): void {
+    if (tradeoffTab === id) return;
+    tradeoffTab = id;
+    syncTradeoffTabs();
+    renderTradeoffBeliefColumn();
+  }
+
+  function wireTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        if (tab.dataset.bound === "1") return;
+        tab.dataset.bound = "1";
+        tab.addEventListener("click", () => {
+          const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+          if (id) setTradeoffTab(id);
+        });
+      },
+    );
+  }
+
+  function renderLogisticsCalendar(): void {
+    if (!plotVisible("plot-logistics-calendar")) return;
+    const calHost = q<HTMLElement>("#week-calendar");
+    if (!calHost) return;
+    const previewSchedule =
+      vm.config.delivery_weekdays?.length > 0
+        ? scheduleFromConfig(vm.config)
+        : schedule;
+    const sched =
+      previewSchedule ??
+      scheduleFromConfig({
+        delivery_weekdays: vm.config.delivery_weekdays ?? [0, 2, 4],
+        lead_time: vm.config.lead_time,
+      });
+    renderWeekCalendar(calHost, sched, {
+      disabled: catchingUp,
+      onToggleDelivery: (weekday) => {
+        const current = vm.config.delivery_weekdays ?? [0, 2, 4];
+        const next = toggleDeliveryDay(current, weekday);
+        if (JSON.stringify(next) !== JSON.stringify(current)) {
+          vm = projector.setConfig({ delivery_weekdays: next });
+          sectionControlsApi?.update(controlsState());
+          renderLogisticsCalendar();
+          if (vm.config_dirty && autopilot?.isRunning()) {
+            autopilot.pause();
+            syncAutopilotChrome();
+          }
+        }
+      },
+    });
+    const hint = q<HTMLElement>("#week-calendar-hint");
+    if (hint) {
+      hint.hidden = !vm.config_dirty;
+    }
+  }
 
   function renderObsControlsPane(): void {
     if (obsControlsRoot) {
@@ -440,8 +548,6 @@ export function initStudio(app: HTMLElement): () => void {
       referenceDrawerRoot.render(
         createElement<ReferenceDrawerProps>(ReferenceDrawer, {
           hideTriggers: true,
-          tradeoffForecasts,
-          orderQty,
         }),
       );
     }
@@ -483,7 +589,13 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setWasteBarsHover(els.spoil, day);
+    setOrdersWasteHover(els.controllerOrders, day);
+    setOrdersWasteHover(els.ordersWasteFocus, day);
+    setPnLHover(els.pnlEconomics, day);
+    setInventoryTargetHover(els.inventory, day);
+    setInventoryTargetHover(els.inventoryFocus, day);
+    setAgeCompositionHover(els.ageComp, day);
+    setDemandHover(els.demand, day);
   }
 
   function onHoverDay(
@@ -563,15 +675,15 @@ export function initStudio(app: HTMLElement): () => void {
     const invSeries = showTruth
       ? inventorySeries(vm.history, vm.config)
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 76, invSeries);
-    renderControllerOrders(els.controllerOrders, vm.history, 76);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 130, invSeries);
+    renderOrdersWaste(els.controllerOrders, vm.history, 130);
     const ageRows = showTruth
       ? ageCompositionSeries(vm.history)
       : ageCompositionSeriesFromBelief(vm.belief_history);
     renderAgeComposition(
       els.ageComp,
       vm.history,
-      76,
+      130,
       ageRows,
       showTruth ? "age" : "freshness",
     );
@@ -589,36 +701,14 @@ export function initStudio(app: HTMLElement): () => void {
       { height: 220 },
     );
     renderSalesDemand(els.salesDemand, vm.history, 130);
-    const spoilSlot = resolveStoreSpoilageSlot({
-      scenario: vm.config.obs_scenario,
-      channels: vm.config.obs_channels,
-      showTruth,
-    });
-    if (spoilSlot.kind === "unavailable") {
-      if (!spoilageUnavailableRoot) {
-        spoilageUnavailableRoot = createRoot(els.spoil);
-      }
-      flushSync(() => {
-        spoilageUnavailableRoot!.render(
-          createElement(ChartUnavailable, {
-            plotId: "store-spoilage",
-            caption: "Daily waste is not observed at this knowledge rung.",
-          }),
-        );
-      });
-    } else {
-      if (spoilageUnavailableRoot) {
-        flushSync(() => {
-          spoilageUnavailableRoot!.render(null);
-        });
-      }
-      renderWasteBars(els.spoil, vm.history, 86, wasteBarYMax(vm.history));
-    }
     renderCockpitBelief();
     renderMetricsPane();
     renderRunStripCharts();
+    renderTradeoffBeliefColumn();
     applyHoverStyles(hoveredDay);
   }
+
+  const FOCUS_CHART_HEIGHT = 95;
 
   function renderActiveFocusPlots(): void {
     renderRunStripCharts();
@@ -626,7 +716,13 @@ export function initStudio(app: HTMLElement): () => void {
       const invSeries = showTruth
         ? inventorySeries(vm.history, vm.config)
         : inventorySeriesFromBelief(vm.belief_history, vm.config);
-      renderInventoryTarget(els.inventory, vm.history, vm.config, 170, invSeries);
+      renderInventoryTarget(
+        els.inventoryFocus,
+        vm.history,
+        vm.config,
+        FOCUS_CHART_HEIGHT,
+        invSeries,
+      );
     }
     if (plotVisible("plot-age-comp")) {
       const ageRows = showTruth
@@ -640,14 +736,13 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    if (plotVisible("plot-demand") && schedule) {
-      renderDemandDist(
-        els.demand,
-        vm.demand_summary,
-        schedule,
-        160,
-      );
+    if (plotVisible("plot-demand")) {
+      renderDailyDemand(els.demand, vm.history, 160);
     }
+    if (plotVisible("plot-picking-variability")) {
+      renderPickingVariability(els.pickingVar, vm.config.sigma, 95);
+    }
+    renderLogisticsCalendar();
     if (plotVisible("plot-arrival-prior")) {
       renderArrivalPrior(
         els.arrivalPrior,
@@ -670,7 +765,7 @@ export function initStudio(app: HTMLElement): () => void {
       renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
     }
     if (plotVisible("plot-controller-orders")) {
-      renderControllerOrders(els.controllerOrders, vm.history, 160);
+      renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT);
     }
   }
 
@@ -725,6 +820,7 @@ export function initStudio(app: HTMLElement): () => void {
     syncTruthCaptions();
     renderStore();
     renderActiveFocusPlots();
+    renderTradeoffBeliefColumn();
     renderDayInspector();
     renderMetricsPane();
     renderEventsPane();
@@ -740,6 +836,7 @@ export function initStudio(app: HTMLElement): () => void {
   async function refreshRemotePanes(): Promise<void> {
     await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
     renderReferenceDrawer();
+    renderTradeoffBeliefColumn();
     renderMetricsPane();
   }
 
@@ -860,6 +957,7 @@ export function initStudio(app: HTMLElement): () => void {
         orderQty = snapOrder(q);
         sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
         renderReferenceDrawer();
+        renderTradeoffBeliefColumn();
         renderOperatorBar();
       }
       // Loop may pause for config_dirty after this callback returns.
@@ -887,6 +985,7 @@ export function initStudio(app: HTMLElement): () => void {
         }
         sectionControlsApi.update(controlsState());
         renderReferenceDrawer();
+        renderTradeoffBeliefColumn();
         renderOperatorBar();
         renderActiveFocusPlots();
         // Autopilot pauses when staged config is dirty (AC).
@@ -1038,6 +1137,8 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   wireTuningDockTabs();
+  wireTradeoffTabs();
+  syncTradeoffTabs();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;

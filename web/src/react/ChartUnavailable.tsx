@@ -5,7 +5,7 @@ export type ChartUnavailableProps = {
 
 /** Muted hatch placeholder when a plot slot is unavailable at the active rung. */
 export function ChartUnavailable({ plotId, caption }: ChartUnavailableProps) {
-  const label = caption || "Chart unavailable at this knowledge rung.";
+  const label = caption || "Chart unavailable.";
   return (
     <div
       className="chart chart-unavailable"

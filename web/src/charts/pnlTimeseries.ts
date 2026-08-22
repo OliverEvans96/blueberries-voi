@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import type { DayPnL, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 
 /** Running totals of daily PnL — presentation-only; ViewModel stays daily. */
 export function cumulativePnLSeries(series: DayPnL[]): DayPnL[] {
@@ -99,9 +99,39 @@ export function renderPnLTimeseries(
     .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  if (plotSeries.length === 0) return;
+  if (plotSeries.length === 0) {
+    const days = padDaysToMinRange([]);
+    const y = d3.scaleLinear().domain([0, 1]).nice().range([innerH, 0]);
+    g.append("g")
+      .attr("class", "axis axis-y")
+      .call(
+        d3
+          .axisLeft(y)
+          .ticks(4)
+          .tickFormat((v) => `$${d3.format(",.0f")(v as number)}`)
+          .tickSizeOuter(0),
+      )
+      .call((sel) => sel.select(".domain").remove());
+    g.append("g")
+      .attr("class", "axis axis-x")
+      .attr("transform", `translate(0,${innerH})`)
+      .call(
+        d3
+          .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+          .tickValues(pickDayTicks(days, innerW))
+          .tickSizeOuter(0),
+      )
+      .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+    g.append("line")
+      .attr("class", "hover-rule")
+      .attr("y1", 0)
+      .attr("y2", innerH)
+      .attr("opacity", 0)
+      .attr("pointer-events", "none");
+    return;
+  }
 
-  const days = plotSeries.map((d) => d.day);
+  const days = padDaysToMinRange(plotSeries.map((d) => d.day));
   const step = innerW / days.length;
   const xCenter = (day: number): number => {
     const i = days.indexOf(day);

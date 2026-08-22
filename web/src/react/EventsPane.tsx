@@ -91,7 +91,7 @@ function EventsTable({
           {notObserved ? (
             <tr>
               <td colSpan={2} className="events-not-observed">
-                Not observed at this rung
+                Not observed
               </td>
             </tr>
           ) : (
@@ -246,6 +246,7 @@ export function EventsPane({
             >
               {index > 0 ? <hr className="events-day-divider" /> : null}
               <header className="events-day-header">
+                <h3 className="events-day-heading">Day {day}</h3>
                 <div className="events-day-markers">
                   {deliveryDay ? (
                     <span className="events-day-marker events-day-marker--delivery">
@@ -258,7 +259,6 @@ export function EventsPane({
                     </span>
                   ) : null}
                 </div>
-                <h3 className="events-day-heading">Day {day}</h3>
               </header>
 
               <div className="events-columns" data-testid="events-columns">
@@ -284,7 +284,8 @@ export function EventsPane({
 
               {ev && obsMask.pack_date && ev.pack_date_days != null ? (
                 <p className="events-pack-date">
-                  Pack date {ev.pack_date_days} days
+                  Packed {ev.pack_date_days}{" "}
+                  {ev.pack_date_days === 1 ? "day" : "days"} before arrival
                 </p>
               ) : null}
 

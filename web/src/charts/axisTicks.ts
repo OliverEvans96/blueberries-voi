@@ -1,6 +1,27 @@
 /** Minimum horizontal space (px) a single day-index tick label needs to avoid colliding with its neighbor. */
 const MIN_TICK_SPACING_PX = 28;
 
+/** Minimum episode-day span for day-indexed chart x-axes (T-151). */
+export const MIN_CHART_DAY_SPAN = 5;
+
+/**
+ * Pad a real day list so the visible x-axis domain always spans at least
+ * `minDays` consecutive episode days. Synthetic trailing days are axis-only
+ * (no fabricated metrics).
+ */
+export function padDaysToMinRange(
+  days: readonly number[],
+  minDays = MIN_CHART_DAY_SPAN,
+): number[] {
+  if (days.length === 0) {
+    return Array.from({ length: minDays }, (_, i) => i);
+  }
+  const start = Math.min(...days);
+  const end = Math.max(...days);
+  const paddedEnd = Math.max(end, start + minDays - 1);
+  return Array.from({ length: paddedEnd - start + 1 }, (_, i) => start + i);
+}
+
 /**
  * Thin day-index ticks to fit the available width, so density scales down as
  * episode length grows instead of capping out at a fixed "every other" rule.
