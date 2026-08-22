@@ -9,6 +9,7 @@ export type ObsMask = {
   sales_by_lot: boolean;
   waste_by_lot: boolean;
   pack_date: boolean;
+  age_at_receipt: boolean;
   lot_ids_live: boolean;
   arrival_lot_ids: boolean;
   temperature_history: boolean;
@@ -23,6 +24,12 @@ export type ObsChannels = {
   delivery_history: DeliveryHistory;
 };
 
+export type TempTraceByLot = {
+  lot_id: number;
+  times_d: number[];
+  temps_c: number[];
+};
+
 export type RichObsWire = {
   day?: number;
   arrivals: number;
@@ -30,11 +37,14 @@ export type RichObsWire = {
   waste_total?: number | null;
   sales_by?: number[] | null;
   waste_by?: number[] | null;
+  arrivals_by?: number[] | null;
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
+  age_at_receipt?: number | null;
   pack_date_days?: number | null;
   temp_times_d?: number[] | null;
   temp_temps_c?: number[] | null;
+  temp_traces_by_lot?: TempTraceByLot[] | null;
 };
 
 export type MaskedObsWire = RichObsWire;
@@ -46,6 +56,7 @@ const DEFAULT_MASK: ObsMask = {
   sales_by_lot: false,
   waste_by_lot: false,
   pack_date: false,
+  age_at_receipt: false,
   lot_ids_live: false,
   arrival_lot_ids: false,
   temperature_history: false,
@@ -159,8 +170,13 @@ export function applyMask(rich: RichObsWire, mask: ObsMask): MaskedObsWire {
     waste_by: mask.waste_by_lot ? (rich.waste_by ?? null) : null,
     lot_ids: mask.lot_ids_live ? (rich.lot_ids ?? null) : null,
     arrival_lot_ids: mask.arrival_lot_ids ? (rich.arrival_lot_ids ?? null) : null,
+    arrivals_by: mask.arrival_lot_ids ? (rich.arrivals_by ?? null) : null,
     pack_date_days: mask.pack_date ? (rich.pack_date_days ?? null) : null,
+    age_at_receipt: mask.age_at_receipt ? (rich.age_at_receipt ?? null) : null,
     temp_times_d: mask.temperature_history ? (rich.temp_times_d ?? null) : null,
     temp_temps_c: mask.temperature_history ? (rich.temp_temps_c ?? null) : null,
+    temp_traces_by_lot: mask.temperature_history
+      ? (rich.temp_traces_by_lot ?? null)
+      : null,
   };
 }

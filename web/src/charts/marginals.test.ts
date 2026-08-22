@@ -59,11 +59,10 @@ describe("marginals narrow plot (T-139)", () => {
     expect(el.querySelector("svg.chart-svg")).toBeNull();
   });
 
-  it("renderWasteBars uses non-negative day-hit and bar widths when squeezed", () => {
+  it("renderWasteBars uses non-negative day-hit widths when squeezed", () => {
     const el = narrowHost(80);
     renderWasteBars(el, [sampleDay(0), sampleDay(1), sampleDay(2)]);
     assertNonNegativeWidths(el);
-    const bar = el.querySelector(".bar--spoilage");
-    expect(Number(bar?.getAttribute("width"))).toBeGreaterThanOrEqual(1);
+    expect(el.querySelector("path.waste-line")).not.toBeNull();
   });
 });

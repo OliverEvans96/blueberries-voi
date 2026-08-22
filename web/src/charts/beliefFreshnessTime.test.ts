@@ -163,7 +163,7 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(path?.getAttribute("d")).toBeTruthy();
     expect(path?.getAttribute("stroke")).toBe("#f97316");
     expect(path?.getAttribute("stroke-width")).toBe("0.75");
-    expect(Number(path?.getAttribute("stroke-opacity"))).toBeCloseTo(0.4, 5);
+    expect(path?.hasAttribute("stroke-opacity")).toBe(false);
     expect(path?.getAttribute("fill")).toBe("none");
   });
 
@@ -197,6 +197,11 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(legend).not.toBeNull();
     expect(legend?.parentElement?.classList.contains("chart-root")).toBe(false);
     expect(legend?.getAttribute("transform")).toContain("translate(48, 3)");
+    const legendDots = [...el.querySelectorAll(".belief-freshness-truth-legend circle")];
+    expect(legendDots).toHaveLength(2);
+    for (const dot of legendDots) {
+      expect(Number(dot.getAttribute("r"))).toBe(2.5);
+    }
   });
 
   it("unitTerminalDots flattens history unit_exits with day index", () => {
@@ -222,6 +227,85 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(rule?.getAttribute("opacity")).toBe("1");
     setBeliefFreshnessTimeHover(el, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
+  });
+
+  it("setBeliefFreshnessTimeHover focus-spoiled highlights all spoiled terminals", () => {
+    const el = host();
+    const history = [
+      sampleDay(0, [{ unit_id: 1, lot_id: 1, f: 0.9 }]),
+      sampleDay(1, [], [{ unit_id: 1, lot_id: 1, f: 0.2, cause: "spoiled" }]),
+      sampleDay(2, [], [{ unit_id: 2, lot_id: 1, f: 0.1, cause: "spoiled" }]),
+    ];
+    renderBeliefFreshnessTime(el, history, beliefHistory([0, 1, 2]), true, {
+      width: 720,
+      height: 220,
+    });
+
+    setBeliefFreshnessTimeHover(el, 1, "spoiled");
+    const root = el.querySelector(".chart-root");
+    expect(root?.classList.contains("focus-spoiled")).toBe(true);
+
+    const spoiled = [...el.querySelectorAll<SVGCircleElement>(".unit-terminal--spoiled")];
+    const day1 = spoiled.find((n) => n.getAttribute("data-day") === "1");
+    const day2 = spoiled.find((n) => n.getAttribute("data-day") === "2");
+    expect(day1?.classList.contains("unit-terminal--focus-primary")).toBe(true);
+    expect(day2?.classList.contains("unit-terminal--focus-secondary")).toBe(true);
+    expect(day1?.classList.contains("unit-terminal--focus-category")).toBe(true);
+    expect(day2?.classList.contains("unit-terminal--focus-category")).toBe(true);
+    expect(Number(day1?.getAttribute("r"))).toBe(2.5);
+    expect(Number(day2?.getAttribute("r"))).toBe(2.5);
+    expect(Number(day1?.getAttribute("opacity"))).toBe(1);
+    expect(Number(day2?.getAttribute("opacity"))).toBe(0.625);
+
+    setBeliefFreshnessTimeHover(el, null);
+    expect(Number(day1?.getAttribute("r"))).toBe(1.25);
+    expect(Number(day1?.getAttribute("opacity"))).toBe(1);
+  });
+
+  it("setBeliefFreshnessTimeHover focus-sales highlights all sold terminals", () => {
+    const el = host();
+    const history = [
+      sampleDay(0, [{ unit_id: 3, lot_id: 1, f: 0.8 }]),
+      sampleDay(1, [], [{ unit_id: 3, lot_id: 1, f: 0.4, cause: "sold" }]),
+      sampleDay(3, [], [{ unit_id: 4, lot_id: 1, f: 0.3, cause: "sold" }]),
+    ];
+    renderBeliefFreshnessTime(el, history, beliefHistory([0, 1, 3]), true, {
+      width: 720,
+      height: 220,
+    });
+
+    setBeliefFreshnessTimeHover(el, 1, "sales");
+    const root = el.querySelector(".chart-root");
+    expect(root?.classList.contains("focus-sales")).toBe(true);
+
+    const sold = [...el.querySelectorAll<SVGCircleElement>(".unit-terminal--sold")];
+    const day1 = sold.find((n) => n.getAttribute("data-day") === "1");
+    const day3 = sold.find((n) => n.getAttribute("data-day") === "3");
+    expect(day1?.classList.contains("unit-terminal--focus-primary")).toBe(true);
+    expect(day3?.classList.contains("unit-terminal--focus-secondary")).toBe(true);
+    expect(day1?.classList.contains("unit-terminal--focus-category")).toBe(true);
+    expect(day3?.classList.contains("unit-terminal--focus-category")).toBe(true);
+    expect(Number(day1?.getAttribute("r"))).toBe(2.5);
+    expect(Number(day3?.getAttribute("r"))).toBe(2.5);
+    expect(Number(day1?.getAttribute("opacity"))).toBe(1);
+    expect(Number(day3?.getAttribute("opacity"))).toBe(0.625);
+  });
+
+  it("setBeliefFreshnessTimeHover marks trajectories alive on hovered day only", () => {
+    const el = host();
+    const history = [
+      sampleDay(0, [{ unit_id: 1, lot_id: 1, f: 0.9 }]),
+      sampleDay(1, [{ unit_id: 1, lot_id: 1, f: 0.7 }]),
+      sampleDay(2, [], [{ unit_id: 1, lot_id: 1, f: 0.2, cause: "spoiled" }]),
+    ];
+    renderBeliefFreshnessTime(el, history, beliefHistory([0, 1, 2]), true, {
+      width: 720,
+      height: 220,
+    });
+
+    setBeliefFreshnessTimeHover(el, 1, "spoiled");
+    const traj = el.querySelector(".unit-trajectory");
+    expect(traj?.classList.contains("unit-trajectory--active")).toBe(true);
   });
 
   it("clips heatmap, places y-axis label in gutter, and renders units colorbar", () => {

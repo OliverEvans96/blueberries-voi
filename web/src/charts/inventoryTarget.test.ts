@@ -2,6 +2,7 @@
  * T-115 RED: inventory vs target and age composition from belief vs truth lots.
  * T-C2-A RED: E[f] effective inventory and freshness bands (not τ / Weibull).
  */
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
@@ -398,5 +399,20 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
       ).fCompositionSeriesFromBelief(history)[0]!.mid;
     }
     expect(mid).toBeCloseTo(7);
+  });
+});
+
+describe("renderFreshnessComposition legend (T-150 p3)", () => {
+  it("uses f-band labels on the freshness composition chart", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    inv.renderFreshnessComposition(container, [LOT_DAY], 100);
+    const labels = Array.from(
+      container.querySelectorAll(".legend-label"),
+    ).map((el) => el.textContent?.trim());
+    expect(labels).toEqual(["≥⅔ f", "[⅓,⅔) f", "<⅓ f"]);
   });
 });

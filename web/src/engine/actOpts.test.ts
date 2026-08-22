@@ -143,6 +143,8 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
     const dayBefore = before.episode_day;
 
     expect(typeof adapter.act).toBe("function");
+    // First act advances day 0→1; second act lands on a default order weekday (Tue).
+    await adapter.act!({ policy: "constant", order_qty: 16 });
     const delta = await adapter.act!({
       policy: "constant",
       order_qty: 16,
@@ -156,8 +158,8 @@ describe("MockAdapter.act returns DayDelta (T-098)", () => {
         drop_oldest: expect.any(Boolean),
       }),
     );
-    expect(delta.seq).toBe(seqBefore + 1);
-    expect(delta.episode_day).toBe(dayBefore);
+    expect(delta.seq).toBe(seqBefore + 2);
+    expect(delta.episode_day).toBe(dayBefore + 1);
     const day = delta.day as { order_qty?: number };
     expect(day.order_qty).toBe(16);
   });

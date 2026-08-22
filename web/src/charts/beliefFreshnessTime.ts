@@ -42,6 +42,11 @@ const PLOT_CLIP_ID = "belief-freshness-plot-clip";
 const COLORBAR_GRAD_ID = "belief-freshness-colorbar-grad";
 const Y_AXIS_LABEL_GUTTER_X = -36;
 const TERMINAL_DOT_RADIUS = 1.25;
+const TERMINAL_DOT_RADIUS_HIGHLIGHT = TERMINAL_DOT_RADIUS * 2;
+const LEGEND_TERMINAL_DOT_RADIUS = TERMINAL_DOT_RADIUS * 2;
+const TERMINAL_OPACITY_DIM = 0.25;
+const TERMINAL_OPACITY_HALF = 0.625;
+const TERMINAL_OPACITY_FULL = 1;
 const TRAJECTORY_STROKE_WIDTH = 0.75;
 
 type UnitPoint = Unit & { day: number };
@@ -83,15 +88,67 @@ function heatmapColorScale(maxD: number): d3.ScaleSequential<string> {
     .domain([0, maxD]);
 }
 
+/** Which marginal chart drives truth-overlay terminal emphasis. */
+export type BeliefFreshnessHoverFocus = "default" | "sales" | "spoiled";
+
+function terminalDotStyle(
+  dot: TerminalDot,
+  hoveredDay: HoverDay,
+  focus: BeliefFreshnessHoverFocus,
+): { radius: number; opacity: number } {
+  if (hoveredDay == null) {
+    return { radius: TERMINAL_DOT_RADIUS, opacity: TERMINAL_OPACITY_FULL };
+  }
+
+  if (focus === "sales") {
+    if (dot.cause === "sold") {
+      return {
+        radius: TERMINAL_DOT_RADIUS_HIGHLIGHT,
+        opacity:
+          dot.day === hoveredDay
+            ? TERMINAL_OPACITY_FULL
+            : TERMINAL_OPACITY_HALF,
+      };
+    }
+    return { radius: TERMINAL_DOT_RADIUS, opacity: TERMINAL_OPACITY_DIM };
+  }
+
+  if (focus === "spoiled") {
+    if (dot.cause === "spoiled") {
+      return {
+        radius: TERMINAL_DOT_RADIUS_HIGHLIGHT,
+        opacity:
+          dot.day === hoveredDay
+            ? TERMINAL_OPACITY_FULL
+            : TERMINAL_OPACITY_HALF,
+      };
+    }
+    return { radius: TERMINAL_DOT_RADIUS, opacity: TERMINAL_OPACITY_DIM };
+  }
+
+  if (dot.day === hoveredDay) {
+    return {
+      radius: TERMINAL_DOT_RADIUS_HIGHLIGHT,
+      opacity: TERMINAL_OPACITY_FULL,
+    };
+  }
+  return { radius: TERMINAL_DOT_RADIUS, opacity: TERMINAL_OPACITY_DIM };
+}
+
 /** Style-only hover: classes + one vertical rule. Never rebinds geometry. */
 export function setBeliefFreshnessTimeHover(
   container: HTMLElement,
   hoveredDay: HoverDay,
+  focus: BeliefFreshnessHoverFocus = "default",
 ): void {
   const g = rootG(container);
   if (!g) return;
 
-  g.classed("is-hovering", hoveredDay != null);
+  const hovering = hoveredDay != null;
+  g.classed("is-hovering", hovering);
+  g.classed("focus-default", hovering && focus === "default");
+  g.classed("focus-sales", hovering && focus === "sales");
+  g.classed("focus-spoiled", hovering && focus === "spoiled");
 
   g.selectAll<SVGRectElement, Day>(".day-col").classed(
     "day-col--active",
@@ -100,20 +157,38 @@ export function setBeliefFreshnessTimeHover(
 
   g.selectAll<SVGPathElement, [string, UnitPoint[]]>(".unit-trajectory").classed(
     "unit-trajectory--active",
-    ([unitId, points]) =>
-      points.some((p) => p.day === hoveredDay) ||
-      g
-        .selectAll<SVGCircleElement, TerminalDot>(
-          `.unit-terminal[data-unit-id="${unitId}"]`,
-        )
-        .filter((d) => d.day === hoveredDay)
-        .size() > 0,
+    ([, points]) => points.some((p) => p.day === hoveredDay),
   );
 
-  g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal").classed(
-    "unit-terminal--active",
-    (d) => d.day === hoveredDay,
-  );
+  g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal")
+    .classed("unit-terminal--active", false)
+    .classed("unit-terminal--focus-primary", false)
+    .classed("unit-terminal--focus-secondary", false)
+    .classed("unit-terminal--focus-category", false);
+
+  if (hoveredDay != null) {
+    if (focus === "sales") {
+      g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal--sold")
+        .classed("unit-terminal--focus-category", true)
+        .classed("unit-terminal--focus-primary", (d) => d.day === hoveredDay)
+        .classed("unit-terminal--focus-secondary", (d) => d.day !== hoveredDay);
+    } else if (focus === "spoiled") {
+      g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal--spoiled")
+        .classed("unit-terminal--focus-category", true)
+        .classed("unit-terminal--focus-primary", (d) => d.day === hoveredDay)
+        .classed("unit-terminal--focus-secondary", (d) => d.day !== hoveredDay);
+    } else {
+      g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal").classed(
+        "unit-terminal--active",
+        (d) => d.day === hoveredDay,
+      );
+    }
+  }
+
+  g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal").each(function (d) {
+    const { radius, opacity } = terminalDotStyle(d, hoveredDay, focus);
+    d3.select(this).attr("r", radius).attr("opacity", opacity);
+  });
 
   const rule = g.select<SVGLineElement>(".hover-rule");
   if (hoveredDay == null) {
@@ -391,7 +466,6 @@ function renderUnitTrajectories(
     .attr("fill", "none")
     .attr("stroke", TRUTH_TRAJECTORY_STROKE)
     .attr("stroke-width", TRAJECTORY_STROKE_WIDTH)
-    .attr("stroke-opacity", 0.4)
     .attr("pointer-events", "none")
     .append("title")
     .text(([unitId]) => {
@@ -470,7 +544,7 @@ function renderTruthOverlayLegend(
         .append("circle")
         .attr("cx", 6)
         .attr("cy", 6)
-        .attr("r", TERMINAL_DOT_RADIUS)
+        .attr("r", LEGEND_TERMINAL_DOT_RADIUS)
         .attr("fill", item.color)
         .attr("stroke", TERMINAL_DOT_STROKE)
         .attr("stroke-width", 0.5);

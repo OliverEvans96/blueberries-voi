@@ -45,11 +45,11 @@ function stubLocalStorage(): void {
 }
 
 describe("Autopilot section registration (T-127 shell)", () => {
-  it("STUDIO_SECTIONS has autopilot as the 8th entry (nav key 8)", () => {
-    expect(STUDIO_SECTIONS).toHaveLength(8);
-    expect(STUDIO_SECTIONS[7]).toBeDefined();
-    expect(STUDIO_SECTIONS[7]!.id).toBe("autopilot");
-    expect(STUDIO_SECTIONS[7]!.label).toMatch(/^Autopilot$/i);
+  it("STUDIO_SECTIONS has autopilot as the 7th entry (nav key 7)", () => {
+    expect(STUDIO_SECTIONS).toHaveLength(7);
+    expect(STUDIO_SECTIONS[6]).toBeDefined();
+    expect(STUDIO_SECTIONS[6]!.id).toBe("autopilot");
+    expect(STUDIO_SECTIONS[6]!.label).toMatch(/^Autopilot$/i);
   });
 
   it("SectionId union in sections.ts includes autopilot", () => {

@@ -49,11 +49,31 @@
   line-height: 1.4;
 }
 
-.demand-controls-layout {
+/* T-148: controls left (~40%), teaching charts right (~60%) */
+.tuning-dock-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: 1rem 1.25rem;
   align-items: start;
+}
+
+.tuning-dock-controls {
+  min-width: 0;
+}
+
+.tuning-dock-columns .focus-plots {
+  margin-top: 0;
+  min-width: 0;
+}
+
+.tuning-dock-controls .section-controls,
+.tuning-dock-controls .controls-block {
+  max-width: 100%;
+}
+
+.tuning-dock-controls input[type="range"] {
+  width: 100%;
+  max-width: 100%;
 }
 
 .demand-controls-sliders {
@@ -62,16 +82,17 @@
   gap: 0.5rem;
 }
 
-.demand-controls-chart {
-  min-width: 0;
-}
-
-.demand-controls-chart .chart {
+.tuning-dock-columns .demand-chart-slot,
+.tuning-dock-columns .focus-plot .chart {
   min-height: 140px;
 }
 
-@media (max-width: 720px) {
-  .demand-controls-layout {
+@media (max-width: 900px) {
+  .tuning-dock-columns {
     grid-template-columns: 1fr;
+  }
+
+  .tuning-dock-columns .focus-plots {
+    margin-top: 0.5rem;
   }
 }

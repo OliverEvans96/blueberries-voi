@@ -5,6 +5,8 @@ import type {
   Day,
   Economics,
   Lot,
+  ObsScenarioKey,
+  ScenarioId,
   SimConfig,
   Unit,
   UnitExit,

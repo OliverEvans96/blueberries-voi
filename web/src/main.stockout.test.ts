@@ -40,18 +40,11 @@ describe("Store chart-stack missed sales (T-116)", () => {
     );
   });
 
-  it("store legend includes chip-missed alongside Sales / Lots / Spoilage", () => {
-    const legend = layoutSrc.match(
-      /className="legend-inline store-legend">([\s\S]*?)<\/div>/,
-    )?.[1];
-    expect(legend, "expected store-legend").toBeDefined();
-    expect(legend).toMatch(/chip-sales/);
-    expect(legend).toMatch(/>Sales</);
-    expect(legend).toMatch(/chip-lots/);
-    expect(legend).toMatch(/chip-spoil/);
-    expect(legend).toMatch(/Spoilage/);
-    expect(legend).toMatch(/chip-missed/);
-    expect(legend).toMatch(/>Missed</);
+  it("cockpit layout v6 keeps hover hosts in visually-hidden region (T-148)", () => {
+    expect(layoutSrc).not.toMatch(/className="legend-inline store-legend"/);
+    expect(layoutSrc).toMatch(/visually-hidden/);
+    expect(layoutSrc).toMatch(/id="chart-sales"/);
+    expect(layoutSrc).toMatch(/id="chart-stockout"/);
   });
 
   it("els.stockout binds #chart-stockout", () => {
@@ -83,7 +76,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {
-    expect(layoutSrc).toMatch(/Sales vs demand/);
+    expect(layoutSrc).toMatch(/Sales &amp; demand|Sales & demand/);
     expect(layoutSrc).toMatch(/id="chart-sales-demand"/);
     expect(logicSrc).toMatch(/renderSalesDemand\(\s*els\.salesDemand/);
     expect(existsSync(SALES_DEMAND_TS)).toBe(true);

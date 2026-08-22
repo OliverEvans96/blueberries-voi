@@ -203,7 +203,7 @@ export function wasteBarYMax(history: Day[]): number {
 }
 
 /**
- * Waste (spoilage) bars over days — same x-band convention as `renderSalesDemand`
+ * Waste (spoilage) line over days — same x-band convention as `renderSalesDemand`
  * for hover-linking in the Primary chart stack.
  */
 export function renderWasteBars(
@@ -242,9 +242,9 @@ export function renderWasteBars(
   const days = history.map((d) => d.day);
   const step =
     days.length > 0 ? Math.max(0, innerW / days.length) : Math.max(0, innerW);
-  const barW = Math.max(1, step * 0.76);
+  const x = (day: number): number => salesDemandX(days, innerW, day);
   const maxV = yMax != null ? Math.max(1, yMax) : wasteBarYMax(history);
-  const y = d3.scaleLinear().domain([0, maxV]).range([innerH, 0]);
+  const y = d3.scaleLinear().domain([0, maxV]).nice().range([innerH, 0]);
 
   g.append("g")
     .attr("class", "day-hits")
@@ -258,30 +258,6 @@ export function renderWasteBars(
     .attr("y", 0)
     .attr("width", step)
     .attr("height", innerH);
-
-  g.selectAll(".bar")
-    .data(history, (d) => String((d as Day).day))
-    .join("rect")
-    .attr("class", "bar bar--spoilage")
-    .attr("data-day", (d) => d.day)
-    .attr("pointer-events", "none")
-    .attr("x", (d) => salesDemandX(days, innerW, d.day) - barW / 2)
-    .attr("width", barW)
-    .attr("y", (d) => y(d.waste_total))
-    .attr("height", (d) => innerH - y(d.waste_total))
-    .attr("rx", 2)
-    .call((sel) =>
-      sel
-        .append("title")
-        .text((d) => `Day ${d.day}: spoilage ${d.waste_total}`),
-    );
-
-  g.append("line")
-    .attr("class", "hover-rule")
-    .attr("y1", 0)
-    .attr("y2", innerH)
-    .attr("opacity", 0)
-    .attr("pointer-events", "none");
 
   g.append("g")
     .attr("class", "axis axis-y")
@@ -298,6 +274,25 @@ export function renderWasteBars(
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  const lineWaste = d3
+    .line<Day>()
+    .x((d) => x(d.day))
+    .y((d) => y(d.waste_total))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .datum(history)
+    .attr("class", "waste-line")
+    .attr("fill", "none")
+    .attr("d", lineWaste);
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
 }
 
 /** Hover styling for `renderWasteBars` (same contract as `setMarginalHover`). */

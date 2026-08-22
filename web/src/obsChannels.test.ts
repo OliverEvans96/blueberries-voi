@@ -81,10 +81,10 @@ describe("T-135 maskFromChannels", () => {
   });
 });
 
-describe("T-135 SecondaryChrome toggles", () => {
-  it("SecondaryChrome.tsx uses scan-model toggles not ladder chips", () => {
-    const src = readSrc("react/SecondaryChrome.tsx");
-    expect(src).toMatch(/obs-channels|obsChannels|onSetObsChannels/);
+describe("T-148 ObsControlsPane toggles", () => {
+  it("ObsControlsPane.tsx uses scan-model toggles not ladder chips", () => {
+    const src = readSrc("react/ObsControlsPane.tsx");
+    expect(src).toMatch(/obs-channels|onSetObsChannels/);
     expect(src).toMatch(/code_type|scan_waste|delivery_history/);
     expect(src).not.toMatch(/OBS_LADDER_IDS\.map/);
   });

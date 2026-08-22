@@ -1,4 +1,4 @@
-/* T-128: Events pane — protection-interval daily log (full column height). */
+/* T-148: Events pane — v6 column layout */
 
 .events-list {
   max-height: none;
@@ -13,12 +13,26 @@
   min-height: 100%;
 }
 
-.events-day-card {
-  padding: 0.5rem 0;
+.events-pane[data-refreshing="true"] .events-refresh-indicator {
+  opacity: 1;
 }
 
-.events-day-card--today .events-day-heading {
-  font-weight: 700;
+.events-refresh-indicator {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.events-empty-note {
+  margin: 0.25rem 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.events-day-card {
+  padding: 0.5rem 0;
 }
 
 .events-day-divider {
@@ -32,55 +46,65 @@
   opacity: 0.75;
 }
 
-.events-line {
+.events-day-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.events-day-markers {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: baseline;
-  margin: 0.2rem 0;
-  font-size: 0.9rem;
-}
-
-.events-line-label {
+  flex-direction: column;
+  gap: 0.2rem;
   min-width: 5.5rem;
+}
+
+.events-day-marker {
+  font-size: 0.68rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
 }
 
-.events-line-value {
-  font-variant-numeric: tabular-nums;
+.events-day-marker--delivery {
+  color: var(--accent, #2563eb);
 }
 
-.events-line-detail {
-  font-size: 0.85em;
-  opacity: 0.85;
+.events-day-marker--order {
+  color: #c2410c;
 }
 
-.events-breakdown {
-  font-size: 0.9em;
-  opacity: 0.9;
-}
-
-.events-lots {
-  font-size: 0.9em;
+.events-day-heading {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
 .events-temp-history {
-  margin: 0.35rem 0 0.15rem;
+  margin: 0.5rem 0 0.15rem;
 }
 
-.events-temp-caption {
+.events-temp-heading {
+  margin: 0 0 0.25rem;
   font-size: 0.75rem;
-  opacity: 0.75;
-  font-style: italic;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .events-temp-chart-host {
-  width: 120px;
-  height: 36px;
+  width: 100%;
+  min-height: 72px;
 }
 
 .events-temp-chart-host svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.delivery-temp-legend-label {
+  font-size: 9px;
+  fill: var(--muted, #666);
 }

@@ -550,6 +550,7 @@
 
 .unit-trajectory {
   pointer-events: none;
+  stroke-opacity: 0.4;
 }
 
 .is-hovering .unit-trajectory {
@@ -557,19 +558,11 @@
 }
 
 .is-hovering .unit-trajectory.unit-trajectory--active {
-  stroke-opacity: 0.75;
+  stroke-opacity: 0.52;
 }
 
 .unit-terminal {
   pointer-events: none;
-}
-
-.is-hovering .unit-terminal {
-  opacity: 0.25;
-}
-
-.is-hovering .unit-terminal.unit-terminal--active {
-  opacity: 1;
 }
 
 .belief-freshness-truth-legend .legend-label {
@@ -1319,6 +1312,12 @@ input[type="number"] {
   stroke-width: 2;
 }
 
+.waste-line {
+  fill: none;
+  stroke: var(--spoilage, #c46a3a);
+  stroke-width: 2;
+}
+
 .order-dot {
   fill: var(--accent);
 }
@@ -1391,25 +1390,49 @@ input[type="number"] {
   font-variant-numeric: tabular-nums;
 }
 
-/* T-140 week calendar — delivery / order weekday widget */
+/* T-140 week calendar — delivery / order weekday widget (T-148 Sunday-first) */
 .week-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.week-calendar-header {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 4px;
+  gap: 4px;
+}
+
+.week-calendar-header-cell {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+}
+
+.week-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .week-calendar-day {
   border: 1px solid var(--paper-edge, #d1d5db);
-  border-radius: 6px;
-  padding: 6px 4px;
+  border-radius: 3px;
+  aspect-ratio: 1;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
   font: inherit;
-  font-size: 0.72rem;
-  font-weight: 600;
-  background: var(--paper, #fff);
+  font-size: 0;
+  background: transparent;
   color: var(--ink-soft, #374151);
   cursor: pointer;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .week-calendar-day:disabled {
@@ -1418,26 +1441,70 @@ input[type="number"] {
 }
 
 .week-calendar-day.is-delivery {
-  background: color-mix(in srgb, var(--accent, #2563eb) 22%, var(--paper, #fff));
-  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
 }
 
 .week-calendar-day.is-order {
-  border-style: dashed;
-  border-width: 2px;
-  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, #ea580c 22%, transparent);
+  border-color: color-mix(in srgb, #ea580c 45%, transparent);
 }
 
 .week-calendar-day.is-both {
-  background: color-mix(in srgb, var(--accent, #2563eb) 35%, var(--paper, #fff));
-  border-style: solid;
-  border-width: 2px;
-  border-color: var(--accent, #2563eb);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent),
+      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent) 4px,
+      color-mix(in srgb, #ea580c 22%, transparent) 4px,
+      color-mix(in srgb, #ea580c 22%, transparent) 8px
+    );
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
 }
 
 .week-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
   margin-top: 6px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  color: var(--ink-soft, #374151);
+}
+
+.week-calendar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.week-calendar-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--paper-edge, #d1d5db);
+  flex-shrink: 0;
+}
+
+.week-calendar-swatch.is-delivery {
+  background: color-mix(in srgb, var(--accent, #2563eb) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+}
+
+.week-calendar-swatch.is-order {
+  background: color-mix(in srgb, #ea580c 22%, transparent);
+  border-color: color-mix(in srgb, #ea580c 45%, transparent);
+}
+
+.week-calendar-swatch.is-both {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent),
+      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent) 3px,
+      color-mix(in srgb, #ea580c 22%, transparent) 3px,
+      color-mix(in srgb, #ea580c 22%, transparent) 6px
+    );
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
 }
 
 .week-calendar-hint {

@@ -229,15 +229,15 @@ describe("applyEngineStatusChip mutates a node-like target (no jsdom)", () => {
 });
 
 describe("studio wires the chip in the header and follows bootstrap init", () => {
-  it("StudioLayout hero includes #engine-status starting as Loading", () => {
+  it("StudioLayout title-bar includes #engine-status starting as Loading", () => {
     const src = readFileSync(LAYOUT_TS, "utf8");
     expect(src).toMatch(/id="engine-status"/);
     expect(src).toMatch(/data-status="loading"/);
     expect(src).toMatch(/engine-status-label">Loading</);
     expect(src).toMatch(/engine-status-dot/);
-    const hero = src.match(/<header className="hero">[\s\S]*?<\/header>/);
-    expect(hero, "expected hero header markup").toBeTruthy();
-    expect(hero![0]).toMatch(/id="engine-status"/);
+    const header = src.match(/<header className="title-bar">[\s\S]*?<\/header>/);
+    expect(header, "expected title-bar header markup").toBeTruthy();
+    expect(header![0]).toMatch(/id="engine-status"/);
   });
 
   it("bootstrap maps successful init to ready and failed init to error", () => {

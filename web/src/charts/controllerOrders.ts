@@ -1,11 +1,20 @@
 import * as d3 from "d3";
+import type { HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { pickDayTicks } from "./axisTicks";
+import { salesDemandX } from "./salesDemand";
 
 export type ControllerOrderPoint = {
   day: number;
   order_qty: number;
 };
+
+function rootG(
+  container: HTMLElement,
+): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  const g = container.querySelector("svg g.chart-root");
+  return g ? d3.select(g as SVGGElement) : null;
+}
 
 /** Map day history into an order-qty series (mirrors inventorySeries). */
 export function controllerOrdersSeries(
@@ -14,7 +23,39 @@ export function controllerOrdersSeries(
   return history.map((d) => ({ day: d.day, order_qty: d.order_qty }));
 }
 
-/** Order quantity over episode days — bar chart. */
+/** Style-only hover: vertical rule + day highlight. */
+export function setControllerOrdersHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = rootG(container);
+  if (!g) return;
+
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGRectElement, ControllerOrderPoint>(".day-hit").classed(
+    "day-hit--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const days = g
+    .selectAll<SVGRectElement, ControllerOrderPoint>(".day-hit")
+    .data();
+  const innerW = Number(g.attr("data-inner-w") ?? 0);
+  if (!innerW || !days.length) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const dayNums = days.map((d) => d.day);
+  const x = salesDemandX(dayNums, innerW, hoveredDay);
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
+}
+
+/** Order quantity over episode days — line chart (T-148). */
 export function renderControllerOrders(
   container: HTMLElement,
   history: ReadonlyArray<{ day: number; order_qty: number }>,
@@ -37,6 +78,7 @@ export function renderControllerOrders(
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)
@@ -44,17 +86,29 @@ export function renderControllerOrders(
 
   const g = svg
     .append("g")
+    .attr("class", "chart-root")
+    .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const days = series.map((d) => d.day);
-  const x = d3
-    .scaleBand<number>()
-    .domain(days)
-    .range([0, innerW])
-    .padding(0.2);
+  const step = Math.max(0, innerW / days.length);
+  const x = (day: number): number => salesDemandX(days, innerW, day);
 
   const yMax = Math.max(d3.max(series, (d) => d.order_qty) ?? 0, 1);
   const y = d3.scaleLinear().domain([0, yMax * 1.08]).nice().range([innerH, 0]);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(series, (d) => String((d as ControllerOrderPoint).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (_, i) => i * step)
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
 
   g.append("g")
     .attr("class", "axis axis-y")
@@ -66,21 +120,47 @@ export function renderControllerOrders(
     .attr("transform", `translate(0,${innerH})`)
     .call(
       d3
-        .axisBottom(x)
+        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
         .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
-  g.selectAll<SVGRectElement, ControllerOrderPoint>(".order-bar")
-    .data(series)
-    .join("rect")
-    .attr("class", "order-bar")
-    .attr("x", (d) => x(d.day) ?? 0)
-    .attr("width", x.bandwidth())
-    .attr("y", (d) => y(d.order_qty))
-    .attr("height", (d) => Math.max(0, innerH - y(d.order_qty)))
-    .attr("fill", "var(--color-order-bar, #4a7c9e)")
-    .append("title")
-    .text((d) => `Day ${d.day}: order ${d.order_qty}`);
+  const lineOrders = d3
+    .line<ControllerOrderPoint>()
+    .x((d) => x(d.day))
+    .y((d) => y(d.order_qty))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .datum(series)
+    .attr("class", "order-line")
+    .attr("fill", "none")
+    .attr("d", lineOrders);
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
+
+  const legend = svg
+    .append("g")
+    .attr("class", "legend")
+    .attr("transform", `translate(${margin.left + 4}, 10)`);
+  const item = legend.append("g");
+  item
+    .append("line")
+    .attr("class", "order-line")
+    .attr("x1", 0)
+    .attr("x2", 14)
+    .attr("y1", 0)
+    .attr("y2", 0);
+  item
+    .append("text")
+    .attr("class", "legend-label")
+    .attr("x", 18)
+    .attr("y", 3)
+    .text("Orders");
 }

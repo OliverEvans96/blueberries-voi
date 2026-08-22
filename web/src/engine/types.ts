@@ -149,6 +149,12 @@ export type TradeoffForecastWire = {
 
 export type TradeoffForecastResult = TradeoffForecastWire;
 
+export type TempTraceByLotWire = {
+  lot_id: number;
+  times_d: number[];
+  temps_c: number[];
+};
+
 export type EventDayWire = {
   day: number;
   arrivals: number;
@@ -156,8 +162,14 @@ export type EventDayWire = {
   waste_total: number | null;
   sales_by: number[] | null;
   waste_by: number[] | null;
+  arrivals_by: number[] | null;
   lot_ids: number[] | null;
+  arrival_lot_ids: number[] | null;
   pack_date_days: number | null;
+  age_at_receipt: number | null;
+  temp_times_d: number[] | null;
+  temp_temps_c: number[] | null;
+  temp_traces_by_lot: TempTraceByLotWire[] | null;
 };
 
 export type EventsResult = {
