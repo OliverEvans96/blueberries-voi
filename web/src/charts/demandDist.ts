@@ -2,7 +2,7 @@ import * as d3 from "d3";
 import type { DemandSummary, ScheduleWire } from "../engine/types";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 import { salesDemandX } from "./salesDemand";
 
 const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -218,7 +218,7 @@ export function renderDailyDemand(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0 || innerW <= 0) return;
+  if (innerW <= 0) return;
 
   const svg = d3
     .select(container)
@@ -235,7 +235,7 @@ export function renderDailyDemand(
     .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = history.map((d) => d.day);
+  const days = padDaysToMinRange(history.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
   const yMax = d3.max(history, (d) => d.demand) ?? 1;
