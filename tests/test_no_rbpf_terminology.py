@@ -18,11 +18,15 @@ _SKIP_DIR_NAMES = frozenset(
         "notebooks",
         ".pytest_cache",
         ".mypy_cache",
+        ".ruff_cache",
         "dist",
         "build",
         ".eggs",
+        "target",
+        "src/blueberries_voi.egg-info",
     }
 )
+_SKIP_FILE_NAMES = frozenset({".testmondata", ".testmondata-wal", ".testmondata-shm"})
 
 
 def _find_banned_paths(root: Path, banned: str) -> list[str]:
@@ -30,13 +34,15 @@ def _find_banned_paths(root: Path, banned: str) -> list[str]:
     banned_lower = banned.lower()
     hits: list[str] = []
     for path in root.rglob("*"):
+        if path.name in _SKIP_FILE_NAMES:
+            continue
         if not path.is_file():
             continue
         if any(part in _SKIP_DIR_NAMES for part in path.parts):
             continue
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
+            text = path.read_text(encoding="utf-8", errors="strict")
+        except (OSError, UnicodeDecodeError):
             continue
         for line_no, line in enumerate(text.splitlines(), start=1):
             if banned_lower in line.lower():
