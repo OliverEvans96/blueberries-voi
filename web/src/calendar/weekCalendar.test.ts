@@ -18,14 +18,18 @@ const SCHEDULE: ScheduleWire = {
 };
 
 describe("weekCalendar (T-148)", () => {
-  it("renders Su-first header row before day buttons", () => {
+  it("renders day buttons in Sunday-first order with labels inside cells", () => {
     const host = document.createElement("div");
     renderWeekCalendar(host, SCHEDULE, { onToggleDelivery: () => undefined });
 
-    const header = host.querySelector(".week-calendar-header");
-    expect(header).not.toBeNull();
-    const labels = [...header!.querySelectorAll(".week-calendar-header-cell")].map(
-      (el) => el.textContent,
+    expect(host.querySelector(".week-calendar-header")).toBeNull();
+    const grid = host.querySelector(".week-calendar-grid");
+    const weekdays = [...grid!.querySelectorAll(".week-calendar-day")].map((el) =>
+      Number(el.dataset.weekday),
+    );
+    expect(weekdays).toEqual([...SUNDAY_FIRST_MONDAY0_ORDER]);
+    const labels = [...grid!.querySelectorAll(".week-calendar-day")].map((el) =>
+      el.textContent?.trim(),
     );
     expect(labels).toEqual([...WEEKDAY_HEADERS_SUNDAY_FIRST]);
   });
@@ -40,12 +44,12 @@ describe("weekCalendar (T-148)", () => {
     expect(weekdays).toEqual([...SUNDAY_FIRST_MONDAY0_ORDER]);
   });
 
-  it("keeps weekday names in header only, not inside day cells", () => {
+  it("keeps weekday letters inside day buttons with accessible aria-labels", () => {
     const host = document.createElement("div");
     renderWeekCalendar(host, SCHEDULE, { onToggleDelivery: () => undefined });
     const buttons = host.querySelectorAll(".week-calendar-day");
     for (const btn of buttons) {
-      expect(btn.textContent?.trim()).toBe("");
+      expect(btn.textContent?.trim().length).toBeGreaterThan(0);
       expect(btn.getAttribute("aria-label")).toBeTruthy();
     }
   });

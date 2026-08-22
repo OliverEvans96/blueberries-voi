@@ -128,7 +128,8 @@ describe("Autopilot chart wiring (T-099)", () => {
   it("react/studioLogic.ts mounts controller orders in Run today strip (T-127)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
-    expect(logic).toMatch(/controllerOrders|renderControllerOrders/);
+    expect(logic).toMatch(/renderOrdersWaste|ordersWasteFocus/);
     expect(layout).toMatch(/id="chart-controller-orders"/);
+    expect(layout).toMatch(/id="chart-orders-waste-focus"/);
   });
 });
