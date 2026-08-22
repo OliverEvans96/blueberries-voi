@@ -1312,6 +1312,12 @@ input[type="number"] {
   stroke-width: 2;
 }
 
+.waste-line {
+  fill: none;
+  stroke: var(--spoilage, #c46a3a);
+  stroke-width: 2;
+}
+
 .order-dot {
   fill: var(--accent);
 }

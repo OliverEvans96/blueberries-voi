@@ -4,7 +4,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
-import { channelsCacheKey, channelsForPreset, resolveDisplayObsScenario } from "../obsMask";
+import {
+  applyMask,
+  channelsCacheKey,
+  channelsForPreset,
+  maskFor,
+  maskFromChannels,
+  resolveDisplayObsScenario,
+  type RichObsWire,
+} from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -180,6 +188,7 @@ export function initStudio(app: HTMLElement): () => void {
   let tradeoffForecasts: QForecastEntry[] = [];
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
+  let eventsRefreshing = false;
   let lastEventsKey = "";
 
   function controllerToActOpts(): ActOpts {
@@ -261,19 +270,24 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function fetchEvents(): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
-    const sinceDay = Math.max(1, vm.episode_day - 4);
+    const sinceDay = Math.max(1, vm.episode_day - 5);
     const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
     if (key === lastEventsKey) return;
     lastEventsKey = key;
-    eventsLoading = true;
+    if (eventDays.length === 0) {
+      eventsLoading = true;
+    } else {
+      eventsRefreshing = true;
+    }
     renderEventsPane();
     try {
       const result = await adapter.events({ since_day: sinceDay });
       eventDays = result.days ?? [];
     } catch {
-      eventDays = [];
+      if (eventDays.length === 0) eventDays = [];
     } finally {
       eventsLoading = false;
+      eventsRefreshing = false;
       renderEventsPane();
     }
   }
@@ -306,6 +320,13 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  function maskedEventDays(): ReturnType<typeof applyMask>[] {
+    const mask = vm.config.obs_channels
+      ? maskFromChannels(vm.config.obs_channels)
+      : maskFor(vm.config.obs_scenario);
+    return eventDays.map((day) => applyMask(day as RichObsWire, mask));
+  }
+
   function renderEventsPane(): void {
     if (!eventsPaneRoot) return;
     eventsPaneRoot.render(
@@ -315,8 +336,9 @@ export function initStudio(app: HTMLElement): () => void {
           config: vm.config,
         },
         schedule,
-        events: eventDays,
+        events: maskedEventDays(),
         loading: eventsLoading,
+        refreshing: eventsRefreshing,
       }),
     );
   }
