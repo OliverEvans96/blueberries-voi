@@ -57,6 +57,7 @@ outputs/
 # Web mockup (Vite)
 web/node_modules/
 web/dist/
+web/dist-lib/
 web/src/wasm/
 web/test-results/
 web/playwright-report/

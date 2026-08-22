@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { initStudio } from "./studioLogic";
 
-type StudioProviderProps = {
+export type StudioProviderProps = {
   children: React.ReactNode;
   /** Embed mount root; defaults to `#app` for standalone dev. */
   containerRef?: RefObject<HTMLElement | null>;
