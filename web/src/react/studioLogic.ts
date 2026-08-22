@@ -201,6 +201,8 @@ export function initStudio(app: HTMLElement): () => void {
   };
   let bootstrapped = false;
   let tradeoffForecasts: QForecastEntry[] = [];
+  type TradeoffTab = "curve" | "histogram";
+  let tradeoffTab: TradeoffTab = "curve";
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
   let eventsRefreshing = false;
@@ -413,12 +415,56 @@ export function initStudio(app: HTMLElement): () => void {
 
   function renderTradeoffBeliefColumn(): void {
     if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
-    renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+    if (tradeoffTab === "curve") {
+      renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+      return;
+    }
     renderTradeoffHistogram(
       els.tradeoffHistogram,
       nearestForecast(tradeoffForecasts, orderQty),
       orderQty,
       0.7,
+    );
+  }
+
+  function syncTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+        const selected = id === tradeoffTab;
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+      },
+    );
+    if (els.tradeoffCurve) {
+      const showCurve = tradeoffTab === "curve";
+      els.tradeoffCurve.hidden = !showCurve;
+      els.tradeoffCurve.style.display = showCurve ? "" : "none";
+    }
+    if (els.tradeoffHistogram) {
+      const showHist = tradeoffTab === "histogram";
+      els.tradeoffHistogram.hidden = !showHist;
+      els.tradeoffHistogram.style.display = showHist ? "" : "none";
+    }
+  }
+
+  function setTradeoffTab(id: TradeoffTab): void {
+    if (tradeoffTab === id) return;
+    tradeoffTab = id;
+    syncTradeoffTabs();
+    renderTradeoffBeliefColumn();
+  }
+
+  function wireTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        if (tab.dataset.bound === "1") return;
+        tab.dataset.bound = "1";
+        tab.addEventListener("click", () => {
+          const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+          if (id) setTradeoffTab(id);
+        });
+      },
     );
   }
 
@@ -1091,6 +1137,8 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   wireTuningDockTabs();
+  wireTradeoffTabs();
+  syncTradeoffTabs();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;

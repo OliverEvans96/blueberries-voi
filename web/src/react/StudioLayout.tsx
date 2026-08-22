@@ -136,19 +136,49 @@ export function StudioLayout() {
               Controller tradeoff
             </div>
             <div
-              id="tradeoff-curve-host"
-              className="tradeoff-chart-host tradeoff-curve chart"
-              data-testid="tradeoff-curve"
-              role="img"
-              aria-label="Tradeoff curve"
-            />
-            <div
-              id="tradeoff-histogram-host"
-              className="tradeoff-chart-host tradeoff-histogram chart"
-              data-testid="tradeoff-histogram"
-              role="img"
-              aria-label="Tradeoff joint histogram"
-            />
+              className="belief-tradeoff-panel"
+              data-testid="belief-tradeoff-panel"
+            >
+              <div
+                className="tuning-cluster-tabs belief-tradeoff-tabs"
+                role="tablist"
+                aria-label="Tradeoff view"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  data-tradeoff-tab="curve"
+                  aria-selected="true"
+                  aria-controls="tradeoff-curve-host"
+                >
+                  Curve
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  data-tradeoff-tab="histogram"
+                  aria-selected="false"
+                  aria-controls="tradeoff-histogram-host"
+                >
+                  Histogram
+                </button>
+              </div>
+              <div
+                id="tradeoff-curve-host"
+                className="tradeoff-chart-host tradeoff-curve chart"
+                data-testid="tradeoff-curve"
+                role="img"
+                aria-label="Tradeoff curve"
+              />
+              <div
+                id="tradeoff-histogram-host"
+                className="tradeoff-chart-host tradeoff-histogram chart"
+                data-testid="tradeoff-histogram"
+                role="img"
+                aria-label="Tradeoff joint histogram"
+                hidden
+              />
+            </div>
             <div id="operator-bar-host" />
           </section>
 
