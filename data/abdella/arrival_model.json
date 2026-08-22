@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "mu_T": 2.7,
+  "sigma_T": 3.6,
+  "temp_floor_c": 0.0,
+  "sigma_pos": 0.08,
+  "q10": 3.0,
+  "T_ref": 0.0,
+  "gamma_shape": 2.0,
+  "gamma_scale": 0.03571428571428571,
+  "reference_life_days": 14.0,
+  "quadrature": {
+    "nodes": [
+      0.01985507, 0.10166676, 0.2372339, 0.40828268,
+      0.59171732, 0.7627661, 0.89833324, 0.98014493
+    ],
+    "weights": [
+      0.05061427, 0.11119051, 0.15685332, 0.18134189,
+      0.18134189, 0.15685332, 0.11119051, 0.05061427
+    ]
+  },
+  "corridors": {
+    "short_haul": {
+      "d_min": 1.5,
+      "delay_shape": 2.0,
+      "delay_scale": 0.25,
+      "mix_weight": 0.15
+    },
+    "long_haul": {
+      "d_min": 3.5,
+      "delay_shape": 4.0,
+      "delay_scale": 0.5,
+      "mix_weight": 0.85
+    },
+    "abdella_all": {
+      "d_min": 1.9,
+      "delay_shape": 3.0,
+      "delay_scale": 0.30,
+      "mix_weight": 1.0
+    }
+  },
+  "provenance": {
+    "source": "Hand-authored assumed families (ADR 0144 / T-150). Not MLE-fitted.",
+    "window": "Refrigerated leg only: from first lot-mean T < 10 C through published Table 2 duration.",
+    "n_shipments": 6,
+    "notes": "sigma_pos calibrated excluding suspect S4 position probes. Arrival freshness is an upper bound (field heat excluded)."
+  }
+}
