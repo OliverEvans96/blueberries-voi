@@ -92,7 +92,7 @@ describe("EventsPane (T-148 v6)", () => {
         events: [P0_DAY],
       }),
     );
-    expect(screen.getByText(/not observed at this rung/i)).toBeInTheDocument();
+    expect(screen.getByText(/^not observed$/i)).toBeInTheDocument();
   });
 
   it("F2 shows lot rows in sold and spoiled columns", () => {
@@ -112,7 +112,7 @@ describe("EventsPane (T-148 v6)", () => {
     );
     expect(screen.getAllByText("Lot 101").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Lot 102").length).toBeGreaterThan(0);
-    expect(screen.getByText(/pack date 3 days/i)).toBeInTheDocument();
+    expect(screen.getByText(/packed 3 days before arrival/i)).toBeInTheDocument();
   });
 
   it("delivery lot rows sum to delivery total", () => {
@@ -148,8 +148,8 @@ describe("EventsPane (T-148 v6)", () => {
     expect(lotQty.reduce((s, n) => s + n, 0)).toBe(16);
   });
 
-  it("shows delivery and order markers on the left", () => {
-    render(
+  it("shows delivery and order marker chips to the right of the day heading", () => {
+    const { container } = render(
       createElement(EventsPane, {
         vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
@@ -158,6 +158,15 @@ describe("EventsPane (T-148 v6)", () => {
     );
     expect(screen.getByText("delivery day")).toBeInTheDocument();
     expect(screen.queryByText("order day")).toBeNull();
+
+    const header = container.querySelector(".events-day-header");
+    const heading = header?.querySelector(".events-day-heading");
+    const markers = header?.querySelector(".events-day-markers");
+    expect(heading).not.toBeNull();
+    expect(markers).not.toBeNull();
+    expect(
+      heading!.compareDocumentPosition(markers!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows day number only in heading", () => {

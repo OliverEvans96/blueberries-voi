@@ -26,7 +26,7 @@ describe("ChartUnavailable (T-124 AC-avail spoilage placeholder)", () => {
     render(
       createElement(ChartUnavailable, {
         plotId: "store-spoilage",
-        caption: "Daily waste is not observed at this knowledge rung.",
+        caption: "Daily waste is not observed.",
       }),
     );
     const host = screen.getByRole("img", {
@@ -44,7 +44,7 @@ describe("ChartUnavailable (T-124 AC-avail spoilage placeholder)", () => {
     const { container } = render(
       createElement(ChartUnavailable, {
         plotId: "store-spoilage",
-        caption: "Daily waste is not observed at this knowledge rung.",
+        caption: "Daily waste is not observed.",
       }),
     );
     expect(container.querySelector("svg.d3-series")).toBeNull();
@@ -89,7 +89,7 @@ describe("ChartUnavailable hatch containment (T-126 AC-hatch)", () => {
     render(
       createElement(ChartUnavailable, {
         plotId: "store-spoilage",
-        caption: "Daily waste is not observed at this knowledge rung.",
+        caption: "Daily waste is not observed.",
       }),
     );
     const host = screen.getByRole("img", {
@@ -97,7 +97,7 @@ describe("ChartUnavailable hatch containment (T-126 AC-hatch)", () => {
     });
     expect(host).toHaveAttribute("data-plot-id", "store-spoilage");
     expect(host).toHaveAttribute("data-unavailable", "true");
-    expect(host).toHaveAttribute("aria-label", "Daily waste is not observed at this knowledge rung.");
+    expect(host).toHaveAttribute("aria-label", "Daily waste is not observed.");
     const hatch = host.querySelector("[data-unavailable-hatch]");
     expect(hatch).not.toBeNull();
     expect(hatch).toHaveAttribute("aria-hidden", "true");
