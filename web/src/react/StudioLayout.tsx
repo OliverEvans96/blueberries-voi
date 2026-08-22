@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { D3ChartHost } from "./D3ChartHost";
 import { ReferenceDrawer } from "./ReferenceDrawer";
 
@@ -21,14 +22,17 @@ const D3_CHART_IDS = [
 
 /** Static studio shell — Cockpit Grid layout v5 (T-128). */
 export function StudioLayout() {
+  const portalRef = useRef<HTMLDivElement>(null);
+
   return (
+    <div className="bv-studio">
     <div className="shell studio">
       <header className="hero">
         <div className="hero-top">
           <div className="brand">Cold Case Ledger</div>
           <div className="hero-tools">
             <div id="guided-paths-host" className="guided-paths-host" />
-            <ReferenceDrawer />
+            <ReferenceDrawer portalContainerRef={portalRef} />
             <span
               id="engine-status"
               className="engine-status"
@@ -328,6 +332,13 @@ export function StudioLayout() {
       <span id="d3-chart-id-registry" hidden>
         {D3_CHART_IDS.join(",")}
       </span>
+    </div>
+    <div
+      ref={portalRef}
+      className="bv-studio-portal-root"
+      data-studio-portal=""
+      aria-hidden="true"
+    />
     </div>
   );
 }

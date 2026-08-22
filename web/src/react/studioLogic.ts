@@ -84,19 +84,25 @@ import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
 import { OperatorBar } from "./OperatorBar";
 
-/** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
+/** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
   if (app.dataset.studioInit === "1") {
     return () => undefined;
   }
   app.dataset.studioInit = "1";
   if (!app.querySelector(".shell.studio")) {
-    throw new Error("StudioLayout shell missing under #app");
+    throw new Error("StudioLayout shell missing under studio mount root");
   }
+
+  const q = <T extends Element>(selector: string): T | null =>
+    app.querySelector(selector) as T | null;
+  const qa = <T extends Element>(selector: string): NodeListOf<T> =>
+    app.querySelectorAll(selector);
 
   const studioEnv = import.meta.env as ImportMetaEnv & StudioEnv;
   const adapterKind = resolveStudioAdapterKind(studioEnv);
-  const footerEl = document.querySelector("#studio-footer");
+  const studioErrorEl = q<HTMLElement>("#studio-error");
+  const footerEl = q<HTMLElement>("#studio-footer");
   if (footerEl) {
     footerEl.textContent = studioFooterCopy(adapterKind);
     footerEl.setAttribute("data-engine-adapter", adapterKind);
@@ -109,7 +115,7 @@ export function initStudio(app: HTMLElement): () => void {
     env: studioEnv,
   });
   const engineStatus = createEngineStatusTracker("loading");
-  const engineStatusEl = document.querySelector<HTMLElement>("#engine-status");
+  const engineStatusEl = q<HTMLElement>("#engine-status");
   if (engineStatusEl) {
     engineStatus.subscribe((kind) => {
       applyEngineStatusChip(engineStatusEl, kind, adapterKind);
@@ -184,44 +190,40 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   const els = {
-    linked: document.querySelector("#linked-charts") as HTMLElement,
-    sales: document.querySelector("#chart-sales") as HTMLElement,
-    stockout: document.querySelector("#chart-stockout") as HTMLElement,
-    history: document.querySelector("#chart-history") as HTMLElement,
-    spoil: document.querySelector("#chart-spoil") as HTMLElement,
-    belief: document.querySelector("#chart-belief") as HTMLElement,
-    beliefAgeMarginal: document.querySelector(
-      "#chart-belief-age-marginal",
-    ) as HTMLElement,
-    beliefLg: document.querySelector("#chart-belief-lg") as HTMLElement,
-    hoverNote: document.querySelector("#hover-note") as HTMLElement,
-    sectionControls: document.querySelector("#section-controls") as HTMLElement,
-    demand: document.querySelector("#chart-demand") as HTMLElement,
-    salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
-    inventory: document.querySelector("#chart-inventory") as HTMLElement,
-    ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
-    arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
-    arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
-    arrheniusTemp: document.querySelector("#chart-arrhenius-temp") as HTMLElement,
-    gammaPath: document.querySelector("#chart-gamma-path") as HTMLElement,
-    controllerOrders: document.querySelector(
-      "#chart-controller-orders",
-    ) as HTMLElement,
-    focusTitle: document.querySelector("#focus-title") as HTMLElement,
-    focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
-    focusPane: document.querySelector(".tuning-dock") as HTMLElement,
+    linked: q<HTMLElement>("#linked-charts")!,
+    sales: q<HTMLElement>("#chart-sales")!,
+    stockout: q<HTMLElement>("#chart-stockout")!,
+    history: q<HTMLElement>("#chart-history")!,
+    spoil: q<HTMLElement>("#chart-spoil")!,
+    belief: q<HTMLElement>("#chart-belief")!,
+    beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
+    beliefLg: q<HTMLElement>("#chart-belief-lg")!,
+    hoverNote: q<HTMLElement>("#hover-note")!,
+    sectionControls: q<HTMLElement>("#section-controls")!,
+    demand: q<HTMLElement>("#chart-demand")!,
+    salesDemand: q<HTMLElement>("#chart-sales-demand")!,
+    inventory: q<HTMLElement>("#chart-inventory")!,
+    ageComp: q<HTMLElement>("#chart-age-comp")!,
+    arrivalPrior: q<HTMLElement>("#chart-arrival-prior")!,
+    arrivalShift: q<HTMLElement>("#chart-arrival-shift")!,
+    arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
+    gammaPath: q<HTMLElement>("#chart-gamma-path")!,
+    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
+    focusTitle: q<HTMLElement>("#focus-title")!,
+    focusBlurb: q<HTMLElement>("#focus-blurb")!,
+    focusPane: q<HTMLElement>(".tuning-dock")!,
   };
 
-  const economicsPaneHost = document.querySelector("#economics-pane-host");
-  const eventsPaneHost = document.querySelector("#events-pane-host");
+  const economicsPaneHost = q<HTMLElement>("#economics-pane-host");
+  const eventsPaneHost = q<HTMLElement>("#events-pane-host");
   const economicsPaneRoot = economicsPaneHost ? createRoot(economicsPaneHost) : null;
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
 
-  const insightStripHost = document.querySelector("#insight-strip-host");
-  const guidedPathsHost = document.querySelector("#guided-paths-host");
-  const chapterTabsHost = document.querySelector("#chapter-tabs-host");
-  const secondaryChromeHost = document.querySelector("#secondary-chrome-host");
-  const operatorBarHost = document.querySelector("#operator-bar-host");
+  const insightStripHost = q<HTMLElement>("#insight-strip-host");
+  const guidedPathsHost = q<HTMLElement>("#guided-paths-host");
+  const chapterTabsHost = q<HTMLElement>("#chapter-tabs-host");
+  const secondaryChromeHost = q<HTMLElement>("#secondary-chrome-host");
+  const operatorBarHost = q<HTMLElement>("#operator-bar-host");
   const insightStripRoot = insightStripHost
     ? createRoot(insightStripHost)
     : null;
@@ -284,11 +286,11 @@ export function initStudio(app: HTMLElement): () => void {
       }),
     );
   }
-  let dayInspectorPortal = document.getElementById("day-inspector-portal");
+  let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
   if (!dayInspectorPortal) {
     dayInspectorPortal = document.createElement("div");
     dayInspectorPortal.id = "day-inspector-portal";
-    document.body.appendChild(dayInspectorPortal);
+    app.appendChild(dayInspectorPortal);
   }
   const dayInspectorRoot = createRoot(dayInspectorPortal);
   let spoilageUnavailableRoot: Root | null = null;
@@ -307,9 +309,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function hintAutoplay(): void {
-    const toggleBtn = document.querySelector<HTMLButtonElement>(
-      "#btn-autopilot-toggle",
-    );
+    const toggleBtn = q<HTMLButtonElement>("#btn-autopilot-toggle");
     if (!toggleBtn) return;
     toggleBtn.classList.add("autopilot-hint");
     window.setTimeout(() => toggleBtn.classList.remove("autopilot-hint"), 2400);
@@ -427,7 +427,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function syncTruthCaptions(): void {
-    document.querySelectorAll<HTMLElement>("[data-truth-caption]").forEach((el) => {
+    qa<HTMLElement>("[data-truth-caption]").forEach((el) => {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
         el.textContent = showTruth
@@ -450,9 +450,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function plotVisible(plotId: string): boolean {
-    const node = document.querySelector(
-      `.focus-plot[data-plot="${plotId}"]`,
-    ) as HTMLElement | null;
+    const node = q<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`);
     return !!node && !node.hidden;
   }
 
@@ -583,9 +581,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function syncTuningDockTabs(): void {
-    document
-      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
-      .forEach((tab) => {
+    qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         const selected = tab.dataset.section === activeSection;
         tab.setAttribute("aria-selected", selected ? "true" : "false");
         tab.tabIndex = selected ? 0 : -1;
@@ -604,7 +600,7 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusBlurb.textContent = meta.blurb;
     sectionControlsApi.showSection(id);
 
-    document.querySelectorAll<HTMLElement>(".focus-plot").forEach((plot) => {
+    qa<HTMLElement>(".focus-plot").forEach((plot) => {
       const pid = plot.dataset.plot ?? "";
       plot.hidden = !meta.plotIds.includes(pid);
     });
@@ -614,7 +610,7 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusPane.classList.add("focus-flash");
 
     if (id === "demand") {
-      const slot = document.querySelector("#demand-chart-slot");
+      const slot = q<HTMLElement>("#demand-chart-slot");
       if (slot && els.demand.parentElement !== slot) {
         slot.appendChild(els.demand);
       }
@@ -656,7 +652,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function wireDemandPreview(): void {
-    const slider = document.querySelector("#demand_mu") as HTMLInputElement | null;
+    const slider = q<HTMLInputElement>("#demand_mu");
     if (!slider || slider.dataset.previewBound === "1") return;
     slider.dataset.previewBound = "1";
     bindDemandSliderPreview({
@@ -690,7 +686,7 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `Advance failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     }
@@ -713,7 +709,7 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     }
@@ -754,7 +750,7 @@ export function initStudio(app: HTMLElement): () => void {
     onError(err) {
       reportStudioAdapterError(
         `Autopilot failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
       syncAutopilotChrome();
@@ -872,7 +868,7 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_channels failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     } finally {
@@ -900,7 +896,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderAll();
   };
 
-  window.addEventListener("keydown", (event) => {
+  const onKeydown = (event: KeyboardEvent) => {
     const tag = (event.target as HTMLElement | null)?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -923,12 +919,12 @@ export function initStudio(app: HTMLElement): () => void {
       event.preventDefault();
       setSection(STUDIO_SECTIONS[n - 1]!.id);
     }
-  });
+  };
+
+  app.addEventListener("keydown", onKeydown);
 
   function wireTuningDockTabs(): void {
-    document
-      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
-      .forEach((tab) => {
+    qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         if (tab.dataset.bound === "1") return;
         tab.dataset.bound = "1";
         tab.addEventListener("click", () => {
@@ -954,7 +950,7 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     }
@@ -968,6 +964,7 @@ export function initStudio(app: HTMLElement): () => void {
   };
   window.addEventListener("resize", onResize);
   return () => {
+    app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
   };
 }

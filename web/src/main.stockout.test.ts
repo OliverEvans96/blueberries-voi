@@ -55,7 +55,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("els.stockout binds #chart-stockout", () => {
-    expect(logicSrc).toMatch(/stockout:\s*document\.querySelector\(\s*"#chart-stockout"/);
+    expect(logicSrc).toMatch(/stockout:\s*q<HTMLElement>\("#chart-stockout"\)/);
   });
 
   it("applyHoverStyles calls setMarginalHover(els.stockout, day)", () => {

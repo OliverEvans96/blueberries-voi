@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { scenarioDescription, scenarioTitle } from "../scenarioCopy";
 import type { ScenarioId } from "../types";
@@ -106,7 +106,12 @@ function VoiReferenceContent() {
   );
 }
 
-export function ReferenceDrawer() {
+type ReferenceDrawerProps = {
+  /** Portal host under the studio mount (T-142 embed scoping). */
+  portalContainerRef?: RefObject<HTMLElement | null>;
+};
+
+export function ReferenceDrawer({ portalContainerRef }: ReferenceDrawerProps = {}) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReferenceTab>("glossary");
   const [voiMounted, setVoiMounted] = useState(false);
@@ -134,8 +139,14 @@ export function ReferenceDrawer() {
     }
   }, [open]);
 
+  const scopeRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
+    const scope = scopeRef.current?.closest(".bv-studio") ?? scopeRef.current;
+    if (!scope) return;
+
     const onKey = (event: KeyboardEvent) => {
+      if (!scope.contains(event.target as Node)) return;
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -153,8 +164,8 @@ export function ReferenceDrawer() {
         closeDrawer();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    scope.addEventListener("keydown", onKey);
+    return () => scope.removeEventListener("keydown", onKey);
   }, [open, activeTab]);
 
   const selectTab = (tab: ReferenceTab) => {
@@ -162,8 +173,13 @@ export function ReferenceDrawer() {
     setActiveTab(tab);
   };
 
+  const portalTarget =
+    portalContainerRef?.current ??
+    scopeRef.current?.closest(".bv-studio") ??
+    document.body;
+
   return (
-    <div className="reference-drawer-root">
+    <div className="reference-drawer-root" ref={scopeRef}>
       <button
         type="button"
         className="reference-drawer-trigger reference-drawer-trigger--glossary"
@@ -255,7 +271,7 @@ export function ReferenceDrawer() {
                 ) : null}
               </div>
             </dialog>,
-            document.body,
+            portalTarget,
           )
         : null}
     </div>

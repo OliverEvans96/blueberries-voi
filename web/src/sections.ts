@@ -81,7 +81,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   },
 ];
 
-export const SECTION_STORAGE_KEY = "blueberries-voi-studio-section";
+export const SECTION_STORAGE_KEY = "bv-studio:section";
 
 const LEGACY_SECTION_IDS: Record<string, SectionId> = {
   play: "demand",
