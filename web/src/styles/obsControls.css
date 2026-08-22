@@ -2,7 +2,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.35rem 0 0.65rem;
+  /* Horizontal inset matches `.panel`'s 16px (1rem) side padding — the
+   * convention the sibling `.events-pane` inherits unmodified. The T-151
+   * "flatten" pass zeroed this pane's own left/right padding while also
+   * dropping the per-channel-group card padding that used to compensate for
+   * it, leaving content flush against the sidebar column edge. */
+  padding: 0.35rem 1rem 0.65rem;
   border-bottom: 1px solid var(--paper-edge);
   background: linear-gradient(
     180deg,
