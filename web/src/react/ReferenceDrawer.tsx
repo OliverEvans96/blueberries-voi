@@ -245,14 +245,9 @@ export function ReferenceDrawer({
   const scopeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const scope = scopeRef.current?.closest(".bv-studio") ?? scopeRef.current;
-    if (!scope) return;
-
-    const onKey: EventListener = (ev) => {
-      const event = ev as KeyboardEvent;
-      if (!scope.contains(event.target as Node)) return;
+    const onKey = (event: KeyboardEvent) => {
       const tag = (event.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       if (event.key === "?") {
         event.preventDefault();
@@ -268,8 +263,8 @@ export function ReferenceDrawer({
         closeDrawer();
       }
     };
-    scope.addEventListener("keydown", onKey);
-    return () => scope.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, activeTab]);
 
   const selectTab = (tab: ReferenceTab) => {
