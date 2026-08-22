@@ -238,15 +238,6 @@ const CONFIG_SLIDERS: SliderSpec[] = [
     group: "arrival",
   },
 
-  {
-    id: "sensor_sigma",
-    label: "sensor σ (exposure)",
-    min: 0,
-    max: 1.5,
-    step: 0.05,
-    format: (v) => v.toFixed(2),
-    group: "arrival",
-  },
   { id: "seed", label: "seed", min: 1, max: 9999, step: 1, format: (v) => String(Math.round(v)), group: "episode" },
 ];
 

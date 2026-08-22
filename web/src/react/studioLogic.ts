@@ -613,7 +613,7 @@ export function initStudio(app: HTMLElement): () => void {
     if (plotVisible("plot-arrival-prior")) {
       renderArrivalPrior(
         els.arrivalPrior,
-        vm.config,
+        vm.arrival_summary,
         historyForCharts(),
         160,
         arrivalRugAvailable(
@@ -623,7 +623,12 @@ export function initStudio(app: HTMLElement): () => void {
       );
     }
     if (plotVisible("plot-arrival-shift")) {
-      renderArrivalShift(els.arrivalShift, vm.config, 150);
+      renderArrivalShift(
+        els.arrivalShift,
+        vm.arrival_summary,
+        vm.config.transit_temp_bias_c,
+        150,
+      );
     }
     if (plotVisible("plot-arrhenius-temp")) {
       renderArrheniusTemp(els.arrheniusTemp, vm.config, 160);

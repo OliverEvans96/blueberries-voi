@@ -29,6 +29,17 @@ export type DemandSummary = {
   dow_means: number[];
 };
 
+/** Chart-ready arrival law from Snapshot (T-150 AC3.3). */
+export type ArrivalSummary = {
+  arrival_product: string;
+  rung: string;
+  mean_f: number;
+  sd_f: number;
+  f_zero: number;
+  curve: { f: number; density: number; cdf?: number }[];
+  baseline_curve?: { f: number; density: number }[] | null;
+};
+
 /** Per-day belief on the wire after obs catch-up replay. */
 export type BeliefHistoryWire = {
   day: number;
@@ -43,12 +54,14 @@ export type Snapshot = {
   /** Per-day beliefs after obs-channel catch-up replay (set_obs_channels). */
   belief_history?: BeliefHistoryWire[];
   history?: Day[];
+  /** Live lots; each lot may carry `f_values` for within-lot freshness spread. */
   live_lots?: Lot[];
   live_units?: Unit[];
   pipeline?: PipelineOrder[];
   applied_config?: Partial<SimConfig> & Record<string, unknown>;
   schedule?: ScheduleWire;
   demand_summary?: DemandSummary;
+  arrival_summary?: ArrivalSummary;
 };
 
 /** Hot payload from step / step_n / act. */

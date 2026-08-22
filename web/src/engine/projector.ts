@@ -23,6 +23,7 @@ import {
 import { effectiveInventoryFromFlatBelief } from "../charts/inventoryTarget";
 import { channelsEqual } from "../obsMask";
 import type {
+  ArrivalSummary,
   DayDelta,
   DemandSummary,
   FlatBelief,
@@ -278,6 +279,7 @@ export class ViewModelProjector {
     f_grid: [],
   };
   private demandSummary: DemandSummary | null = null;
+  private arrivalSummary: ArrivalSummary | null = null;
   private schedule: ScheduleWire | null = null;
   private viewModel: ViewModel;
 
@@ -305,7 +307,10 @@ export class ViewModelProjector {
       day: d.day,
       flatBelief: cloneFlat(snapshot.belief),
     }));
-    this.liveLots = (snapshot.live_lots ?? []).map((l) => ({ ...l }));
+    this.liveLots = (snapshot.live_lots ?? []).map((l) => ({
+      ...l,
+      f_values: l.f_values ? [...l.f_values] : undefined,
+    }));
     this.liveUnits = (snapshot.live_units ?? []).map((u) => ({ ...u }));
     this.pipeline = normalizePipeline(snapshot.pipeline, this.episodeDay);
     this.flatBelief = cloneFlat(snapshot.belief);
@@ -325,6 +330,15 @@ export class ViewModelProjector {
       this.demandSummary = {
         ...snapshot.demand_summary,
         dow_means: [...snapshot.demand_summary.dow_means],
+      };
+    }
+    if (snapshot.arrival_summary) {
+      this.arrivalSummary = {
+        ...snapshot.arrival_summary,
+        curve: snapshot.arrival_summary.curve.map((p) => ({ ...p })),
+        baseline_curve: snapshot.arrival_summary.baseline_curve?.map((p) => ({
+          ...p,
+        })),
       };
     }
     if (snapshot.schedule) {
@@ -353,7 +367,10 @@ export class ViewModelProjector {
       { day: nextDay.day, flatBelief: cloneFlat(this.flatBelief) },
     ];
     if (delta.live_lots) {
-      this.liveLots = delta.live_lots.map((l) => ({ ...l }));
+      this.liveLots = delta.live_lots.map((l) => ({
+        ...l,
+        f_values: l.f_values ? [...l.f_values] : undefined,
+      }));
     }
     if (delta.live_units) {
       this.liveUnits = delta.live_units.map((u) => ({ ...u }));
@@ -513,7 +530,10 @@ export class ViewModelProjector {
       pnl_series: series,
       pnl_totals: totals,
       belief: beliefGridFromFlat(this.flatBelief, this.liveLots),
-      live_lots: this.liveLots.map((l) => ({ ...l })),
+      live_lots: this.liveLots.map((l) => ({
+        ...l,
+        f_values: l.f_values ? [...l.f_values] : undefined,
+      })),
       live_units: this.liveUnits.map((u) => ({ ...u })),
       belief_history: this.beliefHistory.map((b) => ({
         day: b.day,
@@ -528,6 +548,15 @@ export class ViewModelProjector {
         ? {
             ...this.demandSummary,
             dow_means: [...this.demandSummary.dow_means],
+          }
+        : null,
+      arrival_summary: this.arrivalSummary
+        ? {
+            ...this.arrivalSummary,
+            curve: this.arrivalSummary.curve.map((p) => ({ ...p })),
+            baseline_curve: this.arrivalSummary.baseline_curve?.map((p) => ({
+              ...p,
+            })),
           }
         : null,
       schedule: this.schedule

@@ -94,11 +94,6 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
     tooltip: "°C offset on transit path vs published traces.",
     tier: "Reset",
   },
-  sensor_sigma: {
-    label: "Receipt age sensor noise",
-    tooltip: "Gaussian noise on measured age at receipt (F2).",
-    tier: "Reset",
-  },
   seed: {
     label: "Random seed",
     tooltip: "Reshapes the episode on Reset.",

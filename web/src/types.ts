@@ -1,6 +1,6 @@
 /** Shared domain types for the mock grocery-inventory simulator. */
 
-import type { DemandSummary, FlatBelief, ScheduleWire } from "./engine/types";
+import type { ArrivalSummary, DemandSummary, FlatBelief, ScheduleWire } from "./engine/types";
 
 export type BeliefHistoryDay = {
   day: number;
@@ -12,6 +12,8 @@ export type Lot = {
   n: number;
   /** Cohort mean freshness f ∈ [0, 1]. */
   mean_f: number;
+  /** Per-unit freshness values for within-lot spread (engine wire). */
+  f_values?: number[];
 };
 
 export type Unit = {
@@ -96,7 +98,7 @@ export type SimConfig = {
   /** MOD-21: which Abdella corridor mix seeds the arrival prior. */
   arrival_product: ArrivalProduct;
   /**
-   * FIL-11 / sim.generate_arrival_age: shrink ages toward mix mean
+   * FIL-11: shrink within-lot freshness spread toward lot mean
    * (&lt;1 tighter, identification stress).
    */
   spread_scale: number;
@@ -105,11 +107,6 @@ export type SimConfig = {
    * (Arrhenius shift of arrival cumulative thermal exposure).
    */
   transit_temp_bias_c: number;
-  /**
-   * Reserved STREAM_ARRIVAL_SENSOR: Gaussian noise on lot age at receipt
-   * (0 = unused, matching current Python sim).
-   */
-  sensor_sigma: number;
 };
 
 export type DayPnL = {
@@ -169,6 +166,8 @@ export type ViewModel = {
   pending_order: number;
   /** Chart-ready DOW demand profile from Snapshot (T-085 / T-087). */
   demand_summary: DemandSummary | null;
+  /** Per-rung arrival freshness law from engine (T-150 AC3.3). */
+  arrival_summary: ArrivalSummary | null;
   /** Order calendar wire for protection chrome (T-085 / T-087). */
   schedule: ScheduleWire | null;
 };
