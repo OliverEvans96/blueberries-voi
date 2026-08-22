@@ -92,7 +92,7 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(metrics.locator("#chart-inventory")).toBeVisible();
     await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
-    await expect(metrics.locator("#chart-spoil")).toBeVisible();
+    await expect(metrics.locator("#chart-spoil")).toHaveCount(0);
     await expect(metrics.locator("[data-testid='impact-stat']")).toHaveCount(2);
   });
 
