@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 
 function rootG(
   container: HTMLElement,
@@ -69,7 +69,7 @@ export function renderSalesDemand(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0 || innerW <= 0) return;
+  if (innerW <= 0) return;
 
   const svg = d3
     .select(container)
@@ -85,7 +85,7 @@ export function renderSalesDemand(
     .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = history.map((d) => d.day);
+  const days = padDaysToMinRange(history.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 

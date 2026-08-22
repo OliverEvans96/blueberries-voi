@@ -8,7 +8,8 @@ import type { FlatBelief } from "../engine/types";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Day } from "../types";
 import * as inv from "./inventoryTarget";
-import { inventorySeries } from "./inventoryTarget";
+import { inventorySeries, renderInventoryTarget } from "./inventoryTarget";
+import { MIN_CHART_DAY_SPAN } from "./axisTicks";
 
 type BeliefDay = { day: number; flatBelief: FlatBelief };
 
@@ -451,5 +452,38 @@ describe("inventory target hover (T-151)", () => {
     inv.setAgeCompositionHover(el, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
     expect(x1).toBeGreaterThan(0);
+  });
+});
+
+describe("renderInventoryTarget min day span (T-151)", () => {
+  function host(): HTMLElement {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: 400 });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("pads x-axis to at least MIN_CHART_DAY_SPAN days with one day of history", () => {
+    const el = host();
+    renderInventoryTarget(el, [LOT_DAY], DEFAULT_SIM_CONFIG, 120);
+    const ticks = [...el.querySelectorAll(".axis-x .tick text")].map((t) =>
+      Number(t.textContent),
+    );
+    expect(Math.max(...ticks) - Math.min(...ticks) + 1).toBeGreaterThanOrEqual(
+      MIN_CHART_DAY_SPAN,
+    );
+  });
+
+  it("renders empty inventory frame when history is empty", () => {
+    const el = host();
+    renderInventoryTarget(el, [], DEFAULT_SIM_CONFIG, 120);
+    expect(el.querySelector("svg.chart-svg")).not.toBeNull();
+    expect(el.querySelectorAll(".axis-x .tick").length).toBeGreaterThanOrEqual(
+      MIN_CHART_DAY_SPAN,
+    );
   });
 });

@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import type { HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 import { salesDemandX } from "./salesDemand";
 
 export type ControllerOrderPoint = {
@@ -129,8 +129,9 @@ export function renderOrdersWaste(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
+  if (innerW <= 0) return;
+
   const series = ordersWasteSeries(history);
-  if (series.length === 0) return;
 
   const svg = d3
     .select(container)
@@ -147,7 +148,7 @@ export function renderOrdersWaste(
     .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = series.map((d) => d.day);
+  const days = padDaysToMinRange(series.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 
@@ -259,8 +260,9 @@ export function renderControllerOrders(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
+  if (innerW <= 0) return;
+
   const series = controllerOrdersSeries(history);
-  if (series.length === 0) return;
 
   const svg = d3
     .select(container)
@@ -277,7 +279,7 @@ export function renderControllerOrders(
     .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = series.map((d) => d.day);
+  const days = padDaysToMinRange(series.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 

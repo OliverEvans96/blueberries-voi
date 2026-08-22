@@ -3,7 +3,7 @@ import type { FlatBelief } from "../engine/types";
 import type { BeliefHistoryDay, Day, HoverDay, SimConfig } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { effectiveInventoryFromLots } from "../mock/generate";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 import { salesDemandX } from "./salesDemand";
 
 function rootG(
@@ -223,8 +223,9 @@ export function renderInventoryTarget(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
+  if (innerW <= 0) return;
+
   const series = seriesOverride ?? inventorySeries(history, config);
-  if (series.length === 0) return;
 
   const svg = d3
     .select(container)
@@ -241,7 +242,7 @@ export function renderInventoryTarget(
     .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = series.map((d) => d.day);
+  const days = padDaysToMinRange(series.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 
@@ -362,7 +363,7 @@ export function renderAgeComposition(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  if (history.length === 0 && !rowsOverride?.length) return;
+  if (innerW <= 0) return;
 
   const bands =
     bandMode === "freshness"
@@ -398,7 +399,7 @@ export function renderAgeComposition(
     .attr("data-inner-w", String(innerW))
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = rows.map((r) => r.day);
+  const days = padDaysToMinRange(rows.map((r) => r.day));
   const step = Math.max(0, innerW / days.length);
 
   g.append("g")
