@@ -17,7 +17,19 @@ _SCAN_ROOTS = (
     ".team",
 )
 _TEXT_SUFFIXES = frozenset(
-    {".py", ".rs", ".md", ".yml", ".yaml", ".toml", ".json", ".ts", ".tsx", ".js", ".sh"}
+    {
+        ".py",
+        ".rs",
+        ".md",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".json",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".sh",
+    }
 )
 
 
