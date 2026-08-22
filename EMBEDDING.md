@@ -4,23 +4,37 @@ The browser studio ships as **`@oliverevans96/blueberries-voi-studio`**, a React
 library with scoped CSS under `.bv-studio` (T-142/T-143). WASM runs in a bundled
 module worker (T-144).
 
-## Install from a GitHub release
+## Install from GitHub Releases
 
-Studio releases are tagged `studio-v*` (not the legacy Python `v*` wheel tags).
-After a maintainer copies `packaging/github-workflows/release-studio.yml` into
-`.github/workflows/` and pushes a tag, download the `.tgz` from the release assets
-or reference it directly:
+### Prod (auto-updated on every `main` push)
+
+Once `packaging/github-workflows/release-studio.yml` is copied to
+`.github/workflows/` and this repo’s embed work is on `main`, CI publishes a
+moving release tag **`studio-latest`** with a **stable tarball filename**:
 
 ```json
 {
   "dependencies": {
-    "@oliverevans96/blueberries-voi-studio": "https://github.com/oliverevans96/blueberries-voi/releases/download/studio-v0.1.0/oliverevans96-blueberries-voi-studio-0.1.0.tgz"
+    "@oliverevans96/blueberries-voi-studio": "https://github.com/OliverEvans96/blueberries-voi/releases/download/studio-latest/oliverevans96-blueberries-voi-studio-latest.tgz"
   }
 }
 ```
 
-Replace `studio-v0.1.0` and the filename with the tag and `npm pack` output from
-that release.
+Re-run `pnpm install` / `npm install` in your Astro site after each `main` push
+to pick up the new build (lockfile integrity hash will change when the tarball
+changes).
+
+### Immutable pin (optional)
+
+Explicit semver tags `studio-v*` (not legacy Python `v*`) also trigger a release:
+
+```json
+{
+  "dependencies": {
+    "@oliverevans96/blueberries-voi-studio": "https://github.com/OliverEvans96/blueberries-voi/releases/download/studio-v0.1.0/oliverevans96-blueberries-voi-studio-0.1.0.tgz"
+  }
+}
+```
 
 ## Required imports
 

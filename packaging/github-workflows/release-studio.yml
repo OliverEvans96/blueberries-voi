@@ -1,23 +1,30 @@
-# Canonical studio release workflow (T-146).
+# Canonical studio release workflow (T-146 / main-push prod).
 #
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
 # this file to `.github/workflows/release-studio.yml` before GitHub runs it.
+#
+# Triggers:
+#   - push to main/master → moving tag `studio-latest` (prod tarball for Astro/blog)
+#   - push tag studio-v*  → immutable semver release (optional manual pins)
 #
 # Tag namespace `studio-v*` avoids the legacy Python `v*` slim-wheel release workflow.
 name: Release studio
 
 on:
   push:
+    branches: [main, master]
     tags:
       - "studio-v*"
 
 concurrency:
-  group: release-studio-${{ github.ref }}
+  group: release-studio-prod
   cancel-in-progress: true
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -52,18 +59,34 @@ jobs:
 
       - name: Pack tarball
         working-directory: web
-        run: npm pack
+        run: |
+          npm pack
+          PACKED="$(ls oliverevans96-blueberries-voi-studio-*.tgz)"
+          cp "$PACKED" oliverevans96-blueberries-voi-studio-latest.tgz
+          echo "PACKED=$PACKED" >> "$GITHUB_ENV"
 
-      - name: Upload Playwright report (optional)
-        if: false
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: web/playwright-report/
-          if-no-files-found: ignore
+      - name: Resolve release tag
+        id: rel
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=studio-latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read package version
+        id: pkg
+        working-directory: web
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: web/oliverevans96-blueberries-voi-studio-*.tgz
+          tag_name: ${{ steps.rel.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Blueberry studio v${{ steps.pkg.outputs.version }} (${{ github.sha }})
+          files: |
+            web/${{ env.PACKED }}
+            web/oliverevans96-blueberries-voi-studio-latest.tgz
           generate_release_notes: true
+          make_latest: true

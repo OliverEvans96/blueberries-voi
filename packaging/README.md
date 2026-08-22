@@ -44,6 +44,8 @@ Agent protocol forbids writing live `.github/workflows/`. Canonical sources:
 
 Copy or symlink those files before CI jobs run on GitHub.
 
-Studio npm releases use tags `studio-v*` (e.g. `studio-v0.1.0`) so they do not
- collide with the legacy Python `v*` wheel workflow. See [`EMBEDDING.md`](../EMBEDDING.md)
- for Astro / Vite consumer wiring.
+**Prod studio tarball:** after `release-studio.yml` is live, every push to `main`
+rebuilds and republishes the moving tag **`studio-latest`** with a stable asset
+`oliverevans96-blueberries-voi-studio-latest.tgz` (see [`EMBEDDING.md`](../EMBEDDING.md)).
+Optional immutable pins use tags `studio-v*` (e.g. `studio-v0.1.0`); they do not
+collide with the legacy Python `v*` wheel workflow.
