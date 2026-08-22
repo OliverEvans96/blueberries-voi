@@ -1,6 +1,7 @@
 //! Shared VOI compute kernel (ADR 0119 / 0121).
 
 pub mod alpha_tune;
+pub mod arrival;
 pub mod belief_flat;
 pub mod demand_profile;
 pub mod params;
@@ -20,6 +21,11 @@ pub mod tradeoff;
 pub mod voi;
 pub mod wor;
 
+pub use arrival::{
+    arrival_artifact_from_json, embedded_arrival_model, resolve_arrival_f_law_phi_bar,
+    ArrivalModel, ArrivalModelError, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA,
+    STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+};
 pub use alpha_tune::{
     parse_alpha_tune_arm, run_alpha_tune_episode, AlphaTuneArm, AlphaTuneCosts,
     AlphaTuneEpisodeResult, AlphaTuneRolloutBudgets,
