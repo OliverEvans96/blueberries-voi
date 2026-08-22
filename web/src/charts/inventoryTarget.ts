@@ -349,13 +349,24 @@ export function renderInventoryTarget(
   });
 }
 
-/** Stacked on-hand by freshness band over the window. */
+/**
+ * Stacked on-hand by freshness band over the window.
+ *
+ * The legend always shows the consumer-facing "fresh" / "fair" / "old"
+ * labels — regardless of whether `rowsOverride` came from the truth-data
+ * path (`ageCompositionSeries`) or the belief path
+ * (`ageCompositionSeriesFromBelief`). Both paths bucket units with the same
+ * ≥⅔ / [⅓,⅔) / <⅓ freshness thresholds (see `expectedFreshnessBands`), so
+ * there is no underlying data distinction left to label differently; a
+ * former `bandMode` param that swapped in old fraction-threshold wording for
+ * the truth path was a leftover of the pre-"fresh/fair/old" copy and made
+ * the labels regress whenever "Sim truth overlay" was on.
+ */
 export function renderAgeComposition(
   container: HTMLElement,
   history: Day[],
   height = 140,
   rowsOverride?: AgeCompositionRow[],
-  bandMode: "age" | "freshness" = "freshness",
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 10, right: 12, bottom: 28, left: 40 };
@@ -365,18 +376,11 @@ export function renderAgeComposition(
   container.replaceChildren();
   if (innerW <= 0) return;
 
-  const bands =
-    bandMode === "freshness"
-      ? ([
-          { key: "young", label: "fresh", lo: 0, hi: 0, cls: "age-young" },
-          { key: "mid", label: "fair", lo: 0, hi: 0, cls: "age-mid" },
-          { key: "old", label: "old", lo: 0, hi: 0, cls: "age-old" },
-        ] as const)
-      : ([
-          { key: "young", label: "≥⅔ f", lo: 0, hi: 0, cls: "age-young" },
-          { key: "mid", label: "[⅓,⅔) f", lo: 0, hi: 0, cls: "age-mid" },
-          { key: "old", label: "<⅓ f", lo: 0, hi: 0, cls: "age-old" },
-        ] as const);
+  const bands = [
+    { key: "young", label: "fresh", cls: "age-young" },
+    { key: "mid", label: "fair", cls: "age-mid" },
+    { key: "old", label: "old", cls: "age-old" },
+  ] as const;
 
   type Row = AgeCompositionRow;
   const rows: Row[] = rowsOverride ?? ageCompositionSeries(history);
