@@ -1,7 +1,7 @@
 import * as d3 from "d3";
 import { centersToEdges } from "../engine/projector";
 import type { FlatBelief } from "../engine/types";
-import type { Lot } from "../types";
+import type { Lot, Unit } from "../types";
 
 export const DISPLAY_BIN_COUNT = 8;
 
@@ -12,8 +12,8 @@ export type FreshnessHistogramData = {
   f_centers: number[];
   /** Aggregate belief mass per freshness bin (length K). */
   belief_masses: number[];
-  /** Truth lots for overlay (typically `live_lots` when showTruth is on). */
-  truth_lots: Lot[];
+  /** Truth units for overlay (typically `live_units` when showTruth is on). */
+  truth_units: Unit[];
 };
 
 const BELIEF_COLOR = "#e6b800";
@@ -110,17 +110,30 @@ export function truthMassesInBins(lots: readonly Lot[], edges: readonly number[]
   return bins;
 }
 
-/** Build chart data from flat belief + optional truth lots. */
+/** Count live units into histogram bins by each unit's `f`. */
+export function truthMassesFromUnits(
+  units: readonly Unit[],
+  edges: readonly number[],
+): number[] {
+  const bins = Array.from({ length: edges.length - 1 }, () => 0);
+  for (const unit of units) {
+    const idx = binIndexForValue(edges, unit.f);
+    bins[idx]! += 1;
+  }
+  return bins;
+}
+
+/** Build chart data from flat belief + optional truth units. */
 export function freshnessHistogramDataFromFlat(
   flat: FlatBelief,
-  truthLots: readonly Lot[] = [],
+  truthUnits: readonly Unit[] = [],
 ): FreshnessHistogramData {
   const f_edges = centersToEdges(flat.f_grid);
   return {
     f_edges,
     f_centers: [...flat.f_grid],
     belief_masses: aggregateBeliefMasses(flat),
-    truth_lots: [...truthLots],
+    truth_units: [...truthUnits],
   };
 }
 
@@ -131,8 +144,8 @@ function displayBins(
   const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
   const belief = rebinMassesByInterval(data.f_edges, data.belief_masses, edges);
   const truth =
-    showTruth && data.truth_lots.length > 0
-      ? truthMassesInBins(data.truth_lots, edges)
+    showTruth && data.truth_units.length > 0
+      ? truthMassesFromUnits(data.truth_units, edges)
       : null;
   return { edges, belief, truth };
 }

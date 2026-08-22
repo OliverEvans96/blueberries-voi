@@ -3,19 +3,19 @@
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import type { BeliefHistoryDay, Day } from "../types";
+import type { BeliefHistoryDay, Day, Unit } from "../types";
 import {
   BELIEF_FRESHNESS_TIME_MARGIN,
   buildBeliefFreshnessHeatmap,
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
-  truthLotSurvivorRadiusScale,
 } from "./beliefFreshnessTime";
 
-function sampleDay(day: number, lots: Day["lots"]): Day {
+function sampleDay(day: number, units: Unit[]): Day {
   return {
     day,
-    lots,
+    lots: [],
+    units,
     sales_total: 10,
     waste_total: 1,
     demand: 12,
@@ -95,11 +95,11 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     }
   });
 
-  it("caps the freshness y-axis at 1.0 even when f_grid touches the boundary or truth mean_f exceeds it", () => {
+  it("caps the freshness y-axis at 1.0 even when f_grid touches the boundary or truth f exceeds it", () => {
     const el = host();
     renderBeliefFreshnessTime(
       el,
-      [sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 1.4 }])],
+      [sampleDay(0, [{ unit_id: 0, lot_id: 1, f: 1.4 }])],
       [
         {
           day: 0,
@@ -122,67 +122,41 @@ describe("beliefFreshnessTime heatmap (T-127)", () => {
     expect(Math.max(...tickValues)).toBeLessThanOrEqual(1);
   });
 
-  it("draws zero lot circles when showTruth is false", () => {
+  it("draws zero unit trajectories when showTruth is false", () => {
     const el = host();
     renderBeliefFreshnessTime(
       el,
-      [sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 0.7 }])],
+      [sampleDay(0, [{ unit_id: 0, lot_id: 1, f: 0.7 }])],
       beliefHistory([0]),
       false,
       { width: 720, height: 220 },
     );
-    expect(el.querySelectorAll("circle.lot").length).toBe(0);
+    expect(el.querySelectorAll(".unit-trajectory").length).toBe(0);
+    expect(el.querySelectorAll(".lot").length).toBe(0);
     expect(el.querySelectorAll(".lot-connection").length).toBe(0);
   });
 
-  it("draws lot dots and connecting lines when showTruth is true", () => {
+  it("draws unit trajectory paths when showTruth is true", () => {
     const el = host();
     renderBeliefFreshnessTime(
       el,
       [
-        sampleDay(0, [{ lot_id: 1, n: 8, mean_f: 0.85 }]),
-        sampleDay(1, [{ lot_id: 1, n: 6, mean_f: 0.72 }]),
+        sampleDay(0, [{ unit_id: 1, lot_id: 1, f: 0.85 }]),
+        sampleDay(1, [{ unit_id: 1, lot_id: 1, f: 0.72 }]),
       ],
       beliefHistory([0, 1]),
       true,
       { width: 720, height: 220 },
     );
-    expect(el.querySelectorAll("circle.lot").length).toBe(2);
-    expect(el.querySelectorAll(".lot-connection").length).toBe(1);
-    const c0 = el.querySelector("circle.lot");
-    expect(c0?.getAttribute("cx")).toBeTruthy();
-    expect(c0?.getAttribute("cy")).toBeTruthy();
-  });
-
-  it("lot radius scales with survivor count n", () => {
-    const radius = truthLotSurvivorRadiusScale(16, 600, 1);
-    expect(radius(16)).toBeGreaterThan(radius(4));
-    expect(radius(16) / radius(4)).toBeCloseTo(2, 5);
-
-    const el = host();
-    renderBeliefFreshnessTime(
-      el,
-      [
-        sampleDay(0, [
-          { lot_id: 1, n: 4, mean_f: 0.5 },
-          { lot_id: 2, n: 16, mean_f: 0.6 },
-        ]),
-      ],
-      beliefHistory([0]),
-      true,
-      { width: 720, height: 220 },
-    );
-    const circles = [...el.querySelectorAll("circle.lot")];
-    const radii = circles.map((c) => Number(c.getAttribute("r")));
-    expect(radii).toHaveLength(2);
-    expect(Math.max(...radii)).toBeGreaterThan(Math.min(...radii));
-    expect(Math.max(...radii) / Math.min(...radii)).toBeCloseTo(2, 5);
-
-    const titles = [...el.querySelectorAll("circle.lot title")].map((t) =>
-      t.textContent ?? "",
-    );
-    expect(titles.some((t) => t.includes("survivors 4"))).toBe(true);
-    expect(titles.some((t) => t.includes("survivors 16"))).toBe(true);
+    expect(el.querySelectorAll(".unit-trajectory").length).toBe(1);
+    expect(el.querySelectorAll(".lot").length).toBe(0);
+    expect(el.querySelectorAll(".lot-connection").length).toBe(0);
+    const path = el.querySelector(".unit-trajectory");
+    expect(path?.getAttribute("d")).toBeTruthy();
+    expect(path?.getAttribute("stroke")).toBe("#d95926");
+    expect(path?.getAttribute("stroke-width")).toBe("0.75");
+    expect(Number(path?.getAttribute("stroke-opacity"))).toBeCloseTo(0.4, 5);
+    expect(path?.getAttribute("fill")).toBe("none");
   });
 
   it("setBeliefFreshnessTimeHover toggles hover rule without throwing", () => {

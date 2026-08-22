@@ -3,7 +3,7 @@ import {
   beliefFreshnessSeries,
   type BeliefFreshnessDay,
 } from "../engine/projector";
-import type { BeliefHistoryDay, Day, HoverDay, Lot } from "../types";
+import type { BeliefHistoryDay, Day, HoverDay, Unit } from "../types";
 import { pickDayTicks } from "./axisTicks";
 
 export type BeliefFreshnessTimeDims = {
@@ -21,14 +21,13 @@ export const BELIEF_FRESHNESS_TIME_MARGIN = {
 } as const;
 
 const HEATMAP_COLORS = ["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"];
-/** Truth-lot overlay: orange reads clearly across the full green ramp (CVD-checked) and pairs with a light stroke halo for the darkest cells. */
-const TRUTH_MARKER_FILL = "#d95926";
-const TRUTH_MARKER_STROKE = "#fdf8ef";
+/** Truth unit trajectories: orange reads across the green belief ramp (CVD-checked). */
+const TRUTH_TRAJECTORY_STROKE = "#d95926";
 const PLOT_CLIP_ID = "belief-freshness-plot-clip";
 const COLORBAR_GRAD_ID = "belief-freshness-colorbar-grad";
 const Y_AXIS_LABEL_X = -40;
 
-type LotPoint = Lot & { day: number };
+type UnitPoint = Unit & { day: number };
 
 /** Sub-day slices between consecutive belief snapshots (visual only). */
 export const BELIEF_DAY_SUBSTEPS = 4;
@@ -39,19 +38,6 @@ export function dayDomain(history: Day[]): [number, number] {
   if (history.length === 0) return [0, 1];
   const days = history.map((d) => d.day);
   return [Math.min(...days), Math.max(...days)];
-}
-
-/** Sqrt scale: marker area ∝ lot survivor count `n`. */
-export function truthLotSurvivorRadiusScale(
-  maxSurvivors: number,
-  innerW: number,
-  daySpan: number,
-): (n: number) => number {
-  const maxN = Math.max(1, maxSurvivors);
-  const rMax = Math.min(14, (innerW / Math.max(1, daySpan)) * 0.35);
-  const rMin = 3;
-  const k = rMax / Math.sqrt(maxN);
-  return (n: number) => Math.max(rMin, k * Math.sqrt(Math.max(0, n)));
 }
 
 function rootG(
@@ -82,9 +68,9 @@ export function setBeliefFreshnessTimeHover(
     (d) => hoveredDay === d.day,
   );
 
-  g.selectAll<SVGCircleElement, LotPoint>(".lot").classed(
-    "lot--active",
-    (d) => hoveredDay === d.day,
+  g.selectAll<SVGPathElement, UnitPoint[]>(".unit-trajectory").classed(
+    "unit-trajectory--active",
+    (points) => points.some((p) => p.day === hoveredDay),
   );
 
   const rule = g.select<SVGLineElement>(".hover-rule");
@@ -317,43 +303,51 @@ function renderBeliefFreshnessColorbar(
     .text("Units");
 }
 
-function renderLotConnectionLines(
+function renderUnitTrajectories(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
-  lotGroups: d3.InternMap<string, LotPoint[]>,
+  unitGroups: d3.InternMap<string, UnitPoint[]>,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>,
 ): void {
-  const linesG = g.append("g").attr("class", "lot-connections");
-  lotGroups.forEach((points, lotId) => {
-    if (points.length < 2) return;
-    const sortedPoints = [...points].sort((a, b) => a.day - b.day);
-    const line = d3
-      .line<LotPoint>()
-      .x((d) => xScale(d.day))
-      .y((d) => yScale(d.mean_f))
-      .curve(d3.curveLinear);
-    linesG
-      .append("path")
-      .datum(sortedPoints)
-      .attr("class", "lot-connection")
-      .attr("d", line)
-      .attr("fill", "none")
-      .attr("stroke", TRUTH_MARKER_FILL)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.75)
-      .attr("pointer-events", "none")
-      .append("title")
-      .text(`Lot ${lotId} trajectory`);
-  });
+  const trajG = g
+    .append("g")
+    .attr("class", "unit-trajectories")
+    .attr("clip-path", `url(#${PLOT_CLIP_ID})`);
+  const line = d3
+    .line<UnitPoint>()
+    .x((d) => xScale(d.day))
+    .y((d) => yScale(d.f))
+    .curve(d3.curveLinear);
+
+  trajG
+    .selectAll("path")
+    .data([...unitGroups.values()])
+    .join("path")
+    .attr("class", "unit-trajectory")
+    .attr("data-unit-id", (points) => String(points[0]?.unit_id ?? ""))
+    .attr("d", (points) => {
+      const sorted = [...points].sort((a, b) => a.day - b.day);
+      return line(sorted);
+    })
+    .attr("fill", "none")
+    .attr("stroke", TRUTH_TRAJECTORY_STROKE)
+    .attr("stroke-width", 0.75)
+    .attr("stroke-opacity", 0.4)
+    .attr("pointer-events", "none")
+    .append("title")
+    .text((points) => {
+      const p = points[0];
+      return p ? `Unit ${p.unit_id} · lot ${p.lot_id}` : "Unit trajectory";
+    });
 }
 
 /**
- * Freshness × time belief heatmap with optional per-lot truth overlay.
+ * Freshness × time belief heatmap with optional per-unit truth overlay.
  *
  * @param container - mount node (e.g. `#chart-history` after integrate)
- * @param history - per-day lot snapshots for truth overlay (`history[].lots`)
+ * @param history - per-day unit snapshots for truth overlay (`history[].units`)
  * @param beliefHistory - rolling `FlatBelief` per day (`ViewModel.belief_history`)
- * @param showTruth - when false, truth dots/lines are omitted
+ * @param showTruth - when false, truth trajectories are omitted
  */
 export function renderBeliefFreshnessTime(
   container: HTMLElement,
@@ -392,7 +386,6 @@ export function renderBeliefFreshnessTime(
 
   const days = history.map((d) => d.day);
   const [minDay, maxDay] = dayDomain(history);
-  const daySpan = Math.max(1, maxDay - minDay);
   const x = d3
     .scaleLinear()
     .domain([minDay - 0.5, maxDay + 0.5])
@@ -454,54 +447,14 @@ export function renderBeliefFreshnessTime(
 
   const truthHistory = showTruth
     ? history
-    : history.map((d) => ({ ...d, lots: [] as Lot[] }));
+    : history.map((d) => ({ ...d, units: [] as Unit[] }));
 
-  const maxN =
-    d3.max(truthHistory, (d) => d3.max(d.lots, (l) => l.n)) ?? 1;
-  const r = truthLotSurvivorRadiusScale(maxN, innerW, daySpan);
-
-  const points: LotPoint[] = truthHistory.flatMap((d) =>
-    d.lots.map((lot) => ({ day: d.day, ...lot })),
+  const points: UnitPoint[] = truthHistory.flatMap((d) =>
+    (d.units ?? []).map((unit) => ({ day: d.day, ...unit })),
   );
 
-  const lotGroups = d3.group(points, (d) => String(d.lot_id));
+  const unitGroups = d3.group(points, (d) => String(d.unit_id));
   if (showTruth && points.length > 0) {
-    renderLotConnectionLines(g, lotGroups, x, y);
+    renderUnitTrajectories(g, unitGroups, x, y);
   }
-
-  g.append("g")
-    .attr("class", "lots")
-    .attr("pointer-events", "none")
-    .selectAll("circle")
-    .data(points, (d) => `${(d as LotPoint).day}-${(d as LotPoint).lot_id}`)
-    .join(
-      (enter) =>
-        enter
-          .append("circle")
-          .attr("class", "lot")
-          .attr("data-day", (d) => d.day)
-          .attr("cx", (d) => x(d.day))
-          .attr("cy", (d) => y(d.mean_f))
-          .attr("r", (d) => r(d.n))
-          .attr("fill", TRUTH_MARKER_FILL)
-          .attr("fill-opacity", 0.95)
-          .attr("stroke", TRUTH_MARKER_STROKE)
-          .attr("stroke-width", 1.5)
-          .attr("stroke-opacity", 0.9)
-          .call((s) =>
-            s
-              .append("title")
-              .text(
-                (d) =>
-                  `Day ${d.day} · lot ${d.lot_id}\nf ${d.mean_f.toFixed(2)} · survivors ${d.n}`,
-              ),
-          ),
-      (update) =>
-        update
-          .attr("data-day", (d) => d.day)
-          .attr("cx", (d) => x(d.day))
-          .attr("cy", (d) => y(d.mean_f))
-          .attr("r", (d) => r(d.n)),
-      (exit) => exit.remove(),
-    );
 }
