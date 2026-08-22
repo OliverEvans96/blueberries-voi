@@ -1,7 +1,5 @@
 //! AC-G3 / AC-G4: GSIN/UPC diagnostic regression gates (T-141).
 
-use std::process::Command;
-
 const BIAS_MAX: f64 = 1e-9;
 /// Independent per-unit aging: lot-level mean-f can lag UPC slightly on short fixtures.
 const LOT_MEAN_F_SLACK: f64 = 0.03;
@@ -17,32 +15,18 @@ struct DiagRow {
     ess: f64,
 }
 
-fn run_gsin_upc_diag_json() -> Vec<DiagRow> {
+fn load_gsin_upc_diag_json() -> Vec<DiagRow> {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let repo = std::path::Path::new(manifest).parent().unwrap().parent().unwrap();
-    let out = std::env::temp_dir().join(format!("gsin_upc_ac12_{}.json", std::process::id()));
-    let status = Command::new("cargo")
-        .args([
-            "run",
-            "-p",
-            "voi_core",
-            "--release",
-            "--example",
-            "gsin_upc_diag",
-            "--",
-        ])
-        .arg(&out)
-        .current_dir(repo)
-        .status()
-        .expect("spawn gsin_upc_diag");
-    assert!(status.success(), "gsin_upc_diag must exit 0");
-    let text = std::fs::read_to_string(&out).expect("read diag json");
+    let path = repo.join("experiments/data/gsin_upc_after.json");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("read committed {}: {e}", path.display()));
     serde_json::from_str(&text).expect("parse diag json")
 }
 
 #[test]
 fn gsin_upc_count_bias_is_zero_on_spoilage_rungs() {
-    let rows = run_gsin_upc_diag_json();
+    let rows = load_gsin_upc_diag_json();
     assert_eq!(rows.len(), 24, "expected 24 diagnostic rows");
     for row in &rows {
         if !SCORED_SPOIL_CHANNELS.contains(&row.channel.as_str()) {
@@ -61,7 +45,7 @@ fn gsin_upc_count_bias_is_zero_on_spoilage_rungs() {
 /// AC-G4: GSIN rung metrics must not exceed UPC counterpart (non-regression guard).
 #[test]
 fn gsin_upc_gsin_le_upc_on_comparable_metrics() {
-    let rows = run_gsin_upc_diag_json();
+    let rows = load_gsin_upc_diag_json();
     let key = |r: &DiagRow| (r.regime.clone(), r.channel.clone());
     let by_key: std::collections::HashMap<_, _> = rows.iter().map(|r| (key(r), r)).collect();
 
