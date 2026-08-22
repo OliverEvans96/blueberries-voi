@@ -8,7 +8,8 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def test_wasm_worker_dispatches_set_obs_scenario() -> None:
-    text = (REPO / "packaging" / "wasm" / "worker.js").read_text(encoding="utf-8")
+    worker = REPO / "web" / "src" / "engine" / "wasmWorker.ts"
+    text = worker.read_text(encoding="utf-8")
     assert "set_obs_scenario" in text
     assert "init" in text
 
