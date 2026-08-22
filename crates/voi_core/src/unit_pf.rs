@@ -8,7 +8,7 @@
 //!
 //! | Stage | UPC (`code_type = upc`) | GSIN (`code_type = gsin`) |
 //! |-------|-------------------------|---------------------------|
-//! | Spoilage → `δ` interval | pooled `waste_tot` | intersection over per-lot `waste_by` |
+//! | Spoilage → Poisson-binomial | pooled `waste_tot` | per-lot `waste_by` |
 //! | Sales feasibility | pooled `alive ≥ sales_tot` | per-lot `alive_ℓ ≥ sales_ℓ` |
 //! | Cross-lot allocation | *(unobservable)* | `Multinomial(sales_by; lot_share)` |
 //! | Sales removal | pooled WOR draw | per-lot WOR conditional on `sales_ℓ` |
@@ -31,17 +31,14 @@ use rand_distr::{Distribution, Normal};
 use rand_pcg::Pcg64;
 
 use crate::obs::FilterObs;
-use crate::physics::{
-    age_to_f, apply_gamma_decrement, draw_gamma_decrement, draw_gamma_decrement_truncated,
-};
+use crate::physics::{age_to_f, apply_gamma_aging_independent, GammaDecrementTable};
 use crate::shipments::{
     arrival_age_from_path, birth_f_f2_dirac, birth_f_units_gamma,
     sample_phi_bar_from_fleet, shipment_arrival_age, ShipmentTrace,
 };
 use crate::unit_ll::{
-    contrast_spoilage_weight, delta_interval_loglik, loglik_sales_by_units,
-    sequential_kernel_path_logprob, spoil_delta_interval, spoil_delta_interval_by_lot,
-    DeltaInterval, DELTA_ANY,
+    apply_pb_aging_proposal, loglik_sales_by_units, pb_loglik_by_lot, pb_loglik_pooled,
+    pb_sample_deaths, sequential_kernel_path_logprob,
 };
 use crate::ModelParams;
 
@@ -311,53 +308,21 @@ fn resolve_arrival_lambda<R: Rng + ?Sized>(
     shipment_arrival_age(&shipments[idx], params.q10, params.t_ref_c)
 }
 
-fn lot_segment_has_spread(freshness: &[f64], offsets: &[usize]) -> bool {
-    let n_lots = offsets.len().saturating_sub(1);
-    for ell in 0..n_lots {
-        let start = offsets[ell].min(freshness.len());
-        let end = offsets[ell + 1].min(freshness.len());
-        if start >= end {
-            continue;
-        }
-        let seg = &freshness[start..end];
-        let alive: Vec<f64> = seg.iter().copied().filter(|&f| f > 0.0).collect();
-        if alive.len() < 2 {
-            continue;
-        }
-        let min = alive.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = alive.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        if max - min > 1e-9 {
-            return true;
-        }
-    }
-    false
-}
-
 /// Per-day observation resolved onto the bank's own lot segments.
 struct DayEvidence {
-    /// Per-segment spoil counts (GSIN + `scan_waste`).
     waste_by: Option<Vec<u32>>,
-    /// Store spoil total (any channel with `scan_waste`).
     waste_tot: Option<u32>,
-    /// Per-segment sales (GSIN).
     sales_by: Option<Vec<u32>>,
-    /// Store sales total (every channel).
     sales_tot: Option<u32>,
 }
 
 impl DayEvidence {
-    fn resolve(
-        obs: &FilterObs,
-        bank_ids: &[i64],
-        freshness: &[f64],
-        offsets: &[usize],
-    ) -> Self {
+    fn resolve(obs: &FilterObs, bank_ids: &[i64], _freshness: &[f64], _offsets: &[usize]) -> Self {
         let sales_by = obs
             .sales_by
             .as_deref()
             .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids));
-        // Lot-resolved waste assumes lot-uniform f; under within-lot gamma spread use pooled total.
-        let waste_by = if sales_by.is_some() && !lot_segment_has_spread(freshness, offsets) {
+        let waste_by = if sales_by.is_some() {
             obs.waste_by
                 .as_deref()
                 .and_then(|v| project_lot_map(v, obs.lot_ids_live.as_deref(), bank_ids))
@@ -372,24 +337,21 @@ impl DayEvidence {
         }
     }
 
-    /// Spoilage constraint on today's shared decrement, at the finest observed resolution.
-    fn delta_interval(
+    fn pb_spoilage_loglik(
         &self,
         freshness: &[f64],
         offsets: &[usize],
-        params: &ModelParams,
-    ) -> (Option<DeltaInterval>, f64) {
-        let interval = match (&self.waste_by, self.waste_tot) {
-            (Some(by), _) => spoil_delta_interval_by_lot(freshness, offsets, by),
-            (None, Some(tot)) => spoil_delta_interval(freshness, tot as usize),
-            (None, None) => Some(DELTA_ANY),
+        table: &GammaDecrementTable,
+    ) -> (usize, f64) {
+        if self.waste_tot.is_none() {
+            return (0, 0.0);
+        }
+        let w_tot = self.waste_tot.unwrap_or(0) as usize;
+        let ll = match &self.waste_by {
+            Some(by) => pb_loglik_by_lot(freshness, offsets, by, table),
+            None => pb_loglik_pooled(freshness, w_tot as u32, table),
         };
-        let ll = if self.waste_tot.is_none() {
-            0.0
-        } else {
-            delta_interval_loglik(interval, params)
-        };
-        (interval, ll)
+        (w_tot, ll)
     }
 }
 
@@ -455,7 +417,16 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
     shipments: &[ShipmentTrace],
     rng: &mut R,
 ) -> StepDiagnostics {
-    filter_step_unit_with_birth(bank, obs, params, shipments, rng, None::<&mut R>)
+    let mut table = GammaDecrementTable::for_params(params);
+    filter_step_unit_with_birth_cached(
+        bank,
+        obs,
+        params,
+        shipments,
+        rng,
+        None::<&mut R>,
+        &mut table,
+    )
 }
 
 pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
@@ -464,8 +435,22 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     params: &ModelParams,
     shipments: &[ShipmentTrace],
     rng: &mut R,
-    mut rng_birth: Option<&mut B>,
+    rng_birth: Option<&mut B>,
 ) -> StepDiagnostics {
+    let mut table = GammaDecrementTable::for_params(params);
+    filter_step_unit_with_birth_cached(bank, obs, params, shipments, rng, rng_birth, &mut table)
+}
+
+pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
+    bank: &mut UnitParticleBank,
+    obs: &FilterObs,
+    params: &ModelParams,
+    shipments: &[ShipmentTrace],
+    rng: &mut R,
+    mut rng_birth: Option<&mut B>,
+    table: &mut GammaDecrementTable,
+) -> StepDiagnostics {
+    table.rebuild_if_needed(params);
     let n = bank.weights.len();
     if n == 0 {
         return StepDiagnostics::default();
@@ -481,18 +466,20 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
         let row = &mut bank.freshness[p];
         let ev = DayEvidence::resolve(obs, &bank.lot_ids, row, &offsets);
 
-        // 1. Spoilage: score the observed decrement interval, then age from within it.
-        let (interval, mut ll) = ev.delta_interval(row, &offsets, params);
-        if lot_segment_has_spread(row, &offsets) {
-            ll += contrast_spoilage_weight(row, &offsets, 1.0).ln();
+        let (w_obs, mut ll) = ev.pb_spoilage_loglik(row, &offsets, table);
+        if ev.waste_tot.is_some() {
+            if ll.is_finite() {
+                let (deaths, _log_q) = pb_sample_deaths(row, w_obs, table, &mut path_rng);
+                if deaths.len() == w_obs {
+                    apply_pb_aging_proposal(row, &deaths, params, &mut path_rng);
+                } else {
+                    ll = f64::NEG_INFINITY;
+                }
+            }
+        } else {
+            apply_gamma_aging_independent(row, &mut path_rng, params);
         }
-        let decrement = match interval {
-            Some((lo, hi)) => draw_gamma_decrement_truncated(&mut path_rng, params, lo, hi),
-            None => draw_gamma_decrement(&mut path_rng, params),
-        };
-        apply_gamma_decrement(row, decrement);
 
-        // 2. Sales: feasibility (+ cross-lot allocation under GSIN), then WOR removal.
         if ll.is_finite() {
             ll += score_and_remove_sales(row, &offsets, &ev, params, &mut path_rng);
         }

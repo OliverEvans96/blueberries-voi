@@ -893,6 +893,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     require_unit_ll();
 
     use voi_core::obs::{mask_for, RichDay};
+    use voi_core::physics::GammaDecrementTable;
     use voi_core::unit_ll::{loglik_sales_by_units, pb_log_pmf, pb_loglik_by_lot, spoil_probs_from_freshness};
     use voi_core::ModelParams;
 
@@ -975,8 +976,9 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     // resolution the channel observes, plus the sales term that channel can support.
     let mut p1_log_w = Vec::with_capacity(n);
     let mut f1_log_w = Vec::with_capacity(n);
+    let table = GammaDecrementTable::for_params(&params);
     for row in &particles {
-        let probs = spoil_probs_from_freshness(row, &params);
+        let probs = spoil_probs_from_freshness(row, &table);
         let waste_ll_p1 = pb_log_pmf(&probs, 0);
         let alive = row.iter().filter(|&&f| f > 0.0).count();
         p1_log_w.push(if alive < 7 {
@@ -986,7 +988,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         });
 
         let waste_by = obs_f1.waste_by.as_ref().expect("F1 exposes waste_by");
-        let waste_ll_f1 = pb_loglik_by_lot(row, &offsets, waste_by, &params);
+        let waste_ll_f1 = pb_loglik_by_lot(row, &offsets, waste_by, &table);
         f1_log_w.push(waste_ll_f1 + loglik_sales_by_units(row, &sales_by, &offsets, &params));
     }
 

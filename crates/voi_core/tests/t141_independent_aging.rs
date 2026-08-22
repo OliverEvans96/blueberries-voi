@@ -25,6 +25,7 @@ fn t141_independent_aging_two_units_can_split_spoil() {
             deliver: false,
             deliver_units: None,
             delivery_f: None,
+            delivery_lambda: None,
             units_per_lot: None,
             age_at_receipt: None,
             pack_age_mean: None,
