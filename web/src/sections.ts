@@ -44,7 +44,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "demand",
     label: "Demand",
     blurb: "Mean and variability set how often you stock out or over-cover.",
-    plotIds: [],
+    plotIds: ["plot-demand"],
     controlSection: "demand",
   },
   {

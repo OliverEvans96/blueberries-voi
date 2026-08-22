@@ -39,4 +39,14 @@ describe("weekCalendar (T-148)", () => {
     );
     expect(weekdays).toEqual([...SUNDAY_FIRST_MONDAY0_ORDER]);
   });
+
+  it("keeps weekday names in header only, not inside day cells", () => {
+    const host = document.createElement("div");
+    renderWeekCalendar(host, SCHEDULE, { onToggleDelivery: () => undefined });
+    const buttons = host.querySelectorAll(".week-calendar-day");
+    for (const btn of buttons) {
+      expect(btn.textContent?.trim()).toBe("");
+      expect(btn.getAttribute("aria-label")).toBeTruthy();
+    }
+  });
 });

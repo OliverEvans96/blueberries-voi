@@ -103,6 +103,18 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(observationTab).toBeNull();
   });
 
+  it("tuning dock uses side-by-side controls and teaching plots", () => {
+    const { container } = render(createElement(StudioLayout));
+    const columns = container.querySelector(".tuning-dock-columns");
+    expect(columns).not.toBeNull();
+    expect(columns!.querySelector("#section-controls.tuning-dock-controls")).not.toBeNull();
+    expect(columns!.querySelector(".focus-plots.tuning-plots")).not.toBeNull();
+    expect(container.querySelector("#chart-demand-host")).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-demand"]'),
+    ).not.toBeNull();
+  });
+
   it("all D3ChartHost ids appear exactly once", () => {
     const { container } = render(createElement(StudioLayout));
     for (const id of REQUIRED_CHART_IDS) {

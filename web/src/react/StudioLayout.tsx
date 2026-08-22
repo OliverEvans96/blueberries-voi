@@ -221,47 +221,60 @@ export function StudioLayout() {
                   <h2 id="focus-title">Demand</h2>
                   <p className="focus-blurb" id="focus-blurb" />
                 </div>
-                <div id="section-controls" />
-                <div className="focus-plots tuning-plots">
-                  <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
-                    <div className="chart-caption impact-caption">
-                      Arrival-age prior · receipt rug
+                <div className="tuning-dock-columns">
+                  <div id="section-controls" className="tuning-dock-controls" />
+                  <div className="focus-plots tuning-plots">
+                    <div className="focus-plot" data-plot="plot-demand" hidden>
+                      <div className="chart-caption impact-caption">
+                        DOW demand · protection 3 / 3 / 4
+                      </div>
+                      <div
+                        id="chart-demand-host"
+                        className="chart demand-chart-slot"
+                        role="img"
+                        aria-label="Day of week demand profile"
+                      />
                     </div>
-                    <D3ChartHost
-                      id="chart-arrival-prior"
-                      className="chart"
-                      ariaLabel="Arrival age prior distribution"
-                    />
-                  </div>
-                  <div className="focus-plot" data-plot="plot-arrival-shift" hidden>
-                    <div className="chart-caption impact-caption">
-                      Transit ΔT shift vs baseline
+                    <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
+                      <div className="chart-caption impact-caption">
+                        Arrival-age prior · receipt rug
+                      </div>
+                      <D3ChartHost
+                        id="chart-arrival-prior"
+                        className="chart"
+                        ariaLabel="Arrival age prior distribution"
+                      />
                     </div>
-                    <D3ChartHost
-                      id="chart-arrival-shift"
-                      className="chart"
-                      ariaLabel="Transit temperature shift"
-                    />
-                  </div>
-                  <div className="focus-plot" data-plot="plot-arrhenius-temp" hidden>
-                    <div className="chart-caption impact-caption">
-                      Q10 aging rate vs temperature
+                    <div className="focus-plot" data-plot="plot-arrival-shift" hidden>
+                      <div className="chart-caption impact-caption">
+                        Transit ΔT shift vs baseline
+                      </div>
+                      <D3ChartHost
+                        id="chart-arrival-shift"
+                        className="chart"
+                        ariaLabel="Transit temperature shift"
+                      />
                     </div>
-                    <D3ChartHost
-                      id="chart-arrhenius-temp"
-                      className="chart"
-                      ariaLabel="Q10 aging rate versus store temperature"
-                    />
-                  </div>
-                  <div className="focus-plot" data-plot="plot-gamma-path" hidden>
-                    <div className="chart-caption impact-caption">
-                      Gamma freshness mean ± σ until expiry
+                    <div className="focus-plot" data-plot="plot-arrhenius-temp" hidden>
+                      <div className="chart-caption impact-caption">
+                        Q10 aging rate vs temperature
+                      </div>
+                      <D3ChartHost
+                        id="chart-arrhenius-temp"
+                        className="chart"
+                        ariaLabel="Q10 aging rate versus store temperature"
+                      />
                     </div>
-                    <D3ChartHost
-                      id="chart-gamma-path"
-                      className="chart"
-                      ariaLabel="Unit freshness mean and standard deviation envelope"
-                    />
+                    <div className="focus-plot" data-plot="plot-gamma-path" hidden>
+                      <div className="chart-caption impact-caption">
+                        Gamma freshness mean ± σ until expiry
+                      </div>
+                      <D3ChartHost
+                        id="chart-gamma-path"
+                        className="chart"
+                        ariaLabel="Unit freshness mean and standard deviation envelope"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

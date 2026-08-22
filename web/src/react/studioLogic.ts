@@ -572,9 +572,7 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not
-    // .focus-plot[data-plot="plot-demand"] — gate on active section instead.
-    if (activeSection === "demand" && schedule) {
+    if (plotVisible("plot-demand") && schedule) {
       renderDemandDist(
         els.demand,
         vm.demand_summary,
@@ -637,7 +635,7 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusPane.classList.add("focus-flash");
 
     if (id === "demand") {
-      const slot = q<HTMLElement>("#demand-chart-slot");
+      const slot = q<HTMLElement>("#chart-demand-host");
       if (slot && els.demand.parentElement !== slot) {
         slot.appendChild(els.demand);
       }

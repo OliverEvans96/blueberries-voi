@@ -104,7 +104,6 @@ export function renderWeekCalendar(
     else if (isOrder) btn.classList.add("is-order");
 
     const label = WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`;
-    btn.textContent = label;
     const roles: string[] = [];
     if (isDelivery) roles.push("delivery");
     if (isOrder) roles.push("order");
@@ -112,6 +111,13 @@ export function renderWeekCalendar(
       roles.length > 0
         ? `${label}: ${roles.join(" + ")}`
         : `${label}: click to add delivery`;
+    btn.setAttribute(
+      "aria-label",
+      roles.length > 0
+        ? `${label}, ${roles.join(" and ")}`
+        : `${label}, click to add delivery`,
+    );
+    btn.textContent = "";
     btn.setAttribute("aria-pressed", isDelivery ? "true" : "false");
     btn.disabled = disabled;
 
