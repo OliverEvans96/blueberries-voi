@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { pickDayTicks } from "./axisTicks";
+import { MIN_CHART_DAY_SPAN, padDaysToMinRange, pickDayTicks } from "./axisTicks";
+
+describe("padDaysToMinRange", () => {
+  it("extends short real history forward to minDays consecutive slots", () => {
+    expect(padDaysToMinRange([1, 2], 5)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("seeds day 0..4 when history is empty", () => {
+    expect(padDaysToMinRange([], 5)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("leaves domain unchanged when real span already meets minDays", () => {
+    expect(padDaysToMinRange([1, 2, 3, 4, 5, 6, 7], 5)).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
+  });
+
+  it("defaults minDays to MIN_CHART_DAY_SPAN", () => {
+    expect(padDaysToMinRange([0, 1])).toEqual([0, 1, 2, 3, 4]);
+    expect(MIN_CHART_DAY_SPAN).toBe(5);
+  });
+});
 
 describe("pickDayTicks", () => {
   it("keeps every day when they all fit comfortably", () => {
