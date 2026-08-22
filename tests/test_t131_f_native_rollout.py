@@ -159,7 +159,7 @@ def test_costs_affect_ranking_fixture() -> None:
             pending_orders: Mapping[int, int] | None = None,
         ) -> int:
             del _belief, day, pending_orders
-            # Centre case neighbourhood where independent-aging rollout flips (Rust parity).
+            # Case neighbourhood where independent-aging rollout flips (Rust parity).
             return 48
 
     base = _FixedBase()
