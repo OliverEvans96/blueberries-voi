@@ -4,7 +4,7 @@ use rand::Rng;
 
 pub use crate::params::ModelParams;
 use crate::physics::{
-    apply_gamma_aging, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
+    apply_gamma_aging_independent, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
 };
 use crate::shipments::{
     birth_f_units_gamma, delivery_birth_f, ShipmentTrace,
@@ -80,7 +80,7 @@ fn apply_gamma_step<R: Rng + ?Sized>(
     if let Some(dec) = gamma_decrement {
         apply_gamma_decrement(freshness, dec);
     } else if let Some(rng) = rng_gamma {
-        apply_gamma_aging(freshness, rng, params);
+        apply_gamma_aging_independent(freshness, rng, params);
     } else {
         apply_gamma_decrement(freshness, gamma_decrement_for_store(params));
     }

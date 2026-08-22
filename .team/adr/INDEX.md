@@ -162,3 +162,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0124](./0124-rust-wasm-set-obs-scenario.md) | ENG | Rust/wasm `set_obs_scenario` parity with 0123 | ACCEPTED |
 | [0125](./0125-studio-show-truth-js-only.md) | ENG-01 | Studio show-truth is JS-only presentation | PROPOSED |
 | [0126](./0126-wasm-rich-filterobs-particle-belief.md) | ENG | Wasm RichObs FilterObs; belief = particle posterior | ACCEPTED |
+| [0130](./0130-f-native-c2-a-unit-pf.md) | FIL | f-native C2-A unit PF on L×U freshness grid | ACCEPTED |
+| [0133](./0133-observation-channel-toggles.md) | SCN | Orthogonal POS/waste/delivery channel toggles | ACCEPTED |
+| [0137](./0137-observed-lot-segmentation-and-exact-spoilage-likelihood.md) | FIL | Shared-δ interval spoilage (historical) | SUPERSEDED |
+| [0143](./0143-independent-per-unit-gamma-aging.md) | FIL | Independent per-unit gamma aging + PB spoilage | ACCEPTED |

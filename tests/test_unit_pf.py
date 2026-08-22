@@ -39,7 +39,10 @@ def _require_unit_ll_wired() -> None:
     body = _read(VOI_CORE / "src" / "unit_ll.rs")
     for sym in (
         "sequential_kernel_path_logprob",
-        "delta_interval_loglik",
+        "pb_log_pmf",
+        "pb_loglik_by_lot",
+        "pb_sample_deaths",
+        "spoil_probs_from_freshness",
         "loglik_sales_by_units",
     ):
         if sym not in body and sym not in lib:
@@ -156,6 +159,70 @@ def _hand_p1_totals_loglik(
     return ll_sales + math.log(pw)
 
 
+def _hand_spoil_prob(
+    f: float,
+    *,
+    gamma_shape: float = 2.0,
+    gamma_scale: float = 0.08,
+    q10: float = 3.0,
+    t_store_c: float = 4.0,
+    t_ref_c: float = 0.0,
+) -> float:
+    """Per-unit spoil probability under independent gamma decrements (δ ≥ f)."""
+    if f <= 0.0:
+        return 0.0
+    factor = q10 ** ((t_store_c - t_ref_c) / 10.0)
+    scale = gamma_scale * factor
+    x = f / scale
+    term = 1.0 / gamma_shape
+    summ = term
+    for n in range(1, 256):
+        term *= x / (gamma_shape + n)
+        summ += term
+        if term <= 1e-15 * summ:
+            break
+    cdf = (x**gamma_shape) * math.exp(-x) * summ
+    return min(1.0, max(0.0, 1.0 - cdf))
+
+
+def _hand_spoil_probs_from_freshness(
+    freshness: list[float],
+    **kwargs: float,
+) -> list[float]:
+    return [_hand_spoil_prob(f, **kwargs) for f in freshness if f > 0.0]
+
+
+def _hand_pb_log_pmf(probs: list[float], k: int) -> float:
+    n = len(probs)
+    if k < 0 or k > n:
+        return float("-inf")
+    total = 0.0
+    for mask in range(1 << n):
+        deaths = sum((mask >> i) & 1 for i in range(n))
+        if deaths != k:
+            continue
+        p = 1.0
+        for i, pi in enumerate(probs):
+            p *= pi if (mask >> i) & 1 else (1.0 - pi)
+        total += p
+    if total <= 0.0:
+        return float("-inf")
+    return math.log(total)
+
+
+def _hand_pb_loglik_by_lot(
+    freshness: list[float],
+    offsets: list[int],
+    waste_by: list[int],
+) -> float:
+    ll = 0.0
+    for ell, w in enumerate(waste_by):
+        seg = [f for f in freshness[offsets[ell] : offsets[ell + 1]] if f > 0.0]
+        probs = _hand_spoil_probs_from_freshness(seg)
+        ll += _hand_pb_log_pmf(probs, w)
+    return ll
+
+
 # --- module wiring (RED: files / lib.rs exports) ---
 
 
@@ -174,7 +241,10 @@ def test_lib_rs_reexports_unit_pf_public_api() -> None:
     for sym in (
         "filter_step_unit",
         "UnitParticleBank",
-        "delta_interval_loglik",
+        "pb_log_pmf",
+        "pb_loglik_by_lot",
+        "pb_sample_deaths",
+        "spoil_probs_from_freshness",
         "loglik_sales_by_units",
     ):
         assert sym in lib, f"lib.rs must re-export `{sym}` for session/VOI wiring"
@@ -193,11 +263,22 @@ def test_f1_mask_exposes_sales_by_for_per_lot_ll() -> None:
     assert proc.returncode == 0, proc.stderr
 
 
-def test_filter_step_unit_p1_router_uses_delta_interval_loglik() -> None:
+def test_filter_step_unit_p1_router_uses_poisson_binomial_spoilage() -> None:
     _require_unit_pf_wired()
     body = _read(VOI_CORE / "src" / "unit_pf.rs")
-    assert "delta_interval_loglik" in body
+    assert "spoil_probs_from_freshness" in body
+    assert "pb_log_pmf" in body or "pb_loglik_by_lot" in body
+    assert "spoil_delta_interval" not in body
+    assert "delta_interval_loglik" not in body
     assert "p1_totals_loglik" not in body
+
+
+def test_filter_step_unit_f1_router_uses_pb_loglik_by_lot() -> None:
+    _require_unit_pf_wired()
+    body = _read(VOI_CORE / "src" / "unit_pf.rs")
+    assert "pb_loglik_by_lot" in body
+    assert "loglik_sales_by_units" in body
+    assert "delta_interval_loglik" not in body
 
 
 def test_filter_step_unit_f1_router_uses_loglik_sales_by_units() -> None:
@@ -232,8 +313,64 @@ def test_sequential_kernel_path_logprob_feasible_finite() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_superseded_interval_spoil_primitives_are_gone() -> None:
+    proc = _cargo_unit_pf_ac("superseded_interval_spoil_primitives_are_gone")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
 def test_superseded_p1_totals_loglik_stays_removed() -> None:
     proc = _cargo_unit_pf_ac("superseded_binomial_waste_primitives_are_gone")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_pb_log_pmf_hand_reference_normalizes() -> None:
+    freshness = [0.05, 0.10, 0.20, 0.35]
+    probs = _hand_spoil_probs_from_freshness(freshness)
+    log_mass = [_hand_pb_log_pmf(probs, k) for k in range(len(probs) + 1)]
+    assert abs(math.log(sum(math.exp(x) for x in log_mass))) < 1e-9
+    _require_unit_ll_wired()
+    proc = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "voi_core",
+            "t141_poisson_binomial",
+            "--",
+            "--nocapture",
+            "pb_log_pmf_normalizes_on_small_n",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_pb_loglik_by_lot_hand_reference_matches_brute_force() -> None:
+    freshness = [0.30, 0.32, 0.34, 0.20, 0.22, 0.24]
+    offsets = [0, 3, 6]
+    waste_by = [1, 0]
+    want = _hand_pb_loglik_by_lot(freshness, offsets, waste_by)
+    assert math.isfinite(want)
+    _require_unit_ll_wired()
+    proc = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "-p",
+            "voi_core",
+            "t141_poisson_binomial",
+            "--",
+            "--nocapture",
+            "pb_loglik_by_lot_matches_brute_force",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 

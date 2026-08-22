@@ -66,6 +66,10 @@ UI **dims/disables** (not server reject):
 - `sensor_sigma` unless `deliveries = pack_date_per_lot` (receipt-age teaching).
 - `store-spoilage` plot unless waste ≠ `none`.
 
+> **Footnote (ADR 0143):** `waste=lot_id` scores independent per-unit Poisson-binomial
+> spoilage when lot segments align; it remains orthogonal to POS and delivery channels —
+> toggling waste resolution does not imply a ladder rung switch.
+
 ### Cache key
 
 Lazy rung cache key = canonical string `pos=<p>|waste=<w>|deliveries=<d>` (ADR 0123).

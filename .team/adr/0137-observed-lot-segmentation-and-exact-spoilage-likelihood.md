@@ -1,6 +1,7 @@
 # 0137. Observed lot segmentation and exact spoilage likelihood
 
-STATUS: PROPOSED
+STATUS: SUPERSEDED
+SUPERSEDED-BY: [0143](./0143-independent-per-unit-gamma-aging.md) (§2 shared-δ interval spoilage; §4 contrast weight)
 DATE: 2026-08-20
 BOARD-ID: FIL
 GROUP: FIL

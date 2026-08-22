@@ -1,0 +1,126 @@
+ticket: T-141
+parent_tip: team/T-140/implement
+optimize: balanced
+description: >
+  Independent per-unit gamma aging (truth + filter), Poisson-binomial spoilage DP,
+  GammaDecrementTable (4096 grid), delete ADR-0137 interval primitives, regen GSIN/UPC diag.
+max_parallel: 3
+batch_below:
+  max_files: 3
+  max_prod_loc: 80
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-141.md
+      - .team/adr/0143-independent-per-unit-gamma-aging.md
+      - .team/plans/T-141-concurrency.yaml
+    deps: []
+
+  - id: qa-physics
+    role: qa
+    shard: qa-physics
+    files:
+      - crates/voi_core/tests/t141_gamma_table.rs
+      - .team/qa/T-141-physics-tests.md
+    deps: [architect]
+
+  - id: qa-likelihood-guards
+    role: qa
+    shard: qa-likelihood-guards
+    files:
+      - crates/voi_core/tests/t141_poisson_binomial.rs
+      - crates/voi_core/tests/unit_pf_ac.rs
+      - tests/test_unit_pf.py
+      - .team/qa/T-141-likelihood-tests.md
+    deps: [architect]
+
+  - id: qa-filter
+    role: qa
+    shard: qa-filter
+    files:
+      - crates/voi_core/tests/t141_independent_aging.rs
+      - crates/voi_core/tests/gsin_upc_ac12.rs
+      - .team/qa/T-141-filter-tests.md
+    deps: [architect]
+
+  - id: impl-baseline-json
+    role: implement
+    shard: impl-baseline-json
+    files:
+      - experiments/data/gsin_upc_pre_t141.json
+      - experiments/data/README.md
+    deps: [architect]
+
+  - id: impl-physics-table
+    role: implement
+    shard: impl-physics-table
+    files:
+      - crates/voi_core/src/physics.rs
+      - crates/voi_core/tests/t141_gamma_table.rs
+    deps: [qa-physics]
+
+  - id: impl-daystep-truth
+    role: implement
+    shard: impl-daystep-truth
+    files:
+      - crates/voi_core/src/day_step.rs
+      - crates/voi_core/tests/t141_independent_aging.rs
+    deps: [qa-filter, impl-physics-table]
+
+  - id: impl-pb-filter
+    role: implement
+    shard: impl-pb-filter
+    files:
+      - crates/voi_core/src/unit_ll.rs
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/lib.rs
+      - crates/voi_core/tests/t141_poisson_binomial.rs
+      - crates/voi_core/tests/unit_pf_ac.rs
+      - tests/test_unit_pf.py
+    deps: [qa-likelihood-guards, qa-filter, impl-physics-table]
+
+  - id: impl-session-voi
+    role: implement
+    shard: impl-session-voi
+    files:
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/voi.rs
+    deps: [impl-pb-filter]
+
+  - id: impl-diag-notebook
+    role: implement
+    shard: impl-diag-notebook
+    files:
+      - crates/voi_core/examples/gsin_upc_diag.rs
+      - experiments/data/gsin_upc_after.json
+      - experiments/notebook_14_source.md
+      - notebooks/14_gsin_vs_upc_filter_accuracy.ipynb
+    deps: [impl-session-voi, impl-baseline-json]
+
+  - id: merge
+    role: merge
+    shard: merge
+    merge_last: true
+    files:
+      - .team/changelog.md
+      - .team/adr/0137-observed-lot-segmentation-and-exact-spoilage-likelihood.md
+      - .team/adr/0133-observation-channel-toggles.md
+      - .team/adr/INDEX.md
+    deps:
+      - impl-daystep-truth
+      - impl-pb-filter
+      - impl-session-voi
+      - impl-diag-notebook
+
+  - id: review
+    role: review
+    files:
+      - .team/reviews/T-141.md
+    deps: [merge]
+
+  - id: verify
+    role: verify
+    files:
+      - .team/qa/T-141.md
+    deps: [merge]

@@ -12,10 +12,10 @@ use crate::obs::{
     parse_channels, preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
-use crate::physics::{draw_demand, draw_demand_spawn};
+use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
-use crate::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
+use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
@@ -71,6 +71,7 @@ pub struct EngineSession {
     rungs: HashMap<String, RungCache>,
     bank_init: UnitParticleBank,
     catchup_days_last: u32,
+    gamma_table: GammaDecrementTable,
 }
 
 impl Default for EngineSession {
@@ -82,8 +83,9 @@ impl Default for EngineSession {
 impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
+        let params = ModelParams::default();
         Self {
-            params: ModelParams::default(),
+            params: params.clone(),
             freshness: vec![],
             lot_offsets: vec![0],
             lot_ids: vec![],
@@ -111,6 +113,7 @@ impl EngineSession {
             rungs: HashMap::new(),
             bank_init: UnitParticleBank::empty(n),
             catchup_days_last: 0,
+            gamma_table: GammaDecrementTable::for_params(&params),
         }
     }
 
@@ -365,13 +368,14 @@ impl EngineSession {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx, STREAM_BIRTH)) } else { None };
-            filter_step_unit_with_birth(
+            filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
                 &self.params,
                 &self.shipments,
                 &mut fr,
                 rng_birth_filter.as_mut(),
+                &mut self.gamma_table,
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
@@ -638,13 +642,14 @@ impl EngineSession {
                 let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx as u32, STREAM_BIRTH)) } else { None };
-                filter_step_unit_with_birth(
+                filter_step_unit_with_birth_cached(
                     &mut bank,
                     &obs,
                     &self.params,
                     &self.shipments,
                     &mut fr,
                     rng_birth_filter.as_mut(),
+                    &mut self.gamma_table,
                 );
                 let belief = self.belief_from_bank(&bank);
                 let i = day_idx as usize;
@@ -1297,24 +1302,31 @@ mod tests {
         assert_eq!(cfg["candidate_case_radius"], 2);
         assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
         let warm = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"2","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
-        let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
-        let f_warm = warm_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(warm_v["ok"], true, "{warm}");
+        let warm_steps = warm_v["result"].as_array().unwrap();
+        let f_warm = warm_steps
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("warm shipment arrival must populate live_lots");
         let smoke = handle_rpc(
             r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
         );
         assert_eq!(smoke.contains("\"ok\":true"), true);
         let cool = handle_rpc(
-            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"4","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
-        let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
-        let f_cool = cool_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(cool_v["ok"], true, "{cool}");
+        let f_cool = cool_v["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("smoke shipment arrival must populate live_lots");
         assert!(
             f_warm < f_cool - 1e-6,
