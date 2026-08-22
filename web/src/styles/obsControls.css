@@ -2,7 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  padding: 0.35rem 0 0.75rem;
+  /* padding-block only — .panel supplies horizontal padding (16px) */
+  padding-block: 0.35rem 0.75rem;
   border-bottom: 1px solid var(--paper-edge);
   background: linear-gradient(
     180deg,
