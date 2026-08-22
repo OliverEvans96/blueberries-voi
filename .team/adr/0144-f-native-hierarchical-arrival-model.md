@@ -213,11 +213,14 @@ not a scalar, is what seeds the lot. This is the invariant the remodel exists to
 determines the conditional structure of the artifact — which must be a joint law, not a
 marginal, or the flat-ladder bug is baked in permanently:
 
-| Rung | Conditions on | Integrates over |
-| --- | --- | --- |
-| F3 (temperature history) | `T_bar`, hence `φ̄` | `d` if unobserved, `ψ_pos`, gamma |
-| F2 / F2a (pack date) | `d` only | `T_bar`, `ψ_pos`, gamma |
-| P0 / P1 | nothing | `d`, `T_bar`, `ψ_pos`, gamma |
+| Rung | Observes | Conditions on | Integrates over |
+| --- | --- | --- | --- |
+| F3 (temperature history) | the full trace: timestamps **and** temperatures | `Λ`, hence both `d` and `φ̄` | `ψ_pos`, gamma |
+| F2 / F2a (pack date) | pack date | `d` only | `T_bar`, `ψ_pos`, gamma |
+| P0 / P1 | nothing | corridor configuration only | `d`, `T_bar`, `ψ_pos`, gamma |
+
+*This table was corrected on 2026-08-22; the original had F3 conditioning on `T_bar` alone and
+integrating over "`d` if unobserved". See Correction 1.*
 
 No rung ever sees `ψ_pos` or the per-unit gamma draw. That is the belief-sharpness floor and the
 reason units within one lot arrive with genuinely different freshness. `FilterObs` carries no
@@ -289,8 +292,12 @@ reasons unrelated to the model.
 at the same temperature cost the same freshness and can be tested against each other. Λ becomes
 a genuine sufficient statistic, so F3 is an `O(1)` lookup instead of per-particle path
 integration and the wire stops carrying full traces. Each rung conditions on exactly what it
-observes, so the monotone ladder `Var(f | φ̄) ≤ Var(f | d) ≤ Var(f)` is a testable property
-rather than an aspiration. The `f = 0` atom is available in closed form as a headline number.
+observes, so the rungs separate empirically — how closely a rung's arrival belief tracks the
+realized lot is a testable property rather than an aspiration. The `f = 0` atom is available in
+closed form as a headline number.
+
+*The original wording here claimed the monotone ladder `Var(f | φ̄) ≤ Var(f | d) ≤ Var(f)` as
+the testable property. That is wrong twice over and was withdrawn — see Correction 1.*
 
 **Makes hard / costs.** Recalibrating `gamma_scale` moves every store-side number: waste rates,
 α tuning, VOI CRN snapshots, and the conclusions in notebooks 13 and 14. Arrival freshness moves
@@ -310,3 +317,119 @@ span, with arrival freshness explicitly an upper bound.
 and its own ADR); or discrete loss mechanisms (bruising, mould contagion) are shown to dominate,
 in which case the gamma subordinator itself — not just its scaling convention — is the thing to
 replace; or a real fit becomes possible with substantially more than six shipments.
+
+## Correction 1 — withdrawn variance-ladder guard and F3 conditioning (2026-08-22)
+
+Recorded as a correction rather than a silent edit, because the error produced a committed
+artifact that no gate rejected. The two passages it touches are marked in place above.
+
+### What went wrong
+
+T-150 AC2.10 required, on the committed artifact, `Var(f | φ̄) < Var(f | d) < Var(f)`, strict.
+Phase 2 satisfied it — and every other Phase 2 criterion — by setting `sigma_T = 3.6` °C in
+`data/abdella/arrival_model.json` and tightening `abdella_all.delay_scale` to 0.30. With
+`mu_T = 2.7` and a 0 °C floor, `sigma_T = 3.6` describes a refrigerated reefer whose mean
+transit temperature ranges from freezing to about 10 °C. The six Abdella shipments span
+2.24–3.21 °C time-averaged (2.29–3.55 °C Arrhenius-equivalent), a standard deviation near
+0.4–0.5. The committed value was roughly seven times the observed spread, which fails the
+binding requirement that this be a physically realistic model that somewhat fits the data.
+`Λ` widened from the predicted `[2.6, 8.8]` to about `[2.0, 20]`, and fleet mean arrival
+freshness came out ≈0.68 instead of ≈0.54.
+
+### Why the criterion was unsatisfiable
+
+`Var(f | φ̄)` is what remains after learning temperature, so it is driven by the still-unknown
+duration; `Var(f | d)` is what remains after learning duration, driven by the still-unknown
+temperature. Requiring `Var(f | φ̄) < Var(f | d)` therefore requires duration to contribute
+*less* variance than temperature. §3 of this ADR states the opposite, from the data: duration is
+≈98.4% of `Var(log Λ)` and thermal stress ≈1.6%. Recomputed from the parquet during this
+correction: `Var(log d) = 0.205`, `Var(log φ̄) = 0.00335`, a duration share of **98.39%**. The
+criterion could only be met by inverting the real decomposition, and that is exactly what
+happened — the committed parameters give a duration share of **23%**.
+
+The criterion was also mis-derived at a second level. It compares two *non-nested* information
+sets, so no law of total variance applies and no ordering is guaranteed in either direction.
+Writing it as a strict inequality asserted a property of the data as though it were a property
+of probability.
+
+### Deeper error: F3 was conditioned on `φ̄` alone
+
+The reason the ladder was written across `φ̄` and `d` at all is that this ADR's §5 table had F3
+conditioning on `T_bar` and integrating over "`d` if unobserved". That is wrong. The
+temperature-history channel delivers the full trace — `temp_times_d` alongside `temp_temps_c`
+(`obs.rs:246-255`) — and the trace carries timestamps, so F3 observes the duration exactly.
+`arrival_exposure_from_path(temps_c, times_d, …)` consumes both and returns `Λ` directly.
+
+Phase 2 implemented the table as written: `resolve_arrival_f_law_phi_bar`
+(`crates/voi_core/src/arrival.rs`) computes the exposure integral and then **divides it by the
+duration** to recover `φ̄`, and `unit_pf::resolve_arrival_f_law` passes that `φ̄` on while
+`obs.pack_date_days` is `None` at F3 (the `DeliveryHistory` enum makes pack date and temperature
+history mutually exclusive). `sample_filter_birth_units` then takes the `φ̄` branch, which
+quadratures over a duration the filter already knew exactly. F3 was made **less informed than
+reality**, which understates the F2→F3 information gain — one of the headline numbers this
+project exists to produce.
+
+**Decision: F3 conditions on `Λ`, i.e. on both `d` and `φ̄`.** `Λ` is a sufficient statistic
+under shape-scaling (§1), so conditioning on the trace is conditioning on `Λ`, and only `ψ_pos`
+and the per-unit gamma remain to integrate. F3 becomes the cheapest rung to build, not the most
+expensive. The corrected §5 table is above; T-150 AC2.15 and AC2.20 carry the implementation
+contract.
+
+### Why AC2.10 is withdrawn rather than restated
+
+The chain that follows the actual rungs is `Var(f | Λ) ≤ Var(f | d) ≤ Var(f)`. These *are*
+nested — `σ(d, φ̄) ⊃ σ(d) ⊃ trivial` — and `f ⟂ (d, φ̄) | Λ`, so the ordering is the law of total
+variance and holds at **any** parameter values, physically defensible or not. A test asserting
+it would pass on `sigma_T = 3.6` just as happily as on `sigma_T = 0.4`. It would test arithmetic,
+report as a model guard, and supply exactly the false confidence that let this defect through.
+
+So the guard is deleted, not fixed. The regression it was meant to catch — the flat ladder,
+where every rung produces bit-identical beliefs because `arrival_product` never reached Rust —
+is caught directly and empirically by the restored `bc26218` assertions (T-150 AC2.11), now
+extended with a tracking assertion (AC2.11a): across deliveries on one trajectory, mean absolute
+error between a rung's arrival belief and the realized lot must order strictly
+`F3 < F2 < P0`. That can fail, and it fails precisely when the ladder goes flat.
+
+One consequence to state plainly, because it is a real result rather than a defect: the F2→F3
+gain in *residual spread* is small, since `φ̄` is ≈1.6% of `Var(log Λ)`. Most of what F3 adds
+over F2 is de-rounding the pack date and removing that last 1.6%. This ADR already predicted
+"P1 → F2 large, F2 → F3 small and concentrated in tail risk"; the correction confirms it. Do not
+treat a small F2→F3 variance gain as a bug to be tuned away.
+
+### The guard that replaces it
+
+Withdrawing AC2.10 removes the *pressure* toward `sigma_T = 3.6` but does not forbid it. The
+replacement guard binds the artifact to the observations rather than to a modelling assumption
+(T-150 AC2.18): a test loads the six shipments through the existing
+`blueberries_voi.model.abdella.load_abdella_shipments` and asserts `mu_T` within 0.5 °C of the
+observed Arrhenius-equivalent mean, `sigma_T` within a factor of two of the observed spread,
+the duration moments within the same band, and a duration share of `Var(log Λ)` of at least 90%
+against the observed 98.4%. Every observed number is computed from the parquet, so the guard
+cannot rot into a stale constant. Both Phase 2 distortions fail it: `sigma_T = 3.6` at 6.8× the
+observed spread, and `delay_scale = 0.30` at a duration share of 23%.
+
+This is the general lesson worth keeping: prefer criteria that pin the model to data over
+criteria that pin it to an assumed structural property. The first kind fails loudly when the
+model drifts from reality; the second kind can be satisfied by making the model unreal.
+
+### Also surfaced by this audit
+
+Auditing the F3 arm exposed three integration defects in Phase 2's `build_marginal_cdf` that the
+withdrawn guard would never have caught, now carried as T-150 AC2.19: the P0/P1 mixture drives
+the duration node and the temperature node from a single shared quadrature index, making two
+independent quantities perfectly rank-correlated; the nodes are mapped linearly onto a `±span`
+window, which integrates against a uniform law rather than against the shifted gamma and
+truncated normal the model specifies; and `sigma_pos` never enters any filter-side law, so
+filter lots carry less within-lot spread than the truth path draws. The prior also averages
+across every corridor in the artifact, though `arrival_product` is a configuration known to
+truth and filter alike, not an observation.
+
+### Unchanged
+
+The `k · θ · η_ref = 1` recalibration (§2) stands, along with `η_ref = 14` d at `T_ref = 0 °C`
+and `gamma_scale = 1/28`. Nothing in this correction bears on it. At the corrected artifact the
+§2 predictions hold as originally written: `Λ ∈ [2.6, 8.8]` over the corridor range, fleet mean
+arrival `f ≈ 0.53`, arrival `f ∈ [0.37, 0.82]` by corridor, and an `f = 0` atom of ≈1% on the
+longest observed corridor. The corrected duration parameters are `d_min = 1.9`,
+`delay_shape = 3.0`, `delay_scale = 1.0` — mean 4.9 d against an observed 4.78, standard
+deviation 1.73 against an observed 1.69 — with `sigma_T = 0.4`.
