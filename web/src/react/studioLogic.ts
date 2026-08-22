@@ -544,8 +544,10 @@ export function initStudio(app: HTMLElement): () => void {
     );
     setSalesDemandHover(els.salesDemand, day);
     setOrdersWasteHover(els.controllerOrders, day);
+    setOrdersWasteHover(els.ordersWasteFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
+    setInventoryTargetHover(els.inventoryFocus, day);
     setAgeCompositionHover(els.ageComp, day);
     setDemandHover(els.demand, day);
   }
