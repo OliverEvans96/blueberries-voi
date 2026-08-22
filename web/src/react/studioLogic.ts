@@ -432,6 +432,8 @@ export function initStudio(app: HTMLElement): () => void {
     return vm.history.map((d) => ({
       ...d,
       lots: [],
+      units: [],
+      unit_exits: [],
       f_at_receipt: null,
     }));
   }
@@ -447,14 +449,14 @@ export function initStudio(app: HTMLElement): () => void {
       if (kind === "lots") {
         el.textContent =
           !showTruth && vm.history.length > 0
-            ? "Freshness × time (turn on Sim truth overlay to see lot freshness)"
+            ? "Freshness × time (turn on Sim truth overlay to see unit trajectories)"
             : "Freshness × time";
       }
     });
     const observation = STUDIO_SECTIONS.find((s) => s.id === "observation");
     if (observation && activeSection === "observation") {
       els.focusBlurb.textContent = showTruth
-        ? `${observation.blurb} Truth lots overlay when enabled.`
+        ? `${observation.blurb} Truth unit trajectories overlay when enabled.`
         : observation.blurb;
     }
   }
@@ -467,7 +469,7 @@ export function initStudio(app: HTMLElement): () => void {
   function renderCockpitBelief(): void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
     if (flat) {
-      const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
+      const data = freshnessHistogramDataFromFlat(flat, vm.live_units);
       renderFreshnessHistogram(els.beliefLg, data, showTruth, 150);
     } else {
       els.beliefLg.replaceChildren();
@@ -499,7 +501,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderMarginal(els.stockout, vm.history, "stockout", 48, yMax);
     renderBeliefFreshnessTime(
       els.history,
-      vm.history,
+      historyForCharts(),
       vm.belief_history,
       showTruth,
       { height: 220 },

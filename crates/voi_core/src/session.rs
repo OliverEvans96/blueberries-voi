@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, UnitExit, UnitExitCause, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
@@ -389,6 +389,7 @@ impl EngineSession {
             order_qty: order,
             arrivals: arrival,
             episode_day: self.day,
+            unit_exits: out.unit_exits,
         };
         self.day += 1;
         self.seq += 1;
@@ -403,6 +404,7 @@ impl EngineSession {
             "belief": self.belief_value(),
             "history": [],
             "live_lots": self.live_lots_value(),
+            "live_units": self.live_units_value(),
             "pipeline": self.pipeline_value(),
             "applied_config": {
                 "n_particles": self._n_particles,
@@ -435,8 +437,10 @@ impl EngineSession {
                 "waste_total": d.waste_total,
                 "demand": d.demand,
                 "L": d.on_hand,
+                "unit_exits": self.unit_exits_wire(&d.unit_exits),
             },
             "live_lots": self.live_lots_value(),
+            "live_units": self.live_units_value(),
             "pipeline": self.pipeline_value(),
             "drop_oldest": self.seq > 14,
             "belief": self.belief_value(),
@@ -445,6 +449,55 @@ impl EngineSession {
 
     fn belief_value(&self) -> serde_json::Value {
         belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim)
+    }
+
+    fn lot_index_for_unit(&self, unit_idx: usize) -> usize {
+        let l = self.lot_offsets.len().saturating_sub(1);
+        for ell in 0..l {
+            if unit_idx >= self.lot_offsets[ell] && unit_idx < self.lot_offsets[ell + 1] {
+                return ell;
+            }
+        }
+        l.saturating_sub(1)
+    }
+
+    fn live_units_value(&self) -> serde_json::Value {
+        let units: Vec<serde_json::Value> = self
+            .freshness
+            .iter()
+            .enumerate()
+            .filter(|(_, &f)| f > 0.0)
+            .map(|(unit_idx, &f)| {
+                let ell = self.lot_index_for_unit(unit_idx);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({
+                    "unit_id": unit_idx,
+                    "lot_id": lot_id,
+                    "f": f,
+                })
+            })
+            .collect();
+        serde_json::Value::Array(units)
+    }
+
+    fn unit_exits_wire(&self, exits: &[UnitExit]) -> serde_json::Value {
+        let items: Vec<serde_json::Value> = exits
+            .iter()
+            .map(|exit| {
+                let ell = self.lot_index_for_unit(exit.unit_idx);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({
+                    "unit_id": exit.unit_idx,
+                    "lot_id": lot_id,
+                    "f": exit.f,
+                    "cause": match exit.cause {
+                        UnitExitCause::Spoiled => "spoiled",
+                        UnitExitCause::Sold => "sold",
+                    },
+                })
+            })
+            .collect();
+        serde_json::Value::Array(items)
     }
 
     fn live_lots_value(&self) -> serde_json::Value {
@@ -966,6 +1019,7 @@ pub struct DayDelta {
     pub order_qty: u32,
     pub arrivals: u32,
     pub episode_day: u32,
+    pub unit_exits: Vec<UnitExit>,
 }
 
 #[derive(Deserialize)]
@@ -1419,6 +1473,38 @@ mod tests {
         assert!(lots[0]["lot_id"].is_number());
         assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
         assert!(lots[0]["mean_f"].is_number());
+    }
+
+    #[test]
+    fn rpc_step_live_units_wire_after_arrival() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        let out = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let last = v["result"].as_array().unwrap().last().unwrap();
+        let units = last["live_units"].as_array().expect("live_units array");
+        assert!(!units.is_empty(), "arrival must surface live_units");
+        let n_lots: u64 = last["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .sum();
+        assert_eq!(
+            units.len() as u64,
+            n_lots,
+            "live_units count must match summed live_lots survivors"
+        );
+        for u in units {
+            assert!(u["unit_id"].is_number());
+            assert!(u["lot_id"].is_number());
+            assert!(u["f"].is_number());
+            assert!(u["f"].as_f64().unwrap_or(0.0) > 0.0);
+        }
     }
 
     #[test]

@@ -1,6 +1,6 @@
 /** Wire + adapter types for Snapshot / DayDelta (ADR 0098 / T-053 / T-054). */
 
-import type { Day, Economics, Lot, PipelineOrder, SimConfig } from "../types";
+import type { Day, Economics, Lot, PipelineOrder, SimConfig, Unit } from "../types";
 
 /** Flat belief buffer on the wire (no nested density). */
 export type FlatBelief = {
@@ -44,6 +44,7 @@ export type Snapshot = {
   belief_history?: BeliefHistoryWire[];
   history?: Day[];
   live_lots?: Lot[];
+  live_units?: Unit[];
   pipeline?: PipelineOrder[];
   applied_config?: Partial<SimConfig> & Record<string, unknown>;
   schedule?: ScheduleWire;
@@ -58,6 +59,7 @@ export type DayDelta = {
   drop_oldest: boolean;
   belief?: FlatBelief | null;
   live_lots?: Lot[];
+  live_units?: Unit[];
   pipeline?: Array<PipelineOrder | { qty: number; arrival_day: number }>;
 };
 

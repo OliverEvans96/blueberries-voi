@@ -3,8 +3,22 @@ import {
   beliefFreshnessSeries,
   type BeliefFreshnessDay,
 } from "../engine/projector";
-import type { BeliefHistoryDay, Day, HoverDay, Lot } from "../types";
+import type { BeliefHistoryDay, Day, HoverDay, Unit, UnitExit } from "../types";
 import { pickDayTicks } from "./axisTicks";
+import {
+  BELIEF_HEATMAP_STOPS,
+  TERMINAL_DOT_STROKE,
+  TRUTH_OVERLAY_PALETTE,
+  TRUTH_TRAJECTORY_STROKE,
+  UNIT_TERMINAL_SOLD,
+  UNIT_TERMINAL_SPOILED,
+} from "./beliefFreshnessPalette";
+
+export {
+  TRUTH_TRAJECTORY_STROKE,
+  UNIT_TERMINAL_SOLD,
+  UNIT_TERMINAL_SPOILED,
+} from "./beliefFreshnessPalette";
 
 export type BeliefFreshnessTimeDims = {
   width: number;
@@ -20,15 +34,30 @@ export const BELIEF_FRESHNESS_TIME_MARGIN = {
   left: 48,
 } as const;
 
-const HEATMAP_COLORS = ["#f3efe6", "#9bbf9a", "#2f5d4a", "#17362c"];
-/** Truth-lot overlay: orange reads clearly across the full green ramp (CVD-checked) and pairs with a light stroke halo for the darkest cells. */
-const TRUTH_MARKER_FILL = "#d95926";
-const TRUTH_MARKER_STROKE = "#fdf8ef";
+/** Compact horizontal truth legend band above the plot (added to top margin when shown). */
+export const TRUTH_LEGEND_BAND = 13;
+
+const HEATMAP_COLORS = [...BELIEF_HEATMAP_STOPS];
 const PLOT_CLIP_ID = "belief-freshness-plot-clip";
 const COLORBAR_GRAD_ID = "belief-freshness-colorbar-grad";
-const Y_AXIS_LABEL_X = -40;
+const Y_AXIS_LABEL_GUTTER_X = -36;
+const TERMINAL_DOT_RADIUS = 1.25;
+const TRAJECTORY_STROKE_WIDTH = 0.75;
 
-type LotPoint = Lot & { day: number };
+type UnitPoint = Unit & { day: number };
+
+type TerminalDot = UnitExit & { day: number };
+
+/** Collect per-day unit exits for truth trajectory terminals. */
+export function unitTerminalDots(history: readonly Day[]): TerminalDot[] {
+  return history.flatMap((d) =>
+    (d.unit_exits ?? []).map((exit) => ({ day: d.day, ...exit })),
+  );
+}
+
+function terminalDotColor(cause: UnitExit["cause"]): string {
+  return cause === "spoiled" ? UNIT_TERMINAL_SPOILED : UNIT_TERMINAL_SOLD;
+}
 
 /** Sub-day slices between consecutive belief snapshots (visual only). */
 export const BELIEF_DAY_SUBSTEPS = 4;
@@ -39,19 +68,6 @@ export function dayDomain(history: Day[]): [number, number] {
   if (history.length === 0) return [0, 1];
   const days = history.map((d) => d.day);
   return [Math.min(...days), Math.max(...days)];
-}
-
-/** Sqrt scale: marker area ∝ lot survivor count `n`. */
-export function truthLotSurvivorRadiusScale(
-  maxSurvivors: number,
-  innerW: number,
-  daySpan: number,
-): (n: number) => number {
-  const maxN = Math.max(1, maxSurvivors);
-  const rMax = Math.min(14, (innerW / Math.max(1, daySpan)) * 0.35);
-  const rMin = 3;
-  const k = rMax / Math.sqrt(maxN);
-  return (n: number) => Math.max(rMin, k * Math.sqrt(Math.max(0, n)));
 }
 
 function rootG(
@@ -82,9 +98,21 @@ export function setBeliefFreshnessTimeHover(
     (d) => hoveredDay === d.day,
   );
 
-  g.selectAll<SVGCircleElement, LotPoint>(".lot").classed(
-    "lot--active",
-    (d) => hoveredDay === d.day,
+  g.selectAll<SVGPathElement, [string, UnitPoint[]]>(".unit-trajectory").classed(
+    "unit-trajectory--active",
+    ([unitId, points]) =>
+      points.some((p) => p.day === hoveredDay) ||
+      g
+        .selectAll<SVGCircleElement, TerminalDot>(
+          `.unit-terminal[data-unit-id="${unitId}"]`,
+        )
+        .filter((d) => d.day === hoveredDay)
+        .size() > 0,
+  );
+
+  g.selectAll<SVGCircleElement, TerminalDot>(".unit-terminal").classed(
+    "unit-terminal--active",
+    (d) => d.day === hoveredDay,
   );
 
   const rule = g.select<SVGLineElement>(".hover-rule");
@@ -317,43 +345,153 @@ function renderBeliefFreshnessColorbar(
     .text("Units");
 }
 
-function renderLotConnectionLines(
+function trajectoryPointsForUnit(
+  points: UnitPoint[],
+  exit: TerminalDot | undefined,
+): UnitPoint[] {
+  const sorted = [...points].sort((a, b) => a.day - b.day);
+  if (exit) {
+    sorted.push({
+      day: exit.day,
+      unit_id: exit.unit_id,
+      lot_id: exit.lot_id,
+      f: exit.f,
+    });
+  }
+  return sorted;
+}
+
+function renderUnitTrajectories(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
-  lotGroups: d3.InternMap<string, LotPoint[]>,
+  unitGroups: d3.InternMap<string, UnitPoint[]>,
+  exitsByUnit: Map<string, TerminalDot>,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>,
 ): void {
-  const linesG = g.append("g").attr("class", "lot-connections");
-  lotGroups.forEach((points, lotId) => {
-    if (points.length < 2) return;
-    const sortedPoints = [...points].sort((a, b) => a.day - b.day);
-    const line = d3
-      .line<LotPoint>()
-      .x((d) => xScale(d.day))
-      .y((d) => yScale(d.mean_f))
-      .curve(d3.curveLinear);
-    linesG
-      .append("path")
-      .datum(sortedPoints)
-      .attr("class", "lot-connection")
-      .attr("d", line)
-      .attr("fill", "none")
-      .attr("stroke", TRUTH_MARKER_FILL)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.75)
-      .attr("pointer-events", "none")
-      .append("title")
-      .text(`Lot ${lotId} trajectory`);
-  });
+  const trajG = g
+    .append("g")
+    .attr("class", "unit-trajectories")
+    .attr("clip-path", `url(#${PLOT_CLIP_ID})`);
+  const line = d3
+    .line<UnitPoint>()
+    .x((d) => xScale(d.day))
+    .y((d) => yScale(d.f))
+    .curve(d3.curveLinear);
+
+  trajG
+    .selectAll("path")
+    .data([...unitGroups.entries()])
+    .join("path")
+    .attr("class", "unit-trajectory")
+    .attr("data-unit-id", ([unitId]) => unitId)
+    .attr("d", ([unitId, points]) => {
+      const sorted = trajectoryPointsForUnit(points, exitsByUnit.get(unitId));
+      return sorted.length >= 2 ? line(sorted) : null;
+    })
+    .attr("fill", "none")
+    .attr("stroke", TRUTH_TRAJECTORY_STROKE)
+    .attr("stroke-width", TRAJECTORY_STROKE_WIDTH)
+    .attr("stroke-opacity", 0.4)
+    .attr("pointer-events", "none")
+    .append("title")
+    .text(([unitId]) => {
+      const exit = exitsByUnit.get(unitId);
+      const cause = exit ? ` · ${exit.cause}` : "";
+      return `Unit ${unitId}${cause}`;
+    });
+}
+
+function renderUnitTerminalDots(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  terminals: TerminalDot[],
+  xScale: d3.ScaleLinear<number, number>,
+  yScale: d3.ScaleLinear<number, number>,
+): void {
+  if (terminals.length === 0) return;
+  const dotsG = g
+    .append("g")
+    .attr("class", "unit-terminals")
+    .attr("clip-path", `url(#${PLOT_CLIP_ID})`);
+  dotsG
+    .selectAll("circle")
+    .data(terminals, (d) => `${(d as TerminalDot).day}-${(d as TerminalDot).unit_id}`)
+    .join("circle")
+    .attr("class", (d) => `unit-terminal unit-terminal--${d.cause}`)
+    .attr("data-day", (d) => d.day)
+    .attr("data-unit-id", (d) => d.unit_id)
+    .attr("cx", (d) => xScale(d.day))
+    .attr("cy", (d) => yScale(d.f))
+    .attr("r", TERMINAL_DOT_RADIUS)
+    .attr("fill", (d) => terminalDotColor(d.cause))
+    .attr("stroke", TERMINAL_DOT_STROKE)
+    .attr("stroke-width", 0.5)
+    .attr("pointer-events", "none")
+    .append("title")
+    .text(
+      (d) =>
+        `Unit ${d.unit_id} · lot ${d.lot_id} · ${d.cause} · f ${d.f.toFixed(2)} · day ${d.day}`,
+    );
+}
+
+function renderTruthOverlayLegend(
+  svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  plotLeft: number,
+): void {
+  const items: Array<{
+    label: string;
+    kind: "line" | "dot";
+    color: string;
+    width: number;
+  }> = [
+    { label: "Alive", kind: "line", color: TRUTH_OVERLAY_PALETTE.alive, width: 46 },
+    { label: "Spoiled", kind: "dot", color: TRUTH_OVERLAY_PALETTE.spoiled, width: 54 },
+    { label: "Sold", kind: "dot", color: TRUTH_OVERLAY_PALETTE.sold, width: 40 },
+  ];
+  const legend = svg
+    .append("g")
+    .attr("class", "legend belief-freshness-truth-legend")
+    .attr("transform", `translate(${plotLeft}, 3)`);
+
+  let x = 0;
+  for (const item of items) {
+    const row = legend.append("g").attr("transform", `translate(${x}, 0)`);
+    if (item.kind === "line") {
+      row
+        .append("line")
+        .attr("x1", 0)
+        .attr("x2", 12)
+        .attr("y1", 6)
+        .attr("y2", 6)
+        .attr("stroke", item.color)
+        .attr("stroke-width", TRAJECTORY_STROKE_WIDTH)
+        .attr("stroke-opacity", 0.65);
+    } else {
+      row
+        .append("circle")
+        .attr("cx", 6)
+        .attr("cy", 6)
+        .attr("r", TERMINAL_DOT_RADIUS)
+        .attr("fill", item.color)
+        .attr("stroke", TERMINAL_DOT_STROKE)
+        .attr("stroke-width", 0.5);
+    }
+    row
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 14)
+      .attr("y", 9)
+      .text(item.label);
+    x += item.width;
+  }
 }
 
 /**
- * Freshness × time belief heatmap with optional per-lot truth overlay.
+ * Freshness × time belief heatmap with optional per-unit truth overlay.
  *
  * @param container - mount node (e.g. `#chart-history` after integrate)
- * @param history - per-day lot snapshots for truth overlay (`history[].lots`)
+ * @param history - per-day unit snapshots for truth overlay (`history[].units`)
  * @param beliefHistory - rolling `FlatBelief` per day (`ViewModel.belief_history`)
- * @param showTruth - when false, truth dots/lines are omitted
+ * @param showTruth - when false, truth trajectories are omitted
  */
 export function renderBeliefFreshnessTime(
   container: HTMLElement,
@@ -364,7 +502,26 @@ export function renderBeliefFreshnessTime(
 ): void {
   const width = dims?.width ?? (container.clientWidth || 720);
   const height = dims?.height ?? 220;
-  const margin = { ...BELIEF_FRESHNESS_TIME_MARGIN, ...dims?.margin };
+
+  const truthHistoryPreview = showTruth
+    ? history
+    : history.map((d) => ({ ...d, units: [] as Unit[], unit_exits: [] as UnitExit[] }));
+  const truthPointCount = truthHistoryPreview.reduce(
+    (n, d) => n + (d.units?.length ?? 0),
+    0,
+  );
+  const truthExitCount = truthHistoryPreview.reduce(
+    (n, d) => n + (d.unit_exits?.length ?? 0),
+    0,
+  );
+  const showTruthOverlay = showTruth && (truthPointCount > 0 || truthExitCount > 0);
+  const legendBand = showTruthOverlay ? TRUTH_LEGEND_BAND : 0;
+
+  const margin = {
+    ...BELIEF_FRESHNESS_TIME_MARGIN,
+    ...dims?.margin,
+    top: (dims?.margin?.top ?? BELIEF_FRESHNESS_TIME_MARGIN.top) + legendBand,
+  };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
@@ -383,6 +540,10 @@ export function renderBeliefFreshnessTime(
     .attr("data-margin-top", margin.top)
     .attr("data-margin-bottom", margin.bottom);
 
+  if (showTruthOverlay) {
+    renderTruthOverlayLegend(svg, margin.left);
+  }
+
   const g = svg
     .append("g")
     .attr("class", "chart-root")
@@ -392,7 +553,6 @@ export function renderBeliefFreshnessTime(
 
   const days = history.map((d) => d.day);
   const [minDay, maxDay] = dayDomain(history);
-  const daySpan = Math.max(1, maxDay - minDay);
   const x = d3
     .scaleLinear()
     .domain([minDay - 0.5, maxDay + 0.5])
@@ -425,11 +585,9 @@ export function renderBeliefFreshnessTime(
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
   g.append("text")
-    .attr("class", "axis-label")
-    .attr("x", Y_AXIS_LABEL_X)
-    .attr("y", innerH / 2)
-    .attr("transform", "rotate(-90)")
+    .attr("class", "axis-label axis-label-y")
     .attr("text-anchor", "middle")
+    .attr("transform", `translate(${Y_AXIS_LABEL_GUTTER_X}, ${innerH / 2}) rotate(-90)`)
     .text("Freshness f");
 
   g.append("g")
@@ -452,56 +610,30 @@ export function renderBeliefFreshnessTime(
     .attr("opacity", 0)
     .attr("pointer-events", "none");
 
-  const truthHistory = showTruth
-    ? history
-    : history.map((d) => ({ ...d, lots: [] as Lot[] }));
+  const truthHistory = truthHistoryPreview;
 
-  const maxN =
-    d3.max(truthHistory, (d) => d3.max(d.lots, (l) => l.n)) ?? 1;
-  const r = truthLotSurvivorRadiusScale(maxN, innerW, daySpan);
-
-  const points: LotPoint[] = truthHistory.flatMap((d) =>
-    d.lots.map((lot) => ({ day: d.day, ...lot })),
+  const points: UnitPoint[] = truthHistory.flatMap((d) =>
+    (d.units ?? []).map((unit) => ({ day: d.day, ...unit })),
+  );
+  const terminals = unitTerminalDots(truthHistory);
+  const exitsByUnit = new Map(
+    terminals.map((exit) => [String(exit.unit_id), exit] as const),
   );
 
-  const lotGroups = d3.group(points, (d) => String(d.lot_id));
-  if (showTruth && points.length > 0) {
-    renderLotConnectionLines(g, lotGroups, x, y);
-  }
+  const unitGroups = d3.group(points, (d) => String(d.unit_id));
+  const trajectoryUnits = new Set([
+    ...unitGroups.keys(),
+    ...exitsByUnit.keys(),
+  ]);
+  const allUnitGroups = d3.group(
+    [...trajectoryUnits].flatMap((unitId) => unitGroups.get(unitId) ?? []),
+    (d) => String(d.unit_id),
+  );
 
-  g.append("g")
-    .attr("class", "lots")
-    .attr("pointer-events", "none")
-    .selectAll("circle")
-    .data(points, (d) => `${(d as LotPoint).day}-${(d as LotPoint).lot_id}`)
-    .join(
-      (enter) =>
-        enter
-          .append("circle")
-          .attr("class", "lot")
-          .attr("data-day", (d) => d.day)
-          .attr("cx", (d) => x(d.day))
-          .attr("cy", (d) => y(d.mean_f))
-          .attr("r", (d) => r(d.n))
-          .attr("fill", TRUTH_MARKER_FILL)
-          .attr("fill-opacity", 0.95)
-          .attr("stroke", TRUTH_MARKER_STROKE)
-          .attr("stroke-width", 1.5)
-          .attr("stroke-opacity", 0.9)
-          .call((s) =>
-            s
-              .append("title")
-              .text(
-                (d) =>
-                  `Day ${d.day} · lot ${d.lot_id}\nf ${d.mean_f.toFixed(2)} · survivors ${d.n}`,
-              ),
-          ),
-      (update) =>
-        update
-          .attr("data-day", (d) => d.day)
-          .attr("cx", (d) => x(d.day))
-          .attr("cy", (d) => y(d.mean_f))
-          .attr("r", (d) => r(d.n)),
-      (exit) => exit.remove(),
-    );
+  if (showTruthOverlay) {
+    renderUnitTrajectories(g, allUnitGroups, exitsByUnit, x, y);
+  }
+  if (showTruth && terminals.length > 0) {
+    renderUnitTerminalDots(g, terminals, x, y);
+  }
 }

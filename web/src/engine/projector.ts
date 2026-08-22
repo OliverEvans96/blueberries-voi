@@ -11,6 +11,7 @@ import type {
   Lot,
   PipelineOrder,
   SimConfig,
+  Unit,
   ViewModel,
 } from "../types";
 import {
@@ -208,6 +209,7 @@ function cloneFlat(belief: FlatBelief): FlatBelief {
 function asDay(
   day: DayDelta["day"],
   liveLotsFallback?: readonly Lot[] | undefined,
+  liveUnitsFallback?: readonly Unit[] | undefined,
 ): Day {
   const d = day as Day;
   const fromDay = d.lots;
@@ -215,9 +217,16 @@ function asDay(
     fromDay != null && fromDay.length > 0
       ? fromDay
       : (liveLotsFallback ?? []);
+  const fromUnits = d.units;
+  const unitsSrc =
+    fromUnits != null && fromUnits.length > 0
+      ? fromUnits
+      : (liveUnitsFallback ?? []);
   return {
     day: d.day,
     lots: lotsSrc.map((l) => ({ ...l })),
+    units: unitsSrc.map((u) => ({ ...u })),
+    unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
     sales_total: d.sales_total ?? 0,
     waste_total: d.waste_total ?? 0,
     demand: d.demand ?? 0,
@@ -263,6 +272,7 @@ export class ViewModelProjector {
   private history: Day[] = [];
   private beliefHistory: BeliefHistoryDay[] = [];
   private liveLots: Lot[] = [];
+  private liveUnits: Unit[] = [];
   private pipeline: PipelineOrder[] = [];
   private flatBelief: FlatBelief = {
     L: 0,
@@ -291,6 +301,8 @@ export class ViewModelProjector {
     this.history = (snapshot.history ?? []).map((d) => ({
       ...d,
       lots: d.lots.map((l) => ({ ...l })),
+      units: (d.units ?? []).map((u) => ({ ...u })),
+      unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       stockout: stockoutFromDayFields(d.demand, d.sales_total, d.stockout),
     }));
     this.beliefHistory = this.history.map((d) => ({
@@ -298,6 +310,7 @@ export class ViewModelProjector {
       flatBelief: cloneFlat(snapshot.belief),
     }));
     this.liveLots = (snapshot.live_lots ?? []).map((l) => ({ ...l }));
+    this.liveUnits = (snapshot.live_units ?? []).map((u) => ({ ...u }));
     this.pipeline = normalizePipeline(snapshot.pipeline, this.episodeDay);
     this.flatBelief = cloneFlat(snapshot.belief);
 
@@ -333,7 +346,7 @@ export class ViewModelProjector {
   applyDelta(delta: DayDelta): ViewModel {
     this.episodeDay = delta.episode_day;
 
-    const nextDay = asDay(delta.day, delta.live_lots);
+    const nextDay = asDay(delta.day, delta.live_lots, delta.live_units);
     this.history = [...this.history, nextDay];
 
     if (delta.belief) {
@@ -345,6 +358,9 @@ export class ViewModelProjector {
     ];
     if (delta.live_lots) {
       this.liveLots = delta.live_lots.map((l) => ({ ...l }));
+    }
+    if (delta.live_units) {
+      this.liveUnits = delta.live_units.map((u) => ({ ...u }));
     }
     if (delta.pipeline) {
       this.pipeline = normalizePipeline(delta.pipeline, this.episodeDay);
@@ -371,7 +387,7 @@ export class ViewModelProjector {
 
   patchEngineState(snapshot: Pick<
     Snapshot,
-    "belief" | "belief_history" | "live_lots" | "pipeline" | "episode_day" | "applied_config"
+    "belief" | "belief_history" | "live_lots" | "live_units" | "pipeline" | "episode_day" | "applied_config"
   >): ViewModel {
     if (snapshot.episode_day != null) {
       this.episodeDay = snapshot.episode_day;
@@ -410,6 +426,9 @@ export class ViewModelProjector {
     }
     if (snapshot.live_lots) {
       this.liveLots = snapshot.live_lots.map((l) => ({ ...l }));
+    }
+    if (snapshot.live_units) {
+      this.liveUnits = snapshot.live_units.map((u) => ({ ...u }));
     }
     if (snapshot.pipeline) {
       this.pipeline = normalizePipeline(snapshot.pipeline, this.episodeDay);
@@ -489,6 +508,8 @@ export class ViewModelProjector {
       history: this.history.map((d) => ({
         ...d,
         lots: d.lots.map((l) => ({ ...l })),
+        units: (d.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       })),
       economics: { ...this.economics },
       config: { ...this.config },
@@ -497,6 +518,7 @@ export class ViewModelProjector {
       pnl_totals: totals,
       belief: beliefGridFromFlat(this.flatBelief, this.liveLots),
       live_lots: this.liveLots.map((l) => ({ ...l })),
+      live_units: this.liveUnits.map((u) => ({ ...u })),
       belief_history: this.beliefHistory.map((b) => ({
         day: b.day,
         flatBelief: cloneFlat(b.flatBelief),

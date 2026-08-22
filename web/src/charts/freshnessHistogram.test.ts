@@ -4,7 +4,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
-import type { Lot } from "../types";
+import type { Lot, Unit } from "../types";
 import {
   aggregateBeliefMasses,
   binIndexForValue,
@@ -14,14 +14,22 @@ import {
   rebinMasses,
   rebinMassesByInterval,
   renderFreshnessHistogram,
+  truthMassesFromUnits,
   truthMassesInBins,
   type FreshnessHistogramData,
 } from "./freshnessHistogram";
 
-const TRUTH_LOTS: Lot[] = [
-  { lot_id: 1, n: 10, mean_f: 0.85 },
-  { lot_id: 2, n: 6, mean_f: 0.55 },
-  { lot_id: 3, n: 4, mean_f: 0.35 },
+const TRUTH_UNITS: Unit[] = [
+  { unit_id: 0, lot_id: 1, f: 0.85 },
+  { unit_id: 1, lot_id: 1, f: 0.84 },
+  { unit_id: 2, lot_id: 1, f: 0.86 },
+  { unit_id: 3, lot_id: 2, f: 0.55 },
+  { unit_id: 4, lot_id: 2, f: 0.54 },
+  { unit_id: 5, lot_id: 3, f: 0.35 },
+  { unit_id: 6, lot_id: 3, f: 0.36 },
+  { unit_id: 7, lot_id: 3, f: 0.34 },
+  { unit_id: 8, lot_id: 3, f: 0.33 },
+  { unit_id: 9, lot_id: 1, f: 0.87 },
 ];
 
 const FLAT: FlatBelief = {
@@ -64,7 +72,7 @@ describe("DISPLAY_BIN_COUNT", () => {
   });
 });
 
-describe("rebinMasses / rebinMassesByInterval / truthMassesInBins", () => {
+describe("rebinMasses / rebinMassesByInterval / truthMassesInBins / truthMassesFromUnits", () => {
   it("rebins source masses into display bins (point assignment)", () => {
     const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
     const rebinned = rebinMasses(FLAT.f_grid, aggregateBeliefMasses(FLAT), edges);
@@ -89,28 +97,39 @@ describe("rebinMasses / rebinMassesByInterval / truthMassesInBins", () => {
 
   it("assigns truth lot counts by mean_f bin", () => {
     const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
-    const truth = truthMassesInBins(TRUTH_LOTS, edges);
-    expect(truth.reduce((a, b) => a + b, 0)).toBeCloseTo(20);
+    const lots: Lot[] = [
+      { lot_id: 1, n: 10, mean_f: 0.85 },
+    ];
+    const truth = truthMassesInBins(lots, edges);
+    expect(truth.reduce((a, b) => a + b, 0)).toBeCloseTo(10);
     expect(truth[binIndexForValue(edges, 0.85)]).toBeCloseTo(10);
+  });
+
+  it("counts each live unit at its f bin", () => {
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const truth = truthMassesFromUnits(TRUTH_UNITS, edges);
+    expect(truth.reduce((a, b) => a + b, 0)).toBeCloseTo(TRUTH_UNITS.length);
+    expect(truth[binIndexForValue(edges, 0.85)]).toBeCloseTo(4);
+    expect(truth[binIndexForValue(edges, 0.35)]).toBeCloseTo(4);
   });
 });
 
 describe("freshnessHistogramDataFromFlat", () => {
   it("maps flat belief into aggregate bin masses", () => {
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
     expect(data.f_edges).toHaveLength(FLAT.K + 1);
     expect(data.f_centers).toEqual(FLAT.f_grid);
     expect(data.belief_masses[0]).toBeCloseTo(10);
     expect(data.belief_masses[1]).toBeCloseTo(6);
     expect(data.belief_masses[2]).toBeCloseTo(4);
-    expect(data.truth_lots).toEqual(TRUTH_LOTS);
+    expect(data.truth_units).toEqual(TRUTH_UNITS);
   });
 });
 
 describe("renderFreshnessHistogram", () => {
   it("renders ~8 belief bars with yellow fill and semi-bold caps", () => {
     const el = host();
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
     renderFreshnessHistogram(el, data, false, 260);
 
     const svg = el.querySelector("svg");
@@ -127,7 +146,7 @@ describe("renderFreshnessHistogram", () => {
   it("draws truth bars only when showTruth is true", () => {
     const elOff = host();
     const elOn = host();
-    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_LOTS);
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
 
     renderFreshnessHistogram(elOff, data, false, 260);
     renderFreshnessHistogram(elOn, data, true, 260);
@@ -144,7 +163,7 @@ describe("renderFreshnessHistogram", () => {
       f_edges: [0, 0.5, 1],
       f_centers: [0.25, 0.75],
       belief_masses: [8, 2],
-      truth_lots: [{ lot_id: 1, n: 5, mean_f: 0.2 }],
+      truth_units: [{ unit_id: 0, lot_id: 1, f: 0.2 }],
     };
     renderFreshnessHistogram(el, data, true, 260);
 

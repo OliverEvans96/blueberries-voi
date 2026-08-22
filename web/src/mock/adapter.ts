@@ -304,6 +304,8 @@ export class MockAdapter implements EngineAdapter {
       day: {
         ...dayRecord,
         lots: dayRecord.lots.map((l) => ({ ...l })),
+        units: (dayRecord.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (dayRecord.unit_exits ?? []).map((e) => ({ ...e })),
       },
       drop_oldest: false,
       belief: {
@@ -313,6 +315,7 @@ export class MockAdapter implements EngineAdapter {
         f_grid: [...this.flatBelief.f_grid],
       },
       live_lots: this.state.lots.map((l) => ({ ...l })),
+      live_units: this.state.units.map((u) => ({ ...u })),
       pipeline: this.pipeline(),
     };
   }
@@ -341,8 +344,11 @@ export class MockAdapter implements EngineAdapter {
       history: this.state.history.map((d) => ({
         ...d,
         lots: d.lots.map((l) => ({ ...l })),
+        units: (d.units ?? []).map((u) => ({ ...u })),
+        unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       })),
       live_lots: this.state.lots.map((l) => ({ ...l })),
+      live_units: this.state.units.map((u) => ({ ...u })),
       pipeline: this.pipeline(),
       applied_config: { ...this.appliedConfig },
       schedule: scheduleFromConfig(this.appliedConfig),

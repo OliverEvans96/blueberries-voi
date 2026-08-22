@@ -548,16 +548,38 @@
   pointer-events: none;
 }
 
-.lot {
+.unit-trajectory {
   pointer-events: none;
 }
 
-.is-hovering .lot {
-  opacity: 0.28;
+.is-hovering .unit-trajectory {
+  stroke-opacity: 0.15;
 }
 
-.is-hovering .lot.lot--active {
+.is-hovering .unit-trajectory.unit-trajectory--active {
+  stroke-opacity: 0.75;
+}
+
+.unit-terminal {
+  pointer-events: none;
+}
+
+.is-hovering .unit-terminal {
+  opacity: 0.25;
+}
+
+.is-hovering .unit-terminal.unit-terminal--active {
   opacity: 1;
+}
+
+.belief-freshness-truth-legend .legend-label {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.belief-freshness-truth-legend line,
+.belief-freshness-truth-legend circle {
+  pointer-events: none;
 }
 
 .bar--sales {

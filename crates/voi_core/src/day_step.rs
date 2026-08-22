@@ -1,6 +1,7 @@
 //! f-native `L×U` unit freshness day transition (ADR 0130 production ground truth).
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 pub use crate::params::ModelParams;
 use crate::physics::{
@@ -36,6 +37,21 @@ pub struct UnitDayStepIn {
     pub pack_age_mean: Option<f64>,
 }
 
+/// Why a unit left inventory on a given day (truth overlay terminals).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitExitCause {
+    Spoiled,
+    Sold,
+}
+
+/// Per-unit exit at end of a day step (stable `unit_idx` in the freshness grid).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UnitExit {
+    pub unit_idx: usize,
+    pub f: f64,
+    pub cause: UnitExitCause,
+}
+
 /// Output state and [`RichDay`]-shaped aggregates from one f-native day.
 #[derive(Clone, Debug)]
 pub struct UnitDayStepOut {
@@ -46,6 +62,7 @@ pub struct UnitDayStepOut {
     pub sales_by: Vec<u32>,
     pub waste_total: u32,
     pub waste_by: Vec<u32>,
+    pub unit_exits: Vec<UnitExit>,
 }
 
 /// Alive unit count per lot: `#{f > 0}` in each lot segment.
@@ -102,15 +119,38 @@ fn count_spoil_by_lot(
     (waste_total, waste_by)
 }
 
+fn spoil_unit_exits(
+    before: &[f64],
+    after: &[f64],
+) -> Vec<UnitExit> {
+    before
+        .iter()
+        .zip(after.iter())
+        .enumerate()
+        .filter_map(|(i, (&b, &a))| {
+            if b > 0.0 && a <= 0.0 {
+                Some(UnitExit {
+                    unit_idx: i,
+                    f: b,
+                    cause: UnitExitCause::Spoiled,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn pick_units_f<R: Rng + ?Sized>(
     freshness: &mut [f64],
     lot_offsets: &[usize],
     demand: u32,
     params: &ModelParams,
     rng: &mut R,
-) -> (u32, Vec<u32>) {
+) -> (u32, Vec<u32>, Vec<UnitExit>) {
     let l = lot_offsets.len() - 1;
     let mut sales_by = vec![0u32; l];
+    let mut sold_exits = Vec::new();
     let to_sell = demand.min(
         freshness
             .iter()
@@ -146,11 +186,17 @@ fn pick_units_f<R: Rng + ?Sized>(
             pos
         };
         let idx = alive_idx[picked_pos];
+        let f_at_sale = freshness[idx];
         freshness[idx] = 0.0;
+        sold_exits.push(UnitExit {
+            unit_idx: idx,
+            f: f_at_sale,
+            cause: UnitExitCause::Sold,
+        });
         sales_by[lot_index(lot_offsets, idx)] += 1;
     }
     let sales_total: u32 = sales_by.iter().sum();
-    (sales_total, sales_by)
+    (sales_total, sales_by, sold_exits)
 }
 
 /// Advance one calendar day on the unit-freshness grid.
@@ -198,14 +244,16 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
         rng_gamma,
     );
     let (waste_total, waste_by) = count_spoil_by_lot(&before, &freshness, &lot_offsets);
+    let mut unit_exits = spoil_unit_exits(&before, &freshness);
 
     let demand = input.demand.unwrap_or(0);
-    let (sales_total, sales_by) = if demand == 0 || l == 0 {
-        (0u32, vec![0u32; l])
+    let (sales_total, sales_by, sold_exits) = if demand == 0 || l == 0 {
+        (0u32, vec![0u32; l], Vec::new())
     } else {
         let rng = rng_alloc.expect("rng_alloc required when demand > 0 and lots are live");
         pick_units_f(&mut freshness, &lot_offsets, demand, params, rng)
     };
+    unit_exits.extend(sold_exits);
 
     if input.deliver {
         let units_per_lot = input
@@ -250,6 +298,7 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
         sales_by,
         waste_total,
         waste_by,
+        unit_exits,
     }
 }
 

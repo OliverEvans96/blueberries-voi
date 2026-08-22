@@ -193,6 +193,37 @@ describe("ViewModelProjector.applyDelta", () => {
     expect(vm.live_lots).toEqual(live);
   });
 
+  it("fills history[].units from live_units when wire day omits units (HTTP)", () => {
+    const projector = new ViewModelProjector({
+      economics: { ...DEFAULT_ECONOMICS },
+      window_days: 14,
+    });
+    projector.applySnapshot(sampleSnapshot());
+    const liveUnits = [
+      { unit_id: 0, lot_id: 2, f: 0.91 },
+      { unit_id: 1, lot_id: 2, f: 0.88 },
+    ];
+    const vm = projector.applyDelta(
+      sampleDelta({
+        day: {
+          day: 1,
+          L: 2,
+          arrivals: 16,
+          demand: 10,
+          order_qty: 16,
+          sales_total: 8,
+          waste_total: 0,
+        },
+        live_lots: [{ lot_id: 2, n: 2, mean_f: 0.895 }],
+        live_units: liveUnits,
+      }),
+    );
+
+    expect(vm.history).toHaveLength(1);
+    expect(vm.history[0]!.units).toEqual(liveUnits);
+    expect(vm.live_units).toEqual(liveUnits);
+  });
+
   it("never drops history for drop_oldest true or a 14-day window_days cap (T-112)", () => {
     const projector = new ViewModelProjector({
       economics: { ...DEFAULT_ECONOMICS },
