@@ -14,9 +14,30 @@ export type Lot = {
   mean_f: number;
 };
 
+export type Unit = {
+  unit_id: number;
+  lot_id: number;
+  /** Unit freshness f ∈ [0, 1]. */
+  f: number;
+};
+
+export type UnitExitCause = "sold" | "spoiled";
+
+/** Unit removed from inventory on a day (truth trajectory terminal). */
+export type UnitExit = {
+  unit_id: number;
+  lot_id: number;
+  f: number;
+  cause: UnitExitCause;
+};
+
 export type Day = {
   day: number;
   lots: Lot[];
+  /** Live units on this day (truth overlay); optional on wire. */
+  units?: Unit[];
+  /** Units that exited inventory on this day (sold or spoiled). */
+  unit_exits?: UnitExit[];
   sales_total: number;
   waste_total: number;
   demand: number;
@@ -137,6 +158,8 @@ export type ViewModel = {
   belief: BeliefGrid;
   /** Live truth lots (latest day). */
   live_lots: Lot[];
+  /** Live truth units (latest day). */
+  live_units: Unit[];
   /** Rolling FlatBelief per history day (same window as `history`). */
   belief_history: BeliefHistoryDay[];
   on_hand: number;

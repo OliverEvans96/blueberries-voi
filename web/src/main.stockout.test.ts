@@ -26,7 +26,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   it("cockpit layout preserves chart-stockout host for hover wiring (T-128 hidden)", () => {
     expect(layoutSrc).toMatch(/id="chart-stockout"/);
     expect(layoutSrc).toMatch(/id="chart-history"/);
-    expect(layoutSrc).toMatch(/id="chart-spoil"/);
+    expect(layoutSrc).not.toMatch(/id="chart-spoil"/);
     expect(layoutSrc).toMatch(/visually-hidden/);
     expect(layoutSrc).toMatch(/ariaLabel="Missed sales by day"/);
   });
@@ -40,22 +40,15 @@ describe("Store chart-stack missed sales (T-116)", () => {
     );
   });
 
-  it("store legend includes chip-missed alongside Sales / Lots / Spoilage", () => {
-    const legend = layoutSrc.match(
-      /className="legend-inline store-legend">([\s\S]*?)<\/div>/,
-    )?.[1];
-    expect(legend, "expected store-legend").toBeDefined();
-    expect(legend).toMatch(/chip-sales/);
-    expect(legend).toMatch(/>Sales</);
-    expect(legend).toMatch(/chip-lots/);
-    expect(legend).toMatch(/chip-spoil/);
-    expect(legend).toMatch(/Spoilage/);
-    expect(legend).toMatch(/chip-missed/);
-    expect(legend).toMatch(/>Missed</);
+  it("cockpit layout v6 keeps hover hosts in visually-hidden region (T-148)", () => {
+    expect(layoutSrc).not.toMatch(/className="legend-inline store-legend"/);
+    expect(layoutSrc).toMatch(/visually-hidden/);
+    expect(layoutSrc).toMatch(/id="chart-sales"/);
+    expect(layoutSrc).toMatch(/id="chart-stockout"/);
   });
 
   it("els.stockout binds #chart-stockout", () => {
-    expect(logicSrc).toMatch(/stockout:\s*document\.querySelector\(\s*"#chart-stockout"/);
+    expect(logicSrc).toMatch(/stockout:\s*q<HTMLElement>\("#chart-stockout"\)/);
   });
 
   it("applyHoverStyles calls setMarginalHover(els.stockout, day)", () => {
@@ -64,8 +57,16 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setOrdersWasteHover\(\s*els\.controllerOrders/);
+    expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
+    expect(fn).toMatch(/setInventoryTargetHover\(\s*els\.inventory/);
+    expect(fn).toMatch(/setAgeCompositionHover\(\s*els\.ageComp/);
+    expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
+  });
+
+  it("renderRunStripCharts renders combined orders + waste in metrics column", () => {
+    expect(logicSrc).toMatch(/renderOrdersWaste\(\s*els\.controllerOrders/);
   });
 
   it("renderStore shares marginalYMax / yMax for sales and stockout", () => {
@@ -79,11 +80,10 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(
       /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
     );
-    expect(fn).toMatch(/renderWasteBars\(\s*els\.spoil/);
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {
-    expect(layoutSrc).toMatch(/Sales vs demand/);
+    expect(layoutSrc).toMatch(/Sales &amp; demand|Sales & demand/);
     expect(layoutSrc).toMatch(/id="chart-sales-demand"/);
     expect(logicSrc).toMatch(/renderSalesDemand\(\s*els\.salesDemand/);
     expect(existsSync(SALES_DEMAND_TS)).toBe(true);

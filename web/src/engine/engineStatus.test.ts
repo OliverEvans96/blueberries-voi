@@ -174,10 +174,7 @@ describe("engine status tracker follows init, not Worker construction", () => {
     const tracker = createEngineStatusTracker("loading");
     expect(tracker.get()).toBe("loading");
 
-    const adapter = new WasmAdapter({
-      workerUrl: "/packaging/wasm/worker.js",
-      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
-    });
+    const adapter = new WasmAdapter();
     expect(HoldInitWorker.instances.length).toBeGreaterThanOrEqual(1);
     expect(tracker.get()).toBe("loading");
 
@@ -191,10 +188,7 @@ describe("engine status tracker follows init, not Worker construction", () => {
 
   it("turns error when init rejects (wasm bind / worker failure)", async () => {
     const tracker = createEngineStatusTracker("loading");
-    const adapter = new WasmAdapter({
-      workerUrl: "/packaging/wasm/worker.js",
-      pkgUrl: "/packaging/wasm/pkg/voi_wasm_bg.wasm",
-    });
+    const adapter = new WasmAdapter();
     const pending = tracker.follow(adapter.init({}));
     HoldInitWorker.instances[0]!.releaseInit(false, "Failed to fetch wasm module");
     await expect(pending).rejects.toThrow(/wasm|InitError/i);
@@ -235,15 +229,15 @@ describe("applyEngineStatusChip mutates a node-like target (no jsdom)", () => {
 });
 
 describe("studio wires the chip in the header and follows bootstrap init", () => {
-  it("StudioLayout hero includes #engine-status starting as Loading", () => {
+  it("StudioLayout title-bar includes #engine-status starting as Loading", () => {
     const src = readFileSync(LAYOUT_TS, "utf8");
     expect(src).toMatch(/id="engine-status"/);
     expect(src).toMatch(/data-status="loading"/);
     expect(src).toMatch(/engine-status-label">Loading</);
     expect(src).toMatch(/engine-status-dot/);
-    const hero = src.match(/<header className="hero">[\s\S]*?<\/header>/);
-    expect(hero, "expected hero header markup").toBeTruthy();
-    expect(hero![0]).toMatch(/id="engine-status"/);
+    const header = src.match(/<header className="title-bar">[\s\S]*?<\/header>/);
+    expect(header, "expected title-bar header markup").toBeTruthy();
+    expect(header![0]).toMatch(/id="engine-status"/);
   });
 
   it("bootstrap maps successful init to ready and failed init to error", () => {

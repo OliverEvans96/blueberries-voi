@@ -9,10 +9,16 @@ import type { HoverDay } from "./types";
 
 /** Contract from AC-dayinspector / spec interfaces table. */
 type HoverPoint = { clientX: number; clientY: number } | null;
+type HoverSource = import("./hoverLink").HoverChartSource;
 
-function makeChartRoot(): { root: HTMLDivElement; svg: SVGSVGElement } {
+function makeChartRoot(
+  hostId?: string,
+): { root: HTMLDivElement; svg: SVGSVGElement } {
   const root = document.createElement("div");
   root.className = "linked-charts";
+
+  const host = document.createElement("div");
+  if (hostId) host.id = hostId;
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.classList.add("chart-svg");
@@ -33,7 +39,8 @@ function makeChartRoot(): { root: HTMLDivElement; svg: SVGSVGElement } {
       }) as DOMRect,
   });
 
-  root.appendChild(svg);
+  host.appendChild(svg);
+  root.appendChild(host);
   document.body.appendChild(root);
   return { root, svg };
 }
@@ -46,7 +53,9 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
   it("invokes onDay with resolved day and { clientX, clientY } on pointermove over a chart svg", () => {
     const { root, svg } = makeChartRoot();
     const days = [1, 2, 3, 4, 5] as const;
-    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
 
     const detach = attachLinkedHover(root, () => days, {
       onDay,
@@ -57,14 +66,16 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     const clientY = 120;
     fireEvent.pointerMove(svg, { clientX, clientY, bubbles: true });
 
-    expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY });
+    expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY }, "other");
 
     detach();
   });
 
   it("invokes onDay with (null, null) when pointer leaves the linked region", () => {
     const { root, svg } = makeChartRoot();
-    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
 
     const detach = attachLinkedHover(root, () => [1, 2, 3], {
       onDay,
@@ -79,14 +90,16 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     });
 
     expect(onDay).toHaveBeenCalledTimes(1);
-    expect(onDay).toHaveBeenCalledWith(null, null);
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
 
     detach();
   });
 
   it("clears highlight when pointer is right of the inner plot band", () => {
     const { root, svg } = makeChartRoot();
-    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
 
     const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
       onDay,
@@ -105,14 +118,16 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
       bubbles: true,
     });
 
-    expect(onDay).toHaveBeenCalledWith(null, null);
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
 
     detach();
   });
 
   it("clears highlight when pointer is above the inner plot band", () => {
     const { root, svg } = makeChartRoot();
-    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
 
     const detach = attachLinkedHover(root, () => [1, 2, 3], {
       onDay,
@@ -131,7 +146,7 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
       bubbles: true,
     });
 
-    expect(onDay).toHaveBeenCalledWith(null, null);
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
 
     detach();
   });
@@ -142,7 +157,9 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     caption.className = "chart-caption";
     root.appendChild(caption);
 
-    const onDay = vi.fn<(day: HoverDay, point: HoverPoint) => void>();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
     const detach = attachLinkedHover(root, () => [1, 2, 3], {
       onDay,
     } as LinkedHoverHandlers);
@@ -152,7 +169,43 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
 
     fireEvent.pointerMove(caption, { clientX: 150, clientY: 40, bubbles: true });
 
-    expect(onDay).toHaveBeenCalledWith(null, null);
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
+
+    detach();
+  });
+
+  it("passes chart host id as hover source", () => {
+    const { root, svg } = makeChartRoot("chart-spoil");
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    const clientX = 100 + CHART_MARGIN.left + 4;
+    fireEvent.pointerMove(svg, { clientX, clientY: 90, bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY: 90 }, "spoilage");
+
+    detach();
+  });
+
+  it("maps chart-sales-demand to sales hover source", () => {
+    const { root, svg } = makeChartRoot("chart-sales-demand");
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    const clientX = 100 + CHART_MARGIN.left + 4;
+    fireEvent.pointerMove(svg, { clientX, clientY: 90, bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY: 90 }, "sales");
 
     detach();
   });

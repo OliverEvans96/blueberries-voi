@@ -10,7 +10,8 @@ use crate::demand_profile::DemandProfile;
 use crate::obs::{mask_for, RichDay};
 use crate::physics::draw_demand;
 use crate::policy::damped_sw_order_f_belief;
-use crate::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
+use crate::physics::GammaDecrementTable;
+use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
@@ -180,6 +181,7 @@ fn run_scenario_episode(
     let mut next_lot = 1i64;
     let mut scored = 0.0;
     let phys = physics_tag();
+    let mut gamma_table = GammaDecrementTable::for_params(params);
 
     for day in 0..horizon {
         let pending_sum: u32 = pending.values().copied().sum();
@@ -321,13 +323,14 @@ fn run_scenario_episode(
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
             let mut rng_birth_filter = if obs.arrivals > 0 { Some(rng(root_seed, phys, day, STREAM_BIRTH)) } else { None };
-            filter_step_unit_with_birth(
+            filter_step_unit_with_birth_cached(
                 &mut bank,
                 &obs,
                 params,
                 shipments,
                 &mut frng,
                 rng_birth_filter.as_mut(),
+                &mut gamma_table,
             );
         }
     }

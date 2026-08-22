@@ -1,6 +1,6 @@
 /** Wire + adapter types for Snapshot / DayDelta (ADR 0098 / T-053 / T-054). */
 
-import type { Day, Economics, Lot, PipelineOrder, SimConfig } from "../types";
+import type { Day, Economics, Lot, PipelineOrder, SimConfig, Unit } from "../types";
 
 /** Flat belief buffer on the wire (no nested density). */
 export type FlatBelief = {
@@ -44,6 +44,7 @@ export type Snapshot = {
   belief_history?: BeliefHistoryWire[];
   history?: Day[];
   live_lots?: Lot[];
+  live_units?: Unit[];
   pipeline?: PipelineOrder[];
   applied_config?: Partial<SimConfig> & Record<string, unknown>;
   schedule?: ScheduleWire;
@@ -58,6 +59,7 @@ export type DayDelta = {
   drop_oldest: boolean;
   belief?: FlatBelief | null;
   live_lots?: Lot[];
+  live_units?: Unit[];
   pipeline?: Array<PipelineOrder | { qty: number; arrival_day: number }>;
 };
 
@@ -134,6 +136,12 @@ export type TradeoffForecastWire = {
 
 export type TradeoffForecastResult = TradeoffForecastWire;
 
+export type TempTraceByLotWire = {
+  lot_id: number;
+  times_d: number[];
+  temps_c: number[];
+};
+
 export type EventDayWire = {
   day: number;
   arrivals: number;
@@ -141,9 +149,14 @@ export type EventDayWire = {
   waste_total: number | null;
   sales_by: number[] | null;
   waste_by: number[] | null;
+  arrivals_by: number[] | null;
   lot_ids: number[] | null;
+  arrival_lot_ids: number[] | null;
   pack_date_days: number | null;
   age_at_receipt: number | null;
+  temp_times_d: number[] | null;
+  temp_temps_c: number[] | null;
+  temp_traces_by_lot: TempTraceByLotWire[] | null;
 };
 
 export type EventsResult = {

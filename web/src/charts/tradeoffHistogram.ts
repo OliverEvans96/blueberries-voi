@@ -14,8 +14,9 @@ export function renderTradeoffHistogram(
   hist: JointHist,
   currentQ: number,
   width = 190,
+  heightScale = 1,
 ): void {
-  const height = Math.max(200, Math.round(width * 0.65));
+  const height = Math.max(200, Math.round(width * 0.65)) * heightScale;
   const margin = { top: 8, right: 10, bottom: 32, left: 40 };
   const root = d3.select(svg);
   root.selectAll("*").remove();

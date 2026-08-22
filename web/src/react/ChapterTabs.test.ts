@@ -67,7 +67,7 @@ describe("ChapterTabs (T-126 AC-tabs)", () => {
     renderChapterTabs(activeId);
 
     const tabs = screen.getAllByRole("tab");
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(7);
 
     for (const section of STUDIO_SECTIONS) {
       const tab = screen.getByRole("tab", { name: new RegExp(section.label) });
@@ -95,10 +95,10 @@ describe("ChapterTabs (T-126 AC-tabs)", () => {
   });
 
   it("does not throw when clicking the already-active tab", () => {
-    const { onSelectSection } = renderChapterTabs("observation");
+    const { onSelectSection } = renderChapterTabs("economics");
 
-    const observationTab = screen.getByRole("tab", { name: /observation/i });
-    expect(() => fireEvent.click(observationTab)).not.toThrow();
-    expect(onSelectSection).toHaveBeenCalledWith("observation");
+    const economicsTab = screen.getByRole("tab", { name: /economics/i });
+    expect(() => fireEvent.click(economicsTab)).not.toThrow();
+    expect(onSelectSection).toHaveBeenCalledWith("economics");
   });
 });

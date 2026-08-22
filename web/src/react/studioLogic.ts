@@ -1,10 +1,17 @@
 /** Studio runtime (T-121) — logic migrated from main.ts; shell in StudioLayout.tsx. */
 import { createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
-import { channelsCacheKey, channelsForPreset, resolveDisplayObsScenario } from "../obsMask";
+import {
+  applyMask,
+  channelsCacheKey,
+  channelsForPreset,
+  maskFor,
+  maskFromChannels,
+  resolveDisplayObsScenario,
+  type RichObsWire,
+} from "../obsMask";
 import { ViewModelProjector } from "../engine/projector";
 import {
   applyEngineStatusChip,
@@ -20,6 +27,7 @@ import {
 import {
   renderBeliefFreshnessTime,
   setBeliefFreshnessTimeHover,
+  type BeliefFreshnessHoverFocus,
 } from "../charts/beliefFreshnessTime";
 import {
   freshnessHistogramDataFromFlat,
@@ -28,12 +36,13 @@ import {
 import {
   marginalYMax,
   renderMarginal,
-  renderWasteBars,
   setMarginalHover,
-  setWasteBarsHover,
-  wasteBarYMax,
 } from "../charts/marginals";
-import { renderDemandDist } from "../charts/demandDist";
+import {
+  renderDailyDemand,
+  renderPickingVariability,
+  setDemandHover,
+} from "../charts/demandDist";
 import {
   ageCompositionSeries,
   ageCompositionSeriesFromBelief,
@@ -41,8 +50,15 @@ import {
   inventorySeriesFromBelief,
   renderAgeComposition,
   renderInventoryTarget,
+  setAgeCompositionHover,
+  setInventoryTargetHover,
 } from "../charts/inventoryTarget";
-import { renderControllerOrders } from "../charts/controllerOrders";
+import {
+  renderOrdersWaste,
+  setOrdersWasteHover,
+} from "../charts/controllerOrders";
+import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
+import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
   renderArrivalPrior,
@@ -60,7 +76,11 @@ import {
   type ControllerControlsState,
 } from "../controls";
 import { createAutopilotLoop } from "../autopilotLoop";
-import { attachLinkedHover, type HoverPoint } from "../hoverLink";
+import {
+  attachLinkedHover,
+  type HoverChartSource,
+  type HoverPoint,
+} from "../hoverLink";
 import {
   STUDIO_SECTIONS,
   loadSection,
@@ -69,35 +89,49 @@ import {
 } from "../sections";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
-import { buildStepNOrders, previousOrderDayFromSchedule } from "../calendar/nextOrderAdvance";
-import { scheduleFromConfig } from "../calendar/weekCalendar";
+import { buildStepNOrders } from "../calendar/nextOrderAdvance";
+import {
+  renderWeekCalendar,
+  scheduleFromConfig,
+  toggleDeliveryDay,
+} from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
 import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
 import type { QForecastEntry } from "../charts/tradeoffForecast";
-import { resolveStoreSpoilageSlot } from "./chartSlots";
-import { ChapterTabs } from "./ChapterTabs";
-import { ChartUnavailable } from "./ChartUnavailable";
+import {
+  nearestForecast,
+  renderTradeoffCurve,
+  renderTradeoffHistogram,
+} from "../charts/tradeoffForecast";
 import { DayInspector } from "./DayInspector";
-import { SecondaryChrome } from "./SecondaryChrome";
-import { EconomicsPane } from "./EconomicsPane";
 import { EventsPane } from "./EventsPane";
-import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
-import { InsightStrip } from "./InsightStrip";
+import { ImpactStat } from "./ImpactStat";
+import { ObsControlsPane } from "./ObsControlsPane";
 import { OperatorBar } from "./OperatorBar";
+import { StudioLoadingDialog } from "./StudioLoadingDialog";
+import { createDelayedLoadingHandle } from "../delayedLoading";
+import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
+import { computeImpactTotals } from "../metrics/impactTotals";
 
-/** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under #app. */
+/** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
   if (app.dataset.studioInit === "1") {
     return () => undefined;
   }
   app.dataset.studioInit = "1";
   if (!app.querySelector(".shell.studio")) {
-    throw new Error("StudioLayout shell missing under #app");
+    throw new Error("StudioLayout shell missing under studio mount root");
   }
+
+  const q = <T extends Element>(selector: string): T | null =>
+    app.querySelector(selector) as T | null;
+  const qa = <T extends Element>(selector: string): NodeListOf<T> =>
+    app.querySelectorAll(selector);
 
   const studioEnv = import.meta.env as ImportMetaEnv & StudioEnv;
   const adapterKind = resolveStudioAdapterKind(studioEnv);
-  const footerEl = document.querySelector("#studio-footer");
+  const studioErrorEl = q<HTMLElement>("#studio-error");
+  const footerEl = q<HTMLElement>("#studio-footer");
   if (footerEl) {
     footerEl.textContent = studioFooterCopy(adapterKind);
     footerEl.setAttribute("data-engine-adapter", adapterKind);
@@ -110,7 +144,7 @@ export function initStudio(app: HTMLElement): () => void {
     env: studioEnv,
   });
   const engineStatus = createEngineStatusTracker("loading");
-  const engineStatusEl = document.querySelector<HTMLElement>("#engine-status");
+  const engineStatusEl = q<HTMLElement>("#engine-status");
   if (engineStatusEl) {
     engineStatus.subscribe((kind) => {
       applyEngineStatusChip(engineStatusEl, kind, adapterKind);
@@ -157,16 +191,21 @@ export function initStudio(app: HTMLElement): () => void {
 
   let orderQty = snapOrder(24);
   let catchingUp = false; // catch-up: pause Autopilot, then resume
+  let advancing = false; // manual Advance in flight (T-149)
   let hoveredDay: HoverDay = null;
   let hoveredPoint: HoverPoint = null;
+  let hoveredChartSource: HoverChartSource = null;
   let activeSection: SectionId = loadSection();
   let controllerState: ControllerControlsState = {
     ...DEFAULT_CONTROLLER_CONTROLS,
   };
   let bootstrapped = false;
   let tradeoffForecasts: QForecastEntry[] = [];
+  type TradeoffTab = "curve" | "histogram";
+  let tradeoffTab: TradeoffTab = "curve";
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
+  let eventsRefreshing = false;
   let lastEventsKey = "";
 
   function controllerToActOpts(): ActOpts {
@@ -188,62 +227,104 @@ export function initStudio(app: HTMLElement): () => void {
   let autopilot!: ReturnType<typeof createAutopilotLoop>;
 
   function syncAutopilotChrome(): void {
-    renderSecondaryChrome();
+    renderOperatorBar();
+    renderObsControlsPane();
   }
 
   const els = {
-    linked: document.querySelector("#linked-charts") as HTMLElement,
-    sales: document.querySelector("#chart-sales") as HTMLElement,
-    stockout: document.querySelector("#chart-stockout") as HTMLElement,
-    history: document.querySelector("#chart-history") as HTMLElement,
-    spoil: document.querySelector("#chart-spoil") as HTMLElement,
-    belief: document.querySelector("#chart-belief") as HTMLElement,
-    beliefAgeMarginal: document.querySelector(
-      "#chart-belief-age-marginal",
-    ) as HTMLElement,
-    beliefLg: document.querySelector("#chart-belief-lg") as HTMLElement,
-    hoverNote: document.querySelector("#hover-note") as HTMLElement,
-    sectionControls: document.querySelector("#section-controls") as HTMLElement,
-    demand: document.querySelector("#chart-demand") as HTMLElement,
-    salesDemand: document.querySelector("#chart-sales-demand") as HTMLElement,
-    inventory: document.querySelector("#chart-inventory") as HTMLElement,
-    ageComp: document.querySelector("#chart-age-comp") as HTMLElement,
-    arrivalPrior: document.querySelector("#chart-arrival-prior") as HTMLElement,
-    arrivalShift: document.querySelector("#chart-arrival-shift") as HTMLElement,
-    arrheniusTemp: document.querySelector("#chart-arrhenius-temp") as HTMLElement,
-    gammaPath: document.querySelector("#chart-gamma-path") as HTMLElement,
-    controllerOrders: document.querySelector(
-      "#chart-controller-orders",
-    ) as HTMLElement,
-    focusTitle: document.querySelector("#focus-title") as HTMLElement,
-    focusBlurb: document.querySelector("#focus-blurb") as HTMLElement,
-    focusPane: document.querySelector(".tuning-dock") as HTMLElement,
+    linked: q<HTMLElement>("#linked-charts")!,
+    sales: q<HTMLElement>("#chart-sales")!,
+    stockout: q<HTMLElement>("#chart-stockout")!,
+    history: q<HTMLElement>("#chart-history")!,
+    belief: q<HTMLElement>("#chart-belief")!,
+    beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
+    beliefLg: q<HTMLElement>("#chart-belief-lg")!,
+    hoverNote: q<HTMLElement>("#hover-note")!,
+    sectionControls: q<HTMLElement>("#section-controls")!,
+    demand: q<HTMLElement>("#chart-demand")!,
+    salesDemand: q<HTMLElement>("#chart-sales-demand")!,
+    inventory: q<HTMLElement>("#chart-inventory")!,
+    ageComp: q<HTMLElement>("#chart-age-comp")!,
+    arrivalPrior: q<HTMLElement>("#chart-arrival-prior")!,
+    arrivalShift: q<HTMLElement>("#chart-arrival-shift")!,
+    arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
+    gammaPath: q<HTMLElement>("#chart-gamma-path")!,
+    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
+    ordersWasteFocus: q<HTMLElement>("#chart-orders-waste-focus")!,
+    inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
+    pickingVar: q<HTMLElement>("#picking-var-chart")!,
+    tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
+    tradeoffHistogram: q<HTMLElement>("#tradeoff-histogram-host")!,
+    pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
+    focusTitle: q<HTMLElement>("#focus-title")!,
+    focusBlurb: q<HTMLElement>("#focus-blurb")!,
+    focusPane: q<HTMLElement>(".tuning-dock")!,
   };
 
-  const economicsPaneHost = document.querySelector("#economics-pane-host");
-  const eventsPaneHost = document.querySelector("#events-pane-host");
-  const economicsPaneRoot = economicsPaneHost ? createRoot(economicsPaneHost) : null;
+  const pnlTotalsHost = q<HTMLElement>("#pnl-totals-host");
+  const impactMissedHost = q<HTMLElement>("#impact-missed-host");
+  const impactWasteHost = q<HTMLElement>("#impact-waste-host");
+  const obsControlsHost = q<HTMLElement>("#obs-controls-pane-host");
+  const eventsPaneHost = q<HTMLElement>("#events-pane-host");
+  const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
-
-  const insightStripHost = document.querySelector("#insight-strip-host");
-  const guidedPathsHost = document.querySelector("#guided-paths-host");
-  const chapterTabsHost = document.querySelector("#chapter-tabs-host");
-  const secondaryChromeHost = document.querySelector("#secondary-chrome-host");
-  const operatorBarHost = document.querySelector("#operator-bar-host");
-  const insightStripRoot = insightStripHost
-    ? createRoot(insightStripHost)
+  const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
+  const impactMissedRoot = impactMissedHost ? createRoot(impactMissedHost) : null;
+  const impactWasteRoot = impactWasteHost ? createRoot(impactWasteHost) : null;
+  const referenceDrawerRoot = referenceDrawerHost
+    ? createRoot(referenceDrawerHost)
     : null;
-  const guidedPathsRoot = guidedPathsHost ? createRoot(guidedPathsHost) : null;
-  const chapterTabsRoot = chapterTabsHost ? createRoot(chapterTabsHost) : null;
-  const secondaryChromeRoot = secondaryChromeHost
-    ? createRoot(secondaryChromeHost)
-    : null;
+  const operatorBarHost = q<HTMLElement>("#operator-bar-host");
   const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
+
+  const loadingHost = q<HTMLElement>("#studio-loading-host");
+  const loadingPortalRef = { current: loadingHost };
+  const loadingRoot = loadingHost ? createRoot(loadingHost) : null;
+  let loadingMessage = "";
+  let loadingDialogVisible = false;
+
+  function renderLoadingDialog(): void {
+    if (!loadingRoot) return;
+    loadingRoot.render(
+      createElement(StudioLoadingDialog, {
+        visible: loadingDialogVisible,
+        message: loadingMessage,
+        portalContainerRef: loadingPortalRef,
+      }),
+    );
+    const shell = q<HTMLElement>(".shell.studio");
+    if (shell) {
+      if (loadingDialogVisible) {
+        shell.setAttribute("aria-busy", "true");
+      } else {
+        shell.removeAttribute("aria-busy");
+      }
+    }
+  }
+
+  const delayedLoading = createDelayedLoadingHandle((visible) => {
+    loadingDialogVisible = visible;
+    renderLoadingDialog();
+  });
+
+  function beginStudioLoading(message: string): void {
+    loadingMessage = message;
+    renderLoadingDialog();
+    delayedLoading.begin();
+  }
+
+  function endStudioLoading(): void {
+    delayedLoading.end();
+  }
+
+  renderLoadingDialog();
 
   async function fetchTradeoffForecast(): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
-      const result = (await adapter.tradeoffForecast()) as TradeoffForecastResult;
+      const result = (await adapter.tradeoffForecast({
+        n_paths: 200,
+      })) as TradeoffForecastResult;
       tradeoffForecasts = result.candidates ?? [];
     } catch {
       tradeoffForecasts = [];
@@ -252,26 +333,61 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function fetchEvents(): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
-    const sinceDay = previousOrderDayFromSchedule(vm.episode_day, schedule);
+    const sinceDay = Math.max(1, vm.episode_day - 5);
     const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
     if (key === lastEventsKey) return;
     lastEventsKey = key;
-    eventsLoading = true;
+    if (eventDays.length === 0) {
+      eventsLoading = true;
+    } else {
+      eventsRefreshing = true;
+    }
     renderEventsPane();
     try {
       const result = await adapter.events({ since_day: sinceDay });
       eventDays = result.days ?? [];
     } catch {
-      eventDays = [];
+      if (eventDays.length === 0) eventDays = [];
     } finally {
       eventsLoading = false;
+      eventsRefreshing = false;
       renderEventsPane();
     }
   }
 
-  function renderEconomicsPane(): void {
-    if (!economicsPaneRoot) return;
-    economicsPaneRoot.render(createElement(EconomicsPane, { vm }));
+  function renderMetricsPane(): void {
+    if (pnlTotalsHost) {
+      renderPnLTotals(pnlTotalsHost, vm);
+    }
+    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, 130);
+    const impact = computeImpactTotals(vm.history);
+    if (impactMissedRoot) {
+      impactMissedRoot.render(
+        createElement(ImpactStat, {
+          label: "Total missed sales",
+          absolute: impact.missedTotal,
+          percent: impact.missedPct,
+          percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
+        }),
+      );
+    }
+    if (impactWasteRoot) {
+      impactWasteRoot.render(
+        createElement(ImpactStat, {
+          label: "Total waste",
+          absolute: impact.wasteTotal,
+          percent: impact.wastePct,
+          percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
+        }),
+      );
+    }
+  }
+
+  function maskedEventDays(): ReturnType<typeof applyMask>[] {
+    const mask = vm.config.obs_channels
+      ? maskFromChannels(vm.config.obs_channels)
+      : maskFor(vm.config.obs_scenario);
+    return eventDays.map((day) => applyMask(day as RichObsWire, mask));
   }
 
   function renderEventsPane(): void {
@@ -280,94 +396,136 @@ export function initStudio(app: HTMLElement): () => void {
       createElement(EventsPane, {
         vm: {
           episode_day: vm.episode_day,
-          history: vm.history.map((d) => ({
-            day: d.day,
-            missed: d.stockout,
-          })),
           config: vm.config,
         },
-        showTruth,
-        events: eventDays,
+        schedule,
+        events: maskedEventDays(),
         loading: eventsLoading,
+        refreshing: eventsRefreshing,
       }),
     );
   }
-  let dayInspectorPortal = document.getElementById("day-inspector-portal");
+  let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
   if (!dayInspectorPortal) {
     dayInspectorPortal = document.createElement("div");
     dayInspectorPortal.id = "day-inspector-portal";
-    document.body.appendChild(dayInspectorPortal);
+    app.appendChild(dayInspectorPortal);
   }
   const dayInspectorRoot = createRoot(dayInspectorPortal);
-  let spoilageUnavailableRoot: Root | null = null;
 
-  function renderInsightStrip(): void {
-    if (!insightStripRoot || !schedule) return;
-    insightStripRoot.render(
-      createElement(InsightStrip, { vm, schedule }),
+  function renderTradeoffBeliefColumn(): void {
+    if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
+    if (tradeoffTab === "curve") {
+      renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+      return;
+    }
+    renderTradeoffHistogram(
+      els.tradeoffHistogram,
+      nearestForecast(tradeoffForecasts, orderQty),
+      orderQty,
+      0.7,
     );
   }
 
-  function renderDayInspector(): void {
-    dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+  function syncTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+        const selected = id === tradeoffTab;
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+      },
     );
-  }
-
-  function hintAutoplay(): void {
-    const toggleBtn = document.querySelector<HTMLButtonElement>(
-      "#btn-autopilot-toggle",
-    );
-    if (!toggleBtn) return;
-    toggleBtn.classList.add("autopilot-hint");
-    window.setTimeout(() => toggleBtn.classList.remove("autopilot-hint"), 2400);
-  }
-
-  function onGuidedPathSelect(path: GuidedPath): void {
-    void railHandlers.onSetObsPreset(path.scenario);
-    setSection(path.section);
-    if (path.autoplayHint) {
-      hintAutoplay();
+    if (els.tradeoffCurve) {
+      const showCurve = tradeoffTab === "curve";
+      els.tradeoffCurve.hidden = !showCurve;
+      els.tradeoffCurve.style.display = showCurve ? "" : "none";
+    }
+    if (els.tradeoffHistogram) {
+      const showHist = tradeoffTab === "histogram";
+      els.tradeoffHistogram.hidden = !showHist;
+      els.tradeoffHistogram.style.display = showHist ? "" : "none";
     }
   }
 
-  function renderGuidedPaths(): void {
-    if (!guidedPathsRoot) return;
-    guidedPathsRoot.render(
-      createElement(GuidedPaths, { onSelect: onGuidedPathSelect }),
+  function setTradeoffTab(id: TradeoffTab): void {
+    if (tradeoffTab === id) return;
+    tradeoffTab = id;
+    syncTradeoffTabs();
+    renderTradeoffBeliefColumn();
+  }
+
+  function wireTradeoffTabs(): void {
+    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
+      (tab) => {
+        if (tab.dataset.bound === "1") return;
+        tab.dataset.bound = "1";
+        tab.addEventListener("click", () => {
+          const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
+          if (id) setTradeoffTab(id);
+        });
+      },
     );
   }
 
-  function renderChapterTabs(): void {
-    if (!chapterTabsRoot) return;
-    chapterTabsRoot.render(
-      createElement(ChapterTabs, {
-        activeSection,
-        onSelectSection: setSection,
-      }),
-    );
+  function renderLogisticsCalendar(): void {
+    if (!plotVisible("plot-logistics-calendar")) return;
+    const calHost = q<HTMLElement>("#week-calendar");
+    if (!calHost) return;
+    const previewSchedule =
+      vm.config.delivery_weekdays?.length > 0
+        ? scheduleFromConfig(vm.config)
+        : schedule;
+    const sched =
+      previewSchedule ??
+      scheduleFromConfig({
+        delivery_weekdays: vm.config.delivery_weekdays ?? [0, 2, 4],
+        lead_time: vm.config.lead_time,
+      });
+    renderWeekCalendar(calHost, sched, {
+      disabled: catchingUp,
+      onToggleDelivery: (weekday) => {
+        const current = vm.config.delivery_weekdays ?? [0, 2, 4];
+        const next = toggleDeliveryDay(current, weekday);
+        if (JSON.stringify(next) !== JSON.stringify(current)) {
+          vm = projector.setConfig({ delivery_weekdays: next });
+          sectionControlsApi?.update(controlsState());
+          renderLogisticsCalendar();
+          if (vm.config_dirty && autopilot?.isRunning()) {
+            autopilot.pause();
+            syncAutopilotChrome();
+          }
+        }
+      },
+    });
+    const hint = q<HTMLElement>("#week-calendar-hint");
+    if (hint) {
+      hint.hidden = !vm.config_dirty;
+    }
   }
 
-  function renderSecondaryChrome(): void {
-    if (secondaryChromeRoot) {
-      secondaryChromeRoot.render(
-        createElement(SecondaryChrome, {
+  function renderObsControlsPane(): void {
+    if (obsControlsRoot) {
+      obsControlsRoot.render(
+        createElement(ObsControlsPane, {
           vm,
           showTruth,
           catchingUp,
-          orderQty,
           onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
           onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
           onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
-          tradeoffForecasts,
         }),
       );
     }
+  }
+
+  function renderOperatorBar(): void {
     if (operatorBarRoot) {
       operatorBarRoot.render(
         createElement(OperatorBar, {
           vm,
           catchingUp,
+          advancing,
           autopilotRunning: autopilot?.isRunning() ?? false,
           orderQty,
           onAdvance: () => railHandlers.onAdvance(),
@@ -377,11 +535,28 @@ export function initStudio(app: HTMLElement): () => void {
           onOrderChange: (qty) => {
             orderQty = snapOrder(qty);
             sectionControlsApi.update(controlsState());
-            renderSecondaryChrome();
+            renderReferenceDrawer();
+            renderOperatorBar();
           },
         }),
       );
     }
+  }
+
+  function renderReferenceDrawer(): void {
+    if (referenceDrawerRoot) {
+      referenceDrawerRoot.render(
+        createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+          hideTriggers: true,
+        }),
+      );
+    }
+  }
+
+  function renderDayInspector(): void {
+    dayInspectorRoot.render(
+      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+    );
   }
 
   const railHandlers = {
@@ -394,15 +569,40 @@ export function initStudio(app: HTMLElement): () => void {
     onShowTruthChange: (_on: boolean) => {},
   };
 
-  function applyHoverStyles(day: HoverDay): void {
-    setMarginalHover(els.sales, day);
-    setMarginalHover(els.stockout, day);
-    setBeliefFreshnessTimeHover(els.history, day);
-    setSalesDemandHover(els.salesDemand, day);
-    setWasteBarsHover(els.spoil, day);
+  function beliefFreshnessHoverFocus(
+    source: HoverChartSource,
+  ): BeliefFreshnessHoverFocus {
+    if (source === "sales") return "sales";
+    if (source === "spoilage") return "spoiled";
+    return "default";
   }
 
-  function onHoverDay(day: HoverDay, point: HoverPoint): void {
+  function applyHoverStyles(
+    day: HoverDay,
+    source: HoverChartSource = hoveredChartSource,
+  ): void {
+    setMarginalHover(els.sales, day);
+    setMarginalHover(els.stockout, day);
+    setBeliefFreshnessTimeHover(
+      els.history,
+      day,
+      beliefFreshnessHoverFocus(source),
+    );
+    setSalesDemandHover(els.salesDemand, day);
+    setOrdersWasteHover(els.controllerOrders, day);
+    setOrdersWasteHover(els.ordersWasteFocus, day);
+    setPnLHover(els.pnlEconomics, day);
+    setInventoryTargetHover(els.inventory, day);
+    setInventoryTargetHover(els.inventoryFocus, day);
+    setAgeCompositionHover(els.ageComp, day);
+    setDemandHover(els.demand, day);
+  }
+
+  function onHoverDay(
+    day: HoverDay,
+    point: HoverPoint,
+    source: HoverChartSource,
+  ): void {
     const sameDay = hoveredDay === day;
     const samePoint =
       (point === null && hoveredPoint === null) ||
@@ -410,14 +610,16 @@ export function initStudio(app: HTMLElement): () => void {
         hoveredPoint !== null &&
         point.clientX === hoveredPoint.clientX &&
         point.clientY === hoveredPoint.clientY);
-    if (sameDay && samePoint) return;
+    const sameSource = hoveredChartSource === source;
+    if (sameDay && samePoint && sameSource) return;
     hoveredDay = day;
     hoveredPoint = point;
+    hoveredChartSource = source;
     els.hoverNote.textContent =
       day == null
         ? "Hover a day to highlight it everywhere"
         : `Day ${day} highlighted`;
-    applyHoverStyles(day);
+    applyHoverStyles(day, source);
     renderDayInspector();
   }
 
@@ -430,12 +632,14 @@ export function initStudio(app: HTMLElement): () => void {
     return vm.history.map((d) => ({
       ...d,
       lots: [],
+      units: [],
+      unit_exits: [],
       f_at_receipt: null,
     }));
   }
 
   function syncTruthCaptions(): void {
-    document.querySelectorAll<HTMLElement>("[data-truth-caption]").forEach((el) => {
+    qa<HTMLElement>("[data-truth-caption]").forEach((el) => {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
         el.textContent = showTruth
@@ -445,29 +649,21 @@ export function initStudio(app: HTMLElement): () => void {
       if (kind === "lots") {
         el.textContent =
           !showTruth && vm.history.length > 0
-            ? "Freshness × time (turn on Sim truth overlay to see lot freshness)"
+            ? "Freshness × time (turn on Sim truth overlay to see unit trajectories)"
             : "Freshness × time";
       }
     });
-    const observation = STUDIO_SECTIONS.find((s) => s.id === "observation");
-    if (observation && activeSection === "observation") {
-      els.focusBlurb.textContent = showTruth
-        ? `${observation.blurb} Truth lots overlay when enabled.`
-        : observation.blurb;
-    }
   }
 
   function plotVisible(plotId: string): boolean {
-    const node = document.querySelector(
-      `.focus-plot[data-plot="${plotId}"]`,
-    ) as HTMLElement | null;
+    const node = q<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`);
     return !!node && !node.hidden;
   }
 
   function renderCockpitBelief(): void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
     if (flat) {
-      const data = freshnessHistogramDataFromFlat(flat, vm.live_lots);
+      const data = freshnessHistogramDataFromFlat(flat, vm.live_units);
       renderFreshnessHistogram(els.beliefLg, data, showTruth, 150);
     } else {
       els.beliefLg.replaceChildren();
@@ -479,15 +675,15 @@ export function initStudio(app: HTMLElement): () => void {
     const invSeries = showTruth
       ? inventorySeries(vm.history, vm.config)
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 76, invSeries);
-    renderControllerOrders(els.controllerOrders, vm.history, 76);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, 130, invSeries);
+    renderOrdersWaste(els.controllerOrders, vm.history, 130);
     const ageRows = showTruth
       ? ageCompositionSeries(vm.history)
       : ageCompositionSeriesFromBelief(vm.belief_history);
     renderAgeComposition(
       els.ageComp,
       vm.history,
-      76,
+      130,
       ageRows,
       showTruth ? "age" : "freshness",
     );
@@ -499,40 +695,20 @@ export function initStudio(app: HTMLElement): () => void {
     renderMarginal(els.stockout, vm.history, "stockout", 48, yMax);
     renderBeliefFreshnessTime(
       els.history,
-      vm.history,
+      historyForCharts(),
       vm.belief_history,
       showTruth,
       { height: 220 },
     );
     renderSalesDemand(els.salesDemand, vm.history, 130);
-    const spoilSlot = resolveStoreSpoilageSlot({
-      scenario: vm.config.obs_scenario,
-      channels: vm.config.obs_channels,
-      showTruth,
-    });
-    if (spoilSlot.kind === "unavailable") {
-      if (!spoilageUnavailableRoot) {
-        spoilageUnavailableRoot = createRoot(els.spoil);
-      }
-      flushSync(() => {
-        spoilageUnavailableRoot!.render(
-          createElement(ChartUnavailable, {
-            plotId: "store-spoilage",
-            caption: "Daily waste is not observed at this knowledge rung.",
-          }),
-        );
-      });
-    } else {
-      if (spoilageUnavailableRoot) {
-        flushSync(() => {
-          spoilageUnavailableRoot!.render(null);
-        });
-      }
-      renderWasteBars(els.spoil, vm.history, 86, wasteBarYMax(vm.history));
-    }
     renderCockpitBelief();
+    renderMetricsPane();
+    renderRunStripCharts();
+    renderTradeoffBeliefColumn();
     applyHoverStyles(hoveredDay);
   }
+
+  const FOCUS_CHART_HEIGHT = 95;
 
   function renderActiveFocusPlots(): void {
     renderRunStripCharts();
@@ -540,7 +716,13 @@ export function initStudio(app: HTMLElement): () => void {
       const invSeries = showTruth
         ? inventorySeries(vm.history, vm.config)
         : inventorySeriesFromBelief(vm.belief_history, vm.config);
-      renderInventoryTarget(els.inventory, vm.history, vm.config, 170, invSeries);
+      renderInventoryTarget(
+        els.inventoryFocus,
+        vm.history,
+        vm.config,
+        FOCUS_CHART_HEIGHT,
+        invSeries,
+      );
     }
     if (plotVisible("plot-age-comp")) {
       const ageRows = showTruth
@@ -554,16 +736,13 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth ? "age" : "freshness",
       );
     }
-    // Demand DOW chart lives in #demand-chart-slot (T-130 colocation), not
-    // .focus-plot[data-plot="plot-demand"] — gate on active section instead.
-    if (activeSection === "demand" && schedule) {
-      renderDemandDist(
-        els.demand,
-        vm.demand_summary,
-        schedule,
-        160,
-      );
+    if (plotVisible("plot-demand")) {
+      renderDailyDemand(els.demand, vm.history, 160);
     }
+    if (plotVisible("plot-picking-variability")) {
+      renderPickingVariability(els.pickingVar, vm.config.sigma, 95);
+    }
+    renderLogisticsCalendar();
     if (plotVisible("plot-arrival-prior")) {
       renderArrivalPrior(
         els.arrivalPrior,
@@ -586,14 +765,12 @@ export function initStudio(app: HTMLElement): () => void {
       renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
     }
     if (plotVisible("plot-controller-orders")) {
-      renderControllerOrders(els.controllerOrders, vm.history, 160);
+      renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT);
     }
   }
 
   function syncTuningDockTabs(): void {
-    document
-      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
-      .forEach((tab) => {
+    qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         const selected = tab.dataset.section === activeSection;
         tab.setAttribute("aria-selected", selected ? "true" : "false");
         tab.tabIndex = selected ? 0 : -1;
@@ -605,14 +782,13 @@ export function initStudio(app: HTMLElement): () => void {
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
-    renderChapterTabs();
     syncTuningDockTabs();
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
     sectionControlsApi.showSection(id);
 
-    document.querySelectorAll<HTMLElement>(".focus-plot").forEach((plot) => {
+    qa<HTMLElement>(".focus-plot").forEach((plot) => {
       const pid = plot.dataset.plot ?? "";
       plot.hidden = !meta.plotIds.includes(pid);
     });
@@ -622,7 +798,7 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusPane.classList.add("focus-flash");
 
     if (id === "demand") {
-      const slot = document.querySelector("#demand-chart-slot");
+      const slot = q<HTMLElement>("#chart-demand-host");
       if (slot && els.demand.parentElement !== slot) {
         slot.appendChild(els.demand);
       }
@@ -644,13 +820,13 @@ export function initStudio(app: HTMLElement): () => void {
     syncTruthCaptions();
     renderStore();
     renderActiveFocusPlots();
-    renderInsightStrip();
-    renderGuidedPaths();
-    renderChapterTabs();
+    renderTradeoffBeliefColumn();
     renderDayInspector();
-    renderEconomicsPane();
+    renderMetricsPane();
     renderEventsPane();
-    renderSecondaryChrome();
+    renderObsControlsPane();
+    renderOperatorBar();
+    renderReferenceDrawer();
     orderQty = snapOrder(orderQty);
     const state = controlsState();
     sectionControlsApi.update(state);
@@ -659,12 +835,13 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function refreshRemotePanes(): Promise<void> {
     await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
-    renderSecondaryChrome();
-    renderEconomicsPane();
+    renderReferenceDrawer();
+    renderTradeoffBeliefColumn();
+    renderMetricsPane();
   }
 
   function wireDemandPreview(): void {
-    const slider = document.querySelector("#demand_mu") as HTMLInputElement | null;
+    const slider = q<HTMLInputElement>("#demand_mu");
     if (!slider || slider.dataset.previewBound === "1") return;
     slider.dataset.previewBound = "1";
     bindDemandSliderPreview({
@@ -683,6 +860,9 @@ export function initStudio(app: HTMLElement): () => void {
       if (!schedule) {
         throw new Error("schedule missing — init/reset before advance");
       }
+      advancing = true;
+      renderOperatorBar();
+      beginStudioLoading("Advancing…");
       const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
       const deltas = await adapter.step_n(orders);
       for (const delta of deltas) {
@@ -692,15 +872,19 @@ export function initStudio(app: HTMLElement): () => void {
         const completed = deltas[deltas.length - 1]!.episode_day;
         vm = { ...vm, episode_day: completed + 1 };
       }
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     } catch (err) {
       reportStudioAdapterError(
         `Advance failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
+    } finally {
+      advancing = false;
+      endStudioLoading();
+      renderOperatorBar();
     }
   }
 
@@ -715,13 +899,13 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     }
@@ -752,7 +936,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (vm.episode_day >= EPISODE_HORIZON) {
         autopilot.pause();
       }
-      onHoverDay(null, null);
+      onHoverDay(null, null, null);
       renderAll();
       void refreshRemotePanes();
     },
@@ -762,7 +946,7 @@ export function initStudio(app: HTMLElement): () => void {
     onError(err) {
       reportStudioAdapterError(
         `Autopilot failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
       syncAutopilotChrome();
@@ -772,7 +956,9 @@ export function initStudio(app: HTMLElement): () => void {
       if (typeof q === "number") {
         orderQty = snapOrder(q);
         sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
-        renderSecondaryChrome();
+        renderReferenceDrawer();
+        renderTradeoffBeliefColumn();
+        renderOperatorBar();
       }
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
@@ -788,7 +974,7 @@ export function initStudio(app: HTMLElement): () => void {
       onEconomicsChange(partial: Partial<Economics>) {
         // Local reproject only — never round-trip to the engine.
         vm = projector.setEconomics(partial);
-        renderEconomicsPane();
+        renderMetricsPane();
         sectionControlsApi.update(controlsState());
       },
       onConfigChange(partial: Partial<SimConfig>) {
@@ -798,7 +984,9 @@ export function initStudio(app: HTMLElement): () => void {
           orderQty = snapOrder(orderQty);
         }
         sectionControlsApi.update(controlsState());
-        renderSecondaryChrome();
+        renderReferenceDrawer();
+        renderTradeoffBeliefColumn();
+        renderOperatorBar();
         renderActiveFocusPlots();
         // Autopilot pauses when staged config is dirty (AC).
         if (vm.config_dirty && autopilot.isRunning()) {
@@ -821,7 +1009,7 @@ export function initStudio(app: HTMLElement): () => void {
         orderQty,
         config: { ...vm.config, case_size: caseSize },
       });
-      renderSecondaryChrome();
+        renderObsControlsPane();
     },
     controllerState,
   );
@@ -869,7 +1057,8 @@ export function initStudio(app: HTMLElement): () => void {
     }
     catchingUp = true;
     sectionControlsApi.update(controlsState());
-    renderSecondaryChrome();
+    renderObsControlsPane();
+    beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
       vm = projector.patchEngineState(snap);
@@ -880,13 +1069,14 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_channels failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     } finally {
       catchingUp = false;
+      endStudioLoading();
       sectionControlsApi.update(controlsState());
-      renderSecondaryChrome();
+      renderObsControlsPane();
       if (resumeAfter) {
         autopilot.play();
         syncAutopilotChrome();
@@ -908,7 +1098,7 @@ export function initStudio(app: HTMLElement): () => void {
     renderAll();
   };
 
-  window.addEventListener("keydown", (event) => {
+  const onKeydown = (event: KeyboardEvent) => {
     const tag = (event.target as HTMLElement | null)?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -931,12 +1121,12 @@ export function initStudio(app: HTMLElement): () => void {
       event.preventDefault();
       setSection(STUDIO_SECTIONS[n - 1]!.id);
     }
-  });
+  };
+
+  app.addEventListener("keydown", onKeydown);
 
   function wireTuningDockTabs(): void {
-    document
-      .querySelectorAll<HTMLButtonElement>(".tuning-dock-tabs [data-section]")
-      .forEach((tab) => {
+    qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         if (tab.dataset.bound === "1") return;
         tab.dataset.bound = "1";
         tab.addEventListener("click", () => {
@@ -947,6 +1137,8 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   wireTuningDockTabs();
+  wireTradeoffTabs();
+  syncTradeoffTabs();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;
@@ -962,7 +1154,7 @@ export function initStudio(app: HTMLElement): () => void {
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
-        undefined,
+        studioErrorEl,
         err,
       );
     }
@@ -976,6 +1168,7 @@ export function initStudio(app: HTMLElement): () => void {
   };
   window.addEventListener("resize", onResize);
   return () => {
+    app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
   };
 }

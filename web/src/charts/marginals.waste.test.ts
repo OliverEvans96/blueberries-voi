@@ -1,5 +1,5 @@
 /**
- * T-127 Primary: waste bars for Primary chart stack.
+ * T-127 Primary: waste line for Primary chart stack.
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
@@ -41,16 +41,13 @@ describe("renderWasteBars (T-127)", () => {
     expect(wasteBarYMax([])).toBe(1);
   });
 
-  it("renders chart-svg spoilage bars with x-axis", () => {
+  it("renders chart-svg waste line with x-axis", () => {
     const el = host();
     renderWasteBars(el, [sampleDay(0, 2), sampleDay(1, 5), sampleDay(2, 1)]);
     expect(el.querySelector("svg.chart-svg")).not.toBeNull();
-    const bars = el.querySelectorAll(".bar--spoilage");
-    expect(bars.length).toBe(3);
+    expect(el.querySelector("path.waste-line")).not.toBeNull();
+    expect(el.querySelector(".bar--spoilage")).toBeNull();
     expect(el.querySelector(".axis-x")).not.toBeNull();
-    const h0 = Number(bars[0]?.getAttribute("height"));
-    const h1 = Number(bars[1]?.getAttribute("height"));
-    expect(h1).toBeGreaterThan(h0);
   });
 
   it("setWasteBarsHover activates hover rule", () => {

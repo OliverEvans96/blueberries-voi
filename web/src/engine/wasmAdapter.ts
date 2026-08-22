@@ -1,5 +1,5 @@
 /**
- * WasmAdapter — VITE_ENGINE_ADAPTER=wasm (ADR 0120).
+ * WasmAdapter — VITE_ENGINE_ADAPTER=wasm (ADR 0139 / T-144).
  * Module worker + JSON RPC only (no main-thread physics).
  */
 
@@ -8,7 +8,11 @@ import { toFlatActParams } from "./actOpts";
 import type { ActOpts, DayDelta, EngineConfig, EventsResult, Snapshot, TradeoffForecastResult } from "./types";
 
 export type WasmAdapterOpts = {
-  workerUrl: string;
+  /** Override bundled worker URL (CDN / legacy hosting). */
+  workerUrl?: string | URL;
+  /** Optional wasm pkg base when using external worker (legacy ADR 0120). */
+  assetBaseUrl?: string;
+  /** @deprecated use assetBaseUrl */
   pkgUrl?: string;
 };
 
@@ -16,6 +20,14 @@ type RpcRequest = { id: string; method: string; params?: Record<string, unknown>
 type RpcOk = { id: string; ok: true; result: unknown };
 type RpcErr = { id: string; ok: false; error: { type?: string; message?: string } };
 type RpcResponse = RpcOk | RpcErr;
+
+function externalWorkerUrl(opts: WasmAdapterOpts): string | URL {
+  const assetBase = opts.assetBaseUrl ?? opts.pkgUrl;
+  const base = String(opts.workerUrl);
+  if (!assetBase) return opts.workerUrl!;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}assetBaseUrl=${encodeURIComponent(assetBase)}`;
+}
 
 export class WasmAdapter implements EngineAdapter {
   private readonly worker: Worker;
@@ -27,12 +39,11 @@ export class WasmAdapter implements EngineAdapter {
   private readonly onMessage: (ev: MessageEvent) => void;
   private readonly onError: (ev: ErrorEvent) => void;
 
-  constructor(opts: WasmAdapterOpts) {
-    const sep = opts.workerUrl.includes("?") ? "&" : "?";
-    const url = opts.pkgUrl
-      ? `${opts.workerUrl}${sep}pkgUrl=${encodeURIComponent(opts.pkgUrl)}`
-      : opts.workerUrl;
-    this.worker = new Worker(url, { type: "module" });
+  constructor(opts: WasmAdapterOpts = {}) {
+    // Vite bundles workers only when `new URL(..., import.meta.url)` is literal here.
+    this.worker = opts.workerUrl
+      ? new Worker(externalWorkerUrl(opts), { type: "module" })
+      : new Worker(new URL("./wasmWorker.ts", import.meta.url), { type: "module" });
     this.onMessage = (ev: MessageEvent) => {
       let resp: RpcResponse;
       try {

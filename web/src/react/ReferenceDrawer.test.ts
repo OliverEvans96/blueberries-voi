@@ -23,7 +23,7 @@ const GLOSSARY_TERMS = [
   "Base-stock",
 ];
 
-const SHORTCUT_KEYS = ["1–8", "← →", "↑ ↓", "?", "T"];
+const SHORTCUT_KEYS = ["1–7", "← →", "↑ ↓", "?", "T"];
 
 const SAMPLE_VOI: VoiReferenceData = {
   generated_at: "2024-06-01T12:00:00.000Z",
@@ -32,18 +32,34 @@ const SAMPLE_VOI: VoiReferenceData = {
 };
 
 function renderDrawer() {
-  return render(createElement(ReferenceDrawer));
+  return render(
+    createElement(
+      "div",
+      { className: "bv-studio", "data-testid": "studio-scope" },
+      createElement(ReferenceDrawer),
+    ),
+  );
+}
+
+function studioScope(): HTMLElement {
+  return document.querySelector(".bv-studio") as HTMLElement;
 }
 
 function getDialog(): HTMLDialogElement | null {
   return document.querySelector("dialog.reference-drawer");
 }
 
-function getTabs() {
-  return screen.getAllByRole("tab");
+function getDrawerNavTabs() {
+  return document.querySelectorAll(
+    ".reference-drawer-tabs [role='tab']",
+  ) as NodeListOf<HTMLElement>;
 }
 
-function pressKey(key: string, target: EventTarget = document.body) {
+function getTabs() {
+  return Array.from(getDrawerNavTabs());
+}
+
+function pressKey(key: string, target: EventTarget = studioScope()) {
   fireEvent.keyDown(target, { key, bubbles: true });
 }
 
@@ -109,7 +125,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     const tabs = getTabs();
     expect(tabs[2]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Jump to studio section")).toBeInTheDocument();
-    expect(screen.getByText("1–8")).toBeInTheDocument();
+    expect(screen.getByText("1–7")).toBeInTheDocument();
   });
 
   it("opens on VOI reference when the VOI trigger is clicked", async () => {

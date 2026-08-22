@@ -29,7 +29,6 @@ const CONTROLS_TS = join(HERE, "controls.ts");
 /** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
 const TUNING_DOCK_SECTIONS: SectionId[] = [
   "demand",
-  "observation",
   "arrival",
   "physics",
   "logistics",
@@ -94,7 +93,7 @@ describe("T-127 controls data-section rename", () => {
     expect(src).not.toMatch(/data-section=["']play["']/);
     expect(src).not.toMatch(/data-section=["']belief["']/);
     expect(src).not.toMatch(/data-section=["']controller["']/);
-    expect(src).toMatch(/data-section=["']observation["']/);
+    expect(src).not.toMatch(/data-section=["']observation["']/);
     expect(src).toMatch(/data-section=["']autopilot["']/);
   });
 
@@ -210,7 +209,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
     expect(formatSigmaPrecision(sigmaToPrecision(0.35))).toBe("1/σ = 2.86");
   });
 
-  it("moving the #sigma slider converts the raw (precision) value to σ before onConfigChange, and drives the picking-variability chart in σ-space", () => {
+  it("moving the #sigma slider converts the raw (precision) value to σ before onConfigChange", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const onConfigChange = vi.fn();
@@ -229,16 +228,13 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
     expect(sigmaInput.min).toBe("0");
     expect(sigmaInput.max).toBe(String(SIGMA_PRECISION_MAX));
 
-    // Set the raw slider (precision) input to 2 -> expect σ = 1/2 = 0.5.
     sigmaInput.value = "2";
     sigmaInput.dispatchEvent(new Event("input", { bubbles: true }));
 
     expect(onConfigChange).toHaveBeenCalledWith({ sigma: 0.5 });
     const label = host.querySelector("#val-sigma") as HTMLElement;
     expect(label.textContent).toBe("1/σ = 2.00");
-
-    const pickHost = host.querySelector("#picking-var-chart") as HTMLElement;
-    expect(pickHost.querySelector(".picking-var-line")).not.toBeNull();
+    expect(host.querySelector("#picking-var-chart")).toBeNull();
 
     document.body.removeChild(host);
   });
@@ -266,7 +262,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
 });
 
 describe("T-127 tuning-dock content — projected demand", () => {
-  it("renders projected demand preview and week calendar in DOM", () => {
+  it("renders projected demand preview in demand controls", () => {
     const host = document.createElement("div");
     mountSectionControlsDom(
       host,
@@ -279,10 +275,6 @@ describe("T-127 tuning-dock content — projected demand", () => {
     );
     const preview = host.querySelector("#demand-preview-list");
     expect(preview?.textContent).toMatch(/μ≈/);
-    const cal = host.querySelector("#week-calendar");
-    expect(cal).toBeTruthy();
-    expect(cal?.querySelectorAll(".week-calendar-day").length).toBe(7);
-    expect(cal?.querySelector(".is-delivery[data-weekday='0']")).toBeTruthy();
-    expect(cal?.querySelector(".is-order[data-weekday='6']")).toBeTruthy();
+    expect(host.querySelector("#week-calendar")).toBeNull();
   });
 });

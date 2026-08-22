@@ -1,17 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 import { initStudio } from "./studioLogic";
 
-type StudioProviderProps = {
+export type StudioProviderProps = {
   children: React.ReactNode;
+  /** Embed mount root; defaults to `#app` for standalone dev. */
+  containerRef?: RefObject<HTMLElement | null>;
 };
 
 /** Boots imperative D3 + adapter wiring after React layout mounts (T-121). */
-export function StudioProvider({ children }: StudioProviderProps) {
+export function StudioProvider({
+  children,
+  containerRef,
+}: StudioProviderProps) {
   useEffect(() => {
-    const app = document.getElementById("app");
+    const app = containerRef?.current ?? document.getElementById("app");
     if (!app) return undefined;
     return initStudio(app);
-  }, []);
+  }, [containerRef]);
 
   return <>{children}</>;
 }

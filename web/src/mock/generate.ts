@@ -6,8 +6,11 @@ import type {
   Day,
   Economics,
   Lot,
+  ObsScenarioKey,
   ScenarioId,
   SimConfig,
+  Unit,
+  UnitExit,
 } from "../types";
 import { DEFAULT_OBS_CHANNELS } from "../obsMask";
 
@@ -65,12 +68,53 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
 export type SimState = {
   day: number;
   lots: Lot[];
+  units: Unit[];
   nextLotId: number;
+  nextUnitId: number;
   pendingOrders: { arriveOn: number; qty: number }[];
   history: Day[];
   rng: () => number;
   config: SimConfig;
 };
+
+function aggregateLotsFromUnits(units: Unit[]): Lot[] {
+  const byLot = new Map<number, { n: number; sumF: number }>();
+  for (const u of units) {
+    const cur = byLot.get(u.lot_id) ?? { n: 0, sumF: 0 };
+    cur.n += 1;
+    cur.sumF += u.f;
+    byLot.set(u.lot_id, cur);
+  }
+  return [...byLot.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([lot_id, { n, sumF }]) => ({
+      lot_id,
+      n,
+      mean_f: n > 0 ? sumF / n : 0,
+    }));
+}
+
+function birthUnitsForLot(
+  lotId: number,
+  count: number,
+  meanF: number,
+  rng: () => number,
+  nextUnitId: number,
+): { units: Unit[]; nextUnitId: number } {
+  const units: Unit[] = [];
+  let uid = nextUnitId;
+  const spread = 0.045;
+  for (let i = 0; i < count; i++) {
+    const f = clamp(meanF + randn(rng) * spread, 0, 1);
+    units.push({
+      unit_id: uid,
+      lot_id: lotId,
+      f: Math.round(f * 1000) / 1000,
+    });
+    uid += 1;
+  }
+  return { units, nextUnitId: uid };
+}
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -280,61 +324,68 @@ function drawGammaDecrement(cfg: SimConfig, rng: () => number): number {
   return sampleGamma(rng, GAMMA_SHAPE, scale);
 }
 
-function binomialTrials(n: number, p: number, rng: () => number): number {
-  if (n <= 0 || p <= 0) return 0;
-  if (p >= 1) return n;
-  let k = 0;
-  for (let i = 0; i < n; i++) {
-    if (rng() < p) k += 1;
-  }
-  return k;
-}
-
-/** Age one day; gamma freshness decrement draws waste from each lot. */
-function ageAndSpoil(
-  lots: Lot[],
+/** Age one day; gamma freshness decrement draws waste from each unit. */
+function ageAndSpoilUnits(
+  units: Unit[],
   cfg: SimConfig,
   rng: () => number,
-): { lots: Lot[]; waste: number } {
+): { units: Unit[]; waste: number; exits: UnitExit[] } {
   let waste = 0;
-  const next: Lot[] = [];
-  for (const lot of lots) {
+  const next: Unit[] = [];
+  const exits: UnitExit[] = [];
+  for (const unit of units) {
     const decrement = drawGammaDecrement(cfg, rng);
-    const fAfter = Math.max(0, lot.mean_f - decrement);
+    const fAfter = Math.max(0, unit.f - decrement);
     const p =
-      lot.mean_f <= 0
+      unit.f <= 0
         ? 1
-        : clamp((lot.mean_f - fAfter) / lot.mean_f, 0, 1);
-    const died = binomialTrials(lot.n, p, rng);
-    waste += died;
-    const left = lot.n - died;
-    if (left > 0) next.push({ lot_id: lot.lot_id, n: left, mean_f: fAfter });
+        : clamp((unit.f - fAfter) / unit.f, 0, 1);
+    if (rng() >= p) {
+      next.push({ ...unit, f: fAfter });
+    } else {
+      waste += 1;
+      exits.push({
+        unit_id: unit.unit_id,
+        lot_id: unit.lot_id,
+        f: unit.f,
+        cause: "spoiled",
+      });
+    }
   }
-  return { lots: next, waste };
+  return { units: next, waste, exits };
 }
 
-function applySales(
-  lots: Lot[],
+function applySalesUnits(
+  units: Unit[],
   demand: number,
-): { lots: Lot[]; sales: number; stockout: number } {
+): { units: Unit[]; sales: number; stockout: number; exits: UnitExit[] } {
   let remaining = demand;
   let sales = 0;
-  const next: Lot[] = [];
-  const ordered = [...lots].sort(
-    (a, b) => b.mean_f - a.mean_f || a.lot_id - b.lot_id,
+  const exits: UnitExit[] = [];
+  const ordered = [...units].sort(
+    (a, b) => b.f - a.f || a.lot_id - b.lot_id || a.unit_id - b.unit_id,
   );
-  for (const lot of ordered) {
+  const keep = new Set<number>();
+  for (const unit of ordered) {
     if (remaining <= 0) {
-      next.push(lot);
+      keep.add(unit.unit_id);
       continue;
     }
-    const take = Math.min(lot.n, remaining);
-    sales += take;
-    remaining -= take;
-    const left = lot.n - take;
-    if (left > 0) next.push({ ...lot, n: left });
+    sales += 1;
+    remaining -= 1;
+    exits.push({
+      unit_id: unit.unit_id,
+      lot_id: unit.lot_id,
+      f: unit.f,
+      cause: "sold",
+    });
   }
-  return { lots: next, sales, stockout: remaining };
+  return {
+    units: units.filter((u) => keep.has(u.unit_id)),
+    sales,
+    stockout: remaining,
+    exits,
+  };
 }
 
 /** Marsaglia polar normal. */
@@ -417,7 +468,7 @@ function beliefBlur(scenario: ScenarioId): number {
 export function generateFlatBelief(
   lots: Lot[],
   rng: () => number,
-  scenario: ScenarioId = "P1",
+  scenario: ObsScenarioKey = "P1",
   K = 12,
 ): FlatBelief {
   const L = lots.length;
@@ -436,7 +487,7 @@ export function generateFlatBelief(
     { length: K },
     (_, i) => i / Math.max(1, K - 1),
   );
-  const blurF = beliefBlur(scenario);
+  const blurF = beliefBlur(scenario === "custom" ? "P1" : scenario);
   const f_marginals: number[] = [];
 
   for (let l = 0; l < L; l++) {
@@ -511,21 +562,24 @@ export function generateBelief(
 
 function runDay(
   day: number,
-  lots: Lot[],
+  units: Unit[],
   pendingOrders: { arriveOn: number; qty: number }[],
   nextLotId: number,
+  nextUnitId: number,
   orderQty: number,
   cfg: SimConfig,
   rng: () => number,
   autopilot: boolean,
 ): {
-  lots: Lot[];
+  units: Unit[];
   pendingOrders: { arriveOn: number; qty: number }[];
   nextLotId: number;
+  nextUnitId: number;
   record: Day;
 } {
-  let stateLots = lots;
+  let stateUnits = units;
   let nid = nextLotId;
+  let uid = nextUnitId;
   let pending = [...pendingOrders];
 
   const arrivals = pending
@@ -535,17 +589,19 @@ function runDay(
   let f_at_receipt: number | null = null;
   if (arrivals > 0) {
     f_at_receipt = Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000;
-    stateLots = [
-      ...stateLots,
-      { lot_id: nid++, n: arrivals, mean_f: f_at_receipt },
-    ];
+    const born = birthUnitsForLot(nid++, arrivals, f_at_receipt, rng, uid);
+    stateUnits = [...stateUnits, ...born.units];
+    uid = born.nextUnitId;
   }
 
-  const aged = ageAndSpoil(stateLots, cfg, rng);
-  stateLots = aged.lots;
+  const aged = ageAndSpoilUnits(stateUnits, cfg, rng);
+  stateUnits = aged.units;
   const demand = sampleDemand(rng, cfg, day);
-  const sold = applySales(stateLots, demand);
-  stateLots = sold.lots;
+  const sold = applySalesUnits(stateUnits, demand);
+  stateUnits = sold.units;
+  const unitExits = [...aged.exits, ...sold.exits];
+
+  const stateLots = aggregateLotsFromUnits(stateUnits);
 
   let order_qty = snapCases(Math.max(0, orderQty), cfg.case_size);
   if (autopilot) {
@@ -570,12 +626,15 @@ function runDay(
   }
 
   return {
-    lots: stateLots,
+    units: stateUnits,
     pendingOrders: pending,
     nextLotId: nid,
+    nextUnitId: uid,
     record: {
       day,
       lots: stateLots.map((l) => ({ ...l })),
+      units: stateUnits.map((u) => ({ ...u })),
+      unit_exits: unitExits.map((e) => ({ ...e })),
       sales_total: sold.sales,
       waste_total: aged.waste,
       demand,
@@ -591,14 +650,18 @@ export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
   const lots: Lot[] = [];
+  const units: Unit[] = [];
   const nextLotId = 1;
+  const nextUnitId = 0;
   const pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];
 
   return {
     day: 0,
     lots,
+    units,
     nextLotId,
+    nextUnitId,
     pendingOrders,
     history,
     rng,
@@ -615,9 +678,10 @@ export function stepSimulation(
   const completedDay = state.day;
   const stepped = runDay(
     completedDay,
-    state.lots,
+    state.units,
     state.pendingOrders,
     state.nextLotId,
+    state.nextUnitId,
     orderQtyRaw,
     config,
     state.rng,
@@ -628,9 +692,11 @@ export function stepSimulation(
 
   return {
     state: {
-      day: completedDay + 1,
-      lots: stepped.lots,
+      day: state.day + 1,
+      lots: aggregateLotsFromUnits(stepped.units),
+      units: stepped.units,
       nextLotId: stepped.nextLotId,
+      nextUnitId: stepped.nextUnitId,
       pendingOrders: stepped.pendingOrders,
       history,
       rng: state.rng,

@@ -5,17 +5,17 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
-use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
+use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, UnitExit, UnitExitCause, ModelParams};
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
     parse_channels, preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
-use crate::physics::{draw_demand, draw_demand_spawn};
+use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::spawn_rng::SpawnRng;
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
-use crate::unit_pf::{filter_step_unit_with_birth, UnitParticleBank};
+use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
@@ -71,6 +71,7 @@ pub struct EngineSession {
     rungs: HashMap<String, RungCache>,
     bank_init: UnitParticleBank,
     catchup_days_last: u32,
+    gamma_table: GammaDecrementTable,
 }
 
 impl Default for EngineSession {
@@ -82,8 +83,9 @@ impl Default for EngineSession {
 impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
+        let params = ModelParams::default();
         Self {
-            params: ModelParams::default(),
+            params: params.clone(),
             freshness: vec![],
             lot_offsets: vec![0],
             lot_ids: vec![],
@@ -111,6 +113,7 @@ impl EngineSession {
             rungs: HashMap::new(),
             bank_init: UnitParticleBank::empty(n),
             catchup_days_last: 0,
+            gamma_table: GammaDecrementTable::for_params(&params),
         }
     }
 
@@ -365,13 +368,14 @@ impl EngineSession {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx, STREAM_BIRTH)) } else { None };
-            filter_step_unit_with_birth(
+            filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
                 &self.params,
                 &self.shipments,
                 &mut fr,
                 rng_birth_filter.as_mut(),
+                &mut self.gamma_table,
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
@@ -385,6 +389,7 @@ impl EngineSession {
             order_qty: order,
             arrivals: arrival,
             episode_day: self.day,
+            unit_exits: out.unit_exits,
         };
         self.day += 1;
         self.seq += 1;
@@ -399,6 +404,7 @@ impl EngineSession {
             "belief": self.belief_value(),
             "history": [],
             "live_lots": self.live_lots_value(),
+            "live_units": self.live_units_value(),
             "pipeline": self.pipeline_value(),
             "applied_config": {
                 "n_particles": self._n_particles,
@@ -431,8 +437,10 @@ impl EngineSession {
                 "waste_total": d.waste_total,
                 "demand": d.demand,
                 "L": d.on_hand,
+                "unit_exits": self.unit_exits_wire(&d.unit_exits),
             },
             "live_lots": self.live_lots_value(),
+            "live_units": self.live_units_value(),
             "pipeline": self.pipeline_value(),
             "drop_oldest": self.seq > 14,
             "belief": self.belief_value(),
@@ -441,6 +449,55 @@ impl EngineSession {
 
     fn belief_value(&self) -> serde_json::Value {
         belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim)
+    }
+
+    fn lot_index_for_unit(&self, unit_idx: usize) -> usize {
+        let l = self.lot_offsets.len().saturating_sub(1);
+        for ell in 0..l {
+            if unit_idx >= self.lot_offsets[ell] && unit_idx < self.lot_offsets[ell + 1] {
+                return ell;
+            }
+        }
+        l.saturating_sub(1)
+    }
+
+    fn live_units_value(&self) -> serde_json::Value {
+        let units: Vec<serde_json::Value> = self
+            .freshness
+            .iter()
+            .enumerate()
+            .filter(|(_, &f)| f > 0.0)
+            .map(|(unit_idx, &f)| {
+                let ell = self.lot_index_for_unit(unit_idx);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({
+                    "unit_id": unit_idx,
+                    "lot_id": lot_id,
+                    "f": f,
+                })
+            })
+            .collect();
+        serde_json::Value::Array(units)
+    }
+
+    fn unit_exits_wire(&self, exits: &[UnitExit]) -> serde_json::Value {
+        let items: Vec<serde_json::Value> = exits
+            .iter()
+            .map(|exit| {
+                let ell = self.lot_index_for_unit(exit.unit_idx);
+                let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
+                serde_json::json!({
+                    "unit_id": exit.unit_idx,
+                    "lot_id": lot_id,
+                    "f": exit.f,
+                    "cause": match exit.cause {
+                        UnitExitCause::Spoiled => "spoiled",
+                        UnitExitCause::Sold => "sold",
+                    },
+                })
+            })
+            .collect();
+        serde_json::Value::Array(items)
     }
 
     fn live_lots_value(&self) -> serde_json::Value {
@@ -638,13 +695,14 @@ impl EngineSession {
                 let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
                 let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx as u32, STREAM_BIRTH)) } else { None };
-                filter_step_unit_with_birth(
+                filter_step_unit_with_birth_cached(
                     &mut bank,
                     &obs,
                     &self.params,
                     &self.shipments,
                     &mut fr,
                     rng_birth_filter.as_mut(),
+                    &mut self.gamma_table,
                 );
                 let belief = self.belief_from_bank(&bank);
                 let i = day_idx as usize;
@@ -961,6 +1019,7 @@ pub struct DayDelta {
     pub order_qty: u32,
     pub arrivals: u32,
     pub episode_day: u32,
+    pub unit_exits: Vec<UnitExit>,
 }
 
 #[derive(Deserialize)]
@@ -1297,24 +1356,31 @@ mod tests {
         assert_eq!(cfg["candidate_case_radius"], 2);
         assert_eq!(v["result"]["schedule"]["lead_time_days"], 2);
         let warm = handle_rpc(
-            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"2","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let warm_v: serde_json::Value = serde_json::from_str(&warm).unwrap();
-        let warm_last = warm_v["result"].as_array().unwrap().last().unwrap();
-        let f_warm = warm_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(warm_v["ok"], true, "{warm}");
+        let warm_steps = warm_v["result"].as_array().unwrap();
+        let f_warm = warm_steps
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("warm shipment arrival must populate live_lots");
         let smoke = handle_rpc(
             r#"{"id":"3","method":"init","params":{"seed":42,"config":{"lead_time":2,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
         );
         assert_eq!(smoke.contains("\"ok\":true"), true);
         let cool = handle_rpc(
-            r#"{"id":"4","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0,0]}}"#,
+            r#"{"id":"4","method":"step_n","params":{"orders":[8,0,0,0,0,0,0,0,0]}}"#,
         );
         let cool_v: serde_json::Value = serde_json::from_str(&cool).unwrap();
-        let cool_last = cool_v["result"].as_array().unwrap().last().unwrap();
-        let f_cool = cool_last["live_lots"][0]["mean_f"]
-            .as_f64()
+        assert_eq!(cool_v["ok"], true, "{cool}");
+        let f_cool = cool_v["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["live_lots"].as_array().is_some_and(|a| !a.is_empty()))
+            .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("smoke shipment arrival must populate live_lots");
         assert!(
             f_warm < f_cool - 1e-6,
@@ -1407,6 +1473,38 @@ mod tests {
         assert!(lots[0]["lot_id"].is_number());
         assert!(lots[0]["n"].as_u64().is_some_and(|n| n > 0));
         assert!(lots[0]["mean_f"].is_number());
+    }
+
+    #[test]
+    fn rpc_step_live_units_wire_after_arrival() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":42,"config":{"lead_time":1,"shipments":[{"times_d":[0.0,1.0,2.0],"temps_c":[1.0,1.0,1.0]}]}}}"#,
+        );
+        let out = handle_rpc(
+            r#"{"id":"2","method":"step_n","params":{"orders":[0,0,0,0,0,0,8,0]}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let last = v["result"].as_array().unwrap().last().unwrap();
+        let units = last["live_units"].as_array().expect("live_units array");
+        assert!(!units.is_empty(), "arrival must surface live_units");
+        let n_lots: u64 = last["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .sum();
+        assert_eq!(
+            units.len() as u64,
+            n_lots,
+            "live_units count must match summed live_lots survivors"
+        );
+        for u in units {
+            assert!(u["unit_id"].is_number());
+            assert!(u["lot_id"].is_number());
+            assert!(u["f"].is_number());
+            assert!(u["f"].as_f64().unwrap_or(0.0) > 0.0);
+        }
     }
 
     #[test]

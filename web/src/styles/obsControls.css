@@ -1,0 +1,91 @@
+.obs-controls-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.35rem 0 0.65rem;
+  border-bottom: 1px solid var(--paper-edge);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--paper) 92%, var(--accent) 8%) 0%,
+    var(--paper) 100%
+  );
+  border-radius: var(--radius);
+}
+
+.obs-panel-head {
+  margin-bottom: 0.1rem;
+}
+
+.obs-panel-head h2 {
+  margin: 0;
+}
+
+.obs-panel-lead {
+  margin: 0.1rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.obs-controls-pane .obs-channel-group {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 7rem) 1fr;
+  gap: 0.3rem 0.55rem;
+  align-items: start;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--paper-edge);
+}
+
+.obs-controls-pane .obs-channel-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.obs-controls-pane .obs-channel-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding-top: 0.15rem;
+}
+
+.obs-controls-pane .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.obs-controls-pane .chip-row--wrap {
+  row-gap: 0.3rem;
+}
+
+.obs-catchup-progress {
+  margin: 0.1rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.obs-controls-truth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.35rem 0 0;
+  border-top: 1px solid var(--paper-edge);
+}
+
+.obs-truth-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.obs-controls-truth .truth-toggle-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.truth-toggle-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+}

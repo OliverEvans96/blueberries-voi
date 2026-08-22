@@ -1,150 +1,229 @@
-//! Unit-level observation log-likelihoods (C2 Algorithm A / ADR 0130, 0135, 0137).
+//! Unit-level observation log-likelihoods (C2 Algorithm A / ADR 0130, 0135, 0143).
 //!
-//! Every term is **deterministic** given the particle state. Stochastic draws live only in
-//! `sequential_kernel_path_logprob` (unscored sales removal) and in the adapted aging
-//! proposal, which samples the daily decrement from the interval this module derives.
-//!
-//! ## Spoilage is an interval constraint on one shared latent
-//!
-//! Ground truth ages the whole store with a **single** gamma decrement `δ` per day
-//! (`physics::apply_gamma_aging`), so a unit with pre-aging freshness `f > 0` spoils iff
-//! `f ≤ δ`. Observing that `w` units spoiled therefore does not merely *reweight* the
-//! particle — it confines `δ` to the half-open interval `[g_w, g_{w+1})`, where `g_j` is
-//! the `j`-th smallest pre-aging freshness in the observed group (`g_0 = 0`,
-//! `g_{m+1} = ∞`). The likelihood is the gamma mass of that interval; the state update
-//! samples `δ` from the gamma truncated to it.
-//!
-//! ## What GSIN adds over UPC, and what it does not
-//!
-//! UPC observes only the store total `w`, giving the pooled interval `I_pooled`. GSIN
-//! observes `w_ℓ` per lot, giving `I_gsin = ⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot
-//! counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always** — the richer
-//! channel can never blur the posterior over `δ`.
-//!
-//! In *this* model it also never sharpens it. Births are lot-uniform (`unit_pf::push_lot`
-//! writes one freshness to a whole delivery) and aging applies one shared decrement, so
-//! every live unit in a lot carries the same `f` and a lot spoils **all or nothing**. Under
-//! that structure the store's order statistics *are* the lot values, so the total already
-//! determines which lots died: `I_gsin` is either exactly `I_pooled` or **empty**, never a
-//! strictly tighter non-empty interval (pinned by
-//! `unit_pf_ac::gsin_waste_never_narrows_the_pooled_interval`).
-//!
-//! So `waste_by` is a **falsification** channel rather than a sharpening one — it kills
-//! particles whose lots are ordered wrongly by freshness. Like the multinomial cross-lot
-//! sales split (the second term UPC cannot have), it is informative about the *contrast*
-//! between lots, not about the overall freshness level. Level is bought on the orthogonal
-//! `delivery_history` axis (ADR 0133).
+//! Spoilage is scored with an exact **Poisson-binomial** DP under independent per-unit
+//! gamma decrements. Every weight term is deterministic given particle state; stochastic
+//! draws live in the adapted proposal (`pb_sample_deaths`, truncated survivor aging) and
+//! unscored WOR sales removal.
 
 use rand::Rng;
 
-use crate::physics::{gamma_decrement_interval_prob, picking_weights_f};
+use crate::physics::{draw_gamma_decrement_truncated, picking_weights_f, GammaDecrementTable};
 use crate::ModelParams;
 
-/// Half-open interval `[lo, hi)` of daily decrements consistent with an observation.
-pub type DeltaInterval = (f64, f64);
-
-/// The unconstrained interval: any non-negative decrement.
-pub const DELTA_ANY: DeltaInterval = (0.0, f64::INFINITY);
-
-/// Decrements `δ` for which exactly `w` of `pre_f`'s live units spoil.
-///
-/// Returns `None` when no `δ` produces exactly `w` spoils — including the tie case where
-/// two units share a freshness value and therefore always spoil together.
-pub fn spoil_delta_interval(pre_f: &[f64], w: usize) -> Option<DeltaInterval> {
-    let mut live: Vec<f64> = pre_f.iter().copied().filter(|&f| f > 0.0).collect();
-    let m = live.len();
-    if w > m {
-        return None;
-    }
-    live.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let lo = if w == 0 { 0.0 } else { live[w - 1] };
-    let hi = if w == m { f64::INFINITY } else { live[w] };
-    if hi <= lo {
-        return None;
-    }
-    Some((lo, hi))
+/// Per-unit spoil probabilities `P(δ ≥ f_i)` for live slots.
+pub fn spoil_probs_from_freshness(
+    freshness: &[f64],
+    table: &GammaDecrementTable,
+) -> Vec<f64> {
+    freshness
+        .iter()
+        .copied()
+        .filter(|&f| f > 0.0)
+        .map(|f| table.spoil_prob(f))
+        .collect()
 }
 
-/// Intersect the per-lot spoilage intervals (GSIN `waste_by`).
-///
-/// `waste_by` is indexed by the bank's own lot segments; callers must project the observed
-/// map onto those segments first (`unit_pf::project_lot_map`).
-pub fn spoil_delta_interval_by_lot(
+/// Log PMF of exactly `w` spoils among independent Bernoulli trials with probs `p`.
+pub fn pb_log_pmf(probs: &[f64], w: usize) -> f64 {
+    let n = probs.len();
+    if w > n {
+        return f64::NEG_INFINITY;
+    }
+    let mut dp = vec![0.0f64; w + 1];
+    dp[0] = 1.0;
+    for &p in probs {
+        let p = p.clamp(0.0, 1.0);
+        let mut next = vec![0.0; w + 1];
+        for j in 0..=w {
+            if dp[j] == 0.0 {
+                continue;
+            }
+            next[j] += dp[j] * (1.0 - p);
+            if j + 1 <= w {
+                next[j + 1] += dp[j] * p;
+            }
+        }
+        dp = next;
+    }
+    let prob = dp[w];
+    if prob > 0.0 {
+        prob.ln()
+    } else {
+        f64::NEG_INFINITY
+    }
+}
+
+/// GSIN: sum of per-lot Poisson-binomial log PMFs.
+pub fn pb_loglik_by_lot(
     freshness: &[f64],
     offsets: &[usize],
     waste_by: &[u32],
-) -> Option<DeltaInterval> {
+    table: &GammaDecrementTable,
+) -> f64 {
     let n_lots = offsets.len().saturating_sub(1);
     if waste_by.len() != n_lots {
-        return None;
+        return f64::NEG_INFINITY;
     }
-    let (mut lo, mut hi) = DELTA_ANY;
+    let mut ll = 0.0;
     for ell in 0..n_lots {
         let start = offsets[ell].min(freshness.len());
         let end = offsets[ell + 1].min(freshness.len());
-        let (l, h) = spoil_delta_interval(&freshness[start..end], waste_by[ell] as usize)?;
-        lo = lo.max(l);
-        hi = hi.min(h);
+        let probs = spoil_probs_from_freshness(&freshness[start..end], table);
+        let term = pb_log_pmf(&probs, waste_by[ell] as usize);
+        if !term.is_finite() {
+            return f64::NEG_INFINITY;
+        }
+        ll += term;
     }
-    if hi <= lo {
-        return None;
-    }
-    Some((lo, hi))
+    ll
 }
 
-/// Log gamma mass of a decrement interval — the spoilage log-likelihood term.
-pub fn delta_interval_loglik(interval: Option<DeltaInterval>, params: &ModelParams) -> f64 {
-    match interval {
-        None => f64::NEG_INFINITY,
-        Some((lo, hi)) => {
-            let p = gamma_decrement_interval_prob(lo, hi, params);
-            if p > 0.0 {
-                p.ln()
-            } else {
-                f64::NEG_INFINITY
+/// UPC pooled alive-set Poisson-binomial log PMF.
+pub fn pb_loglik_pooled(freshness: &[f64], waste_tot: u32, table: &GammaDecrementTable) -> f64 {
+    let probs = spoil_probs_from_freshness(freshness, table);
+    pb_log_pmf(&probs, waste_tot as usize)
+}
+
+fn pb_alpha(probs: &[f64], w: usize) -> Vec<f64> {
+    let n = probs.len();
+    let mut alpha = vec![0.0; w + 1];
+    alpha[0] = 1.0;
+    for &p in probs {
+        let p = p.clamp(0.0, 1.0);
+        let mut next = vec![0.0; w + 1];
+        for j in 0..=w {
+            if alpha[j] == 0.0 {
+                continue;
+            }
+            next[j] += alpha[j] * (1.0 - p);
+            if j + 1 <= w {
+                next[j + 1] += alpha[j] * p;
+            }
+        }
+        alpha = next;
+    }
+    alpha
+}
+
+/// Backward-sample which live units spoil; returns `(indices, log q)`.
+pub fn pb_sample_deaths<R: Rng + ?Sized>(
+    freshness: &[f64],
+    w: usize,
+    table: &GammaDecrementTable,
+    rng: &mut R,
+) -> (Vec<usize>, f64) {
+    let live_idx: Vec<usize> = freshness
+        .iter()
+        .enumerate()
+        .filter(|(_, &f)| f > 0.0)
+        .map(|(i, _)| i)
+        .collect();
+    let probs: Vec<f64> = live_idx
+        .iter()
+        .map(|&i| table.spoil_prob(freshness[i]))
+        .collect();
+    let n = probs.len();
+    if w > n {
+        return (Vec::new(), f64::NEG_INFINITY);
+    }
+    if w == 0 {
+        return (Vec::new(), 0.0);
+    }
+
+    let mut alpha = vec![vec![0.0f64; w + 1]; n + 1];
+    alpha[0][0] = 1.0;
+    for i in 0..n {
+        let p = probs[i].clamp(0.0, 1.0);
+        for j in 0..=w {
+            if alpha[i][j] == 0.0 {
+                continue;
+            }
+            alpha[i + 1][j] += alpha[i][j] * (1.0 - p);
+            if j + 1 <= w {
+                alpha[i + 1][j + 1] += alpha[i][j] * p;
             }
         }
     }
+    if alpha[n][w] <= 0.0 {
+        return (Vec::new(), f64::NEG_INFINITY);
+    }
+
+    let mut deaths = Vec::with_capacity(w);
+    let mut j = w;
+    let mut log_q = 0.0f64;
+    for i in (0..n).rev() {
+        let p = probs[i].clamp(0.0, 1.0);
+        let denom = alpha[i + 1][j];
+        if j > 0 {
+            let p_die = if denom > 0.0 {
+                p * alpha[i][j - 1] / denom
+            } else {
+                0.0
+            };
+            if rng.random::<f64>() < p_die {
+                deaths.push(live_idx[i]);
+                log_q += p_die.max(1e-300).ln();
+                j -= 1;
+            } else {
+                log_q += (1.0 - p_die).max(1e-300).ln();
+            }
+        } else {
+            log_q += (1.0 - p).max(1e-300).ln();
+        }
+    }
+    deaths.reverse();
+    (deaths, log_q)
 }
 
-/// Contrast-sensitive spoilage weight for dispersed within-lot births (ADR 0140).
-///
-/// Returns **1.0** when `dispersion_sd <= 0` or within-lot spread is negligible.
-pub fn contrast_spoilage_weight(
+/// GSIN: independent per-lot backward death draws (indices global in `freshness`).
+pub fn pb_sample_deaths_by_lot<R: Rng + ?Sized>(
     freshness: &[f64],
     offsets: &[usize],
-    dispersion_sd: f64,
-) -> f64 {
-    if dispersion_sd <= 0.0 {
-        return 1.0;
-    }
+    waste_by: &[u32],
+    table: &GammaDecrementTable,
+    rng: &mut R,
+) -> (Vec<usize>, f64) {
     let n_lots = offsets.len().saturating_sub(1);
-    if n_lots == 0 {
-        return 1.0;
+    if waste_by.len() != n_lots {
+        return (Vec::new(), f64::NEG_INFINITY);
     }
-    let mut max_spread = 0.0f64;
+    let mut deaths = Vec::new();
+    let mut log_q = 0.0;
     for ell in 0..n_lots {
         let start = offsets[ell].min(freshness.len());
         let end = offsets[ell + 1].min(freshness.len());
-        if start >= end {
-            continue;
+        let w = waste_by[ell] as usize;
+        let (mut local, lq) = pb_sample_deaths(&freshness[start..end], w, table, rng);
+        if local.len() != w || !lq.is_finite() {
+            return (Vec::new(), f64::NEG_INFINITY);
         }
-        let seg: Vec<f64> = freshness[start..end]
-            .iter()
-            .copied()
-            .filter(|&f| f > 0.0)
-            .collect();
-        if seg.len() < 2 {
-            continue;
+        for idx in &mut local {
+            *idx += start;
         }
-        let min = seg.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max = seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        max_spread = max_spread.max(max - min);
+        deaths.extend(local);
+        log_q += lq;
     }
-    if max_spread <= 1e-9 {
-        1.0
-    } else {
-        1.0 + dispersion_sd * max_spread
+    (deaths, log_q)
+}
+
+/// Apply adapted aging: sampled deaths spoil; survivors get truncated gamma decrements.
+pub fn apply_pb_aging_proposal<R: Rng + ?Sized>(
+    freshness: &mut [f64],
+    death_indices: &[usize],
+    params: &ModelParams,
+    rng: &mut R,
+) {
+    let dead: std::collections::HashSet<usize> = death_indices.iter().copied().collect();
+    for (i, f) in freshness.iter_mut().enumerate() {
+        if *f <= 0.0 {
+            continue;
+        }
+        if dead.contains(&i) {
+            *f = 0.0;
+        } else {
+            let dec = draw_gamma_decrement_truncated(rng, params, 0.0, *f);
+            *f = (*f - dec).max(0.0);
+        }
     }
 }
 
@@ -199,10 +278,6 @@ pub fn multinomial_log_pmf(counts: &[u32], probs: &[f64]) -> f64 {
 }
 
 /// Draw and apply a sequential WOR sales path; **mutates** picked slots to `0.0`.
-///
-/// Returns the realized path log-probability as a diagnostic value only — not for
-/// importance weights (ADR 0135). Waste likelihood must be evaluated on freshness
-/// **before** calling this function.
 pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
     freshness: &mut [f64],
     sales: usize,
@@ -243,8 +318,6 @@ pub fn sequential_kernel_path_logprob<R: Rng + ?Sized>(
 }
 
 /// F1 lot-resolved sales log-likelihood: per-lot feasibility + multinomial cross-lot split.
-///
-/// Deterministic; no RNG. P1 is the `n_lots = 1` degenerate case.
 pub fn loglik_sales_by_units(
     freshness: &[f64],
     sales_by: &[u32],

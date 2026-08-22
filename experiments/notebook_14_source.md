@@ -29,21 +29,33 @@ belief is compared with truth.
 channels, only the code type changes.
 
 **Data.** `experiments/data/*.json`, produced by
-`cargo run -p voi_core --release --example gsin_upc_diag`. The *before* files come from
-the same harness run on `team/T-137/implement` (pre-ADR-0137); the *after* files from
-`team/T-140/implement` (ADR 0141 unified gamma arrival). Regenerate the after side with
-`experiments/regen_gsin_upc_data.sh` (belief metrics) and
-`experiments/regen_voi_profits.py` (§4 closed loop) from the T-140 implement tip.
+`cargo run -p voi_core --release --example gsin_upc_diag`. Four code epochs are on disk:
 
-The diag harness runs four fleet regimes; the *before* run predates the thermal fixture and
-carries the first three, so before/after panels are restricted to the shared set.
+| File | Epoch | Spoilage model |
+|------|-------|----------------|
+| `gsin_upc_before.json` | T-137, pre-ADR-0137 | binomial waste; GSIN likelihood degenerate (the bug) |
+| `gsin_upc_pre_t141.json` | ADR 0137 | shared-δ interval constraint |
+| `gsin_upc_t140.json` | T-140 / ADR 0141 | shared-δ interval, unified gamma **arrival** |
+| `gsin_upc_after.json` | T-141 / ADR 0143 | **independent per-unit aging** + Poisson-binomial |
 
-> **Harness note.** The T-138 rewrite of `gsin_upc_diag` reintroduced, in the *measurement*
-> code, the same fixed-`units_per_lot` partition that ADR 0137 removed from the filter, and
-> read ESS back off `bank.weights` *after* the step's resample — where they are uniform by
-> construction. Per-lot MAE and ESS in any regeneration between T-138 and this one are not
-> meaningful. Both now read the bank's observed `lot_offsets` and the filter's own
-> pre-resample `StepDiagnostics.ess`.
+Regenerate the after side with `experiments/regen_gsin_upc_data.sh` (belief metrics) and
+`experiments/regen_voi_profits.py` (§4 closed loop).
+
+Two provenance corrections worth stating, because they change how the columns read:
+
+1. `gsin_upc_pre_t141.json` is **not** a run of the T-140 parent harness — it is a
+   byte-identical copy of the ADR 0137-era file (18 rows, three regimes, no thermal
+   fixture). The true T-140 baseline is `gsin_upc_t140.json`, regenerated at that tip.
+2. > **Harness note.** The T-138 rewrite of `gsin_upc_diag` reintroduced, in the
+   > *measurement* code, the same fixed-`units_per_lot` partition that ADR 0137 removed from
+   > the filter, and read ESS back off `bank.weights` *after* the step's resample — where
+   > they are uniform by construction. **Per-lot MAE and ESS are meaningless in any
+   > regeneration between T-138 and this one**, the shipped T-141 verify regen included.
+   > Both now read the bank's observed `lot_offsets` and the filter's own pre-resample
+   > `StepDiagnostics.ess`.
+
+The diag harness runs four fleet regimes; the two oldest files predate the thermal fixture
+and carry three, so before/after panels are restricted to the shared set.
 
 <!-- code -->
 import json
@@ -59,6 +71,16 @@ if not DATA.exists():  # notebook executed from the repo root
 
 before = json.loads((DATA / "gsin_upc_before.json").read_text())
 after = json.loads((DATA / "gsin_upc_after.json").read_text())
+adr0137 = json.loads((DATA / "gsin_upc_pre_t141.json").read_text())
+t140 = json.loads((DATA / "gsin_upc_t140.json").read_text())
+
+# The epoch ladder, oldest first. Labels are what §6 charts.
+EPOCHS = {
+    "T-137\npre-0137": before,
+    "ADR 0137\nshared δ": adr0137,
+    "T-140\nADR 0141": t140,
+    "T-141\nADR 0143": after,
+}
 voi_before = json.loads((DATA / "voi_profits_before.json").read_text())
 voi_after = json.loads((DATA / "voi_profits_after.json").read_text())
 
@@ -66,17 +88,16 @@ RUNGS = ["P0", "P1", "F1", "F2a", "F2", "F3"]
 GSIN = {"F1", "F2", "F3"}
 REGIMES = list(dict.fromkeys(r["regime"] for r in after))
 
-# Regimes are addressed by name, never by position. The *before* run predates the
-# thermal fixture, so the two files no longer carry the same regime list, and a
-# positional index would silently retarget every figure the moment one is added.
+# Regimes are addressed by name, never by position. The two oldest epochs predate the
+# thermal fixture, so the files no longer carry the same regime list, and a positional
+# index would silently retarget every figure the moment one is added.
 HOMOG = "Homogeneous fleet, overlapping lots"
 HET = "Heterogeneous fleet, overlapping lots"
 DEEP = "Heterogeneous fleet, deep shelf"
 THERMAL = "Thermal fleet, overlapping lots"
 
-BEFORE_REGIMES = set(dict.fromkeys(r["regime"] for r in before))
+BEFORE_REGIMES = set(r["regime"] for r in before)
 SHARED = [r for r in REGIMES if r in BEFORE_REGIMES]  # before/after comparable
-AFTER_ONLY = [r for r in REGIMES if r not in BEFORE_REGIMES]
 
 # Categorical slots 1-3 of the validated default palette (all-pairs clean, light mode).
 C_BEFORE, C_AFTER, C_THIRD = "#2a78d6", "#eb6834", "#1baf7a"
@@ -138,7 +159,10 @@ def grouped_bars(ax, labels, series, colors, fmt="{:.2f}", ylabel="", legend=Tru
 
 print(f"{len(REGIMES)} regimes:")
 for r in REGIMES:
-    print(" -", r, "" if r in BEFORE_REGIMES else "(after only)")
+    print(" -", r, "" if r in BEFORE_REGIMES else "(T-140 onward)")
+print()
+for name, rows in EPOCHS.items():
+    print(f"{name.replace(chr(10), ' '):<22} {len(rows):>3} rows")
 
 <!-- markdown -->
 ## 1. The defect: GSIN believed in inventory that was not there
@@ -173,11 +197,13 @@ fig.tight_layout()
 plt.show()
 
 <!-- markdown -->
-After the fix the bias is **exactly zero** for every rung that observes spoilage.
+After the fix the bias is **exactly zero** for every rung that observes spoilage (T-141 /
+ADR 0143: independent per-unit decrements in truth, Poisson-binomial adapted proposal in
+the filter, per-lot death draws under GSIN).
 
 That is not a tuning result, it is conservation. With an empty shelf at day 0, observed
-arrivals, observed sales, and a spoilage step that samples the daily decrement *from the
-interval the observation implies*, every particle satisfies
+arrivals, observed sales, and a spoilage step that backward-samples **which units died**
+to match the day's waste count, every particle satisfies
 
 ```
 alive_t = alive_{t-1} - waste_t - sales_t + arrivals_t
@@ -216,18 +242,40 @@ plt.show()
 
 <!-- markdown -->
 P1 and F1 sit exactly on truth (the lines are indistinguishable). P0 traces a smooth
-sawtooth through truth's lumpy one. Note the mechanism has changed under ADR 0141: births
-are now per-unit Gamma draws, so a delivery no longer shares a single freshness and no
-longer retires in one lump — but the store still ages on one shared decrement, so cohorts
-still leave over a day or two. Without a waste channel P0 can only average over when that
-happens.
+sawtooth through truth's lumpy one. The mechanism has moved twice: ADR 0141 made births
+per-unit Gamma draws, so a delivery no longer shares one freshness, and ADR 0143 made
+*aging* independent per unit, so a cohort no longer retires on one shared decrement either.
+Truth is correspondingly smoother than it was, and P0 tracks it far better than in any
+earlier epoch (§3) — but with no waste channel it still has to average over when spoilage
+lands.
 
-## 2. What GSIN actually buys: attribution, not level
+## 2. What GSIN actually buys, and at which scale
 
 With the counts pinned, the honest comparison is *per lot*. Both channels observe the
 delivery stream, so the bank's j-th-newest segment is truth's j-th-newest lot for either
 one; the metrics below align on that. Only GSIN additionally learns which lot each sale and
 each spoil came from.
+
+**T-141 / ADR 0143.** Ground truth ages each live unit with an independent gamma draw;
+the filter scores spoilage with an exact Poisson-binomial DP and backward-samples deaths
+(per-lot under GSIN). Store `count_bias` is **0.000** on every spoilage rung across all
+four diag regimes (24 rows).
+
+This is the epoch where lot-resolved spoilage finally becomes **level**-informative, which
+is exactly what ADR 0143 predicted. Under the shared-δ model a single latent decrement aged
+every live unit identically, so per-lot waste counts could only falsify lot *ordering*;
+with independent decrements the counts constrain per-unit death probabilities. Deep shelf,
+`P1 → F1`, per-lot mean-f MAE:
+
+| epoch | spoilage model | P1 (UPC) | F1 (GSIN) | GSIN gain |
+|-------|----------------|----------|-----------|-----------|
+| ADR 0137 | shared δ | 0.1291 | 0.1259 | 2.4% |
+| T-140 / ADR 0141 | shared δ | 0.0891 | 0.0880 | 1.3% |
+| **T-141 / ADR 0143** | **independent** | **0.0501** | **0.0366** | **26.9%** |
+
+A one-to-two percent edge becomes a twenty-to-twenty-nine percent one across all four
+regimes. Nothing about the *codes* changed between those rows — only what the physics lets
+a lot-resolved waste count mean.
 
 **T-140 / ADR 0141.** Pack date on the F2a/F2 rungs is **calendar transit duration**
 (`receipt − pack` in days), not a rounded warped-τ surrogate. Epistemic width on that
@@ -268,46 +316,41 @@ for u, g in pairs:
         print(f"{u+' → '+g:<12} {key:<24} {a[u][key]:>10.4f} {a[g][key]:>10.4f}")
 
 <!-- markdown -->
-**Per-lot inventory becomes exact under GSIN** (MAE `0.000` vs `0.34–0.65` for UPC): once
-sales and spoils are attributed to named lots, the per-lot count is conserved the same way
-the store total is. That is the channel's headline value.
+**Store count is exact under every spoilage rung** (`count_mae` and `count_bias` both
+`0.000` for P1/F1/F2a/F2/F3): once sales and spoils are observed, the adapted PB proposal
+removes exactly the right number of units. That is conservation, and both channels get it.
 
-The freshness *level* improves only slightly (a few percent). This is the physically honest
-answer and worth stating plainly:
+**Per-lot count is exact under GSIN and only under GSIN** (`0.000` vs `0.29–0.67` for UPC):
+attributing sales and spoils to named lots makes each segment conserve the way the store
+total does. This is the channel's most durable value — it has held at `0.000` in every
+epoch since ADR 0137, and it is not a statistical result that better physics could erode.
 
-- Picking is only weakly freshness-dependent (`sigma = 0.5`), so the cross-lot sales split
-  is a weak signal about relative freshness.
-- Per-lot spoilage adds little over the store total, because a cohort spoils all at once —
-  given the total, *which* lot it came from is usually already determined.
+The freshness *level* answer depends on which scale you ask about, and the two answers
+differ by an order of magnitude:
 
-Freshness level is bought by the **`delivery_history`** axis instead, which is exactly the
-orthogonality ADR 0133 designs for: `code_type` resolves *where the stock is*,
-`delivery_history` resolves *how fresh it is*.
+- **At the store aggregate, lot codes buy 3–4%** — and that has not grown with the physics
+  (6.0% at T-140, 4.0% at T-141 on the deep shelf). Picking is only weakly
+  freshness-dependent (`sigma = 0.5`), so the cross-lot sales split is a weak signal about
+  the store's *overall* freshness, and the store total already pins the count.
+- **At the lot level, lot codes now buy 21–29%** (see the table above). Knowing which lot
+  spoiled is informative about *that lot's* freshness, which is a question UPC cannot even
+  pose.
+
+*Store-level* freshness is bought by the **`delivery_history`** axis instead, which is
+exactly the orthogonality ADR 0133 designs for: `code_type` resolves *where the stock is* —
+and, since ADR 0143, how fresh each lot is — while `delivery_history` resolves how fresh the
+shelf is overall.
 
 ## 2b. The delivery-history ladder is a variance decomposition
 
-This is where ADR 0141 changed the answer, so it gets its own figure.
-
-Under the old F2a/F2 formula the pack-date channel emitted a rounded *warped* age scored
-against a hand-set `f2a_transit_sd = 0.75`, when the true rounding residual was about
-`0.29`. Pack date was therefore quietly under-informative, and the F2 → F3 step inherited
-the slack as an apparent gain. Under ADR 0141 pack date is honest — calendar transit
-duration, with epistemic width bootstrapped from the fleet's own temperature factor φ̄ —
-and the ladder separates along the physics instead.
+ADR 0141 made the pack-date channel honest — calendar transit duration with epistemic width
+bootstrapped from the fleet's own temperature factor φ̄, replacing a rounded warped age
+scored against a hand-set `f2a_transit_sd = 0.75`. Once it was honest, the ladder stopped
+looking like a single ordered gain and started separating along the physics.
 
 Each rung conditions on more of the transit segment, so each can only buy what the fleet
-actually varies:
-
-- **Homogeneous fleet** — one trace, nothing to learn. Both steps are flat.
-- **Heterogeneous fleet** — transit *duration* varies. Calendar pack date is very nearly
-  sufficient; temperature history adds essentially nothing on top of it.
-- **Thermal fleet** — duration is fixed at 2 days and *temperature* varies. Pack date is
-  now literally uninformative (F2a and F2 are bit-identical to P1 and F1), and the whole
-  delivery-history gain lands on the temperature trace.
-
-Total variation against the truth freshness histogram is the metric to read here. Mean-f
-moves too (`0.0843 → 0.0813` on the thermal fleet), but the ladder is really about
-distribution *shape*, and TV is where that shows up.
+actually varies. Total variation against the truth freshness histogram is the metric to read
+here: the ladder is about distribution *shape*, and TV is where that shows up.
 
 <!-- code -->
 LADDER = [("F1", "none"), ("F2", "pack date"), ("F3", "temp trace")]
@@ -324,7 +367,7 @@ fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.4))
 
 # Left: the level each rung reaches. Right: the *step gain*, which is the claim —
 # plotting the gain keeps a true zero baseline instead of truncating a bar axis to
-# make a 3% difference in level visible.
+# make a small difference in level visible.
 grouped_bars(
     axes[0], labels,
     {lab: [tv[r][j] for r in REGIMES] for j, (_, lab) in enumerate(LADDER)},
@@ -361,14 +404,14 @@ for r in REGIMES:
     print(f"{r:<38} {100 * (f1 - f2) / f1:>18.1f}% {100 * (f2 - f3) / f2:>19.1f}%")
 
 <!-- markdown -->
-Read across the two steps and they are almost perfectly complementary: `+13.3%` / `+0.3%`
-on the duration-heterogeneous fleet, `0.0%` / `+10.0%` on the thermal one. Neither channel
-is dominant — each prices exactly the component of transit variance it observes, which is
-the orthogonality claim ADR 0133 makes and ADR 0141 finally makes measurable.
+The two steps are complementary rather than ordered: pack date does the work exactly where
+transit *duration* varies, the temperature trace exactly where *temperature* varies, and
+neither buys anything on a fleet that varies neither. That is the orthogonality claim ADR
+0133 makes, and ADR 0141 is what finally made it measurable.
 
 The practical consequence for the VOI story: **there is no fleet-independent price for
-delivery history.** Quoting the F2 → F3 gain without saying what the fleet varies is
-quoting a number that ranges from zero to the entire ladder.
+delivery history.** Quoting an F2 → F3 gain without saying what the fleet varies is quoting
+a number that ranges from zero to the entire ladder.
 
 ## 3. Before and after, every metric
 
@@ -376,14 +419,17 @@ quoting a number that ranges from zero to the entire ladder.
 "lot 2" was not truth's lot 2 — so the before/after gap on the per-lot metrics measures the
 bug, not a modelling improvement.
 
-The *before* run predates the thermal fixture, so every before/after panel is restricted to
-the three regimes both runs share.
+The *before* column is the T-137 pre-ADR-0137 run, three epochs back, and predates the
+thermal fixture — so these panels cover the three shared regimes. §6 puts all four epochs
+side by side, which is the more useful comparison now that the oldest one is mostly of
+historical interest.
 
-One panel deserves a call-out rather than a victory lap: **P0's store count MAE went the
-wrong way** (`8.63 → 19.10` on the deep shelf), and its bias flipped sign (`−8.39 → +6.04`).
-The pre-0137 P0 under-counted; today's over-counts, and by more. Every rung that observes
-spoilage is exact, so this is not a conservation failure — it is open item 1 below, and it
-is the one place where the *before* column is still the better number.
+**P0 is the headline change here.** Independent per-unit aging did what a demand-censoring
+term was supposed to do: store count MAE falls `19.10 → 2.76` and bias `+6.04 → +0.46` on
+the deep shelf. When a cohort died in one lump, the sales-only constraint was nearly
+uninformative about how much stock remained; when units die independently, the observed
+sales stream pins the live count much harder. Open item 1 is largely closed as a
+side effect — see §5.
 
 <!-- code -->
 KEYS = [
@@ -453,21 +499,25 @@ Before the fix the GSIN rungs earned roughly **a third** of the UPC rungs' profi
 running blind produces a belief the controller cannot use. After, every rung lands within a
 few percent of the others and of the `B-state` oracle.
 
-All seven rungs now sit inside a **2% band** (1076–1098), and the absolute level fell by
-roughly 30 units across the board versus the ADR 0137 run. That drop is physics, not
-regression: per-unit Gamma birth spreads freshness within each delivery, so a cohort no
-longer spoils in one lump. `B-state` moved with everything else even though the oracle
-never touches the filter, which is the check that the shift is the truth trajectory
-changing rather than belief accuracy changing.
+The absolute level has now fallen twice: about 30 units at T-140 and another 60 at T-141.
+Neither drop is a regression in belief quality. `B-state` uses ground truth and never
+touches the filter, and it moved with everything else both times — so what changed is the
+truth trajectory. Per-unit gamma births spread freshness within a delivery, and independent
+per-unit aging spreads *when* those units die; both make the shelf harder to serve
+profitably, and neither is the filter getting worse.
 
-**Caveat, and it is a real one.** Profit is still not monotone in information — and under
-ADR 0141 the inversion is starker, not milder: the `B-state` oracle is now the *lowest*
-mean of the seven, and `P1` the highest. Because the oracle uses ground truth directly and
-still finishes last, that ordering is a property of the policy and cost structure
-(lost-sale 3.0 vs waste 1.5 rewards over-ordering), not of the filter. Four seeds at a
-2% spread also cannot resolve a real ranking here — the honest reading is *no rung is
-reliably better than any other*, which is itself the finding. It needs a controller/α-tuning
-ticket; it is out of scope for the filter fix.
+**Caveat, and it is a real one.** Profit is still not monotone in information, and three
+epochs of filter work have not moved that at all. The `B-state` oracle is the *lowest* mean
+of the seven rungs, and the spread across all of them is 2.8% — smaller than the seed-to-
+seed spread within any single rung. Because the oracle uses ground truth directly and still
+finishes last, the ordering is a property of the policy and cost structure (lost-sale 3.0 vs
+waste 1.5 rewards over-ordering), not of the filter.
+
+Stated plainly, so it is not read as a positive result: **at four seeds and this budget, no
+observation rung is reliably better than any other in realised profit.** The belief
+accuracy gains in §2 and §6 are real and large; none of them has yet shown up as money.
+That gap is the most important open question in this study, and it needs a controller /
+α-tuning ticket rather than more filter work.
 
 ## 5. Cost, and what is left
 
@@ -486,22 +536,142 @@ fig.tight_layout()
 plt.show()
 
 <!-- markdown -->
-Runtime is unchanged in order (single-digit ms/day at N=200, against a 500 ms studio
-budget). The GSIN rungs look *slower* than before only because their likelihood used to
-short-circuit to `-inf` before doing any work.
+Runtime rises to **~50–130 ms/day** at N=200 on the PB filter path, against roughly
+**5 ms** in every earlier epoch — a **20×** increase. It is still inside the 500 ms studio
+budget, but the margin is now one order of magnitude rather than two, and the deep-shelf
+rungs (108–128 ms) are the ones to watch as `L` grows. Each spoilage day runs a
+Poisson-binomial DP plus truncated-gamma survivors instead of short-circuiting on a shared
+δ. P0 is unaffected (~5 ms) because it never observes waste.
+
+One practical consequence outside the notebook: `gsin_upc_ac12` shells out to this
+diagnostic, so the regression gate is now a ~17 minute release run. Both of its tests share
+a single invocation rather than spawning it twice.
+
+## 6. Four epochs of the same question
+
+The study has now been run at four code tips. It is worth putting them side by side,
+because the absolute numbers moved by more than an order of magnitude while the thing the
+notebook is actually about — *what lot codes buy* — barely moved at all.
+
+Only the three regimes present in every file are charted; the thermal fixture arrives at
+T-140.
+
+<!-- code -->
+EPOCH_KEYS = list(EPOCHS)
+regime = DEEP
+
+
+def epoch_series(rung, key):
+    return [pick(rows, regime).get(rung, {}).get(key, float("nan"))
+            for rows in EPOCHS.values()]
+
+
+fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.4))
+
+grouped_bars(
+    axes[0], [e.replace("\n", " ") for e in EPOCH_KEYS],
+    {"P1 (UPC)": epoch_series("P1", "store_mean_f_mae"),
+     "F1 (GSIN)": epoch_series("F1", "store_mean_f_mae")},
+    [C_BEFORE, C_AFTER], fmt="{:.3f}", ylabel="store mean freshness MAE", legend=False,
+    label_size=7.0,
+)
+axes[0].set_title("Absolute belief accuracy", fontsize=10.5, pad=30)
+
+gain = []
+for rows in EPOCHS.values():
+    a = pick(rows, regime)
+    u, g = a["P1"]["store_mean_f_mae"], a["F1"]["store_mean_f_mae"]
+    gain.append(100 * (u - g) / u if u else float("nan"))
+gain_lot = []
+for rows in EPOCHS.values():
+    a = pick(rows, regime)
+    u, g = a["P1"]["lot_mean_f_mae"], a["F1"]["lot_mean_f_mae"]
+    gain_lot.append(100 * (u - g) / u if u else float("nan"))
+
+grouped_bars(
+    axes[1], [e.replace("\n", " ") for e in EPOCH_KEYS],
+    {"store mean-f": gain, "per-lot mean-f": gain_lot},
+    [C_AFTER, C_THIRD], fmt="{:.0f}%", ylabel="GSIN improvement over UPC (%)",
+    legend=False, label_size=7.0,
+)
+axes[1].axhline(0, color=INK_3, linewidth=0.8, zorder=2)
+axes[1].set_title("What lot codes buy over UPC (P1 → F1)", fontsize=10.5, pad=30)
+
+for ax in axes:
+    ax.tick_params(axis="x", labelsize=8)
+    ax.legend(*ax.get_legend_handles_labels(), frameon=False, fontsize=8.5, ncol=2,
+              loc="upper left", bbox_to_anchor=(-0.01, 1.13), handlelength=1.1,
+              columnspacing=1.4, handletextpad=0.5)
+fig.suptitle(f"Four code epochs, same diagnostic — {regime}", y=1.06, fontsize=12)
+fig.tight_layout(rect=(0, 0, 1, 0.97))
+plt.show()
+
+hdr = (f"{'epoch':<22}{'store mean-f':>22}{'per-lot mean-f':>22}"
+       f"{'per-lot count':>22}{'ms/day':>9}")
+print(hdr)
+print(f"{'':<22}{'P1 → F1  (gain)':>22}{'P1 → F1  (gain)':>22}{'P1 → F1':>22}{'F1':>9}")
+print("-" * len(hdr))
+for name, rows in EPOCHS.items():
+    a = pick(rows, regime)
+    cells = ""
+    for k in ("store_mean_f_mae", "lot_mean_f_mae", "lot_count_mae"):
+        u, g = a["P1"][k], a["F1"][k]
+        pct = f"{100 * (u - g) / u:+.0f}%" if u else "  -"
+        cells += f"{u:>8.4f} →{g:>8.4f}{pct:>6}"
+    print(f"{name.replace(chr(10), ' '):<22}{cells}{a['F1']['ms_per_day']:>9.1f}")
+
+<!-- markdown -->
+Three readings, in order of how much they should change anyone's mind.
+
+**1. Absolute belief accuracy improved by an order of magnitude, and almost none of it came
+from lot codes.** Store mean-f MAE on the deep shelf went `0.148 → 0.117 → 0.084 → 0.019`
+across the four epochs. Effective-inventory MAE — the number the controller actually sees —
+went `12.4 → 8.3 → 6.1 → 1.27`. Those are large, real gains, and they accrued to the UPC
+rungs and the GSIN rungs in almost equal measure. They were bought by fixing the *physics
+and the likelihood*, not by adding data.
+
+**2. What lot codes buy has stayed remarkably stable, except once.** The `P1 → F1` store
+mean-f gain is 1.3% / 6.0% / 4.0% at the last three epochs — small, and not trending up.
+Per-lot count has been exact under GSIN and only under GSIN since ADR 0137. The single real
+movement is per-lot *freshness*, which jumped from ~1–2% to 21–29% at T-141, because
+independent per-unit aging is what makes a lot-resolved waste count mean something about
+that lot's freshness rather than merely about lot ordering.
+
+**3. The oldest column is archaeology, and its per-lot numbers should not be read at all.**
+`T-137 pre-0137` is the era when the GSIN likelihood returned `-inf` and the filter ran
+blind. Its store metrics are honestly bad (GSIN 5% *worse* than UPC). Its per-lot metrics
+look like GSIN wins — `+16%` on mean-f, `+20%` on count — but both channels were carrying
+tens of units of phantom mass on partitions that did not correspond to truth's lots, so
+those percentages are two wrong numbers dividing into each other, not a gain.
+
+That is the second time this study has been misled by a measurement rather than a model:
+the T-138 harness regression did the same thing to the per-lot columns at T-141, and it is
+the reason the shipped T-141 notebook concluded that per-lot accuracy had *regressed* (see
+the harness note at the top). Both failures were silent, both looked like findings, and
+both survived a review. It is worth assuming there is a third.
 
 ### Open items
 
-1. **P0 count bias.** P0 has no spoilage channel, and its only sales constraint is
-   one-sided (`alive >= sales`), so over-stocked particles are never penalised. Gamma birth
-   shrank it by roughly a third (deep shelf `+10.1 → +6.0` units) but did not remove it. The
-   principled fix is a demand-censoring term — score `P(D >= sales)` rather than
-   `P(D = sales)` when a particle stocks out — which needs the calendar day threaded into
-   `filter_step_unit`.
+1. **P0 count bias — largely closed by ADR 0143, not by the intended fix.** The bias is
+   down to `+0.37 … +0.46` units from `+6.0 … +10.1`, and count MAE to `1.4–2.8` from
+   `19.1`. The original diagnosis still stands in principle — P0's sales constraint is
+   one-sided (`alive >= sales`), so over-stocked particles are never *directly* penalised —
+   but independent per-unit aging made the sales stream itself far more informative about
+   the live count, which absorbed most of the error. A demand-censoring term (score
+   `P(D >= sales)` rather than `P(D = sales)` on stockout, needing the calendar day threaded
+   into `filter_step_unit`) is now a refinement rather than a correction.
 2. **Cross-lot allocation is multinomial, not Wallenius.** Deliberate first-order
    approximation (ADR 0135), validated at small and realistic lot counts. It matters little
    here because `sigma = 0.5` makes the signal weak either way.
-3. **VOI monotonicity** — see the caveat in §4. Policy/cost issue, not a filter issue.
+3. **VOI monotonicity** — see the caveat in §4. Policy/cost issue, not a filter issue, and
+   now the binding constraint on this whole line of work: three epochs of belief-accuracy
+   improvement have produced no profit ordering.
+4. **ESS falls under GSIN** (`110` vs `144` at P1 on the deep shelf, N=200). This is the
+   expected signature of a sharper likelihood concentrating weight, not a defect — but it
+   means the non-regression guard cannot ask for `F1.ess >= P1.ess`. `gsin_upc_ac12` now
+   asserts an ESS *floor* per rung instead, plus per-lot count exactness under GSIN.
+5. **Cost headroom.** 20× runtime for the PB path (§5). Fine at `N=200, L=10`; worth a
+   budget check before raising either.
 *Closed since this notebook was written:* the legacy binomial waste primitives
 (`p1_totals_loglik`, `loglik_waste_by_units`, `loglik_waste_tot_after_sales_by`, and the
 `binom_pmf` / `iter_compositions` helpers only they used) have been **deleted** from

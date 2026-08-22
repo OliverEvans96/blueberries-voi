@@ -1,7 +1,7 @@
 """T-125 migrated T-071: demo hydrate at WASM worker edge only.
 
 Locks `.team/specs/T-125.md` AC-mixed: native ``EngineSession`` stays strict on
-missing/empty shipments; browser demo hydrate lives in ``packaging/wasm/worker.js``
+missing/empty shipments; browser demo hydrate lives in ``web/src/engine/wasmWorker.ts``
 only — no ASGI FastAPI or ``packaging/pyodide/session_rpc.py`` paths.
 """
 
@@ -14,14 +14,14 @@ import pytest
 from blueberries_voi.simulator.session import EngineSession
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_WASM_WORKER = _REPO_ROOT / "packaging" / "wasm" / "worker.js"
+_WASM_WORKER = _REPO_ROOT / "web" / "src" / "engine" / "wasmWorker.ts"
 _PYODIDE_RPC = _REPO_ROOT / "packaging" / "pyodide" / "session_rpc.py"
 _PYODIDE_WORKER = _REPO_ROOT / "packaging" / "pyodide" / "worker.js"
 
 
 def _wasm_worker_source() -> str:
     assert _WASM_WORKER.is_file(), (
-        "packaging/wasm/worker.js must exist (sole browser RPC host per T-125)"
+        "web/src/engine/wasmWorker.ts must exist (sole browser RPC host per T-144)"
     )
     return _WASM_WORKER.read_text(encoding="utf-8")
 
@@ -89,5 +89,5 @@ def test_packaging_pyodide_session_rpc_absent() -> None:
 def test_packaging_pyodide_worker_absent() -> None:
     assert not _PYODIDE_WORKER.is_file(), (
         "packaging/pyodide/worker.js must be deleted (T-125 AC-pyodide); "
-        "use packaging/wasm/worker.js only"
+        "use web/src/engine/wasmWorker.ts only"
     )

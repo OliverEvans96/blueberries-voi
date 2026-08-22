@@ -1,4 +1,4 @@
-import { renderDemandDist } from "../charts/demandDist";
+import { renderDailyDemand } from "../charts/demandDist";
 import type { ViewModelProjector } from "./projector";
 // ViewModelProjector.demandSummaryFromConfig is defined on projector.ts
 import type { ScheduleWire } from "./types";
@@ -17,12 +17,12 @@ export function bindDemandSliderPreview(opts: DemandPreviewBindOpts): void {
   const onInput = () => {
     const demand_mu = Number(slider.value);
     const vm = projector.getViewModel();
-    const summary = projector.demandSummaryFromConfig({
+    projector.demandSummaryFromConfig({
       demand_mu,
       demand_vm: vm.config.demand_vm,
     });
     requestAnimationFrame(() => {
-      renderDemandDist(chartHost, summary, opts.schedule ?? vm.schedule, 160);
+      renderDailyDemand(chartHost, vm.history, 160);
     });
   };
 

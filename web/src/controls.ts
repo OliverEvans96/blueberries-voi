@@ -13,13 +13,7 @@ import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 import { controlAvailability } from "./scenarioAvailability";
 import {
   projectedDemandDays,
-  renderPickingVariability,
 } from "./charts/demandDist";
-import {
-  renderWeekCalendar,
-  scheduleFromConfig,
-  toggleDeliveryDay,
-} from "./calendar/weekCalendar";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -305,34 +299,18 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="demand" hidden>
         <p class="hint">Negative-binomial-ish demand from mean and V/M; 1/σ shapes lot picking spread.</p>
-        <div class="demand-controls-layout">
-          <div class="demand-controls-sliders">
-            ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
-            <div class="field">
-              <span class="field-label">Picking variability shape</span>
-              <div id="picking-var-chart" class="picking-var-chart" aria-hidden="true"></div>
-            </div>
-            <div class="field">
-              <span class="field-label">Next few days (projected μ)</span>
-              <p class="meta-readonly" id="demand-preview-list">—</p>
-            </div>
-            <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
-            ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
+        <div class="demand-controls-sliders">
+          ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
+          <div class="field">
+            <span class="field-label">Next few days (projected μ)</span>
+            <p class="meta-readonly" id="demand-preview-list">—</p>
           </div>
-          <div class="demand-controls-chart">
-            <div class="chart-caption impact-caption">DOW demand · protection 3 / 3 / 4</div>
-            <div id="demand-chart-slot" class="chart demand-chart-slot" role="img" aria-label="Day of week demand profile"></div>
-          </div>
+          <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
+          ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
         </div>
       </div>
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
-        <div class="field week-calendar-field">
-          <span class="field-label">Delivery schedule ${tierBadge("delivery_weekdays")}</span>
-          <div id="week-calendar" class="week-calendar" role="group" aria-label="Delivery and order weekdays"></div>
-          <p class="meta-readonly week-calendar-legend">Filled = delivery · outline = order day</p>
-          <p class="meta-readonly week-calendar-hint" id="week-calendar-hint" hidden>Reset to apply schedule</p>
-        </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
@@ -349,16 +327,6 @@ function mountSectionControlsDom(
           </div>
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
-      </div>
-      <div class="controls-block" data-section="observation" hidden>
-        <p class="hint">
-          Knowledge changes what the store sees, so future orders can change.
-          Use the observation scenario chips on the Secondary pane to switch rungs.
-        </p>
-        <div class="obs-scenario-copy" id="obs-scenario-copy">
-          <strong class="obs-scenario-title" id="obs-scenario-title"></strong>
-          <p class="obs-scenario-desc" id="obs-scenario-desc"></p>
-        </div>
       </div>
       <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">
@@ -470,36 +438,7 @@ function mountSectionControlsDom(
     }
   }
 
-  function syncWeekCalendar(s: ControlsState): void {
-    const host = root.querySelector("#week-calendar") as HTMLElement | null;
-    if (!host) return;
-    const sched =
-      s.schedule ??
-      scheduleFromConfig({
-        delivery_weekdays: s.config.delivery_weekdays ?? [0, 2, 4],
-        lead_time: s.config.lead_time,
-      });
-    renderWeekCalendar(host, sched, {
-      disabled: Boolean(s.catchingUp),
-      onToggleDelivery: (weekday) => {
-        const current = s.config.delivery_weekdays ?? [0, 2, 4];
-        const next = toggleDeliveryDay(current, weekday);
-        if (JSON.stringify(next) !== JSON.stringify(current)) {
-          cb.onConfigChange({ delivery_weekdays: next });
-        }
-      },
-    });
-    const hint = root.querySelector("#week-calendar-hint") as HTMLElement | null;
-    if (hint) {
-      hint.hidden = !s.configDirty;
-    }
-  }
-
   function syncDemandChrome(s: ControlsState): void {
-    const pickHost = root.querySelector("#picking-var-chart") as HTMLElement | null;
-    if (pickHost) {
-      renderPickingVariability(pickHost, s.config.sigma);
-    }
     const previewEl = root.querySelector("#demand-preview-list") as HTMLElement | null;
     if (previewEl) {
       if (s.demand_summary) {
@@ -606,10 +545,6 @@ function mountSectionControlsDom(
         // and before feeding the illustrative w(f) curve, which is σ-shaped.
         const sigma = precisionToSigma(raw);
         cb.onConfigChange({ sigma });
-        renderPickingVariability(
-          root.querySelector("#picking-var-chart") as HTMLElement,
-          sigma,
-        );
         return;
       }
       cb.onConfigChange({ [spec.id]: raw });
@@ -689,7 +624,6 @@ function mountSectionControlsDom(
   syncEconomics(initial.economics);
   syncConfig(initial.config);
   syncDemandState(initial);
-  syncWeekCalendar(initial);
   syncController(initialController);
 
   return {
@@ -697,7 +631,6 @@ function mountSectionControlsDom(
       syncEconomics(s.economics);
       syncConfig(s.config, Boolean(s.catchingUp));
       syncDemandState(s);
-      syncWeekCalendar(s);
     },
     updateController(s) {
       syncController(s);

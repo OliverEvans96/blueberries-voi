@@ -1,24 +1,39 @@
 {
-  "name": "blueberries-voi-simulator-mockup",
-  "private": true,
+  "name": "@oliverevans96/blueberries-voi-studio",
   "version": "0.1.0",
+  "description": "Embeddable React studio for blueberries value-of-information simulation",
   "type": "module",
+  "files": [
+    "dist-lib"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist-lib/embed.js",
+      "types": "./dist-lib/embed.d.ts"
+    },
+    "./styles.css": "./dist-lib/styles.css"
+  },
   "scripts": {
     "dev": "vite",
     "studio": "../scripts/studio.sh",
     "build": "tsc && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && node scripts/copy-lib-assets.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts"
   },
-  "dependencies": {
-    "d3": "^7.9.0",
+  "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
+  "dependencies": {
+    "d3": "^7.9.0"
+  },
   "devDependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.2.0",
@@ -28,8 +43,11 @@
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
+    "vite-plugin-dts": "^4.5.3",
     "vitest": "^3.0.5"
   }
 }

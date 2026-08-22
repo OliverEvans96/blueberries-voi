@@ -3,6 +3,20 @@
  * Epoch 2024-01-01 (Monday = 0); order weekdays derived from delivery + lead time.
  */
 import { WEEKDAY_LABELS_MONDAY0 } from "../charts/demandDist";
+
+/** Sunday-first short headers for the logistics calendar widget (T-148). */
+export const WEEKDAY_HEADERS_SUNDAY_FIRST = [
+  "Su",
+  "Mo",
+  "Tu",
+  "We",
+  "Th",
+  "Fr",
+  "Sa",
+] as const;
+
+/** monday0 indices in Sunday-first display order. */
+export const SUNDAY_FIRST_MONDAY0_ORDER = [6, 0, 1, 2, 3, 4, 5] as const;
 import type { ScheduleWire } from "../engine/types";
 import type { SimConfig } from "../types";
 
@@ -63,7 +77,11 @@ export function renderWeekCalendar(
   const orderSet = new Set(schedule.order_weekdays);
   const disabled = opts.disabled ?? false;
 
-  for (let wd = 0; wd < 7; wd += 1) {
+  const grid = document.createElement("div");
+  grid.className = "week-calendar-grid";
+  host.appendChild(grid);
+
+  for (const wd of SUNDAY_FIRST_MONDAY0_ORDER) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "week-calendar-day";
@@ -74,8 +92,10 @@ export function renderWeekCalendar(
     else if (isDelivery) btn.classList.add("is-delivery");
     else if (isOrder) btn.classList.add("is-order");
 
-    const label = WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`;
-    btn.textContent = label;
+    const label =
+      WEEKDAY_HEADERS_SUNDAY_FIRST[
+        SUNDAY_FIRST_MONDAY0_ORDER.indexOf(wd as typeof SUNDAY_FIRST_MONDAY0_ORDER[number])
+      ] ?? WEEKDAY_LABELS_MONDAY0[wd] ?? `wd${wd}`;
     const roles: string[] = [];
     if (isDelivery) roles.push("delivery");
     if (isOrder) roles.push("order");
@@ -83,12 +103,19 @@ export function renderWeekCalendar(
       roles.length > 0
         ? `${label}: ${roles.join(" + ")}`
         : `${label}: click to add delivery`;
+    btn.setAttribute(
+      "aria-label",
+      roles.length > 0
+        ? `${label}, ${roles.join(" and ")}`
+        : `${label}, click to add delivery`,
+    );
+    btn.textContent = label;
     btn.setAttribute("aria-pressed", isDelivery ? "true" : "false");
     btn.disabled = disabled;
 
     if (!disabled) {
       btn.addEventListener("click", () => opts.onToggleDelivery(wd));
     }
-    host.appendChild(btn);
+    grid.appendChild(btn);
   }
 }

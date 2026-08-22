@@ -39,5 +39,13 @@ Agent protocol forbids writing live `.github/workflows/`. Canonical sources:
 |-----------|------------------|
 | `packaging/github-workflows/ci.yml` | `.github/workflows/ci.yml` |
 | `packaging/github-workflows/rust-kernel.yml` | `.github/workflows/rust-kernel.yml` |
+| `packaging/github-workflows/web-quality.yml` | `.github/workflows/web-quality.yml` |
+| `packaging/github-workflows/release-studio.yml` | `.github/workflows/release-studio.yml` |
 
 Copy or symlink those files before CI jobs run on GitHub.
+
+**Prod studio tarball:** after `release-studio.yml` is live, every push to `main`
+rebuilds and republishes the moving tag **`studio-latest`** with a stable asset
+`oliverevans96-blueberries-voi-studio-latest.tgz` (see [`EMBEDDING.md`](../EMBEDDING.md)).
+Optional immutable pins use tags `studio-v*` (e.g. `studio-v0.1.0`); they do not
+collide with the legacy Python `v*` wheel workflow.

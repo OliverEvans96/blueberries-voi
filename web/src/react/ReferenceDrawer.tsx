@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { scenarioDescription, scenarioTitle } from "../scenarioCopy";
 import type { ScenarioId } from "../types";
@@ -24,7 +24,7 @@ const GLOSSARY_ENTRIES: { term: string; body: string }[] = [
 ];
 
 const SHORTCUTS = [
-  { keys: "1–8", action: "Jump to studio section" },
+  { keys: "1–7", action: "Jump to studio section" },
   { keys: "← →", action: "Previous / next section" },
   { keys: "↑ ↓", action: "Previous / next section" },
   { keys: "?", action: "Open this help" },
@@ -106,7 +106,17 @@ function VoiReferenceContent() {
   );
 }
 
-export function ReferenceDrawer() {
+export type ReferenceDrawerProps = {
+  /** Portal host under the studio mount (T-142 embed scoping). */
+  portalContainerRef?: RefObject<HTMLElement | null>;
+  /** Hide visible trigger buttons — open via keyboard shortcut only. */
+  hideTriggers?: boolean;
+};
+
+export function ReferenceDrawer({
+  portalContainerRef,
+  hideTriggers = false,
+}: ReferenceDrawerProps = {}) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReferenceTab>("glossary");
   const [voiMounted, setVoiMounted] = useState(false);
@@ -134,10 +144,13 @@ export function ReferenceDrawer() {
     }
   }, [open]);
 
+  const scopeRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (!document.querySelector(".bv-studio")) return;
       const tag = (event.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       if (event.key === "?") {
         event.preventDefault();
@@ -153,8 +166,8 @@ export function ReferenceDrawer() {
         closeDrawer();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, activeTab]);
 
   const selectTab = (tab: ReferenceTab) => {
@@ -162,8 +175,16 @@ export function ReferenceDrawer() {
     setActiveTab(tab);
   };
 
+  const portalTarget =
+    portalContainerRef?.current ??
+    scopeRef.current?.closest(".bv-studio") ??
+    document.body;
+
   return (
-    <div className="reference-drawer-root">
+    <div
+      className={`reference-drawer-root${hideTriggers ? " reference-drawer-root--headless" : ""}`}
+      ref={scopeRef}
+    >
       <button
         type="button"
         className="reference-drawer-trigger reference-drawer-trigger--glossary"
@@ -255,7 +276,7 @@ export function ReferenceDrawer() {
                 ) : null}
               </div>
             </dialog>,
-            document.body,
+            portalTarget,
           )
         : null}
     </div>

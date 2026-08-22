@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-21
+- **Spoilage now ages each pack on the shelf independently and the filter scores waste with an exact count-based formula — store inventory stays exact on every spoilage rung, lot-tracked scan data can sharpen freshness again, and the GSIN/UPC comparison notebook reflects the new physics** (T-141).
 - **Arrival uncertainty now follows one shelf-age law everywhere: calendar pack dates, temperature traces, and the default cold-chain mix all draw per-unit freshness from the same gamma model, with fleet temperature history setting how wide the prior is — the old hand-tuned F2a width knob is gone from the studio** (T-140).
 - **Each delivery can now spread units across slightly different freshness levels on the shelf instead of treating every pack in a lot as identical — the simulator and filter share that spread, lot-tracked waste can sharpen beliefs when dispersion is on, and repeatable runs use a dedicated random stream for birth draws** (T-138).
 

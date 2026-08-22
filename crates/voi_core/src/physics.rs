@@ -231,7 +231,7 @@ pub fn apply_gamma_decrement(freshness: &mut [f64], decrement: f64) {
     }
 }
 
-/// Stochastic gamma aging step for unit freshness.
+/// Stochastic gamma aging step for unit freshness (one shared decrement).
 pub fn apply_gamma_aging<R: Rng + ?Sized>(
     freshness: &mut [f64],
     rng: &mut R,
@@ -239,6 +239,121 @@ pub fn apply_gamma_aging<R: Rng + ?Sized>(
 ) {
     let decrement = draw_gamma_decrement(rng, params);
     apply_gamma_decrement(freshness, decrement);
+}
+
+/// Independent gamma decrement per live unit (ADR 0143 ground truth + filter proposal).
+pub fn apply_gamma_aging_independent<R: Rng + ?Sized>(
+    freshness: &mut [f64],
+    rng: &mut R,
+    params: &ModelParams,
+) {
+    for f in freshness.iter_mut() {
+        if *f > 0.0 {
+            let dec = draw_gamma_decrement(rng, params);
+            *f = (*f - dec).max(0.0);
+        }
+    }
+}
+
+const GAMMA_TABLE_GRID: usize = 4096;
+
+/// Precomputed gamma-decrement CDF / spoil probabilities on a freshness grid (ADR 0143).
+#[derive(Clone, Debug)]
+pub struct GammaDecrementTable {
+    shape: f64,
+    scale: f64,
+    cdf: Vec<f64>,
+}
+
+impl GammaDecrementTable {
+    pub const GRID: usize = GAMMA_TABLE_GRID;
+
+    pub fn len(&self) -> usize {
+        GAMMA_TABLE_GRID
+    }
+
+    pub fn for_params(params: &ModelParams) -> Self {
+        Self::new(params.gamma_shape, gamma_decrement_scale(params))
+    }
+
+    pub fn new(shape: f64, scale: f64) -> Self {
+        let mut cdf = Vec::with_capacity(GAMMA_TABLE_GRID);
+        for i in 0..GAMMA_TABLE_GRID {
+            let f = i as f64 / (GAMMA_TABLE_GRID - 1) as f64;
+            let x = if f <= 0.0 { 0.0 } else { f / scale };
+            cdf.push(gamma_p(shape, x));
+        }
+        Self { shape, scale, cdf }
+    }
+
+    fn interp_cdf(&self, f: f64) -> f64 {
+        if f <= 0.0 {
+            return 0.0;
+        }
+        if f >= 1.0 {
+            return 1.0;
+        }
+        let idx = f * (GAMMA_TABLE_GRID - 1) as f64;
+        let i0 = idx.floor() as usize;
+        let i1 = (i0 + 1).min(GAMMA_TABLE_GRID - 1);
+        let t = idx - i0 as f64;
+        self.cdf[i0] * (1.0 - t) + self.cdf[i1] * t
+    }
+
+    /// `P(δ < f)` for daily decrement δ at freshness threshold `f`.
+    pub fn cdf(&self, f: f64) -> f64 {
+        self.interp_cdf(f)
+    }
+
+    /// Inverse CDF at probability `u ∈ [0, 1]`.
+    pub fn quantile(&self, u: f64) -> f64 {
+        let u = u.clamp(0.0, 1.0);
+        if u <= 0.0 {
+            return 0.0;
+        }
+        if u >= 1.0 {
+            return 1.0;
+        }
+        let mut lo = 0usize;
+        let mut hi = GAMMA_TABLE_GRID - 1;
+        while lo + 1 < hi {
+            let mid = (lo + hi) / 2;
+            let f_mid = mid as f64 / (GAMMA_TABLE_GRID - 1) as f64;
+            if self.interp_cdf(f_mid) < u {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let f_lo = lo as f64 / (GAMMA_TABLE_GRID - 1) as f64;
+        let f_hi = hi as f64 / (GAMMA_TABLE_GRID - 1) as f64;
+        let c_lo = self.interp_cdf(f_lo);
+        let c_hi = self.interp_cdf(f_hi);
+        if (c_hi - c_lo).abs() < 1e-15 {
+            return f_lo;
+        }
+        let t = (u - c_lo) / (c_hi - c_lo);
+        f_lo * (1.0 - t) + f_hi * t
+    }
+
+    /// `P(δ ≥ f)` — per-unit spoil probability at pre-aging freshness `f`.
+    pub fn spoil_prob(&self, f: f64) -> f64 {
+        if f <= 0.0 {
+            return 0.0;
+        }
+        (1.0 - self.interp_cdf(f)).clamp(0.0, 1.0)
+    }
+
+    pub fn matches_params(&self, params: &ModelParams) -> bool {
+        (self.shape - params.gamma_shape).abs() < 1e-12
+            && (self.scale - gamma_decrement_scale(params)).abs() < 1e-12
+    }
+
+    pub fn rebuild_if_needed(&mut self, params: &ModelParams) {
+        if !self.matches_params(params) {
+            *self = Self::for_params(params);
+        }
+    }
 }
 
 /// Picking weights on freshness: `w_i ∝ max(f_i, 0)^σ`, normalized.

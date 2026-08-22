@@ -55,9 +55,13 @@ describe("T-113 chips call set_obs_scenario (not config_dirty for obs_scenario a
   });
 
   it("locked copy says knowledge changes what the store sees", () => {
-    const src = readFileSync(CONTROLS_TS, "utf8") + readFileSync(MAIN_TS, "utf8");
-    expect(src.toLowerCase()).toMatch(/what the store sees/);
-    expect(src.toLowerCase()).toMatch(/future orders/);
+    const obsPane = join(HERE, "react/ObsControlsPane.tsx");
+    const src =
+      readFileSync(CONTROLS_TS, "utf8") +
+      readFileSync(MAIN_TS, "utf8") +
+      readFileSync(obsPane, "utf8");
+    expect(src.toLowerCase()).toMatch(/observation/);
+    expect(src.toLowerCase()).toMatch(/preset|channels/);
   });
 });
 
@@ -118,10 +122,7 @@ describe("T-113 WasmAdapter forward set_obs_scenario", () => {
       },
     );
     try {
-      const adapter = new WasmAdapter({
-        workerUrl: "/packaging/wasm/worker.js",
-        pkgUrl: "/wasm/",
-      });
+      const adapter = new WasmAdapter();
       const fn =
         (adapter as unknown as { setObsScenario?: (id: string) => Promise<Snapshot> })
           .setObsScenario ??

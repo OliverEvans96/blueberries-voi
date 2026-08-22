@@ -30,17 +30,20 @@ pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
 pub use params::ModelParams;
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use unit_ll::{
-    contrast_spoilage_weight, delta_interval_loglik, loglik_sales_by_units,
-    sequential_kernel_path_logprob, spoil_delta_interval, spoil_delta_interval_by_lot,
-    DeltaInterval, DELTA_ANY,
+    loglik_sales_by_units, pb_log_pmf, pb_loglik_by_lot, pb_loglik_pooled, pb_sample_deaths,
+    pb_sample_deaths_by_lot,
+    sequential_kernel_path_logprob, spoil_probs_from_freshness,
 };
-pub use unit_pf::{filter_step_unit, filter_step_unit_with_birth, systematic_resample, UnitParticleBank};
+pub use unit_pf::{
+    filter_step_unit, filter_step_unit_with_birth, filter_step_unit_with_birth_cached,
+    systematic_resample, UnitParticleBank,
+};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use physics::{
-    age_to_f, allocate_sales, apply_gamma_decrement, death_prob_hazard_product,
-    death_prob_survival_ratio, draw_demand, draw_gamma_decrement, draw_gamma_decrement_truncated, f_to_age,
-    gamma_decrement_for_store, picking_weights, picking_weights_f, q10_age_increment,
-    weibull_survival,
+    age_to_f, allocate_sales, apply_gamma_decrement, apply_gamma_aging_independent,
+    death_prob_hazard_product, death_prob_survival_ratio, draw_demand, draw_gamma_decrement,
+    draw_gamma_decrement_truncated, f_to_age, gamma_decrement_cdf, gamma_decrement_for_store,
+    picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
 };
 pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,

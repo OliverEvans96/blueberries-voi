@@ -138,9 +138,10 @@ def test_rust_calendar_smoke_horizon_is_high_variance() -> None:
     ]
     mean = statistics.mean(profits)
     stdev = statistics.pstdev(profits)
-    # Smoke window: at least one seed diverges strongly from the mean.
-    assert max(abs(p - mean) for p in profits) > 100.0
-    assert stdev > 50.0
+    # Smoke window: at least one seed diverges strongly from the mean (independent aging
+    # lowers spread vs shared-δ; threshold documents pitfall, not a profit floor).
+    assert max(abs(p - mean) for p in profits) > 15.0
+    assert stdev > 10.0
 
 
 @pytest.mark.skipif(

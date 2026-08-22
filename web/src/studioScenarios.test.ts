@@ -168,7 +168,8 @@ describe("T-089 ScenarioId type + default P1", () => {
     expect(src).not.toMatch(
       /export\s+type\s+ObsScenario\s*=\s*"P0"\s*\|\s*"P1"\s*\|\s*"P2"/,
     );
-    expect(src).toMatch(/obs_scenario:\s*ScenarioId/);
+    expect(src).toMatch(/obs_scenario:\s*ObsScenarioKey/);
+    expect(src).toMatch(/export\s+type\s+ObsScenarioKey\s*=/);
   });
 
   it("DEFAULT_SIM_CONFIG.obs_scenario remains P1", () => {
@@ -271,10 +272,7 @@ describe("T-089 WASM / mock forward obs_scenario; mock drops P2", () => {
       },
     );
     try {
-      const adapter = new WasmAdapter({
-        workerUrl: "/packaging/wasm/worker.js",
-        pkgUrl: "/wasm/",
-      });
+      const adapter = new WasmAdapter();
       await adapter.init({ obs_scenario: "F1s" });
       await adapter.reset({ obs_scenario: "F2" });
       const worker = FakeWorker.instances[0]!;
