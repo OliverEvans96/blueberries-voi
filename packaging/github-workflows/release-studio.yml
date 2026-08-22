@@ -1,0 +1,69 @@
+# Canonical studio release workflow (T-146).
+#
+# Agent protocol forbids editing live `.github/workflows/`. A human must copy
+# this file to `.github/workflows/release-studio.yml` before GitHub runs it.
+#
+# Tag namespace `studio-v*` avoids the legacy Python `v*` slim-wheel release workflow.
+name: Release studio
+
+on:
+  push:
+    tags:
+      - "studio-v*"
+
+concurrency:
+  group: release-studio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Vitest
+        working-directory: web
+        run: npm test
+
+      - name: Build publishable library
+        working-directory: web
+        run: npm run build:lib
+
+      - name: Pack tarball
+        working-directory: web
+        run: npm pack
+
+      - name: Upload Playwright report (optional)
+        if: false
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          if-no-files-found: ignore
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: web/oliverevans96-blueberries-voi-studio-*.tgz
+          generate_release_notes: true

@@ -39,5 +39,11 @@ Agent protocol forbids writing live `.github/workflows/`. Canonical sources:
 |-----------|------------------|
 | `packaging/github-workflows/ci.yml` | `.github/workflows/ci.yml` |
 | `packaging/github-workflows/rust-kernel.yml` | `.github/workflows/rust-kernel.yml` |
+| `packaging/github-workflows/web-quality.yml` | `.github/workflows/web-quality.yml` |
+| `packaging/github-workflows/release-studio.yml` | `.github/workflows/release-studio.yml` |
 
 Copy or symlink those files before CI jobs run on GitHub.
+
+Studio npm releases use tags `studio-v*` (e.g. `studio-v0.1.0`) so they do not
+ collide with the legacy Python `v*` wheel workflow. See [`EMBEDDING.md`](../EMBEDDING.md)
+ for Astro / Vite consumer wiring.
