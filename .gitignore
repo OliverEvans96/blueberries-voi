@@ -58,7 +58,11 @@ outputs/
 web/node_modules/
 web/dist/
 web/dist-lib/
+web/examples/embed/dist/
+web/examples/embed/node_modules/
+web/*.tgz
 web/src/wasm/
 web/test-results/
 web/playwright-report/
 web/tests/__screenshots__/
+web/examples/embed/node_modules/
