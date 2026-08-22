@@ -84,6 +84,8 @@ import { EventsPane } from "./EventsPane";
 import { GuidedPaths, type GuidedPath } from "./GuidedPaths";
 import { InsightStrip } from "./InsightStrip";
 import { OperatorBar } from "./OperatorBar";
+import { StudioLoadingDialog } from "./StudioLoadingDialog";
+import { createDelayedLoadingHandle } from "../delayedLoading";
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
@@ -163,6 +165,7 @@ export function initStudio(app: HTMLElement): () => void {
 
   let orderQty = snapOrder(24);
   let catchingUp = false; // catch-up: pause Autopilot, then resume
+  let advancing = false; // manual Advance in flight (T-149)
   let hoveredDay: HoverDay = null;
   let hoveredPoint: HoverPoint = null;
   let activeSection: SectionId = loadSection();
@@ -241,6 +244,48 @@ export function initStudio(app: HTMLElement): () => void {
     ? createRoot(secondaryChromeHost)
     : null;
   const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
+
+  const loadingHost = q<HTMLElement>("#studio-loading-host");
+  const loadingPortalRef = { current: loadingHost };
+  const loadingRoot = loadingHost ? createRoot(loadingHost) : null;
+  let loadingMessage = "";
+  let loadingDialogVisible = false;
+
+  function renderLoadingDialog(): void {
+    if (!loadingRoot) return;
+    loadingRoot.render(
+      createElement(StudioLoadingDialog, {
+        visible: loadingDialogVisible,
+        message: loadingMessage,
+        portalContainerRef: loadingPortalRef,
+      }),
+    );
+    const shell = q<HTMLElement>(".shell.studio");
+    if (shell) {
+      if (loadingDialogVisible) {
+        shell.setAttribute("aria-busy", "true");
+      } else {
+        shell.removeAttribute("aria-busy");
+      }
+    }
+  }
+
+  const delayedLoading = createDelayedLoadingHandle((visible) => {
+    loadingDialogVisible = visible;
+    renderLoadingDialog();
+  });
+
+  function beginStudioLoading(message: string): void {
+    loadingMessage = message;
+    renderLoadingDialog();
+    delayedLoading.begin();
+  }
+
+  function endStudioLoading(): void {
+    delayedLoading.end();
+  }
+
+  renderLoadingDialog();
 
   async function fetchTradeoffForecast(): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
@@ -370,6 +415,7 @@ export function initStudio(app: HTMLElement): () => void {
         createElement(OperatorBar, {
           vm,
           catchingUp,
+          advancing,
           autopilotRunning: autopilot?.isRunning() ?? false,
           orderQty,
           onAdvance: () => railHandlers.onAdvance(),
@@ -683,6 +729,9 @@ export function initStudio(app: HTMLElement): () => void {
       if (!schedule) {
         throw new Error("schedule missing — init/reset before advance");
       }
+      advancing = true;
+      renderSecondaryChrome();
+      beginStudioLoading("Advancing…");
       const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
       const deltas = await adapter.step_n(orders);
       for (const delta of deltas) {
@@ -701,6 +750,10 @@ export function initStudio(app: HTMLElement): () => void {
         studioErrorEl,
         err,
       );
+    } finally {
+      advancing = false;
+      endStudioLoading();
+      renderSecondaryChrome();
     }
   }
 
@@ -870,6 +923,7 @@ export function initStudio(app: HTMLElement): () => void {
     catchingUp = true;
     sectionControlsApi.update(controlsState());
     renderSecondaryChrome();
+    beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
       vm = projector.patchEngineState(snap);
@@ -885,6 +939,7 @@ export function initStudio(app: HTMLElement): () => void {
       );
     } finally {
       catchingUp = false;
+      endStudioLoading();
       sectionControlsApi.update(controlsState());
       renderSecondaryChrome();
       if (resumeAfter) {

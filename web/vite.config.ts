@@ -23,7 +23,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "scripts/smoke-autopilot-mock.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "scripts/smoke-autopilot-mock.ts",
+    ],
     setupFiles: ["./src/testSetup.ts"],
   },
 });

@@ -11,6 +11,7 @@ import type { ViewModel } from "../types";
 export type OperatorBarProps = {
   vm: Pick<ViewModel, "episode_day" | "window_days" | "config">;
   catchingUp?: boolean;
+  advancing?: boolean;
   onAdvance: () => void;
   onReset: () => void;
   onAutopilotPlay: () => void;
@@ -29,6 +30,7 @@ export function OperatorBar({
   orderQty,
   onOrderChange,
   autopilotRunning = false,
+  advancing = false,
 }: OperatorBarProps) {
   const atEnd = vm.episode_day >= vm.window_days;
 
@@ -65,7 +67,7 @@ export function OperatorBar({
           type="button"
           className="btn-advance"
           id="btn-advance"
-          disabled={autopilotRunning || atEnd}
+          disabled={autopilotRunning || atEnd || advancing}
           onClick={onAdvance}
         >
           Advance

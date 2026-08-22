@@ -338,7 +338,9 @@ export function StudioLayout() {
       className="bv-studio-portal-root"
       data-studio-portal=""
       aria-hidden="true"
-    />
+    >
+      <div id="studio-loading-host" data-testid="studio-loading-host" />
+    </div>
     </div>
   );
 }

@@ -189,4 +189,13 @@ describe("StudioLayout cockpit grid (T-127 AC-layout, T-128 v5)", () => {
     expect(chromeHost!.compareDocumentPosition(operatorBarHost!) &
       Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
+
+  it("mounts studio loading dialog host in portal root (T-149)", () => {
+    const { container } = render(createElement(StudioLayout));
+    expect(
+      container.querySelector(
+        ".bv-studio-portal-root #studio-loading-host[data-testid='studio-loading-host']",
+      ),
+    ).not.toBeNull();
+  });
 });

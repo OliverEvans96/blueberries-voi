@@ -113,4 +113,11 @@ describe("OperatorBar (T-127 layout v3)", () => {
     expect(props.onOrderChange).toHaveBeenCalledTimes(1);
     expect(props.onOrderChange).toHaveBeenCalledWith(32);
   });
+
+  it("disables Advance while manual advance is in flight (T-149)", () => {
+    const props = { ...baseProps(), advancing: true };
+    render(createElement(OperatorBar, props));
+
+    expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
+  });
 });
