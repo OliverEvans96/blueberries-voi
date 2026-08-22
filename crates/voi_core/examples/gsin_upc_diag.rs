@@ -14,11 +14,12 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use voi_core::arrival::ArrivalModel;
 use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
 use voi_core::obs::{mask_for, RichDay};
 use voi_core::physics::{draw_demand, GammaDecrementTable};
 use voi_core::policy::effective_inventory_f_belief;
-use voi_core::shipments::{arrival_receipt_meta_with_trace, shipment_arrival_age, ShipmentTrace};
+use voi_core::shipments::ShipmentTrace;
 use voi_core::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use voi_core::{belief_flat_from_unit_bank, truth_f_belief, ModelParams};
 
@@ -101,21 +102,41 @@ fn run_truth(
     let lead_time = 1u32;
     let mut out_days = Vec::new();
 
+    let mut arrival_model = ArrivalModel::embedded();
+    arrival_model.sync_params(params);
+
     for day in 0..HORIZON {
         let order = order_script(day);
         *pending.entry(day + lead_time).or_insert(0) += order;
         let arrival = pending.remove(&day).unwrap_or(0);
         let pre_lot_ids = lot_ids.clone();
-        let (f_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
+        let (delivery_unit_f, pack_date_days, shipment_trace, arrival_lot_ids) =
             if arrival > 0 {
-                let mut rs = stream_rng(seed, day, 4);
-                let mut rn = stream_rng(seed, day, 5);
-                let (f, _tau, pack, trace) =
-                    arrival_receipt_meta_with_trace(&mut rs, &mut rn, shipments, params, 1.0);
+                let mut rng_d = stream_rng(seed, day, 4);
+                let mut rng_t = stream_rng(seed, day, 5);
+                let mut rng_p = stream_rng(seed, day, 6);
+                let mut rng_g = stream_rng(seed, day, 8);
+                let draw = arrival_model.draw_truth_delivery(
+                    "abdella_all",
+                    arrival as usize,
+                    &mut rng_d,
+                    &mut rng_t,
+                    &mut rng_p,
+                    &mut rng_g,
+                );
+                let trace = ShipmentTrace {
+                    times_d: vec![0.0, draw.duration_d],
+                    temps_c: vec![draw.t_bar, draw.t_bar],
+                };
                 let lot_id = next_lot;
                 lot_ids.push(lot_id);
                 next_lot += 1;
-                (Some(f), Some(pack), Some(trace), vec![lot_id])
+                (
+                    Some(draw.unit_f),
+                    Some(draw.pack_date_days),
+                    Some(trace),
+                    vec![lot_id],
+                )
             } else {
                 (None, None, None, Vec::new())
             };
@@ -123,24 +144,11 @@ fn run_truth(
         let demand = draw_demand(&mut rng_d, params, Some(day));
         let mut rng_gamma = stream_rng(seed, day, 3);
         let mut rng_alloc = stream_rng(seed, day, 2);
-        let mut rng_ship = if arrival > 0 {
-            Some(stream_rng(seed, day, 4))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(stream_rng(seed, day, 5))
-        } else {
-            None
-        };
         let mut rng_birth = if arrival > 0 {
             Some(stream_rng(seed, day, STREAM_BIRTH))
         } else {
             None
         };
-        let delivery_lambda = shipment_trace.as_ref().map(|trace| {
-            shipment_arrival_age(trace, params.q10, params.t_ref_c)
-        });
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
             lot_offsets: lot_offsets.clone(),
@@ -148,10 +156,8 @@ fn run_truth(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda,
+            delivery_unit_f,
             units_per_lot: Some(params.units_per_lot),
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let step = unit_day_step_with_birth(
             &input,
@@ -159,8 +165,8 @@ fn run_truth(
             shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
             rng_birth.as_mut(),
         );
         freshness = step.freshness;
@@ -190,7 +196,6 @@ fn run_truth(
                 lot_ids: pre_lot_ids,
                 arrival_lot_ids,
                 shipment_trace,
-                f_at_receipt,
                 pack_date_days,
             },
             on_hand,
@@ -281,6 +286,8 @@ fn run_channel(
     let mut bank = UnitParticleBank::empty(n);
     let mut m = Metrics::default();
     let mut gamma_table = GammaDecrementTable::for_params(params);
+    let mut arrival_model = ArrivalModel::embedded();
+    arrival_model.sync_params(params);
     let t0 = std::time::Instant::now();
     for (d, td) in days.iter().enumerate() {
         let obs = mask.apply(&td.rich);
@@ -298,6 +305,7 @@ fn run_channel(
             &mut frng,
             rng_birth_filter.as_mut(),
             &mut gamma_table,
+            Some(&mut arrival_model),
         );
         if (d as u32) < BURN_IN {
             continue;

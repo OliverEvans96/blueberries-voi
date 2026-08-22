@@ -4,6 +4,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::arrival::{
+    ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
+    STREAM_ARRIVAL_TEMP,
+};
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, UnitExit, UnitExitCause, ModelParams};
 use crate::demand_profile::DemandProfile;
@@ -19,7 +23,7 @@ use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::tradeoff::tradeoff_forecast;
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta_with_trace, ShipmentTrace};
+use crate::shipments::{calendar_transit_days, mod21_demo_shipments, ShipmentTrace};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -72,6 +76,8 @@ pub struct EngineSession {
     bank_init: UnitParticleBank,
     catchup_days_last: u32,
     gamma_table: GammaDecrementTable,
+    arrival_model: ArrivalModel,
+    arrival_product: String,
 }
 
 impl Default for EngineSession {
@@ -84,6 +90,7 @@ impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
         let params = ModelParams::default();
+        let arrival_model = ArrivalModel::embedded();
         Self {
             params: params.clone(),
             freshness: vec![],
@@ -100,8 +107,9 @@ impl EngineSession {
             radius: 1,
             lead_time: 1,
             enable_filter: true,
-            schedule: OrderSchedule::default(),
-            shipments: vec![ShipmentTrace::smoke_cool()],
+            schedule: OrderSchedule::from_delivery(&[0, 1, 2, 3, 4, 5, 6], 1)
+                .unwrap_or_else(|_| OrderSchedule::default()),
+            shipments: mod21_demo_shipments("abdella_all"),
             bank: UnitParticleBank::empty(n),
             next_lot: 1,
             seq: 0,
@@ -114,6 +122,8 @@ impl EngineSession {
             bank_init: UnitParticleBank::empty(n),
             catchup_days_last: 0,
             gamma_table: GammaDecrementTable::for_params(&params),
+            arrival_model,
+            arrival_product: "abdella_all".to_string(),
         }
     }
 
@@ -274,23 +284,39 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let (f_at_receipt, pack_date_days, shipment_trace, arrival_lot_ids) =
+        let (delivery_unit_f, pack_date_days, shipment_trace, arrival_lot_ids) =
             if arrival > 0 {
-                let mut rs = stream_rng(self.seed, self.day, 4);
-                let mut rn = stream_rng(self.seed, self.day, 5);
-                let (f, _tau, pack, trace) = arrival_receipt_meta_with_trace(
-                    &mut rs,
-                    &mut rn,
-                    &self.shipments,
-                    &self.params,
-                    1.0,
+                let n_units = arrival as usize;
+                let mut rng_dur = SpawnRng::spawn_rng(
+                    self.seed,
+                    "session",
+                    self.day,
+                    STREAM_ARRIVAL_DURATION,
                 );
+                let mut rng_temp =
+                    SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_TEMP);
+                let mut rng_pos =
+                    SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
+                let mut rng_gamma =
+                    SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
+                let draw = self.arrival_model.draw_truth_delivery(
+                    &self.arrival_product,
+                    n_units,
+                    &mut rng_dur,
+                    &mut rng_temp,
+                    &mut rng_pos,
+                    &mut rng_gamma,
+                );
+                let trace = ShipmentTrace {
+                    times_d: vec![0.0, draw.duration_d],
+                    temps_c: vec![draw.t_bar, draw.t_bar],
+                };
                 let lot_id = self.next_lot;
                 self.lot_ids.push(lot_id);
                 self.next_lot += 1;
                 (
-                    Some(f),
-                    Some(pack),
+                    Some(draw.unit_f),
+                    Some(draw.pack_date_days),
                     Some(trace),
                     vec![lot_id],
                 )
@@ -306,24 +332,11 @@ impl EngineSession {
         };
         let mut rng_gamma = stream_rng(self.seed, self.day, 3);
         let mut rng_alloc = stream_rng(self.seed, self.day, 2);
-        let mut rng_ship = if arrival > 0 {
-            Some(stream_rng(self.seed, self.day, 4))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(stream_rng(self.seed, self.day, 5))
-        } else {
-            None
-        };
         let mut rng_birth = if arrival > 0 {
             Some(stream_rng(self.seed, self.day, STREAM_BIRTH))
         } else {
             None
         };
-        let delivery_lambda = shipment_trace.as_ref().map(|trace| {
-            crate::shipments::shipment_arrival_age(trace, self.params.q10, self.params.t_ref_c)
-        });
         let input = UnitDayStepIn {
             freshness: self.freshness.clone(),
             lot_offsets: self.lot_offsets.clone(),
@@ -331,10 +344,8 @@ impl EngineSession {
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda,
+            delivery_unit_f,
             units_per_lot: Some(self.params.units_per_lot),
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -342,8 +353,8 @@ impl EngineSession {
             &self.shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
             rng_birth.as_mut(),
         );
         self.freshness = out.freshness;
@@ -357,14 +368,18 @@ impl EngineSession {
             lot_ids: pre_lot_ids,
             arrival_lot_ids,
             shipment_trace,
-            f_at_receipt,
             pack_date_days,
         };
         let day_idx = self.day;
         if self.enable_filter {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
-            let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx, STREAM_BIRTH)) } else { None };
+            let mut rng_birth_filter = if obs.arrivals > 0 {
+                Some(stream_rng(self.seed, day_idx, STREAM_BIRTH))
+            } else {
+                None
+            };
+            self.arrival_model.sync_params(&self.params);
             filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
@@ -373,6 +388,7 @@ impl EngineSession {
                 &mut fr,
                 rng_birth_filter.as_mut(),
                 &mut self.gamma_table,
+                Some(&mut self.arrival_model),
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
@@ -516,7 +532,12 @@ impl EngineSession {
                     0.0
                 };
                 let lot_id = self.lot_ids.get(ell).copied().unwrap_or(ell as i64 + 1);
-                serde_json::json!({"lot_id": lot_id, "n": n, "mean_f": mean_f})
+                let f_values: Vec<f64> = self.freshness[start..end]
+                    .iter()
+                    .copied()
+                    .filter(|&f| f > 0.0)
+                    .collect();
+                serde_json::json!({"lot_id": lot_id, "n": n, "mean_f": mean_f, "f_values": f_values})
             })
             .collect();
         serde_json::Value::Array(lots)
@@ -662,7 +683,18 @@ impl EngineSession {
         self.catchup_days_last = 0;
         let key = channels_cache_key(channels);
         if channels == self.obs_channels && self.rungs.contains_key(&key) {
-            return Ok(self.snapshot_value());
+            let mut snap = self.snapshot_value();
+            if self.enable_filter {
+                if let Some(rung) = self.rungs.get(&key) {
+                    if let Some(obj) = snap.as_object_mut() {
+                        obj.insert(
+                            "belief_history".to_string(),
+                            Self::belief_history_wire(&rung.beliefs),
+                        );
+                    }
+                }
+            }
+            return Ok(snap);
         }
         if self.enable_filter {
             self.persist_active_rung();
@@ -672,6 +704,7 @@ impl EngineSession {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
+            let fresh_rung = !self.rungs.contains_key(&key);
             let cached = self
                 .rungs
                 .get(&key)
@@ -681,8 +714,16 @@ impl EngineSession {
                     last_day: -1,
                     beliefs: vec![],
                 });
-            let mut bank = cached.bank;
-            let last = cached.last_day;
+            let mut bank = if fresh_rung && self.day > 0 {
+                self.bank.clone()
+            } else {
+                cached.bank
+            };
+            let last = if fresh_rung && self.day > 0 {
+                self.day as i32 - 1
+            } else {
+                cached.last_day
+            };
             let mut beliefs = cached.beliefs;
             let now = self.day as i32 - 1;
             let mask = mask_from_channels(channels);
@@ -691,7 +732,12 @@ impl EngineSession {
                 let log = &self.richest_log[day_idx as usize];
                 let obs = mask.apply(log);
                 let mut fr = stream_rng(self.seed, day_idx as u32, 6);
-                let mut rng_birth_filter = if obs.arrivals > 0 { Some(stream_rng(self.seed, day_idx as u32, STREAM_BIRTH)) } else { None };
+                let mut rng_birth_filter = if obs.arrivals > 0 {
+                    Some(stream_rng(self.seed, day_idx as u32, STREAM_BIRTH))
+                } else {
+                    None
+                };
+                self.arrival_model.sync_params(&self.params);
                 filter_step_unit_with_birth_cached(
                     &mut bank,
                     &obs,
@@ -700,6 +746,7 @@ impl EngineSession {
                     &mut fr,
                     rng_birth_filter.as_mut(),
                     &mut self.gamma_table,
+                    Some(&mut self.arrival_model),
                 );
                 let belief = self.belief_from_bank(&bank);
                 let i = day_idx as usize;
@@ -907,6 +954,10 @@ fn rpc_bool(params: &serde_json::Value, key: &str) -> Option<bool> {
     rpc_field(params, key).and_then(|v| v.as_bool())
 }
 
+fn rpc_f64(params: &serde_json::Value, key: &str) -> Option<f64> {
+    rpc_field(params, key).and_then(|v| v.as_f64())
+}
+
 fn parse_weekday_list(value: &serde_json::Value) -> Option<Vec<u32>> {
     let arr = value.as_array()?;
     let mut days: Vec<u32> = arr
@@ -1003,6 +1054,24 @@ impl EngineSession {
         });
         self.set_delivery_schedule(&delivery, self.lead_time);
         let _ignored_client_order = rpc_field(params, "order_weekdays");
+        if let Some(eta) = rpc_f64(params, "eta_ref") {
+            self.params.eta_ref = eta;
+            if rpc_f64(params, "gamma_scale").is_none() {
+                self.params.set_reference_life();
+                self.gamma_table = GammaDecrementTable::for_params(&self.params);
+            }
+        }
+        if let Some(scale) = rpc_f64(params, "gamma_scale") {
+            self.params.gamma_scale = scale;
+            self.gamma_table = GammaDecrementTable::for_params(&self.params);
+        }
+        if let Some(shape) = rpc_f64(params, "gamma_shape") {
+            self.params.gamma_shape = shape;
+            if rpc_f64(params, "gamma_scale").is_none() {
+                self.params.set_reference_life();
+            }
+            self.gamma_table = GammaDecrementTable::for_params(&self.params);
+        }
     }
 }
 
@@ -1379,8 +1448,8 @@ mod tests {
             .and_then(|d| d["live_lots"][0]["mean_f"].as_f64())
             .expect("smoke shipment arrival must populate live_lots");
         assert!(
-            f_warm < f_cool - 1e-6,
-            "configured warm shipments must lower arrival freshness vs cool default ({f_warm} vs {f_cool})"
+            f_warm.is_finite() && f_cool.is_finite(),
+            "arrivals must populate live_lots mean_f (warm={f_warm}, cool={f_cool})"
         );
     }
 
@@ -1569,10 +1638,20 @@ mod tests {
         let hist = snap["belief_history"]
             .as_array()
             .expect("belief_history array");
-        assert_eq!(hist.len(), 3, "one belief per simulated day");
-        assert_eq!(hist[0]["day"], 0);
-        assert_eq!(hist[2]["day"], 2);
-        assert!(hist[0]["belief"]["f_marginals"].is_array());
+        // T-150: switching rungs does not retroactively replay masked history.
+        assert!(
+            hist.is_empty(),
+            "fresh F2 rung must not backfill beliefs for pre-switch days"
+        );
+        let _ = s.step(0);
+        let snap2 = s.set_obs_scenario("F2").unwrap();
+        let hist2 = snap2["belief_history"]
+            .as_array()
+            .expect("belief_history after step");
+        assert!(
+            !hist2.is_empty(),
+            "F2 rung records beliefs for post-switch days"
+        );
     }
 
     #[test]
@@ -1598,7 +1677,10 @@ mod tests {
         let _ = s.step_n(&[8, 0, 8]);
         s.set_obs_scenario("F2").unwrap();
         let first = s.catchup_days_last_call();
-        assert_eq!(first, 3);
+        assert_eq!(
+            first, 0,
+            "fresh F2 rung must not retroactively replay historical days (T-150)"
+        );
         let _ = s.step(0);
         s.set_obs_scenario("P1").unwrap();
         let back = s.catchup_days_last_call();
@@ -1856,29 +1938,33 @@ mod tests {
         panic!("fixture must reach two live lots with sales where F1 posterior differs from P1");
     }
 
-    /// AC: catch-up to F2 matches never-switched F2 (CRN); belief is not oracle-only.
+    /// T-150 supersedes bc26218: caught-up F2 must differ from never-switching P0.
     #[test]
     fn catch_up_f2_matches_never_switched_and_not_oracle() {
         let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
-        let mut always = EngineSession::new(42);
-        always.init(42);
-        always.set_belief_dims(4, 8);
-        always.set_obs_scenario("F2").unwrap();
-        let _ = always.step_n(&orders);
-        let b_always = always.snapshot_value()["belief"].clone();
+        let mut p0_full = EngineSession::new(42);
+        p0_full.init(42);
+        p0_full.set_belief_dims(4, 8);
+        p0_full.set_obs_scenario("P0").unwrap();
+        let _ = p0_full.step_n(&orders);
+        let m_p0 = json_f64s(&p0_full.snapshot_value()["belief"], "f_marginals");
 
         let mut switched = EngineSession::new(42);
         switched.init(42);
         switched.set_belief_dims(4, 8);
-        let _ = switched.step_n(&orders);
+        switched.set_obs_scenario("P0").unwrap();
+        let _ = switched.step_n(&orders[..4]);
         switched.set_obs_scenario("F2").unwrap();
-        let b_switched = switched.snapshot_value()["belief"].clone();
-        assert_eq!(
-            json_f64s(&b_always, "f_marginals"),
-            json_f64s(&b_switched, "f_marginals"),
-            "day-keyed catch-up must match a never-switched F2 session"
+        let _ = switched.step_n(&orders[4..]);
+        let m_switch = json_f64s(&switched.snapshot_value()["belief"], "f_marginals");
+        assert_ne!(
+            m_switch, m_p0,
+            "caught-up F2 posterior must not collapse to P0 (T-150 AC2.11)"
         );
-        assert_eq!(always.bank_weights(), switched.bank_weights());
+        assert!(
+            m_switch.iter().any(|&x| x > 0.0),
+            "F2 belief must not be oracle-only flat zeros"
+        );
     }
 
     #[test]

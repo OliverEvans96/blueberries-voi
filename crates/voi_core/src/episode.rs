@@ -3,6 +3,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use crate::arrival::ArrivalModel;
 use crate::day_step::{unit_day_step, UnitDayStepIn, ModelParams};
 use crate::shipments::ShipmentTrace;
 
@@ -34,12 +35,33 @@ pub fn run_closed_loop_episode(
     let mut freshness: Vec<f64> = vec![];
     let mut lot_offsets: Vec<usize> = vec![0];
     let shipments = [ShipmentTrace::smoke_cool()];
+    let arrival_model = ArrivalModel::embedded();
     let mut sales_total = 0u32;
     let mut waste_total = 0u32;
     let mut scored_sales = 0u32;
     let mut scored_waste = 0u32;
     for day in 0..horizon {
         let order = if can_order(day) { constant_order } else { 0 };
+        let delivery_unit_f = if order > 0 {
+            let mut rng_d = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 7));
+            let mut rng_t = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 11));
+            let mut rng_p = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 13));
+            let mut rng_g = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 17));
+            Some(
+                arrival_model
+                    .draw_truth_delivery(
+                        "abdella_all",
+                        order as usize,
+                        &mut rng_d,
+                        &mut rng_t,
+                        &mut rng_p,
+                        &mut rng_g,
+                    )
+                    .unit_f,
+            )
+        } else {
+            None
+        };
         let input = UnitDayStepIn {
             freshness: freshness.clone(),
             lot_offsets: lot_offsets.clone(),
@@ -47,23 +69,19 @@ pub fn run_closed_loop_episode(
             gamma_decrement: None,
             deliver: order > 0,
             deliver_units: if order > 0 { Some(order) } else { None },
-            delivery_f: Some(1.0),
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            pack_age_mean: None,
         };
         let mut rng_gamma = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 3));
         let mut rng_alloc = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 5 + 1));
-        let mut rng_ship = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 7));
-        let mut rng_sensor = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 11));
         let out = unit_day_step(
             &input,
             params,
             &shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            Some(&mut rng_ship),
-            Some(&mut rng_sensor),
+            None,
+            None,
         );
         sales_total += out.sales_total;
         waste_total += out.waste_total;

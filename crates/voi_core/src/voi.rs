@@ -4,6 +4,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use crate::arrival::ArrivalModel;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
@@ -14,7 +15,7 @@ use crate::physics::GammaDecrementTable;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::shipments::ShipmentTrace;
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
@@ -182,6 +183,7 @@ fn run_scenario_episode(
     let mut scored = 0.0;
     let phys = physics_tag();
     let mut gamma_table = GammaDecrementTable::for_params(params);
+    let mut arrival_model = ArrivalModel::embedded();
 
     for day in 0..horizon {
         let pending_sum: u32 = pending.values().copied().sum();
@@ -238,17 +240,20 @@ fn run_scenario_episode(
         enqueue(&mut pending, day, budgets.lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
         let pre_lot_ids = lot_ids.clone();
-        let (f_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
-            let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let (f, _tau, pack) = arrival_receipt_meta(
-                &mut rng_ship,
-                &mut rng_sensor,
-                shipments,
-                params,
-                1.0,
+        let (delivery_unit_f, pack_date_days) = if arrival > 0 {
+            let mut rng_d = rng(root_seed, phys, day, STREAM_SHIP);
+            let mut rng_t = rng(root_seed, phys, day, STREAM_SENSOR);
+            let mut rng_p = rng(root_seed, phys, day, 8);
+            let mut rng_g = rng(root_seed, phys, day, 9);
+            let draw = arrival_model.draw_truth_delivery(
+                "abdella_all",
+                arrival as usize,
+                &mut rng_d,
+                &mut rng_t,
+                &mut rng_p,
+                &mut rng_g,
             );
-            (Some(f), Some(pack))
+            (Some(draw.unit_f), Some(draw.pack_date_days))
         } else {
             (None, None)
         };
@@ -256,16 +261,6 @@ fn run_scenario_episode(
         let demand = draw_demand(&mut rng_d, params, Some(day));
         let mut rng_gamma = rng(root_seed, phys, day, STREAM_GAMMA);
         let mut rng_alloc = rng(root_seed, phys, day, STREAM_ALLOC);
-        let mut rng_ship = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SHIP))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SENSOR))
-        } else {
-            None
-        };
         let mut rng_birth = if arrival > 0 {
             Some(rng(root_seed, phys, day, STREAM_BIRTH))
         } else {
@@ -278,10 +273,8 @@ fn run_scenario_episode(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -289,8 +282,8 @@ fn run_scenario_episode(
             shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
             rng_birth.as_mut(),
         );
         freshness = out.freshness;
@@ -315,12 +308,16 @@ fn run_scenario_episode(
                 lot_ids: pre_lot_ids,
                 arrival_lot_ids,
                 shipment_trace: None,
-                f_at_receipt,
-                    pack_date_days,
+                pack_date_days,
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
-            let mut rng_birth_filter = if obs.arrivals > 0 { Some(rng(root_seed, phys, day, STREAM_BIRTH)) } else { None };
+            let mut rng_birth_filter = if obs.arrivals > 0 {
+                Some(rng(root_seed, phys, day, STREAM_BIRTH))
+            } else {
+                None
+            };
+            arrival_model.sync_params(params);
             filter_step_unit_with_birth_cached(
                 &mut bank,
                 &obs,
@@ -329,6 +326,7 @@ fn run_scenario_episode(
                 &mut frng,
                 rng_birth_filter.as_mut(),
                 &mut gamma_table,
+                Some(&mut arrival_model),
             );
         }
     }

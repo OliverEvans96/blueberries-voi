@@ -6,9 +6,9 @@ use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
 use voi_core::{
-    crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode, run_closed_loop_episode,
-    run_voi_crn_cell, sequential_wor_composition_probs, terminal_salvage_unit_state, w_long,
-    AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, EngineSession, RolloutContext,
+    arrival_artifact_from_json, crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode,
+    run_closed_loop_episode, run_voi_crn_cell, sequential_wor_composition_probs, terminal_salvage_unit_state,
+    w_long, AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, EngineSession, RolloutContext,
     RolloutCosts, ShipmentTrace, DemandProfile, ModelParams,
 };
 use voi_core::physics::draw_demand_spawn;
@@ -40,6 +40,40 @@ fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
 #[pyo3(name = "demand_profile_mu_py", signature = (day, json))]
 fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
     demand_profile_mu_from_json_py(day, json)
+}
+
+fn read_json_source(source: &str) -> PyResult<String> {
+    if std::path::Path::new(source).is_file() {
+        std::fs::read_to_string(source).map_err(|err| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "failed to read JSON at {source}: {err}"
+            ))
+        })
+    } else {
+        Ok(source.to_string())
+    }
+}
+
+#[pyfunction]
+#[pyo3(name = "arrival_model_from_json_py", signature = (source))]
+fn arrival_model_from_json_py(source: &str) -> PyResult<String> {
+    let json = read_json_source(source)?;
+    let model = arrival_artifact_from_json(&json)
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
+    let wire = serde_json::json!({
+        "schema_version": model.schema_version,
+        "gamma_shape": model.gamma_shape,
+        "gamma_scale": model.gamma_scale,
+        "reference_life_days": model.reference_life_days,
+        "mu_T": model.mu_t,
+        "sigma_T": model.sigma_t,
+        "sigma_pos": model.sigma_pos,
+        "q10": model.q10,
+        "T_ref": model.t_ref,
+    });
+    serde_json::to_string(&wire).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!("failed to serialize arrival wire: {err}"))
+    })
 }
 
 #[pyfunction]
@@ -742,6 +776,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("VOI_CORE", crate_name())?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(demand_profile_mu_py, m)?)?;
+    m.add_function(wrap_pyfunction!(arrival_model_from_json_py, m)?)?;
     m.add_function(wrap_pyfunction!(protection_demand_quantile_py, m)?)?;
     m.add_function(wrap_pyfunction!(draw_demand_at_day_py, m)?)?;
     m.add_function(wrap_pyfunction!(spawn_rng_next_u64_py, m)?)?;

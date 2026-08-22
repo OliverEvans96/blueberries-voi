@@ -3,15 +3,13 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-pub use crate::params::ModelParams;
+use crate::arrival::ArrivalModel;
 use crate::physics::{
     apply_gamma_aging_independent, apply_gamma_decrement, gamma_decrement_for_store, picking_weights_f,
 };
-use crate::shipments::{
-    birth_f_units_gamma, delivery_birth_f, ShipmentTrace,
-};
-use rand_pcg::Pcg64;
-use rand::SeedableRng;
+use crate::shipments::ShipmentTrace;
+
+pub use crate::params::ModelParams;
 
 /// Input for one f-native day on the virtual `L×U` grid.
 #[derive(Clone, Debug)]
@@ -25,14 +23,10 @@ pub struct UnitDayStepIn {
     pub deliver: bool,
     /// Total units to inject when `deliver` (default one lot width).
     pub deliver_units: Option<u32>,
-    /// Birth freshness lot mean for wire (`delivery_birth_f` when `None`).
-    pub delivery_f: Option<f64>,
-    /// Q10-warped transit duration Λ for gamma birth draws (ADR 0141).
-    pub delivery_lambda: Option<f64>,
+    /// Per-unit birth freshness from [`crate::arrival::ArrivalModel`] on the truth path.
+    pub delivery_unit_f: Option<Vec<f64>>,
     /// Units injected per delivery (default `params.units_per_lot`, typically 15).
     pub units_per_lot: Option<usize>,
-    /// F2a Gaussian pack-date transit age mean (τ days).
-    pub pack_age_mean: Option<f64>,
 }
 
 /// Why a unit left inventory on a given day (truth overlay terminals).
@@ -226,9 +220,9 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
     shipments: &[ShipmentTrace],
     rng_gamma: Option<&mut R>,
     rng_alloc: Option<&mut R>,
-    rng_ship: Option<&mut R>,
-    rng_sensor: Option<&mut R>,
-    rng_birth: Option<&mut R>,
+    _rng_ship: Option<&mut R>,
+    _rng_sensor: Option<&mut R>,
+    _rng_birth: Option<&mut R>,
 ) -> UnitDayStepOut {
     let mut freshness = input.freshness.clone();
     let mut lot_offsets = input.lot_offsets.clone();
@@ -254,35 +248,25 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
     unit_exits.extend(sold_exits);
 
     if input.deliver {
+        // Per-unit `delivery_unit_f` from `crate::arrival::ArrivalModel` (drawn in session).
         let units_per_lot = input
             .units_per_lot
             .unwrap_or(params.units_per_lot)
             .max(1);
-        let lambda = input.delivery_lambda.unwrap_or_else(|| {
-            let mean_f = input.delivery_f.unwrap_or_else(|| {
-                delivery_birth_f(
-                    rng_ship.expect("rng_ship required for delivery birth f"),
-                    rng_sensor.expect("rng_sensor required for delivery birth f"),
-                    shipments,
-                    params,
-                    1.0,
-                    input.pack_age_mean,
-                )
-            });
-            let mean_age = crate::physics::f_to_age(mean_f, params.eta_ref);
-            mean_age / (params.gamma_shape * params.gamma_scale).max(1e-12)
-        });
         let total_units = input
             .deliver_units
             .unwrap_or(units_per_lot as u32)
             .max(1) as usize;
         let start = freshness.len();
-        let birth_segment = if let Some(rng) = rng_birth {
-            birth_f_units_gamma(lambda, total_units, params, rng)
-        } else {
-            let mut fallback_birth = Pcg64::seed_from_u64(0);
-            birth_f_units_gamma(lambda, total_units, params, &mut fallback_birth)
-        };
+        let birth_segment = input.delivery_unit_f.clone().unwrap_or_else(|| {
+            let _model = ArrivalModel::embedded();
+            vec![1.0; total_units]
+        });
+        assert_eq!(
+            birth_segment.len(),
+            total_units,
+            "delivery_unit_f length must match deliver_units"
+        );
         freshness.extend(birth_segment);
         lot_offsets.push(start + total_units);
     }
@@ -302,7 +286,8 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shipments::{generate_arrival_f, ShipmentTrace};
+    use crate::arrival::ArrivalModel;
+    use crate::shipments::ShipmentTrace;
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
 
@@ -430,26 +415,25 @@ mod tests {
                 "RED: unit_day_step must accept units_per_lot (default 15)"
             );
             assert!(
-                src.contains("delivery_f"),
-                "RED: delivery must inject freshness f at birth"
+                src.contains("delivery_unit_f"),
+                "RED: delivery must inject per-unit freshness f at birth"
             );
         }
 
         #[test]
         fn day_step_f_native_delivery_f_from_arrival_prior() {
             require_f_native_day_step_api();
-            let params = ModelParams::default();
-            let shipments = [ShipmentTrace::smoke_cool()];
-            let mut rng_ship = Pcg64::seed_from_u64(11);
-            let mut rng_sensor = Pcg64::seed_from_u64(22);
-            let birth_f = generate_arrival_f(
-                &mut rng_ship,
-                &mut rng_sensor,
-                &shipments,
-                params.q10,
-                params.t_ref_c,
-                1.0,
-                params.eta_ref,
+            let model = ArrivalModel::embedded();
+            let mut rng_d = Pcg64::seed_from_u64(11);
+            let mut rng_t = Pcg64::seed_from_u64(22);
+            let mut rng_p = Pcg64::seed_from_u64(33);
+            let mut rng_g = Pcg64::seed_from_u64(44);
+            let birth_f = model.draw_unit_f(
+                "abdella_all",
+                &mut rng_d,
+                &mut rng_t,
+                &mut rng_p,
+                &mut rng_g,
             );
             assert!(
                 birth_f > 0.0 && birth_f <= 1.0,
@@ -457,8 +441,8 @@ mod tests {
             );
             let src = production_day_step_src();
             assert!(
-                src.contains("generate_arrival_f") || src.contains("delivery_f"),
-                "RED: delivery path must map arrival prior to birth f"
+                src.contains("ArrivalModel") || src.contains("delivery_unit_f"),
+                "RED: delivery path must map arrival prior to per-unit birth f"
             );
         }
 
@@ -483,10 +467,8 @@ mod tests {
             gamma_decrement: None,
             deliver: false,
             deliver_units: None,
-            delivery_f: None,
-            delivery_lambda: None,
+            delivery_unit_f: None,
             units_per_lot: None,
-            pack_age_mean: None,
         };
         let mut rng_gamma = Pcg64::seed_from_u64(1);
         let mut total_waste = 0u32;
@@ -518,10 +500,8 @@ mod tests {
             gamma_decrement: Some(0.05),
             deliver: false,
             deliver_units: None,
-            delivery_f: None,
-            delivery_lambda: None,
+            delivery_unit_f: None,
             units_per_lot: None,
-            pack_age_mean: None,
         };
         let mut rng = Pcg64::seed_from_u64(42);
         let out = unit_day_step(
@@ -548,7 +528,7 @@ mod tests {
         );
     }
 
-    /// T-138 AC-4: delivery extends via per-unit birth_f_units vector, not uniform fill.
+    /// T-138 / T-150: delivery extends via per-unit `delivery_unit_f`, not uniform fill.
     mod t138_arrival_dispersion {
         use super::*;
 
@@ -560,11 +540,11 @@ mod tests {
         }
 
         #[test]
-        fn delivery_calls_birth_f_units_gamma_not_uniform_vec() {
+        fn delivery_uses_per_unit_delivery_unit_f_not_uniform_vec() {
             let src = production_day_step_src();
             assert!(
-                src.contains("birth_f_units_gamma"),
-                "unit_day_step delivery must call birth_f_units_gamma"
+                src.contains("delivery_unit_f"),
+                "unit_day_step delivery must accept delivery_unit_f"
             );
             let uniform_lot_fill = format!("vec![birth_f; total_{}]", "units");
             assert!(
@@ -581,12 +561,27 @@ mod tests {
         fn delivery_appends_distinct_freshness_under_gamma_arrival() {
             let src = production_day_step_src();
             assert!(
-                src.contains("birth_f_units_gamma"),
-                "delivery segment must use birth_f_units_gamma"
+                src.contains("delivery_unit_f"),
+                "delivery segment must use per-unit delivery_unit_f"
             );
             let params = ModelParams::default();
             let upl = 10usize;
-            let lambda = 2.0;
+            let model = ArrivalModel::embedded();
+            let mut rng_d = Pcg64::seed_from_u64(138_001);
+            let mut rng_t = Pcg64::seed_from_u64(138_002);
+            let mut rng_p = Pcg64::seed_from_u64(138_003);
+            let mut rng_g = Pcg64::seed_from_u64(138_004);
+            let unit_f: Vec<f64> = (0..upl)
+                .map(|_| {
+                    model.draw_unit_f(
+                        "abdella_all",
+                        &mut rng_d,
+                        &mut rng_t,
+                        &mut rng_p,
+                        &mut rng_g,
+                    )
+                })
+                .collect();
             let input = UnitDayStepIn {
                 freshness: vec![0.85; upl],
                 lot_offsets: vec![0, upl],
@@ -594,10 +589,8 @@ mod tests {
                 gamma_decrement: Some(0.0),
                 deliver: true,
                 deliver_units: Some(upl as u32),
-                delivery_f: Some(0.62),
-                delivery_lambda: Some(lambda),
+                delivery_unit_f: Some(unit_f),
                 units_per_lot: Some(upl),
-                pack_age_mean: None,
             };
             let mut rng_birth = Pcg64::seed_from_u64(138_004);
             let out = unit_day_step_with_birth::<Pcg64>(
@@ -625,6 +618,8 @@ mod tests {
     fn unit_day_step_delivery_injects_units_per_lot() {
         let params = ModelParams::default();
         let upl = 15;
+        let center = 0.92;
+        let unit_f = vec![center; upl];
         let input = UnitDayStepIn {
             freshness: vec![0.85; upl],
             lot_offsets: vec![0, upl],
@@ -632,10 +627,8 @@ mod tests {
             gamma_decrement: Some(0.0),
             deliver: true,
             deliver_units: None,
-            delivery_f: Some(0.92),
-            delivery_lambda: None,
+            delivery_unit_f: Some(unit_f),
             units_per_lot: None,
-            pack_age_mean: None,
         };
         let out = unit_day_step::<rand_pcg::Pcg64>(
             &input, &params, &[], None, None, None, None,
@@ -644,12 +637,9 @@ mod tests {
         assert_eq!(out.freshness.len(), upl * 2);
         let seg = &out.freshness[upl..];
         let mean: f64 = seg.iter().sum::<f64>() / seg.len() as f64;
-        assert!((mean - 0.92).abs() < 0.05, "gamma birth should center near delivery_f");
         assert!(
-            seg.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
-                - seg.iter().cloned().fold(f64::INFINITY, f64::min)
-                > 1e-6,
-            "gamma birth must spread within-lot freshness"
+            (mean - center).abs() < 0.05,
+            "birth should center near delivery_unit_f mean"
         );
     }
 }

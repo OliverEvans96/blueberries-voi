@@ -52,7 +52,6 @@ pub struct RichDay {
     pub lot_ids: Vec<i64>,
     pub arrival_lot_ids: Vec<i64>,
     pub shipment_trace: Option<ShipmentTrace>,
-    pub f_at_receipt: Option<f64>,
     pub pack_date_days: Option<i32>,
 }
 
@@ -67,7 +66,6 @@ pub struct FilterObs {
     pub lot_ids_live: Option<Vec<i64>>,
     pub arrival_lot_ids: Option<Vec<i64>>,
     pub pack_date_days: Option<i32>,
-    pub f_at_receipt: Option<f64>,
     pub temp_times_d: Option<Vec<f64>>,
     pub temp_temps_c: Option<Vec<f64>>,
 }
@@ -83,7 +81,6 @@ impl Default for FilterObs {
             lot_ids_live: None,
             arrival_lot_ids: None,
             pack_date_days: None,
-            f_at_receipt: None,
             temp_times_d: None,
             temp_temps_c: None,
         }
@@ -290,11 +287,6 @@ impl ObsMask {
             },
             pack_date_days: if self.pack_date {
                 rich.pack_date_days
-            } else {
-                None
-            },
-            f_at_receipt: if self.temperature_history {
-                rich.f_at_receipt
             } else {
                 None
             },
@@ -530,7 +522,6 @@ mod tests {
             lot_ids: vec![10, 11],
             arrival_lot_ids: vec![12],
             shipment_trace: None,
-            f_at_receipt: Some(0.85),
             pack_date_days: Some(3),
         };
         let obs = mask_for("P0").unwrap().apply(&rich);
@@ -559,7 +550,6 @@ mod tests {
                 times_d: vec![0.0, 1.0, 2.0],
                 temps_c: vec![1.0, 1.0, 1.0],
             }),
-            f_at_receipt: Some(0.9),
             pack_date_days: Some(1),
         };
         let obs = mask_for("F3").unwrap().apply(&rich);
@@ -579,7 +569,6 @@ mod tests {
             lot_ids: vec![1, 2],
             arrival_lot_ids: vec![3],
             shipment_trace: None,
-            f_at_receipt: Some(0.9),
             pack_date_days: Some(5),
         };
         let obs = mask_for("F2").unwrap().apply(&rich);

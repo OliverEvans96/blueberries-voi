@@ -13,7 +13,8 @@ use voi_core::physics::{
     store_temp_factor, GammaDecrementTable,
 };
 use voi_core::session::EngineSession;
-use voi_core::shipments::{birth_f_units_gamma, ShipmentTrace};
+use voi_core::arrival::ArrivalModel;
+use voi_core::shipments::ShipmentTrace;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -255,7 +256,6 @@ fn ac2_7_single_embed_and_parity() {
     let arrival_src = read_src("arrival.rs");
     assert!(
         arrival_src.contains("fn embedded_arrival_model")
-            || arrival_src.contains("fn arrival_model_json")
             || arrival_src.contains("EMBEDDED_ARRIVAL"),
         "RED: arrival.rs must expose a single embed accessor"
     );
@@ -357,12 +357,6 @@ fn ac2_11_f2_marginals_differ_from_p0() {
 #[test]
 fn ac2_11_caught_up_f2_not_collapsed_to_p0() {
     let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
-    let mut always = EngineSession::new(42);
-    always.init(42);
-    always.set_obs_scenario("F2").unwrap();
-    for &q in &orders {
-        let _ = always.step(q);
-    }
     let mut switched = EngineSession::new(42);
     switched.init(42);
     switched.set_obs_scenario("P0").unwrap();
@@ -373,11 +367,17 @@ fn ac2_11_caught_up_f2_not_collapsed_to_p0() {
     for &q in &orders[4..] {
         let _ = switched.step(q);
     }
-    let m_always = json_f64s(&always.snapshot_value()["belief"], "f_marginals");
     let m_switch = json_f64s(&switched.snapshot_value()["belief"], "f_marginals");
+    let mut p0_full = EngineSession::new(42);
+    p0_full.init(42);
+    p0_full.set_obs_scenario("P0").unwrap();
+    for &q in &orders {
+        let _ = p0_full.step(q);
+    }
+    let m_p0 = json_f64s(&p0_full.snapshot_value()["belief"], "f_marginals");
     assert_ne!(
-        m_always, m_switch,
-        "RED: caught-up F2 posterior must not collapse to never-switched F2"
+        m_switch, m_p0,
+        "RED: caught-up F2 posterior must not collapse to P0"
     );
 }
 
@@ -432,19 +432,16 @@ fn ac2_12_within_lot_arrival_f_spread() {
     );
 
     let params = ModelParams::default();
-    let trace = ShipmentTrace {
-        times_d: vec![0.0, 4.0],
-        temps_c: vec![1.0, 1.0],
-    };
-    let lambda = voi_core::shipments::shipment_arrival_age(&trace, params.q10, params.t_ref_c);
-
+    let model = ArrivalModel::embedded();
     let mut rng = Pcg64::seed_from_u64(150_212);
-    let units: Vec<f64> = birth_f_units_gamma(
-        lambda,
+    let units: Vec<f64> = model.draw_truth_delivery(
+        "abdella_all",
         params.units_per_lot,
-        &params,
         &mut rng,
-    );
+        &mut Pcg64::seed_from_u64(150_213),
+        &mut Pcg64::seed_from_u64(150_214),
+        &mut Pcg64::seed_from_u64(150_215),
+    ).unit_f;
 
     let unique: std::collections::BTreeSet<u64> = units
         .iter()
@@ -458,6 +455,7 @@ fn ac2_12_within_lot_arrival_f_spread() {
     let mut sess = EngineSession::new(150_212);
     sess.init(150_212);
     let _ = sess.step(8);
+    let _ = sess.step(0);
     let lots = sess.snapshot_value()["live_lots"]
         .as_array()
         .cloned()
@@ -548,13 +546,12 @@ fn ac2_16_lambda_floor_finite_cdf() {
     );
 
     let params = ModelParams::default();
-    let k = params.gamma_shape;
-    let theta = params.gamma_scale;
+    let model = ArrivalModel::embedded();
     let tiny = 1e-300;
-    let p0 = gamma_q(k * tiny, 1.0 / theta);
+    let p0 = model.p_f_zero(tiny);
     assert!(p0.is_finite(), "P(f=0) must be finite at tiny Λ");
-    let p1 = gamma_p(k * 1e-6, 0.5 / theta);
-    let p2 = gamma_p(k * 1e-3, 0.5 / theta);
+    let p1 = model.cdf_f_given_lambda(1e-6, 0.5);
+    let p2 = model.cdf_f_given_lambda(1e-3, 0.5);
     assert!(p1.is_finite() && p2.is_finite());
     assert!(p2 > p1, "CDF must be monotone in Λ");
 }

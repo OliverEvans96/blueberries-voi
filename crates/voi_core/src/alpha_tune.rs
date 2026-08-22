@@ -2,6 +2,10 @@
 
 use std::collections::BTreeMap;
 
+use crate::arrival::{
+    ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
+    STREAM_ARRIVAL_TEMP,
+};
 use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::draw_demand_spawn;
@@ -10,7 +14,7 @@ use crate::policy::{
 };
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::shipments::ShipmentTrace;
 use crate::spawn_rng::SpawnRng;
 use crate::voi::truth_f_belief;
 
@@ -19,8 +23,6 @@ const ORACLE_K: usize = 5;
 const STREAM_DEMAND: &str = ":demand";
 const STREAM_ALLOC: &str = ":alloc";
 const STREAM_SPOIL: &str = ":spoil";
-const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
-const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
 const STREAM_BIRTH: &str = ":birth";
 
 /// Ladder arms available for automated alpha tuning (`dp` remains a placeholder).
@@ -240,6 +242,7 @@ pub fn run_alpha_tune_episode(
     let mut scored_waste = 0u32;
     let mut scored_lost_sales = 0u32;
 
+    let arrival_model = ArrivalModel::embedded();
     for day in 0..horizon {
         let (lot_counts, f_marginals, f_grid) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
         let order = order_for_arm(
@@ -269,34 +272,32 @@ pub fn run_alpha_tune_episode(
         let demand = draw_demand_spawn(&mut rng_demand, params, Some(day));
         let mut rng_gamma = SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_SPOIL);
         let mut rng_alloc = SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ALLOC);
-        let mut rng_ship = if arrival > 0 {
-            Some(SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_SHIP))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_SENSOR))
-        } else {
-            None
-        };
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_BIRTH))
         } else {
             None
         };
-        let (f_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rng_ship = rng_ship.as_mut().expect("ship rng");
-            let mut rng_sensor = rng_sensor.as_mut().expect("sensor rng");
-            let (f, _tau, pack) = arrival_receipt_meta(
-                rng_ship,
-                rng_sensor,
-                shipments,
-                params,
-                1.0,
-            );
-            (Some(f), Some(pack))
+        let delivery_unit_f = if arrival > 0 {
+            let mut rng_dur =
+                SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_DURATION);
+            let mut rng_temp = SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_TEMP);
+            let mut rng_pos = SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_POS);
+            let mut rng_gamma_arr =
+                SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_GAMMA);
+            Some(
+                arrival_model
+                    .draw_truth_delivery(
+                        "abdella_all",
+                        arrival as usize,
+                        &mut rng_dur,
+                        &mut rng_temp,
+                        &mut rng_pos,
+                        &mut rng_gamma_arr,
+                    )
+                    .unit_f,
+            )
         } else {
-            (None, None)
+            None
         };
 
         let input = UnitDayStepIn {
@@ -306,10 +307,8 @@ pub fn run_alpha_tune_episode(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -317,8 +316,8 @@ pub fn run_alpha_tune_episode(
             shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
             rng_birth.as_mut(),
         );
         freshness = out.freshness;
