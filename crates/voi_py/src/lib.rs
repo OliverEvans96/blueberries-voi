@@ -5,16 +5,17 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
-use voi_core::{
-    arrival_artifact_from_json, crate_name, parse_alpha_tune_arm, rollout_order, run_alpha_tune_episode,
-    run_closed_loop_episode, run_voi_crn_cell, sequential_wor_composition_probs, terminal_salvage_unit_state,
-    w_long, AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, EngineSession, RolloutContext,
-    RolloutCosts, ShipmentTrace, DemandProfile, ModelParams,
-};
 use voi_core::physics::draw_demand_spawn;
 use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
 use voi_core::spawn_rng::SpawnRng;
+use voi_core::{
+    arrival_artifact_from_json, crate_name, parse_alpha_tune_arm, rollout_order,
+    run_alpha_tune_episode, run_closed_loop_episode, run_voi_crn_cell,
+    sequential_wor_composition_probs, terminal_salvage_unit_state, w_long, AlphaTuneCosts,
+    AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, DemandProfile, EngineSession, ModelParams,
+    RolloutContext, RolloutCosts, ShipmentTrace,
+};
 
 fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
     let json = if std::path::Path::new(source).is_file() {
@@ -339,8 +340,8 @@ fn evaluate_alpha_tune_outcomes_inner(
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<(f64, u32, u32)> {
-    let arm = parse_alpha_tune_arm(arm_id)
-        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
+    let arm =
+        parse_alpha_tune_arm(arm_id).map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
     let ships: Vec<ShipmentTrace> = match (times, temps) {
         (Some(t), Some(tp)) => ships_from(t, tp),
         (None, None) => vec![ShipmentTrace::smoke_cool()],
@@ -370,24 +371,10 @@ fn evaluate_alpha_tune_outcomes_inner(
         candidate_case_radius,
     };
     let ep = run_alpha_tune_episode(
-        arm,
-        alpha,
-        rho,
-        root_seed,
-        n_burn,
-        n_score,
-        lead_time,
-        &params,
-        &ships,
-        &costs,
-        &rollout,
+        arm, alpha, rho, root_seed, n_burn, n_score, lead_time, &params, &ships, &costs, &rollout,
     )
     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
-    Ok((
-        ep.scored_profit,
-        ep.scored_waste,
-        ep.scored_lost_sales,
-    ))
+    Ok((ep.scored_profit, ep.scored_waste, ep.scored_lost_sales))
 }
 
 #[pyfunction]
@@ -535,6 +522,47 @@ fn ships_from(times: Vec<Vec<f64>>, temps: Vec<Vec<f64>>) -> Vec<ShipmentTrace> 
         .collect()
 }
 
+fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+    if obj.is_none() {
+        return Ok(Value::Null);
+    }
+    if let Ok(b) = obj.extract::<bool>() {
+        return Ok(Value::Bool(b));
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return Ok(Value::Number(i.into()));
+    }
+    if let Ok(u) = obj.extract::<u64>() {
+        return Ok(Value::Number(u.into()));
+    }
+    if let Ok(f) = obj.extract::<f64>() {
+        if let Some(n) = serde_json::Number::from_f64(f) {
+            return Ok(Value::Number(n));
+        }
+    }
+    if let Ok(s) = obj.extract::<String>() {
+        return Ok(Value::String(s));
+    }
+    if let Ok(dict) = obj.cast::<PyDict>() {
+        let mut map = serde_json::Map::new();
+        for (k, v) in dict.iter() {
+            let key = k.extract::<String>()?;
+            map.insert(key, py_to_json(&v)?);
+        }
+        return Ok(Value::Object(map));
+    }
+    if let Ok(list) = obj.cast::<pyo3::types::PyList>() {
+        let mut arr = Vec::new();
+        for item in list.iter() {
+            arr.push(py_to_json(&item)?);
+        }
+        return Ok(Value::Array(arr));
+    }
+    Err(pyo3::exceptions::PyValueError::new_err(
+        "configure params must be a JSON-like dict",
+    ))
+}
+
 fn json_to_py<'py>(py: Python<'py>, value: &Value) -> PyResult<Bound<'py, PyAny>> {
     match value {
         Value::Null => Ok(py.None().into_bound(py)),
@@ -645,9 +673,8 @@ impl PyEngineSession {
             demand_profile,
             units_per_lot,
         );
-        let delivery = delivery_weekdays.unwrap_or_else(|| {
-            OrderSchedule::default().delivery_weekday_list()
-        });
+        let delivery =
+            delivery_weekdays.unwrap_or_else(|| OrderSchedule::default().delivery_weekday_list());
         self.inner
             .set_delivery_schedule(&delivery, lead_time.max(1));
         if let Some(scenario) = obs_scenario {
@@ -734,7 +761,9 @@ impl PyEngineSession {
     }
 
     fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let d = self.inner.act(Some("rollout"), None, None, None, None, None, None);
+        let d = self
+            .inner
+            .act(Some("rollout"), None, None, None, None, None, None);
         wire_day_delta(py, &self.inner, &d)
     }
 
@@ -768,6 +797,20 @@ impl PyEngineSession {
 
     fn host_crossings(&self) -> u32 {
         self.inner.host_crossings()
+    }
+
+    fn snapshot_value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        wire_snapshot(py, &self.inner)
+    }
+
+    fn apply_configure<'py>(
+        &mut self,
+        py: Python<'py>,
+        params: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let json = py_to_json(params)?;
+        self.inner.apply_configure(json);
+        wire_snapshot(py, &self.inner)
     }
 }
 

@@ -2,6 +2,7 @@
 
 pub mod alpha_tune;
 pub mod arrival;
+pub mod arrival_wire;
 pub mod belief_flat;
 pub mod demand_profile;
 pub mod params;
