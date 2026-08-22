@@ -41,8 +41,10 @@ fn require_unit_ll() {
     let body = read_src("unit_ll.rs");
     for sym in [
         "sequential_kernel_path_logprob",
-        "spoil_delta_interval",
-        "delta_interval_loglik",
+        "pb_log_pmf",
+        "pb_loglik_by_lot",
+        "pb_sample_deaths",
+        "spoil_probs_from_freshness",
         "loglik_sales_by_units",
     ] {
         if !body.contains(sym) && !lib.contains(sym) {
@@ -91,161 +93,22 @@ fn filter_step_unit_uses_systematic_resample_not_multinomial() {
     );
 }
 
-/// ADR 0137: the aggregate (UPC) path is the coarse case of the shared spoilage term,
-/// not a second likelihood. It must score the decrement interval like every other channel
-/// and must not carry a private binomial waste model.
+/// ADR 0143: aggregate and GSIN paths score independent per-unit Poisson-binomial spoilage.
 #[test]
-fn aggregate_router_shares_the_spoil_interval_term() {
+fn aggregate_router_scores_poisson_binomial_spoilage() {
     require_unit_pf();
     let body = read_src("unit_pf.rs");
     assert!(
-        body.contains("spoil_delta_interval") && body.contains("delta_interval_loglik"),
-        "aggregate path must score the shared decrement interval"
+        body.contains("pb_loglik_by_lot") || body.contains("pb_log_pmf"),
+        "unit_pf must score Poisson-binomial spoilage"
     );
     assert!(
-        !body.contains("binom_pmf") && !body.contains("p_die"),
-        "unit_pf must not reintroduce a per-unit binomial waste model"
-    );
-}
-
-/// ADR 0137, measured claim: what `waste_by` actually buys.
-///
-/// Births are lot-uniform and aging applies one shared decrement, so every live unit in a
-/// lot carries the same freshness and a lot spoils **all or nothing**. The store's order
-/// statistics are therefore just the lot values, and the store total already determines
-/// which lots died. So on any cohort-consistent observation the per-lot intersection is
-/// either *exactly* the pooled interval or **empty** — never a strictly tighter non-empty
-/// one. `waste_by` falsifies particles whose lots are mis-ordered by freshness; it does not
-/// sharpen the posterior over the decrement, and it says nothing about the overall level.
-#[test]
-fn gsin_waste_never_narrows_the_pooled_interval() {
-    require_unit_ll();
-    use rand::{Rng, SeedableRng};
-    use rand_pcg::Pcg64;
-    use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
-
-    let mut rng = Pcg64::seed_from_u64(20_260_820);
-    let (mut identical, mut gsin_empty) = (0usize, 0usize);
-
-    for _ in 0..20_000 {
-        let n_lots = rng.random_range(2..=5);
-        // Distinct per-lot freshness; a cohort shares one value, as births and aging leave it.
-        let mut values: Vec<f64> = Vec::new();
-        while values.len() < n_lots {
-            let v = f64::from(rng.random_range(1..20u32)) * 0.05;
-            if values.iter().all(|&x| (x - v).abs() > 1e-12) {
-                values.push(v);
-            }
-        }
-        let counts: Vec<usize> = (0..n_lots).map(|_| rng.random_range(1..=8)).collect();
-
-        let mut freshness = Vec::new();
-        let mut offsets = vec![0usize];
-        for (&v, &c) in values.iter().zip(counts.iter()) {
-            freshness.extend(std::iter::repeat_n(v, c));
-            offsets.push(freshness.len());
-        }
-
-        // A cohort-consistent observation: each lot dies whole or not at all.
-        let waste_by: Vec<u32> = counts
-            .iter()
-            .map(|&c| {
-                if rng.random::<f64>() < 0.4 {
-                    c as u32
-                } else {
-                    0
-                }
-            })
-            .collect();
-        let total: u32 = waste_by.iter().sum();
-
-        let pooled = spoil_delta_interval(&freshness, total as usize);
-        let gsin = spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by);
-
-        match (gsin, pooled) {
-            (Some(g), Some(p)) => {
-                assert_eq!(
-                    g, p,
-                    "cohort structure makes the per-lot intersection exactly the pooled interval"
-                );
-                identical += 1;
-            }
-            (None, _) => gsin_empty += 1,
-            (Some(_), None) => panic!("GSIN cannot admit a decrement the pooled interval rejects"),
-        }
-    }
-
-    // Both outcomes must actually occur, or the test is vacuous.
-    assert!(
-        identical > 1_000,
-        "expected many identical intervals, got {identical}"
+        body.contains("spoil_probs_from_freshness"),
+        "unit_pf must derive per-unit spoil probabilities"
     );
     assert!(
-        gsin_empty > 1_000,
-        "expected many particles falsified by lot ordering, got {gsin_empty}"
-    );
-}
-
-
-/// T-138 AC-10: within-lot dispersion unlocks partial-lot GSIN intervals (ADR 0139 converse).
-#[test]
-fn gsin_waste_can_strictly_narrow_under_within_lot_dispersion() {
-    require_unit_ll();
-    use rand::{Rng, SeedableRng};
-    use rand_pcg::Pcg64;
-    use voi_core::shipments::birth_f_units_gamma;
-    use voi_core::ModelParams;
-    use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
-
-    let mean = 0.55;
-    assert!(spoil_delta_interval(&vec![mean; 8], 2).is_none());
-    let mut brng = Pcg64::seed_from_u64(138_010);
-    let params = ModelParams::default();
-    let dispersed = birth_f_units_gamma(2.0, 8, &params, &mut brng);
-    let per_lot = spoil_delta_interval(&dispersed, 2).expect("dispersion unlocks partial-lot interval");
-    let pooled = spoil_delta_interval(&dispersed, 2).expect("pooled interval");
-    assert!(per_lot.1 > per_lot.0 + 1e-12);
-    assert!(per_lot.1 > pooled.0 + 1e-12, "hi_gsin must exceed lo_pooled");
-
-    let lot_a = vec![0.30, 0.32, 0.34, 0.36, 0.38, 0.40];
-    let lot_b = vec![0.31, 0.33, 0.35, 0.37, 0.39, 0.41];
-    let freshness: Vec<f64> = lot_a.iter().chain(lot_b.iter()).copied().collect();
-    let offsets = vec![0usize, 6, 12];
-    let waste_by = vec![2u32, 1u32];
-    let total = 3usize;
-    let gsin = spoil_delta_interval_by_lot(&freshness, &offsets, &waste_by)
-        .expect("interleaved lots yield non-empty I_gsin under partial spoil");
-    let pooled = spoil_delta_interval(&freshness, total).expect("pooled interval");
-    assert!(gsin.1 > gsin.0 + 1e-12 && gsin.1 > pooled.0 + 1e-12);
-    assert!(gsin.0 >= pooled.0 - 1e-12 && gsin.1 <= pooled.1 + 1e-12);
-}
-
-/// ADR 0137: GSIN refines UPC on the *same* state, so the lot-resolved spoilage interval
-/// is the intersection of the per-lot intervals — never a wider or unrelated set.
-#[test]
-fn lot_resolved_spoil_interval_is_contained_in_the_pooled_one() {
-    require_unit_ll();
-    use voi_core::unit_ll::{spoil_delta_interval, spoil_delta_interval_by_lot};
-
-    // Lot 0 = [0.30, 0.30] (a tied cohort), lot 1 = [0.20].
-    let freshness = vec![0.30, 0.30, 0.20];
-    let offsets = vec![0, 2, 3];
-
-    // One unit spoiled somewhere: the pooled total cannot say which, so it stays feasible.
-    let (plo, phi) = spoil_delta_interval(&freshness, 1).expect("pooled admits one spoil");
-
-    // GSIN attributing it to lot 0 is impossible: tied units always spoil together.
-    assert!(
-        spoil_delta_interval_by_lot(&freshness, &offsets, &[1, 0]).is_none(),
-        "identical freshness in a lot spoils together; only GSIN can rule that split out"
-    );
-
-    // GSIN attributing it to lot 1 lands inside the pooled interval, never outside it.
-    let (glo, ghi) =
-        spoil_delta_interval_by_lot(&freshness, &offsets, &[0, 1]).expect("lot 1 spoils");
-    assert!(
-        glo >= plo && ghi <= phi,
-        "GSIN interval [{glo},{ghi}) must lie inside pooled [{plo},{phi})"
+        !body.contains("spoil_delta_interval") && !body.contains("delta_interval_loglik"),
+        "unit_pf must not use superseded interval spoil primitives"
     );
 }
 
@@ -393,9 +256,9 @@ fn unit_ll_fn(name: &str) -> (String, String) {
 fn production_likelihood_terms_take_no_rng() {
     require_unit_ll();
     for name in [
-        "spoil_delta_interval",
-        "spoil_delta_interval_by_lot",
-        "delta_interval_loglik",
+        "pb_log_pmf",
+        "pb_loglik_by_lot",
+        "spoil_probs_from_freshness",
         "loglik_sales_by_units",
     ] {
         let (sig, _) = unit_ll_fn(name);
@@ -411,11 +274,31 @@ fn production_likelihood_terms_take_no_rng() {
 #[test]
 fn production_likelihood_terms_have_no_path_mc_in_body() {
     require_unit_ll();
-    for name in ["delta_interval_loglik", "loglik_sales_by_units"] {
+    for name in ["pb_loglik_by_lot", "loglik_sales_by_units"] {
         let (_, fn_body) = unit_ll_fn(name);
         assert!(
             !fn_body.contains("sequential_kernel_path_logprob"),
             "{name} must not call sequential_kernel_path_logprob (deterministic gates only)"
+        );
+    }
+}
+
+/// ADR 0143 removed ADR-0137 shared-decrement interval spoilage outright.
+#[test]
+fn superseded_interval_spoil_primitives_are_gone() {
+    require_unit_ll();
+    let body = read_src("unit_ll.rs");
+    let lib = read_lib_rs();
+    for sym in [
+        "spoil_delta_interval",
+        "delta_interval_loglik",
+        "DeltaInterval",
+        "DELTA_ANY",
+        "contrast_spoilage_weight",
+    ] {
+        assert!(
+            !body.contains(sym) && !lib.contains(sym),
+            "`{sym}` was superseded by ADR 0143 and must not be reintroduced"
         );
     }
 }
@@ -1010,10 +893,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     require_unit_ll();
 
     use voi_core::obs::{mask_for, RichDay};
-    use voi_core::unit_ll::{
-        delta_interval_loglik, loglik_sales_by_units, spoil_delta_interval,
-        spoil_delta_interval_by_lot,
-    };
+    use voi_core::unit_ll::{loglik_sales_by_units, pb_log_pmf, pb_loglik_by_lot, spoil_probs_from_freshness};
     use voi_core::ModelParams;
 
     const UPL: usize = 15;
@@ -1091,12 +971,13 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         mean_f_mae(truth_mf, &pred_mf)
     }
 
-    // Score exactly as production does (ADR 0137): a shared spoilage-interval term at the
+    // Score exactly as production does (ADR 0143): Poisson-binomial spoilage at the
     // resolution the channel observes, plus the sales term that channel can support.
     let mut p1_log_w = Vec::with_capacity(n);
     let mut f1_log_w = Vec::with_capacity(n);
     for row in &particles {
-        let waste_ll_p1 = delta_interval_loglik(spoil_delta_interval(row, 0), &params);
+        let probs = spoil_probs_from_freshness(row, &params);
+        let waste_ll_p1 = pb_log_pmf(&probs, 0);
         let alive = row.iter().filter(|&&f| f > 0.0).count();
         p1_log_w.push(if alive < 7 {
             f64::NEG_INFINITY
@@ -1105,10 +986,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         });
 
         let waste_by = obs_f1.waste_by.as_ref().expect("F1 exposes waste_by");
-        let waste_ll_f1 = delta_interval_loglik(
-            spoil_delta_interval_by_lot(row, &offsets, waste_by),
-            &params,
-        );
+        let waste_ll_f1 = pb_loglik_by_lot(row, &offsets, waste_by, &params);
         f1_log_w.push(waste_ll_f1 + loglik_sales_by_units(row, &sales_by, &offsets, &params));
     }
 
