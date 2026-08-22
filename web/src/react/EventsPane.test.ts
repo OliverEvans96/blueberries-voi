@@ -246,4 +246,46 @@ describe("EventsPane (T-148 v6)", () => {
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
   });
+
+  it("shows the temperature history chart on any day with real arrivals and temp data, even when the schedule's cosmetic delivery-day badge doesn't cover that day (T-151 bugfix)", () => {
+    // Day 2 under SCHEDULE (delivery_weekdays=[0,2,4]) has monday0 weekday 1
+    // (Tuesday) — not flagged as a schedule "delivery day" (it's an
+    // "order day" per order_weekdays=[5,1,3]). A real delivery with temp
+    // data can still land on this day (e.g. after a mid-episode schedule
+    // change, or any day the mock/live engine records arrivals). The chart
+    // must key off "did a delivery with temp data actually happen", not the
+    // cosmetic calendar badge.
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F3",
+            obs_channels: channelsForPreset("F3"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 8,
+            arrival_lot_ids: [401],
+            arrivals_by: [8],
+            sales_total: 4,
+            waste_total: 0,
+            temp_traces_by_lot: [
+              {
+                lot_id: 401,
+                times_d: [-3, -2, -1, 0],
+                temps_c: [2, 2.2, 2.4, 2.6],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
+    expect(container.querySelector(".events-temp-history")).not.toBeNull();
+  });
 });

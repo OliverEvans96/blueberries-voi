@@ -229,8 +229,11 @@ export function EventsPane({
                 )
               : [];
 
+          // Keyed on an actual delivery with temp data, not the schedule's
+          // cosmetic "delivery day" calendar badge (`deliveryDay`) — those
+          // can desync (e.g. mid-episode schedule edits), which previously
+          // made this chart dead code (T-151 bugfix).
           const showTempChart =
-            deliveryDay &&
             obsMask.temperature_history &&
             deliveredTotal > 0 &&
             Boolean(

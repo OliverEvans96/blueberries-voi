@@ -616,7 +616,10 @@ function runDay(
   const orderWeekdays = new Set(
     scheduleFromConfig(cfg).order_weekdays,
   );
-  const episodeWd = day % 7;
+  // Monday=0 convention (day 1 == Monday), matching scheduleFromConfig /
+  // EventsPane's isDeliveryDay — NOT a raw `day % 7`, which desynced actual
+  // arrivals from the UI's own "delivery day" labels (T-151 bugfix).
+  const episodeWd = (((day - 1) % 7) + 7) % 7;
   if (!orderWeekdays.has(episodeWd)) {
     order_qty = 0;
   }
