@@ -1,16 +1,9 @@
-# Web quality gate for PRs touching `web/` (T-146).
-#
-# Agent protocol forbids editing live `.github/workflows/`. A human must copy
-# this file to `.github/workflows/web-quality.yml` (or merge its job into ci.yml).
+# Superseded: web vitest/lib smoke now runs in CI `web` job (parallel with rust/python).
+# Kept for manual reruns only.
 name: Web quality
 
 on:
-  pull_request:
-    paths:
-      - "web/**"
-      - "scripts/build-wasm.sh"
-      - "crates/voi_wasm/**"
-      - "packaging/wasm/**"
+  workflow_dispatch:
 
 concurrency:
   group: web-quality-${{ github.workflow }}-${{ github.ref }}

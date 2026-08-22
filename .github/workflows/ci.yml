@@ -3,7 +3,8 @@
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
 # this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
-# Quality job: single Python from repo pin (`.python-version` → 3.11).
+# Parallel gates: rust (cargo), python (uv 3.11), web (vitest + lib build).
+# `deploy` runs on main/master only after all three succeed.
 name: CI
 
 on:
@@ -16,9 +17,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  rust:
+    name: rust
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test (kernel + pyo3 crate)
+        run: cargo test -p voi_core -p voi_py --locked
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,3 +75,80 @@ jobs:
           --cov-report=term-missing
           --cov-report=xml
           --cov-fail-under=80
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Vitest
+        working-directory: web
+        run: npm test
+
+      - name: Build publishable library
+        working-directory: web
+        run: npm run build:lib
+
+      - name: Pack tarball (smoke)
+        working-directory: web
+        run: npm pack
+
+  deploy:
+    name: deploy
+    needs: [rust, python, web]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Production studio build
+        working-directory: web
+        run: npm run build
+
+      - name: Upload studio dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-dist
+          path: web/dist/
+          if-no-files-found: error

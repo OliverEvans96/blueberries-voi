@@ -12,14 +12,25 @@ Use real file copies:
 ./scripts/sync-github-workflows.sh
 ```
 
+## CI layout (`ci.yml`)
+
+Three parallel jobs on every push/PR:
+
+| Job | What |
+|-----|------|
+| `rust` | `cargo test -p voi_core -p voi_py --locked` |
+| `python` | `uv sync` (3.11), maturin develop, ruff, mypy, pytest+coverage |
+| `web` | WASM build, vitest, `build:lib`, `npm pack` smoke |
+
+On **main/master** pushes only, `deploy` runs after all three succeed (production
+`npm run build` + dist artifact). PRs skip `deploy`.
+
+`web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
+
 ## Release scope
 
-- **Release studio** (`release-studio.yml`): React/WASM studio tarball only (`studio-v*`
-  tags and `studio-latest` after green CI on `main`/`master`).
+- **Release studio** (`release-studio.yml`): WASM + `build:lib` + npm tarball after
+  green **CI** on `main`/`master` (`workflow_run`), or on `studio-v*` tags. Vitest runs
+  in CI `web`, not in release.
 - **Python slim wheel**: **retired**. Delete the legacy `Release slim wheel` workflow
-  from the live workflows directory if present; releases do not build Python wheels.
-
-## CI Python / maturin
-
-The **CI** quality job uses `uv sync` plus `maturin develop` for the optional native
-extension in tests. That is not a wheel publish step and does not run on release.
+  from the live workflows directory if present.
