@@ -1,0 +1,39 @@
+{
+  "alphas": {
+    "constant": 0.5,
+    "rung0": 0.95,
+    "sw": 0.95,
+    "rollout": 0.95,
+    "dp": 0.9
+  },
+  "header": {
+    "physics_epoch": "t150-f-native-arrival",
+    "generated_from_commit": "556d6ef",
+    "script": "experiments/regen_tuned_alpha.py",
+    "shipments": "default_shipments (Abdella)",
+    "n_burn": 14,
+    "n_score": 28,
+    "alphas": [
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.85,
+      0.9,
+      0.95
+    ],
+    "root_seed": 42,
+    "tuned_arms": [
+      "constant",
+      "rung0",
+      "sw"
+    ],
+    "rollout_alpha_source": "inherited from damped_sw (rollout builds on damped_sw); not independently tuned",
+    "arm_wall_seconds": {
+      "constant": 9.3,
+      "rung0": 8.7,
+      "sw": 9.8
+    },
+    "rollout_not_tuned": true
+  }
+}
