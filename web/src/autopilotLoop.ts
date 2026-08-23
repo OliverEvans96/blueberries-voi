@@ -9,7 +9,7 @@ import type { ActOpts, DayDelta } from "./engine/types";
 
 export type AutopilotDeps = {
   act: (opts?: ActOpts) => Promise<DayDelta>;
-  applyDelta: (delta: DayDelta) => void;
+  applyDelta: (delta: DayDelta) => void | Promise<void>;
   getOpts: () => ActOpts;
   getIntervalMs: () => number;
   isConfigDirty: () => boolean;
@@ -70,7 +70,7 @@ export function createAutopilotLoop(deps: AutopilotDeps): AutopilotHandle {
       const delta = await deps.act(deps.getOpts());
       const elapsed = performance.now() - t0;
       // Always apply a completed in-flight act (last applied day), then stop if paused.
-      deps.applyDelta(delta);
+      await deps.applyDelta(delta);
       deps.onTick?.(delta);
       inFlight = false;
       if (!running || deps.isConfigDirty()) {

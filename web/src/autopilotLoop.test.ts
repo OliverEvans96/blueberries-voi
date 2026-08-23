@@ -37,7 +37,7 @@ function sampleDelta(orderQty: number, episodeDay = 1): DayDelta {
 
 type AutopilotDeps = {
   act: (opts?: unknown) => Promise<DayDelta>;
-  applyDelta: (delta: DayDelta) => void;
+  applyDelta: (delta: DayDelta) => void | Promise<void>;
   getOpts: () => unknown;
   getIntervalMs: () => number;
   isConfigDirty: () => boolean;
@@ -371,6 +371,44 @@ describe("createAutopilotLoop pause on error / config_dirty + order sync (T-100)
     expect(
       (passed.day as { order_qty?: number }).order_qty,
     ).toBe(32);
+    handle.pause();
+  });
+
+  it("waits for async applyDelta before scheduling the next tick", async () => {
+    const mod = await loadAutopilotModule();
+    expect(typeof mod.createAutopilotLoop).toBe("function");
+
+    let resolveApply!: () => void;
+    const applyDelta = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveApply = resolve;
+        }),
+    );
+    const act = vi.fn(async () => sampleDelta(8));
+    const handle = mod.createAutopilotLoop!({
+      act,
+      applyDelta,
+      getOpts: () => ({ policy: "damped_sw" }),
+      getIntervalMs: () => 100,
+      isConfigDirty: () => false,
+      onError: () => {},
+    });
+
+    handle.play();
+    await flushMicrotasks();
+    expect(act).toHaveBeenCalledTimes(1);
+    expect(applyDelta).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await flushMicrotasks();
+    expect(act).toHaveBeenCalledTimes(1);
+
+    resolveApply();
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(100);
+    await flushMicrotasks();
+    expect(act).toHaveBeenCalledTimes(2);
     handle.pause();
   });
 });

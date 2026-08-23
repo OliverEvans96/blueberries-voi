@@ -175,7 +175,7 @@ describe("EventsPane (T-148 v6)", () => {
     ).toBeTruthy();
   });
 
-  it("shows day number only in heading", () => {
+  it("prefixes day heading with weekday label from schedule epoch", () => {
     render(
       createElement(EventsPane, {
         vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
@@ -183,8 +183,9 @@ describe("EventsPane (T-148 v6)", () => {
         events: [P0_DAY],
       }),
     );
-    expect(screen.getByRole("heading", { level: 3, name: "Day 1" })).toBeInTheDocument();
-    expect(screen.queryByText(/Monday|Jan/i)).toBeNull();
+    // epoch 2024-01-01 (Mon) + day 1 → Tue
+    expect(screen.getByRole("heading", { level: 3, name: "Tue Day 1" })).toBeInTheDocument();
+    expect(screen.queryByText(/January|Jan /i)).toBeNull();
   });
 
   it("shows initial loading only when there is no event data", () => {
@@ -208,7 +209,7 @@ describe("EventsPane (T-148 v6)", () => {
         refreshing: true,
       }),
     );
-    expect(screen.getByText("Day 1")).toBeInTheDocument();
+    expect(screen.getByText("Tue Day 1")).toBeInTheDocument();
     expect(screen.getByText(/updating/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Loading events/i)).toBeNull();
   });

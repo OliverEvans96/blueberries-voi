@@ -21,6 +21,7 @@ import {
   createStudioAdapter,
   reportStudioAdapterError,
   resolveStudioAdapterKind,
+  STUDIO_PACKAGE_VERSION,
   studioFooterCopy,
   type StudioEnv,
 } from "../engine/studioAdapter";
@@ -30,13 +31,21 @@ import {
   type BeliefFreshnessHoverFocus,
 } from "../charts/beliefFreshnessTime";
 import {
+  BELIEF_FRESHNESS_TIME_HEIGHT,
+  BELIEF_HISTOGRAM_HEIGHT,
+  METRICS_STRIP_HEIGHT,
+} from "../charts/chartHeights";
+import {
+  emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
   renderFreshnessHistogram,
 } from "../charts/freshnessHistogram";
 import {
   marginalYMax,
   renderMarginal,
+  renderWasteBars,
   setMarginalHover,
+  setWasteBarsHover,
 } from "../charts/marginals";
 import {
   renderDailyDemand,
@@ -56,8 +65,8 @@ import {
   setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
-  renderOrdersWaste,
-  setOrdersWasteHover,
+  renderControllerOrders,
+  setControllerOrdersHover,
 } from "../charts/controllerOrders";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
@@ -114,6 +123,69 @@ import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
 import { computeImpactTotals } from "../metrics/impactTotals";
+import {
+  clearRenderProfile,
+  getRenderProfileReport,
+  profileAsync,
+  profileSync,
+  setRenderProfiling,
+  type RenderProfileRow,
+} from "./renderProfile";
+import {
+  buildAdvanceSample,
+  clearAdvanceProfile,
+  getAdvancePipelineReport,
+  isAdvanceProfiling,
+  recordAdvanceSample,
+  setAdvanceProfiling,
+  type AdvancePipelineReport,
+} from "./advanceProfile";
+import { clearRpcProfile, setRpcProfiling } from "../engine/rpcProfile";
+
+export {
+  clearAdvanceProfile,
+  clearRenderProfile,
+  clearRpcProfile,
+  getAdvancePipelineReport,
+  getRenderProfileReport,
+  setAdvanceProfiling,
+  setRenderProfiling,
+  setRpcProfiling,
+  type AdvancePipelineReport,
+  type RenderProfileRow,
+};
+
+/** Display-only tradeoff bands; does not affect act/step_n (ADR 0130). */
+const TRADEOFF_FORECAST_N_PATHS = 20;
+
+/** Set by initStudio — profile one full Advance (await remote panes). */
+let studioAdvanceOnce: (() => Promise<void>) | null = null;
+
+/** Run N advance steps with profiling enabled; returns aggregated report. */
+export async function studioProfileAdvanceSteps(
+  steps: number,
+): Promise<AdvancePipelineReport> {
+  if (!studioAdvanceOnce) {
+    throw new Error("studio not initialized — mount StudioLayout and call initStudio first");
+  }
+  setAdvanceProfiling(true);
+  setRenderProfiling(true);
+  setRpcProfiling(true);
+  clearAdvanceProfile();
+  clearRenderProfile();
+  clearRpcProfile();
+  for (let i = 0; i < steps; i++) {
+    clearRenderProfile();
+    await studioAdvanceOnce();
+  }
+  return getAdvancePipelineReport();
+}
+
+declare global {
+  interface Window {
+    __studioProfileAdvance?: (steps?: number) => Promise<AdvancePipelineReport>;
+  }
+}
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
@@ -137,6 +209,7 @@ export function initStudio(app: HTMLElement): () => void {
   if (footerEl) {
     footerEl.textContent = studioFooterCopy(adapterKind);
     footerEl.setAttribute("data-engine-adapter", adapterKind);
+    footerEl.setAttribute("data-studio-version", STUDIO_PACKAGE_VERSION);
     footerEl.setAttribute(
       "data-vite-engine-adapter",
       studioEnv.VITE_ENGINE_ADAPTER ?? "",
@@ -209,6 +282,7 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsLoading = false;
   let eventsRefreshing = false;
   let lastEventsKey = "";
+  let frameGen = 0;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -253,7 +327,9 @@ export function initStudio(app: HTMLElement): () => void {
     arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
     gammaPath: q<HTMLElement>("#chart-gamma-path")!,
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    ordersWasteFocus: q<HTMLElement>("#chart-orders-waste-focus")!,
+    spoil: q<HTMLElement>("#chart-spoil")!,
+    controllerOrdersFocus: q<HTMLElement>("#chart-controller-orders-focus")!,
+    spoilFocus: q<HTMLElement>("#chart-spoil-focus")!,
     inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
     pickingVar: q<HTMLElement>("#picking-var-chart")!,
     tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
@@ -322,19 +398,21 @@ export function initStudio(app: HTMLElement): () => void {
 
   renderLoadingDialog();
 
-  async function fetchTradeoffForecast(): Promise<void> {
+  async function fetchTradeoffForecast(gen: number): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
       const result = (await adapter.tradeoffForecast({
-        n_paths: 200,
+        n_paths: TRADEOFF_FORECAST_N_PATHS,
       })) as TradeoffForecastResult;
+      if (gen !== frameGen) return;
       tradeoffForecasts = result.candidates ?? [];
     } catch {
+      if (gen !== frameGen) return;
       tradeoffForecasts = [];
     }
   }
 
-  async function fetchEvents(): Promise<void> {
+  async function fetchEvents(gen: number): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
     const sinceDay = Math.max(1, vm.episode_day - 5);
     const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
@@ -345,45 +423,66 @@ export function initStudio(app: HTMLElement): () => void {
     } else {
       eventsRefreshing = true;
     }
-    renderEventsPane();
     try {
       const result = await adapter.events({ since_day: sinceDay });
+      if (gen !== frameGen) return;
       eventDays = result.days ?? [];
     } catch {
+      if (gen !== frameGen) return;
       if (eventDays.length === 0) eventDays = [];
     } finally {
+      if (gen !== frameGen) return;
       eventsLoading = false;
       eventsRefreshing = false;
-      renderEventsPane();
     }
   }
 
+  async function commitFrame(): Promise<void> {
+    const gen = ++frameGen;
+    await Promise.all([
+      profileAsync("fetchTradeoffForecast", () => fetchTradeoffForecast(gen)),
+      profileAsync("fetchEvents", () => fetchEvents(gen)),
+    ]);
+    if (gen !== frameGen) return;
+    renderAll();
+  }
+
   function renderMetricsPane(): void {
-    if (pnlTotalsHost) {
-      renderPnLTotals(pnlTotalsHost, vm);
-    }
-    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, 130);
-    const impact = computeImpactTotals(vm.history);
-    if (impactMissedRoot) {
-      impactMissedRoot.render(
-        createElement(ImpactStat, {
-          label: "Total missed sales",
-          absolute: impact.missedTotal,
-          percent: impact.missedPct,
-          percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
-        }),
+    profileSync("renderMetricsPane", () => {
+      if (pnlTotalsHost) {
+        profileSync("renderMetricsPane.pnlTotals", () =>
+          renderPnLTotals(pnlTotalsHost, vm),
+        );
+      }
+      profileSync("renderMetricsPane.pnlTimeseries", () =>
+        renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, METRICS_STRIP_HEIGHT),
       );
-    }
-    if (impactWasteRoot) {
-      impactWasteRoot.render(
-        createElement(ImpactStat, {
-          label: "Total waste",
-          absolute: impact.wasteTotal,
-          percent: impact.wastePct,
-          percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
-        }),
-      );
-    }
+      const impact = computeImpactTotals(vm.history);
+      if (impactMissedRoot) {
+        profileSync("renderMetricsPane.impactMissed", () =>
+          impactMissedRoot.render(
+            createElement(ImpactStat, {
+              label: "Total missed sales",
+              absolute: impact.missedTotal,
+              percent: impact.missedPct,
+              percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
+            }),
+          ),
+        );
+      }
+      if (impactWasteRoot) {
+        profileSync("renderMetricsPane.impactWaste", () =>
+          impactWasteRoot.render(
+            createElement(ImpactStat, {
+              label: "Total waste",
+              absolute: impact.wasteTotal,
+              percent: impact.wastePct,
+              percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
+            }),
+          ),
+        );
+      }
+    });
   }
 
   function maskedEventDays(): ReturnType<typeof applyMask>[] {
@@ -394,19 +493,21 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderEventsPane(): void {
-    if (!eventsPaneRoot) return;
-    eventsPaneRoot.render(
-      createElement(EventsPane, {
-        vm: {
-          episode_day: vm.episode_day,
-          config: vm.config,
-        },
-        schedule,
-        events: maskedEventDays(),
-        loading: eventsLoading,
-        refreshing: eventsRefreshing,
-      }),
-    );
+    profileSync("renderEventsPane", () => {
+      if (!eventsPaneRoot) return;
+      eventsPaneRoot.render(
+        createElement(EventsPane, {
+          vm: {
+            episode_day: vm.episode_day,
+            config: vm.config,
+          },
+          schedule,
+          events: maskedEventDays(),
+          loading: eventsLoading,
+          refreshing: eventsRefreshing,
+        }),
+      );
+    });
   }
   let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
   if (!dayInspectorPortal) {
@@ -417,17 +518,19 @@ export function initStudio(app: HTMLElement): () => void {
   const dayInspectorRoot = createRoot(dayInspectorPortal);
 
   function renderTradeoffBeliefColumn(): void {
-    if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
-    if (tradeoffTab === "curve") {
-      renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
-      return;
-    }
-    renderTradeoffHistogram(
-      els.tradeoffHistogram,
-      nearestForecast(tradeoffForecasts, orderQty),
-      orderQty,
-      0.7,
-    );
+    profileSync(`renderTradeoff.${tradeoffTab}`, () => {
+      if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
+      if (tradeoffTab === "curve") {
+        renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+        return;
+      }
+      renderTradeoffHistogram(
+        els.tradeoffHistogram,
+        nearestForecast(tradeoffForecasts, orderQty),
+        orderQty,
+        0.7,
+      );
+    });
   }
 
   function syncTradeoffTabs(): void {
@@ -508,58 +611,66 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderObsControlsPane(): void {
-    if (obsControlsRoot) {
-      obsControlsRoot.render(
-        createElement(ObsControlsPane, {
-          vm,
-          showTruth,
-          catchingUp,
-          onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
-          onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
-          onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
-        }),
-      );
-    }
+    profileSync("renderObsControlsPane", () => {
+      if (obsControlsRoot) {
+        obsControlsRoot.render(
+          createElement(ObsControlsPane, {
+            vm,
+            showTruth,
+            catchingUp,
+            onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
+            onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
+            onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
+          }),
+        );
+      }
+    });
   }
 
   function renderOperatorBar(): void {
-    if (operatorBarRoot) {
-      operatorBarRoot.render(
-        createElement(OperatorBar, {
-          vm,
-          catchingUp,
-          advancing,
-          autopilotRunning: autopilot?.isRunning() ?? false,
-          orderQty,
-          onAdvance: () => railHandlers.onAdvance(),
-          onReset: () => railHandlers.onReset(),
-          onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
-          onAutopilotPause: () => railHandlers.onAutopilotPause(),
-          onOrderChange: (qty) => {
-            orderQty = snapOrder(qty);
-            sectionControlsApi.update(controlsState());
-            renderReferenceDrawer();
-            renderOperatorBar();
-          },
-        }),
-      );
-    }
+    profileSync("renderOperatorBar", () => {
+      if (operatorBarRoot) {
+        operatorBarRoot.render(
+          createElement(OperatorBar, {
+            vm,
+            catchingUp,
+            advancing,
+            autopilotRunning: autopilot?.isRunning() ?? false,
+            orderQty,
+            onAdvance: () => railHandlers.onAdvance(),
+            onReset: () => railHandlers.onReset(),
+            onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
+            onAutopilotPause: () => railHandlers.onAutopilotPause(),
+            onOrderChange: (qty) => {
+              orderQty = snapOrder(qty);
+              sectionControlsApi.update(controlsState());
+              renderReferenceDrawer();
+              renderOperatorBar();
+            },
+          }),
+        );
+      }
+    });
   }
 
   function renderReferenceDrawer(): void {
-    if (referenceDrawerRoot) {
-      referenceDrawerRoot.render(
-        createElement<ReferenceDrawerProps>(ReferenceDrawer, {
-          hideTriggers: true,
-        }),
-      );
-    }
+    profileSync("renderReferenceDrawer", () => {
+      if (referenceDrawerRoot) {
+        referenceDrawerRoot.render(
+          createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+            hideTriggers: true,
+          }),
+        );
+      }
+    });
   }
 
   function renderDayInspector(): void {
-    dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
-    );
+    profileSync("renderDayInspector", () => {
+      dayInspectorRoot.render(
+        createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+      );
+    });
   }
 
   const railHandlers = {
@@ -592,8 +703,10 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setOrdersWasteHover(els.controllerOrders, day);
-    setOrdersWasteHover(els.ordersWasteFocus, day);
+    setControllerOrdersHover(els.controllerOrders, day);
+    setControllerOrdersHover(els.controllerOrdersFocus, day);
+    setWasteBarsHover(els.spoil, day);
+    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
     setInventoryTargetHover(els.inventoryFocus, day);
@@ -665,110 +778,172 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderCockpitBelief(): void {
-    const flat = vm.belief_history.at(-1)?.flatBelief;
-    if (flat) {
-      const data = freshnessHistogramDataFromFlat(flat, vm.live_units);
-      renderFreshnessHistogram(els.beliefLg, data, showTruth, 150);
-    } else {
-      els.beliefLg.replaceChildren();
-    }
-    els.beliefAgeMarginal.replaceChildren();
+    profileSync("renderCockpitBelief", () => {
+      const flat = vm.belief_history.at(-1)?.flatBelief;
+      const data = flat
+        ? freshnessHistogramDataFromFlat(flat, vm.live_units)
+        : emptyFreshnessHistogramData();
+      renderFreshnessHistogram(
+        els.beliefLg,
+        data,
+        showTruth,
+        BELIEF_HISTOGRAM_HEIGHT,
+      );
+      els.beliefAgeMarginal.replaceChildren();
+    });
   }
 
   function renderRunStripCharts(): void {
-    const invSeries = showTruth
-      ? inventorySeries(vm.history, vm.config)
-      : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 130, invSeries);
-    renderOrdersWaste(els.controllerOrders, vm.history, 130);
-    const ageRows = showTruth
-      ? ageCompositionSeries(vm.history)
-      : ageCompositionSeriesFromBelief(vm.belief_history);
-    renderAgeComposition(els.ageComp, vm.history, 130, ageRows);
+    profileSync("renderRunStripCharts", () => {
+      const invSeries = showTruth
+        ? inventorySeries(vm.history, vm.config)
+        : inventorySeriesFromBelief(vm.belief_history, vm.config);
+      profileSync("renderRunStripCharts.inventory", () =>
+        renderInventoryTarget(
+          els.inventory,
+          vm.history,
+          vm.config,
+          METRICS_STRIP_HEIGHT,
+          invSeries,
+        ),
+      );
+      profileSync("renderRunStripCharts.controllerOrders", () =>
+        renderControllerOrders(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      profileSync("renderRunStripCharts.spoil", () =>
+        renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      const ageRows = showTruth
+        ? ageCompositionSeries(vm.history)
+        : ageCompositionSeriesFromBelief(vm.belief_history);
+      profileSync("renderRunStripCharts.ageComposition", () =>
+        renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
+      );
+    });
   }
 
   function renderStore() {
-    const yMax = marginalYMax(vm.history);
-    renderMarginal(els.sales, vm.history, "sales", 48, yMax);
-    renderMarginal(els.stockout, vm.history, "stockout", 48, yMax);
-    renderBeliefFreshnessTime(
-      els.history,
-      historyForCharts(),
-      vm.belief_history,
-      showTruth,
-      { height: 220 },
-    );
-    renderSalesDemand(els.salesDemand, vm.history, 130);
-    renderCockpitBelief();
-    renderMetricsPane();
-    renderRunStripCharts();
-    renderTradeoffBeliefColumn();
-    applyHoverStyles(hoveredDay);
+    profileSync("renderStore", () => {
+      const yMax = profileSync("renderStore.marginalYMax", () => marginalYMax(vm.history));
+      profileSync("renderStore.renderMarginal.sales", () =>
+        renderMarginal(els.sales, vm.history, "sales", 48, yMax),
+      );
+      profileSync("renderStore.renderMarginal.stockout", () =>
+        renderMarginal(els.stockout, vm.history, "stockout", 48, yMax),
+      );
+      profileSync("renderStore.beliefFreshnessTime", () =>
+        renderBeliefFreshnessTime(
+          els.history,
+          historyForCharts(),
+          vm.belief_history,
+          showTruth,
+          { height: BELIEF_FRESHNESS_TIME_HEIGHT },
+        ),
+      );
+      profileSync("renderStore.salesDemand", () =>
+        renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      renderCockpitBelief();
+      renderRunStripCharts();
+      renderTradeoffBeliefColumn();
+      profileSync("renderStore.applyHoverStyles", () => applyHoverStyles(hoveredDay));
+    });
   }
 
   const FOCUS_CHART_HEIGHT = 95;
 
   function renderActiveFocusPlots(): void {
-    renderRunStripCharts();
-    if (plotVisible("plot-inventory")) {
-      const invSeries = showTruth
-        ? inventorySeries(vm.history, vm.config)
-        : inventorySeriesFromBelief(vm.belief_history, vm.config);
-      renderInventoryTarget(
-        els.inventoryFocus,
-        vm.history,
-        vm.config,
-        FOCUS_CHART_HEIGHT,
-        invSeries,
-      );
-    }
-    if (plotVisible("plot-age-comp")) {
-      const ageRows = showTruth
-        ? ageCompositionSeries(vm.history)
-        : ageCompositionSeriesFromBelief(vm.belief_history);
-      renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
-    }
-    if (plotVisible("plot-demand")) {
-      renderDailyDemand(els.demand, vm.history, 160);
-    }
-    if (plotVisible("plot-demand-forecast")) {
-      renderDemandForecast(
-        els.demandForecast,
-        vm.history,
-        vm.demand_summary,
-        vm.episode_day,
-        vm.config.demand_vm,
-        160,
-      );
-    }
-    if (plotVisible("plot-picking-variability")) {
-      renderPickingVariability(els.pickingVar, vm.config.sigma, 95);
-    }
-    renderLogisticsCalendar();
-    if (plotVisible("plot-arrival-prior")) {
-      renderArrivalPrior(
-        els.arrivalPrior,
-        vm.config,
-        historyForCharts(),
-        160,
-        arrivalRugAvailable(
-          vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
-          showTruth,
-        ),
-      );
-    }
-    if (plotVisible("plot-arrival-shift")) {
-      renderArrivalShift(els.arrivalShift, vm.config, 150);
-    }
-    if (plotVisible("plot-arrhenius-temp")) {
-      renderArrheniusTemp(els.arrheniusTemp, vm.config, 160);
-    }
-    if (plotVisible("plot-gamma-path")) {
-      renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
-    }
-    if (plotVisible("plot-controller-orders")) {
-      renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT);
-    }
+    profileSync("renderActiveFocusPlots", () => {
+      renderRunStripCharts();
+      if (plotVisible("plot-inventory")) {
+        const invSeries = showTruth
+          ? inventorySeries(vm.history, vm.config)
+          : inventorySeriesFromBelief(vm.belief_history, vm.config);
+        profileSync("renderActiveFocusPlots.inventoryFocus", () =>
+          renderInventoryTarget(
+            els.inventoryFocus,
+            vm.history,
+            vm.config,
+            FOCUS_CHART_HEIGHT,
+            invSeries,
+          ),
+        );
+      }
+      if (plotVisible("plot-age-comp")) {
+        const ageRows = showTruth
+          ? ageCompositionSeries(vm.history)
+          : ageCompositionSeriesFromBelief(vm.belief_history);
+        profileSync("renderActiveFocusPlots.ageComp", () =>
+          renderAgeComposition(els.ageComp, vm.history, 140, ageRows),
+        );
+      }
+      if (plotVisible("plot-demand")) {
+        profileSync("renderActiveFocusPlots.demand", () =>
+          renderDailyDemand(els.demand, vm.history, 160),
+        );
+      }
+      if (plotVisible("plot-demand-forecast")) {
+        profileSync("renderActiveFocusPlots.demandForecast", () =>
+          renderDemandForecast(
+            els.demandForecast,
+            vm.history,
+            vm.demand_summary,
+            vm.episode_day,
+            vm.config.demand_vm,
+            160,
+          ),
+        );
+      }
+      if (plotVisible("plot-picking-variability")) {
+        profileSync("renderActiveFocusPlots.pickingVar", () =>
+          renderPickingVariability(els.pickingVar, vm.config.sigma, 95),
+        );
+      }
+      profileSync("renderActiveFocusPlots.logisticsCalendar", () => renderLogisticsCalendar());
+      if (plotVisible("plot-arrival-prior")) {
+        profileSync("renderActiveFocusPlots.arrivalPrior", () =>
+          renderArrivalPrior(
+            els.arrivalPrior,
+            vm.config,
+            historyForCharts(),
+            160,
+            arrivalRugAvailable(
+              vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
+              showTruth,
+            ),
+          ),
+        );
+      }
+      if (plotVisible("plot-arrival-shift")) {
+        profileSync("renderActiveFocusPlots.arrivalShift", () =>
+          renderArrivalShift(els.arrivalShift, vm.config, 150),
+        );
+      }
+      if (plotVisible("plot-arrhenius-temp")) {
+        profileSync("renderActiveFocusPlots.arrheniusTemp", () =>
+          renderArrheniusTemp(els.arrheniusTemp, vm.config, 160),
+        );
+      }
+      if (plotVisible("plot-gamma-path")) {
+        profileSync("renderActiveFocusPlots.gammaPath", () =>
+          renderGammaFreshnessPath(els.gammaPath, vm.config, 170),
+        );
+      }
+      if (plotVisible("plot-controller-orders")) {
+        profileSync("renderActiveFocusPlots.controllerOrdersFocus", () =>
+          renderControllerOrders(
+            els.controllerOrdersFocus,
+            vm.history,
+            FOCUS_CHART_HEIGHT,
+          ),
+        );
+      }
+      if (plotVisible("plot-spoil")) {
+        profileSync("renderActiveFocusPlots.spoilFocus", () =>
+          renderWasteBars(els.spoilFocus, vm.history, FOCUS_CHART_HEIGHT),
+        );
+      }
+    });
   }
 
   function syncTuningDockTabs(): void {
@@ -819,27 +994,22 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderAll(): void {
-    syncTruthCaptions();
-    renderStore();
-    renderActiveFocusPlots();
-    renderTradeoffBeliefColumn();
-    renderDayInspector();
-    renderMetricsPane();
-    renderEventsPane();
-    renderObsControlsPane();
-    renderOperatorBar();
-    renderReferenceDrawer();
-    orderQty = snapOrder(orderQty);
-    const state = controlsState();
-    sectionControlsApi.update(state);
-    wireDemandPreview();
-  }
-
-  async function refreshRemotePanes(): Promise<void> {
-    await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
-    renderReferenceDrawer();
-    renderTradeoffBeliefColumn();
-    renderMetricsPane();
+    profileSync("renderAll", () => {
+      profileSync("syncTruthCaptions", () => syncTruthCaptions());
+      renderStore();
+      renderActiveFocusPlots();
+      profileSync("renderTradeoffBeliefColumn", () => renderTradeoffBeliefColumn());
+      renderDayInspector();
+      renderMetricsPane();
+      renderEventsPane();
+      renderObsControlsPane();
+      renderOperatorBar();
+      renderReferenceDrawer();
+      orderQty = snapOrder(orderQty);
+      const state = controlsState();
+      profileSync("sectionControlsApi.update", () => sectionControlsApi.update(state));
+      profileSync("wireDemandPreview", () => wireDemandPreview());
+    });
   }
 
   function wireDemandPreview(): void {
@@ -857,6 +1027,9 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   async function advanceEpisode(): Promise<void> {
+    const profiling = isAdvanceProfiling();
+    const advanceT0 = profiling ? performance.now() : 0;
+    let engineStepNMs = 0;
     try {
       if (vm.episode_day >= EPISODE_HORIZON) {
         return;
@@ -868,7 +1041,9 @@ export function initStudio(app: HTMLElement): () => void {
       renderOperatorBar();
       beginStudioLoading("Advancing…");
       const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
+      const engineT0 = performance.now();
       const deltas = await adapter.step_n(orders);
+      engineStepNMs = performance.now() - engineT0;
       for (const delta of deltas) {
         vm = projector.applyDelta(delta);
       }
@@ -877,8 +1052,7 @@ export function initStudio(app: HTMLElement): () => void {
         vm = { ...vm, episode_day: completed + 1 };
       }
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Advance failed: ${formatAdapterError(err)}`,
@@ -886,6 +1060,15 @@ export function initStudio(app: HTMLElement): () => void {
         err,
       );
     } finally {
+      if (profiling) {
+        recordAdvanceSample(
+          buildAdvanceSample(
+            performance.now() - advanceT0,
+            engineStepNMs,
+            getRenderProfileReport(),
+          ),
+        );
+      }
       advancing = false;
       endStudioLoading();
       renderOperatorBar();
@@ -904,8 +1087,7 @@ export function initStudio(app: HTMLElement): () => void {
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
@@ -928,7 +1110,7 @@ export function initStudio(app: HTMLElement): () => void {
       }
       return adapter.act(opts);
     },
-    applyDelta(delta) {
+    applyDelta: async (delta) => {
       // Sync order slider before renderAll so chrome matches day.order_qty (T-100 AC).
       const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
       if (typeof q === "number") {
@@ -941,8 +1123,7 @@ export function initStudio(app: HTMLElement): () => void {
         autopilot.pause();
       }
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     },
     getOpts: controllerToActOpts,
     getIntervalMs: () => controllerState.intervalMs,
@@ -955,15 +1136,7 @@ export function initStudio(app: HTMLElement): () => void {
       );
       syncAutopilotChrome();
     },
-    onTick(delta) {
-      const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
-      if (typeof q === "number") {
-        orderQty = snapOrder(q);
-        sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
-        renderReferenceDrawer();
-        renderTradeoffBeliefColumn();
-        renderOperatorBar();
-      }
+    onTick(_delta) {
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
     },
@@ -1050,8 +1223,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       sectionControlsApi.update(controlsState());
       lastEventsKey = "";
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
       return;
     }
     const resumeAfter = autopilot.isRunning();
@@ -1068,8 +1240,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.patchEngineState(snap);
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_channels failed: ${formatAdapterError(err)}`,
@@ -1153,8 +1324,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       setSection(activeSection);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
@@ -1162,6 +1332,11 @@ export function initStudio(app: HTMLElement): () => void {
         err,
       );
     }
+  }
+
+  studioAdvanceOnce = advanceEpisode;
+  if (typeof window !== "undefined") {
+    window.__studioProfileAdvance = (steps = 5) => studioProfileAdvanceSteps(steps);
   }
 
   void bootstrap();

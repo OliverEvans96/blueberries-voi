@@ -1,4 +1,5 @@
 /* T-148: Events pane — v6 column layout */
+/* T-153: typography polish — single source of truth for events styles */
 
 .events-list {
   max-height: none;
@@ -51,7 +52,7 @@
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .events-day-markers {
@@ -83,8 +84,57 @@
 
 .events-day-heading {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 650;
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.events-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.events-col-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 0.2rem;
+  color: var(--muted);
+}
+
+.events-table {
+  width: 100%;
+  font-size: 0.78rem;
+  border-collapse: collapse;
+}
+
+.events-table th,
+.events-table td {
+  padding: 0.15rem 0.25rem;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.events-table-total th,
+.events-table-total td {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.events-table-lot th,
+.events-table-lot td {
+  padding: 0.05rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.events-pack-date {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .events-temp-history {
@@ -112,4 +162,10 @@
 .delivery-temp-legend-label {
   font-size: 9px;
   fill: var(--muted, #666);
+}
+
+@media (max-width: 1100px) {
+  .events-columns {
+    grid-template-columns: 1fr;
+  }
 }

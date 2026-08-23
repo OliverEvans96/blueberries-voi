@@ -3,6 +3,8 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-22
+- **The metrics column now opens with an "Outcomes" heading and short orientation note, groups charts under Economics, Inventory, and Flow, boldens chart titles for quicker scanning, and shows missed sales and waste as lighter secondary figures beneath the profit totals** (T-154).
+- **The studio metrics column is easier to scan: profit totals and missed-sales impact sit at the top, orders and spoilage each have their own chart with independent scales, hovering spoilage highlights spoiled inventory on the freshness-over-time view, and the events log uses clearer day headings and lot detail** (T-153).
 - **The embeddable studio package now uses real version numbers and cuts immutable `studio-v*` releases — `studio-latest` still auto-updates for convenience, but you can pin a fixed tarball URL when you need to know exactly which build you installed** (T-148).
 
 ## 2026-08-21

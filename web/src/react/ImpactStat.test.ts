@@ -21,5 +21,8 @@ describe("ImpactStat", () => {
     expect(stat.textContent).toBe(
       "Total missed sales: 180 units (18% of cumulative demand)",
     );
+    expect(stat.querySelector(".impact-stat-label")).not.toBeNull();
+    expect(stat.querySelector(".impact-stat-value")).not.toBeNull();
+    expect(stat.querySelector("strong")).toBeNull();
   });
 });
