@@ -390,6 +390,9 @@ extended with a tracking assertion (AC2.11a): across deliveries on one trajector
 error between a rung's arrival belief and the realized lot must order strictly
 `F3 < F2 < P0`. That can fail, and it fails precisely when the ladder goes flat.
 
+*The tracking guard's magnitude threshold needs a resolution budget that this correction did not
+state — see Correction 2.*
+
 One consequence to state plainly, because it is a real result rather than a defect: the F2→F3
 gain in *residual spread* is small, since `φ̄` is ≈1.6% of `Var(log Λ)`. Most of what F3 adds
 over F2 is de-rounding the pack date and removing that last 1.6%. This ADR already predicted
@@ -433,3 +436,51 @@ arrival `f ≈ 0.53`, arrival `f ∈ [0.37, 0.82]` by corridor, and an `f = 0` a
 longest observed corridor. The corrected duration parameters are `d_min = 1.9`,
 `delay_shape = 3.0`, `delay_scale = 1.0` — mean 4.9 d against an observed 4.78, standard
 deviation 1.73 against an observed 1.69 — with `sigma_T = 0.4`.
+
+## Correction 2 — the replacement guard needs a resolution budget (2026-08-22)
+
+Correction 1 replaced the withdrawn variance ladder with an empirical tracking guard, and got the
+*shape* of the criterion right: compare each rung's arrival belief against realized truth, because
+that can fail, and it fails when the ladder goes flat. What it did not state is that an empirical
+guard has a **measurement resolution**, and that the resolution has to be budgeted against the
+effect size before a magnitude threshold means anything.
+
+The corrected artifact landed and the tracking guard's ordering assertion passed
+(`MAE(F3) = 0.042 < MAE(F2) = 0.047 < MAE(P0) = 0.123`) while its magnitude assertion failed at a
+ratio of 2.63 against a required 3.0. The model was not at fault. The fixture compared a belief —
+`E[f | observation]`, over the full support including the atom — against the realized mean `f` of
+an **8-unit** lot, reported by a snapshot field that drops the `f = 0` atom from both numerator and
+denominator. Since no rung observes `ψ_pos` or the per-unit gamma (§5), `E[f | Λ]` is the
+Bayes-optimal predictor of that realized mean, so F3's error cannot fall below the sampling noise
+of an 8-unit average — about `0.13/√8 = 0.046` in standard deviation, `≈0.038` in expected absolute
+deviation. F3 measured 0.042. **The guard's noise floor was twice its signal.** Decomposed, the
+underlying F2→F3 effect is ≈0.025 and the P0/F2 signal ratio is ≈5.8, comfortably above the gate;
+the 2.63 was the ruler, not the ladder.
+
+Three consequences worth recording as decisions rather than as incident notes:
+
+1. **The comparison basis is realized truth, permanently.** Comparing a belief against a
+   model-derived quantity (an unconditional draw mean, a conditional expectation) is comparing a
+   belief to a belief: an artifact that is internally coherent but disconnected from the truth path
+   passes. That is the failure mode the tracking guard exists to catch, so the target is always the
+   simulator's realized state, and the cost of that choice is an irreducible estimator noise floor
+   that must be sized rather than wished away.
+2. **Size the realization to the effect.** The noise floor scales as `1/√n` in units per delivery
+   and does **not** average down over deliveries, because `E|signal + noise| ≠ E|signal|` however
+   many deliveries are pooled. Only the lot size buys resolution. T-150 AC2.11a now requires ≥64
+   units per delivery, and states the floor formula so the next person can re-derive the budget.
+3. **Prefer a guard anchored to the realized data over one anchored to an assumed property** —
+   Correction 1's general lesson, now applied a second time. The new F3 assertion computes the
+   Bayes floor from the realized lots' own within-lot spread and requires `MAE(F3) ≤ 1.5 × floor`.
+   It fails loudly if F3 stops being the exact conditional mean (for instance by reverting to the
+   `φ̄`-divided cache), and it cannot be satisfied by distorting a physical parameter, because a
+   distortion moves the floor and the error together. That is the property the withdrawn AC2.10
+   was reaching for and never had.
+
+**Not a defect in F3.** A small measured F2→F3 gap on this fixture is the expected consequence of
+duration carrying ≈98% of `Var(log Λ)` (§3) *and* of the pack date being rounded to whole days,
+seen through a noise floor larger than the residual effect. The `ψ_pos` spread and the per-unit
+gamma are that floor; they are irreducible by design, since §5 grants no rung sight of either.
+The falsifier is stated in T-150 AC2.11a: `MAE(F3)` must fall as `1/√n` as the lot grows. If it
+plateaus, F3 is biased and §5's conditioning claim is not being implemented, which is a defect that
+outranks any threshold discussion.
