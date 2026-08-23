@@ -3,6 +3,10 @@
 **Status:** ACCEPTED (provisional)  
 **Ticket:** T-155 (driver); T-150 uses this driver for notebook 13 closeout
 
+`team/T-155/implement` was not merged wholesale — T-150 integrate cherry-picked the
+audit spec and mypy stubs only; F3 grid, shard output, and conditional gsin mount
+stay on the T-150 integrate line.
+
 T-150 arrival physics remains **[ADR 0144](./0144-f-native-hierarchical-arrival-model.md)**. This ADR is the
 optional Modal batch map only — it does not renumber or replace 0144.
 
