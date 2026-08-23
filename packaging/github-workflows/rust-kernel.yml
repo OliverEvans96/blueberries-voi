@@ -12,4 +12,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Cargo test voi_core + voi_py
-        run: cargo test -p voi_core -p voi_py --locked
+        run: cargo test --release -p voi_core -p voi_py --locked
