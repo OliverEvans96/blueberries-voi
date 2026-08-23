@@ -51,6 +51,12 @@ export function StudioLayout() {
             data-testid="cockpit-metrics"
             aria-label="Metrics"
           >
+            <div className="panel-head">
+              <h2>Outcomes</h2>
+              <span className="panel-note">
+                Money, stock, and daily flow for this run.
+              </span>
+            </div>
             <div id="pnl-totals-host" data-testid="pnl-totals-host" />
             <div className="impact-row">
               <div id="impact-missed-host" data-testid="impact-missed-host" />
@@ -58,6 +64,7 @@ export function StudioLayout() {
             </div>
             <div className="metrics-stack">
               <div className="metrics-group metrics-group--economics">
+                <div className="metrics-group-label">Economics</div>
                 <div className="chart-caption">Cumulative revenue · cost · profit</div>
                 <D3ChartHost
                   id="chart-pnl-economics"
@@ -66,6 +73,7 @@ export function StudioLayout() {
                 />
               </div>
               <div className="metrics-group metrics-group--inventory">
+                <div className="metrics-group-label">Inventory</div>
                 <div className="chart-caption impact-caption">
                   On-hand by freshness band
                 </div>
@@ -84,6 +92,7 @@ export function StudioLayout() {
                 />
               </div>
               <div className="metrics-group metrics-group--flow">
+                <div className="metrics-group-label">Flow</div>
                 <div className="chart-caption impact-caption">Order quantity</div>
                 <D3ChartHost
                   id="chart-controller-orders"
@@ -114,7 +123,7 @@ export function StudioLayout() {
             <div className="panel-head">
               <h2>Belief</h2>
               <span className="panel-note" id="hover-note">
-                Hover a day to highlight it everywhere
+                Filter belief over time — hover a day to link charts.
               </span>
             </div>
             <div className="chart-caption" data-truth-caption="lots">

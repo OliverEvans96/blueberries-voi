@@ -67,6 +67,22 @@
   gap: 0.3rem;
 }
 
+.metrics-group-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+.cockpit-pane--metrics .chart-caption {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+}
+
 .metrics-stack .chart {
   min-height: 120px;
 }
@@ -133,17 +149,17 @@
 
 .impact-stat-label {
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-soft);
 }
 
 .impact-stat-value {
-  font-family: var(--font-display);
-  font-weight: 650;
-  font-size: 0.92rem;
-  color: var(--ink);
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
