@@ -135,6 +135,9 @@ export {
   type RenderProfileRow,
 };
 
+/** Display-only tradeoff bands; does not affect act/step_n (ADR 0130). */
+const TRADEOFF_FORECAST_N_PATHS = 30;
+
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
   if (app.dataset.studioInit === "1") {
@@ -346,7 +349,7 @@ export function initStudio(app: HTMLElement): () => void {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
       const result = (await adapter.tradeoffForecast({
-        n_paths: 200,
+        n_paths: TRADEOFF_FORECAST_N_PATHS,
       })) as TradeoffForecastResult;
       tradeoffForecasts = result.candidates ?? [];
     } catch {
