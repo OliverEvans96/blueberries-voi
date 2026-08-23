@@ -154,4 +154,37 @@ export function renderTradeoffCurve(
     .attr("transform", "rotate(-90)")
     .attr("text-anchor", "middle")
     .text("Expected units");
+
+  const legend = root
+    .append("g")
+    .attr("class", "legend tradeoff-curve-legend")
+    .attr("transform", `translate(${margin.left + 4}, 6)`);
+
+  const legendItems: Array<{
+    label: string;
+    color: string;
+    fillOpacity: number;
+  }> = [
+    { label: "Waste", color: "var(--missed, #c44)", fillOpacity: 0.25 },
+    { label: "Missed sales", color: "var(--sales, #48a)", fillOpacity: 0.2 },
+  ];
+
+  legendItems.forEach((item, i) => {
+    const itemG = legend
+      .append("g")
+      .attr("transform", `translate(${i * 72},0)`);
+    itemG
+      .append("rect")
+      .attr("width", 10)
+      .attr("height", 10)
+      .attr("rx", 2)
+      .attr("fill", item.color)
+      .attr("fill-opacity", item.fillOpacity);
+    itemG
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 14)
+      .attr("y", 9)
+      .text(item.label);
+  });
 }

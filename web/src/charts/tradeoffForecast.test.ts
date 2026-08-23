@@ -100,6 +100,17 @@ describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {
     expect(svg.querySelector("[data-order-q='16'], .order-marker")).not.toBeNull();
   });
 
+  it("renderTradeoffCurve draws a legend for waste and missed sales bands", async () => {
+    const mod = await loadCurve();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mod!.renderTradeoffCurve(svg, CANDIDATES, 16);
+    expect(svg.querySelector(".tradeoff-curve-legend")).not.toBeNull();
+    const labels = Array.from(svg.querySelectorAll(".legend-label")).map(
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual(["Waste", "Missed sales"]);
+  });
+
   it("renderTradeoffCurve draws waste_mean and missed_mean line overlays", async () => {
     const mod = await loadCurve();
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
