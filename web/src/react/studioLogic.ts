@@ -1361,9 +1361,9 @@ export function initStudio(app: HTMLElement): () => void {
   let sectionControlsMountRaf = 0;
 
   function mountSectionControlsOnce(): void {
-    if (sectionControlsMounted) return;
     const host = q<HTMLElement>("#section-controls");
     if (!host) return;
+    if (sectionControlsMounted && host.childElementCount > 0) return;
     sectionControlsMounted = true;
     sectionControlsApi = mountSectionControls(
       host,
@@ -1420,9 +1420,6 @@ export function initStudio(app: HTMLElement): () => void {
         setTuningDrawerOpen(!tuningDrawerOpen);
       });
     }
-
-    app.addEventListener("keydown", onKeydown);
-    void bootstrap();
   }
 
   function scheduleSectionControlsMount(): void {
@@ -1566,7 +1563,6 @@ export function initStudio(app: HTMLElement): () => void {
 
   wireTradeoffTabs();
   syncTradeoffTabs();
-  scheduleSectionControlsMount();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;
@@ -1586,6 +1582,17 @@ export function initStudio(app: HTMLElement): () => void {
       );
     }
   }
+
+  scheduleSectionControlsMount();
+  flushSync(() => {
+    paintPortalDrawers();
+  });
+  mountSectionControlsOnce();
+  setTimeout(() => {
+    mountSectionControlsOnce();
+  }, 0);
+  app.addEventListener("keydown", onKeydown);
+  void bootstrap();
 
   studioAdvanceOnce = advanceEpisode;
   if (typeof window !== "undefined") {
