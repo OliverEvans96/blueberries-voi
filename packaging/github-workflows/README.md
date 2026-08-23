@@ -14,23 +14,28 @@ Use real file copies:
 
 ## CI layout (`ci.yml`)
 
-Three parallel jobs on every push/PR:
+One **build** job compiles Rust (native + PyO3 wheel), WASM (`build-wasm.sh`), and
+runs `cargo test` once. It uploads `ci-rust-wasm-build` (target/, WASM pkg dirs,
+`dist/wheels/`).
+
+Three parallel test jobs consume that artifact:
 
 | Job | What |
 |-----|------|
-| `rust` | `cargo test -p voi_core -p voi_py --locked` |
-| `python` | `uv sync` (3.11), maturin develop, ruff, mypy, pytest+coverage |
-| `web` | WASM build, vitest, `build:lib`, `npm pack` smoke |
+| `build` | maturin wheel, WASM, `cargo test`; upload artifacts |
+| `rust` | download `target/`; `cargo test` (prebuilt) |
+| `python` | `uv sync`, `uv pip install` prebuilt wheel; ruff, mypy, pytest+coverage |
+| `web` | prebuilt WASM; vitest, `build:lib`, `npm pack` smoke |
 
-On **main/master** pushes only, `deploy` runs after all three succeed (production
-`npm run build` + dist artifact). PRs skip `deploy`.
+On **main/master** pushes only, `deploy` runs after all three test jobs succeed
+(production `npm run build` + dist artifact; WASM from CI artifact).
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 
 ## Release scope
 
-- **Release studio** (`release-studio.yml`): WASM + `build:lib` + npm tarball after
-  green **CI** on `main`/`master` (`workflow_run`), or on `studio-v*` tags. Vitest runs
-  in CI `web`, not in release.
+- **Release studio** (`release-studio.yml`): on green **CI** `workflow_run`, downloads
+  `ci-rust-wasm-build` from that run (no WASM rebuild). Tag `studio-v*` pushes still
+  build WASM locally. Then `build:lib` + npm tarball.
 - **Python slim wheel**: **retired**. Delete the legacy `Release slim wheel` workflow
   from the live workflows directory if present.

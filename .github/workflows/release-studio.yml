@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout
@@ -39,10 +40,20 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           lfs: true
 
+      - name: Download CI WASM artifacts
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-rust-wasm-build
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Rust
+        if: github.event_name == 'push'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build WASM kernel
+        if: github.event_name == 'push'
         run: ./scripts/build-wasm.sh
 
       - name: Set up Node
