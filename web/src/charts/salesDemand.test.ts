@@ -5,8 +5,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Day } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { buildDemandForecastRows } from "./demandDist";
-import { MIN_CHART_DAY_SPAN } from "./axisTicks";
+import { buildDemandForecastRows, salesDemandForecastAnchor } from "./demandDist";
+import { MIN_CHART_DAY_SPAN, padDaysToMinRange } from "./axisTicks";
 import { renderSalesDemand, salesDemandX, setSalesDemandHover } from "./salesDemand";
 
 function sampleDay(
@@ -198,5 +198,32 @@ describe("renderSalesDemand forecast overlay", () => {
     const labels = [...el.querySelectorAll(".legend-label")].map((t) => t.textContent);
     expect(labels).toContain("Forecast μ");
     expect(labels).toContain("p10–p90");
+  });
+
+  it("anchors forecast on last history day when episode cursor is ahead", () => {
+    const history = [
+      sampleDay(0, 5, 10),
+      sampleDay(1, 8, 12),
+      sampleDay(2, 3, 9),
+    ];
+    const episodeDay = 3;
+    const anchor = salesDemandForecastAnchor(history, episodeDay);
+    expect(anchor).toBe(2);
+    const forecast = buildDemandForecastRows(anchor, FORECAST_SUMMARY, 2);
+    expect(forecast[0]!.day).toBe(history[history.length - 1]!.day);
+
+    const el = host();
+    renderSalesDemand(el, history, 130, forecast, episodeDay);
+
+    const historyDays = history.map((d) => d.day);
+    const forecastDays = forecast.map((r) => r.day);
+    const allDays = padDaysToMinRange([...new Set([...historyDays, ...forecastDays])]);
+    const innerW = 400 - 40 - CHART_MARGIN.right;
+    const lastHistoryX = salesDemandX(allDays, innerW, history[history.length - 1]!.day);
+    const firstForecastX = salesDemandX(allDays, innerW, forecast[0]!.day);
+    expect(firstForecastX).toBeCloseTo(lastHistoryX, 4);
+
+    const todayX = Number(el.querySelector(".sd-forecast-today")?.getAttribute("x1"));
+    expect(todayX).toBeCloseTo(salesDemandX(allDays, innerW, episodeDay), 4);
   });
 });

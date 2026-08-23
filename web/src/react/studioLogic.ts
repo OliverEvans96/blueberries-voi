@@ -59,6 +59,7 @@ import {
 } from "../charts/marginals";
 import {
   buildDemandForecastRows,
+  salesDemandForecastAnchor,
   renderDailyDemand,
   renderDemandForecast,
   renderPickingVariability,
@@ -978,10 +979,11 @@ export function initStudio(app: HTMLElement): () => void {
           vm.history,
           METRICS_STRIP_HEIGHT,
           buildDemandForecastRows(
-            vm.episode_day,
+            salesDemandForecastAnchor(vm.history, vm.episode_day),
             vm.demand_summary,
             vm.config.demand_vm,
           ),
+          vm.episode_day,
         ),
       );
       renderCockpitBelief();

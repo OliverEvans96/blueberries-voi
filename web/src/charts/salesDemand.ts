@@ -61,6 +61,8 @@ export function renderSalesDemand(
   history: Day[],
   height = 130,
   forecastRows: DemandForecastRow[] = [],
+  /** Next-act episode cursor for the today marker (defaults to first forecast day). */
+  forecastTodayDay?: number,
 ): void {
   const width = container.clientWidth || 320;
   const margin = {
@@ -225,11 +227,11 @@ export function renderSalesDemand(
     .attr("d", lineSales);
 
   if (forecastRows.length > 0) {
-    const episodeDay = forecastRows[0]!.day;
+    const todayDay = forecastTodayDay ?? forecastRows[0]!.day;
     g.append("line")
       .attr("class", "sd-forecast-today")
-      .attr("x1", x(episodeDay))
-      .attr("x2", x(episodeDay))
+      .attr("x1", x(todayDay))
+      .attr("x2", x(todayDay))
       .attr("y1", 0)
       .attr("y2", innerH)
       .attr("stroke", "var(--chart-muted, #94a3b8)")
