@@ -7,7 +7,7 @@
   max-width: 220px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--paper, #f7f2e8);
+  background: color-mix(in srgb, var(--paper, #f7f2e8) 85%, transparent);
   border: 1px solid var(--paper-edge, #cfc5b0);
   color: var(--ink, #1c2420);
   box-shadow: 0 4px 16px rgba(28, 36, 32, 0.15);
