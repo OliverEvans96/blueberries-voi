@@ -1,4 +1,7 @@
 //! T-140 / T-134 — unified gamma arrival wiring guards.
+//!
+//! Superseded in T-150: `birth_f_units_gamma` and `delivery_f` moved to
+//! `arrival::ArrivalModel` and `UnitDayStepIn::delivery_unit_f` respectively.
 
 use std::fs;
 use std::path::PathBuf;
@@ -30,14 +33,27 @@ fn unified_gamma_arrival_wiring_in_shipments_and_unit_pf() {
     for sym in [
         "pub fn calendar_transit_days",
         "pub fn phi_bar_from_trace",
-        "pub fn birth_f_units_gamma",
+        "pub fn arrival_exposure_from_path",
     ] {
         assert!(shipments_src.contains(sym), "shipments must export {sym}");
     }
+    assert!(
+        !shipments_src.contains("birth_f_units_gamma"),
+        "T-150: birth_f_units_gamma removed from shipments.rs"
+    );
+    let arrival_src = read_src("arrival.rs");
+    assert!(
+        arrival_src.contains("sample_filter_birth_units"),
+        "arrival.rs must provide channel-conditional filter birth"
+    );
     let pf_src = read_src("unit_pf.rs");
     assert!(
-        pf_src.contains("birth_f_units_gamma"),
-        "filter birth must use birth_f_units_gamma"
+        pf_src.contains("sample_filter_birth_units"),
+        "filter birth must use ArrivalModel::sample_filter_birth_units"
+    );
+    assert!(
+        !pf_src.contains("birth_f_units_gamma"),
+        "T-150: birth_f_units_gamma removed from unit_pf"
     );
     assert!(
         !pf_src.contains("fn mix_arrival_f"),
@@ -113,11 +129,12 @@ fn filter_birth_alive_mass_matches_arrivals() {
         &mut rng,
         Some(&mut rng_birth),
     );
+    // T-150: births may include f=0 units (p_f_zero); segment width must match arrivals.
     for row in &bank.freshness {
-        let alive = row.iter().filter(|&&f| f > 0.0).count() as f64;
-        assert!(
-            (alive - f64::from(arrivals)).abs() < 1e-9,
-            "row alive {alive} != arrivals {arrivals}"
+        assert_eq!(
+            row.len(),
+            arrivals as usize,
+            "birth segment width must match arrivals count"
         );
     }
 }
@@ -150,23 +167,27 @@ fn session_lot_counts_track_arrivals_minus_decay() {
 }
 
 #[test]
-fn session_passes_precomputed_delivery_f() {
+fn session_passes_precomputed_delivery_unit_f() {
     let src = read_src("session.rs");
     assert!(
-        src.contains("delivery_f: f_at_receipt"),
-        "session must pass pre-sampled delivery_f"
+        src.contains("delivery_unit_f"),
+        "session must pass per-unit delivery_unit_f into UnitDayStepIn"
     );
     assert!(
-        src.contains("delivery_lambda"),
-        "session must pass delivery_lambda for gamma birth"
+        !src.contains("delivery_f: f_at_receipt"),
+        "T-150: delivery_f removed from session truth path"
     );
 }
 
 #[test]
-fn voi_passes_precomputed_delivery_f() {
+fn voi_passes_precomputed_delivery_unit_f() {
     let src = read_src("voi.rs");
     assert!(
-        src.contains("delivery_f: f_at_receipt"),
-        "voi must pass pre-sampled delivery_f"
+        src.contains("delivery_unit_f"),
+        "voi must pass per-unit delivery_unit_f into UnitDayStepIn"
+    );
+    assert!(
+        !src.contains("delivery_f: f_at_receipt"),
+        "T-150: delivery_f removed from voi truth path"
     );
 }
