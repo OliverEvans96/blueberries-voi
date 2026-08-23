@@ -2,6 +2,7 @@
  * Delivery temperature history from engine wire trace (times_d / temps_c).
  */
 import * as d3 from "d3";
+import type { MaskedObsWire } from "../obsMask";
 
 export type DeliveryTempPoint = { t: number; temp: number };
 
@@ -11,13 +12,60 @@ export type DeliveryLotTempTrace = {
   temps_c: number[];
 };
 
-const LOT_COLORS = [
+export type TempSummary = {
+  min: number;
+  max: number;
+  mean: number;
+  std: number;
+  n: number;
+};
+
+export const LOT_COLORS = [
   "var(--accent, #2563eb)",
   "#c2410c",
   "#15803d",
   "#7c3aed",
   "#b45309",
-];
+] as const;
+
+export function lotColor(index: number): string {
+  return LOT_COLORS[index % LOT_COLORS.length]!;
+}
+
+export function tracesFromEvent(ev: MaskedObsWire): DeliveryLotTempTrace[] {
+  return (
+    ev.temp_traces_by_lot?.map((trace) => ({
+      lotId: trace.lot_id,
+      times_d: trace.times_d,
+      temps_c: trace.temps_c,
+    })) ??
+    (ev.temp_times_d?.length && ev.temp_temps_c?.length
+      ? [
+          {
+            lotId: ev.arrival_lot_ids?.[0] ?? 0,
+            times_d: ev.temp_times_d,
+            temps_c: ev.temp_temps_c,
+          },
+        ]
+      : [])
+  );
+}
+
+export function tempSummaryFromTrace(
+  trace: DeliveryLotTempTrace,
+): TempSummary | null {
+  const finite = trace.temps_c.filter((t) => Number.isFinite(t));
+  if (!finite.length) return null;
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const mean = d3.mean(finite) ?? 0;
+  const std = finite.length < 2 ? 0 : (d3.deviation(finite) ?? 0);
+  return { min, max, mean, std, n: finite.length };
+}
+
+export function formatTempC(v: number): string {
+  return `${v.toFixed(1)}°C`;
+}
 
 export function pointsFromWire(
   times: number[] | null | undefined,
@@ -160,7 +208,7 @@ export function renderDeliveryTempMultiLot(
       .attr("data-series", "temp")
       .attr("data-lot", String(trace.lotId))
       .attr("fill", "none")
-      .attr("stroke", LOT_COLORS[i % LOT_COLORS.length]!)
+      .attr("stroke", lotColor(i))
       .attr("stroke-width", 1.5)
       .attr("d", line);
   });
@@ -180,7 +228,7 @@ export function renderDeliveryTempMultiLot(
         .attr("x2", 10)
         .attr("y1", 0)
         .attr("y2", 0)
-        .attr("stroke", LOT_COLORS[i % LOT_COLORS.length]!)
+        .attr("stroke", lotColor(i))
         .attr("stroke-width", 1.5);
       item
         .append("text")

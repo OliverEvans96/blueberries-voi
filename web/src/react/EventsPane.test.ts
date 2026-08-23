@@ -252,6 +252,27 @@ describe("EventsPane (T-148 v6)", () => {
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
+
+    const summaries = container.querySelector(
+      '[data-testid="events-temp-summaries"]',
+    );
+    expect(summaries).not.toBeNull();
+    const lines = summaries!.querySelectorAll(".events-temp-summary-line");
+    expect(lines.length).toBe(2);
+
+    const lot301 = summaries!.querySelector('[data-lot="301"]');
+    expect(lot301?.textContent).toMatch(/Lot 301/);
+    expect(lot301?.textContent).toMatch(/min\s*2\.0°C/);
+    expect(lot301?.textContent).toMatch(/max\s*2\.6°C/);
+    expect(lot301?.textContent).toMatch(/mean\s*2\.3°C/);
+    expect(lot301?.textContent).toMatch(/std\s*0\.3°C/);
+
+    const lot302 = summaries!.querySelector('[data-lot="302"]');
+    expect(lot302?.textContent).toMatch(/Lot 302/);
+    expect(lot302?.textContent).toMatch(/min\s*2\.5°C/);
+    expect(lot302?.textContent).toMatch(/max\s*3\.1°C/);
+    expect(lot302?.textContent).toMatch(/mean\s*2\.8°C/);
+    expect(lot302?.textContent).toMatch(/std\s*0\.3°C/);
   });
 
   it("F2a shows pack date but not age at receipt", () => {
@@ -370,6 +391,20 @@ describe("EventsPane (T-148 v6)", () => {
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".events-temp-history")).not.toBeNull();
+
+    const summaries = container.querySelector(
+      '[data-testid="events-temp-summaries"]',
+    );
+    expect(summaries).not.toBeNull();
+    const lines = summaries!.querySelectorAll(".events-temp-summary-line");
+    expect(lines.length).toBe(1);
+
+    const lot401 = summaries!.querySelector('[data-lot="401"]');
+    expect(lot401?.textContent).toMatch(/Lot 401/);
+    expect(lot401?.textContent).toMatch(/min\s*2\.0°C/);
+    expect(lot401?.textContent).toMatch(/max\s*2\.6°C/);
+    expect(lot401?.textContent).toMatch(/mean\s*2\.3°C/);
+    expect(lot401?.textContent).toMatch(/std\s*0\.3°C/);
   });
 
 });
