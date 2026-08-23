@@ -76,6 +76,45 @@ with `./scripts/smoke-wasm.sh` (see
 launcher sets `VITE_ENGINE_ADAPTER=wasm` plus `VITE_WASM_WORKER_URL` and
 `VITE_WASM_PKG_URL`. `mock` is debug-only and is never selected by the launcher.
 
+## Studio embed releases
+
+The publishable React embed is `@oliverevans96/blueberries-voi-studio` (`web/package.json`).
+It ships as a GitHub Release tarball after green CI on `main`.
+
+### What to do in each PR
+
+If your change affects the published embed bundle, **bump `version` in
+`web/package.json` in the same PR**:
+
+| Change | Bump |
+|--------|------|
+| Bugfix or bundle output fix | **patch** (`0.1.x`) |
+| New feature, non-breaking API | **minor** (`0.x.0`) |
+| Breaking embed API | **major** |
+
+CI requires a strictly higher semver when any **publishable path** changes vs
+`main`:
+
+- `web/src/`, `web/vite.lib.config.ts`, `web/scripts/`
+- `crates/voi_core/`, `crates/voi_wasm/`
+- `scripts/build-wasm.sh`
+
+Guard: `tests/test_studio_release_version.py`.
+
+### What happens automatically on merge
+
+Once the release workflow is live (canonical draft under
+`packaging/github-workflows/release-studio.yml`), each green `main` CI run:
+
+1. Republishes **`studio-latest`** (moving target; reinstall to pick up changes).
+2. Creates **`studio-v{version}`** when that tag does not exist yet (immutable pin).
+
+No manual `git tag` is needed for normal releases.
+
+### Downstream consumers
+
+Pin URLs and Astro embedding patterns: [`EMBEDDING.md`](EMBEDDING.md).
+
 ## Quality gates
 
 Verify / CI is **Python 3.11** only, with coverage + xdist and **no** testmon
