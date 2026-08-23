@@ -1172,7 +1172,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function setSection(id: SectionId): void {
-    openTuningDrawer();
     activeSection = id;
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
@@ -1539,11 +1538,13 @@ export function initStudio(app: HTMLElement): () => void {
     const idx = STUDIO_SECTIONS.findIndex((s) => s.id === activeSection);
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
+      openTuningDrawer();
       setSection(STUDIO_SECTIONS[(idx + 1) % STUDIO_SECTIONS.length]!.id);
       return;
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
+      openTuningDrawer();
       setSection(
         STUDIO_SECTIONS[(idx - 1 + STUDIO_SECTIONS.length) % STUDIO_SECTIONS.length]!
           .id,
@@ -1553,6 +1554,7 @@ export function initStudio(app: HTMLElement): () => void {
     const n = Number(event.key);
     if (n >= 1 && n <= STUDIO_SECTIONS.length) {
       event.preventDefault();
+      openTuningDrawer();
       setSection(STUDIO_SECTIONS[n - 1]!.id);
     }
   };
@@ -1563,7 +1565,10 @@ export function initStudio(app: HTMLElement): () => void {
         tab.dataset.bound = "1";
         tab.addEventListener("click", () => {
           const id = tab.dataset.section as SectionId | undefined;
-          if (id) setSection(id);
+          if (id) {
+            openTuningDrawer();
+            setSection(id);
+          }
         });
       });
   }

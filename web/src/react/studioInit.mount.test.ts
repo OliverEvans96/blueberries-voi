@@ -34,6 +34,11 @@ describe("studio init mount order (T-158)", () => {
       expect(rootEl.querySelector("#section-controls")).not.toBeNull();
     });
     expect(rootEl.querySelector("#tuning-drawer")).not.toBeNull();
+    const trigger = rootEl.querySelector("#tuning-drawer-trigger");
+    expect(trigger).not.toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    const dialog = rootEl.querySelector("dialog#tuning-drawer");
+    expect(dialog?.hasAttribute("open")).toBe(false);
     expect(rootEl.dataset.studioInit).toBe("1");
   });
 });
