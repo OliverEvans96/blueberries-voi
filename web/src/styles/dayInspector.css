@@ -11,6 +11,9 @@
   border: 1px solid var(--paper-edge, #cfc5b0);
   color: var(--ink, #1c2420);
   box-shadow: 0 4px 16px rgba(28, 36, 32, 0.15);
+  font-family: var(--font-body, "IBM Plex Sans", "Segoe UI", sans-serif);
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .day-inspector-stats {
