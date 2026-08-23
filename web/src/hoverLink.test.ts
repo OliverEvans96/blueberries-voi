@@ -4,7 +4,12 @@
 // @vitest-environment jsdom
 import { fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { attachLinkedHover, CHART_MARGIN, type LinkedHoverHandlers } from "./hoverLink";
+import {
+  attachLinkedHover,
+  CHART_MARGIN,
+  isDayLinkedChart,
+  type LinkedHoverHandlers,
+} from "./hoverLink";
 import type { HoverDay } from "./types";
 
 /** Contract from AC-dayinspector / spec interfaces table. */
@@ -188,6 +193,25 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     fireEvent.pointerMove(svg, { clientX, clientY: 90, bubbles: true });
 
     expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY: 90 }, "spoilage");
+
+    detach();
+  });
+
+  it("clears day hover over freshness histogram (no time axis)", () => {
+    const { root, svg } = makeChartRoot("chart-belief-lg");
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    const clientX = 100 + CHART_MARGIN.left + 4;
+    fireEvent.pointerMove(svg, { clientX, clientY: 90, bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
+    expect(isDayLinkedChart(svg)).toBe(false);
 
     detach();
   });
