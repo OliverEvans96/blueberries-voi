@@ -1,5 +1,5 @@
 /**
- * T-148: Cockpit Grid shell — layout v6.
+ * T-158: Cockpit Grid shell — layout v7 (tuning drawer).
  */
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
@@ -40,13 +40,16 @@ const REQUIRED_CHART_IDS = [
   "chart-spoil-focus",
 ] as const;
 
+/** Tuning-drawer chart ids validated in TuningDrawer.test.ts */
+export type TuningChartIds = typeof REQUIRED_CHART_IDS;
+
 function stripComments(src: string): string {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-describe("StudioLayout cockpit grid (T-148 v6)", () => {
+describe("StudioLayout cockpit grid (T-158 v7)", () => {
   const layoutSrc = stripComments(readFileSync(LAYOUT_TS, "utf8"));
   const cockpitCss = readFileSync(COCKPIT_CSS, "utf8");
 
@@ -58,15 +61,15 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(layoutSrc).not.toMatch(/guided-paths-host/);
   });
 
-  it("defines layout v6 grid areas in cockpitGrid.css", () => {
+  it("defines layout v7 single-row grid areas in cockpitGrid.css", () => {
     expect(cockpitCss).toMatch(/grid-template-areas/);
     expect(cockpitCss).toMatch(/metrics\s+belief\s+sidebar/);
-    expect(cockpitCss).toMatch(/tuning\s+tuning\s+tuning/);
+    expect(cockpitCss).not.toMatch(/tuning\s+tuning\s+tuning/);
   });
 
-  it("renders v6 data-layout and three column panes", () => {
+  it("renders v7 data-layout and three column panes without tuning row", () => {
     const { container } = render(createElement(StudioLayout));
-    const grid = container.querySelector(".cockpit-grid[data-layout='v6']");
+    const grid = container.querySelector(".cockpit-grid[data-layout='v7']");
     expect(grid).not.toBeNull();
     expect(grid!.querySelector(".cockpit-pane--metrics")).not.toBeNull();
     expect(grid!.querySelector(".cockpit-pane--belief")).not.toBeNull();
@@ -77,6 +80,22 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(grid!.querySelector("#impact-waste-host")).not.toBeNull();
     expect(grid!.querySelector("#secondary-chrome-host")).toBeNull();
     expect(grid!.querySelector("#economics-pane-host")).toBeNull();
+    expect(container.querySelector(".cockpit-row--tuning")).toBeNull();
+    expect(container.querySelector(".tuning-dock")).toBeNull();
+  });
+
+  it("title bar has gear trigger left of engine status", () => {
+    const { container } = render(createElement(StudioLayout));
+    const actions = container.querySelector(".title-bar-actions");
+    expect(actions).not.toBeNull();
+    const trigger = actions!.querySelector("#tuning-drawer-trigger");
+    const status = actions!.querySelector("#engine-status");
+    expect(trigger).not.toBeNull();
+    expect(status).not.toBeNull();
+    expect(
+      trigger!.compareDocumentPosition(status!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("metrics column stacks P&L, charts, and impact stat hosts", () => {
@@ -137,51 +156,35 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(hist?.hasAttribute("hidden")).toBe(true);
   });
 
-  it("tuning dock omits Observation tab", () => {
+  it("mounts tuning drawer host in portal root", () => {
     const { container } = render(createElement(StudioLayout));
-    const observationTab = container.querySelector(
-      '.tuning-dock-tabs [data-section="observation"]',
-    );
-    expect(observationTab).toBeNull();
-  });
-
-  it("tuning dock uses side-by-side controls and teaching plots", () => {
-    const { container } = render(createElement(StudioLayout));
-    const columns = container.querySelector(".tuning-dock-columns");
-    expect(columns).not.toBeNull();
-    expect(columns!.querySelector("#section-controls.tuning-dock-controls")).not.toBeNull();
-    expect(columns!.querySelector(".focus-plots.tuning-plots")).not.toBeNull();
-    expect(container.querySelector("#chart-demand-host")).not.toBeNull();
     expect(
-      container.querySelector('.focus-plot[data-plot="plot-demand"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-demand-forecast"]'),
-    ).not.toBeNull();
-    expect(container.querySelector("#chart-demand-forecast-host")).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-picking-variability"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-logistics-calendar"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-inventory"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-controller-orders"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('.focus-plot[data-plot="plot-spoil"]'),
+      container.querySelector(
+        ".bv-studio-portal-root #tuning-drawer-host[data-testid='tuning-drawer-host']",
+      ),
     ).not.toBeNull();
   });
 
-  it("all D3ChartHost ids appear exactly once", () => {
+  it("cockpit grid hosts metrics charts only (tuning charts live in drawer)", () => {
     const { container } = render(createElement(StudioLayout));
-    for (const id of REQUIRED_CHART_IDS) {
+    const cockpitIds = [
+      "chart-sales",
+      "chart-stockout",
+      "chart-history",
+      "chart-sales-demand",
+      "chart-inventory",
+      "chart-age-comp",
+      "chart-belief-age-marginal",
+      "chart-belief-lg",
+      "chart-controller-orders",
+      "chart-spoil",
+    ] as const;
+    for (const id of cockpitIds) {
       const nodes = container.querySelectorAll(`#${id}`);
       expect(nodes.length, `expected exactly one #${id}`).toBe(1);
     }
+    expect(container.querySelector("#chart-demand-host")).toBeNull();
+    expect(container.querySelector("#chart-demand-forecast-host")).toBeNull();
   });
 
   it("renders OperatorBar controls exactly once", () => {

@@ -229,6 +229,16 @@ describe("applyEngineStatusChip mutates a node-like target (no jsdom)", () => {
 });
 
 describe("studio wires the chip in the header and follows bootstrap init", () => {
+  it("StudioLayout title-bar includes gear trigger beside #engine-status", () => {
+    const src = readFileSync(LAYOUT_TS, "utf8");
+    expect(src).toMatch(/id="tuning-drawer-trigger"/);
+    expect(src).toMatch(/title-bar-actions/);
+    const header = src.match(/<header className="title-bar">[\s\S]*?<\/header>/);
+    expect(header, "expected title-bar header markup").toBeTruthy();
+    expect(header![0]).toMatch(/id="engine-status"/);
+    expect(header![0]).toMatch(/id="tuning-drawer-trigger"/);
+  });
+
   it("StudioLayout title-bar includes #engine-status starting as Loading", () => {
     const src = readFileSync(LAYOUT_TS, "utf8");
     expect(src).toMatch(/id="engine-status"/);

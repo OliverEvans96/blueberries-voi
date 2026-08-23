@@ -52,7 +52,13 @@ async function advanceDays(page: Page, n: number) {
   }
 }
 
-test.describe("T-148 layout v6 — visual QA", () => {
+async function openTuningDrawer(page: Page) {
+  await page.locator("#tuning-drawer-trigger").click();
+  await page.waitForSelector("dialog.tuning-drawer[open]", { state: "visible" });
+  await page.waitForTimeout(150);
+}
+
+test.describe("T-158 layout v7 — visual QA", () => {
   test.beforeEach(async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(`pageerror: ${err.message}`));
@@ -69,13 +75,14 @@ test.describe("T-148 layout v6 — visual QA", () => {
     }
   });
 
-  test("1: layout v6 — metrics, belief, sidebar", async ({ page }) => {
+  test("1: layout v7 — metrics, belief, sidebar (no tuning row)", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    await expect(page.locator(".cockpit-grid[data-layout='v6']")).toBeVisible();
+    await expect(page.locator(".cockpit-grid[data-layout='v7']")).toBeVisible();
     await expect(page.locator(".cockpit-pane--metrics")).toBeVisible();
     await expect(page.locator(".cockpit-pane--belief")).toBeVisible();
     await expect(page.locator(".cockpit-pane--sidebar")).toBeVisible();
+    await expect(page.locator(".cockpit-row--tuning")).toHaveCount(0);
     await expect(page.locator("[data-testid='obs-controls-pane']")).toBeVisible();
     await expect(page.locator("[data-testid='cockpit-events-column']")).toBeVisible();
     await expect(page.locator(".title-bar h1")).toContainText("Blueberry inventory studio");
@@ -144,9 +151,10 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(events.locator(".events-day-card[data-day='7']")).toHaveCount(0);
   });
 
-  test("7: tuning dock without observation tab", async ({ page }) => {
+  test("7: tuning drawer without observation tab", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
+    await openTuningDrawer(page);
     await expect(page.locator('.tuning-dock-tabs [data-section="observation"]')).toHaveCount(0);
     for (const section of ["demand", "arrival", "physics", "logistics", "autopilot"]) {
       const tab = page.locator(`.tuning-dock-tabs [data-section="${section}"]`);

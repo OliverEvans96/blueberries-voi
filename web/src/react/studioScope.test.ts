@@ -46,11 +46,15 @@ describe("T-142 studio mount scoping", () => {
     expect(providerSrc).toMatch(/containerRef\?\.current \?\? document\.getElementById\("app"\)/);
   });
 
-  it("ReferenceDrawer portals into scoped host under .bv-studio", () => {
+  it("TuningDrawer portals into scoped host under .bv-studio", () => {
     expect(drawerSrc).toMatch(/portalContainerRef/);
     expect(drawerSrc).not.toMatch(/createPortal\([\s\S]*document\.body/);
     expect(layoutSrc).toMatch(/bv-studio-portal-root/);
     expect(layoutSrc).toMatch(/reference-drawer-host/);
+  });
+
+  it("TuningDrawer host is scoped under .bv-studio portal root", () => {
+    expect(layoutSrc).toMatch(/tuning-drawer-host/);
   });
 
   it("localStorage keys are namespaced under bv-studio:", () => {

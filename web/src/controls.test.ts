@@ -73,8 +73,9 @@ describe("T-127 controls data-section rename", () => {
     }
   });
 
-  it("showSection reveals exactly the matching tuning-dock controls block", () => {
+  it("showSection reveals exactly the matching tuning-drawer controls block", () => {
     const host = document.createElement("div");
+    host.className = "tuning-drawer-controls";
     const api = mountSectionControlsDom(
       host,
       baseState(),
