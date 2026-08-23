@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
     ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
-    STREAM_ARRIVAL_TEMP,
+    STREAM_ARRIVAL_TEMP, STREAM_ARRIVAL_TRACE,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -23,7 +23,7 @@ use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{calendar_transit_days, mod21_demo_shipments, ShipmentTrace};
+use crate::shipments::{calendar_transit_days, mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
@@ -332,10 +332,17 @@ impl EngineSession {
                     *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
                 }
             }
-            let trace = ShipmentTrace {
-                times_d: vec![0.0, draw.duration_d],
-                temps_c: vec![biased_t_bar, biased_t_bar],
-            };
+            let mut rng_trace =
+                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_TRACE);
+            let trace = truth_transit_trace(
+                draw.duration_d,
+                biased_phi,
+                biased_t_bar,
+                self.arrival_model.temp_floor_c,
+                self.params.q10,
+                self.params.t_ref_c,
+                &mut rng_trace,
+            );
             let lot_id = self.next_lot;
             self.lot_ids.push(lot_id);
             self.next_lot += 1;
@@ -738,22 +745,17 @@ impl EngineSession {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
-            let fresh_rung = !self.rungs.contains_key(&key);
-            let cached = self.rungs.get(&key).cloned().unwrap_or_else(|| RungCache {
-                bank: self.bank_init.clone(),
-                last_day: -1,
-                beliefs: vec![],
-            });
-            let mut bank = if fresh_rung && self.day > 0 {
-                self.bank.clone()
-            } else {
-                cached.bank
-            };
-            let last = if fresh_rung && self.day > 0 {
-                self.day as i32 - 1
-            } else {
-                cached.last_day
-            };
+            let cached = self
+                .rungs
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| RungCache {
+                    bank: self.bank_init.clone(),
+                    last_day: -1,
+                    beliefs: vec![],
+                });
+            let mut bank = cached.bank;
+            let last = cached.last_day;
             let mut beliefs = cached.beliefs;
             let now = self.day as i32 - 1;
             let mask = mask_from_channels(channels);
@@ -1686,20 +1688,14 @@ mod tests {
         let hist = snap["belief_history"]
             .as_array()
             .expect("belief_history array");
-        // T-150: switching rungs does not retroactively replay masked history.
-        assert!(
-            hist.is_empty(),
-            "fresh F2 rung must not backfill beliefs for pre-switch days"
+        assert_eq!(
+            hist.len(),
+            3,
+            "channel switch must replay beliefs for each simulated day (studio chart)"
         );
-        let _ = s.step(0);
-        let snap2 = s.set_obs_scenario("F2").unwrap();
-        let hist2 = snap2["belief_history"]
-            .as_array()
-            .expect("belief_history after step");
-        assert!(
-            !hist2.is_empty(),
-            "F2 rung records beliefs for post-switch days"
-        );
+        assert_eq!(hist[0]["day"], 0);
+        assert_eq!(hist[2]["day"], 2);
+        assert!(hist[0]["belief"]["f_marginals"].is_array());
     }
 
     #[test]
@@ -1726,8 +1722,8 @@ mod tests {
         s.set_obs_scenario("F2").unwrap();
         let first = s.catchup_days_last_call();
         assert_eq!(
-            first, 0,
-            "fresh F2 rung must not retroactively replay historical days (T-150)"
+            first, 3,
+            "fresh F2 rung must replay full episode history for chart catch-up"
         );
         let _ = s.step(0);
         s.set_obs_scenario("P1").unwrap();

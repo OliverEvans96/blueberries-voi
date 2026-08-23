@@ -17,6 +17,7 @@ const ARRIVAL_GRID: usize = 4096;
 
 pub const STREAM_ARRIVAL_DURATION: &str = ":arrival_duration";
 pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
+pub const STREAM_ARRIVAL_TRACE: &str = ":arrival_trace";
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
 pub const STREAM_ARRIVAL_GAMMA: &str = ":arrival_gamma";
 
