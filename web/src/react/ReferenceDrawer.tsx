@@ -13,7 +13,7 @@ import "../styles/referenceDrawer.css";
 const GLOSSARY_ENTRIES: { term: string; body: string }[] = [
   {
     term: "Observation scenario",
-    body: "Which fields the store manager can see each day — from books-only (P0) to measured age at receipt (F2).",
+    body: "Which fields the store manager can see each day — from books-only (P0) to lot-resolved pack date on delivery (F2).",
   },
   ...(["P0", "P1", "F1", "F1s", "F2a", "F2"] as ScenarioId[]).map((id) => ({
     term: `${id} — ${scenarioTitle(id)}`,

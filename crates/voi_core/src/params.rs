@@ -27,6 +27,10 @@ pub struct ModelParams {
     pub gamma_scale: f64,
     /// Fixed virtual grid width per lot (`L×U` truth).
     pub units_per_lot: usize,
+    /// Corridor key into the embedded arrival artifact's `corridors` map (T-150 finding
+    /// 4). Threaded through to both the truth-path draw and the filter prior so they
+    /// can never silently diverge onto different corridors.
+    pub arrival_product: String,
 }
 
 impl Default for ModelParams {
@@ -46,6 +50,7 @@ impl Default for ModelParams {
             gamma_shape: 2.0,
             gamma_scale: 0.0,
             units_per_lot: DEFAULT_UNITS_PER_LOT,
+            arrival_product: "abdella_all".to_string(),
         };
         params.set_reference_life();
         params

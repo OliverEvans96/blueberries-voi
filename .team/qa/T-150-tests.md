@@ -1,5 +1,38 @@
 # T-150 — RED criterion → test map (qa)
 
+Recorded on `team/T-150/wireqa` (2026-08-22) — **wire/filter parity guard** closes the
+coverage gap identified in `.team/reviews/T-150.md` §Must change #1–#3: session-free
+AC2.11a / AC2.19 exercise only `arrival.rs`; nothing previously related the studio
+wire (`arrival_wire.rs`) to the filter law the engine actually believes.
+
+## Commands run (wireqa — parity guard only)
+
+```bash
+cargo test -p voi_core --test t150_arrival_wire_filter_parity t150_wire_filter_parity_guard -- --nocapture
+# → FAILED (RED) — first assertion: P0 mean_f wire=0.3688 filter=0.5310 (|Δ|=0.1622)
+# Wall-clock: ~4.3 s (debug, after compile; test body ~3.6 s)
+```
+
+### Wire/filter parity guard — assertion → defect map
+
+| Assertion | Defect caught (review §1–#3 / AC2.19) |
+| --- | --- |
+| `P0 mean_f` vs `filter_law_mean_f(Prior)` | `d_min` double-count + uniform `d`/`T̄` + missing `Φ⁻¹` on `psi_pos` + atom convention (`E[f\|f>0]` on wire vs atom-inclusive filter) |
+| `P0 sd_f` vs filter sample sd | `psi_pos` uniform grid (no `Φ⁻¹`) + `T̄` uniform instead of truncated normal |
+| `P0 f_zero` vs filter atom | point-estimate `Λ` atom + atom mass excluded from wire mean denominator |
+| `P0 CDF` at five `f` grid points | hand-rolled 8³ quadrature vs artifact nodes/weights; independent of `arrival.rs` integration |
+| `F2 mean_f` / `sd_f` / `f_zero` | same integration defects on the duration rung |
+| `F3 mean_f` at warm-trace `Λ` | F3 pinned to prior-mean `φ̄` instead of `ArrivalCondition::Exposure(Λ)` (ADR 0144 Correction 1 on shipped path) |
+| `F3 sd_f` / `f_zero` at warm `Λ` | F3 conditioning + atom / `psi_pos` defects on exposure rung |
+| Filter `Λ_cool` vs `Λ_warm` move | establishes F3 must respond to exposure (passes on filter side) |
+| Wire ladder pairwise distinct + per-rung filter agreement | user-visible P0/F2/F3 must track the ladder the filter predicts |
+
+| ID | Test | RED mode |
+| --- | --- | --- |
+| Wire parity | `crates/voi_core/tests/t150_arrival_wire_filter_parity.rs::t150_wire_filter_parity_guard` | **assertion failure** — wire `mean_f`/`sd_f`/`f_zero`/CDF disagree with `filter_law_mean_f` + empirical filter law on every rung; F3 does not track observed `Λ` |
+
+---
+
 Recorded on `team/T-150/qa-r3` (2026-08-22, correction round 3 — AC2.11a restatement).
 
 ## Commands run (qa-r3 — AC2.11a only)

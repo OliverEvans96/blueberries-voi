@@ -533,10 +533,12 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
         let mut local_model;
         let model = if let Some(m) = arrival_model {
             m.sync_params(params);
+            m.set_corridor(&params.arrival_product);
             m
         } else {
             local_model = ArrivalModel::embedded();
             local_model.sync_params(params);
+            local_model.set_corridor(&params.arrival_product);
             &mut local_model
         };
         let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);

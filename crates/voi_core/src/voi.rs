@@ -24,11 +24,23 @@ pub const VOI_SCENARIOS: &[&str] = &["P0", "P1", "F1", "F1s", "F2a", "F2", "B-st
 const STREAM_DEMAND: u64 = 1;
 const STREAM_ALLOC: u64 = 2;
 const STREAM_GAMMA: u64 = 3;
-const STREAM_SHIP: u64 = 4;
-const STREAM_SENSOR: u64 = 5;
+// 4 and 5 retired (T-150): were `STREAM_SHIP` / `STREAM_SENSOR`, repurposed below for
+// the arrival duration/temp draws instead of getting their own streams. Retired, not
+// reassigned — a future ship/sensor observation draw must not reuse 4 or 5 either,
+// since old seeded runs may still reference them.
 const STREAM_FILTER: u64 = 6;
 /// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
 const STREAM_BIRTH: u64 = 7;
+/// Truth-path arrival within-lot position draw (T-150; previously a bare literal `8`).
+const STREAM_ARRIVAL_POS: u64 = 8;
+/// Truth-path arrival gamma-loss draw (T-150; previously a bare literal `9`).
+const STREAM_ARRIVAL_GAMMA: u64 = 9;
+/// Truth-path arrival duration draw (T-150; dedicated stream — does not reuse the
+/// retired `STREAM_SHIP` id).
+const STREAM_ARRIVAL_DURATION: u64 = 10;
+/// Truth-path arrival transit-temperature draw (T-150; dedicated stream — does not
+/// reuse the retired `STREAM_SENSOR` id).
+const STREAM_ARRIVAL_TEMP: u64 = 11;
 
 const FILTER_INIT_L: usize = 3;
 const FILTER_INIT_K: usize = 8;
@@ -241,12 +253,12 @@ fn run_scenario_episode(
         let arrival = pop_arrival(&mut pending, day);
         let pre_lot_ids = lot_ids.clone();
         let (delivery_unit_f, pack_date_days) = if arrival > 0 {
-            let mut rng_d = rng(root_seed, phys, day, STREAM_SHIP);
-            let mut rng_t = rng(root_seed, phys, day, STREAM_SENSOR);
-            let mut rng_p = rng(root_seed, phys, day, 8);
-            let mut rng_g = rng(root_seed, phys, day, 9);
+            let mut rng_d = rng(root_seed, phys, day, STREAM_ARRIVAL_DURATION);
+            let mut rng_t = rng(root_seed, phys, day, STREAM_ARRIVAL_TEMP);
+            let mut rng_p = rng(root_seed, phys, day, STREAM_ARRIVAL_POS);
+            let mut rng_g = rng(root_seed, phys, day, STREAM_ARRIVAL_GAMMA);
             let draw = arrival_model.draw_truth_delivery(
-                "abdella_all",
+                &params.arrival_product,
                 arrival as usize,
                 &mut rng_d,
                 &mut rng_t,
@@ -317,7 +329,8 @@ fn run_scenario_episode(
             } else {
                 None
             };
-            arrival_model.sync_params(params);
+            // `filter_step_unit_with_birth_cached` syncs params and the configured
+            // corridor onto `arrival_model` itself; an external sync here was redundant.
             filter_step_unit_with_birth_cached(
                 &mut bank,
                 &obs,

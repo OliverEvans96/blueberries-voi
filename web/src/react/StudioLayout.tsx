@@ -237,12 +237,12 @@ export function StudioLayout() {
                     </div>
                     <div className="focus-plot" data-plot="plot-arrival-prior" hidden>
                       <div className="chart-caption impact-caption">
-                        Arrival-age prior · receipt rug
+                        Arrival freshness prior · receipt rug
                       </div>
                       <D3ChartHost
                         id="chart-arrival-prior"
                         className="chart"
-                        ariaLabel="Arrival age prior distribution"
+                        ariaLabel="Arrival freshness prior distribution"
                       />
                     </div>
                     <div className="focus-plot" data-plot="plot-arrival-shift" hidden>

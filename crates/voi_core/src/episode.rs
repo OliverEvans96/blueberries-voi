@@ -50,7 +50,7 @@ pub fn run_closed_loop_episode(
             Some(
                 arrival_model
                     .draw_truth_delivery(
-                        "abdella_all",
+                        &params.arrival_product,
                         order as usize,
                         &mut rng_d,
                         &mut rng_t,

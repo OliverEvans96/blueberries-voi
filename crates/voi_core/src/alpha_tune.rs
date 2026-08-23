@@ -287,7 +287,7 @@ pub fn run_alpha_tune_episode(
             Some(
                 arrival_model
                     .draw_truth_delivery(
-                        "abdella_all",
+                        &params.arrival_product,
                         arrival as usize,
                         &mut rng_dur,
                         &mut rng_temp,
