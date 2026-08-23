@@ -134,6 +134,7 @@ export function StudioLayout() {
               className="chart"
               ariaLabel="Belief freshness over time with truth overlay"
             />
+            <p className="belief-mae-stat" data-belief-mae="history" hidden />
             <div
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
@@ -145,6 +146,7 @@ export function StudioLayout() {
               className="chart"
               ariaLabel="Freshness histogram"
             />
+            <p className="belief-mae-stat" data-belief-mae="histogram" hidden />
             <div className="chart-caption impact-caption" hidden>
               Age marginal
             </div>

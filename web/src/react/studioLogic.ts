@@ -37,6 +37,12 @@ import {
   METRICS_STRIP_HEIGHT,
 } from "../charts/chartHeights";
 import {
+  BELIEF_MAE_DEFINITION,
+  currentMeanFAbsError,
+  formatMeanFAbsError,
+  meanMeanFAbsErrorOverHistory,
+} from "../charts/beliefAccuracy";
+import {
   emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
   renderFreshnessHistogram,
@@ -773,6 +779,54 @@ export function initStudio(app: HTMLElement): () => void {
           !showTruth && vm.history.length > 0
             ? "Freshness × time (turn on Sim truth overlay to see unit trajectories)"
             : "Freshness × time";
+      }
+    });
+    syncBeliefMaeStats();
+  }
+
+  function syncBeliefMaeStats(): void {
+    const visible = showTruth && vm.live_units.length > 0;
+    qa<HTMLElement>("[data-belief-mae]").forEach((el) => {
+      if (!visible) {
+        el.hidden = true;
+        el.textContent = "";
+        el.removeAttribute("title");
+        return;
+      }
+
+      const kind = el.dataset.beliefMae;
+      el.title = BELIEF_MAE_DEFINITION;
+
+      if (kind === "history") {
+        const summary = meanMeanFAbsErrorOverHistory(
+          vm.history,
+          vm.belief_history,
+        );
+        if (!summary) {
+          el.hidden = true;
+          el.textContent = "";
+          return;
+        }
+        el.hidden = false;
+        el.textContent = `MAE(mean f): ${formatMeanFAbsError(summary.meanMae)} · mean over ${summary.dayCount} days`;
+        return;
+      }
+
+      if (kind === "histogram") {
+        const flat = vm.belief_history.at(-1)?.flatBelief;
+        if (!flat) {
+          el.hidden = true;
+          el.textContent = "";
+          return;
+        }
+        const mae = currentMeanFAbsError(flat, vm.live_units);
+        if (mae == null) {
+          el.hidden = true;
+          el.textContent = "";
+          return;
+        }
+        el.hidden = false;
+        el.textContent = `MAE(mean f): ${formatMeanFAbsError(mae)} · current day`;
       }
     });
   }
