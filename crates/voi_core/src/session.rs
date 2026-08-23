@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
     ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
-    STREAM_ARRIVAL_TEMP,
+    STREAM_ARRIVAL_TEMP, STREAM_ARRIVAL_TRACE,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -23,7 +23,7 @@ use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{calendar_transit_days, mod21_demo_shipments, ShipmentTrace};
+use crate::shipments::{calendar_transit_days, mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
@@ -332,10 +332,17 @@ impl EngineSession {
                     *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
                 }
             }
-            let trace = ShipmentTrace {
-                times_d: vec![0.0, draw.duration_d],
-                temps_c: vec![biased_t_bar, biased_t_bar],
-            };
+            let mut rng_trace =
+                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_TRACE);
+            let trace = truth_transit_trace(
+                draw.duration_d,
+                biased_phi,
+                biased_t_bar,
+                self.arrival_model.temp_floor_c,
+                self.params.q10,
+                self.params.t_ref_c,
+                &mut rng_trace,
+            );
             let lot_id = self.next_lot;
             self.lot_ids.push(lot_id);
             self.next_lot += 1;
