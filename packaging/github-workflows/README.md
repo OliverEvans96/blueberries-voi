@@ -24,7 +24,7 @@ Three parallel test jobs consume that artifact:
 |-----|------|
 | `build` | maturin wheel, WASM, `cargo test`; upload artifacts |
 | `rust` | download `target/`; `cargo test` (prebuilt) |
-| `python` | `uv sync`, `uv pip install` prebuilt wheel; ruff, mypy, pytest+coverage |
+| `python` | `uv sync`, `maturin develop` with shared `target/; ruff, mypy, pytest+coverage |
 | `web` | prebuilt WASM; vitest, `build:lib`, `npm pack` smoke |
 
 On **main/master** pushes only, `deploy` runs after all three test jobs succeed
