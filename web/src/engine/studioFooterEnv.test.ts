@@ -213,7 +213,7 @@ describe("T-074 adapter init/step errors surface to the user", () => {
     expect(bootstrap![0]).toMatch(/catch|reportStudioAdapterError/);
     // Advance may use step_n (CAL-01 next-order-day) with a longer try body.
     expect(src).toMatch(
-      /onAdvance[\s\S]{0,1200}catch|adapter\.step(?:_n)?[\s\S]{0,400}catch/,
+      /onAdvance[\s\S]{0,1200}catch|adapter\.step(?:_n)?[\s\S]{0,600}catch/,
     );
   });
 

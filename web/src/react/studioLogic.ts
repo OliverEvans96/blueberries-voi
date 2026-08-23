@@ -127,16 +127,61 @@ import {
   setRenderProfiling,
   type RenderProfileRow,
 } from "./renderProfile";
+import {
+  buildAdvanceSample,
+  clearAdvanceProfile,
+  getAdvancePipelineReport,
+  isAdvanceProfiling,
+  recordAdvanceSample,
+  setAdvanceProfiling,
+  type AdvancePipelineReport,
+} from "./advanceProfile";
+import { clearRpcProfile, setRpcProfiling } from "../engine/rpcProfile";
 
 export {
+  clearAdvanceProfile,
   clearRenderProfile,
+  clearRpcProfile,
+  getAdvancePipelineReport,
   getRenderProfileReport,
+  setAdvanceProfiling,
   setRenderProfiling,
+  setRpcProfiling,
+  type AdvancePipelineReport,
   type RenderProfileRow,
 };
 
 /** Display-only tradeoff bands; does not affect act/step_n (ADR 0130). */
 const TRADEOFF_FORECAST_N_PATHS = 30;
+
+/** Set by initStudio — profile one full Advance (await remote panes). */
+let studioAdvanceOnce: (() => Promise<void>) | null = null;
+
+/** Run N advance steps with profiling enabled; returns aggregated report. */
+export async function studioProfileAdvanceSteps(
+  steps: number,
+): Promise<AdvancePipelineReport> {
+  if (!studioAdvanceOnce) {
+    throw new Error("studio not initialized — mount StudioLayout and call initStudio first");
+  }
+  setAdvanceProfiling(true);
+  setRenderProfiling(true);
+  setRpcProfiling(true);
+  clearAdvanceProfile();
+  clearRenderProfile();
+  clearRpcProfile();
+  for (let i = 0; i < steps; i++) {
+    clearRenderProfile();
+    await studioAdvanceOnce();
+  }
+  return getAdvancePipelineReport();
+}
+
+declare global {
+  interface Window {
+    __studioProfileAdvance?: (steps?: number) => Promise<AdvancePipelineReport>;
+  }
+}
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
@@ -387,7 +432,10 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function commitFrame(): Promise<void> {
     const gen = ++frameGen;
-    await Promise.all([fetchTradeoffForecast(gen), fetchEvents(gen)]);
+    await Promise.all([
+      profileAsync("fetchTradeoffForecast", () => fetchTradeoffForecast(gen)),
+      profileAsync("fetchEvents", () => fetchEvents(gen)),
+    ]);
     if (gen !== frameGen) return;
     renderAll();
   }
@@ -943,6 +991,9 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   async function advanceEpisode(): Promise<void> {
+    const profiling = isAdvanceProfiling();
+    const advanceT0 = profiling ? performance.now() : 0;
+    let engineStepNMs = 0;
     try {
       if (vm.episode_day >= EPISODE_HORIZON) {
         return;
@@ -954,7 +1005,9 @@ export function initStudio(app: HTMLElement): () => void {
       renderOperatorBar();
       beginStudioLoading("Advancing…");
       const orders = buildStepNOrders(vm.episode_day, orderQty, schedule);
+      const engineT0 = performance.now();
       const deltas = await adapter.step_n(orders);
+      engineStepNMs = performance.now() - engineT0;
       for (const delta of deltas) {
         vm = projector.applyDelta(delta);
       }
@@ -971,6 +1024,15 @@ export function initStudio(app: HTMLElement): () => void {
         err,
       );
     } finally {
+      if (profiling) {
+        recordAdvanceSample(
+          buildAdvanceSample(
+            performance.now() - advanceT0,
+            engineStepNMs,
+            getRenderProfileReport(),
+          ),
+        );
+      }
       advancing = false;
       endStudioLoading();
       renderOperatorBar();
@@ -1234,6 +1296,11 @@ export function initStudio(app: HTMLElement): () => void {
         err,
       );
     }
+  }
+
+  studioAdvanceOnce = advanceEpisode;
+  if (typeof window !== "undefined") {
+    window.__studioProfileAdvance = (steps = 5) => studioProfileAdvanceSteps(steps);
   }
 
   void bootstrap();

@@ -23,7 +23,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts",
-    "profile:render": "vitest run scripts/profile-studio-render.ts"
+    "profile:render": "vitest run scripts/profile-studio-render.ts",
+    "profile:advance": "vitest run scripts/profile-advance-pipeline.ts"
   },
   "peerDependencies": {
     "react": "^19.0.0",
