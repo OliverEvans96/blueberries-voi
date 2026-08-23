@@ -29,7 +29,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use crate::arrival::{resolve_arrival_f_law_phi_bar, ArrivalModel};
+use crate::arrival::{resolve_arrival_exposure, ArrivalCondition, ArrivalModel};
 use crate::obs::FilterObs;
 use crate::physics::{apply_gamma_aging_independent, GammaDecrementTable};
 use crate::shipments::ShipmentTrace;
@@ -283,16 +283,20 @@ pub fn project_lot_map(
     Some(out)
 }
 
-/// Resolve channel-conditional arrival law inputs from filter observation.
-fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> (Option<i32>, Option<f64>) {
-    let phi_bar = resolve_arrival_f_law_phi_bar(
+/// Resolve channel-conditional arrival law from filter observation.
+fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> ArrivalCondition {
+    if let Some(exposure) = resolve_arrival_exposure(
         obs.temp_temps_c.as_deref(),
         obs.temp_times_d.as_deref(),
         params.q10,
         params.t_ref_c,
-    );
-    let pack_date = obs.pack_date_days;
-    (pack_date, phi_bar)
+    ) {
+        return ArrivalCondition::Exposure(exposure);
+    }
+    if let Some(d) = obs.pack_date_days {
+        return ArrivalCondition::Duration(d);
+    }
+    ArrivalCondition::Prior
 }
 
 /// One unit-PF observation update: adapted aging, obs-resolved scoring, resample, birth.
@@ -427,14 +431,7 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
 ) -> StepDiagnostics {
     let mut table = GammaDecrementTable::for_params(params);
     filter_step_unit_with_birth_cached(
-        bank,
-        obs,
-        params,
-        shipments,
-        rng,
-        rng_birth,
-        &mut table,
-        None,
+        bank, obs, params, shipments, rng, rng_birth, &mut table, None,
     )
 }
 
@@ -532,7 +529,7 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             .and_then(|ids| ids.first().copied())
             .unwrap_or_else(|| bank.next_synthetic_lot_id());
         let birth_seed = rng.random::<u64>();
-        let (pack_date, phi_bar) = resolve_arrival_f_law(obs, params);
+        let condition = resolve_arrival_f_law(obs, params);
         let mut local_model;
         let model = if let Some(m) = arrival_model {
             m.sync_params(params);
@@ -546,9 +543,9 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
         for p in 0..n {
             let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
             let fs = if let Some(b) = rng_birth.as_mut() {
-                model.sample_filter_birth_units(pack_date, phi_bar, arrivals, b)
+                model.sample_filter_birth_units(condition, arrivals, b)
             } else {
-                model.sample_filter_birth_units(pack_date, phi_bar, arrivals, &mut particle_rng)
+                model.sample_filter_birth_units(condition, arrivals, &mut particle_rng)
             };
             per_particle.push(fs);
         }

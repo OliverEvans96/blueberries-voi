@@ -6,10 +6,14 @@ Covers Phase 2 artifact/calibration/parity and Phase 3 RPC, recalibration, chang
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 from pathlib import Path
 
+import numpy as np
 import pytest
+
+from blueberries_voi.model.abdella import arrival_age_from_path, load_abdella_shipments
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ARTIFACT = _REPO_ROOT / "data" / "abdella" / "arrival_model.json"
@@ -65,6 +69,77 @@ def _rg_count(pattern: str, path: str) -> int:
 def _read(path: Path) -> str:
     assert path.is_file(), f"RED: missing required path {path}"
     return path.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — artifact anchoring (AC2.18)
+# ---------------------------------------------------------------------------
+
+
+def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
+    """AC2.18: committed artifact moments and duration share match parquet observations."""
+    shipments = load_abdella_shipments(_REPO_ROOT / "data" / "abdella")
+    payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
+    corridor = payload["corridors"]["abdella_all"]
+    q10 = float(payload["q10"])
+    t_ref = float(payload["T_ref"])
+
+    d_i = np.asarray([s.duration_d for s in shipments], dtype=float)
+    lambda_i = np.asarray(
+        [
+            arrival_age_from_path(s.temps_c, s.times_d, q10=q10, t_ref_c=t_ref)
+            for s in shipments
+        ],
+        dtype=float,
+    )
+    phi_i = lambda_i / d_i
+    t_i = t_ref + 10.0 * np.log(phi_i) / math.log(q10)
+
+    mu_t_obs = float(np.mean(t_i))
+    sigma_t_obs = float(np.std(t_i, ddof=1))
+    mu_t_art = float(payload["mu_T"])
+    sigma_t_art = float(payload["sigma_T"])
+
+    assert abs(mu_t_art - mu_t_obs) <= 0.5, (
+        f"RED: mu_T {mu_t_art} must be within 0.5 C of observed {mu_t_obs:.3f}"
+    )
+    sigma_ratio = sigma_t_art / sigma_t_obs
+    assert 0.5 <= sigma_ratio <= 2.0, (
+        f"RED: sigma_T ratio {sigma_ratio:.2f} must be in [0.5, 2.0] "
+        f"(artifact={sigma_t_art}, observed sd(T_i)={sigma_t_obs:.3f})"
+    )
+
+    e_d_art = float(corridor["d_min"]) + float(corridor["delay_shape"]) * float(
+        corridor["delay_scale"]
+    )
+    sd_d_art = float(corridor["delay_scale"]) * math.sqrt(float(corridor["delay_shape"]))
+    assert abs(e_d_art - float(np.mean(d_i))) <= 0.5, (
+        f"RED: E[d] artifact {e_d_art:.3f} vs observed {float(np.mean(d_i)):.3f}"
+    )
+    sd_ratio = sd_d_art / float(np.std(d_i, ddof=1))
+    assert 0.5 <= sd_ratio <= 2.0, (
+        f"RED: sd(d) ratio {sd_ratio:.2f} must be in [0.5, 2.0]"
+    )
+
+    rng = np.random.default_rng(150_218)
+    n_mc = 200_000
+    delay_shape = float(corridor["delay_shape"])
+    delay_scale = float(corridor["delay_scale"])
+    d_min = float(corridor["d_min"])
+    d_draw = d_min + rng.gamma(delay_shape, delay_scale, size=n_mc)
+    mu_t = float(payload["mu_T"])
+    sigma_t = float(payload["sigma_T"])
+    t_floor = float(payload.get("temp_floor_c", 0.0))
+    t_draw = rng.normal(mu_t, sigma_t, size=n_mc)
+    t_draw = np.maximum(t_draw, t_floor)
+    phi_draw = np.power(q10, (t_draw - t_ref) / 10.0)
+    log_d_var = float(np.var(np.log(d_draw), ddof=0))
+    log_phi_var = float(np.var(np.log(phi_draw), ddof=0))
+    duration_share = log_d_var / (log_d_var + log_phi_var)
+    assert duration_share >= 0.90, (
+        f"RED: duration share Var(log d)/Var(log Λ) must be >= 0.90; "
+        f"artifact gives {duration_share:.3f}"
+    )
 
 
 # ---------------------------------------------------------------------------

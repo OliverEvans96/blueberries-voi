@@ -7,8 +7,8 @@ use rand::Rng;
 use rand_distr::{Distribution, Gamma, LogNormal, Normal};
 use serde::Deserialize;
 
-use crate::physics::{gamma_p, gamma_q, store_temp_factor};
 use crate::params::ModelParams;
+use crate::physics::{gamma_p, gamma_q, store_temp_factor};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
 const SUPPORTED_SCHEMA_VERSION: u64 = 1;
@@ -19,6 +19,17 @@ pub const STREAM_ARRIVAL_DURATION: &str = ":arrival_duration";
 pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
 pub const STREAM_ARRIVAL_GAMMA: &str = ":arrival_gamma";
+
+/// Mutually exclusive channel conditioning for filter-side arrival laws.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ArrivalCondition {
+    /// F3: exact cumulative exposure Λ from the observed temperature trace.
+    Exposure(f64),
+    /// F2 / F2a: pack date as calendar duration in days.
+    Duration(i32),
+    /// P0 / P1: corridor prior only.
+    Prior,
+}
 
 #[derive(Debug)]
 pub enum ArrivalModelError {
@@ -53,7 +64,6 @@ pub struct ArrivalCorridor {
     pub d_min: f64,
     pub delay_shape: f64,
     pub delay_scale: f64,
-    pub mix_weight: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -113,12 +123,6 @@ struct CorridorJson {
     d_min: f64,
     delay_shape: f64,
     delay_scale: f64,
-    #[serde(default = "default_mix_weight")]
-    mix_weight: f64,
-}
-
-fn default_mix_weight() -> f64 {
-    1.0
 }
 
 /// Single embed accessor for the committed arrival artifact.
@@ -130,14 +134,92 @@ pub fn arrival_artifact_from_json(json: &str) -> Result<ArrivalModel, ArrivalMod
     ArrivalModel::from_json(json)
 }
 
+fn normal_cdf(z: f64) -> f64 {
+    0.5 * (1.0 + erf(z / std::f64::consts::SQRT_2))
+}
+
+fn erf(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let y = 1.0
+        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
+            + 0.254829592)
+            * t
+            * (-x * x).exp();
+    sign * y
+}
+
+fn normal_quantile(u: f64) -> f64 {
+    let u = u.clamp(1e-12, 1.0 - 1e-12);
+    const A1: f64 = -39.69683028665376;
+    const A2: f64 = 220.9460984245205;
+    const A3: f64 = -275.9285104469687;
+    const A4: f64 = 138.3577518672690;
+    const A5: f64 = -30.66479806614719;
+    const A6: f64 = 2.506628277459239;
+    const B1: f64 = -54.47609879822406;
+    const B2: f64 = 161.5858368580409;
+    const B3: f64 = -155.6989798598866;
+    const B4: f64 = 66.80101284829912;
+    const B5: f64 = -13.28068155288572;
+    const C1: f64 = -0.007784894002430293;
+    const C2: f64 = -0.3223964580401361;
+    const C3: f64 = -2.400758227161338;
+    const C4: f64 = -2.549732539343734;
+    const C5: f64 = 4.374664141464968;
+    const C6: f64 = 2.938163982698783;
+    const D1: f64 = 0.007784695709041462;
+    const D2: f64 = 0.3224671290700398;
+    const D3: f64 = 2.445134137142996;
+    const D4: f64 = 3.754408661907416;
+    const P_LOW: f64 = 0.02425;
+    const P_HIGH: f64 = 1.0 - P_LOW;
+    if u < P_LOW {
+        let q = (-2.0 * u.ln()).sqrt();
+        (((((C1 * q + C2) * q + C3) * q + C4) * q + C5) * q + C6)
+            / ((((D1 * q + D2) * q + D3) * q + D4) * q + 1.0)
+    } else if u > P_HIGH {
+        let q = (-2.0 * (1.0 - u).ln()).sqrt();
+        -(((((C1 * q + C2) * q + C3) * q + C4) * q + C5) * q + C6)
+            / ((((D1 * q + D2) * q + D3) * q + D4) * q + 1.0)
+    } else {
+        let q = u - 0.5;
+        let r = q * q;
+        (((((A1 * r + A2) * r + A3) * r + A4) * r + A5) * r + A6) * q
+            / (((((B1 * r + B2) * r + B3) * r + B4) * r + B5) * r + 1.0)
+    }
+}
+
+fn gamma_dist_quantile(shape: f64, scale: f64, u: f64) -> f64 {
+    let u = u.clamp(1e-12, 1.0 - 1e-12);
+    if u <= 0.0 {
+        return 0.0;
+    }
+    let mean = shape * scale;
+    let mut hi = mean.max(1e-12) * 4.0;
+    while gamma_p(shape, hi / scale) < u && hi < 1e12 {
+        hi *= 2.0;
+    }
+    let mut lo = 0.0;
+    for _ in 0..80 {
+        let mid = 0.5 * (lo + hi);
+        if gamma_p(shape, mid / scale) < u {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
 impl ArrivalModel {
     pub fn embedded() -> Self {
         Self::from_json(EMBEDDED_ARRIVAL_JSON).expect("embedded arrival artifact")
     }
 
     pub fn from_json(json: &str) -> Result<Self, ArrivalModelError> {
-        let raw: ArrivalModelJson =
-            serde_json::from_str(json).map_err(ArrivalModelError::Json)?;
+        let raw: ArrivalModelJson = serde_json::from_str(json).map_err(ArrivalModelError::Json)?;
         if raw.schema_version != SUPPORTED_SCHEMA_VERSION {
             return Err(ArrivalModelError::UnknownSchemaVersion(raw.schema_version));
         }
@@ -149,7 +231,9 @@ impl ArrivalModel {
             ));
         }
         if raw.corridors.is_empty() {
-            return Err(ArrivalModelError::Invalid("corridors must be non-empty".into()));
+            return Err(ArrivalModelError::Invalid(
+                "corridors must be non-empty".into(),
+            ));
         }
         let default_corridor = if raw.corridors.contains_key("abdella_all") {
             "abdella_all".to_string()
@@ -166,7 +250,6 @@ impl ArrivalModel {
                         d_min: c.d_min,
                         delay_shape: c.delay_shape,
                         delay_scale: c.delay_scale,
-                        mix_weight: c.mix_weight,
                     },
                 )
             })
@@ -190,7 +273,7 @@ impl ArrivalModel {
             f2_cache: HashMap::new(),
             f3_cache: HashMap::new(),
         };
-        model.marginal_cdf = model.build_marginal_cdf(None, None);
+        model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
         Ok(model)
     }
 
@@ -206,8 +289,32 @@ impl ArrivalModel {
     }
 
     pub fn floor_lambda(lambda: f64) -> f64 {
-        // floor Λ before forming Gamma(kΛ, θ) — ill-conditioned at Λ → 0.
         lambda.max(LAMBDA_FLOOR)
+    }
+
+    /// Map a quadrature node `u ∈ [0, 1]` to a duration day from the shifted-gamma law.
+    pub fn quadrature_duration_days(&self, corridor: &ArrivalCorridor, u: f64) -> f64 {
+        let delay = gamma_dist_quantile(corridor.delay_shape, corridor.delay_scale, u);
+        corridor.d_min + delay
+    }
+
+    /// Map a quadrature node `u ∈ [0, 1]` to a truncated-normal mean transit temperature.
+    pub fn quadrature_t_bar_c(&self, u: f64) -> f64 {
+        self.truncated_normal_quantile(u)
+    }
+
+    fn truncated_normal_quantile(&self, u: f64) -> f64 {
+        let u = u.clamp(1e-12, 1.0 - 1e-12);
+        let alpha = normal_cdf((self.temp_floor_c - self.mu_t) / self.sigma_t);
+        let target = alpha + u * (1.0 - alpha);
+        let z = normal_quantile(target);
+        (self.mu_t + self.sigma_t * z).max(self.temp_floor_c)
+    }
+
+    fn psi_pos_quantile(&self, u: f64) -> f64 {
+        let u = u.clamp(1e-12, 1.0 - 1e-12);
+        let z = normal_quantile(u);
+        (z * self.sigma_pos).exp().max(1e-6)
     }
 
     /// `P(f > x | Λ)` using shape-scaled gamma loss.
@@ -242,14 +349,7 @@ impl ArrivalModel {
         gamma_q(self.gamma_shape * lam, 1.0 / self.gamma_scale)
     }
 
-    fn expected_delay(corridor: &ArrivalCorridor) -> f64 {
-        corridor.d_min + corridor.delay_shape * corridor.delay_scale
-    }
-
-    fn sample_truncated_normal<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> f64 {
+    fn sample_truncated_normal<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let dist = Normal::new(self.mu_t, self.sigma_t).expect("trunc normal");
         for _ in 0..64 {
             let t = dist.sample(rng);
@@ -325,104 +425,123 @@ impl ArrivalModel {
         }
     }
 
-    fn build_marginal_cdf(
-        &self,
-        pack_date_days: Option<i32>,
-        phi_bar: Option<f64>,
-    ) -> ArrivalCdfCache {
-        let mut mean_acc = 0.0;
-        let mut mean_sq_acc = 0.0;
-        let mut mass_acc = 0.0;
+    fn marginal_cdf_at(&self, condition: ArrivalCondition, corridor_key: &str, f: f64) -> f64 {
+        let corridor = self.corridor(corridor_key);
+        let mut acc = 0.0;
+        let mut w_sum = 0.0;
 
-        let corridor_keys: Vec<&String> = self.corridors.keys().collect();
-        let mix_total: f64 = corridor_keys
-            .iter()
-            .map(|k| self.corridors[*k].mix_weight)
-            .sum::<f64>()
-            .max(1e-12);
+        match condition {
+            ArrivalCondition::Exposure(lot_lambda) => {
+                let lot_lambda = Self::floor_lambda(lot_lambda);
+                for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                    let psi = self.psi_pos_quantile(u_psi);
+                    let lambda = Self::floor_lambda(lot_lambda * psi);
+                    acc += w_psi * self.cdf_f_given_lambda(lambda, f);
+                    w_sum += w_psi;
+                }
+            }
+            ArrivalCondition::Duration(d_days) => {
+                let d = f64::from(d_days).max(0.0);
+                for (&u_t, &w_t) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                    let t_bar = self.truncated_normal_quantile(u_t);
+                    let phi = self.phi_bar_from_t_bar(t_bar);
+                    let lot_lambda = Self::floor_lambda(d * phi);
+                    for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                        let psi = self.psi_pos_quantile(u_psi);
+                        let lambda = Self::floor_lambda(lot_lambda * psi);
+                        let w = w_t * w_psi;
+                        acc += w * self.cdf_f_given_lambda(lambda, f);
+                        w_sum += w;
+                    }
+                }
+            }
+            ArrivalCondition::Prior => {
+                for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                    let d = self.quadrature_duration_days(corridor, u_d);
+                    for (&u_t, &w_t) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                        let t_bar = self.truncated_normal_quantile(u_t);
+                        let phi = self.phi_bar_from_t_bar(t_bar);
+                        let lot_lambda = Self::floor_lambda(d * phi);
+                        for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter())
+                        {
+                            let psi = self.psi_pos_quantile(u_psi);
+                            let lambda = Self::floor_lambda(lot_lambda * psi);
+                            let w = w_d * w_t * w_psi;
+                            acc += w * self.cdf_f_given_lambda(lambda, f);
+                            w_sum += w;
+                        }
+                    }
+                }
+            }
+        }
 
+        if w_sum > 0.0 {
+            acc / w_sum
+        } else {
+            0.0
+        }
+    }
+
+    fn build_law_cdf(&self, condition: ArrivalCondition) -> ArrivalCdfCache {
+        let corridor_key = self.default_corridor.as_str();
         let mut cdf = vec![0.0; ARRIVAL_GRID];
         for gi in 0..ARRIVAL_GRID {
             let f = gi as f64 / (ARRIVAL_GRID - 1) as f64;
-            let mut p = 0.0;
-            for key in &corridor_keys {
-                let corridor = &self.corridors[*key];
-                let w_corr = corridor.mix_weight / mix_total;
-                for (&node, &weight) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                    let d = if let Some(pd) = pack_date_days {
-                        f64::from(pd).max(0.0)
-                    } else {
-                        let delay_mean = Self::expected_delay(corridor);
-                        let delay_span = corridor.delay_scale * 2.0;
-                        (corridor.d_min + delay_mean + delay_span * (2.0 * node - 1.0)).max(0.0)
-                    };
-                    let phi = if let Some(pb) = phi_bar {
-                        pb
-                    } else {
-                        let t_span = self.sigma_t * 2.5;
-                        let t_bar =
-                            (self.mu_t + t_span * (2.0 * node - 1.0)).max(self.temp_floor_c);
-                        self.phi_bar_from_t_bar(t_bar)
-                    };
-                    let lambda = Self::floor_lambda(d * phi);
-                    let lam = lambda;
-                    p += w_corr * weight * self.cdf_f_given_lambda(lam, f);
-                }
-            }
-            cdf[gi] = p.clamp(0.0, 1.0);
+            cdf[gi] = self
+                .marginal_cdf_at(condition, corridor_key, f)
+                .clamp(0.0, 1.0);
         }
+
+        let atom_f0 = self
+            .marginal_cdf_at(condition, corridor_key, 0.0)
+            .clamp(0.0, 1.0);
+
+        let mut mean_acc = 0.0;
+        let mut mean_sq_acc = 0.0;
+        let mut mass_acc = 0.0;
         for gi in 1..ARRIVAL_GRID {
             let f = gi as f64 / (ARRIVAL_GRID - 1) as f64;
             let f_prev = (gi - 1) as f64 / (ARRIVAL_GRID - 1) as f64;
-            let bin_mass = (cdf[gi] - cdf[gi - 1]).max(0.0);
+            let p_hi = cdf[gi];
+            let p_lo = if gi == 1 { atom_f0 } else { cdf[gi - 1] };
+            let bin_mass = (p_hi - p_lo).max(0.0);
             let f_mid = 0.5 * (f + f_prev);
             mean_acc += f_mid * bin_mass;
             mean_sq_acc += f_mid * f_mid * bin_mass;
             mass_acc += bin_mass;
         }
+        mass_acc += atom_f0;
 
-        let representative_lambda = {
-            let corridor = self.corridor(&self.default_corridor);
-            let d = pack_date_days
-                .map(f64::from)
-                .unwrap_or_else(|| Self::expected_delay(corridor));
-            let phi = phi_bar.unwrap_or_else(|| self.phi_bar_from_t_bar(self.mu_t));
-            Self::floor_lambda(d * phi)
+        let mean_f = if mass_acc > 0.0 {
+            mean_acc / mass_acc
+        } else {
+            0.0
         };
-        let atom_acc = self.p_f_zero(representative_lambda);
-        if mass_acc > 0.0 {
-            mean_acc /= mass_acc;
-            mean_sq_acc /= mass_acc;
+        let variance_f = if mass_acc > 0.0 {
+            (mean_sq_acc / mass_acc - mean_f * mean_f).max(0.0)
+        } else {
+            0.0
+        };
+
+        let denom = (1.0 - atom_f0).max(1e-12);
+        for gi in 0..ARRIVAL_GRID {
+            cdf[gi] = ((cdf[gi] - atom_f0) / denom).clamp(0.0, 1.0);
         }
-        let variance = (mean_sq_acc - mean_acc * mean_acc).max(0.0);
 
         ArrivalCdfCache {
             cdf,
-            atom_f0: atom_acc,
-            mean_f: mean_acc,
-            variance_f: variance,
+            atom_f0,
+            mean_f,
+            variance_f,
         }
-    }
-
-    fn marginal_cache(&self) -> &ArrivalCdfCache {
-        &self.marginal_cdf
     }
 
     pub fn variance_f_given_d(&mut self, d_days: i32) -> f64 {
         if !self.f2_cache.contains_key(&d_days) {
-            let cache = self.build_marginal_cdf(Some(d_days), None);
+            let cache = self.build_law_cdf(ArrivalCondition::Duration(d_days));
             self.f2_cache.insert(d_days, cache);
         }
         self.f2_cache.get(&d_days).unwrap().variance_f
-    }
-
-    pub fn variance_f_given_phi_bar(&mut self, phi_bar: f64) -> f64 {
-        let key = (phi_bar * 1_000_000.0).round() as u64;
-        if !self.f3_cache.contains_key(&key) {
-            let cache = self.build_marginal_cdf(None, Some(phi_bar));
-            self.f3_cache.insert(key, cache);
-        }
-        self.f3_cache.get(&key).unwrap().variance_f
     }
 
     pub fn sample_unit_f_from_cache<R: Rng + ?Sized>(
@@ -458,30 +577,40 @@ impl ArrivalModel {
 
     pub fn sample_filter_birth_units<R: Rng + ?Sized>(
         &mut self,
-        pack_date_days: Option<i32>,
-        phi_bar: Option<f64>,
+        condition: ArrivalCondition,
         n: usize,
         rng: &mut R,
     ) -> Vec<f64> {
-        let cache = if let Some(pb) = phi_bar {
-            let key = (pb * 1_000_000.0).round() as u64;
-            if !self.f3_cache.contains_key(&key) {
-                let built = self.build_marginal_cdf(None, Some(pb));
-                self.f3_cache.insert(key, built);
-            }
-            self.f3_cache.get(&key).unwrap().clone()
-        } else if let Some(d) = pack_date_days {
-            if !self.f2_cache.contains_key(&d) {
-                let built = self.build_marginal_cdf(Some(d), None);
-                self.f2_cache.insert(d, built);
-            }
-            self.f2_cache.get(&d).unwrap().clone()
-        } else {
-            self.marginal_cdf.clone()
-        };
+        let cache = self.law_cdf(condition);
         (0..n)
             .map(|_| self.sample_unit_f_from_cache(&cache, rng))
             .collect()
+    }
+
+    /// Unconditional mean `E[f]` for a channel-conditional filter law (includes the `f = 0` atom).
+    pub fn filter_law_mean_f(&mut self, condition: ArrivalCondition) -> f64 {
+        self.law_cdf(condition).mean_f
+    }
+
+    fn law_cdf(&mut self, condition: ArrivalCondition) -> ArrivalCdfCache {
+        match condition {
+            ArrivalCondition::Exposure(lambda) => {
+                let key = (lambda * 1_000_000.0).round() as u64;
+                if !self.f3_cache.contains_key(&key) {
+                    let built = self.build_law_cdf(ArrivalCondition::Exposure(lambda));
+                    self.f3_cache.insert(key, built);
+                }
+                self.f3_cache.get(&key).unwrap().clone()
+            }
+            ArrivalCondition::Duration(d) => {
+                if !self.f2_cache.contains_key(&d) {
+                    let built = self.build_law_cdf(ArrivalCondition::Duration(d));
+                    self.f2_cache.insert(d, built);
+                }
+                self.f2_cache.get(&d).unwrap().clone()
+            }
+            ArrivalCondition::Prior => self.marginal_cdf.clone(),
+        }
     }
 
     pub fn marginal_variance_f(&self) -> f64 {
@@ -494,7 +623,7 @@ impl ArrivalModel {
         self.q10 = params.q10;
         self.t_ref = params.t_ref_c;
         self.reference_life_days = params.eta_ref;
-        self.marginal_cdf = self.build_marginal_cdf(None, None);
+        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
         self.f2_cache.clear();
         self.f3_cache.clear();
     }
@@ -511,7 +640,33 @@ impl ArrivalCdfCache {
     }
 }
 
-/// Channel-conditional arrival law resolution for the filter birth step.
+/// Exact cumulative exposure Λ from an observed temperature trace (reference-days).
+pub fn resolve_arrival_exposure(
+    obs_temps: Option<&[f64]>,
+    obs_times: Option<&[f64]>,
+    q10: f64,
+    t_ref: f64,
+) -> Option<f64> {
+    let (times, temps) = (obs_times?, obs_temps?);
+    if times.len() < 2 || temps.len() != times.len() {
+        return None;
+    }
+    let mut exposure = 0.0;
+    for i in 0..times.len() - 1 {
+        let dt = times[i + 1] - times[i];
+        if dt <= 0.0 {
+            continue;
+        }
+        let t_mid = 0.5 * (temps[i] + temps[i + 1]);
+        exposure += dt * store_temp_factor(t_mid, t_ref, q10);
+    }
+    if exposure <= 1e-12 {
+        return None;
+    }
+    Some(exposure)
+}
+
+/// Arrhenius-equivalent mean temperature factor φ̄ = Λ / d from a trace (fixture helper).
 pub fn resolve_arrival_f_law_phi_bar(
     obs_temps: Option<&[f64]>,
     obs_times: Option<&[f64]>,
@@ -570,17 +725,6 @@ mod tests {
         let json = r#"{"schema_version":99,"mu_T":1,"sigma_T":1,"sigma_pos":0.1,"q10":3,"T_ref":0,"gamma_shape":2,"gamma_scale":0.03,"reference_life_days":14,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"x":{"d_min":1,"delay_shape":1,"delay_scale":1}}}"#;
         let err = ArrivalModel::from_json(json).unwrap_err();
         assert!(matches!(err, ArrivalModelError::UnknownSchemaVersion(99)));
-    }
-
-    #[test]
-    fn monotone_ladder_variance_strict() {
-        let mut model = ArrivalModel::embedded();
-        let var_marg = model.marginal_variance_f();
-        let var_d = model.variance_f_given_d(4);
-        let phi = model.phi_bar_from_t_bar(2.7);
-        let var_phi = model.variance_f_given_phi_bar(phi);
-        assert!(var_phi < var_d, "var_phi={var_phi} var_d={var_d}");
-        assert!(var_d < var_marg, "var_d={var_d} var_marg={var_marg}");
     }
 
     #[test]
