@@ -83,10 +83,10 @@ def _publishable_paths_changed(base_ref: str) -> bool:
     return any(_is_publishable_path(path) for path in _changed_paths_vs_base(base_ref))
 
 
-def test_studio_package_version_is_0_1_1() -> None:
-    """AC-first-bump: initial meaningful semver after #9."""
+def test_studio_package_version_is_0_2_0() -> None:
+    """Release semver pinned for studio embed package."""
     payload = json.loads(_PACKAGE_JSON.read_text(encoding="utf-8"))
-    assert payload["version"] == "0.1.1"
+    assert payload["version"] == "0.2.0"
 
 
 def test_publishable_path_changes_require_strict_version_bump() -> None:
