@@ -245,6 +245,7 @@ fn truth_delivery_units(
     root_seed: u64,
     path_run: &str,
     sim_day: u32,
+    corridor_key: &str,
 ) -> Option<Vec<f64>> {
     if arrival == 0 {
         return None;
@@ -256,7 +257,7 @@ fn truth_delivery_units(
     Some(
         arrival_model
             .draw_truth_delivery(
-                "abdella_all",
+                corridor_key,
                 arrival as usize,
                 &mut rng_dur,
                 &mut rng_temp,
@@ -322,7 +323,14 @@ fn path_value_f_belief(
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
         let delivery_unit_f =
-            truth_delivery_units(&arrival_model, arrival, ctx.root_seed, &path_run, sim_day);
+            truth_delivery_units(
+                &arrival_model,
+                arrival,
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                &params.arrival_product,
+            );
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
                 ctx.root_seed,
@@ -430,7 +438,14 @@ fn path_arrival_units_sum(
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
         let delivery_unit_f =
-            truth_delivery_units(&arrival_model, arrival, ctx.root_seed, &path_run, sim_day);
+            truth_delivery_units(
+                &arrival_model,
+                arrival,
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                &params.arrival_product,
+            );
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
                 ctx.root_seed,

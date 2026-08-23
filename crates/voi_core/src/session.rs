@@ -404,7 +404,9 @@ impl EngineSession {
             } else {
                 None
             };
-            self.arrival_model.sync_params(&self.params);
+            // `filter_step_unit_with_birth_cached` syncs params and the configured
+            // corridor onto `self.arrival_model` itself; an external sync here was
+            // redundant (T-150: `sync_params` was rebuilding every CDF twice per day).
             filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
@@ -765,7 +767,8 @@ impl EngineSession {
                 } else {
                     None
                 };
-                self.arrival_model.sync_params(&self.params);
+                // See advance_one: filter_step_unit_with_birth_cached syncs params and
+                // the corridor itself, so an external sync_params here was redundant.
                 filter_step_unit_with_birth_cached(
                     &mut bank,
                     &obs,
@@ -1084,6 +1087,7 @@ impl EngineSession {
         );
         if let Some(product) = arrival_product {
             self.arrival_product = product;
+            self.params.arrival_product = self.arrival_product.clone();
         }
         if let Some(scale) = rpc_f64(params, "spread_scale") {
             self.spread_scale = scale.clamp(0.05, 1.5);

@@ -82,9 +82,22 @@ pub struct ArrivalModel {
     pub reference_life_days: f64,
     pub quad_nodes: Vec<f64>,
     pub quad_weights: Vec<f64>,
+    /// Corridor the filter prior (`marginal_cdf`) and F2/F3 caches are currently built
+    /// against (T-150 finding 4). Defaults to `default_corridor`; callers with a
+    /// configured `arrival_product` must call `set_corridor` so the filter prior matches
+    /// the truth path instead of silently staying on `abdella_all`.
+    active_corridor: String,
     marginal_cdf: ArrivalCdfCache,
     f2_cache: HashMap<i32, ArrivalCdfCache>,
     f3_cache: HashMap<u64, ArrivalCdfCache>,
+    /// Most recent `Duration` days the filter actually conditioned on via `law_cdf`
+    /// (T-150: the wire adapter reads this instead of re-deriving a pack date, so the
+    /// F2 chart tracks the same observation the filter used).
+    last_duration_days: Option<i32>,
+    /// Most recent `Exposure` Λ the filter actually conditioned on via `law_cdf`
+    /// (ADR 0144 Correction 1 / T-150: the wire adapter reads this so the F3 chart
+    /// conditions on the observed shipment, never a prior-mean placeholder).
+    last_exposure_lambda: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +106,21 @@ struct ArrivalCdfCache {
     atom_f0: f64,
     mean_f: f64,
     variance_f: f64,
+}
+
+/// Chart-ready channel-conditional law (T-150 AC3.3): the raw CDF (atom mass included,
+/// unlike the filter's atom-divided `ArrivalCdfCache`) on an explicit grid, plus the
+/// atom and the atom-inclusive mean/sd. Computed against an explicit corridor rather
+/// than the model's mutable `active_corridor`, and at whatever resolution the caller
+/// needs — a chart does not need the filter's 4096-point grid. Uses the same per-point
+/// integration (`marginal_cdf_at`) the filter's `build_law_cdf` uses, so a wire adapter
+/// built on this can never numerically diverge from the filter.
+#[derive(Clone, Debug)]
+pub struct ArrivalRungLaw {
+    pub cdf: Vec<f64>,
+    pub atom_f0: f64,
+    pub mean_f: f64,
+    pub sd_f: f64,
 }
 
 #[derive(Deserialize)]
@@ -257,7 +285,7 @@ impl ArrivalModel {
         let mut model = Self {
             schema_version: raw.schema_version,
             corridors,
-            default_corridor,
+            default_corridor: default_corridor.clone(),
             mu_t: raw.mu_T,
             sigma_t: raw.sigma_T,
             temp_floor_c: raw.temp_floor_c,
@@ -269,9 +297,12 @@ impl ArrivalModel {
             reference_life_days: raw.reference_life_days,
             quad_nodes: raw.quadrature.nodes,
             quad_weights: raw.quadrature.weights,
+            active_corridor: default_corridor.clone(),
             marginal_cdf: ArrivalCdfCache::empty(),
             f2_cache: HashMap::new(),
             f3_cache: HashMap::new(),
+            last_duration_days: None,
+            last_exposure_lambda: None,
         };
         model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
         Ok(model)
@@ -482,14 +513,22 @@ impl ArrivalModel {
         }
     }
 
-    fn build_law_cdf(&self, condition: ArrivalCondition) -> ArrivalCdfCache {
-        let corridor_key = self.default_corridor.as_str();
-        let mut cdf = vec![0.0; ARRIVAL_GRID];
-        for gi in 0..ARRIVAL_GRID {
-            let f = gi as f64 / (ARRIVAL_GRID - 1) as f64;
-            cdf[gi] = self
-                .marginal_cdf_at(condition, corridor_key, f)
-                .clamp(0.0, 1.0);
+    /// Channel-conditional law on an explicit `[0, 1]` grid against an explicit corridor
+    /// (T-150 AC3.3). The only public, on-demand entry point for the raw (atom-inclusive)
+    /// CDF; `build_law_cdf` below is the filter's cached, atom-divided wrapper around it,
+    /// and `arrival_wire.rs` calls it directly so the studio chart can never diverge from
+    /// the filter's own integration.
+    pub fn rung_law_on_grid(
+        &self,
+        condition: ArrivalCondition,
+        corridor_key: &str,
+        grid_len: usize,
+    ) -> ArrivalRungLaw {
+        let grid_len = grid_len.max(2);
+        let mut cdf = vec![0.0; grid_len];
+        for (gi, slot) in cdf.iter_mut().enumerate() {
+            let f = gi as f64 / (grid_len - 1) as f64;
+            *slot = self.marginal_cdf_at(condition, corridor_key, f).clamp(0.0, 1.0);
         }
 
         let atom_f0 = self
@@ -499,9 +538,9 @@ impl ArrivalModel {
         let mut mean_acc = 0.0;
         let mut mean_sq_acc = 0.0;
         let mut mass_acc = 0.0;
-        for gi in 1..ARRIVAL_GRID {
-            let f = gi as f64 / (ARRIVAL_GRID - 1) as f64;
-            let f_prev = (gi - 1) as f64 / (ARRIVAL_GRID - 1) as f64;
+        for gi in 1..grid_len {
+            let f = gi as f64 / (grid_len - 1) as f64;
+            let f_prev = (gi - 1) as f64 / (grid_len - 1) as f64;
             let p_hi = cdf[gi];
             let p_lo = if gi == 1 { atom_f0 } else { cdf[gi - 1] };
             let bin_mass = (p_hi - p_lo).max(0.0);
@@ -523,25 +562,62 @@ impl ArrivalModel {
             0.0
         };
 
-        let denom = (1.0 - atom_f0).max(1e-12);
-        for gi in 0..ARRIVAL_GRID {
-            cdf[gi] = ((cdf[gi] - atom_f0) / denom).clamp(0.0, 1.0);
-        }
-
-        ArrivalCdfCache {
+        ArrivalRungLaw {
             cdf,
             atom_f0,
             mean_f,
-            variance_f,
+            sd_f: variance_f.sqrt(),
+        }
+    }
+
+    fn build_law_cdf(&self, condition: ArrivalCondition) -> ArrivalCdfCache {
+        let law = self.rung_law_on_grid(condition, &self.active_corridor, ARRIVAL_GRID);
+        let denom = (1.0 - law.atom_f0).max(1e-12);
+        let cdf: Vec<f64> = law
+            .cdf
+            .iter()
+            .map(|&c| ((c - law.atom_f0) / denom).clamp(0.0, 1.0))
+            .collect();
+
+        ArrivalCdfCache {
+            cdf,
+            atom_f0: law.atom_f0,
+            mean_f: law.mean_f,
+            variance_f: law.sd_f * law.sd_f,
         }
     }
 
     pub fn variance_f_given_d(&mut self, d_days: i32) -> f64 {
-        if !self.f2_cache.contains_key(&d_days) {
-            let cache = self.build_law_cdf(ArrivalCondition::Duration(d_days));
-            self.f2_cache.insert(d_days, cache);
+        self.law_cdf(ArrivalCondition::Duration(d_days)).variance_f
+    }
+
+    /// Point the filter's prior and F2/F3 caches at a different corridor (T-150 finding
+    /// 4: the configured `arrival_product` must reach the filter prior, not just the
+    /// truth path). No-op if already active; otherwise invalidates the F2/F3 caches
+    /// (built against the old corridor) and rebuilds the prior against the new one.
+    pub fn set_corridor(&mut self, corridor_key: &str) {
+        if self.active_corridor == corridor_key {
+            return;
         }
-        self.f2_cache.get(&d_days).unwrap().variance_f
+        self.active_corridor = corridor_key.to_string();
+        self.f2_cache.clear();
+        self.f3_cache.clear();
+        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
+    }
+
+    pub fn active_corridor(&self) -> &str {
+        &self.active_corridor
+    }
+
+    /// Most recent `Duration` days the filter conditioned on (T-150 wire adapter).
+    pub fn last_duration_days(&self) -> Option<i32> {
+        self.last_duration_days
+    }
+
+    /// Most recent `Exposure` Λ the filter conditioned on (ADR 0144 C1 / T-150 wire
+    /// adapter — `None` means no delivery has been observed on this channel yet).
+    pub fn last_exposure_lambda(&self) -> Option<f64> {
+        self.last_exposure_lambda
     }
 
     pub fn sample_unit_f_from_cache<R: Rng + ?Sized>(
@@ -595,6 +671,7 @@ impl ArrivalModel {
     fn law_cdf(&mut self, condition: ArrivalCondition) -> ArrivalCdfCache {
         match condition {
             ArrivalCondition::Exposure(lambda) => {
+                self.last_exposure_lambda = Some(lambda);
                 let key = (lambda * 1_000_000.0).round() as u64;
                 if !self.f3_cache.contains_key(&key) {
                     let built = self.build_law_cdf(ArrivalCondition::Exposure(lambda));
@@ -603,6 +680,7 @@ impl ArrivalModel {
                 self.f3_cache.get(&key).unwrap().clone()
             }
             ArrivalCondition::Duration(d) => {
+                self.last_duration_days = Some(d);
                 if !self.f2_cache.contains_key(&d) {
                     let built = self.build_law_cdf(ArrivalCondition::Duration(d));
                     self.f2_cache.insert(d, built);
