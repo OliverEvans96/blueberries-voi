@@ -24,6 +24,7 @@ const REQUIRED_CHART_IDS = [
   "chart-history",
   "chart-sales-demand",
   "chart-demand",
+  "chart-demand-forecast-host",
   "chart-inventory",
   "chart-age-comp",
   "chart-arrival-prior",
@@ -140,6 +141,10 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(
       container.querySelector('.focus-plot[data-plot="plot-demand"]'),
     ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-demand-forecast"]'),
+    ).not.toBeNull();
+    expect(container.querySelector("#chart-demand-forecast-host")).not.toBeNull();
     expect(
       container.querySelector('.focus-plot[data-plot="plot-picking-variability"]'),
     ).not.toBeNull();

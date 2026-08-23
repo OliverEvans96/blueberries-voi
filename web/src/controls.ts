@@ -8,12 +8,9 @@ import type {
 } from "./types";
 import type { SectionId } from "./sections";
 import { defaultIntervalMsForPolicy } from "./autopilotLoop";
-import type { DemandSummary, ScheduleWire } from "./engine/types";
+import type { ScheduleWire } from "./engine/types";
 import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 import { controlAvailability } from "./scenarioAvailability";
-import {
-  projectedDemandDays,
-} from "./charts/demandDist";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -104,8 +101,6 @@ export type ControlsState = {
   pendingOrder: number;
   /** Snapshot schedule for weekday / pipeline chrome (T-086). */
   schedule: ScheduleWire | null;
-  /** DOW demand profile for projected-demand preview (read-only). */
-  demand_summary: DemandSummary | null;
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
@@ -301,10 +296,6 @@ function mountSectionControlsDom(
         <p class="hint">Negative-binomial-ish demand from mean and V/M; 1/σ shapes lot picking spread.</p>
         <div class="demand-controls-sliders">
           ${CONFIG_SLIDERS.filter((s) => s.group === "demand").map(sliderHtml).join("")}
-          <div class="field">
-            <span class="field-label">Next few days (projected μ)</span>
-            <p class="meta-readonly" id="demand-preview-list">—</p>
-          </div>
           <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
           ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
         </div>
@@ -438,20 +429,6 @@ function mountSectionControlsDom(
     }
   }
 
-  function syncDemandChrome(s: ControlsState): void {
-    const previewEl = root.querySelector("#demand-preview-list") as HTMLElement | null;
-    if (previewEl) {
-      if (s.demand_summary) {
-        const rows = projectedDemandDays(s.episodeDay, s.demand_summary, 5);
-        previewEl.textContent = rows
-          .map((r) => `${r.weekday} d${r.day}: μ≈${r.mean.toFixed(0)}`)
-          .join(" · ");
-      } else {
-        previewEl.textContent = "— (demand_summary pending)";
-      }
-    }
-  }
-
   function syncSlider(spec: SliderSpec, value: number): void {
     const el = root.querySelector(`#${spec.id}`) as HTMLInputElement | null;
     const label = root.querySelector(`#val-${spec.id}`) as HTMLElement | null;
@@ -488,10 +465,6 @@ function mountSectionControlsDom(
       btn.classList.toggle("is-active", btn.dataset.arrival === c.arrival_product);
     });
     syncControlAvailability(c.obs_channels);
-  }
-
-  function syncDemandState(s: ControlsState): void {
-    syncDemandChrome(s);
   }
 
   function syncController(s: ControllerControlsState): void {
@@ -623,14 +596,12 @@ function mountSectionControlsDom(
 
   syncEconomics(initial.economics);
   syncConfig(initial.config);
-  syncDemandState(initial);
   syncController(initialController);
 
   return {
     update(s) {
       syncEconomics(s.economics);
       syncConfig(s.config, Boolean(s.catchingUp));
-      syncDemandState(s);
     },
     updateController(s) {
       syncController(s);
@@ -656,7 +627,6 @@ export function controlsFromVm(
     episodeDay: vm.episode_day,
     pendingOrder: vm.pending_order,
     schedule,
-    demand_summary: vm.demand_summary,
   };
 }
 

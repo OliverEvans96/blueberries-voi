@@ -7,7 +7,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
-  controlsFromVm,
   DEFAULT_CONTROLLER_CONTROLS,
   formatSigmaPrecision,
   mountSectionControlsDom,
@@ -21,7 +20,6 @@ import {
 import { DEFAULT_ECONOMICS, DEFAULT_SIM_CONFIG } from "./mock/generate";
 import { STUDIO_SECTIONS } from "./sections";
 import type { SectionId } from "./sections";
-import type { ViewModel } from "./types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTROLS_TS = join(HERE, "controls.ts");
@@ -49,41 +47,6 @@ function baseState(): ControlsState {
       lead_time_days: 1,
       epoch: "2024-01-01",
     },
-    demand_summary: {
-      scale_mu: 30,
-      dow_means: [29, 30, 28, 26, 28, 34, 35],
-    },
-  };
-}
-
-function minimalVm(): ViewModel {
-  const state = baseState();
-  return {
-    episode_day: state.episodeDay,
-    window_days: 90,
-    history: [],
-    economics: state.economics,
-    config: state.config,
-    config_dirty: false,
-    pnl_series: [],
-    pnl_totals: {
-      revenue: 0,
-      cost: 0,
-      profit: 0,
-      today_revenue: 0,
-      today_cost: 0,
-      today_profit: 0,
-    },
-    belief: { f_edges: [], count_edges: [], density: [] },
-    live_lots: [],
-    belief_history: [],
-    on_hand: 0,
-    effective_inv: 0,
-    pipeline: [],
-    case_size: 8,
-    pending_order: 0,
-    demand_summary: state.demand_summary,
-    schedule: state.schedule,
   };
 }
 
@@ -161,12 +124,6 @@ describe("T-127 tuning-dock content", () => {
 
   it("DEFAULT_CONTROLLER_CONTROLS defaults policy to rollout (T-130)", () => {
     expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("rollout");
-  });
-
-  it("controlsFromVm passes demand_summary for projected-demand preview", () => {
-    const vm = minimalVm();
-    const state = controlsFromVm(vm, 16, vm.schedule);
-    expect(state.demand_summary).toEqual(vm.demand_summary);
   });
 
   it("sigma slider min/max are 0 (uniform sentinel) and SIGMA_PRECISION_MAX, not raw sigma bounds", () => {
@@ -261,20 +218,10 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
   });
 });
 
-describe("T-127 tuning-dock content — projected demand", () => {
-  it("renders projected demand preview in demand controls", () => {
-    const host = document.createElement("div");
-    mountSectionControlsDom(
-      host,
-      baseState(),
-      {
-        onEconomicsChange: vi.fn(),
-        onConfigChange: vi.fn(),
-        onControllerChange: vi.fn(),
-      },
-    );
-    const preview = host.querySelector("#demand-preview-list");
-    expect(preview?.textContent).toMatch(/μ≈/);
-    expect(host.querySelector("#week-calendar")).toBeNull();
+describe("T-127 tuning-dock content — demand controls", () => {
+  it("demand section has no text-only projected μ preview (chart replaces it)", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/demand-preview-list/);
+    expect(src).not.toMatch(/Next few days \(projected μ\)/);
   });
 });

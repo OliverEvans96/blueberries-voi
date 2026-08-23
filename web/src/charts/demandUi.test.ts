@@ -160,6 +160,8 @@ describe("T-087 DOW profile from demand_summary", () => {
     expect(main).toMatch(/id\s*===\s*["']demand["']/);
     expect(main).toMatch(/chart-demand-host/);
     expect(main).toMatch(/renderDailyDemand/);
+    expect(main).toMatch(/renderDemandForecast/);
+    expect(main).toMatch(/plot-demand-forecast/);
   });
 });
 

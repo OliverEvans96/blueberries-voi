@@ -39,6 +39,78 @@ export type ProjectedDemandRow = {
   mean: number;
 };
 
+export const DEMAND_FORECAST_HORIZON = 5;
+
+export type DemandForecastRow = ProjectedDemandRow & {
+  p10: number;
+  p50: number;
+  p90: number;
+};
+
+/** Truncated NB pmf under ModelParams convention (r = μ/(vm−1), p = r/(r+μ)). */
+export function nbPmf(
+  mu: number,
+  vm: number,
+  kMax?: number,
+): { k: number; p: number }[] {
+  const safeMu = Math.max(0.1, mu);
+  const safeVm = Math.max(1.05, vm);
+  const r = safeMu / (safeVm - 1);
+  const successP = r / (r + safeMu);
+  const maxK =
+    kMax ?? Math.min(200, Math.ceil(safeMu + 8 * Math.sqrt(safeMu * safeVm) + 20));
+
+  const out: { k: number; p: number }[] = [];
+  let pk = successP ** r;
+  let sum = 0;
+  for (let k = 0; k <= maxK; k += 1) {
+    out.push({ k, p: pk });
+    sum += pk;
+    pk *= ((k + r) / (k + 1)) * (1 - successP);
+    if (pk < 1e-12 && k > safeMu) break;
+  }
+  if (sum > 0) {
+    for (const row of out) row.p /= sum;
+  }
+  return out;
+}
+
+function quantileFromPmf(pmf: { k: number; p: number }[], q: number): number {
+  let cum = 0;
+  for (const row of pmf) {
+    cum += row.p;
+    if (cum >= q) return row.k;
+  }
+  return pmf[pmf.length - 1]?.k ?? 0;
+}
+
+/** NB p10 / p50 / p90 for a single calendar day mean. */
+export function nbQuantiles(
+  mu: number,
+  vm: number,
+): { p10: number; p50: number; p90: number } {
+  const pmf = nbPmf(mu, vm);
+  return {
+    p10: quantileFromPmf(pmf, 0.1),
+    p50: quantileFromPmf(pmf, 0.5),
+    p90: quantileFromPmf(pmf, 0.9),
+  };
+}
+
+/** Next N episode days with expected μ and NB uncertainty bands. */
+export function demandForecastRows(
+  episodeDay: number,
+  summary: DemandSummary,
+  demandVm: number,
+  days = DEMAND_FORECAST_HORIZON,
+): DemandForecastRow[] {
+  const projected = projectedDemandDays(episodeDay, summary, days);
+  return projected.map((row) => {
+    const q = nbQuantiles(row.mean, demandVm);
+    return { ...row, ...q };
+  });
+}
+
 /** Next N episode days of expected demand from DOW profile (monday0 weekdays). */
 export function projectedDemandDays(
   episodeDay: number,
@@ -439,4 +511,212 @@ export function renderDemandDist(
     .attr("y", innerH + 30)
     .attr("text-anchor", "middle")
     .text(`DOW means · scale μ=${profile.scale_mu.toFixed(0)}`);
+}
+
+function forecastRootG(
+  container: HTMLElement,
+): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  const g = container.querySelector("svg g.chart-root");
+  return g ? d3.select(g as SVGGElement) : null;
+}
+
+/** Style-only hover for demand forecast chart. */
+export function setDemandForecastHover(
+  container: HTMLElement,
+  hoveredDay: HoverDay,
+): void {
+  const g = forecastRootG(container);
+  if (!g) return;
+
+  g.classed("is-hovering", hoveredDay != null);
+  g.selectAll<SVGRectElement, DemandForecastRow>(".day-hit").classed(
+    "day-hit--active",
+    (d) => hoveredDay === d.day,
+  );
+
+  const rule = g.select<SVGLineElement>(".hover-rule");
+  if (hoveredDay == null) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const innerW = Number(g.attr("data-inner-w") ?? 0);
+  const days = g
+    .selectAll<SVGRectElement, DemandForecastRow>(".day-hit")
+    .data()
+    .map((d) => d.day);
+  if (!innerW || !days.length) {
+    rule.attr("opacity", 0);
+    return;
+  }
+  const x = salesDemandX(days, innerW, hoveredDay);
+  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
+}
+
+/**
+ * Known demand distribution — expected μ and p10–p90 over the next few days.
+ * Uses Snapshot demand_summary (DOW calendar) + config demand_vm (NB dispersion).
+ */
+export function renderDemandForecast(
+  container: HTMLElement,
+  history: Day[],
+  summary: DemandSummary | null | undefined,
+  episodeDay: number,
+  demandVm: number,
+  height = 160,
+): void {
+  const profile = summary ?? FALLBACK_SUMMARY;
+  const rows = demandForecastRows(episodeDay, profile, demandVm);
+  const dayNums = rows.map((r) => r.day);
+  const realized = history.filter((d) => dayNums.includes(d.day));
+
+  const width = container.clientWidth > 60 ? container.clientWidth : 320;
+  const margin = { top: 18, right: CHART_MARGIN.right, bottom: 28, left: 40 };
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  container.replaceChildren();
+  if (innerW <= 0 || rows.length === 0) return;
+
+  const svg = d3
+    .select(container)
+    .append("svg")
+    .attr("class", "chart-svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("width", "100%")
+    .attr("height", height)
+    .attr(
+      "aria-label",
+      "Known demand distribution forecast for the next few days",
+    );
+
+  const g = svg
+    .append("g")
+    .attr("class", "chart-root")
+    .attr("data-inner-w", String(innerW))
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const days = padDaysToMinRange(dayNums);
+  const step = Math.max(0, innerW / days.length);
+  const x = (day: number): number => salesDemandX(days, innerW, day);
+
+  const yMax =
+    d3.max([
+      d3.max(rows, (r) => r.p90) ?? 0,
+      d3.max(realized, (d) => d.demand) ?? 0,
+    ]) ?? 1;
+  const y = d3.scaleLinear().domain([0, yMax * 1.1]).nice().range([innerH, 0]);
+
+  g.append("g")
+    .attr("class", "day-hits")
+    .attr("pointer-events", "none")
+    .selectAll("rect")
+    .data(rows, (d) => String((d as DemandForecastRow).day))
+    .join("rect")
+    .attr("class", "day-hit")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (d) => {
+      const i = days.indexOf(d.day);
+      return i * step;
+    })
+    .attr("y", 0)
+    .attr("width", step)
+    .attr("height", innerH);
+
+  g.append("g")
+    .attr("class", "axis axis-y")
+    .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove());
+
+  g.append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(
+      d3
+        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+        .tickFormat((d) => {
+          const row = rows.find((r) => r.day === d);
+          return row ? `${row.weekday}` : `d${d}`;
+        })
+        .tickValues(pickDayTicks(days, innerW))
+        .tickSizeOuter(0),
+    )
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  const bandArea = d3
+    .area<DemandForecastRow>()
+    .x((d) => x(d.day))
+    .y0((d) => y(d.p10))
+    .y1((d) => y(d.p90))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .datum(rows)
+    .attr("class", "forecast-band")
+    .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))")
+    .attr("stroke", "none")
+    .attr("d", bandArea);
+
+  const meanLine = d3
+    .line<DemandForecastRow>()
+    .x((d) => x(d.day))
+    .y((d) => y(d.mean))
+    .curve(d3.curveMonotoneX);
+
+  g.append("path")
+    .datum(rows)
+    .attr("class", "forecast-mean")
+    .attr("fill", "none")
+    .attr("stroke", "var(--chart-accent, #2563eb)")
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "5,3")
+    .attr("d", meanLine);
+
+  if (realized.length > 0) {
+    const realizedLine = d3
+      .line<Day>()
+      .x((d) => x(d.day))
+      .y((d) => y(d.demand))
+      .curve(d3.curveMonotoneX);
+
+    g.append("path")
+      .datum(realized)
+      .attr("class", "forecast-realized")
+      .attr("fill", "none")
+      .attr("stroke", "var(--chart-ink, #0f172a)")
+      .attr("stroke-width", 2)
+      .attr("d", realizedLine);
+
+    g.selectAll<SVGCircleElement, Day>(".forecast-realized-dot")
+      .data(realized, (d) => String((d as Day).day))
+      .join("circle")
+      .attr("class", "forecast-realized-dot")
+      .attr("cx", (d) => x(d.day))
+      .attr("cy", (d) => y(d.demand))
+      .attr("r", 3);
+  }
+
+  g.append("line")
+    .attr("class", "forecast-today")
+    .attr("x1", x(episodeDay))
+    .attr("x2", x(episodeDay))
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("stroke", "var(--chart-muted, #94a3b8)")
+    .attr("stroke-width", 1)
+    .attr("stroke-dasharray", "2,2")
+    .attr("pointer-events", "none");
+
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", 0)
+    .attr("y", -4)
+    .attr("text-anchor", "start")
+    .text(`Known demand · next ${rows.length} days (μ + p10–p90)`);
+
+  g.append("line")
+    .attr("class", "hover-rule")
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("opacity", 0)
+    .attr("pointer-events", "none");
 }

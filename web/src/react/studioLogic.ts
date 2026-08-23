@@ -40,7 +40,9 @@ import {
 } from "../charts/marginals";
 import {
   renderDailyDemand,
+  renderDemandForecast,
   renderPickingVariability,
+  setDemandForecastHover,
   setDemandHover,
 } from "../charts/demandDist";
 import {
@@ -242,6 +244,7 @@ export function initStudio(app: HTMLElement): () => void {
     hoverNote: q<HTMLElement>("#hover-note")!,
     sectionControls: q<HTMLElement>("#section-controls")!,
     demand: q<HTMLElement>("#chart-demand")!,
+    demandForecast: q<HTMLElement>("#chart-demand-forecast-host")!,
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
     inventory: q<HTMLElement>("#chart-inventory")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
@@ -596,6 +599,7 @@ export function initStudio(app: HTMLElement): () => void {
     setInventoryTargetHover(els.inventoryFocus, day);
     setAgeCompositionHover(els.ageComp, day);
     setDemandHover(els.demand, day);
+    setDemandForecastHover(els.demandForecast, day);
   }
 
   function onHoverDay(
@@ -727,6 +731,16 @@ export function initStudio(app: HTMLElement): () => void {
     if (plotVisible("plot-demand")) {
       renderDailyDemand(els.demand, vm.history, 160);
     }
+    if (plotVisible("plot-demand-forecast")) {
+      renderDemandForecast(
+        els.demandForecast,
+        vm.history,
+        vm.demand_summary,
+        vm.episode_day,
+        vm.config.demand_vm,
+        160,
+      );
+    }
     if (plotVisible("plot-picking-variability")) {
       renderPickingVariability(els.pickingVar, vm.config.sigma, 95);
     }
@@ -834,7 +848,9 @@ export function initStudio(app: HTMLElement): () => void {
     slider.dataset.previewBound = "1";
     bindDemandSliderPreview({
       chartHost: els.demand,
+      forecastHost: els.demandForecast,
       slider,
+      vmSlider: q<HTMLInputElement>("#demand_vm") ?? undefined,
       projector,
       schedule,
     });
