@@ -1,28 +1,28 @@
-/* T-148 Cockpit Grid — layout v6 (metrics | belief | sidebar + tuning dock).
+/* T-158 Cockpit Grid — layout v7 (metrics | belief | sidebar).
  *
- * Three content columns: metrics stack, belief + operator bar, obs + events.
- * Bottom row: full-width tuning dock.
+ * Three content columns only; tuning lives in right drawer (T-158).
  */
 
 .cockpit-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-areas:
-    "metrics  belief   sidebar"
-    "tuning   tuning   tuning";
+  grid-template-areas: "metrics  belief   sidebar";
   align-items: start;
   gap: 1rem;
 }
 
-.cockpit-row {
-  display: grid;
+.title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.cockpit-row--tuning {
-  grid-area: tuning;
-  min-height: 200px;
-  grid-template-columns: 1fr;
+.title-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .cockpit-pane {
