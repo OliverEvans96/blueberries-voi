@@ -6,8 +6,11 @@ import type { FlatBelief } from "../engine/types";
 import type { BeliefHistoryDay, Day, Unit } from "../types";
 import {
   BELIEF_MAE_DECIMALS,
+  currentDistributionAbsError,
   currentMeanFAbsError,
+  distributionAbsError,
   formatMeanFAbsError,
+  meanDistributionAbsErrorOverHistory,
   meanFreshnessAbsError,
   meanMeanFAbsErrorOverHistory,
   shelfMeanFFromFlat,
@@ -128,5 +131,72 @@ describe("formatMeanFAbsError", () => {
   it(`uses ${BELIEF_MAE_DECIMALS} decimal places`, () => {
     expect(formatMeanFAbsError(0.04167)).toBe("0.042");
     expect(formatMeanFAbsError(0.1)).toBe("0.100");
+  });
+});
+
+describe("distributionAbsError", () => {
+  it("is zero when normalized distributions match", () => {
+    const masses = [5, 5, 0, 0, 0, 0, 0, 0];
+    expect(distributionAbsError(masses, masses)).toBeCloseTo(0);
+  });
+
+  it("returns null when either side has zero total mass", () => {
+    expect(distributionAbsError([1, 0], [0, 0])).toBeNull();
+    expect(distributionAbsError([0, 0], [1, 0])).toBeNull();
+  });
+
+  it("computes mean L1 distance on normalized shares", () => {
+    const belief = [8, 0, 0, 0, 0, 0, 0, 0];
+    const truth = [0, 0, 0, 0, 10, 0, 0, 0];
+    // |1-0| + |0-0| + ... + |0-1| over 8 bins = 2/8 = 0.25
+    expect(distributionAbsError(belief, truth)).toBeCloseTo(0.25);
+  });
+});
+
+describe("currentDistributionAbsError", () => {
+  it("is positive when means agree but rebinned distributions differ", () => {
+    const distMae = currentDistributionAbsError(FLAT, UNITS);
+    expect(distMae).not.toBeNull();
+    expect(distMae!).toBeGreaterThan(0);
+    expect(currentMeanFAbsError(FLAT, UNITS)).toBeCloseTo(0);
+  });
+
+  it("returns null when units are empty", () => {
+    expect(currentDistributionAbsError(FLAT, [])).toBeNull();
+  });
+});
+
+describe("meanDistributionAbsErrorOverHistory", () => {
+  it("averages per-day distribution MAE over aligned history rows", () => {
+    const history: Day[] = [
+      dayRow(0, UNITS.slice(0, 5)),
+      dayRow(1, UNITS),
+    ];
+    const beliefHistory: BeliefHistoryDay[] = [
+      { day: 0, flatBelief: FLAT },
+      { day: 1, flatBelief: FLAT },
+    ];
+    const result = meanDistributionAbsErrorOverHistory(history, beliefHistory);
+    expect(result).not.toBeNull();
+    expect(result!.dayCount).toBe(2);
+    expect(result!.meanMae).toBeGreaterThan(0);
+  });
+
+  it("skips days without matching belief or truth units", () => {
+    const history: Day[] = [dayRow(0, []), dayRow(1, UNITS)];
+    const beliefHistory: BeliefHistoryDay[] = [{ day: 1, flatBelief: FLAT }];
+    const result = meanDistributionAbsErrorOverHistory(history, beliefHistory);
+    expect(result).not.toBeNull();
+    expect(result!.dayCount).toBe(1);
+  });
+
+  it("returns null when no valid aligned days", () => {
+    expect(meanDistributionAbsErrorOverHistory([], [])).toBeNull();
+    expect(
+      meanDistributionAbsErrorOverHistory(
+        [dayRow(0, [])],
+        [{ day: 0, flatBelief: FLAT }],
+      ),
+    ).toBeNull();
   });
 });

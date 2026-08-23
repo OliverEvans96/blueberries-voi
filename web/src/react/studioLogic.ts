@@ -37,9 +37,11 @@ import {
   METRICS_STRIP_HEIGHT,
 } from "../charts/chartHeights";
 import {
-  BELIEF_MAE_DEFINITION,
+  BELIEF_MAE_TOOLTIP,
+  currentDistributionAbsError,
   currentMeanFAbsError,
   formatMeanFAbsError,
+  meanDistributionAbsErrorOverHistory,
   meanMeanFAbsErrorOverHistory,
 } from "../charts/beliefAccuracy";
 import {
@@ -784,31 +786,76 @@ export function initStudio(app: HTMLElement): () => void {
     syncBeliefMaeStats();
   }
 
+  function setBeliefMaeStatContent(
+    el: HTMLElement,
+    meanMae: number,
+    distMae: number,
+    suffix: string,
+  ): void {
+    el.replaceChildren();
+
+    const appendMetric = (label: string, value: string): void => {
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "belief-mae-label";
+      labelSpan.textContent = label;
+      el.appendChild(labelSpan);
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "belief-mae-value";
+      valueSpan.textContent = value;
+      el.appendChild(valueSpan);
+    };
+
+    const appendSeparator = (): void => {
+      const sep = document.createElement("span");
+      sep.className = "belief-mae-separator";
+      sep.textContent = "·";
+      el.appendChild(sep);
+    };
+
+    appendMetric("MAE(mean f):", formatMeanFAbsError(meanMae));
+    appendSeparator();
+    appendMetric("MAE(dist):", formatMeanFAbsError(distMae));
+    appendSeparator();
+    const suffixSpan = document.createElement("span");
+    suffixSpan.className = "belief-mae-suffix";
+    suffixSpan.textContent = suffix;
+    el.appendChild(suffixSpan);
+  }
+
   function syncBeliefMaeStats(): void {
     const visible = showTruth && vm.live_units.length > 0;
     qa<HTMLElement>("[data-belief-mae]").forEach((el) => {
       if (!visible) {
         el.hidden = true;
-        el.textContent = "";
+        el.replaceChildren();
         el.removeAttribute("title");
         return;
       }
 
       const kind = el.dataset.beliefMae;
-      el.title = BELIEF_MAE_DEFINITION;
+      el.title = BELIEF_MAE_TOOLTIP;
 
       if (kind === "history") {
-        const summary = meanMeanFAbsErrorOverHistory(
+        const meanSummary = meanMeanFAbsErrorOverHistory(
           vm.history,
           vm.belief_history,
         );
-        if (!summary) {
+        const distSummary = meanDistributionAbsErrorOverHistory(
+          vm.history,
+          vm.belief_history,
+        );
+        if (!meanSummary || !distSummary) {
           el.hidden = true;
-          el.textContent = "";
+          el.replaceChildren();
           return;
         }
         el.hidden = false;
-        el.textContent = `MAE(mean f): ${formatMeanFAbsError(summary.meanMae)} · mean over ${summary.dayCount} days`;
+        setBeliefMaeStatContent(
+          el,
+          meanSummary.meanMae,
+          distSummary.meanMae,
+          `mean over ${meanSummary.dayCount} days`,
+        );
         return;
       }
 
@@ -816,17 +863,18 @@ export function initStudio(app: HTMLElement): () => void {
         const flat = vm.belief_history.at(-1)?.flatBelief;
         if (!flat) {
           el.hidden = true;
-          el.textContent = "";
+          el.replaceChildren();
           return;
         }
-        const mae = currentMeanFAbsError(flat, vm.live_units);
-        if (mae == null) {
+        const meanMae = currentMeanFAbsError(flat, vm.live_units);
+        const distMae = currentDistributionAbsError(flat, vm.live_units);
+        if (meanMae == null || distMae == null) {
           el.hidden = true;
-          el.textContent = "";
+          el.replaceChildren();
           return;
         }
         el.hidden = false;
-        el.textContent = `MAE(mean f): ${formatMeanFAbsError(mae)} · current day`;
+        setBeliefMaeStatContent(el, meanMae, distMae, "current day");
       }
     });
   }
