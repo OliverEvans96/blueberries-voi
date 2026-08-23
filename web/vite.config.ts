@@ -33,6 +33,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "src/**/*.test.tsx",
       "scripts/smoke-autopilot-mock.ts",
+      "scripts/profile-studio-render.ts",
     ],
     setupFiles: ["./src/testSetup.ts"],
   },

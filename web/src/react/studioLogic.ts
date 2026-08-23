@@ -119,6 +119,21 @@ import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
 import { computeImpactTotals } from "../metrics/impactTotals";
+import {
+  clearRenderProfile,
+  getRenderProfileReport,
+  profileAsync,
+  profileSync,
+  setRenderProfiling,
+  type RenderProfileRow,
+} from "./renderProfile";
+
+export {
+  clearRenderProfile,
+  getRenderProfileReport,
+  setRenderProfiling,
+  type RenderProfileRow,
+};
 
 /** Boot imperative studio (D3 + adapters). Requires StudioLayout mounted under mount root. */
 export function initStudio(app: HTMLElement): () => void {
@@ -364,31 +379,41 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderMetricsPane(): void {
-    if (pnlTotalsHost) {
-      renderPnLTotals(pnlTotalsHost, vm);
-    }
-    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, METRICS_STRIP_HEIGHT);
-    const impact = computeImpactTotals(vm.history);
-    if (impactMissedRoot) {
-      impactMissedRoot.render(
-        createElement(ImpactStat, {
-          label: "Total missed sales",
-          absolute: impact.missedTotal,
-          percent: impact.missedPct,
-          percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
-        }),
+    profileSync("renderMetricsPane", () => {
+      if (pnlTotalsHost) {
+        profileSync("renderMetricsPane.pnlTotals", () =>
+          renderPnLTotals(pnlTotalsHost, vm),
+        );
+      }
+      profileSync("renderMetricsPane.pnlTimeseries", () =>
+        renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, METRICS_STRIP_HEIGHT),
       );
-    }
-    if (impactWasteRoot) {
-      impactWasteRoot.render(
-        createElement(ImpactStat, {
-          label: "Total waste",
-          absolute: impact.wasteTotal,
-          percent: impact.wastePct,
-          percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
-        }),
-      );
-    }
+      const impact = computeImpactTotals(vm.history);
+      if (impactMissedRoot) {
+        profileSync("renderMetricsPane.impactMissed", () =>
+          impactMissedRoot.render(
+            createElement(ImpactStat, {
+              label: "Total missed sales",
+              absolute: impact.missedTotal,
+              percent: impact.missedPct,
+              percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
+            }),
+          ),
+        );
+      }
+      if (impactWasteRoot) {
+        profileSync("renderMetricsPane.impactWaste", () =>
+          impactWasteRoot.render(
+            createElement(ImpactStat, {
+              label: "Total waste",
+              absolute: impact.wasteTotal,
+              percent: impact.wastePct,
+              percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
+            }),
+          ),
+        );
+      }
+    });
   }
 
   function maskedEventDays(): ReturnType<typeof applyMask>[] {
@@ -399,19 +424,21 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderEventsPane(): void {
-    if (!eventsPaneRoot) return;
-    eventsPaneRoot.render(
-      createElement(EventsPane, {
-        vm: {
-          episode_day: vm.episode_day,
-          config: vm.config,
-        },
-        schedule,
-        events: maskedEventDays(),
-        loading: eventsLoading,
-        refreshing: eventsRefreshing,
-      }),
-    );
+    profileSync("renderEventsPane", () => {
+      if (!eventsPaneRoot) return;
+      eventsPaneRoot.render(
+        createElement(EventsPane, {
+          vm: {
+            episode_day: vm.episode_day,
+            config: vm.config,
+          },
+          schedule,
+          events: maskedEventDays(),
+          loading: eventsLoading,
+          refreshing: eventsRefreshing,
+        }),
+      );
+    });
   }
   let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
   if (!dayInspectorPortal) {
@@ -422,17 +449,19 @@ export function initStudio(app: HTMLElement): () => void {
   const dayInspectorRoot = createRoot(dayInspectorPortal);
 
   function renderTradeoffBeliefColumn(): void {
-    if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
-    if (tradeoffTab === "curve") {
-      renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
-      return;
-    }
-    renderTradeoffHistogram(
-      els.tradeoffHistogram,
-      nearestForecast(tradeoffForecasts, orderQty),
-      orderQty,
-      0.7,
-    );
+    profileSync(`renderTradeoff.${tradeoffTab}`, () => {
+      if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
+      if (tradeoffTab === "curve") {
+        renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
+        return;
+      }
+      renderTradeoffHistogram(
+        els.tradeoffHistogram,
+        nearestForecast(tradeoffForecasts, orderQty),
+        orderQty,
+        0.7,
+      );
+    });
   }
 
   function syncTradeoffTabs(): void {
@@ -513,58 +542,66 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderObsControlsPane(): void {
-    if (obsControlsRoot) {
-      obsControlsRoot.render(
-        createElement(ObsControlsPane, {
-          vm,
-          showTruth,
-          catchingUp,
-          onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
-          onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
-          onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
-        }),
-      );
-    }
+    profileSync("renderObsControlsPane", () => {
+      if (obsControlsRoot) {
+        obsControlsRoot.render(
+          createElement(ObsControlsPane, {
+            vm,
+            showTruth,
+            catchingUp,
+            onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
+            onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
+            onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
+          }),
+        );
+      }
+    });
   }
 
   function renderOperatorBar(): void {
-    if (operatorBarRoot) {
-      operatorBarRoot.render(
-        createElement(OperatorBar, {
-          vm,
-          catchingUp,
-          advancing,
-          autopilotRunning: autopilot?.isRunning() ?? false,
-          orderQty,
-          onAdvance: () => railHandlers.onAdvance(),
-          onReset: () => railHandlers.onReset(),
-          onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
-          onAutopilotPause: () => railHandlers.onAutopilotPause(),
-          onOrderChange: (qty) => {
-            orderQty = snapOrder(qty);
-            sectionControlsApi.update(controlsState());
-            renderReferenceDrawer();
-            renderOperatorBar();
-          },
-        }),
-      );
-    }
+    profileSync("renderOperatorBar", () => {
+      if (operatorBarRoot) {
+        operatorBarRoot.render(
+          createElement(OperatorBar, {
+            vm,
+            catchingUp,
+            advancing,
+            autopilotRunning: autopilot?.isRunning() ?? false,
+            orderQty,
+            onAdvance: () => railHandlers.onAdvance(),
+            onReset: () => railHandlers.onReset(),
+            onAutopilotPlay: () => railHandlers.onAutopilotPlay(),
+            onAutopilotPause: () => railHandlers.onAutopilotPause(),
+            onOrderChange: (qty) => {
+              orderQty = snapOrder(qty);
+              sectionControlsApi.update(controlsState());
+              renderReferenceDrawer();
+              renderOperatorBar();
+            },
+          }),
+        );
+      }
+    });
   }
 
   function renderReferenceDrawer(): void {
-    if (referenceDrawerRoot) {
-      referenceDrawerRoot.render(
-        createElement<ReferenceDrawerProps>(ReferenceDrawer, {
-          hideTriggers: true,
-        }),
-      );
-    }
+    profileSync("renderReferenceDrawer", () => {
+      if (referenceDrawerRoot) {
+        referenceDrawerRoot.render(
+          createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+            hideTriggers: true,
+          }),
+        );
+      }
+    });
   }
 
   function renderDayInspector(): void {
-    dayInspectorRoot.render(
-      createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
-    );
+    profileSync("renderDayInspector", () => {
+      dayInspectorRoot.render(
+        createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
+      );
+    });
   }
 
   const railHandlers = {
@@ -669,102 +706,148 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderCockpitBelief(): void {
-    const flat = vm.belief_history.at(-1)?.flatBelief;
-    const data = flat
-      ? freshnessHistogramDataFromFlat(flat, vm.live_units)
-      : emptyFreshnessHistogramData();
-    renderFreshnessHistogram(
-      els.beliefLg,
-      data,
-      showTruth,
-      BELIEF_HISTOGRAM_HEIGHT,
-    );
-    els.beliefAgeMarginal.replaceChildren();
+    profileSync("renderCockpitBelief", () => {
+      const flat = vm.belief_history.at(-1)?.flatBelief;
+      const data = flat
+        ? freshnessHistogramDataFromFlat(flat, vm.live_units)
+        : emptyFreshnessHistogramData();
+      renderFreshnessHistogram(
+        els.beliefLg,
+        data,
+        showTruth,
+        BELIEF_HISTOGRAM_HEIGHT,
+      );
+      els.beliefAgeMarginal.replaceChildren();
+    });
   }
 
   function renderRunStripCharts(): void {
-    const invSeries = showTruth
-      ? inventorySeries(vm.history, vm.config)
-      : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, METRICS_STRIP_HEIGHT, invSeries);
-    renderOrdersWaste(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT);
-    const ageRows = showTruth
-      ? ageCompositionSeries(vm.history)
-      : ageCompositionSeriesFromBelief(vm.belief_history);
-    renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows);
+    profileSync("renderRunStripCharts", () => {
+      const invSeries = showTruth
+        ? inventorySeries(vm.history, vm.config)
+        : inventorySeriesFromBelief(vm.belief_history, vm.config);
+      profileSync("renderRunStripCharts.inventory", () =>
+        renderInventoryTarget(
+          els.inventory,
+          vm.history,
+          vm.config,
+          METRICS_STRIP_HEIGHT,
+          invSeries,
+        ),
+      );
+      profileSync("renderRunStripCharts.ordersWaste", () =>
+        renderOrdersWaste(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      const ageRows = showTruth
+        ? ageCompositionSeries(vm.history)
+        : ageCompositionSeriesFromBelief(vm.belief_history);
+      profileSync("renderRunStripCharts.ageComposition", () =>
+        renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
+      );
+    });
   }
 
   function renderStore() {
-    const yMax = marginalYMax(vm.history);
-    renderMarginal(els.sales, vm.history, "sales", 48, yMax);
-    renderMarginal(els.stockout, vm.history, "stockout", 48, yMax);
-    renderBeliefFreshnessTime(
-      els.history,
-      historyForCharts(),
-      vm.belief_history,
-      showTruth,
-      { height: BELIEF_FRESHNESS_TIME_HEIGHT },
-    );
-    renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT);
-    renderCockpitBelief();
-    renderRunStripCharts();
-    renderTradeoffBeliefColumn();
-    applyHoverStyles(hoveredDay);
+    profileSync("renderStore", () => {
+      const yMax = profileSync("renderStore.marginalYMax", () => marginalYMax(vm.history));
+      profileSync("renderStore.renderMarginal.sales", () =>
+        renderMarginal(els.sales, vm.history, "sales", 48, yMax),
+      );
+      profileSync("renderStore.renderMarginal.stockout", () =>
+        renderMarginal(els.stockout, vm.history, "stockout", 48, yMax),
+      );
+      profileSync("renderStore.beliefFreshnessTime", () =>
+        renderBeliefFreshnessTime(
+          els.history,
+          historyForCharts(),
+          vm.belief_history,
+          showTruth,
+          { height: BELIEF_FRESHNESS_TIME_HEIGHT },
+        ),
+      );
+      profileSync("renderStore.salesDemand", () =>
+        renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      renderCockpitBelief();
+      renderRunStripCharts();
+      renderTradeoffBeliefColumn();
+      profileSync("renderStore.applyHoverStyles", () => applyHoverStyles(hoveredDay));
+    });
   }
 
   const FOCUS_CHART_HEIGHT = 95;
 
   function renderActiveFocusPlots(): void {
-    renderRunStripCharts();
-    if (plotVisible("plot-inventory")) {
-      const invSeries = showTruth
-        ? inventorySeries(vm.history, vm.config)
-        : inventorySeriesFromBelief(vm.belief_history, vm.config);
-      renderInventoryTarget(
-        els.inventoryFocus,
-        vm.history,
-        vm.config,
-        FOCUS_CHART_HEIGHT,
-        invSeries,
-      );
-    }
-    if (plotVisible("plot-age-comp")) {
-      const ageRows = showTruth
-        ? ageCompositionSeries(vm.history)
-        : ageCompositionSeriesFromBelief(vm.belief_history);
-      renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
-    }
-    if (plotVisible("plot-demand")) {
-      renderDailyDemand(els.demand, vm.history, 160);
-    }
-    if (plotVisible("plot-picking-variability")) {
-      renderPickingVariability(els.pickingVar, vm.config.sigma, 95);
-    }
-    renderLogisticsCalendar();
-    if (plotVisible("plot-arrival-prior")) {
-      renderArrivalPrior(
-        els.arrivalPrior,
-        vm.config,
-        historyForCharts(),
-        160,
-        arrivalRugAvailable(
-          vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
-          showTruth,
-        ),
-      );
-    }
-    if (plotVisible("plot-arrival-shift")) {
-      renderArrivalShift(els.arrivalShift, vm.config, 150);
-    }
-    if (plotVisible("plot-arrhenius-temp")) {
-      renderArrheniusTemp(els.arrheniusTemp, vm.config, 160);
-    }
-    if (plotVisible("plot-gamma-path")) {
-      renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
-    }
-    if (plotVisible("plot-controller-orders")) {
-      renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT);
-    }
+    profileSync("renderActiveFocusPlots", () => {
+      renderRunStripCharts();
+      if (plotVisible("plot-inventory")) {
+        const invSeries = showTruth
+          ? inventorySeries(vm.history, vm.config)
+          : inventorySeriesFromBelief(vm.belief_history, vm.config);
+        profileSync("renderActiveFocusPlots.inventoryFocus", () =>
+          renderInventoryTarget(
+            els.inventoryFocus,
+            vm.history,
+            vm.config,
+            FOCUS_CHART_HEIGHT,
+            invSeries,
+          ),
+        );
+      }
+      if (plotVisible("plot-age-comp")) {
+        const ageRows = showTruth
+          ? ageCompositionSeries(vm.history)
+          : ageCompositionSeriesFromBelief(vm.belief_history);
+        profileSync("renderActiveFocusPlots.ageComp", () =>
+          renderAgeComposition(els.ageComp, vm.history, 140, ageRows),
+        );
+      }
+      if (plotVisible("plot-demand")) {
+        profileSync("renderActiveFocusPlots.demand", () =>
+          renderDailyDemand(els.demand, vm.history, 160),
+        );
+      }
+      if (plotVisible("plot-picking-variability")) {
+        profileSync("renderActiveFocusPlots.pickingVar", () =>
+          renderPickingVariability(els.pickingVar, vm.config.sigma, 95),
+        );
+      }
+      profileSync("renderActiveFocusPlots.logisticsCalendar", () => renderLogisticsCalendar());
+      if (plotVisible("plot-arrival-prior")) {
+        profileSync("renderActiveFocusPlots.arrivalPrior", () =>
+          renderArrivalPrior(
+            els.arrivalPrior,
+            vm.config,
+            historyForCharts(),
+            160,
+            arrivalRugAvailable(
+              vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
+              showTruth,
+            ),
+          ),
+        );
+      }
+      if (plotVisible("plot-arrival-shift")) {
+        profileSync("renderActiveFocusPlots.arrivalShift", () =>
+          renderArrivalShift(els.arrivalShift, vm.config, 150),
+        );
+      }
+      if (plotVisible("plot-arrhenius-temp")) {
+        profileSync("renderActiveFocusPlots.arrheniusTemp", () =>
+          renderArrheniusTemp(els.arrheniusTemp, vm.config, 160),
+        );
+      }
+      if (plotVisible("plot-gamma-path")) {
+        profileSync("renderActiveFocusPlots.gammaPath", () =>
+          renderGammaFreshnessPath(els.gammaPath, vm.config, 170),
+        );
+      }
+      if (plotVisible("plot-controller-orders")) {
+        profileSync("renderActiveFocusPlots.ordersWasteFocus", () =>
+          renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT),
+        );
+      }
+    });
   }
 
   function syncTuningDockTabs(): void {
@@ -815,27 +898,32 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderAll(): void {
-    syncTruthCaptions();
-    renderStore();
-    renderActiveFocusPlots();
-    renderTradeoffBeliefColumn();
-    renderDayInspector();
-    renderMetricsPane();
-    renderEventsPane();
-    renderObsControlsPane();
-    renderOperatorBar();
-    renderReferenceDrawer();
-    orderQty = snapOrder(orderQty);
-    const state = controlsState();
-    sectionControlsApi.update(state);
-    wireDemandPreview();
+    profileSync("renderAll", () => {
+      profileSync("syncTruthCaptions", () => syncTruthCaptions());
+      renderStore();
+      renderActiveFocusPlots();
+      profileSync("renderTradeoffBeliefColumn", () => renderTradeoffBeliefColumn());
+      renderDayInspector();
+      renderMetricsPane();
+      renderEventsPane();
+      renderObsControlsPane();
+      renderOperatorBar();
+      renderReferenceDrawer();
+      orderQty = snapOrder(orderQty);
+      const state = controlsState();
+      profileSync("sectionControlsApi.update", () => sectionControlsApi.update(state));
+      profileSync("wireDemandPreview", () => wireDemandPreview());
+    });
   }
 
   async function refreshRemotePanes(): Promise<void> {
-    await Promise.all([fetchTradeoffForecast(), fetchEvents()]);
-    renderReferenceDrawer();
-    renderTradeoffBeliefColumn();
-    renderMetricsPane();
+    await profileAsync("fetchTradeoffForecast", () => fetchTradeoffForecast());
+    await profileAsync("fetchEvents", () => fetchEvents());
+    profileSync("refreshRemotePanes.paint", () => {
+      renderReferenceDrawer();
+      renderTradeoffBeliefColumn();
+      renderMetricsPane();
+    });
   }
 
   function wireDemandPreview(): void {

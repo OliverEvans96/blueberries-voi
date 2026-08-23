@@ -22,7 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts"
+    "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts",
+    "profile:render": "vitest run scripts/profile-studio-render.ts"
   },
   "peerDependencies": {
     "react": "^19.0.0",
