@@ -423,17 +423,15 @@ export function initStudio(app: HTMLElement): () => void {
   function renderReferenceDrawer(): void {
     profileSync("renderReferenceDrawer", () => {
       if (referenceDrawerRoot) {
-        flushSync(() => {
-          referenceDrawerRoot.render(
-            createElement<ReferenceDrawerProps>(ReferenceDrawer, {
-              hideTriggers: true,
-              onOpen: () => setTuningDrawerOpen(false),
-              registerCloseHandler: (close) => {
-                closeReferenceDrawer = close;
-              },
-            }),
-          );
-        });
+        referenceDrawerRoot.render(
+          createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+            hideTriggers: true,
+            onOpen: () => setTuningDrawerOpen(false),
+            registerCloseHandler: (close) => {
+              closeReferenceDrawer = close;
+            },
+          }),
+        );
       }
     });
   }
@@ -441,19 +439,22 @@ export function initStudio(app: HTMLElement): () => void {
   function renderTuningDrawer(): void {
     profileSync("renderTuningDrawer", () => {
       if (tuningDrawerRoot) {
-        flushSync(() => {
-          tuningDrawerRoot.render(
-            createElement<TuningDrawerProps>(TuningDrawer, {
-              hideTrigger: true,
-              open: tuningDrawerOpen,
-              onOpenChange: setTuningDrawerOpen,
-              onOpen: () => closeReferenceDrawer?.(),
-              portalContainerRef: tuningDrawerPortalRef,
-            }),
-          );
-        });
+        tuningDrawerRoot.render(
+          createElement<TuningDrawerProps>(TuningDrawer, {
+            hideTrigger: true,
+            open: tuningDrawerOpen,
+            onOpenChange: setTuningDrawerOpen,
+            onOpen: () => closeReferenceDrawer?.(),
+            portalContainerRef: tuningDrawerPortalRef,
+          }),
+        );
       }
     });
+  }
+
+  function paintPortalDrawers(): void {
+    renderReferenceDrawer();
+    renderTuningDrawer();
   }
 
   renderReferenceDrawer();
@@ -746,9 +747,8 @@ export function initStudio(app: HTMLElement): () => void {
             onAutopilotPause: () => railHandlers.onAutopilotPause(),
             onOrderChange: (qty) => {
               orderQty = snapOrder(qty);
-              sectionControlsApi.update(controlsState());
-              renderReferenceDrawer();
-      renderTuningDrawer();
+              sectionControlsApi?.update(controlsState());
+              paintPortalDrawers();
               renderOperatorBar();
             },
           }),
@@ -1174,7 +1174,7 @@ export function initStudio(app: HTMLElement): () => void {
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
-    sectionControlsApi.showSection(id);
+    sectionControlsApi?.showSection(id);
 
     qa<HTMLElement>(".focus-plot").forEach((plot) => {
       const pid = plot.dataset.plot ?? "";
@@ -1215,11 +1215,12 @@ export function initStudio(app: HTMLElement): () => void {
       renderEventsPane();
       renderObsControlsPane();
       renderOperatorBar();
-      renderReferenceDrawer();
-      renderTuningDrawer();
+      paintPortalDrawers();
       orderQty = snapOrder(orderQty);
       const state = controlsState();
-      profileSync("sectionControlsApi.update", () => sectionControlsApi.update(state));
+      profileSync("sectionControlsApi.update", () =>
+        sectionControlsApi?.update(state),
+      );
       profileSync("wireDemandPreview", () => wireDemandPreview());
     });
   }
@@ -1355,54 +1356,95 @@ export function initStudio(app: HTMLElement): () => void {
   });
 
   let sectionControlsApi!: ReturnType<typeof mountSectionControls>;
+  let sectionControlsMounted = false;
+  let sectionControlsMountCancelled = false;
+  let sectionControlsMountRaf = 0;
 
-  sectionControlsApi = mountSectionControls(
-    els.sectionControls,
-    controlsState(),
-    {
-      onEconomicsChange(partial: Partial<Economics>) {
-        // Local reproject only — never round-trip to the engine.
-        vm = projector.setEconomics(partial);
-        renderMetricsPane();
-        sectionControlsApi.update(controlsState());
+  function mountSectionControlsOnce(): void {
+    if (sectionControlsMounted) return;
+    const host = q<HTMLElement>("#section-controls");
+    if (!host) return;
+    sectionControlsMounted = true;
+    sectionControlsApi = mountSectionControls(
+      host,
+      controlsState(),
+      {
+        onEconomicsChange(partial: Partial<Economics>) {
+          // Local reproject only — never round-trip to the engine.
+          vm = projector.setEconomics(partial);
+          renderMetricsPane();
+          sectionControlsApi.update(controlsState());
+        },
+        onConfigChange(partial: Partial<SimConfig>) {
+          // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
+          vm = projector.setConfig(partial);
+          if (partial.case_size != null) {
+            orderQty = snapOrder(orderQty);
+          }
+          sectionControlsApi.update(controlsState());
+          paintPortalDrawers();
+          renderTradeoffBeliefColumn();
+          renderOperatorBar();
+          renderActiveFocusPlots();
+          // Autopilot pauses when staged config is dirty (AC).
+          if (vm.config_dirty && autopilot.isRunning()) {
+            autopilot.pause();
+            syncAutopilotChrome();
+          }
+        },
+        onSetObsScenario: (id) => {
+          void railHandlers.onSetObsPreset(id);
+        },
+        onControllerChange(partial: Partial<ControllerControlsState>) {
+          controllerState = { ...controllerState, ...partial };
+          sectionControlsApi.updateController(controllerState);
+        },
       },
-      onConfigChange(partial: Partial<SimConfig>) {
-        // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
-        vm = projector.setConfig(partial);
-        if (partial.case_size != null) {
-          orderQty = snapOrder(orderQty);
-        }
-        sectionControlsApi.update(controlsState());
-        renderReferenceDrawer();
-        renderTuningDrawer();
-        renderTradeoffBeliefColumn();
-        renderOperatorBar();
-        renderActiveFocusPlots();
-        // Autopilot pauses when staged config is dirty (AC).
-        if (vm.config_dirty && autopilot.isRunning()) {
-          autopilot.pause();
-          syncAutopilotChrome();
-        }
-      },
-      onSetObsScenario: (id) => {
-        void railHandlers.onSetObsPreset(id);
-      },
-      onControllerChange(partial: Partial<ControllerControlsState>) {
-        controllerState = { ...controllerState, ...partial };
-        sectionControlsApi.updateController(controllerState);
-      },
-    },
-    (caseSize) => {
-      orderQty = snapOrder(orderQty);
-      sectionControlsApi.update({
-        ...controlsState(),
-        orderQty,
-        config: { ...vm.config, case_size: caseSize },
-      });
+      (caseSize) => {
+        orderQty = snapOrder(orderQty);
+        sectionControlsApi.update({
+          ...controlsState(),
+          orderQty,
+          config: { ...vm.config, case_size: caseSize },
+        });
         renderObsControlsPane();
-    },
-    controllerState,
-  );
+      },
+      controllerState,
+    );
+    wireTuningDockTabs();
+
+    const tuningTrigger = q<HTMLButtonElement>("#tuning-drawer-trigger");
+    if (tuningTrigger && tuningTrigger.dataset.bound !== "1") {
+      tuningTrigger.dataset.bound = "1";
+      tuningTrigger.addEventListener("click", () => {
+        setTuningDrawerOpen(!tuningDrawerOpen);
+      });
+    }
+
+    app.addEventListener("keydown", onKeydown);
+    void bootstrap();
+  }
+
+  function scheduleSectionControlsMount(): void {
+    let attempts = 0;
+    const attempt = () => {
+      if (sectionControlsMountCancelled) return;
+      paintPortalDrawers();
+      const host = q<HTMLElement>("#section-controls");
+      if (!host) {
+        attempts += 1;
+        if (attempts > 120) {
+          throw new Error(
+            "Tuning drawer #section-controls host missing after portal paint",
+          );
+        }
+        sectionControlsMountRaf = requestAnimationFrame(attempt);
+        return;
+      }
+      mountSectionControlsOnce();
+    };
+    attempt();
+  }
 
   railHandlers.onAdvance = () => {
     void advanceEpisode();
@@ -1511,8 +1553,6 @@ export function initStudio(app: HTMLElement): () => void {
     }
   };
 
-  app.addEventListener("keydown", onKeydown);
-
   function wireTuningDockTabs(): void {
     qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         if (tab.dataset.bound === "1") return;
@@ -1524,17 +1564,9 @@ export function initStudio(app: HTMLElement): () => void {
       });
   }
 
-  wireTuningDockTabs();
   wireTradeoffTabs();
   syncTradeoffTabs();
-
-  const tuningTrigger = q<HTMLButtonElement>("#tuning-drawer-trigger");
-  if (tuningTrigger && tuningTrigger.dataset.bound !== "1") {
-    tuningTrigger.dataset.bound = "1";
-    tuningTrigger.addEventListener("click", () => {
-      setTuningDrawerOpen(!tuningDrawerOpen);
-    });
-  }
+  scheduleSectionControlsMount();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;
@@ -1560,14 +1592,14 @@ export function initStudio(app: HTMLElement): () => void {
     window.__studioProfileAdvance = (steps = 5) => studioProfileAdvanceSteps(steps);
   }
 
-  void bootstrap();
-
   const onResize = () => {
     renderStore();
     renderActiveFocusPlots();
   };
   window.addEventListener("resize", onResize);
   return () => {
+    sectionControlsMountCancelled = true;
+    cancelAnimationFrame(sectionControlsMountRaf);
     app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
   };
