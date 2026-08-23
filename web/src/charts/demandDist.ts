@@ -97,6 +97,28 @@ export function nbQuantiles(
   };
 }
 
+/**
+ * Episode day for Sales & demand forecast overlay.
+ * ViewModel `episode_day` is the next-act cursor (completed + 1); history ends on the
+ * last completed day. Anchor on that day so the forecast band/line meets history.
+ */
+export function salesDemandForecastAnchor(
+  history: readonly Pick<Day, "day">[],
+  episodeDay: number,
+): number {
+  if (history.length === 0) return episodeDay;
+  return history[history.length - 1]!.day;
+}
+
+/** Build forecast rows for Sales & demand overlay (episode day + DOW profile + NB bands). */
+export function buildDemandForecastRows(
+  episodeDay: number,
+  summary: DemandSummary | null | undefined,
+  demandVm: number,
+): DemandForecastRow[] {
+  return demandForecastRows(episodeDay, summary ?? FALLBACK_SUMMARY, demandVm);
+}
+
 /** Next N episode days with expected μ and NB uncertainty bands. */
 export function demandForecastRows(
   episodeDay: number,

@@ -107,12 +107,27 @@ export type HoverChartSource =
   | "other"
   | null;
 
-export function hoverChartSourceFromSvg(svg: SVGSVGElement): HoverChartSource {
-  const host =
+/** Chart hosts whose x-axis is not simulation day — skip linked day hover. */
+const DAY_UNLINKED_CHART_HOST_IDS = new Set(["chart-belief-lg"]);
+
+function chartHostFromSvg(svg: SVGSVGElement): HTMLElement | null {
+  if (
     svg.parentElement instanceof HTMLElement &&
     svg.parentElement.id.startsWith("chart-")
-      ? svg.parentElement
-      : (svg.closest("[id^='chart-']") as HTMLElement | null);
+  ) {
+    return svg.parentElement;
+  }
+  return svg.closest("[id^='chart-']") as HTMLElement | null;
+}
+
+export function isDayLinkedChart(svg: SVGSVGElement): boolean {
+  const host = chartHostFromSvg(svg);
+  if (!host) return true;
+  return !DAY_UNLINKED_CHART_HOST_IDS.has(host.id);
+}
+
+export function hoverChartSourceFromSvg(svg: SVGSVGElement): HoverChartSource {
+  const host = chartHostFromSvg(svg);
   if (!host) return "other";
   switch (host.id) {
     case "chart-sales":
@@ -152,6 +167,11 @@ export function attachLinkedHover(
 
     const svg = target.closest("svg.chart-svg") as SVGSVGElement | null;
     if (!svg || !root.contains(svg)) {
+      handlers.onDay(null, null, null);
+      return;
+    }
+
+    if (!isDayLinkedChart(svg)) {
       handlers.onDay(null, null, null);
       return;
     }

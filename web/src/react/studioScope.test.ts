@@ -36,8 +36,9 @@ describe("T-142 studio mount scoping", () => {
     expect(logicSrc).toMatch(/app\.removeEventListener\("keydown"/);
   });
 
-  it("studioLogic.ts mounts day-inspector portal under app", () => {
-    expect(logicSrc).toMatch(/app\.appendChild\(dayInspectorPortal\)/);
+  it("studioLogic.ts mounts day-inspector portal under #day-inspector-host", () => {
+    expect(logicSrc).toMatch(/#day-inspector-host/);
+    expect(logicSrc).not.toMatch(/app\.appendChild\(dayInspectorPortal\)/);
     expect(logicSrc).not.toMatch(/document\.body\.appendChild\(dayInspectorPortal\)/);
   });
 
@@ -51,6 +52,7 @@ describe("T-142 studio mount scoping", () => {
     expect(drawerSrc).not.toMatch(/createPortal\([\s\S]*document\.body/);
     expect(layoutSrc).toMatch(/bv-studio-portal-root/);
     expect(layoutSrc).toMatch(/reference-drawer-host/);
+    expect(layoutSrc).toMatch(/day-inspector-host/);
   });
 
   it("TuningDrawer host is scoped under .bv-studio portal root", () => {

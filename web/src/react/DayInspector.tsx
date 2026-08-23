@@ -8,15 +8,6 @@ export type DayInspectorProps = {
   vm: ViewModel;
 };
 
-function beliefOneLiner(vm: ViewModel): string {
-  const m = vm.belief.f_marginal;
-  if (m && m.length > 0) {
-    const peak = m.indexOf(Math.max(...m));
-    return `Belief peaks near freshness bin ${peak}.`;
-  }
-  return "Belief updating from observed sales and shrink.";
-}
-
 export function DayInspector({ day, point, vm }: DayInspectorProps) {
   if (day == null || point == null) {
     return null;
@@ -31,7 +22,7 @@ export function DayInspector({ day, point, vm }: DayInspectorProps) {
   if (!row) {
     return (
       <div
-        className="day-inspector day-inspector-tooltip"
+        className="day-inspector-tooltip"
         role="status"
         data-day={day}
         style={tooltipStyle}
@@ -43,7 +34,7 @@ export function DayInspector({ day, point, vm }: DayInspectorProps) {
 
   return (
     <div
-      className="day-inspector day-inspector-tooltip"
+      className="day-inspector-tooltip"
       role="status"
       data-day={day}
       style={tooltipStyle}
@@ -55,7 +46,6 @@ export function DayInspector({ day, point, vm }: DayInspectorProps) {
         <li>Stockout: {row.stockout}</li>
         <li>Order qty: {row.order_qty}</li>
       </ul>
-      <p className="day-inspector-belief">{beliefOneLiner(vm)}</p>
     </div>
   );
 }
