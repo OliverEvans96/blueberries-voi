@@ -43,7 +43,9 @@ def main() -> None:
     for shipment in load_abdella_shipments(DATA):
         d_days = shipment.duration_d
         phi = phi_bar_from_trace(shipment.times_d, shipment.temps_c)
-        rows.append({"shipment": shipment.shipment_id, "d_days": d_days, "phi_bar": phi})
+        rows.append(
+            {"shipment": shipment.shipment_id, "d_days": d_days, "phi_bar": phi}
+        )
 
     summary = pd.DataFrame(rows)
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -89,7 +91,7 @@ suspect position probes excluded from spread calibration.
 
 Overlay figure: `{FIG.relative_to(REPO)}`.
 
-Committed artifact schema version: {artifact['schema_version']}.
+Committed artifact schema version: {artifact["schema_version"]}.
 """
     NOTE.write_text(note, encoding="utf-8")
     print(f"Wrote {NOTE} and {FIG}")

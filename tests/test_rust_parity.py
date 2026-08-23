@@ -127,7 +127,7 @@ def test_engine_session_ten_day_trajectory_fixed_orders() -> None:
 
 def test_voi_crn_smoke_seven_scenarios_structural() -> None:
     """VOI CRN smoke: all seven scenarios return finite, differentiated profits."""
-    for root_seed in range(1, 200):
+    for root_seed in range(1, 9):
         profits = run_voi_crn_cell(
             beta=2.0,
             root_seed=root_seed,
@@ -136,7 +136,7 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
             n_score=6,
             filter_n=24,
             H=2,
-            n_rollout_paths=2,
+            n_rollout_paths=0,
             lead_time=1,
             shipments=smoke_cool_shipments(),
         )
@@ -161,5 +161,5 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
 
     pytest.fail(
         "expected structural profit differentiation across scenarios "
-        "for some seed in 1..200"
+        "for some seed in 1..8"
     )

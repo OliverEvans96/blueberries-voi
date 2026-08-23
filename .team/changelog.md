@@ -3,7 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-23
-- **Arrival freshness is now uncertain and depends on the shipping corridor: how long the truck ran and how warm it was, not a single known age at the door. Shelf life is one number (two weeks at the reference temperature) instead of two that disagreed, and that arrival freshness is an upper bound because heat in the field before the truck is not modelled** (T-150).
+- **Arrival freshness is now uncertain and depends on the shipping corridor: how long the truck ran and how warm it was, not a single known age at the door. Shelf life is one number (two weeks at the reference temperature) instead of two that disagreed, and that arrival freshness is an upper bound because field heat before the truck is not modelled** (T-150).
 
 ## 2026-08-21
 - **Spoilage now ages each pack on the shelf independently and the filter scores waste with an exact count-based formula — store inventory stays exact on every spoilage rung, lot-tracked scan data can sharpen freshness again, and the GSIN/UPC comparison notebook reflects the new physics** (T-141).

@@ -88,6 +88,8 @@ select = [
 "tests/**" = ["E402", "F821"]
 # Narrative report generators (markdown prose lines exceed 88 cols).
 "experiments/generate_*.py" = ["E501", "RUF001"]
+"experiments/regen_*.py" = ["E501"]
+"scripts/arrival_calibration_note.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

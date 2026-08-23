@@ -86,7 +86,8 @@ def run_regime_seed(regime_index: int, seed_index: int) -> dict[str, Any]:
         capture_output=True,
         text=True,
     )
-    return json.loads(proc.stdout)
+    payload: dict[str, Any] = json.loads(proc.stdout)
+    return payload
 
 
 def _aggregate_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
