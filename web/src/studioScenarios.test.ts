@@ -48,7 +48,7 @@ const LOCKED_COPY: Record<
   },
   F2a: {
     title: "Pack date on ASN",
-    description: "Narrows the arrival-age prior only.",
+    description: "Narrows the arrival freshness prior only.",
   },
   F2: {
     title: "GSIN + pack date",

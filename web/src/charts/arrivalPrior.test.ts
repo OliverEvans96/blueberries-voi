@@ -3,9 +3,21 @@
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import type { ArrivalSummary } from "../engine/types";
 import type { Day } from "../types";
 import { renderArrivalPrior } from "./arrivalPrior";
+
+const SAMPLE_SUMMARY: ArrivalSummary = {
+  arrival_product: "abdella_all",
+  rung: "P1",
+  mean_f: 0.53,
+  sd_f: 0.2,
+  f_zero: 0.02,
+  curve: Array.from({ length: 11 }, (_, i) => ({
+    f: i / 10,
+    density: Math.exp(-((i / 10 - 0.55) ** 2) / 0.04),
+  })),
+};
 
 function day(partial: Partial<Day> & { day: number }): Day {
   return {
@@ -35,7 +47,7 @@ afterEach(() => {
 describe("arrival prior receipt-age rug (T-115)", () => {
   it("draws zero rug marks when history has no f_at_receipt / arrivals", () => {
     const el = host();
-    renderArrivalPrior(el, DEFAULT_SIM_CONFIG, [
+    renderArrivalPrior(el, SAMPLE_SUMMARY, [
       day({ day: 0, arrivals: 0, f_at_receipt: null }),
       day({ day: 1, arrivals: 0, f_at_receipt: 0.786 }),
     ]);
@@ -45,7 +57,7 @@ describe("arrival prior receipt-age rug (T-115)", () => {
 
   it("draws rug marks with a .truth-* class when receipt-age samples exist", () => {
     const el = host();
-    renderArrivalPrior(el, DEFAULT_SIM_CONFIG, [
+    renderArrivalPrior(el, SAMPLE_SUMMARY, [
       day({ day: 0, arrivals: 8, f_at_receipt: 0.821 }),
       day({ day: 1, arrivals: 8, f_at_receipt: 0.714 }),
     ]);

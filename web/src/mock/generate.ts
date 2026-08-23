@@ -1,7 +1,6 @@
 import type { FlatBelief } from "../engine/types";
 import { scheduleFromConfig } from "../calendar/weekCalendar";
 import type {
-  ArrivalProduct,
   BeliefGrid,
   Day,
   Economics,
@@ -25,23 +24,6 @@ export const DEFAULT_ECONOMICS: Economics = {
 const GAMMA_SHAPE = 2.0;
 const GAMMA_SCALE = 0.08;
 
-/**
- * Abdella shipment effective ages at ModelParams defaults (q10=3, t_ref=0°C),
- * from shipment_arrival_age on the six MOD-21 traces (S1…S6).
- */
-const ABDELLA_AGES_BASE: Record<string, number> = {
-  S1: 6.067,
-  S2: 2.449, // FL short-haul
-  S3: 8.462,
-  S4: 7.661,
-  S5: 8.376,
-  S6: 6.033,
-};
-
-const LONG_HAUL_IDS = ["S1", "S3", "S4", "S5", "S6"] as const;
-const SHORT_HAUL_IDS = ["S2"] as const;
-const ALL_IDS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const;
-
 /** Defaults aligned with blueberries_voi.model.ModelParams where applicable. */
 export const DEFAULT_SIM_CONFIG: SimConfig = {
   eta_ref: 14,
@@ -62,7 +44,6 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   arrival_product: "abdella_all",
   spread_scale: 1,
   transit_temp_bias_c: 0,
-  sensor_sigma: 0,
 };
 
 export type SimState = {
@@ -87,11 +68,17 @@ function aggregateLotsFromUnits(units: Unit[]): Lot[] {
   }
   return [...byLot.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([lot_id, { n, sumF }]) => ({
-      lot_id,
-      n,
-      mean_f: n > 0 ? sumF / n : 0,
-    }));
+    .map(([lot_id, { n, sumF }]) => {
+      const f_values = units
+        .filter((u) => u.lot_id === lot_id)
+        .map((u) => u.f);
+      return {
+        lot_id,
+        n,
+        mean_f: n > 0 ? sumF / n : 0,
+        f_values,
+      };
+    });
 }
 
 function birthUnitsForLot(
@@ -130,142 +117,9 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-function gaussian(rng: () => number): number {
-  const u = Math.max(1e-12, rng());
-  const v = rng();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
-
-function productShipmentIds(product: ArrivalProduct): readonly string[] {
-  if (product === "long_haul") return LONG_HAUL_IDS;
-  if (product === "short_haul") return SHORT_HAUL_IDS;
-  return ALL_IDS;
-}
-
-/** Arrhenius scale vs published cold traces (MOD-18 teaching bias). */
-function transitAgeFactor(cfg: SimConfig): number {
-  const q10 = Math.max(1.01, cfg.q10);
-  return q10 ** (cfg.transit_temp_bias_c / 10);
-}
-
 /** Q10 store-aging factor (matches voi_core store_temp_factor). */
 export function storeTempFactor(cfg: SimConfig): number {
   return Math.max(1.01, cfg.q10) ** ((cfg.t_store_c - cfg.t_ref_c) / 10);
-}
-
-/** Map effective age τ (days) to unit freshness f ∈ [0, 1]. */
-export function ageToF(tauDays: number, etaRef: number): number {
-  if (etaRef <= 0) return 0;
-  return clamp(1 - tauDays / etaRef, 0, 1);
-}
-
-/** Base mix ages after Q10 rescale from the q10=3 calibration point. */
-function baseMixAges(cfg: SimConfig): number[] {
-  const ids = productShipmentIds(cfg.arrival_product);
-  const q10Scale = Math.max(1.01, cfg.q10) / 3;
-  return ids.map((id) => ABDELLA_AGES_BASE[id]! * q10Scale);
-}
-
-/**
- * Pushforward arrival-age samples (MOD-11=C / generate_arrival_age):
- * bootstrap mix → shrink by spread_scale → transit temp bias → sensor noise.
- */
-export function sampleArrivalAge(cfg: SimConfig, rng: () => number): number {
-  const ages = baseMixAges(cfg);
-  const mean = ages.reduce((s, a) => s + a, 0) / ages.length;
-  const raw = ages[Math.floor(rng() * ages.length)]!;
-  const scaled = mean + cfg.spread_scale * (raw - mean);
-  const withTransit = scaled * transitAgeFactor(cfg);
-  const noisy =
-    cfg.sensor_sigma > 0
-      ? withTransit + gaussian(rng) * cfg.sensor_sigma
-      : withTransit;
-  return clamp(noisy, 0, cfg.eta_ref);
-}
-
-/** Freshness at receipt from the arrival-age mix. */
-export function sampleArrivalFreshness(cfg: SimConfig, rng: () => number): number {
-  return ageToF(sampleArrivalAge(cfg, rng), cfg.eta_ref);
-}
-
-function meanShrink(age: number, mix: number[], spreadScale: number): number {
-  const mean = mix.reduce((s, a) => s + a, 0) / mix.length;
-  return mean + spreadScale * (age - mean);
-}
-
-/** Discrete prior PMF on a uniform freshness grid (FIL-03-style teaching view). */
-export function arrivalFreshnessPriorPdf(
-  cfg: SimConfig,
-  opts?: { transitBiasOverride?: number; nGrid?: number },
-): { f: number; density: number }[] {
-  const nGrid = opts?.nGrid ?? 81;
-  const fMax = 1;
-  const bias =
-    opts?.transitBiasOverride !== undefined
-      ? opts.transitBiasOverride
-      : cfg.transit_temp_bias_c;
-  const factor = Math.max(1.01, cfg.q10) ** (bias / 10);
-  const mix = baseMixAges(cfg);
-  const freshes = mix.map((a) =>
-    ageToF(meanShrink(a, mix, cfg.spread_scale) * factor, cfg.eta_ref),
-  );
-  const bw = Math.max(0.015, cfg.spread_scale * 0.055);
-  const dx = fMax / (nGrid - 1);
-  const pts: { f: number; density: number }[] = [];
-  for (let i = 0; i < nGrid; i++) {
-    const f = i * dx;
-    let dens = 0;
-    for (const ff of freshes) {
-      const z = (f - ff) / bw;
-      dens += Math.exp(-0.5 * z * z);
-    }
-    dens /= freshes.length * bw * Math.sqrt(2 * Math.PI);
-    pts.push({ f, density: dens });
-  }
-  let mass = 0;
-  for (const p of pts) mass += p.density * dx;
-  if (mass > 0) for (const p of pts) p.density /= mass;
-  return pts;
-}
-
-/** @deprecated use arrivalFreshnessPriorPdf */
-export function arrivalAgePriorPdf(
-  cfg: SimConfig,
-  opts?: { transitBiasOverride?: number; nGrid?: number },
-): { f: number; density: number }[] {
-  return arrivalFreshnessPriorPdf(cfg, opts);
-}
-
-/** F2a-style Gaussian centered on mix mean (pack-date prior width). */
-export function f2aPriorPdf(
-  cfg: SimConfig,
-  nGrid = 81,
-): { f: number; density: number }[] {
-  const mix = baseMixAges(cfg);
-  const ages = mix.map((a) => meanShrink(a, mix, cfg.spread_scale));
-  const meanAge =
-    (ages.reduce((s, a) => s + a, 0) / ages.length) * transitAgeFactor(cfg);
-  const meanF = ageToF(meanAge, cfg.eta_ref);
-  const ageMean = ages.reduce((s, a) => s + a, 0) / ages.length;
-  const ageStd =
-    ages.length > 1
-      ? Math.sqrt(
-          ages.reduce((s, a) => s + (a - ageMean) ** 2, 0) / ages.length,
-        )
-      : 0.75;
-  const sd = Math.max(0.015, (ageStd * transitAgeFactor(cfg)) / cfg.eta_ref);
-  const fMax = 1;
-  const pts: { f: number; density: number }[] = [];
-  const dx = fMax / (nGrid - 1);
-  for (let i = 0; i < nGrid; i++) {
-    const f = i * dx;
-    const z = (f - meanF) / sd;
-    pts.push({
-      f,
-      density: Math.exp(-0.5 * z * z) / (sd * Math.sqrt(2 * Math.PI)),
-    });
-  }
-  return pts;
 }
 
 export function snapCases(qty: number, caseSize: number): number {
@@ -325,7 +179,7 @@ function drawGammaDecrement(cfg: SimConfig, rng: () => number): number {
 }
 
 /** Age one day; gamma freshness decrement draws waste from each unit. */
-function ageAndSpoilUnits(
+function freshnessAndSpoilUnits(
   units: Unit[],
   cfg: SimConfig,
   rng: () => number,
@@ -588,13 +442,13 @@ function runDay(
   pending = pending.filter((o) => o.arriveOn !== day);
   let f_at_receipt: number | null = null;
   if (arrivals > 0) {
-    f_at_receipt = Math.round(sampleArrivalFreshness(cfg, rng) * 1000) / 1000;
+    f_at_receipt = Math.round((0.72 + 0.12 * rng()) * 1000) / 1000;
     const born = birthUnitsForLot(nid++, arrivals, f_at_receipt, rng, uid);
     stateUnits = [...stateUnits, ...born.units];
     uid = born.nextUnitId;
   }
 
-  const aged = ageAndSpoilUnits(stateUnits, cfg, rng);
+  const aged = freshnessAndSpoilUnits(stateUnits, cfg, rng);
   stateUnits = aged.units;
   const demand = sampleDemand(rng, cfg, day);
   const sold = applySalesUnits(stateUnits, demand);

@@ -37,6 +37,7 @@ def main() -> None:
             n_burn=N_BURN,
             n_score=N_SCORE,
             filter_n=FILTER_N,
+            n_rollout_paths=0,
         )
         for name in VOI_SCENARIOS:
             seed_j = json.dumps(seed)

@@ -25,7 +25,6 @@ type ObsMask = {
   sales_by_lot: boolean;
   waste_by_lot: boolean;
   pack_date: boolean;
-  age_at_receipt: boolean;
   lot_ids_live: boolean;
   arrival_lot_ids: boolean;
   temperature_history: boolean;
@@ -57,8 +56,7 @@ describe("T-135 maskFromChannels", () => {
     for (const ch of ALL_CHANNELS) {
       const m = maskFromChannels(ch);
       expect(m.arrivals && m.sales_total).toBe(true);
-      expect(m.age_at_receipt).toBe(false);
-      if (ch.delivery_history === "pack_date") expect(m.pack_date).toBe(true);
+        if (ch.delivery_history === "pack_date") expect(m.pack_date).toBe(true);
       if (ch.delivery_history === "temperature_history") {
         expect(m.temperature_history).toBe(true);
       }
@@ -73,7 +71,6 @@ describe("T-135 maskFromChannels", () => {
     expect(ch.delivery_history).toBe("pack_date");
     const m = maskFromChannels(ch);
     expect(m.pack_date).toBe(true);
-    expect(m.age_at_receipt).toBe(false);
   });
 
   it("F3 preset enables temperature history", async () => {

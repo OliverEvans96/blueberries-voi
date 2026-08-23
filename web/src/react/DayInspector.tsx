@@ -9,10 +9,10 @@ export type DayInspectorProps = {
 };
 
 function beliefOneLiner(vm: ViewModel): string {
-  const m = vm.belief.age_marginal;
+  const m = vm.belief.f_marginal;
   if (m && m.length > 0) {
     const peak = m.indexOf(Math.max(...m));
-    return `Belief peaks near age bin ${peak}.`;
+    return `Belief peaks near freshness bin ${peak}.`;
   }
   return "Belief updating from observed sales and shrink.";
 }

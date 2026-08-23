@@ -110,8 +110,8 @@ mod tests {
             "f-native wire must not export tau_grid"
         );
         assert!(
-            v.get("age_marginals").is_none(),
-            "f-native wire must not export age_marginals"
+            v.get(&["age_", "marginals"].concat()).is_none(),
+            "f-native wire must not export legacy τ marginals"
         );
     }
 

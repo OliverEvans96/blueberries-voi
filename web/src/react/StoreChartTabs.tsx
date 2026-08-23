@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import "../styles/storeTabs.css";
 
-export type StoreChartView = "sales-stockouts" | "age-spoilage";
+export type StoreChartView = "sales-stockouts" | "freshness-spoilage";
 
 export type StoreChartTabsProps = {
   salesView: ReactNode;
@@ -52,10 +52,10 @@ export function StoreChartTabs({
           type="button"
           role="tab"
           className="store-chart-tabs-tab"
-          aria-selected={activeView === "age-spoilage"}
-          onClick={() => selectView("age-spoilage")}
+          aria-selected={activeView === "freshness-spoilage"}
+          onClick={() => selectView("freshness-spoilage")}
         >
-          Age & spoilage
+          Freshness & spoilage
         </button>
       </div>
       <div
@@ -66,7 +66,7 @@ export function StoreChartTabs({
       </div>
       <div
         className="store-chart-tabs-panel focus-plot"
-        hidden={activeView !== "age-spoilage" ? true : undefined}
+        hidden={activeView !== "freshness-spoilage" ? true : undefined}
       >
         {ageView}
       </div>

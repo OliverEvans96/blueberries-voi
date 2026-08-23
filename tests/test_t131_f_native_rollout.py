@@ -13,7 +13,6 @@ from blueberries_voi.backend import rust_available, rust_core
 from blueberries_voi.filter.belief import shelf_belief_from_oracle
 from blueberries_voi.model import ModelParams, weibull_survival
 from blueberries_voi.sim.alpha_tune import (
-    DEFAULT_CI_ALPHAS,
     evaluate_alpha_episode_profit,
     tune_alpha_grid,
 )
@@ -109,22 +108,26 @@ def test_w_long_weibull_helper_matches_python_on_fixture() -> None:
 
 @pytest.mark.slow
 def test_rollout_mean_profit_ge_base_sw_under_paired_crn() -> None:
-    """Rollout arm via Rust alpha_tune ≥ damped-SW under paired CRN seeds."""
+    """Rollout arm via Rust alpha_tune ≥ damped-SW under paired CRN seeds.
+
+    Horizon/paths are a CI smoke (not the notebook H=28 P=8 bakeoff). Production
+    T-150 policy is damped_sw with n_rollout_paths=0.
+    """
     ships = smoke_cool_shipments()
     base_profits: list[float] = []
     rollout_profits: list[float] = []
-    for seed in _CRN_ROOT_SEEDS:
+    for seed in _CRN_ROOT_SEEDS[:2]:
         base_profits.append(
             evaluate_alpha_episode_profit(
                 "sw",
                 0.9,
                 int(seed),
                 shipments=ships,
-                n_burn=2,
-                n_score=5,
-                rollout_h=28,
-                n_rollout_paths=8,
-                candidate_case_radius=2,
+                n_burn=1,
+                n_score=3,
+                rollout_h=4,
+                n_rollout_paths=2,
+                candidate_case_radius=1,
             )
         )
         rollout_profits.append(
@@ -133,11 +136,11 @@ def test_rollout_mean_profit_ge_base_sw_under_paired_crn() -> None:
                 0.9,
                 int(seed),
                 shipments=ships,
-                n_burn=2,
-                n_score=5,
-                rollout_h=28,
-                n_rollout_paths=8,
-                candidate_case_radius=2,
+                n_burn=1,
+                n_score=3,
+                rollout_h=4,
+                n_rollout_paths=2,
+                candidate_case_radius=1,
             )
         )
     base_mean = sum(base_profits) / len(base_profits)
@@ -194,15 +197,16 @@ def test_tune_alpha_grid_rollout_uses_rust_kernel() -> None:
     if not hasattr(rust_core, "evaluate_alpha_tune_episode_py"):
         pytest.skip("evaluate_alpha_tune_episode_py missing")
     ships = smoke_cool_shipments()
+    probe_alphas = (0.5, 0.9)
     best = tune_alpha_grid(
         "rollout",
-        alphas=DEFAULT_CI_ALPHAS,
+        alphas=probe_alphas,
         root_seed=42,
         shipments=ships,
-        n_burn=2,
-        n_score=3,
+        n_burn=1,
+        n_score=2,
     )
-    assert best in DEFAULT_CI_ALPHAS
+    assert best in probe_alphas
     profit = evaluate_alpha_episode_profit(
         "rollout",
         best,

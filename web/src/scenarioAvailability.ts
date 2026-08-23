@@ -30,7 +30,6 @@ export const ALL_CONTROL_IDS: string[] = [
   "p_sell",
   "q10",
   "seed",
-  "sensor_sigma",
   "sigma",
   "spread_scale",
   "t_ref_c",
@@ -44,10 +43,6 @@ function spoilageAvailable(ch: ObsChannels): Availability {
   return ch.scan_waste ? "show" : "unavailable";
 }
 
-function packDateControlsAvailable(ch: ObsChannels): Availability {
-  return ch.delivery_history === "pack_date" ? "show" : "dim";
-}
-
 export function channelAvailability(
   id: string,
   channels: ObsChannels,
@@ -55,9 +50,6 @@ export function channelAvailability(
   if (id === "store-spoilage") return spoilageAvailable(channels);
   if (id === "plot-arrival-prior-rug") {
     return channels.delivery_history === "pack_date" ? "show" : "unavailable";
-  }
-  if (id === "sensor_sigma") {
-    return packDateControlsAvailable(channels);
   }
   return "show";
 }

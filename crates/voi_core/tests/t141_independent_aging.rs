@@ -24,11 +24,8 @@ fn t141_independent_aging_two_units_can_split_spoil() {
             gamma_decrement: None,
             deliver: false,
             deliver_units: None,
-            delivery_f: None,
-            delivery_lambda: None,
+            delivery_unit_f: None,
             units_per_lot: None,
-            age_at_receipt: None,
-            pack_age_mean: None,
         };
         let out = unit_day_step(
             &input,

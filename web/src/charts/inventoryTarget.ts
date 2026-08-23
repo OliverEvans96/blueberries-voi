@@ -46,7 +46,7 @@ export function setInventoryTargetHover(
 }
 
 /** Style-only hover for on-hand freshness-band composition chart. */
-export function setAgeCompositionHover(
+export function setFreshnessCompositionHover(
   container: HTMLElement,
   hoveredDay: HoverDay,
 ): void {
@@ -54,7 +54,7 @@ export function setAgeCompositionHover(
   if (!g) return;
 
   g.classed("is-hovering", hoveredDay != null);
-  g.selectAll<SVGRectElement, AgeCompositionRow>(".day-hit").classed(
+  g.selectAll<SVGRectElement, FreshnessCompositionRow>(".day-hit").classed(
     "day-hit--active",
     (d) => hoveredDay === d.day,
   );
@@ -65,7 +65,7 @@ export function setAgeCompositionHover(
     return;
   }
   const days = g
-    .selectAll<SVGRectElement, AgeCompositionRow>(".day-hit")
+    .selectAll<SVGRectElement, FreshnessCompositionRow>(".day-hit")
     .data();
   const innerW = Number(g.attr("data-inner-w") ?? 0);
   if (!innerW || !days.length) {
@@ -81,13 +81,6 @@ export type InventoryPoint = {
   day: number;
   on_hand: number;
   effective: number;
-};
-
-export type AgeCompositionRow = {
-  day: number;
-  young: number;
-  mid: number;
-  old: number;
 };
 
 export type FreshnessCompositionRow = {
@@ -133,14 +126,6 @@ export function expectedFreshnessBands(
   return bands;
 }
 
-export function expectedAgeBands(flat: FlatBelief): Pick<
-  AgeCompositionRow,
-  "young" | "mid" | "old"
-> {
-  const bands = expectedFreshnessBands(flat);
-  return { young: bands.fresh, mid: bands.mid, old: bands.stale };
-}
-
 export function inventorySeries(
   history: Day[],
   _config: SimConfig,
@@ -167,35 +152,26 @@ export function inventorySeriesFromBelief(
   }));
 }
 
-export function ageCompositionSeries(
+export function fCompositionSeries(
   history: Day[],
   opts?: InventorySeriesOpts,
-): AgeCompositionRow[] {
+): FreshnessCompositionRow[] {
   if (opts?.from === "belief" && opts.belief_history) {
-    return ageCompositionSeriesFromBelief(opts.belief_history);
+    return fCompositionSeriesFromBelief(opts.belief_history);
   }
   return history.map((d) => {
-    const row: AgeCompositionRow = { day: d.day, young: 0, mid: 0, old: 0 };
+    const row: FreshnessCompositionRow = { day: d.day, fresh: 0, mid: 0, stale: 0 };
     for (const lot of d.lots) {
       const f = lot.mean_f;
-      if (f >= 2 / 3) row.young += lot.n;
+      if (f >= 2 / 3) row.fresh += lot.n;
       else if (f >= 1 / 3) row.mid += lot.n;
-      else row.old += lot.n;
+      else row.stale += lot.n;
     }
     return row;
   });
 }
 
-export function ageCompositionSeriesFromBelief(
-  beliefHistory: BeliefHistoryDay[],
-): AgeCompositionRow[] {
-  return beliefHistory.map((b) => ({
-    day: b.day,
-    ...expectedAgeBands(b.flatBelief),
-  }));
-}
-
-export function freshnessCompositionSeriesFromBelief(
+export function fCompositionSeriesFromBelief(
   beliefHistory: BeliefHistoryDay[],
 ): FreshnessCompositionRow[] {
   return beliefHistory.map((b) => ({
@@ -354,19 +330,19 @@ export function renderInventoryTarget(
  *
  * The legend always shows the consumer-facing "fresh" / "fair" / "old"
  * labels — regardless of whether `rowsOverride` came from the truth-data
- * path (`ageCompositionSeries`) or the belief path
- * (`ageCompositionSeriesFromBelief`). Both paths bucket units with the same
+ * path (`fCompositionSeries`) or the belief path
+ * (`fCompositionSeriesFromBelief`). Both paths bucket units with the same
  * ≥⅔ / [⅓,⅔) / <⅓ freshness thresholds (see `expectedFreshnessBands`), so
  * there is no underlying data distinction left to label differently; a
  * former `bandMode` param that swapped in old fraction-threshold wording for
  * the truth path was a leftover of the pre-"fresh/fair/old" copy and made
  * the labels regress whenever "Sim truth overlay" was on.
  */
-export function renderAgeComposition(
+export function renderFreshnessComposition(
   container: HTMLElement,
   history: Day[],
   height = 140,
-  rowsOverride?: AgeCompositionRow[],
+  rowsOverride?: FreshnessCompositionRow[],
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 10, right: 12, bottom: 28, left: 40 };
@@ -377,13 +353,13 @@ export function renderAgeComposition(
   if (innerW <= 0) return;
 
   const bands = [
-    { key: "young", label: "fresh", cls: "age-young" },
-    { key: "mid", label: "fair", cls: "age-mid" },
-    { key: "old", label: "old", cls: "age-old" },
+    { key: "fresh", label: "fresh", cls: "freshness-young" },
+    { key: "mid", label: "fair", cls: "freshness-mid" },
+    { key: "stale", label: "old", cls: "freshness-old" },
   ] as const;
 
-  type Row = AgeCompositionRow;
-  const rows: Row[] = rowsOverride ?? ageCompositionSeries(history);
+  type Row = FreshnessCompositionRow;
+  const rows: Row[] = rowsOverride ?? fCompositionSeries(history);
 
   const svg = d3
     .select(container)
@@ -410,7 +386,7 @@ export function renderAgeComposition(
     .attr("class", "day-hits")
     .attr("pointer-events", "none")
     .selectAll("rect")
-    .data(rows, (d) => String((d as AgeCompositionRow).day))
+    .data(rows, (d) => String((d as FreshnessCompositionRow).day))
     .join("rect")
     .attr("class", "day-hit")
     .attr("data-day", (d) => d.day)
@@ -420,20 +396,20 @@ export function renderAgeComposition(
     .attr("height", innerH);
 
   const x = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.18);
-  const yMax = d3.max(rows, (r) => r.young + r.mid + r.old) ?? 1;
+  const yMax = d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 1;
   const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
 
   const stack = d3
     .stack<Row>()
-    .keys(["young", "mid", "old"] as const)
+    .keys(["fresh", "mid", "stale"] as const)
     .order(d3.stackOrderNone)
     .offset(d3.stackOffsetNone);
   const series = stack(rows);
 
-  g.selectAll(".age-series")
+  g.selectAll(".freshness-series")
     .data(series)
     .join("g")
-    .attr("class", (d) => `age-series age-${d.key}`)
+    .attr("class", (d) => `freshness-series freshness-${d.key}`)
     .selectAll("rect")
     .data((d) => d)
     .join("rect")
@@ -448,7 +424,7 @@ export function renderAgeComposition(
       return `Day ${d.data.day}`;
     });
 
-  g.selectAll<SVGGElement, d3.Series<Row, string>>(".age-series").each(function (s) {
+  g.selectAll<SVGGElement, d3.Series<Row, string>>(".freshness-series").each(function (s) {
     const band = bands.find((b) => b.key === s.key);
     d3.select(this)
       .selectAll("title")

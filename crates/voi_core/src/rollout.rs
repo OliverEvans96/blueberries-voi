@@ -2,20 +2,22 @@
 
 use std::collections::BTreeMap;
 
+use crate::arrival::{
+    ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
+    STREAM_ARRIVAL_TEMP,
+};
 use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::{draw_demand_spawn, f_to_age, weibull_survival};
 use crate::policy::{damped_sw_order_f_belief, effective_inventory_f_belief};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::shipments::ShipmentTrace;
 use crate::spawn_rng::SpawnRng;
 use crate::voi::truth_f_belief;
 
 const STREAM_DEMAND: &str = ":demand";
 const STREAM_ALLOC: &str = ":alloc";
 const STREAM_SPOIL: &str = ":spoil";
-const STREAM_ARRIVAL_SHIP: &str = ":arrival_ship";
-const STREAM_ARRIVAL_SENSOR: &str = ":arrival_sensor";
 const STREAM_BIRTH: &str = ":birth";
 const ORACLE_K: usize = 5;
 
@@ -237,6 +239,35 @@ pub fn rollout_order(
     Ok(best_q)
 }
 
+fn truth_delivery_units(
+    arrival_model: &ArrivalModel,
+    arrival: u32,
+    root_seed: u64,
+    path_run: &str,
+    sim_day: u32,
+    corridor_key: &str,
+) -> Option<Vec<f64>> {
+    if arrival == 0 {
+        return None;
+    }
+    let mut rng_dur = SpawnRng::spawn_rng(root_seed, path_run, sim_day, STREAM_ARRIVAL_DURATION);
+    let mut rng_temp = SpawnRng::spawn_rng(root_seed, path_run, sim_day, STREAM_ARRIVAL_TEMP);
+    let mut rng_pos = SpawnRng::spawn_rng(root_seed, path_run, sim_day, STREAM_ARRIVAL_POS);
+    let mut rng_gamma = SpawnRng::spawn_rng(root_seed, path_run, sim_day, STREAM_ARRIVAL_GAMMA);
+    Some(
+        arrival_model
+            .draw_truth_delivery(
+                corridor_key,
+                arrival as usize,
+                &mut rng_dur,
+                &mut rng_temp,
+                &mut rng_pos,
+                &mut rng_gamma,
+            )
+            .unit_f,
+    )
+}
+
 fn path_value_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
@@ -260,6 +291,7 @@ fn path_value_f_belief(
     );
     let mut pending = pending0.clone();
     let mut profit = 0.0;
+    let arrival_model = ArrivalModel::embedded();
 
     for h in 0..ctx.h {
         let sim_day = ctx.day0 + h;
@@ -290,22 +322,15 @@ fn path_value_f_belief(
         let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rng_ship =
-                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
-            let mut rng_sensor =
-                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
-                &mut rng_ship,
-                &mut rng_sensor,
-                &ctx.shipments,
-                params,
-                ctx.f_pipeline_default,
+        let delivery_unit_f =
+            truth_delivery_units(
+                &arrival_model,
+                arrival,
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                &params.arrival_product,
             );
-            (Some(f), Some(tau), Some(pack))
-        } else {
-            (None, None, None)
-        };
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
                 ctx.root_seed,
@@ -324,11 +349,8 @@ fn path_value_f_belief(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            age_at_receipt,
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -381,6 +403,7 @@ fn path_arrival_units_sum(
     );
     let mut pending = pending0.clone();
     let mut delivered = 0u32;
+    let arrival_model = ArrivalModel::embedded();
 
     for h in 0..ctx.h {
         let sim_day = ctx.day0 + h;
@@ -414,22 +437,15 @@ fn path_arrival_units_sum(
         let mut rng_gamma = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_SPOIL);
         let mut rng_alloc = SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ALLOC);
 
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rng_ship =
-                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SHIP);
-            let mut rng_sensor =
-                SpawnRng::spawn_rng(ctx.root_seed, &path_run, sim_day, STREAM_ARRIVAL_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
-                &mut rng_ship,
-                &mut rng_sensor,
-                &ctx.shipments,
-                params,
-                ctx.f_pipeline_default,
+        let delivery_unit_f =
+            truth_delivery_units(
+                &arrival_model,
+                arrival,
+                ctx.root_seed,
+                &path_run,
+                sim_day,
+                &params.arrival_product,
             );
-            (Some(f), Some(tau), Some(pack))
-        } else {
-            (None, None, None)
-        };
         let mut rng_birth = if arrival > 0 {
             Some(SpawnRng::spawn_rng(
                 ctx.root_seed,
@@ -448,11 +464,8 @@ fn path_arrival_units_sum(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            age_at_receipt,
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -645,12 +658,12 @@ mod tests {
             costs: RolloutCosts {
                 unit_margin: 2.0,
                 waste_cost: waste,
-                stockout_penalty: 3.0,
+                stockout_penalty: 0.5,
             },
             shipments: vec![ShipmentTrace::smoke_cool()],
             f_pipeline_default: 1.0,
-            h: 4,
-            n_paths: 4,
+            h: 6,
+            n_paths: 16,
             radius: 2,
         };
         let low = rollout_order(
@@ -660,7 +673,7 @@ mod tests {
             base,
             &p,
             &BTreeMap::new(),
-            &mk_ctx(0.05),
+            &mk_ctx(0.01),
         )
         .unwrap();
         let high = rollout_order(
@@ -670,7 +683,7 @@ mod tests {
             base,
             &p,
             &BTreeMap::new(),
-            &mk_ctx(25.0),
+            &mk_ctx(50.0),
         )
         .unwrap();
         assert_ne!(low, high, "waste_cost must flip rollout winner on fixture");

@@ -80,11 +80,12 @@ fn simulate_protection_path(
             gamma_decrement: Some(gamma_decrement_for_store(params)),
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: Some(1.0),
-            delivery_lambda: None,
+            delivery_unit_f: if arrival > 0 {
+                Some(vec![1.0; arrival as usize])
+            } else {
+                None
+            },
             units_per_lot: Some(params.units_per_lot),
-            age_at_receipt: None,
-            pack_age_mean: None,
         };
         let out = unit_day_step(
             &input,

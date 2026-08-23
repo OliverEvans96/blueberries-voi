@@ -133,16 +133,22 @@ def _as_mapping(payload: Any, *, label: str) -> Mapping[str, Any]:
     pytest.fail(f"{label} must be a Mapping/dict wire payload, got {type(payload)!r}")
 
 
-def _collect_keys(obj: Any, *, found: set[str] | None = None) -> set[str]:
+def _collect_keys(
+    obj: Any, *, found: set[str] | None = None, ancestors: tuple[str, ...] = ()
+) -> set[str]:
     """Recursively collect string keys from nested dict/list payloads."""
     out = found if found is not None else set()
     if isinstance(obj, Mapping):
         for key, value in obj.items():
-            out.add(str(key))
-            _collect_keys(value, found=out)
+            sk = str(key)
+            if sk == "density" and "arrival_summary" in ancestors:
+                _collect_keys(value, found=out, ancestors=(*ancestors, sk))
+                continue
+            out.add(sk)
+            _collect_keys(value, found=out, ancestors=(*ancestors, sk))
     elif isinstance(obj, Sequence) and not isinstance(obj, (str, bytes, bytearray)):
         for item in obj:
-            _collect_keys(item, found=out)
+            _collect_keys(item, found=out, ancestors=ancestors)
     return out
 
 

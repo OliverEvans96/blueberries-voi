@@ -254,6 +254,82 @@ describe("EventsPane (T-148 v6)", () => {
     expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
   });
 
+  it("F2a shows pack date but not age at receipt", () => {
+    render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 4,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2a",
+            obs_channels: channelsForPreset("F2a"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 3,
+            arrivals: 12,
+            sales_total: 8,
+            waste_total: 1,
+            pack_date_days: 4,
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText(/4 days/i)).toBeInTheDocument();
+    expect(screen.queryByText(/age at receipt/i)).toBeNull();
+  });
+
+  it("F2 shows pack date on delivery days only", () => {
+    render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 4,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 3,
+            arrivals: 12,
+            sales_total: 4,
+            waste_total: 1,
+            sales_by: [4],
+            waste_by: [1],
+            lot_ids: [101],
+            pack_date_days: 2,
+          },
+        ],
+      }),
+    );
+    expect(screen.queryByText(/age at receipt/i)).toBeNull();
+    expect(screen.getByText(/packed 2 days before arrival/i)).toBeInTheDocument();
+  });
+
+  it("F2 delivery day does not show temp chart when history is pack_date", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [F2_DAY],
+      }),
+    );
+    expect(screen.queryByText(/temperature history/i)).toBeNull();
+    expect(container.querySelector(".delivery-temp-chart--multi")).toBeNull();
+  });
+
   it("shows the temperature history chart on any day with real arrivals and temp data, even when the schedule's cosmetic delivery-day badge doesn't cover that day (T-151 bugfix)", () => {
     // Day 1 under SCHEDULE (epoch 2024-01-01 == Monday, so day 1 ==
     // Tuesday, weekday 1) is flagged an "order day" (order_weekdays
@@ -295,4 +371,5 @@ describe("EventsPane (T-148 v6)", () => {
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".events-temp-history")).not.toBeNull();
   });
+
 });

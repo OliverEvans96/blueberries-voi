@@ -64,6 +64,8 @@ def run_voi_crn_cell(
 
     Loads Abdella shipments when ``shipments=None``, resolves alpha table when
     provided, then delegates episode execution to ``run_voi_crn_cell_py``.
+
+    ``n_rollout_paths=0`` skips rollout and uses damped SW orders only.
     """
     del costs, policy  # profit/costs and custom policies are Rust-owned post-Wave F
     from blueberries_voi.backend import rust_available, rust_core, warn_fallback_once

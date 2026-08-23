@@ -144,8 +144,6 @@ fn p1_mask_obs_sales_by_stays_none() {
         lot_ids: vec![1, 2],
         arrival_lot_ids: vec![],
         shipment_trace: None,
-        f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs = mask_for("P1").expect("P1").apply(&rich);
@@ -165,8 +163,6 @@ fn f1_mask_exposes_sales_by_for_router() {
         lot_ids: vec![10, 11],
         arrival_lot_ids: vec![],
         shipment_trace: None,
-        f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs = mask_for("F1").expect("F1").apply(&rich);
@@ -730,8 +726,6 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             lot_ids: (0..N_LOTS).map(|i| i as i64).collect(),
             arrival_lot_ids: vec![],
             shipment_trace: None,
-            f_at_receipt: None,
-            age_at_receipt: None,
             pack_date_days: None,
         });
     }
@@ -928,8 +922,6 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         lot_ids: vec![1, 2],
         arrival_lot_ids: vec![],
         shipment_trace: None,
-        f_at_receipt: None,
-        age_at_receipt: None,
         pack_date_days: None,
     };
     let obs_f1 = mask_for("F1").unwrap().apply(&rich);
@@ -1294,14 +1286,12 @@ fn filter_birth_matches_arrival_qty_not_upl() {
     };
     let mut rng = Pcg64::seed_from_u64(99);
     filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
-    let alive: usize = bank
-        .freshness
-        .iter()
-        .map(|row| row.iter().filter(|&&f| f > 0.0).count())
-        .sum();
+    // Row length is the birth count. `f == 0` (the arrival atom) is a born unit, not
+    // a skipped birth — counting only `f > 0` fails under ADR 0144 (~2% atom).
+    let born: usize = bank.freshness.iter().map(Vec::len).sum();
     assert_eq!(
-        alive,
+        born,
         n * 8,
-        "each particle should birth 8 units, got {alive}"
+        "each particle should birth 8 units, got {born}"
     );
 }

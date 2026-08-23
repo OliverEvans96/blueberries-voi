@@ -38,8 +38,13 @@ channels, only the code type changes.
 | `gsin_upc_t140.json` | T-140 / ADR 0141 | shared-δ interval, unified gamma **arrival** |
 | `gsin_upc_after.json` | T-141 / ADR 0143 | **independent per-unit aging** + Poisson-binomial |
 
+> **T-150 recal pending.** The committed `gsin_upc_after.json` / `voi_profits_after.json`
+> side still reflects pre–ADR-0144 arrival physics. After corridor plumbing and RNG stream
+> fixes merge, regenerate the after side and add a T-150 / ADR 0144 row to the epoch ladder.
+
 Regenerate the after side with `experiments/regen_gsin_upc_data.sh` (belief metrics) and
-`experiments/regen_voi_profits.py` (§4 closed loop).
+`experiments/regen_voi_profits.py` (§4 closed loop). Use `experiments/regen_tuned_alpha.py`
+for the production α table (`rollout` inherits `sw`; not independently tuned).
 
 Two provenance corrections worth stating, because they change how the columns read:
 
