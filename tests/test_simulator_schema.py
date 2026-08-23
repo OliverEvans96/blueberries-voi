@@ -99,15 +99,21 @@ def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _collect_keys(obj: Any, *, found: set[str] | None = None) -> set[str]:
+def _collect_keys(
+    obj: Any, *, found: set[str] | None = None, ancestors: tuple[str, ...] = ()
+) -> set[str]:
     out = found if found is not None else set()
     if isinstance(obj, Mapping):
         for key, value in obj.items():
-            out.add(str(key))
-            _collect_keys(value, found=out)
+            sk = str(key)
+            if sk == "density" and "arrival_summary" in ancestors:
+                _collect_keys(value, found=out, ancestors=(*ancestors, sk))
+                continue
+            out.add(sk)
+            _collect_keys(value, found=out, ancestors=(*ancestors, sk))
     elif isinstance(obj, Sequence) and not isinstance(obj, (str, bytes, bytearray)):
         for item in obj:
-            _collect_keys(item, found=out)
+            _collect_keys(item, found=out, ancestors=ancestors)
     return out
 
 
