@@ -132,7 +132,7 @@ import { OperatorBar } from "./OperatorBar";
 import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
-import { TuningDrawer } from "./TuningDrawer";
+import { TuningDrawer, type TuningDrawerProps } from "./TuningDrawer";
 import { computeImpactTotals } from "../metrics/impactTotals";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
 import { ChartUnavailable } from "./ChartUnavailable";
@@ -333,20 +333,38 @@ export function initStudio(app: HTMLElement): () => void {
       return q<HTMLElement>("#section-controls")!;
     },
     demand: q<HTMLElement>("#chart-demand")!,
-    demandForecast: q<HTMLElement>("#chart-demand-forecast-host")!,
+    get demandForecast(): HTMLElement {
+      return q<HTMLElement>("#chart-demand-forecast-host")!;
+    },
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
     inventory: q<HTMLElement>("#chart-inventory")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
-    arrivalPrior: q<HTMLElement>("#chart-arrival-prior")!,
-    arrivalShift: q<HTMLElement>("#chart-arrival-shift")!,
-    arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
-    gammaPath: q<HTMLElement>("#chart-gamma-path")!,
+    get arrivalPrior(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-prior")!;
+    },
+    get arrivalShift(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-shift")!;
+    },
+    get arrheniusTemp(): HTMLElement {
+      return q<HTMLElement>("#chart-arrhenius-temp")!;
+    },
+    get gammaPath(): HTMLElement {
+      return q<HTMLElement>("#chart-gamma-path")!;
+    },
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
     spoil: q<HTMLElement>("#chart-spoil")!,
-    controllerOrdersFocus: q<HTMLElement>("#chart-controller-orders-focus")!,
-    spoilFocus: q<HTMLElement>("#chart-spoil-focus")!,
-    inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
-    pickingVar: q<HTMLElement>("#picking-var-chart")!,
+    get controllerOrdersFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-controller-orders-focus")!;
+    },
+    get spoilFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-spoil-focus")!;
+    },
+    get inventoryFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-inventory-focus")!;
+    },
+    get pickingVar(): HTMLElement {
+      return q<HTMLElement>("#picking-var-chart")!;
+    },
     tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
     tradeoffHistogram: q<HTMLElement>("#tradeoff-histogram-host")!,
     pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
@@ -425,7 +443,7 @@ export function initStudio(app: HTMLElement): () => void {
       if (tuningDrawerRoot) {
         flushSync(() => {
           tuningDrawerRoot.render(
-            createElement(TuningDrawer, {
+            createElement<TuningDrawerProps>(TuningDrawer, {
               hideTrigger: true,
               open: tuningDrawerOpen,
               onOpenChange: setTuningDrawerOpen,
