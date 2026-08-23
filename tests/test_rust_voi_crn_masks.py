@@ -28,7 +28,7 @@ _N_BURN = 2
 _N_SCORE = 8
 _FILTER_N = 32
 _H = 2
-# Production damped_sw policy. Rollout×200 seed searches were 10+ min of verify.
+# Production damped_sw policy. Rollout x 200 seed searches were 10+ min of verify.
 _N_ROLLOUT_PATHS = 0
 _MAX_PROBE_SEEDS = 8
 _LEAD_TIME = 1
