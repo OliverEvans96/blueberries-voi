@@ -149,17 +149,23 @@ describe("EventsPane (T-148 v6)", () => {
   });
 
   it("shows delivery and order marker chips to the right of the day heading", () => {
+    // Day 2 (epoch 2024-01-01 == Monday + 2 days == Wednesday, weekday 2)
+    // is a genuine schedule delivery day (delivery_weekdays includes 2).
+    // episode_day=3 also brings day 1 (an order day under SCHEDULE) into
+    // the 5-day window, so scope assertions to the day-2 card specifically.
     const { container } = render(
       createElement(EventsPane, {
-        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
+        vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
-        events: [P0_DAY],
+        events: [{ ...P0_DAY, day: 2 }],
       }),
     );
-    expect(screen.getByText("delivery day")).toBeInTheDocument();
-    expect(screen.queryByText("order day")).toBeNull();
+    const day2Card = container.querySelector('.events-day-card[data-day="2"]');
+    expect(day2Card).not.toBeNull();
+    expect(day2Card!.querySelector(".events-day-marker--delivery")).not.toBeNull();
+    expect(day2Card!.querySelector(".events-day-marker--order")).toBeNull();
 
-    const header = container.querySelector(".events-day-header");
+    const header = day2Card!.querySelector(".events-day-header");
     const heading = header?.querySelector(".events-day-heading");
     const markers = header?.querySelector(".events-day-markers");
     expect(heading).not.toBeNull();
@@ -245,5 +251,47 @@ describe("EventsPane (T-148 v6)", () => {
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
+  });
+
+  it("shows the temperature history chart on any day with real arrivals and temp data, even when the schedule's cosmetic delivery-day badge doesn't cover that day (T-151 bugfix)", () => {
+    // Day 1 under SCHEDULE (epoch 2024-01-01 == Monday, so day 1 ==
+    // Tuesday, weekday 1) is flagged an "order day" (order_weekdays
+    // includes 1), not a "delivery day" (delivery_weekdays=[0,2,4]). A real
+    // delivery with temp data can still land on this day (e.g. after a
+    // mid-episode schedule change, or any day the mock/live engine records
+    // arrivals). The chart must key off "did a delivery with temp data
+    // actually happen", not the cosmetic calendar badge.
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 2,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F3",
+            obs_channels: channelsForPreset("F3"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 1,
+            arrivals: 8,
+            arrival_lot_ids: [401],
+            arrivals_by: [8],
+            sales_total: 4,
+            waste_total: 0,
+            temp_traces_by_lot: [
+              {
+                lot_id: 401,
+                times_d: [-3, -2, -1, 0],
+                temps_c: [2, 2.2, 2.4, 2.6],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
+    expect(container.querySelector(".events-temp-history")).not.toBeNull();
   });
 });

@@ -680,13 +680,7 @@ export function initStudio(app: HTMLElement): () => void {
     const ageRows = showTruth
       ? ageCompositionSeries(vm.history)
       : ageCompositionSeriesFromBelief(vm.belief_history);
-    renderAgeComposition(
-      els.ageComp,
-      vm.history,
-      130,
-      ageRows,
-      showTruth ? "age" : "freshness",
-    );
+    renderAgeComposition(els.ageComp, vm.history, 130, ageRows);
   }
 
   function renderStore() {
@@ -728,13 +722,7 @@ export function initStudio(app: HTMLElement): () => void {
       const ageRows = showTruth
         ? ageCompositionSeries(vm.history)
         : ageCompositionSeriesFromBelief(vm.belief_history);
-      renderAgeComposition(
-        els.ageComp,
-        vm.history,
-        140,
-        ageRows,
-        showTruth ? "age" : "freshness",
-      );
+      renderAgeComposition(els.ageComp, vm.history, 140, ageRows);
     }
     if (plotVisible("plot-demand")) {
       renderDailyDemand(els.demand, vm.history, 160);
