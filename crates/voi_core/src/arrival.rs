@@ -98,6 +98,8 @@ pub struct ArrivalModel {
     /// (ADR 0144 Correction 1 / T-150: the wire adapter reads this so the F3 chart
     /// conditions on the observed shipment, never a prior-mean placeholder).
     last_exposure_lambda: Option<f64>,
+    /// Fingerprint of the last `marginal_cdf` build (T-150 sync-cache dirty-check).
+    prior_build_key: PriorCdfBuildKey,
 }
 
 #[derive(Clone, Debug)]
@@ -106,6 +108,43 @@ struct ArrivalCdfCache {
     atom_f0: f64,
     mean_f: f64,
     variance_f: f64,
+}
+
+/// Physics + corridor fingerprint for the cached filter prior (`marginal_cdf`).
+/// When `sync_params` sees a matching key, it skips rebuilding the prior and
+/// clearing F2/F3 caches (T-150 sync-cache).
+#[derive(Clone, Debug, PartialEq)]
+struct PriorCdfBuildKey {
+    gamma_shape: f64,
+    gamma_scale: f64,
+    q10: f64,
+    t_ref: f64,
+    eta_ref: f64,
+    active_corridor: String,
+}
+
+impl PriorCdfBuildKey {
+    fn from_model(model: &ArrivalModel) -> Self {
+        Self {
+            gamma_shape: model.gamma_shape,
+            gamma_scale: model.gamma_scale,
+            q10: model.q10,
+            t_ref: model.t_ref,
+            eta_ref: model.reference_life_days,
+            active_corridor: model.active_corridor.clone(),
+        }
+    }
+
+    fn from_params(params: &ModelParams, active_corridor: &str) -> Self {
+        Self {
+            gamma_shape: params.gamma_shape,
+            gamma_scale: params.gamma_scale,
+            q10: params.q10,
+            t_ref: params.t_ref_c,
+            eta_ref: params.eta_ref,
+            active_corridor: active_corridor.to_string(),
+        }
+    }
 }
 
 /// Chart-ready channel-conditional law (T-150 AC3.3): the raw CDF (atom mass included,
@@ -303,8 +342,17 @@ impl ArrivalModel {
             f3_cache: HashMap::new(),
             last_duration_days: None,
             last_exposure_lambda: None,
+            prior_build_key: PriorCdfBuildKey {
+                gamma_shape: raw.gamma_shape,
+                gamma_scale: raw.gamma_scale,
+                q10: raw.q10,
+                t_ref: raw.T_ref,
+                eta_ref: raw.reference_life_days,
+                active_corridor: default_corridor.clone(),
+            },
         };
         model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
+        model.prior_build_key = PriorCdfBuildKey::from_model(&model);
         Ok(model)
     }
 
@@ -603,6 +651,7 @@ impl ArrivalModel {
         self.f2_cache.clear();
         self.f3_cache.clear();
         self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
+        self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
 
     pub fn active_corridor(&self) -> &str {
@@ -696,6 +745,10 @@ impl ArrivalModel {
     }
 
     pub fn sync_params(&mut self, params: &ModelParams) {
+        let key = PriorCdfBuildKey::from_params(params, &self.active_corridor);
+        if self.prior_build_key == key {
+            return;
+        }
         self.gamma_shape = params.gamma_shape;
         self.gamma_scale = params.gamma_scale;
         self.q10 = params.q10;
@@ -704,6 +757,7 @@ impl ArrivalModel {
         self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
         self.f2_cache.clear();
         self.f3_cache.clear();
+        self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
 }
 
