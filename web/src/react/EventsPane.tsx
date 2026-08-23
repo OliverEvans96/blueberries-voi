@@ -2,7 +2,13 @@
  * Events pane — last 5 days with Delivered | Sold | Spoiled columns (T-148 layout v6).
  */
 import { useLayoutEffect, useRef } from "react";
-import { renderDeliveryTempMultiLot } from "../charts/deliveryTempChart";
+import {
+  formatTempC,
+  lotColor,
+  renderDeliveryTempMultiLot,
+  tempSummaryFromTrace,
+  tracesFromEvent,
+} from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
 import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
@@ -123,31 +129,78 @@ function DeliveryTempChart({
   ev: MaskedObsWire;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const traces = tracesFromEvent(ev);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const traces =
-      ev.temp_traces_by_lot?.map((trace) => ({
-        lotId: trace.lot_id,
-        times_d: trace.times_d,
-        temps_c: trace.temps_c,
-      })) ??
-      (ev.temp_times_d?.length && ev.temp_temps_c?.length
-        ? [
-            {
-              lotId: ev.arrival_lot_ids?.[0] ?? 0,
-              times_d: ev.temp_times_d,
-              temps_c: ev.temp_temps_c,
-            },
-          ]
-        : []);
     renderDeliveryTempMultiLot(host, traces);
   }, [ev]);
 
   return (
     <section className="events-temp-history" aria-label="Temperature history">
       <h4 className="events-temp-heading">Temperature history</h4>
+      <div
+        className="events-temp-summaries"
+        data-testid="events-temp-summaries"
+      >
+        {traces.map((trace, index) => {
+          const summary = tempSummaryFromTrace(trace);
+          if (!summary) return null;
+          return (
+            <div
+              key={trace.lotId}
+              className="events-temp-summary-line"
+              data-lot={trace.lotId}
+            >
+              <span className="events-temp-item">
+                <span
+                  className="events-temp-lot"
+                  style={{ color: lotColor(index) }}
+                >
+                  Lot {trace.lotId}
+                </span>
+              </span>
+              <span className="events-temp-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="events-temp-item">
+                <span className="events-temp-label">min</span>
+                <span className="events-temp-value">
+                  {formatTempC(summary.min)}
+                </span>
+              </span>
+              <span className="events-temp-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="events-temp-item">
+                <span className="events-temp-label">max</span>
+                <span className="events-temp-value">
+                  {formatTempC(summary.max)}
+                </span>
+              </span>
+              <span className="events-temp-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="events-temp-item">
+                <span className="events-temp-label">mean</span>
+                <span className="events-temp-value">
+                  {formatTempC(summary.mean)}
+                </span>
+              </span>
+              <span className="events-temp-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="events-temp-item">
+                <span className="events-temp-label">std</span>
+                <span className="events-temp-value">
+                  {formatTempC(summary.std)}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
       <div
         className="events-temp-chart-host"
         data-day={ev.day}

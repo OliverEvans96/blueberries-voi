@@ -196,6 +196,7 @@ export function renderFreshnessHistogram(
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)

@@ -148,9 +148,55 @@
   color: var(--ink-soft);
 }
 
+.events-temp-summaries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0 0 0.3rem;
+}
+
+.events-temp-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.35rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.events-temp-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+.events-temp-lot {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.events-temp-sep {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.events-temp-label {
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+}
+
+.events-temp-value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
 .events-temp-chart-host {
   width: 100%;
-  min-height: 72px;
+  min-height: 36px;
 }
 
 .events-temp-chart-host svg {
