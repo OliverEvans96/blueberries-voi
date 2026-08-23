@@ -33,21 +33,55 @@ export function TuningDrawer({
     if (next) onOpen?.();
   };
 
+  const selectClusterTab = (tab: HTMLButtonElement) => {
+    const root = tab.closest(".tuning-dock-tabs");
+    if (!root) return;
+    root.querySelectorAll<HTMLButtonElement>("[data-section]").forEach((el) => {
+      const selected = el === tab;
+      el.setAttribute("aria-selected", selected ? "true" : "false");
+      el.tabIndex = selected ? 0 : -1;
+    });
+  };
+
   const openDrawer = () => setOpen(true);
   const closeDrawer = () => setOpen(false);
+  const onClusterTabClick = (tab: HTMLButtonElement) => selectClusterTab(tab);
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!open || !dialog) return;
-    try {
-      if (typeof dialog.showModal === "function" && !dialog.open) {
-        dialog.showModal();
-      } else if (!dialog.hasAttribute("open")) {
+    if (!dialog) return;
+    if (open) {
+      try {
+        if (typeof dialog.showModal === "function" && !dialog.open) {
+          dialog.showModal();
+        } else if (!dialog.hasAttribute("open")) {
+          dialog.setAttribute("open", "");
+        }
+      } catch {
         dialog.setAttribute("open", "");
       }
-    } catch {
-      dialog.setAttribute("open", "");
+    } else {
+      try {
+        if (dialog.open && typeof dialog.close === "function") {
+          dialog.close();
+        }
+      } catch {
+        /* jsdom <dialog> may lack close() */
+      }
+      dialog.removeAttribute("open");
     }
+  }, [open]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!open) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDrawer();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   useEffect(() => {
@@ -83,8 +117,7 @@ export function TuningDrawer({
         />
       ) : null}
 
-      {open
-        ? createPortal(
+      {createPortal(
             <dialog
               ref={dialogRef}
               id="tuning-drawer"
@@ -110,6 +143,7 @@ export function TuningDrawer({
                         role="tab"
                         data-section="demand"
                         aria-controls="section-controls"
+                        onClick={(e) => onClusterTabClick(e.currentTarget)}
                       >
                         Demand
                       </button>
@@ -118,6 +152,7 @@ export function TuningDrawer({
                         role="tab"
                         data-section="arrival"
                         aria-controls="section-controls"
+                        onClick={(e) => onClusterTabClick(e.currentTarget)}
                       >
                         Arrival
                       </button>
@@ -126,6 +161,7 @@ export function TuningDrawer({
                         role="tab"
                         data-section="physics"
                         aria-controls="section-controls"
+                        onClick={(e) => onClusterTabClick(e.currentTarget)}
                       >
                         Physics
                       </button>
@@ -139,6 +175,7 @@ export function TuningDrawer({
                         role="tab"
                         data-section="logistics"
                         aria-controls="section-controls"
+                        onClick={(e) => onClusterTabClick(e.currentTarget)}
                       >
                         Logistics
                       </button>
@@ -152,6 +189,7 @@ export function TuningDrawer({
                         role="tab"
                         data-section="autopilot"
                         aria-controls="section-controls"
+                        onClick={(e) => onClusterTabClick(e.currentTarget)}
                       >
                         Autopilot
                       </button>
@@ -372,8 +410,7 @@ export function TuningDrawer({
               </div>
             </dialog>,
             portalTarget,
-          )
-        : null}
+          )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-23
+- **Simulation tuning (demand, arrival, physics, logistics, autopilot) now lives in a right-side drawer opened from the gear icon beside the loading indicator — the main cockpit shows only outcomes, belief, and the observation sidebar, giving charts more room** (T-158).
 - **Arrival freshness is now uncertain and depends on the shipping corridor: how long the truck ran and how warm it was, not a single known age at the door. Shelf life is one number (two weeks at the reference temperature) instead of two that disagreed, and that arrival freshness is an upper bound because field heat before the truck is not modelled** (T-150).
 
 ## 2026-08-22

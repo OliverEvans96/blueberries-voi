@@ -22,7 +22,8 @@ function studioScope(): HTMLElement {
 }
 
 function getDialog(): HTMLDialogElement | null {
-  return document.querySelector("dialog.tuning-drawer");
+  const dialog = document.querySelector("dialog.tuning-drawer");
+  return dialog?.open ? dialog : null;
 }
 
 function getTrigger(): HTMLButtonElement | null {
