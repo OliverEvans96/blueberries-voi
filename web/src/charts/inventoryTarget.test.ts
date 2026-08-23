@@ -416,6 +416,30 @@ describe("renderAgeComposition freshness legend (T-148)", () => {
     ).map((el) => el.textContent?.trim());
     expect(labels).toEqual(["fresh", "fair", "old"]);
   });
+
+  it("uses fresh / fair / old band labels for both truth and belief data rows (T-151 regression: labels must not revert to fraction-threshold wording when the truth overlay supplies rows)", () => {
+    function labelsFor(rowsOverride: AgeRow[]): (string | undefined)[] {
+      const container = document.createElement("div");
+      Object.defineProperty(container, "clientWidth", {
+        value: 320,
+        configurable: true,
+      });
+      inv.renderAgeComposition(container, [LOT_DAY], 100, rowsOverride);
+      return Array.from(container.querySelectorAll(".legend-label")).map(
+        (el) => el.textContent?.trim(),
+      );
+    }
+
+    const truthRows = inv.ageCompositionSeries([LOT_DAY]);
+    const beliefRows = (
+      inv as {
+        ageCompositionSeriesFromBelief: (h: BeliefDay[]) => AgeRow[];
+      }
+    ).ageCompositionSeriesFromBelief(BELIEF_HISTORY);
+
+    expect(labelsFor(truthRows)).toEqual(["fresh", "fair", "old"]);
+    expect(labelsFor(beliefRows)).toEqual(["fresh", "fair", "old"]);
+  });
 });
 
 describe("inventory target hover (T-151)", () => {
