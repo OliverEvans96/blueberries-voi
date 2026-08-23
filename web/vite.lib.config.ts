@@ -3,13 +3,28 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
+import { readWebPackageVersion } from "./vitePackageVersion";
 
 const WEB_ROOT = fileURLToPath(new URL(".", import.meta.url));
+const studioVersion = readWebPackageVersion();
+
+/** Peer deps must resolve from the host app, not ship inside embed.js (issue #5). */
+function isReactPeerExternal(id: string): boolean {
+  return (
+    id === "react" ||
+    id === "react-dom" ||
+    id.startsWith("react/") ||
+    id.startsWith("react-dom/")
+  );
+}
 
 /** T-145: publishable `@oliverevans96/blueberries-voi-studio` library build. */
 export default defineConfig({
   root: ".",
   base: "./",
+  define: {
+    "import.meta.env.VITE_STUDIO_VERSION": JSON.stringify(studioVersion),
+  },
   plugins: [
     react(),
     dts({
@@ -37,7 +52,7 @@ export default defineConfig({
     cssCodeSplit: false,
     copyPublicDir: false,
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: isReactPeerExternal,
       output: {
         assetFileNames(assetInfo) {
           if (assetInfo.names.some((n) => n.endsWith(".css"))) {

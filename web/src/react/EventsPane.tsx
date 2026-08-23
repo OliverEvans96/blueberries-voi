@@ -1,9 +1,10 @@
 /**
  * Events pane — last 5 days with Delivered | Sold | Spoiled columns (T-148 layout v6).
  */
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { renderDeliveryTempMultiLot } from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
+import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
 
@@ -20,16 +21,18 @@ export type EventsPaneProps = {
   refreshing?: boolean;
 };
 
-function monday0Weekday(day: number): number {
-  return ((day - 1) % 7 + 7) % 7;
-}
-
+// Delegate to the same epoch-anchored weekday helper the studio's own
+// order-day advance logic (`buildStepNOrders` / `nextOrderDayFromSchedule`
+// in calendar/nextOrderAdvance.ts) uses — a local `(day - 1) % 7`
+// reimplementation here previously disagreed with that authoritative
+// convention by exactly one day, so these badges never matched the days
+// real deliveries/orders actually landed on (T-151 bugfix).
 function isDeliveryDay(day: number, schedule: ScheduleWire): boolean {
-  return schedule.delivery_weekdays.includes(monday0Weekday(day));
+  return schedule.delivery_weekdays.includes(weekdayMonday0(day, schedule));
 }
 
 function isOrderDay(day: number, schedule: ScheduleWire): boolean {
-  return schedule.order_weekdays.includes(monday0Weekday(day));
+  return schedule.order_weekdays.includes(weekdayMonday0(day, schedule));
 }
 
 type LotRow = { label: string; qty: number };
@@ -91,7 +94,7 @@ function EventsTable({
           {notObserved ? (
             <tr>
               <td colSpan={2} className="events-not-observed">
-                Not observed at this rung
+                Not observed
               </td>
             </tr>
           ) : (
@@ -121,7 +124,7 @@ function DeliveryTempChart({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const traces =
@@ -161,16 +164,6 @@ export function EventsPane({
   loading,
   refreshing,
 }: EventsPaneProps) {
-  const showInitialLoading = loading && events.length === 0;
-
-  if (showInitialLoading) {
-    return (
-      <section className="events-pane panel" aria-label="Events" data-loading>
-        <p>Loading events…</p>
-      </section>
-    );
-  }
-
   const obsMask = vm.config.obs_channels
     ? maskFromChannels(vm.config.obs_channels)
     : maskFor(vm.config.obs_scenario);
@@ -183,18 +176,25 @@ export function EventsPane({
   ).sort((a, b) => b - a);
 
   const eventByDay = new Map(events.map((ev) => [ev.day ?? 0, ev]));
+  const showInitialLoading = loading && events.length === 0;
 
   return (
     <section
       className="events-pane panel"
       aria-label="Events"
+      data-loading={showInitialLoading ? "true" : undefined}
       data-refreshing={refreshing ? "true" : undefined}
     >
       <div className="panel-head">
         <h2>Events</h2>
         <span className="panel-note">
           Last 5 days
-          {refreshing ? (
+          {showInitialLoading ? (
+            <span className="events-refresh-indicator" aria-live="polite">
+              Loading events…
+            </span>
+          ) : null}
+          {!showInitialLoading && refreshing ? (
             <span className="events-refresh-indicator" aria-live="polite">
               Updating…
             </span>
@@ -202,7 +202,7 @@ export function EventsPane({
         </span>
       </div>
       <div className="events-list">
-        {windowDays.length === 0 ? (
+        {!showInitialLoading && windowDays.length === 0 ? (
           <p className="events-empty-note">No completed days yet.</p>
         ) : null}
         {windowDays.map((day, index) => {
@@ -229,8 +229,11 @@ export function EventsPane({
                 )
               : [];
 
+          // Keyed on an actual delivery with temp data, not the schedule's
+          // cosmetic "delivery day" calendar badge (`deliveryDay`) — those
+          // can desync (e.g. mid-episode schedule edits), which previously
+          // made this chart dead code (T-151 bugfix).
           const showTempChart =
-            deliveryDay &&
             obsMask.temperature_history &&
             deliveredTotal > 0 &&
             Boolean(
@@ -246,6 +249,9 @@ export function EventsPane({
             >
               {index > 0 ? <hr className="events-day-divider" /> : null}
               <header className="events-day-header">
+                <h3 className="events-day-heading">
+                  {schedule ? `${weekdayLabel(day, schedule)} ` : ""}Day {day}
+                </h3>
                 <div className="events-day-markers">
                   {deliveryDay ? (
                     <span className="events-day-marker events-day-marker--delivery">
@@ -258,7 +264,6 @@ export function EventsPane({
                     </span>
                   ) : null}
                 </div>
-                <h3 className="events-day-heading">Day {day}</h3>
               </header>
 
               <div className="events-columns" data-testid="events-columns">
@@ -284,7 +289,8 @@ export function EventsPane({
 
               {ev && obsMask.pack_date && ev.pack_date_days != null ? (
                 <p className="events-pack-date">
-                  Pack date {ev.pack_date_days} days
+                  Packed {ev.pack_date_days}{" "}
+                  {ev.pack_date_days === 1 ? "day" : "days"} before arrival
                 </p>
               ) : null}
 

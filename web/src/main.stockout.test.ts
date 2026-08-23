@@ -51,14 +51,43 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(logicSrc).toMatch(/stockout:\s*q<HTMLElement>\("#chart-stockout"\)/);
   });
 
+  it("beliefFreshnessHoverFocus maps spoilage hover source to spoiled focus", () => {
+    const fn = logicSrc.match(
+      /function beliefFreshnessHoverFocus\s*\([\s\S]*?\n\}/,
+    )?.[0];
+    expect(fn, "expected beliefFreshnessHoverFocus").toBeDefined();
+    expect(fn).toMatch(/source\s*===\s*"spoilage"/);
+    expect(fn).toMatch(/return\s+"spoiled"/);
+    expect(fn).toMatch(/source\s*===\s*"sales"/);
+    expect(fn).toMatch(/return\s+"sales"/);
+  });
+
+  it("applyHoverStyles passes beliefFreshnessHoverFocus source to freshness chart", () => {
+    const fn = logicSrc.match(
+      /function applyHoverStyles\s*\(\s*day[\s\S]*?\n\}/,
+    )?.[0];
+    expect(fn).toMatch(/beliefFreshnessHoverFocus\s*\(\s*source\s*\)/);
+  });
+
   it("applyHoverStyles calls setMarginalHover(els.stockout, day)", () => {
     const fn = logicSrc.match(
       /function applyHoverStyles\s*\(\s*day[\s\S]*?\n\}/,
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
+    expect(fn).toMatch(/setControllerOrdersHover\(\s*els\.controllerOrders/);
     expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
+    expect(fn).toMatch(/setInventoryTargetHover\(\s*els\.inventory/);
+    expect(fn).toMatch(/setAgeCompositionHover\(\s*els\.ageComp/);
+    expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
+  });
+
+  it("renderRunStripCharts renders orders and spoilage separately in metrics column", () => {
+    expect(logicSrc).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
+    expect(logicSrc).toMatch(/renderWasteBars\(\s*els\.spoil/);
+    expect(logicSrc).not.toMatch(/renderOrdersWaste\(\s*els\.controllerOrders/);
   });
 
   it("renderStore shares marginalYMax / yMax for sales and stockout", () => {
@@ -72,7 +101,6 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(
       /renderMarginal\(\s*els\.stockout[\s\S]*,\s*"stockout"[\s\S]*yMax/,
     );
-    expect(fn).toMatch(/renderWasteBars\(\s*els\.spoil/);
   });
 
   it("Demand Sales vs demand / chart-sales-demand still a line chart module", () => {

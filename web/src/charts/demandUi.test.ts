@@ -149,24 +149,17 @@ describe("T-087 DOW profile from demand_summary", () => {
     expect(stillMuOnly).toBe(false);
   });
 
-  it("react/studioLogic.ts wires demand chart with demand_summary (not config.demand_mu alone)", () => {
+  it("react/studioLogic.ts wires demand chart with episode history daily demand", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
-    expect(main).toMatch(/demand_summary|dow_means|dowProfile|renderDow/i);
-    // Legacy call site: renderDemandDist(els.demand, vm.config, …) with no summary.
-    const legacyOnly =
-      /renderDemandDist\s*\(\s*els\.demand\s*,\s*vm\.config\b/.test(main) &&
-      !/demand_summary/.test(main);
-    expect(
-      legacyOnly,
-      "main must pass demand_summary into Demand UI (or call a DOW successor)",
-    ).toBe(false);
+    expect(main).toMatch(/renderDailyDemand/);
+    expect(main).toMatch(/vm\.history/);
   });
 
-  it("react/studioLogic.ts colocates demand DOW chart when demand section is active", () => {
+  it("react/studioLogic.ts colocates demand chart when demand section is active", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
     expect(main).toMatch(/id\s*===\s*["']demand["']/);
     expect(main).toMatch(/chart-demand-host/);
-    expect(main).toMatch(/renderDemandDist/);
+    expect(main).toMatch(/renderDailyDemand/);
   });
 });
 
@@ -225,28 +218,10 @@ describe("T-087 protection-interval coverage 3/3/4", () => {
     expect(byWd.get(3), "Thu protection demand-days").toBe(4);
   });
 
-  it("Demand UI source or markup includes protection labels (3 / 3 / 4 or Sun/Tue/Thu)", () => {
+  it("Demand UI source may still expose protection coverage helpers for schedule math", () => {
     const chartSrc = combinedDemandUiSrc();
-    const main = readFileSync(MAIN_TS, "utf8");
-    const sections = existsSync(SECTIONS_TS)
-      ? readFileSync(SECTIONS_TS, "utf8")
-      : "";
-    const blob = `${chartSrc}\n${main}\n${sections}`;
-    const hasNumeric =
-      /\b3\s*\/\s*3\s*\/\s*4\b/.test(blob) ||
-      (/protection/i.test(blob) &&
-        /\b3\b/.test(blob) &&
-        /\b4\b/.test(blob) &&
-        /Sun|Tue|Thu|order_weekday/i.test(blob));
-    const hasLabels =
-      /protection/i.test(blob) &&
-      (/Sun/.test(blob) || /\b6\b/.test(blob)) &&
-      (/Tue/.test(blob) || /\b1\b/.test(blob)) &&
-      (/Thu/.test(blob) || /\b3\b/.test(blob));
-    expect(
-      hasNumeric || hasLabels,
-      "Demand UI must show protection coverage for Sun/Tue/Thu (3/3/4)",
-    ).toBe(true);
+    const blob = chartSrc;
+    expect(/protectionCoverageFromSchedule/.test(blob)).toBe(true);
   });
 });
 

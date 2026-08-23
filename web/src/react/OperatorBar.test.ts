@@ -32,7 +32,7 @@ describe("OperatorBar (T-127 layout v3)", () => {
     const props = baseProps();
     render(createElement(OperatorBar, props));
 
-    expect(screen.getByRole("button", { name: /^advance$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^place order$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
     const toggle = screen.getByRole("switch", { name: /autopilot/i });
     expect(toggle).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe("OperatorBar (T-127 layout v3)", () => {
     const props = baseProps();
     const { rerender } = render(createElement(OperatorBar, props));
 
-    fireEvent.click(screen.getByRole("button", { name: /^advance$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^place order$/i }));
     expect(props.onAdvance).toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: /reset/i }));
@@ -89,7 +89,7 @@ describe("OperatorBar (T-127 layout v3)", () => {
     const props = { ...baseProps(), vm: { ...baseProps().vm, episode_day: 90 } };
     render(createElement(OperatorBar, props));
 
-    expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^place order$/i })).toBeDisabled();
     expect(screen.getByRole("switch", { name: /autopilot/i })).toBeDisabled();
   });
 
@@ -101,7 +101,7 @@ describe("OperatorBar (T-127 layout v3)", () => {
     };
     render(createElement(OperatorBar, props));
 
-    expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^place order$/i })).toBeDisabled();
     expect(screen.getByRole("switch", { name: /autopilot/i })).not.toBeDisabled();
   });
 
@@ -118,6 +118,6 @@ describe("OperatorBar (T-127 layout v3)", () => {
     const props = { ...baseProps(), advancing: true };
     render(createElement(OperatorBar, props));
 
-    expect(screen.getByRole("button", { name: /^advance$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^place order$/i })).toBeDisabled();
   });
 });

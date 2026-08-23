@@ -482,7 +482,7 @@
 }
 
 #chart-history.chart {
-  min-height: 140px;
+  min-height: 220px;
 }
 
 .chart-svg {
@@ -724,10 +724,6 @@
   padding: 8px;
 }
 
-.order-row input[type="range"] {
-  height: 10px;
-}
-
 .btn-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -760,10 +756,10 @@ input[type="number"] {
   appearance: none;
   border: none;
   border-radius: 10px;
-  padding: 14px 14px;
+  padding: 7px 10px;
   font-family: var(--font-body);
-  font-weight: 700;
-  font-size: 0.98rem;
+  font-weight: 600;
+  font-size: 0.82rem;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: transform 0.12s ease, filter 0.12s ease, background 0.12s ease;
@@ -772,14 +768,13 @@ input[type="number"] {
 .btn-advance {
   background: linear-gradient(180deg, #2f6b4f 0%, #1a3d32 100%);
   color: #f4f7f4;
-  box-shadow: 0 6px 14px rgba(26, 61, 50, 0.32);
+  box-shadow: 0 3px 8px rgba(26, 61, 50, 0.28);
 }
 
 .btn-reset {
   background: #fffdf8;
   color: var(--ink);
   border: 1px solid var(--paper-edge);
-  font-weight: 600;
 }
 
 /* Autopilot Play/Pause toggle (T-127 v3) — one switch instead of two
@@ -807,7 +802,7 @@ input[type="number"] {
   background: linear-gradient(180deg, #3d7ea6 0%, #1f5f86 100%);
   color: #f4f7f4;
   border-color: #1f5f86;
-  box-shadow: 0 6px 14px rgba(31, 95, 134, 0.26);
+  box-shadow: 0 3px 8px rgba(31, 95, 134, 0.22);
 }
 
 .autopilot-toggle--on .truth-toggle-track {
@@ -943,7 +938,6 @@ input[type="number"] {
 
 .obs-chip {
   appearance: none;
-  flex: 1;
   border: 1px solid var(--paper-edge);
   background: #fffdf8;
   color: var(--ink-soft);
@@ -953,12 +947,22 @@ input[type="number"] {
   font-weight: 600;
   font-size: 0.82rem;
   cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .obs-chip.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #f4f7f4;
+  background: color-mix(in srgb, var(--accent) 32%, var(--paper));
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--paper-edge));
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.obs-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .meta-line {
@@ -968,19 +972,31 @@ input[type="number"] {
 
 .pnl-totals {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pnl-row {
-  display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 12px;
 }
 
-.pnl-row--emphasis {
-  padding-top: 2px;
+.pnl-totals-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.pnl-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.pnl-item--emphasis .pnl-value {
+  font-weight: 750;
+}
+
+.pnl-sep {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .pnl-label {
@@ -1064,13 +1080,9 @@ input[type="number"] {
 }
 
 .operator-bar-buttons {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-@media (max-width: 900px) {
-  .operator-bar-buttons {
-    grid-template-columns: 1fr;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .decision-rail-heading {
@@ -1106,6 +1118,10 @@ input[type="number"] {
 
 .tradeoff-charts .chart-caption {
   margin-left: 0;
+}
+
+.tradeoff-chart-host {
+  min-height: 140px;
 }
 
 .tradeoff-chart-host svg {
@@ -1205,6 +1221,7 @@ input[type="number"] {
 
 .impact-caption {
   margin-left: 0;
+  margin-top: 0.3rem;
   margin-bottom: 2px;
 }
 

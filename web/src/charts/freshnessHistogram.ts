@@ -123,6 +123,18 @@ export function truthMassesFromUnits(
   return bins;
 }
 
+/** Empty scaffold data — axes/legend only until belief_history arrives. */
+export function emptyFreshnessHistogramData(): FreshnessHistogramData {
+  const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+  const centers = edges.slice(0, -1).map((lo, i) => (lo + edges[i + 1]!) / 2);
+  return {
+    f_edges: edges,
+    f_centers: centers,
+    belief_masses: Array.from({ length: DISPLAY_BIN_COUNT }, () => 0),
+    truth_units: [],
+  };
+}
+
 /** Build chart data from flat belief + optional truth units. */
 export function freshnessHistogramDataFromFlat(
   flat: FlatBelief,

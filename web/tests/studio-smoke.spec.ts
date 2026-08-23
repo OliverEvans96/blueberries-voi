@@ -9,7 +9,7 @@ test.describe("studio cockpit smoke (T-148 layout v6)", () => {
     await expect(page.locator("[data-testid='cockpit-sidebar']")).toBeVisible();
     await expect(page.locator("#chart-history")).toBeVisible();
     await expect(page.locator("#chart-sales-demand")).toBeVisible();
-    await expect(page.locator("#chart-spoil")).toBeVisible();
+    await expect(page.locator("#chart-controller-orders")).toBeVisible();
     await expect(page.locator("#chart-belief-lg")).toBeVisible();
     await expect(page.locator("#pnl-totals-host")).toHaveCount(1);
     await expect(page.locator("#obs-controls-pane-host")).toHaveCount(1);

@@ -12,6 +12,7 @@ import { WasmAdapter } from "./wasmAdapter";
 import {
   createStudioAdapter,
   resolveStudioAdapterKind,
+  STUDIO_PACKAGE_VERSION,
   studioFooterCopy,
   resolveLocalStudioDefaults,
   reportStudioAdapterError,
@@ -70,6 +71,20 @@ describe("T-125 studio footer for live WASM adapter", () => {
     expect(copy).not.toMatch(/\bmock\b/i);
     expect(copy).not.toMatch(/Pyodide/i);
     expect(copy).not.toMatch(/HTTP/i);
+  });
+
+  it("studioFooterCopy includes studio package version after blueberries-voi", () => {
+    const wasmCopy = studioFooterCopy("wasm");
+    const mockCopy = studioFooterCopy("mock");
+    expect(STUDIO_PACKAGE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(wasmCopy).toContain(`blueberries-voi ${STUDIO_PACKAGE_VERSION}`);
+    expect(mockCopy).toContain(`blueberries-voi ${STUDIO_PACKAGE_VERSION}`);
+    expect(wasmCopy).toBe(
+      `Live WASM studio · blueberries-voi ${STUDIO_PACKAGE_VERSION} · D3 + Vite`,
+    );
+    expect(mockCopy).toBe(
+      `Mock debug studio · blueberries-voi ${STUDIO_PACKAGE_VERSION} · D3 + Vite`,
+    );
   });
 
   it("studioFooterCopy has no http or pyodide branches", () => {
@@ -198,7 +213,7 @@ describe("T-074 adapter init/step errors surface to the user", () => {
     expect(bootstrap![0]).toMatch(/catch|reportStudioAdapterError/);
     // Advance may use step_n (CAL-01 next-order-day) with a longer try body.
     expect(src).toMatch(
-      /onAdvance[\s\S]{0,1200}catch|adapter\.step(?:_n)?[\s\S]{0,400}catch/,
+      /onAdvance[\s\S]{0,1200}catch|adapter\.step(?:_n)?[\s\S]{0,600}catch/,
     );
   });
 

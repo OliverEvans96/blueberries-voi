@@ -15,7 +15,7 @@ import type {
   SimConfig,
   StepInput,
 } from "../types";
-import { channelsForPreset, maskFor, applyMask } from "../obsMask";
+import { channelsForPreset, maskFor, maskFromChannels, applyMask } from "../obsMask";
 import {
   DEFAULT_ECONOMICS,
   DEFAULT_SIM_CONFIG,
@@ -401,7 +401,9 @@ export class MockAdapter implements EngineAdapter {
   async events(params: {
     since_day: number;
   }): Promise<import("../engine/types").EventsResult> {
-    const mask = maskFor(this.config.obs_scenario);
+    const mask = this.config.obs_channels
+      ? maskFromChannels(this.config.obs_channels)
+      : maskFor(this.config.obs_scenario);
     const days = this.state.history
       .filter((d) => d.day >= params.since_day)
       .map((d) => {

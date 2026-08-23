@@ -1,9 +1,13 @@
 .obs-controls-pane {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  /* padding-block only — .panel supplies horizontal padding (16px) */
-  padding-block: 0.35rem 0.75rem;
+  gap: 0.5rem;
+  /* Horizontal inset matches `.panel`'s 16px (1rem) side padding — the
+   * convention the sibling `.events-pane` inherits unmodified. The T-151
+   * "flatten" pass zeroed this pane's own left/right padding while also
+   * dropping the per-channel-group card padding that used to compensate for
+   * it, leaving content flush against the sidebar column edge. */
+  padding: 0.35rem 1rem 0.65rem;
   border-bottom: 1px solid var(--paper-edge);
   background: linear-gradient(
     180deg,
@@ -12,9 +16,8 @@
   );
   border-radius: var(--radius);
 }
-
 .obs-panel-head {
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.1rem;
 }
 
 .obs-panel-head h2 {
@@ -22,7 +25,7 @@
 }
 
 .obs-panel-lead {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   font-size: 0.76rem;
   color: var(--muted);
 }
@@ -30,57 +33,36 @@
 .obs-controls-pane .obs-channel-group {
   display: grid;
   grid-template-columns: minmax(5.5rem, 7rem) 1fr;
-  gap: 0.35rem 0.65rem;
+  gap: 0.3rem 0.55rem;
   align-items: start;
-  padding: 0.35rem 0.45rem;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--paper) 88%, var(--ink) 4%);
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--paper-edge);
+}
+
+.obs-controls-pane .obs-channel-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .obs-controls-pane .obs-channel-label {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--ink-soft);
-  padding-top: 0.2rem;
+  padding-top: 0.15rem;
 }
 
 .obs-controls-pane .chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .obs-controls-pane .chip-row--wrap {
-  row-gap: 0.25rem;
-}
-
-.obs-controls-pane .obs-chip {
-  font-size: 0.74rem;
-  padding: 0.28rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--paper-edge) 80%, var(--ink) 12%);
-  background: var(--paper);
-  color: var(--ink-soft);
-  transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
-}
-
-.obs-controls-pane .obs-chip.is-active {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--paper-edge));
-  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.obs-controls-pane .obs-chip:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  row-gap: 0.3rem;
 }
 
 .obs-catchup-progress {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   font-size: 0.75rem;
   color: var(--muted);
   font-style: italic;
@@ -90,16 +72,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--paper-edge) 85%, var(--ink) 8%);
+  gap: 0.65rem;
+  padding: 0.35rem 0 0;
+  border-top: 1px solid var(--paper-edge);
 }
 
 .obs-truth-copy {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.08rem;
 }
 
 .obs-controls-truth .truth-toggle-label {

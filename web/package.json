@@ -1,6 +1,6 @@
 {
   "name": "@oliverevans96/blueberries-voi-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embeddable React studio for blueberries value-of-information simulation",
   "type": "module",
   "files": [
@@ -22,7 +22,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts"
+    "smoke:autopilot": "vitest run scripts/smoke-autopilot-mock.ts",
+    "profile:render": "vitest run scripts/profile-studio-render.ts",
+    "profile:advance": "vitest run scripts/profile-advance-pipeline.ts"
   },
   "peerDependencies": {
     "react": "^19.0.0",

@@ -4,7 +4,7 @@ import {
   type BeliefFreshnessDay,
 } from "../engine/projector";
 import type { BeliefHistoryDay, Day, HoverDay, Unit, UnitExit } from "../types";
-import { pickDayTicks } from "./axisTicks";
+import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 import {
   BELIEF_HEATMAP_STOPS,
   TERMINAL_DOT_STROKE,
@@ -70,9 +70,8 @@ export const BELIEF_DAY_SUBSTEPS = 4;
 export const BELIEF_F_SUBSTEPS = 4;
 
 export function dayDomain(history: Day[]): [number, number] {
-  if (history.length === 0) return [0, 1];
-  const days = history.map((d) => d.day);
-  return [Math.min(...days), Math.max(...days)];
+  const padded = padDaysToMinRange(history.map((d) => d.day));
+  return [padded[0]!, padded[padded.length - 1]!];
 }
 
 function rootG(
@@ -589,7 +588,7 @@ export function renderBeliefFreshnessTime(
     0,
   );
   const showTruthOverlay = showTruth && (truthPointCount > 0 || truthExitCount > 0);
-  const legendBand = showTruthOverlay ? TRUTH_LEGEND_BAND : 0;
+  const legendBand = showTruth ? TRUTH_LEGEND_BAND : 0;
 
   const margin = {
     ...BELIEF_FRESHNESS_TIME_MARGIN,
@@ -625,7 +624,7 @@ export function renderBeliefFreshnessTime(
 
   appendPlotClip(g, innerW, innerH);
 
-  const days = history.map((d) => d.day);
+  const days = padDaysToMinRange(history.map((d) => d.day));
   const [minDay, maxDay] = dayDomain(history);
   const x = d3
     .scaleLinear()

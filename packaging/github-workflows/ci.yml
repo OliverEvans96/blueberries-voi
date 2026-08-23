@@ -1,9 +1,11 @@
 # Canonical CI workflow source.
 #
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
-# (or symlink) this file to `.github/workflows/ci.yml` before CI picks up changes.
+# this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
-# Quality job: single Python from repo pin (`.python-version` → 3.11).
+# `build` compiles Rust (native + PyO3 wheel) and WASM; uploads artifacts for
+# `rust` (cargo test) and `deploy` / release-studio. `python` and `web` run in
+# parallel without waiting on `build`.
 name: CI
 
 on:
@@ -16,44 +18,211 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  build:
+    name: build
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
+
+      - name: Install maturin (rust extra only)
+        run: |
+          uv venv --python 3.11
+          uv sync --extra rust --python 3.11 --frozen
+
+      - name: Build PyO3 extension wheel
+        run: >-
+          uv run maturin build --release
+          -m crates/voi_py/Cargo.toml
+          -o dist/wheels
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
+
+      - name: Prebuild release test binaries
+        run: cargo test --release -p voi_core -p voi_py --locked --no-run
+
+      - name: Upload Rust/WASM build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-rust-wasm-build
+          path: |
+            target/
+            web/src/wasm/
+            packaging/wasm/pkg/
+            dist/wheels/
+          if-no-files-found: error
+          retention-days: 7
+
+  rust:
+    name: rust
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
+      - name: Cache Cargo registry
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-rust-wasm-build
+
+      - name: Cargo test (prebuilt release target)
+        run: cargo test --release -p voi_core -p voi_py --locked
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies and extension
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,rust]"
-          maturin develop --release -m crates/voi_py/Cargo.toml
+          uv venv --python 3.11
+          uv sync --all-extras --python 3.11 --frozen
+          uv run maturin develop --release -m crates/voi_py/Cargo.toml
 
       - name: Ruff (lint)
-        run: ruff check .
+        run: uv run --python 3.11 ruff check .
 
       - name: Ruff (format check)
-        run: ruff format --check .
+        run: uv run --python 3.11 ruff format --check .
 
       - name: Mypy
-        run: mypy src tests
+        run: uv run --python 3.11 mypy src tests
 
       - name: Pytest with coverage
         run: >-
-          pytest -n auto
+          uv run --python 3.11 pytest -n auto
           --cov=blueberries_voi
           --cov-branch
           --cov-report=term-missing
           --cov-report=xml
           --cov-fail-under=80
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build publishable library
+        working-directory: web
+        run: npm run build:lib
+
+      - name: Vitest
+        working-directory: web
+        run: npm test
+
+      - name: Pack tarball (smoke)
+        working-directory: web
+        run: npm pack
+
+  deploy:
+    name: deploy
+    needs: [build, rust, python, web]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-rust-wasm-build
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Production studio build
+        working-directory: web
+        run: npm run build
+
+      - name: Upload studio dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-dist
+          path: web/dist/
+          if-no-files-found: error

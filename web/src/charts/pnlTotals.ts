@@ -9,20 +9,25 @@ export function renderPnLTotals(
   container: HTMLElement,
   vm: ViewModel,
 ): void {
+  // Episode totals for the full horizon (not a rolling window).
   const t = vm.pnl_totals;
   container.innerHTML = `
     <div class="pnl-totals pnl-totals--compact">
-      <div class="pnl-row">
-        <span class="pnl-label">Episode revenue</span>
-        <span class="pnl-value pnl-value--rev">${money(t.revenue)}</span>
-      </div>
-      <div class="pnl-row">
-        <span class="pnl-label">Episode cost</span>
-        <span class="pnl-value pnl-value--cost">${money(t.cost)}</span>
-      </div>
-      <div class="pnl-row pnl-row--emphasis">
-        <span class="pnl-label">Episode profit</span>
-        <span class="pnl-value pnl-value--profit ${t.profit >= 0 ? "is-pos" : "is-neg"}">${money(t.profit)}</span>
+      <div class="pnl-totals-line">
+        <span class="pnl-item">
+          <span class="pnl-label">Revenue</span>
+          <span class="pnl-value pnl-value--rev">${money(t.revenue)}</span>
+        </span>
+        <span class="pnl-sep" aria-hidden="true">·</span>
+        <span class="pnl-item">
+          <span class="pnl-label">Cost</span>
+          <span class="pnl-value pnl-value--cost">${money(t.cost)}</span>
+        </span>
+        <span class="pnl-sep" aria-hidden="true">·</span>
+        <span class="pnl-item pnl-item--emphasis">
+          <span class="pnl-label">Profit</span>
+          <span class="pnl-value pnl-value--profit ${t.profit >= 0 ? "is-pos" : "is-neg"}">${money(t.profit)}</span>
+        </span>
       </div>
     </div>
   `;

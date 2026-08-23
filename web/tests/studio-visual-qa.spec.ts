@@ -91,8 +91,8 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(metrics.locator("#chart-age-comp")).toBeVisible();
     await expect(metrics.locator("#chart-inventory")).toBeVisible();
     await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
+    await expect(metrics.locator("#chart-spoil")).toHaveCount(1);
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
-    await expect(metrics.locator("#chart-spoil")).toBeVisible();
     await expect(metrics.locator("[data-testid='impact-stat']")).toHaveCount(2);
   });
 
@@ -119,16 +119,17 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(page.locator("#btn-reset")).toHaveCount(1);
   });
 
-  test("5: controller tradeoff in reference drawer", async ({ page }) => {
+  test("5: controller tradeoff in belief column", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
-    await page.keyboard.press("?");
-    const dialog = page.locator("dialog.reference-drawer");
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("tab", { name: "Controller" }).click();
+    const belief = page.locator(".cockpit-pane--belief");
+    await expect(belief.locator('.belief-tradeoff-tabs [role="tab"]')).toHaveCount(2);
+    await expect(belief.locator("#tradeoff-curve-host")).toBeVisible();
+    await expect(belief.locator("#tradeoff-histogram-host")).toBeHidden();
     await page.waitForTimeout(200);
-    await expect(dialog.getByText(/shelf life is similar/i)).toBeVisible();
-    const curvePaths = await dialog.locator("#tradeoff-curve-host path, #tradeoff-curve-host line").count();
+    const curvePaths = await belief
+      .locator("#tradeoff-curve-host path, #tradeoff-curve-host line")
+      .count();
     expect(curvePaths).toBeGreaterThan(0);
   });
 
@@ -164,5 +165,44 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await expect(page.locator("#events-pane-host")).toBeVisible();
     await setObsChannels(page, { codeType: "gsin", scanWaste: true });
     await expect(page.locator("#events-pane-host")).toBeVisible();
+  });
+
+  test("9: chart host heights stay stable across first advances", async ({ page }) => {
+    await page.goto("/");
+    await waitForEngine(page);
+
+    const chartIds = [
+      "#chart-pnl-economics",
+      "#chart-history",
+      "#chart-belief-lg",
+      "#tradeoff-curve-host",
+    ];
+
+    const heightsBefore = await page.evaluate((ids) => {
+      const out: Record<string, number> = {};
+      for (const id of ids) {
+        const el = document.querySelector(id);
+        out[id] = el?.getBoundingClientRect().height ?? 0;
+      }
+      return out;
+    }, chartIds);
+
+    await advanceDays(page, 2);
+
+    const heightsAfter = await page.evaluate((ids) => {
+      const out: Record<string, number> = {};
+      for (const id of ids) {
+        const el = document.querySelector(id);
+        out[id] = el?.getBoundingClientRect().height ?? 0;
+      }
+      return out;
+    }, chartIds);
+
+    for (const id of chartIds) {
+      const before = heightsBefore[id] ?? 0;
+      const after = heightsAfter[id] ?? 0;
+      expect(before).toBeGreaterThan(0);
+      expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
+    }
   });
 });

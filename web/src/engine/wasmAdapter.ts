@@ -5,6 +5,7 @@
 
 import type { EngineAdapter } from "./adapter";
 import { toFlatActParams } from "./actOpts";
+import { isRpcProfiling, recordRpc } from "./rpcProfile";
 import type { ActOpts, DayDelta, EngineConfig, EventsResult, Snapshot, TradeoffForecastResult } from "./types";
 
 export type WasmAdapterOpts = {
@@ -83,8 +84,19 @@ export class WasmAdapter implements EngineAdapter {
   private call(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const id = `rpc-${++this.nextId}`;
     const request: RpcRequest = { id, method, params };
+    const profile = isRpcProfiling();
+    const t0 = profile ? performance.now() : 0;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, {
+        resolve: (v) => {
+          if (profile) recordRpc(method, performance.now() - t0);
+          resolve(v);
+        },
+        reject: (e) => {
+          if (profile) recordRpc(method, performance.now() - t0);
+          reject(e);
+        },
+      });
       this.worker.postMessage(JSON.stringify(request));
     });
   }

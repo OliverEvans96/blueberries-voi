@@ -80,7 +80,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders four header triggers and no open drawer by default", () => {
+  it("renders three header triggers and no open drawer by default", () => {
     renderDrawer();
 
     expect(
@@ -89,9 +89,6 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     expect(
       screen.getByRole("button", { name: "VOI reference" }),
     ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--voi");
-    expect(
-      screen.getByRole("button", { name: "Controller" }),
-    ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--controller");
     expect(
       screen.getByRole("button", { name: "Shortcuts" }),
     ).toHaveClass("reference-drawer-trigger", "reference-drawer-trigger--shortcuts");
@@ -112,13 +109,11 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     expect(tabs.map((t) => t.textContent)).toEqual([
       "Glossary",
       "VOI reference",
-      "Controller",
       "Shortcuts",
     ]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[1]).toHaveAttribute("aria-selected", "false");
     expect(tabs[2]).toHaveAttribute("aria-selected", "false");
-    expect(tabs[3]).toHaveAttribute("aria-selected", "false");
     expect(screen.getByText("Observation scenario")).toBeInTheDocument();
     expect(screen.queryByText("Jump to studio section")).not.toBeInTheDocument();
   });
@@ -128,7 +123,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
     const tabs = getTabs();
-    expect(tabs[3]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[2]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Jump to studio section")).toBeInTheDocument();
     expect(screen.getByText("1–7")).toBeInTheDocument();
   });
@@ -155,7 +150,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
 
     expect(getDialog()).not.toBeNull();
     const tabs = getTabs();
-    expect(tabs[3]).toHaveAttribute("aria-selected", "true");
+    expect(tabs[2]).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Toggle sim truth overlay (when focused)")).toBeInTheDocument();
     expect(screen.queryByText("Observation scenario")).not.toBeInTheDocument();
   });

@@ -70,7 +70,7 @@ export function OperatorBar({
           disabled={autopilotRunning || atEnd || advancing}
           onClick={onAdvance}
         >
-          Advance
+          Place Order
         </button>
         <button
           type="button"
