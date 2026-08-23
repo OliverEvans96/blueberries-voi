@@ -738,22 +738,17 @@ impl EngineSession {
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
         if self.enable_filter {
-            let fresh_rung = !self.rungs.contains_key(&key);
-            let cached = self.rungs.get(&key).cloned().unwrap_or_else(|| RungCache {
-                bank: self.bank_init.clone(),
-                last_day: -1,
-                beliefs: vec![],
-            });
-            let mut bank = if fresh_rung && self.day > 0 {
-                self.bank.clone()
-            } else {
-                cached.bank
-            };
-            let last = if fresh_rung && self.day > 0 {
-                self.day as i32 - 1
-            } else {
-                cached.last_day
-            };
+            let cached = self
+                .rungs
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| RungCache {
+                    bank: self.bank_init.clone(),
+                    last_day: -1,
+                    beliefs: vec![],
+                });
+            let mut bank = cached.bank;
+            let last = cached.last_day;
             let mut beliefs = cached.beliefs;
             let now = self.day as i32 - 1;
             let mask = mask_from_channels(channels);
@@ -1686,20 +1681,14 @@ mod tests {
         let hist = snap["belief_history"]
             .as_array()
             .expect("belief_history array");
-        // T-150: switching rungs does not retroactively replay masked history.
-        assert!(
-            hist.is_empty(),
-            "fresh F2 rung must not backfill beliefs for pre-switch days"
+        assert_eq!(
+            hist.len(),
+            3,
+            "channel switch must replay beliefs for each simulated day (studio chart)"
         );
-        let _ = s.step(0);
-        let snap2 = s.set_obs_scenario("F2").unwrap();
-        let hist2 = snap2["belief_history"]
-            .as_array()
-            .expect("belief_history after step");
-        assert!(
-            !hist2.is_empty(),
-            "F2 rung records beliefs for post-switch days"
-        );
+        assert_eq!(hist[0]["day"], 0);
+        assert_eq!(hist[2]["day"], 2);
+        assert!(hist[0]["belief"]["f_marginals"].is_array());
     }
 
     #[test]
@@ -1726,8 +1715,8 @@ mod tests {
         s.set_obs_scenario("F2").unwrap();
         let first = s.catchup_days_last_call();
         assert_eq!(
-            first, 0,
-            "fresh F2 rung must not retroactively replay historical days (T-150)"
+            first, 3,
+            "fresh F2 rung must replay full episode history for chart catch-up"
         );
         let _ = s.step(0);
         s.set_obs_scenario("P1").unwrap();
