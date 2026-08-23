@@ -7,7 +7,10 @@ import {
   pickingWeightsF,
   pickingWeightCurve,
   projectedDemandDays,
+  demandForecastRows,
+  nbQuantiles,
   renderDemandDist,
+  renderDemandForecast,
   renderPickingVariability,
 } from "./demandDist";
 
@@ -103,5 +106,62 @@ describe("projectedDemandDays", () => {
     expect(rows[0]).toEqual({ day: 0, weekday: "Mon", mean: 10 });
     expect(rows[1]).toEqual({ day: 1, weekday: "Tue", mean: 20 });
     expect(rows[2]).toEqual({ day: 2, weekday: "Wed", mean: 30 });
+  });
+});
+
+describe("nbQuantiles + demandForecastRows", () => {
+  const summary = {
+    scale_mu: 30,
+    dow_means: [10, 20, 30, 40, 50, 60, 70],
+  };
+
+  it("p10 < μ < p90 for moderate dispersion", () => {
+    const q = nbQuantiles(30, 2);
+    expect(q.p10).toBeLessThan(30);
+    expect(q.p50).toBeGreaterThanOrEqual(q.p10);
+    expect(q.p90).toBeGreaterThan(q.p50);
+  });
+
+  it("demandForecastRows returns 5 rows with means matching projectedDemandDays", () => {
+    const rows = demandForecastRows(2, summary, 2, 5);
+    const projected = projectedDemandDays(2, summary, 5);
+    expect(rows).toHaveLength(5);
+    for (let i = 0; i < 5; i += 1) {
+      expect(rows[i]!.day).toBe(projected[i]!.day);
+      expect(rows[i]!.mean).toBe(projected[i]!.mean);
+      expect(rows[i]!.p10).toBeLessThanOrEqual(rows[i]!.p90);
+    }
+  });
+});
+
+describe("renderDemandForecast", () => {
+  function containerWithWidth(px: number): HTMLElement {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { value: px, configurable: true });
+    return el;
+  }
+
+  const summary = {
+    scale_mu: 30,
+    dow_means: [29, 30, 28, 26, 28, 34, 35],
+  };
+
+  it("renders forecast band, mean line, and five day hits", () => {
+    const container = containerWithWidth(640);
+    renderDemandForecast(container, [], summary, 0, 2, 160);
+    expect(container.querySelector(".forecast-band")).not.toBeNull();
+    expect(container.querySelector(".forecast-mean")).not.toBeNull();
+    expect(container.querySelectorAll(".day-hit")).toHaveLength(5);
+  });
+
+  it("produces finite SVG paths at a stale small clientWidth", () => {
+    const container = containerWithWidth(8);
+    renderDemandForecast(container, [], summary, 3, 2, 160);
+    const band = container.querySelector(".forecast-band");
+    const mean = container.querySelector(".forecast-mean");
+    expect(band?.getAttribute("d")).toBeTruthy();
+    expect(mean?.getAttribute("d")).toBeTruthy();
+    expect(band?.getAttribute("d")).not.toMatch(/NaN/);
+    expect(mean?.getAttribute("d")).not.toMatch(/NaN/);
   });
 });

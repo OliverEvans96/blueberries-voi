@@ -308,7 +308,7 @@ describe("EventsPane (T-148 v6)", () => {
       }),
     );
     expect(screen.queryByText(/age at receipt/i)).toBeNull();
-    expect(screen.getByText(/pack date/i)).toBeInTheDocument();
+    expect(screen.getByText(/packed 2 days before arrival/i)).toBeInTheDocument();
   });
 
   it("F2 delivery day does not show temp chart when history is pack_date", () => {

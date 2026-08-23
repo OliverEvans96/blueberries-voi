@@ -304,6 +304,21 @@ export function StudioLayout() {
                     </div>
                     <div
                       className="focus-plot"
+                      data-plot="plot-demand-forecast"
+                      hidden
+                    >
+                      <div className="chart-caption impact-caption">
+                        Demand forecast
+                      </div>
+                      <div
+                        id="chart-demand-forecast-host"
+                        className="chart demand-chart-slot"
+                        role="img"
+                        aria-label="Known demand distribution for the next few days"
+                      />
+                    </div>
+                    <div
+                      className="focus-plot"
                       data-plot="plot-picking-variability"
                       hidden
                     >

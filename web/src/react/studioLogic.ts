@@ -51,15 +51,17 @@ import {
 } from "../charts/marginals";
 import {
   renderDailyDemand,
+  renderDemandForecast,
   renderPickingVariability,
+  setDemandForecastHover,
   setDemandHover,
 } from "../charts/demandDist";
 import {
-  fCompositionSeries,
-  fCompositionSeriesFromBelief,
+  ageCompositionSeries,
+  ageCompositionSeriesFromBelief,
   inventorySeries,
   inventorySeriesFromBelief,
-  renderFreshnessComposition,
+  renderAgeComposition,
   renderInventoryTarget,
   setAgeCompositionHover,
   setInventoryTargetHover,
@@ -320,6 +322,7 @@ export function initStudio(app: HTMLElement): () => void {
     hoverNote: q<HTMLElement>("#hover-note")!,
     sectionControls: q<HTMLElement>("#section-controls")!,
     demand: q<HTMLElement>("#chart-demand")!,
+    demandForecast: q<HTMLElement>("#chart-demand-forecast-host")!,
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
     inventory: q<HTMLElement>("#chart-inventory")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
@@ -714,6 +717,7 @@ export function initStudio(app: HTMLElement): () => void {
     setInventoryTargetHover(els.inventoryFocus, day);
     setAgeCompositionHover(els.ageComp, day);
     setDemandHover(els.demand, day);
+    setDemandForecastHover(els.demandForecast, day);
   }
 
   function onHoverDay(
@@ -839,10 +843,10 @@ export function initStudio(app: HTMLElement): () => void {
         }
       });
       const ageRows = showTruth
-        ? fCompositionSeries(vm.history)
-        : fCompositionSeriesFromBelief(vm.belief_history);
+        ? ageCompositionSeries(vm.history)
+        : ageCompositionSeriesFromBelief(vm.belief_history);
       profileSync("renderRunStripCharts.ageComposition", () =>
-        renderFreshnessComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
+        renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
       );
     });
   }
@@ -896,15 +900,27 @@ export function initStudio(app: HTMLElement): () => void {
       }
       if (plotVisible("plot-age-comp")) {
         const ageRows = showTruth
-          ? fCompositionSeries(vm.history)
-          : fCompositionSeriesFromBelief(vm.belief_history);
+          ? ageCompositionSeries(vm.history)
+          : ageCompositionSeriesFromBelief(vm.belief_history);
         profileSync("renderActiveFocusPlots.ageComp", () =>
-          renderFreshnessComposition(els.ageComp, vm.history, 140, ageRows),
+          renderAgeComposition(els.ageComp, vm.history, 140, ageRows),
         );
       }
       if (plotVisible("plot-demand")) {
         profileSync("renderActiveFocusPlots.demand", () =>
           renderDailyDemand(els.demand, vm.history, 160),
+        );
+      }
+      if (plotVisible("plot-demand-forecast")) {
+        profileSync("renderActiveFocusPlots.demandForecast", () =>
+          renderDemandForecast(
+            els.demandForecast,
+            vm.history,
+            vm.demand_summary,
+            vm.episode_day,
+            vm.config.demand_vm,
+            160,
+          ),
         );
       }
       if (plotVisible("plot-picking-variability")) {
@@ -1031,7 +1047,9 @@ export function initStudio(app: HTMLElement): () => void {
     slider.dataset.previewBound = "1";
     bindDemandSliderPreview({
       chartHost: els.demand,
+      forecastHost: els.demandForecast,
       slider,
+      vmSlider: q<HTMLInputElement>("#demand_vm") ?? undefined,
       projector,
       schedule,
     });
