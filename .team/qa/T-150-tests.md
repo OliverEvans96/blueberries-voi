@@ -1,5 +1,60 @@
 # T-150 — RED criterion → test map (qa)
 
+Recorded on `team/T-150/qa-r3` (2026-08-22, correction round 3 — AC2.11a restatement).
+
+## Commands run (qa-r3 — AC2.11a only)
+
+```bash
+# Rust — restated AC2.11a tests (debug, CI profile)
+cargo test -p voi_core --test t150_phase2_arrival_model ac2_11a -- --nocapture
+# → ac2_11a_f3_law_matches_generative_mean: ok (~8s)
+# → ac2_11a_empirical_ladder_tracking_mae: ok (~461s total for ac2_11a filter)
+# → ac2_11a_n_scaling_diagnostic: ignored (one-off)
+
+# One-off n-scaling diagnostic (release, recorded below — not CI)
+cargo test -p voi_core --release --test t150_phase2_arrival_model ac2_11a_n_scaling -- --ignored --nocapture
+```
+
+### AC2.11a — measured table (corrected estimator, seed `150_211`, low-demand fixture)
+
+Standing test (`n = 64`, 20 deliveries, 80-day horizon):
+
+| Quantity | Value |
+| --- | --- |
+| `MAE(P0)` | 0.1404 |
+| `MAE(F2)` | 0.0368 |
+| `MAE(F3)` | 0.0153 |
+| `floor` | 0.0135 |
+| `MAE(F3) / floor` | 1.13 |
+| `MAE(P0) / MAE(F2)` | 3.81 |
+| implied signal ratio `√(MAE(P0)² − MAE(F3)²) / √(MAE(F2)² − MAE(F3)²)` | 4.17 |
+
+Pre-r3 fixture at `n = 8` (old estimator — `mean_f`, re-draw, 8-unit lots): ordering held but **`MAE(P0)/MAE(F2) = 2.63`** (required 3.0).
+
+Corrected estimator at `n = 8` (mask replay, atom-inclusive, same seed — diagnostic only): **`MAE(P0)/MAE(F2) = 2.83`** — still below 3.0; effect not resolved at 8 units (expected per spec §r3).
+
+### AC2.11a — n-scaling diagnostic (`ac2_11a_n_scaling_diagnostic`, release, one-off)
+
+| `n` | deliveries | `MAE(F3)` | `floor` |
+| --- | --- | --- | --- |
+| 8 | 15 | 0.0496 | 0.0324 |
+| 64 | 20 | 0.0153 | 0.0135 |
+| 256 | 20 | 0.0083 | 0.0068 |
+
+**Verdict:** `MAE(F3)` falls approximately as `1/√n` (8→64: ×0.31 vs `1/√8` predict ×0.35; 64→256: ×0.54 vs ×0.50). **F3 is at its Bayes floor, not biased** — r3 finding confirmed. No Phase 2 reopen.
+
+### AC2.11a — runtime (debug build, CI profile)
+
+| Test | Wall-clock |
+| --- | --- |
+| `ac2_11a_empirical_ladder_tracking_mae` | ~632s (single test), ~453s in paired `ac2_11a` run |
+| `ac2_11a_f3_law_matches_generative_mean` | ~8s |
+| **Profile:** session `step` + filter (80 episode days, 64-unit arrivals) dominates; removing `draw_truth_delivery` re-draw and mask-replay obs reads are comparatively cheap. No `#[ignore]` on the standing test — ~7–10 min in debug is within CI practicality vs the pre-r3 8-unit fixture (>1 h reported in debug elsewhere). |
+
+**Fixture choices for runnable gate:** standing test uses **only** the `n = 64` case (20 deliveries, order every 4 days); n-scaling sweep is `#[ignore]` with numbers recorded here; low-demand profile (`scale_target_mu = 0.01`) keeps lots on `live_lots` after delivery under high unit counts (default demand otherwise sells out same-day and hides birth lots from the wire).
+
+---
+
 Recorded after focused RED runs on `team/T-150/qa-r2-implement` (2026-08-22 correction round).
 
 ## Commands run (RED evidence — correction round)
@@ -83,7 +138,8 @@ ac2_20_f3_law_sufficient_in_lambda_not_phi_bar: equal Λ means 0.4315 vs 0.2341 
 | AC2.9 | `t150_phase2_arrival_model.rs::ac2_9_arrival_conditional_law_analytic` | **assertion failure** — `arrival.rs` missing; inline MC vs `gamma_p`/`gamma_q` baseline included |
 | *(AC2.10 withdrawn)* | *Monotone `Var(f\|φ̄) < Var(f\|d) < Var(f)` guard retired per ADR 0144 Correction 1 — tests deleted in this round* | *n/a* |
 | AC2.11 | `t150_phase2_arrival_model.rs::ac2_11_f2_marginals_differ_from_p0`, `ac2_11_caught_up_f2_not_collapsed_to_p0`, `ac2_11_p0_p1_posteriors_differ` | **assertion failure** (F2/P0/catch-up); P0≠P1 **passes** today |
-| AC2.11a | `t150_phase2_arrival_model.rs::ac2_11a_empirical_ladder_tracking_mae` | **assertion failure** — MAE ordering violated on committed artifact (`F3=0.34 F2=0.11 P0=0.33`; need `F3 < F2 < P0` strict and `P0 ≥ 3× F2`) |
+| AC2.11a | `t150_phase2_arrival_model.rs::ac2_11a_empirical_ladder_tracking_mae`, `ac2_11a_f3_law_matches_generative_mean` | **GREEN at `n ≥ 64`** with corrected estimator on `team/T-150/integrate` — ordering strict, `MAE(P0)/MAE(F2) = 3.81`, `MAE(F3)/floor = 1.13`; **RED at `n = 8`** on ratio only (`2.83 < 3.0`) documents noise floor (see measured table above). Pre-r3 test failed ratio `2.63` at `n = 8` with wrong estimator (`mean_f`, re-draw). |
+| AC2.11a n-scaling | `t150_phase2_arrival_model.rs::ac2_11a_n_scaling_diagnostic` (`#[ignore]`) | **diagnostic only** — F3 scales as `1/√n`; not CI gate |
 | AC2.12 | `t150_phase2_arrival_model.rs::ac2_12_within_lot_arrival_f_spread` | **assertion failure** — truth path still uses `delivery_birth_f`; `live_lots` lacks spread fields |
 | AC2.13 | `t150_phase2_arrival_model.rs::ac2_13_filter_obs_no_freshness_valued_arrival` | **assertion failure** — `FilterObs.age_at_receipt` / `f_at_receipt` still present |
 | AC2.14 | `t150_phase2_arrival_model.rs::ac2_14_truth_path_f_native_arrival` | **assertion failure** — `f_to_age` round trip and `birth_f_units_gamma` on truth path |
@@ -122,4 +178,4 @@ ac2_20_f3_law_sufficient_in_lambda_not_phi_bar: equal Λ means 0.4315 vs 0.2341 
 4. **PyO3 tests skip until `_core` built** — re-run `test_ac2_17`, `test_ac3_1`, `test_ac3_3` after maturin build.
 5. **Phase 3 marker** — create `data/abdella/.t150_physics_epoch` when α table, VOI CRN goldens, and notebooks 13/14 are regenerated for the new physics epoch.
 6. **Correction round priorities** — land target artifact (`sigma_T=0.4`, `delay_scale=1.0`, delete `mix_weight`) per AC2.18; rewrite `build_marginal_cdf` as a product rule over modeled densities with `ψ_pos`; F3 cache keyed on exact `Λ` (`ArrivalCondition::Exposure`), not `exposure/duration`; delete `resolve_arrival_f_law_phi_bar` division path.
-7. **AC2.11a** — do not add `sd(f|F3) < sd(f|F2)` at tight tolerance; tracking MAE separates rungs, residual spread does not (`φ̄` ≈ 1.6% of `Var(log Λ)`).
+7. **AC2.11a (r3)** — do not add `sd(f|F3) < sd(f|F2)` at tight tolerance; tracking MAE separates rungs, residual spread does not (`φ̄` ≈ 1.6% of `Var(log Λ)`). **Truth target must be atom-inclusive:** `Σ(f_values)/DayDelta.arrivals` with zeros padded for the `f = 0` shortfall — not `live_lots.mean_f` (which is `E[f|f>0]`). **One trajectory, mask replay:** observations from `events_value(0)` under F2/F3; never re-draw via `draw_truth_delivery`. **Lot size ≥ 64 units** so the noise floor (`≈0.013`) sits below the F2→P0 signal (`≈0.025`); at `n = 8` the 3× ratio gate is unreachable even with a correct model. Standing test is `n = 64` only; n-scaling diagnostic is `#[ignore]`.

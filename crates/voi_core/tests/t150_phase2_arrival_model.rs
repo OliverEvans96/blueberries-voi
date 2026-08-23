@@ -8,8 +8,8 @@ use rand::SeedableRng;
 use rand_distr::{Distribution, Gamma, LogNormal};
 use rand_pcg::Pcg64;
 use voi_core::arrival::{
-    resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel, STREAM_ARRIVAL_DURATION,
-    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    resolve_arrival_exposure, resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel,
+    STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
 };
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
@@ -17,6 +17,7 @@ use voi_core::physics::{
     draw_gamma_decrement, gamma_decrement_cdf, gamma_p, gamma_q, store_temp_factor,
     GammaDecrementTable,
 };
+use voi_core::demand_profile::DemandProfile;
 use voi_core::session::EngineSession;
 use voi_core::shipments::{arrival_exposure_from_path, ShipmentTrace};
 use voi_core::spawn_rng::SpawnRng;
@@ -446,7 +447,7 @@ fn pearson_corr(xs: &[f64], ys: &[f64]) -> f64 {
     num / (den_x.sqrt() * den_y.sqrt())
 }
 
-fn law_mean_f_from_samples(model: &mut ArrivalModel, condition: ArrivalCondition) -> f64 {
+fn law_mean_f(model: &mut ArrivalModel, condition: ArrivalCondition) -> f64 {
     model.filter_law_mean_f(condition)
 }
 
@@ -464,67 +465,229 @@ fn law_sd_and_atom(model: &mut ArrivalModel, condition: ArrivalCondition) -> (f6
 
 #[derive(Clone, Debug)]
 struct DeliveryTruth {
+    day: u32,
     truth_mean_f: f64,
+    deliver_units: u32,
+    unit_f: Vec<f64>,
     pack_date_days: i32,
     exposure_lambda: f64,
 }
 
-fn collect_truth_deliveries(seed: u64, orders: &[u32]) -> Vec<DeliveryTruth> {
+fn atom_inclusive_unit_f(lot: &serde_json::Value, deliver_units: u32) -> Vec<f64> {
+    let mut unit_f: Vec<f64> = lot["f_values"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+        .unwrap_or_default();
+    assert!(
+        unit_f.len() <= deliver_units as usize,
+        "f_values.len()={} must not exceed deliver_units={deliver_units}",
+        unit_f.len()
+    );
+    unit_f.extend(std::iter::repeat_n(
+        0.0,
+        deliver_units as usize - unit_f.len(),
+    ));
+    unit_f
+}
+
+fn sample_sd(values: &[f64]) -> f64 {
+    if values.len() < 2 {
+        return 0.0;
+    }
+    let n = values.len() as f64;
+    let mean = values.iter().sum::<f64>() / n;
+    let var = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    var.sqrt()
+}
+
+fn mae_noise_floor(deliveries: &[DeliveryTruth]) -> f64 {
+    deliveries
+        .iter()
+        .map(|d| {
+            let sd_within = sample_sd(&d.unit_f);
+            (2.0 / std::f64::consts::PI).sqrt() * sd_within / (d.deliver_units as f64).sqrt()
+        })
+        .sum::<f64>()
+        / deliveries.len() as f64
+}
+
+fn event_day(events: &serde_json::Value, day: u32) -> serde_json::Value {
+    events["days"]
+        .as_array()
+        .and_then(|days| {
+            days.iter()
+                .find(|d| d["day"].as_u64() == Some(day as u64))
+                .cloned()
+        })
+        .unwrap_or_else(|| panic!("missing event record for day {day}"))
+}
+
+fn attach_mask_replay_observations(
+    sess: &mut EngineSession,
+    deliveries: &mut [DeliveryTruth],
+    params: &ModelParams,
+) {
+    sess.set_obs_scenario("F2").unwrap();
+    let events_f2 = sess.events_value(0);
+    sess.set_obs_scenario("F3").unwrap();
+    let events_f3 = sess.events_value(0);
+
+    for d in deliveries.iter_mut() {
+        let day_f2 = event_day(&events_f2, d.day);
+        d.pack_date_days = day_f2["pack_date_days"]
+            .as_i64()
+            .expect("F2 mask must expose pack_date_days") as i32;
+
+        let day_f3 = event_day(&events_f3, d.day);
+        let times = json_f64s(&day_f3, "temp_times_d");
+        let temps = json_f64s(&day_f3, "temp_temps_c");
+        d.exposure_lambda = resolve_arrival_exposure(
+            Some(&temps),
+            Some(&times),
+            params.q10,
+            params.t_ref_c,
+        )
+        .unwrap_or_else(|| panic!("F3 mask must expose a valid temperature trace on day {}", d.day));
+    }
+}
+
+fn low_demand_profile() -> DemandProfile {
+    DemandProfile::from_parts(0.01, [1.0; 7], vec![1.0], 2.0).expect("low demand profile")
+}
+
+fn lot_unit_f_from_snapshot(
+    lot: &serde_json::Value,
+    deliver_units: u32,
+) -> Vec<f64> {
+    atom_inclusive_unit_f(lot, deliver_units)
+}
+
+fn lot_unit_f_after_arrival(
+    sess: &EngineSession,
+    day: u32,
+    deliver_units: u32,
+) -> Vec<f64> {
+    let lots = sess.snapshot_value()["live_lots"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if let Some(lot) = lots.last() {
+        return lot_unit_f_from_snapshot(lot, deliver_units);
+    }
+
+    let events = sess.events_value(0);
+    let day_ev = event_day(&events, day);
+    let lot_id = day_ev["arrival_lot_ids"]
+        .as_array()
+        .and_then(|ids| ids.last())
+        .and_then(|v| v.as_i64())
+        .unwrap_or_else(|| panic!("arrival day {day} must record arrival_lot_ids"));
+
+    let mut unit_f: Vec<f64> = sess.snapshot_value()["live_units"]
+        .as_array()
+        .map(|units| {
+            units
+                .iter()
+                .filter(|u| u["lot_id"].as_i64() == Some(lot_id))
+                .filter_map(|u| u["f"].as_f64())
+                .collect()
+        })
+        .unwrap_or_default();
+    unit_f.extend(std::iter::repeat_n(
+        0.0,
+        deliver_units as usize - unit_f.len(),
+    ));
+    unit_f
+}
+
+/// One trajectory, mask replay for observations — no `draw_truth_delivery` re-draw.
+fn collect_truth_deliveries(seed: u64, orders: &[u32]) -> (Vec<DeliveryTruth>, EngineSession) {
     let mut sess = EngineSession::new(seed);
+    sess.set_demand_profile(low_demand_profile());
     sess.init(seed);
     sess.set_obs_scenario("P0").unwrap();
     let params = ModelParams::default();
-    let mut model = ArrivalModel::embedded();
-    model.sync_params(&params);
-    let mut seen_lots = 0usize;
+
     let mut out = Vec::new();
     for (day, &q) in orders.iter().enumerate() {
-        let before = sess.snapshot_value()["live_lots"]
-            .as_array()
-            .map(|a| a.len())
-            .unwrap_or(0);
-        let _ = sess.step(q);
-        let lots = sess.snapshot_value()["live_lots"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        if lots.len() > before {
-            let lot = &lots[lots.len() - 1];
-            let day_u32 = day as u32;
-            let mut rng_dur =
-                SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_DURATION);
-            let mut rng_temp = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_TEMP);
-            let mut rng_pos = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_POS);
-            let mut rng_gamma = SpawnRng::spawn_rng(seed, "session", day_u32, STREAM_ARRIVAL_GAMMA);
-            let draw = model.draw_truth_delivery(
-                "abdella_all",
-                8,
-                &mut rng_dur,
-                &mut rng_temp,
-                &mut rng_pos,
-                &mut rng_gamma,
+        let delta = sess.step(q);
+        if delta.arrivals == 0 {
+            continue;
+        }
+        let day_u32 = day as u32;
+        let unit_f = lot_unit_f_after_arrival(&sess, day_u32, delta.arrivals);
+        let truth_mean_f = unit_f.iter().sum::<f64>() / f64::from(delta.arrivals);
+        out.push(DeliveryTruth {
+            day: day_u32,
+            truth_mean_f,
+            deliver_units: delta.arrivals,
+            unit_f,
+            pack_date_days: 0,
+            exposure_lambda: 0.0,
+        });
+    }
+
+    attach_mask_replay_observations(&mut sess, &mut out, &params);
+    (out, sess)
+}
+
+fn assert_truth_mask_invariant(seed: u64, orders: &[u32]) {
+    let (p0, _) = collect_truth_deliveries(seed, orders);
+    for scenario in ["F2", "F3"] {
+        let mut sess = EngineSession::new(seed);
+        sess.set_demand_profile(low_demand_profile());
+        sess.init(seed);
+        sess.set_obs_scenario(scenario).unwrap();
+        let mut replay = Vec::new();
+        for (day, &q) in orders.iter().enumerate() {
+            let delta = sess.step(q);
+            if delta.arrivals == 0 {
+                continue;
+            }
+            let unit_f = lot_unit_f_after_arrival(&sess, day as u32, delta.arrivals);
+            let truth_mean_f = unit_f.iter().sum::<f64>() / f64::from(delta.arrivals);
+            replay.push(truth_mean_f);
+        }
+        for (a, b) in p0.iter().zip(replay.iter()) {
+            assert_eq!(
+                a.truth_mean_f.to_bits(),
+                b.to_bits(),
+                "truth target must be mask-invariant under {scenario}"
             );
-            let trace = ShipmentTrace {
-                times_d: vec![0.0, draw.duration_d],
-                temps_c: vec![draw.t_bar, draw.t_bar],
-            };
-            let exposure_lambda = arrival_exposure_from_path(
-                &trace.temps_c,
-                &trace.times_d,
-                params.q10,
-                params.t_ref_c,
-            );
-            let truth_mean_f = lot["mean_f"].as_f64().unwrap_or(0.0);
-            out.push(DeliveryTruth {
-                truth_mean_f,
-                pack_date_days: draw.pack_date_days,
-                exposure_lambda,
-            });
-            seen_lots = lots.len();
         }
     }
-    let _ = seen_lots;
-    out
+}
+
+fn ladder_mae_triple(seed: u64, order_qty: u32, n_days: u32) -> (f64, f64, f64, f64, usize) {
+    let orders: Vec<u32> = (0..n_days)
+        .map(|i| if i % 4 == 0 { order_qty } else { 0 })
+        .collect();
+    let (deliveries, _) = collect_truth_deliveries(seed, &orders);
+    let floor = mae_noise_floor(&deliveries);
+    let truth: Vec<f64> = deliveries.iter().map(|d| d.truth_mean_f).collect();
+
+    let mut model = ArrivalModel::embedded();
+    model.sync_params(&ModelParams::default());
+    let pred_p0: Vec<f64> = deliveries
+        .iter()
+        .map(|_| law_mean_f(&mut model, ArrivalCondition::Prior))
+        .collect();
+    let pred_f2: Vec<f64> = deliveries
+        .iter()
+        .map(|d| law_mean_f(&mut model, ArrivalCondition::Duration(d.pack_date_days)))
+        .collect();
+    let pred_f3: Vec<f64> = deliveries
+        .iter()
+        .map(|d| law_mean_f(&mut model, ArrivalCondition::Exposure(d.exposure_lambda)))
+        .collect();
+
+    (
+        mae(&pred_p0, &truth),
+        mae(&pred_f2, &truth),
+        mae(&pred_f3, &truth),
+        floor,
+        deliveries.len(),
+    )
 }
 
 fn artifact_quadrature() -> (Vec<f64>, Vec<f64>) {
@@ -553,7 +716,7 @@ fn expected_delay(corridor: &voi_core::arrival::ArrivalCorridor) -> f64 {
 
 fn lot_lambda_law_mean(model: &ArrivalModel, lot_lambda: f64) -> f64 {
     let mut rng = Pcg64::seed_from_u64(150_311);
-    let n = 15_000usize;
+    let n = 1_000_000usize;
     let mut acc = 0.0;
     for _ in 0..n {
         let psi = LogNormal::new(0.0, model.sigma_pos)
@@ -579,47 +742,115 @@ fn mae(predicted: &[f64], truth: &[f64]) -> f64 {
         / predicted.len() as f64
 }
 
-/// AC2.11a: empirical ladder tracking — MAE(F3) < MAE(F2) < MAE(P0), P0 ≥ 3× F2.
+/// AC2.11a (r3): mask-replay ladder tracking on one trajectory, ≥64 units per delivery.
 #[test]
 fn ac2_11a_empirical_ladder_tracking_mae() {
+    const ORDER_QTY: u32 = 64;
+    const N_DAYS: u32 = 80; // 20 deliveries every 4 days (lead_time=1 → arrivals on odd days)
     let seed = 150_211;
-    let orders: Vec<u32> = (0..60).map(|i| if i % 2 == 0 { 8 } else { 0 }).collect();
-    let deliveries = collect_truth_deliveries(seed, &orders);
+
+    // Cheap mask-invariance spot check (two deliveries) before the main fixture.
+    let short_orders: Vec<u32> = (0..4).map(|i| if i % 2 == 0 { ORDER_QTY } else { 0 }).collect();
+    assert_truth_mask_invariant(seed, &short_orders);
+
+    let orders: Vec<u32> = (0..N_DAYS)
+        .map(|i| if i % 4 == 0 { ORDER_QTY } else { 0 })
+        .collect();
+    let (deliveries, mut sess) = collect_truth_deliveries(seed, &orders);
     assert!(
         deliveries.len() >= 20,
         "fixture must produce at least 20 deliveries; got {}",
         deliveries.len()
     );
+    for d in &deliveries {
+        assert!(
+            d.deliver_units >= 64,
+            "each delivery must be at least 64 units; day {} got {}",
+            d.day,
+            d.deliver_units
+        );
+        let f_values_len = d.unit_f.iter().filter(|&&f| f > 0.0).count();
+        assert!(
+            f_values_len <= d.deliver_units as usize,
+            "atom-inclusive shortfall: f>0 count {f_values_len} exceeds deliver_units {}",
+            d.deliver_units
+        );
+    }
+
+    let floor = mae_noise_floor(&deliveries);
     let truth: Vec<f64> = deliveries.iter().map(|d| d.truth_mean_f).collect();
 
     let mut model = ArrivalModel::embedded();
     model.sync_params(&ModelParams::default());
     let pred_p0: Vec<f64> = deliveries
         .iter()
-        .map(|_| law_mean_f_from_samples(&mut model, ArrivalCondition::Prior))
+        .map(|_| law_mean_f(&mut model, ArrivalCondition::Prior))
         .collect();
     let pred_f2: Vec<f64> = deliveries
         .iter()
-        .map(|d| law_mean_f_from_samples(&mut model, ArrivalCondition::Duration(d.pack_date_days)))
+        .map(|d| law_mean_f(&mut model, ArrivalCondition::Duration(d.pack_date_days)))
         .collect();
     let pred_f3: Vec<f64> = deliveries
         .iter()
-        .map(|d| law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(d.exposure_lambda)))
+        .map(|d| law_mean_f(&mut model, ArrivalCondition::Exposure(d.exposure_lambda)))
         .collect();
 
     let mae_p0 = mae(&pred_p0, &truth);
     let mae_f2 = mae(&pred_f2, &truth);
     let mae_f3 = mae(&pred_f3, &truth);
+    let ratio_p0_f2 = mae_p0 / mae_f2.max(1e-12);
+    let ratio_f3_floor = mae_f3 / floor.max(1e-12);
+    let signal_ratio = (mae_p0.powi(2) - mae_f3.powi(2)).max(0.0).sqrt()
+        / (mae_f2.powi(2) - mae_f3.powi(2)).max(0.0).sqrt();
+
+    // Mask replay must not mutate realized truth state.
+    let snap = sess.snapshot_value();
+    sess.set_obs_scenario("F2").unwrap();
+    assert_eq!(snap["live_lots"], sess.snapshot_value()["live_lots"]);
+    sess.set_obs_scenario("F3").unwrap();
+    assert_eq!(snap["live_lots"], sess.snapshot_value()["live_lots"]);
 
     assert!(
         mae_f3 < mae_f2 && mae_f2 < mae_p0,
-        "RED: ladder MAE must order F3 < F2 < P0 strictly; got F3={mae_f3:.4} F2={mae_f2:.4} P0={mae_p0:.4}"
+        "ladder MAE must order F3 < F2 < P0 strictly; got F3={mae_f3:.4} F2={mae_f2:.4} P0={mae_p0:.4} floor={floor:.4} ratio(P0/F2)={ratio_p0_f2:.2} MAE(F3)/floor={ratio_f3_floor:.2} signal_ratio={signal_ratio:.2}"
     );
     assert!(
         mae_p0 >= 3.0 * mae_f2,
-        "RED: MAE(P0) must be at least 3× MAE(F2); got P0={mae_p0:.4} F2={mae_f2:.4} ratio={:.2}",
-        mae_p0 / mae_f2.max(1e-12)
+        "MAE(P0) must be at least 3× MAE(F2); got P0={mae_p0:.4} F2={mae_f2:.4} ratio={ratio_p0_f2:.2} floor={floor:.4} MAE(F3)/floor={ratio_f3_floor:.2} signal_ratio={signal_ratio:.2}"
     );
+    assert!(
+        mae_f3 <= 1.5 * floor,
+        "MAE(F3) must sit at the Bayes floor; got F3={mae_f3:.4} floor={floor:.4} ratio={ratio_f3_floor:.2} P0={mae_p0:.4} F2={mae_f2:.4} ratio(P0/F2)={ratio_p0_f2:.2} signal_ratio={signal_ratio:.2}"
+    );
+}
+
+/// AC2.11a: F3 cached law matches the generative Λ-marginal mean (session-free).
+#[test]
+fn ac2_11a_f3_law_matches_generative_mean() {
+    let mut model = ArrivalModel::embedded();
+    model.sync_params(&ModelParams::default());
+    for lambda in [3.0, 5.0, 7.0, 9.0, 11.0] {
+        let filter_mean = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda));
+        let generative_mean = lot_lambda_law_mean(&model, lambda);
+        assert!(
+            (filter_mean - generative_mean).abs() <= 0.005,
+            "F3 law mean must match generative draw at Λ={lambda:.1}: filter={filter_mean:.4} generative={generative_mean:.4} delta={:.4}",
+            (filter_mean - generative_mean).abs()
+        );
+    }
+}
+
+/// One-off n-scaling diagnostic — run with `cargo test … ac2_11a_n_scaling -- --ignored --nocapture`.
+#[test]
+#[ignore = "one-off n-scaling diagnostic; numbers recorded in .team/qa/T-150-tests.md"]
+fn ac2_11a_n_scaling_diagnostic() {
+    let seed = 150_211;
+    for (order_qty, n_days) in [(8u32, 60), (64, 80), (256, 80)] {
+        let (mae_p0, mae_f2, mae_f3, floor, n) = ladder_mae_triple(seed, order_qty, n_days);
+        eprintln!(
+            "n={order_qty} deliveries={n} MAE(P0)={mae_p0:.4} MAE(F2)={mae_f2:.4} MAE(F3)={mae_f3:.4} floor={floor:.4}"
+        );
+    }
 }
 
 /// AC2.19 (a): P0/P1 quadrature must integrate d and T_bar as a product, not one shared index.
@@ -735,7 +966,7 @@ fn ac2_19_atom_single_count_and_unconditional_moments() {
     let mc_atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
     let (mc_mean, _) = empirical_mean_sd(&samples);
 
-    let filter_mean = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda));
+    let filter_mean = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda));
     let (_, filter_atom) = law_sd_and_atom(&mut model, ArrivalCondition::Exposure(lambda));
 
     assert!(
@@ -767,7 +998,7 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     }
 
     let mut model = ArrivalModel::embedded();
-    let mixed_mean = law_mean_f_from_samples(&mut model, ArrivalCondition::Prior);
+    let mixed_mean = law_mean_f(&mut model, ArrivalCondition::Prior);
 
     let abdella_only = json["corridors"]["abdella_all"].clone();
     let single_json = serde_json::json!({
@@ -786,7 +1017,7 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     });
     let mut single = ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap())
         .expect("single corridor");
-    let single_mean = law_mean_f_from_samples(&mut single, ArrivalCondition::Prior);
+    let single_mean = law_mean_f(&mut single, ArrivalCondition::Prior);
     assert!(
         (mixed_mean - single_mean).abs() < 0.02,
         "RED: P0 prior must not average corridors (mix_weight); mixed={mixed_mean:.4} abdella_only={single_mean:.4}"
@@ -830,8 +1061,8 @@ fn ac2_20_f3_laws_differ_when_duration_differs_at_same_phi_bar() {
         arrival_exposure_from_path(&trace_long.temps_c, &trace_long.times_d, q10, t_ref);
 
     let mut model = ArrivalModel::embedded();
-    let mean_short = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_short));
-    let mean_long = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_long));
+    let mean_short = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda_short));
+    let mean_long = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda_long));
     assert!(
         (mean_short - mean_long).abs() > 0.02,
         "RED: F3 laws must differ when duration differs at fixed phi_bar; short={mean_short:.4} long={mean_long:.4}"
@@ -882,8 +1113,8 @@ fn ac2_20_f3_law_sufficient_in_lambda_not_phi_bar() {
     );
 
     let mut model = ArrivalModel::embedded();
-    let mean_long = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_target));
-    let mean_short = law_mean_f_from_samples(&mut model, ArrivalCondition::Exposure(lambda_short));
+    let mean_long = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda_target));
+    let mean_short = law_mean_f(&mut model, ArrivalCondition::Exposure(lambda_short));
     assert!(
         (mean_long - mean_short).abs() < 0.02,
         "RED: F3 law must depend on Λ only; equal Λ paths gave means {mean_long:.4} vs {mean_short:.4}"
