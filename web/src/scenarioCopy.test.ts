@@ -5,7 +5,7 @@ describe("scenarioTitle / scenarioDescription", () => {
   it("returns locked copy for ladder ids", () => {
     expect(scenarioTitle("P1")).toBe("Shrink gun");
     expect(scenarioTitle("F2a")).toBe("Pack date on ASN");
-    expect(scenarioDescription("F2a")).toMatch(/arrival-age prior/i);
+    expect(scenarioDescription("F2a")).toMatch(/arrival freshness prior/i);
   });
 
   it("returns custom label for WASM custom obs_scenario", () => {

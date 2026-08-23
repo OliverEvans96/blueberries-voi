@@ -29,15 +29,15 @@ export const GUIDED_PATHS: GuidedPath[] = [
   {
     id: "arrival-prior",
     title: "Arrival prior (F2a)",
-    description: "Pack-date ASN narrows the arrival-age prior.",
+    description: "Pack-date ASN narrows the arrival freshness prior.",
     scenario: "F2a",
     section: "arrival",
     autoplayHint: true,
   },
   {
     id: "rich-receipt",
-    title: "Age at receipt (F2)",
-    description: "Measured receipt age and sensor noise.",
+    title: "Lot-resolved pack date (F2)",
+    description: "Pack date on the delivery ASN conditions arrival freshness per lot.",
     scenario: "F2",
     section: "arrival",
   },

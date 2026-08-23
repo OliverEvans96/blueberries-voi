@@ -1,0 +1,10 @@
+t150-f-native-arrival
+policy: damped_sw_only (n_rollout_paths=0)
+
+experiments/tuned_alpha.json
+tests/fixtures/voi_crn/seed1_abdella.json
+tests/fixtures/voi_crn/seed42_abdella.json
+tests/test_t139_voi_crn_sd0.py
+experiments/data/voi_profits_after.json
+notebooks/13_filter_accuracy_knowledge_ladder.ipynb
+notebooks/14_gsin_vs_upc_filter_accuracy.ipynb

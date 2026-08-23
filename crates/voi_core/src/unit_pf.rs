@@ -29,12 +29,10 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use crate::arrival::{resolve_arrival_exposure, ArrivalCondition, ArrivalModel};
 use crate::obs::FilterObs;
 use crate::physics::{apply_gamma_aging_independent, GammaDecrementTable};
-use crate::shipments::{
-    arrival_age_from_path, birth_f_units_gamma, sample_phi_bar_from_fleet, shipment_arrival_age,
-    ShipmentTrace,
-};
+use crate::shipments::ShipmentTrace;
 use crate::unit_ll::{
     apply_pb_aging_proposal, loglik_sales_by_units, pb_loglik_by_lot, pb_loglik_pooled,
     pb_sample_deaths, pb_sample_deaths_by_lot, sequential_kernel_path_logprob,
@@ -285,30 +283,23 @@ pub fn project_lot_map(
     Some(out)
 }
 
-/// Resolve warped transit duration Λ from observation channel (ADR 0141).
-fn resolve_arrival_lambda<R: Rng + ?Sized>(
-    obs: &FilterObs,
-    shipments: &[ShipmentTrace],
-    params: &ModelParams,
-    rng: &mut R,
-) -> f64 {
-    if let (Some(times), Some(temps)) = (&obs.temp_times_d, &obs.temp_temps_c) {
-        if times.len() >= 2 && temps.len() == times.len() {
-            return arrival_age_from_path(temps, times, params.q10, params.t_ref_c);
-        }
+/// Resolve channel-conditional arrival law from filter observation.
+fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> ArrivalCondition {
+    if let Some(exposure) = resolve_arrival_exposure(
+        obs.temp_temps_c.as_deref(),
+        obs.temp_times_d.as_deref(),
+        params.q10,
+        params.t_ref_c,
+    ) {
+        return ArrivalCondition::Exposure(exposure);
     }
     if let Some(d) = obs.pack_date_days {
-        let phi = sample_phi_bar_from_fleet(rng, shipments, params.q10, params.t_ref_c);
-        return f64::from(d).max(0.0) * phi;
+        return ArrivalCondition::Duration(d);
     }
-    if shipments.is_empty() {
-        panic!("shipments must be non-empty for default arrival lambda");
-    }
-    let idx = rng.random_range(0..shipments.len());
-    shipment_arrival_age(&shipments[idx], params.q10, params.t_ref_c)
+    ArrivalCondition::Prior
 }
 
-/// Per-day observation resolved onto the bank's own lot segments.
+/// One unit-PF observation update: adapted aging, obs-resolved scoring, resample, birth.
 struct DayEvidence {
     waste_by: Option<Vec<u32>>,
     waste_tot: Option<u32>,
@@ -426,6 +417,7 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         rng,
         None::<&mut R>,
         &mut table,
+        None,
     )
 }
 
@@ -438,7 +430,9 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     rng_birth: Option<&mut B>,
 ) -> StepDiagnostics {
     let mut table = GammaDecrementTable::for_params(params);
-    filter_step_unit_with_birth_cached(bank, obs, params, shipments, rng, rng_birth, &mut table)
+    filter_step_unit_with_birth_cached(
+        bank, obs, params, shipments, rng, rng_birth, &mut table, None,
+    )
 }
 
 pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
@@ -449,7 +443,9 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     rng: &mut R,
     mut rng_birth: Option<&mut B>,
     table: &mut GammaDecrementTable,
+    arrival_model: Option<&mut ArrivalModel>,
 ) -> StepDiagnostics {
+    let _ = shipments;
     table.rebuild_if_needed(params);
     let n = bank.weights.len();
     if n == 0 {
@@ -533,20 +529,27 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             .and_then(|ids| ids.first().copied())
             .unwrap_or_else(|| bank.next_synthetic_lot_id());
         let birth_seed = rng.random::<u64>();
-        let mut fallback_birth = Pcg64::seed_from_u64(birth_seed.wrapping_add(0xB177_0001));
+        let condition = resolve_arrival_f_law(obs, params);
+        let mut local_model;
+        let model = if let Some(m) = arrival_model {
+            m.sync_params(params);
+            m.set_corridor(&params.arrival_product);
+            m
+        } else {
+            local_model = ArrivalModel::embedded();
+            local_model.sync_params(params);
+            local_model.set_corridor(&params.arrival_product);
+            &mut local_model
+        };
         let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
-        for _ in 0..n {
-            let lambda = resolve_arrival_lambda(obs, shipments, params, rng);
-            if let Some(b) = rng_birth.as_mut() {
-                per_particle.push(birth_f_units_gamma(lambda, arrivals, params, b));
+        for p in 0..n {
+            let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
+            let fs = if let Some(b) = rng_birth.as_mut() {
+                model.sample_filter_birth_units(condition, arrivals, b)
             } else {
-                per_particle.push(birth_f_units_gamma(
-                    lambda,
-                    arrivals,
-                    params,
-                    &mut fallback_birth,
-                ));
-            }
+                model.sample_filter_birth_units(condition, arrivals, &mut particle_rng)
+            };
+            per_particle.push(fs);
         }
         bank.push_lot_births(lot_id, &per_particle, arrivals);
     }

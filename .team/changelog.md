@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-23
+- **Arrival freshness is now uncertain and depends on the shipping corridor: how long the truck ran and how warm it was, not a single known age at the door. Shelf life is one number (two weeks at the reference temperature) instead of two that disagreed, and that arrival freshness is an upper bound because field heat before the truck is not modelled** (T-150).
+
 ## 2026-08-22
 - **The metrics column now opens with an "Outcomes" heading and short orientation note, groups charts under Economics, Inventory, and Flow, boldens chart titles for quicker scanning, and shows missed sales and waste as lighter secondary figures beneath the profit totals** (T-154).
 - **The studio metrics column is easier to scan: profit totals and missed-sales impact sit at the top, orders and spoilage each have their own chart with independent scales, hovering spoilage highlights spoiled inventory on the freshness-over-time view, and the events log uses clearer day headings and lot detail** (T-153).

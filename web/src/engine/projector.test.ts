@@ -470,8 +470,8 @@ describe("fMarginalFromFlat (T-090)", () => {
     expect(m).toHaveLength(grid.f_edges.length - 1);
     // Optional: same vector may also live on BeliefGrid.
     const optionalMarginal = (
-      grid as { age_marginal?: number[] }
-    ).age_marginal;
+      grid as { f_marginal?: number[] }
+    ).f_marginal;
     if (optionalMarginal !== undefined) {
       expect(optionalMarginal).toEqual(m);
     }
@@ -617,7 +617,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     expect(sum).toBeCloseTo(10);
     expect(mass[0]!).toBeCloseTo(10);
     expect(mass[3]!).toBeCloseTo(0);
-    expect(vm.belief.age_marginal).toEqual(fMarginalFromFlat(belief));
+    expect(vm.belief.f_marginal).toEqual(fMarginalFromFlat(belief));
   });
 
   it("patchEngineState: changing belief with fixed live_lots changes density", () => {
@@ -665,7 +665,7 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     });
     const afterMass = ageMass(vm.belief.density);
     expect(afterMass).toEqual(beforeMass);
-    expect(vm.belief.age_marginal).toEqual(before.belief.age_marginal);
+    expect(vm.belief.f_marginal).toEqual(before.belief.f_marginal);
     expect(vm.belief.count_edges.length).toBeGreaterThanOrEqual(
       before.belief.count_edges.length,
     );

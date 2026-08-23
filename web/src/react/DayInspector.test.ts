@@ -55,7 +55,7 @@ function sampleViewModel(overrides: Partial<ViewModel> = {}): ViewModel {
       f_edges: [0, 1, 2],
       count_edges: [0, 1],
       density: [[0.2], [0.5], [0.3]],
-      age_marginal: [0.2, 0.5, 0.3],
+      f_marginal: [0.2, 0.5, 0.3],
     },
     live_lots: [],
     belief_history: [],
@@ -116,7 +116,7 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
     expect(screen.getByText("Stockout: 1")).toBeInTheDocument();
     expect(screen.getByText("Order qty: 16")).toBeInTheDocument();
     expect(
-      screen.getByText("Belief peaks near age bin 1."),
+      screen.getByText("Belief peaks near freshness bin 1."),
     ).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
     expect(screen.getByText("Day 99 — no history yet.")).toBeInTheDocument();
   });
 
-  it("uses the default belief one-liner when age_marginal is absent", () => {
+  it("uses the default belief one-liner when f_marginal is absent", () => {
     renderInspector({
       day: 7,
       point: { clientX: 10, clientY: 10 },

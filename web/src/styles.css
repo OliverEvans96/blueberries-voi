@@ -1297,15 +1297,15 @@ input[type="number"] {
   stroke-dasharray: 4 2;
 }
 
-.age-young {
+.freshness-young {
   fill: #7a9e7e;
 }
 
-.age-mid {
+.freshness-mid {
   fill: #3d7ea6;
 }
 
-.age-old {
+.freshness-old {
   fill: #c46a3a;
 }
 

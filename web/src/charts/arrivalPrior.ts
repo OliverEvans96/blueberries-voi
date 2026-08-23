@@ -1,6 +1,6 @@
 import * as d3 from "d3";
-import type { Day, SimConfig } from "../types";
-import { arrivalFreshnessPriorPdf, f2aPriorPdf } from "../mock/generate";
+import type { ArrivalSummary } from "../engine/types";
+import type { Day } from "../types";
 
 function recentReceiptFreshness(history: Day[]): number[] {
   return history
@@ -8,10 +8,12 @@ function recentReceiptFreshness(history: Day[]): number[] {
     .map((d) => d.f_at_receipt as number);
 }
 
-/** Arrival-freshness prior PDF + optional rug of recent f_at_receipt samples. */
+type DensityPoint = { f: number; density: number };
+
+/** Arrival-freshness prior PDF from engine snapshot + optional rug of recent f_at_receipt. */
 export function renderArrivalPrior(
   container: HTMLElement,
-  config: SimConfig,
+  arrivalSummary: ArrivalSummary | null,
   history: Day[],
   height = 160,
   showReceiptRug = true,
@@ -22,14 +24,10 @@ export function renderArrivalPrior(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  const prior = arrivalFreshnessPriorPdf(config);
-  const f2a = f2aPriorPdf(config);
+  const prior: DensityPoint[] = arrivalSummary?.curve ?? [];
   const samples = recentReceiptFreshness(history);
   const yMax =
-    Math.max(
-      d3.max(prior, (d) => d.density) ?? 0.1,
-      d3.max(f2a, (d) => d.density) ?? 0.1,
-    ) * 1.15;
+    (prior.length > 0 ? (d3.max(prior, (d) => d.density) ?? 0.1) : 0.1) * 1.15;
 
   const svg = d3
     .select(container)
@@ -57,40 +55,44 @@ export function renderArrivalPrior(
     .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
     .call((sel) => sel.select(".domain").remove());
 
-  const area = d3
-    .area<(typeof prior)[number]>()
-    .x((d) => x(d.f))
-    .y0(innerH)
-    .y1((d) => y(d.density))
-    .curve(d3.curveMonotoneX);
+  if (prior.length > 0) {
+    const area = d3
+      .area<DensityPoint>()
+      .x((d) => x(d.f))
+      .y0(innerH)
+      .y1((d) => y(d.density))
+      .curve(d3.curveMonotoneX);
 
-  g.append("path")
-    .datum(prior)
-    .attr("fill", "var(--accent, #3d6b5a)")
-    .attr("fill-opacity", 0.22)
-    .attr("d", area);
+    g.append("path")
+      .datum(prior)
+      .attr("fill", "var(--accent, #3d6b5a)")
+      .attr("fill-opacity", 0.22)
+      .attr("d", area);
 
-  const line = d3
-    .line<(typeof prior)[number]>()
-    .x((d) => x(d.f))
-    .y((d) => y(d.density))
-    .curve(d3.curveMonotoneX);
+    const line = d3
+      .line<DensityPoint>()
+      .x((d) => x(d.f))
+      .y((d) => y(d.density))
+      .curve(d3.curveMonotoneX);
 
-  g.append("path")
-    .datum(prior)
-    .attr("class", "impact-line")
-    .attr("fill", "none")
-    .attr("stroke", "var(--accent, #3d6b5a)")
-    .attr("stroke-width", 1.6)
-    .attr("d", line);
+    g.append("path")
+      .datum(prior)
+      .attr("class", "impact-line")
+      .attr("fill", "none")
+      .attr("stroke", "var(--accent, #3d6b5a)")
+      .attr("stroke-width", 1.6)
+      .attr("d", line);
+  }
 
-  g.append("path")
-    .datum(f2a)
-    .attr("fill", "none")
-    .attr("stroke", "var(--muted, #8a7a5c)")
-    .attr("stroke-width", 1.2)
-    .attr("stroke-dasharray", "4 3")
-    .attr("d", line);
+  if (arrivalSummary && arrivalSummary.f_zero > 1e-6) {
+    g.append("text")
+      .attr("class", "axis-label")
+      .attr("x", x(0.02))
+      .attr("y", 10)
+      .attr("text-anchor", "start")
+      .attr("fill", "var(--muted, #8a7a5c)")
+      .text(`P(f=0) ${(arrivalSummary.f_zero * 100).toFixed(1)}%`);
+  }
 
   g.append("text")
     .attr("class", "axis-label")
@@ -114,10 +116,11 @@ export function renderArrivalPrior(
     .text((d) => `f_at_receipt ${d.toFixed(3)}`);
 }
 
-/** How transit temperature bias shifts the arrival prior (MOD-18 teaching). */
+/** How transit temperature bias shifts the engine arrival prior (MOD-18 teaching). */
 export function renderArrivalShift(
   container: HTMLElement,
-  config: SimConfig,
+  arrivalSummary: ArrivalSummary | null,
+  transitBiasC: number,
   height = 150,
 ): void {
   const width = container.clientWidth || 320;
@@ -126,8 +129,9 @@ export function renderArrivalShift(
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
-  const baseline = arrivalFreshnessPriorPdf(config, { transitBiasOverride: 0 });
-  const shifted = arrivalFreshnessPriorPdf(config);
+  const shifted: DensityPoint[] = arrivalSummary?.curve ?? [];
+  const baseline: DensityPoint[] =
+    arrivalSummary?.baseline_curve ?? shifted;
   const yMax =
     Math.max(
       d3.max(baseline, (d) => d.density) ?? 0.1,
@@ -164,26 +168,30 @@ export function renderArrivalShift(
     .call((sel) => sel.select(".domain").remove());
 
   const line = d3
-    .line<(typeof baseline)[number]>()
+    .line<DensityPoint>()
     .x((d) => x(d.f))
     .y((d) => y(d.density))
     .curve(d3.curveMonotoneX);
 
-  g.append("path")
-    .datum(baseline)
-    .attr("fill", "none")
-    .attr("stroke", "var(--muted, #8a7a5c)")
-    .attr("stroke-width", 1.4)
-    .attr("stroke-dasharray", "5 3")
-    .attr("d", line);
+  if (baseline.length > 0) {
+    g.append("path")
+      .datum(baseline)
+      .attr("fill", "none")
+      .attr("stroke", "var(--muted, #8a7a5c)")
+      .attr("stroke-width", 1.4)
+      .attr("stroke-dasharray", "5 3")
+      .attr("d", line);
+  }
 
-  g.append("path")
-    .datum(shifted)
-    .attr("class", "impact-line")
-    .attr("fill", "none")
-    .attr("stroke", "var(--accent, #3d6b5a)")
-    .attr("stroke-width", 1.8)
-    .attr("d", line);
+  if (shifted.length > 0) {
+    g.append("path")
+      .datum(shifted)
+      .attr("class", "impact-line")
+      .attr("fill", "none")
+      .attr("stroke", "var(--accent, #3d6b5a)")
+      .attr("stroke-width", 1.8)
+      .attr("d", line);
+  }
 
   g.append("text")
     .attr("class", "axis-label")
@@ -191,6 +199,6 @@ export function renderArrivalShift(
     .attr("y", innerH + 24)
     .attr("text-anchor", "middle")
     .text(
-      `Transit bias ${config.transit_temp_bias_c >= 0 ? "+" : ""}${config.transit_temp_bias_c.toFixed(1)}°C · dashed = 0`,
+      `Transit bias ${transitBiasC >= 0 ? "+" : ""}${transitBiasC.toFixed(1)}°C · dashed = 0`,
     );
 }

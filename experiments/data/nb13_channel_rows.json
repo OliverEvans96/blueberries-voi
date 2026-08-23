@@ -1,0 +1,272 @@
+[
+  {
+    "seed": 7,
+    "key": "code=gsin|waste=0|hist=none",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "custom",
+    "mae_f": 0.1403398812177483,
+    "mean_spread": 0.20836244536454337
+  },
+  {
+    "seed": 42,
+    "key": "code=gsin|waste=0|hist=none",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "custom",
+    "mae_f": 0.10574508653730977,
+    "mean_spread": 0.20453895660705604
+  },
+  {
+    "seed": 99,
+    "key": "code=gsin|waste=0|hist=none",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "custom",
+    "mae_f": 0.08754357203037551,
+    "mean_spread": 0.20632278878258878
+  },
+  {
+    "seed": 7,
+    "key": "code=gsin|waste=0|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.03618516982303203,
+    "mean_spread": 0.14884883707594834
+  },
+  {
+    "seed": 42,
+    "key": "code=gsin|waste=0|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.046775386697865705,
+    "mean_spread": 0.16534913735665085
+  },
+  {
+    "seed": 99,
+    "key": "code=gsin|waste=0|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.025348546542860156,
+    "mean_spread": 0.1826127293668592
+  },
+  {
+    "seed": 7,
+    "key": "code=gsin|waste=1|hist=none",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "quantity_only",
+    "preset": "F1s",
+    "mae_f": 0.1429498096118954,
+    "mean_spread": 0.2053173866989511
+  },
+  {
+    "seed": 42,
+    "key": "code=gsin|waste=1|hist=none",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "quantity_only",
+    "preset": "F1s",
+    "mae_f": 0.10723020426452766,
+    "mean_spread": 0.2136422604272036
+  },
+  {
+    "seed": 99,
+    "key": "code=gsin|waste=1|hist=none",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "quantity_only",
+    "preset": "F1s",
+    "mae_f": 0.10121877541616857,
+    "mean_spread": 0.2171529492369597
+  },
+  {
+    "seed": 7,
+    "key": "code=gsin|waste=1|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2",
+    "mae_f": 0.032112368358688304,
+    "mean_spread": 0.1475246337143757
+  },
+  {
+    "seed": 42,
+    "key": "code=gsin|waste=1|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2",
+    "mae_f": 0.03921253863831015,
+    "mean_spread": 0.1633230161533232
+  },
+  {
+    "seed": 99,
+    "key": "code=gsin|waste=1|hist=pack_date",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2",
+    "mae_f": 0.025813310764307897,
+    "mean_spread": 0.18246680645364596
+  },
+  {
+    "seed": 7,
+    "key": "code=gsin|waste=1|hist=temperature_history",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "temperature_history",
+    "preset": "F3",
+    "mae_f": 0.014766150240235863,
+    "mean_spread": 0.14676917569639936
+  },
+  {
+    "seed": 42,
+    "key": "code=gsin|waste=1|hist=temperature_history",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "temperature_history",
+    "preset": "F3",
+    "mae_f": 0.02092210492629437,
+    "mean_spread": 0.1630953951921946
+  },
+  {
+    "seed": 99,
+    "key": "code=gsin|waste=1|hist=temperature_history",
+    "pos": "lot_id",
+    "waste": "lot_id",
+    "deliveries": "temperature_history",
+    "preset": "F3",
+    "mae_f": 0.014237505155308652,
+    "mean_spread": 0.18304546354532172
+  },
+  {
+    "seed": 7,
+    "key": "code=upc|waste=0|hist=none",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "P0",
+    "mae_f": 0.14256418801096488,
+    "mean_spread": 0.20676660448549047
+  },
+  {
+    "seed": 42,
+    "key": "code=upc|waste=0|hist=none",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "P0",
+    "mae_f": 0.09870942860419292,
+    "mean_spread": 0.19952189368029757
+  },
+  {
+    "seed": 99,
+    "key": "code=upc|waste=0|hist=none",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "quantity_only",
+    "preset": "P0",
+    "mae_f": 0.08496657285685802,
+    "mean_spread": 0.20509367538145612
+  },
+  {
+    "seed": 7,
+    "key": "code=upc|waste=0|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.0342344053603204,
+    "mean_spread": 0.14964856972399818
+  },
+  {
+    "seed": 42,
+    "key": "code=upc|waste=0|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.04742990128575537,
+    "mean_spread": 0.16475240241013814
+  },
+  {
+    "seed": 99,
+    "key": "code=upc|waste=0|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "none",
+    "deliveries": "pack_date_per_lot",
+    "preset": "custom",
+    "mae_f": 0.02356444585501241,
+    "mean_spread": 0.18463081598669387
+  },
+  {
+    "seed": 7,
+    "key": "code=upc|waste=1|hist=none",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "quantity_only",
+    "preset": "P1",
+    "mae_f": 0.14402391849084056,
+    "mean_spread": 0.21551386268889475
+  },
+  {
+    "seed": 42,
+    "key": "code=upc|waste=1|hist=none",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "quantity_only",
+    "preset": "P1",
+    "mae_f": 0.10118265549759228,
+    "mean_spread": 0.2096773406098946
+  },
+  {
+    "seed": 99,
+    "key": "code=upc|waste=1|hist=none",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "quantity_only",
+    "preset": "P1",
+    "mae_f": 0.09741338218015004,
+    "mean_spread": 0.21736354907523747
+  },
+  {
+    "seed": 7,
+    "key": "code=upc|waste=1|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2a",
+    "mae_f": 0.033571550115321154,
+    "mean_spread": 0.1450482881533
+  },
+  {
+    "seed": 42,
+    "key": "code=upc|waste=1|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2a",
+    "mae_f": 0.040654548649479164,
+    "mean_spread": 0.16279936262552216
+  },
+  {
+    "seed": 99,
+    "key": "code=upc|waste=1|hist=pack_date",
+    "pos": "upc_only",
+    "waste": "daily_counts",
+    "deliveries": "pack_date_per_lot",
+    "preset": "F2a",
+    "mae_f": 0.027787853900063796,
+    "mean_spread": 0.18220062186469255
+  }
+]

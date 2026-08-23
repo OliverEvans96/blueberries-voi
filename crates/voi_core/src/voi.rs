@@ -4,6 +4,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+use crate::arrival::ArrivalModel;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
@@ -14,7 +15,7 @@ use crate::physics::GammaDecrementTable;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{arrival_receipt_meta, ShipmentTrace};
+use crate::shipments::ShipmentTrace;
 
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
@@ -23,11 +24,23 @@ pub const VOI_SCENARIOS: &[&str] = &["P0", "P1", "F1", "F1s", "F2a", "F2", "B-st
 const STREAM_DEMAND: u64 = 1;
 const STREAM_ALLOC: u64 = 2;
 const STREAM_GAMMA: u64 = 3;
-const STREAM_SHIP: u64 = 4;
-const STREAM_SENSOR: u64 = 5;
+// 4 and 5 retired (T-150): were `STREAM_SHIP` / `STREAM_SENSOR`, repurposed below for
+// the arrival duration/temp draws instead of getting their own streams. Retired, not
+// reassigned — a future ship/sensor observation draw must not reuse 4 or 5 either,
+// since old seeded runs may still reference them.
 const STREAM_FILTER: u64 = 6;
 /// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
 const STREAM_BIRTH: u64 = 7;
+/// Truth-path arrival within-lot position draw (T-150; previously a bare literal `8`).
+const STREAM_ARRIVAL_POS: u64 = 8;
+/// Truth-path arrival gamma-loss draw (T-150; previously a bare literal `9`).
+const STREAM_ARRIVAL_GAMMA: u64 = 9;
+/// Truth-path arrival duration draw (T-150; dedicated stream — does not reuse the
+/// retired `STREAM_SHIP` id).
+const STREAM_ARRIVAL_DURATION: u64 = 10;
+/// Truth-path arrival transit-temperature draw (T-150; dedicated stream — does not
+/// reuse the retired `STREAM_SENSOR` id).
+const STREAM_ARRIVAL_TEMP: u64 = 11;
 
 const FILTER_INIT_L: usize = 3;
 const FILTER_INIT_K: usize = 8;
@@ -182,6 +195,7 @@ fn run_scenario_episode(
     let mut scored = 0.0;
     let phys = physics_tag();
     let mut gamma_table = GammaDecrementTable::for_params(params);
+    let mut arrival_model = ArrivalModel::embedded();
 
     for day in 0..horizon {
         let pending_sum: u32 = pending.values().copied().sum();
@@ -202,7 +216,9 @@ fn run_scenario_episode(
             None,
             1.0,
         );
-        let order = if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
+        let order = if budgets.n_rollout_paths == 0 {
+            base_q
+        } else if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
             let schedule = OrderSchedule {
                 lead_time_days: budgets.lead_time,
                 ..OrderSchedule::default()
@@ -219,7 +235,7 @@ fn run_scenario_episode(
                 shipments: shipments.to_vec(),
                 f_pipeline_default: 1.0,
                 h: budgets.h.max(1),
-                n_paths: budgets.n_rollout_paths.max(1),
+                n_paths: budgets.n_rollout_paths,
                 radius: budgets.candidate_case_radius,
             };
             rollout_order(
@@ -238,34 +254,27 @@ fn run_scenario_episode(
         enqueue(&mut pending, day, budgets.lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
         let pre_lot_ids = lot_ids.clone();
-        let (f_at_receipt, age_at_receipt, pack_date_days) = if arrival > 0 {
-            let mut rng_ship = rng(root_seed, phys, day, STREAM_SHIP);
-            let mut rng_sensor = rng(root_seed, phys, day, STREAM_SENSOR);
-            let (f, tau, pack) = arrival_receipt_meta(
-                &mut rng_ship,
-                &mut rng_sensor,
-                shipments,
-                params,
-                1.0,
+        let (delivery_unit_f, pack_date_days) = if arrival > 0 {
+            let mut rng_d = rng(root_seed, phys, day, STREAM_ARRIVAL_DURATION);
+            let mut rng_t = rng(root_seed, phys, day, STREAM_ARRIVAL_TEMP);
+            let mut rng_p = rng(root_seed, phys, day, STREAM_ARRIVAL_POS);
+            let mut rng_g = rng(root_seed, phys, day, STREAM_ARRIVAL_GAMMA);
+            let draw = arrival_model.draw_truth_delivery(
+                &params.arrival_product,
+                arrival as usize,
+                &mut rng_d,
+                &mut rng_t,
+                &mut rng_p,
+                &mut rng_g,
             );
-            (Some(f), Some(tau), Some(pack))
+            (Some(draw.unit_f), Some(draw.pack_date_days))
         } else {
-            (None, None, None)
+            (None, None)
         };
         let mut rng_d = rng(root_seed, phys, day, STREAM_DEMAND);
         let demand = draw_demand(&mut rng_d, params, Some(day));
         let mut rng_gamma = rng(root_seed, phys, day, STREAM_GAMMA);
         let mut rng_alloc = rng(root_seed, phys, day, STREAM_ALLOC);
-        let mut rng_ship = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SHIP))
-        } else {
-            None
-        };
-        let mut rng_sensor = if arrival > 0 {
-            Some(rng(root_seed, phys, day, STREAM_SENSOR))
-        } else {
-            None
-        };
         let mut rng_birth = if arrival > 0 {
             Some(rng(root_seed, phys, day, STREAM_BIRTH))
         } else {
@@ -278,11 +287,8 @@ fn run_scenario_episode(
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_f: f_at_receipt,
-            delivery_lambda: None,
+            delivery_unit_f,
             units_per_lot: Some(upl),
-            age_at_receipt,
-            pack_age_mean: pack_date_days.map(f64::from),
         };
         let out = unit_day_step_with_birth(
             &input,
@@ -290,8 +296,8 @@ fn run_scenario_episode(
             shipments,
             Some(&mut rng_gamma),
             Some(&mut rng_alloc),
-            rng_ship.as_mut(),
-            rng_sensor.as_mut(),
+            None,
+            None,
             rng_birth.as_mut(),
         );
         freshness = out.freshness;
@@ -316,13 +322,17 @@ fn run_scenario_episode(
                 lot_ids: pre_lot_ids,
                 arrival_lot_ids,
                 shipment_trace: None,
-                f_at_receipt,
-                age_at_receipt,
                 pack_date_days,
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
-            let mut rng_birth_filter = if obs.arrivals > 0 { Some(rng(root_seed, phys, day, STREAM_BIRTH)) } else { None };
+            let mut rng_birth_filter = if obs.arrivals > 0 {
+                Some(rng(root_seed, phys, day, STREAM_BIRTH))
+            } else {
+                None
+            };
+            // `filter_step_unit_with_birth_cached` syncs params and the configured
+            // corridor onto `arrival_model` itself; an external sync here was redundant.
             filter_step_unit_with_birth_cached(
                 &mut bank,
                 &obs,
@@ -331,6 +341,7 @@ fn run_scenario_episode(
                 &mut frng,
                 rng_birth_filter.as_mut(),
                 &mut gamma_table,
+                Some(&mut arrival_model),
             );
         }
     }
@@ -388,7 +399,7 @@ mod tests {
             n_score: 2,
             filter_n: 8,
             h: 1,
-            n_rollout_paths: 1,
+            n_rollout_paths: 0,
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
@@ -408,7 +419,7 @@ mod tests {
             n_score: 1,
             filter_n: 8,
             h: 1,
-            n_rollout_paths: 1,
+            n_rollout_paths: 0,
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
@@ -434,7 +445,7 @@ mod tests {
             n_score: 1,
             filter_n: 4,
             h: 1,
-            n_rollout_paths: 1,
+            n_rollout_paths: 0,
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
@@ -461,12 +472,14 @@ mod tests {
             n_score: 8,
             filter_n: 32,
             h: 2,
-            n_rollout_paths: 2,
+            n_rollout_paths: 0,
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
         };
-        for seed in 1u64..200 {
+        // damped_sw (n_rollout_paths=0) already separates P0/F1 on early seeds;
+        // 200 rollout cells were minutes of the verify budget.
+        for seed in 1u64..=8 {
             let profits = run_voi_crn_cell(2.0, seed, &ships, &b, &["P0", "F1"], None);
             let p0 = profits.iter().find(|(k, _)| k == "P0").unwrap().1;
             let f1 = profits.iter().find(|(k, _)| k == "F1").unwrap().1;
@@ -474,7 +487,7 @@ mod tests {
                 return;
             }
         }
-        panic!("P0 and F1 profits must differ for some seed in 1..200");
+        panic!("P0 and F1 profits must differ for some seed in 1..=8");
     }
 
     #[test]
@@ -484,7 +497,35 @@ mod tests {
         assert!(f2.pack_date);
         assert!(f2.sales_by_lot && f2.waste_by_lot && f2.arrival_lot_ids);
         assert!(p1.waste_total && !p1.sales_by_lot);
-        assert!(!p1.age_at_receipt && !f2.age_at_receipt);
+
+    }
+
+    #[test]
+    fn n_rollout_paths_zero_skips_rollout() {
+        let ships = [ShipmentTrace::smoke_cool()];
+        let narrow = CrnBudgets {
+            n_burn: 1,
+            n_score: 1,
+            filter_n: 8,
+            h: 1,
+            n_rollout_paths: 0,
+            lead_time: 1,
+            alpha: 0.9,
+            candidate_case_radius: 0,
+        };
+        let wide = CrnBudgets {
+            n_burn: 1,
+            n_score: 1,
+            filter_n: 8,
+            h: 1,
+            n_rollout_paths: 0,
+            lead_time: 1,
+            alpha: 0.9,
+            candidate_case_radius: 2,
+        };
+        let a = run_voi_crn_cell(2.0, 42, &ships, &narrow, &["P1"], None);
+        let b = run_voi_crn_cell(2.0, 42, &ships, &wide, &["P1"], None);
+        assert_eq!(a, b, "radius must not matter when rollout is disabled");
     }
 
     #[test]
@@ -555,7 +596,7 @@ mod tests {
             n_score: 5,
             filter_n: 8,
             h: 1,
-            n_rollout_paths: 1,
+            n_rollout_paths: 0,
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,

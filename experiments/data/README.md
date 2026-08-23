@@ -13,6 +13,11 @@ Four code tips, oldest first. Each file is the same diagnostic at a different ep
 | `gsin_upc_t140.json` | `team/T-140/implement`, ADR 0141 | shared-δ interval; unified gamma **arrival** | 24 |
 | `gsin_upc_after.json` | `team/T-141/implement`, ADR 0143 | **independent per-unit aging** + Poisson-binomial | 24 |
 
+**T-150 (ADR 0144):** `voi_profits_after.json` was regenerated under damped base-stock
+(`n_rollout_paths=0`). `gsin_upc_after.json` was **not** regenerated (same T-141 spoilage
+epoch). Filter-accuracy MAE for the new arrival law is `nb13_channel_rows.json` /
+`nb13_channel_rows_shards.json` from Modal run `ap-n9eIOGAYfnAVTUHuGyfsjw` on a T-150 wheel.
+
 The two oldest files predate the *Thermal fleet* fixture and carry three regimes.
 
 **`gsin_upc_pre_t141.json` is not a run of the T-140 parent harness.** It is byte-identical

@@ -1,0 +1,25 @@
+{
+  "physics_epoch": "t150-f-native-arrival",
+  "generated_from_commit": "63dafca",
+  "alpha_note": "damped_sw only (n_rollout_paths=0); default alpha=0.9; tuned_alpha.json optional (see regen_tuned_alpha.py)",
+  "budgets": {
+    "beta": 2.0,
+    "n_burn": 2,
+    "n_score": 8,
+    "filter_n": 32,
+    "H": 2,
+    "n_rollout_paths": 0,
+    "lead_time": 1,
+    "root_seed": 1,
+    "shipments": "default_shipments"
+  },
+  "profits": {
+    "P0": 86.0,
+    "P1": 86.0,
+    "F1": 106.5,
+    "F1s": 106.5,
+    "F2a": 123.0,
+    "F2": 123.0,
+    "B-state": 123.0
+  }
+}

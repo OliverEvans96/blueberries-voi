@@ -1,6 +1,7 @@
 /** Studio runtime (T-121) — logic migrated from main.ts; shell in StudioLayout.tsx. */
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
 import { arrivalRugAvailable } from "../scenarioAvailability";
 import {
@@ -46,6 +47,7 @@ import {
   renderWasteBars,
   setMarginalHover,
   setWasteBarsHover,
+  wasteBarYMax,
 } from "../charts/marginals";
 import {
   renderDailyDemand,
@@ -55,13 +57,13 @@ import {
   setDemandHover,
 } from "../charts/demandDist";
 import {
-  ageCompositionSeries,
-  ageCompositionSeriesFromBelief,
+  fCompositionSeries,
+  fCompositionSeriesFromBelief,
   inventorySeries,
   inventorySeriesFromBelief,
-  renderAgeComposition,
+  renderFreshnessComposition,
   renderInventoryTarget,
-  setAgeCompositionHover,
+  setFreshnessCompositionHover,
   setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
@@ -123,6 +125,8 @@ import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
 import { computeImpactTotals } from "../metrics/impactTotals";
+import { resolveStoreSpoilageSlot } from "./chartSlots";
+import { ChartUnavailable } from "./ChartUnavailable";
 import {
   clearRenderProfile,
   getRenderProfileReport,
@@ -347,6 +351,7 @@ export function initStudio(app: HTMLElement): () => void {
   const eventsPaneHost = q<HTMLElement>("#events-pane-host");
   const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
+  let spoilageUnavailableRoot: Root | null = null;
   const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
   const impactMissedRoot = impactMissedHost ? createRoot(impactMissedHost) : null;
   const impactWasteRoot = impactWasteHost ? createRoot(impactWasteHost) : null;
@@ -710,7 +715,7 @@ export function initStudio(app: HTMLElement): () => void {
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
     setInventoryTargetHover(els.inventoryFocus, day);
-    setAgeCompositionHover(els.ageComp, day);
+    setFreshnessCompositionHover(els.ageComp, day);
     setDemandHover(els.demand, day);
     setDemandForecastHover(els.demandForecast, day);
   }
@@ -810,14 +815,38 @@ export function initStudio(app: HTMLElement): () => void {
       profileSync("renderRunStripCharts.controllerOrders", () =>
         renderControllerOrders(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
       );
-      profileSync("renderRunStripCharts.spoil", () =>
-        renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT),
-      );
+      profileSync("renderRunStripCharts.spoil", () => {
+        const spoilSlot = resolveStoreSpoilageSlot({
+          scenario: vm.config.obs_scenario,
+          channels: vm.config.obs_channels,
+          showTruth,
+        });
+        if (spoilSlot.kind === "unavailable") {
+          if (!spoilageUnavailableRoot) {
+            spoilageUnavailableRoot = createRoot(els.spoil);
+          }
+          flushSync(() => {
+            spoilageUnavailableRoot!.render(
+              createElement(ChartUnavailable, {
+                plotId: "store-spoilage",
+                caption: "Daily waste is not observed at this knowledge rung.",
+              }),
+            );
+          });
+        } else {
+          if (spoilageUnavailableRoot) {
+            flushSync(() => {
+              spoilageUnavailableRoot!.render(null);
+            });
+          }
+          renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT, wasteBarYMax(vm.history));
+        }
+      });
       const ageRows = showTruth
-        ? ageCompositionSeries(vm.history)
-        : ageCompositionSeriesFromBelief(vm.belief_history);
-      profileSync("renderRunStripCharts.ageComposition", () =>
-        renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
+        ? fCompositionSeries(vm.history)
+        : fCompositionSeriesFromBelief(vm.belief_history);
+      profileSync("renderRunStripCharts.fComposition", () =>
+        renderFreshnessComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
       );
     });
   }
@@ -871,10 +900,10 @@ export function initStudio(app: HTMLElement): () => void {
       }
       if (plotVisible("plot-age-comp")) {
         const ageRows = showTruth
-          ? ageCompositionSeries(vm.history)
-          : ageCompositionSeriesFromBelief(vm.belief_history);
+          ? fCompositionSeries(vm.history)
+          : fCompositionSeriesFromBelief(vm.belief_history);
         profileSync("renderActiveFocusPlots.ageComp", () =>
-          renderAgeComposition(els.ageComp, vm.history, 140, ageRows),
+          renderFreshnessComposition(els.ageComp, vm.history, 140, ageRows),
         );
       }
       if (plotVisible("plot-demand")) {
@@ -904,7 +933,7 @@ export function initStudio(app: HTMLElement): () => void {
         profileSync("renderActiveFocusPlots.arrivalPrior", () =>
           renderArrivalPrior(
             els.arrivalPrior,
-            vm.config,
+            vm.arrival_summary,
             historyForCharts(),
             160,
             arrivalRugAvailable(
@@ -916,7 +945,7 @@ export function initStudio(app: HTMLElement): () => void {
       }
       if (plotVisible("plot-arrival-shift")) {
         profileSync("renderActiveFocusPlots.arrivalShift", () =>
-          renderArrivalShift(els.arrivalShift, vm.config, 150),
+          renderArrivalShift(els.arrivalShift, vm.arrival_summary, vm.config.transit_temp_bias_c, 150),
         );
       }
       if (plotVisible("plot-arrhenius-temp")) {

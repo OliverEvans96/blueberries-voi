@@ -27,11 +27,15 @@ pub struct ModelParams {
     pub gamma_scale: f64,
     /// Fixed virtual grid width per lot (`L×U` truth).
     pub units_per_lot: usize,
+    /// Corridor key into the embedded arrival artifact's `corridors` map (T-150 finding
+    /// 4). Threaded through to both the truth-path draw and the filter prior so they
+    /// can never silently diverge onto different corridors.
+    pub arrival_product: String,
 }
 
 impl Default for ModelParams {
     fn default() -> Self {
-        Self {
+        let mut params = Self {
             beta: 2.0,
             eta_ref: 14.0,
             q10: 3.0,
@@ -44,13 +48,23 @@ impl Default for ModelParams {
             uniform_picking: false,
             demand_profile: None,
             gamma_shape: 2.0,
-            gamma_scale: 0.08,
+            gamma_scale: 0.0,
             units_per_lot: DEFAULT_UNITS_PER_LOT,
-        }
+            arrival_product: "abdella_all".to_string(),
+        };
+        params.set_reference_life();
+        params
     }
 }
 
 impl ModelParams {
+    /// Derive `gamma_scale` from `gamma_shape` and `eta_ref` so `k·θ·η_ref = 1`.
+    pub fn set_reference_life(&mut self) {
+        if self.gamma_shape > 0.0 && self.eta_ref > 0.0 {
+            self.gamma_scale = 1.0 / (self.gamma_shape * self.eta_ref);
+        }
+    }
+
     /// Resolve NB mean: profile μ(day) when configured, else legacy constant μ.
     pub fn demand_mu_for_day(&self, day: u32) -> f64 {
         if let Some(ref profile) = self.demand_profile {
