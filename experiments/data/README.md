@@ -13,6 +13,10 @@ Four code tips, oldest first. Each file is the same diagnostic at a different ep
 | `gsin_upc_t140.json` | `team/T-140/implement`, ADR 0141 | shared-δ interval; unified gamma **arrival** | 24 |
 | `gsin_upc_after.json` | `team/T-141/implement`, ADR 0143 | **independent per-unit aging** + Poisson-binomial | 24 |
 
+**T-150 recal pending:** `gsin_upc_after.json` and `voi_profits_after.json` on this branch
+still reflect pre–ADR-0144 arrival physics until regenerated after corridor-selection and
+RNG-stream fixes land. Do not treat them as the current epoch.
+
 The two oldest files predate the *Thermal fleet* fixture and carry three regimes.
 
 **`gsin_upc_pre_t141.json` is not a run of the T-140 parent harness.** It is byte-identical
