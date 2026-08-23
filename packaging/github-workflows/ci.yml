@@ -3,9 +3,9 @@
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
 # this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
-# `build` compiles Rust (native + PyO3 wheel), WASM, and runs `cargo test` once.
-# `rust`, `python`, and `web` download those artifacts and run their gates.
-# `deploy` runs on main/master only after all three succeed.
+# `build` compiles Rust (native + PyO3 wheel) and WASM; uploads artifacts for
+# `rust` (cargo test) and `deploy` / release-studio. `python` and `web` run in
+# parallel without waiting on `build`.
 name: CI
 
 on:
@@ -54,9 +54,6 @@ jobs:
       - name: Build WASM kernel
         run: ./scripts/build-wasm.sh
 
-      - name: Cargo test (kernel + pyo3 crate)
-        run: cargo test -p voi_core -p voi_py --locked
-
       - name: Upload Rust/WASM build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -90,7 +87,6 @@ jobs:
 
   python:
     name: python
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -111,12 +107,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ci-rust-wasm-build
-
-      - name: Install dependencies and prebuilt extension
+      - name: Install dependencies and extension
         run: |
           uv venv --python 3.11
           uv sync --all-extras --python 3.11 --frozen
@@ -142,7 +133,6 @@ jobs:
 
   web:
     name: web
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -150,10 +140,11 @@ jobs:
         with:
           lfs: true
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ci-rust-wasm-build
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build WASM kernel
+        run: ./scripts/build-wasm.sh
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -166,13 +157,13 @@ jobs:
         working-directory: web
         run: npm ci
 
-      - name: Vitest
-        working-directory: web
-        run: npm test
-
       - name: Build publishable library
         working-directory: web
         run: npm run build:lib
+
+      - name: Vitest
+        working-directory: web
+        run: npm test
 
       - name: Pack tarball (smoke)
         working-directory: web
@@ -180,7 +171,7 @@ jobs:
 
   deploy:
     name: deploy
-    needs: [rust, python, web]
+    needs: [build, rust, python, web]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     steps:
