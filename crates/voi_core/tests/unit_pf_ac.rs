@@ -1286,14 +1286,12 @@ fn filter_birth_matches_arrival_qty_not_upl() {
     };
     let mut rng = Pcg64::seed_from_u64(99);
     filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
-    let alive: usize = bank
-        .freshness
-        .iter()
-        .map(|row| row.iter().filter(|&&f| f > 0.0).count())
-        .sum();
+    // Row length is the birth count. `f == 0` (the arrival atom) is a born unit, not
+    // a skipped birth — counting only `f > 0` fails under ADR 0144 (~2% atom).
+    let born: usize = bank.freshness.iter().map(Vec::len).sum();
     assert_eq!(
-        alive,
+        born,
         n * 8,
-        "each particle should birth 8 units, got {alive}"
+        "each particle should birth 8 units, got {born}"
     );
 }

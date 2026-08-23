@@ -1,0 +1,188 @@
+"""T-155 Modal batch map: job extraction, merge, and grid tests (no live Modal)."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from blueberries_voi.backend import rust_core as _maybe_core
+from blueberries_voi.experiments.filter_accuracy import (
+    DEFAULT_SEEDS,
+    all_channel_combos,
+    channel_from_factorial,
+    merge_channel_rows,
+    nb13_job_grid,
+    run_seed_channel,
+)
+from blueberries_voi.experiments.gsin_upc import (
+    N_REGIMES,
+    N_SEEDS,
+    REGIME_TITLES,
+    gsin_job_grid,
+    merge_gsin_diag_rows,
+)
+
+_RUST = pytest.mark.skipif(
+    _maybe_core is None,
+    reason="blueberries_voi._core not built",
+)
+
+
+def test_all_channel_combos_count() -> None:
+    combos = all_channel_combos()
+    assert len(combos) == 12
+    keys = {c.code_type for c in combos}
+    assert keys == {"upc", "gsin"}
+
+
+def test_channel_from_factorial_matches_preset_p0() -> None:
+    from blueberries_voi.filter.types import channels_for_preset
+
+    ch = channel_from_factorial("upc_only", "none", "quantity_only")
+    assert ch == channels_for_preset("P0")
+
+
+def test_nb13_job_grid_size() -> None:
+    grid = nb13_job_grid()
+    assert len(grid) == len(DEFAULT_SEEDS) * 12
+
+
+def test_nb13_job_grid_with_f3_adds_named_ladder_rung() -> None:
+    from blueberries_voi.experiments.filter_accuracy import nb13_job_grid_with_f3
+    from blueberries_voi.filter.types import channels_for_preset
+
+    grid = nb13_job_grid_with_f3()
+    assert len(grid) == len(DEFAULT_SEEDS) * 12 + len(DEFAULT_SEEDS)
+    f3 = channels_for_preset("F3")
+    extras = [ch for _seed, ch in grid[len(DEFAULT_SEEDS) * 12 :]]
+    assert extras == [f3] * len(DEFAULT_SEEDS)
+
+
+def test_merge_channel_rows_schema() -> None:
+    shards = [
+        {
+            "seed": 42,
+            "key": "code=upc|waste=0|hist=none",
+            "pos": "upc_only",
+            "waste": "none",
+            "deliveries": "quantity_only",
+            "preset": "P0",
+            "mae_f": 0.1,
+            "mean_spread": 0.2,
+        },
+        {
+            "seed": 42,
+            "key": "code=upc|waste=0|hist=none",
+            "pos": "upc_only",
+            "waste": "none",
+            "deliveries": "quantity_only",
+            "preset": "P0",
+            "mae_f": 0.1,
+            "mean_spread": 0.2,
+        },
+    ]
+    rows = merge_channel_rows(shards)
+    assert len(rows) == 1
+    row = rows[0]
+    assert set(row) == {
+        "seed",
+        "key",
+        "pos",
+        "waste",
+        "deliveries",
+        "preset",
+        "mae_f",
+        "mean_spread",
+    }
+
+
+def test_gsin_job_grid_size() -> None:
+    assert len(gsin_job_grid()) == N_REGIMES * N_SEEDS
+
+
+def test_merge_gsin_diag_rows_shape() -> None:
+    series = {
+        "day": [10, 11],
+        "truth_on_hand": [1.0, 2.0],
+        "belief_on_hand": [1.1, 2.1],
+        "truth_mean_f": [0.5, 0.6],
+        "belief_mean_f": [0.51, 0.61],
+        "ess": [100.0, 100.0],
+    }
+    shard_a = {
+        "regime": REGIME_TITLES[0],
+        "seed_index": 0,
+        "channels": [
+            {
+                "channel": "P0",
+                "metrics": {
+                    "n": 2.0,
+                    "lot_n": 4.0,
+                    "count_mae": 0.2,
+                    "count_bias": 0.02,
+                    "store_meanf_mae": 0.04,
+                    "lot_meanf_mae": 0.08,
+                    "lot_count_mae": 0.16,
+                    "tv_sum": 0.3,
+                    "ess_sum": 200.0,
+                    "eff_inv_mae": 0.5,
+                    "ms": 10.0,
+                },
+                "series": series,
+            }
+        ],
+    }
+    shard_b = {
+        "regime": REGIME_TITLES[0],
+        "seed_index": 1,
+        "channels": [
+            {
+                "channel": "P0",
+                "metrics": {
+                    "n": 2.0,
+                    "lot_n": 4.0,
+                    "count_mae": 0.4,
+                    "count_bias": 0.04,
+                    "store_meanf_mae": 0.08,
+                    "lot_meanf_mae": 0.16,
+                    "lot_count_mae": 0.32,
+                    "tv_sum": 0.6,
+                    "ess_sum": 180.0,
+                    "eff_inv_mae": 1.0,
+                    "ms": 12.0,
+                },
+                "series": series,
+            }
+        ],
+    }
+    rows = merge_gsin_diag_rows([shard_a, shard_b])
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["regime"] == REGIME_TITLES[0]
+    assert row["channel"] == "P0"
+    assert row["count_mae"] == pytest.approx(0.15)
+    assert row["series"] == series
+
+
+def test_modal_app_grid_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Construct starmap args without importing modal at collection time."""
+    pytest.importorskip("modal")
+    from blueberries_voi.experiments.filter_accuracy import nb13_job_grid
+
+    grid = nb13_job_grid()
+    args = [(seed, ch.__dict__, 3) for seed, ch in grid]
+    assert len(args) == len(DEFAULT_SEEDS) * 12
+    assert all(len(a) == 3 for a in args)
+
+
+@_RUST
+def test_run_seed_channel_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    ch = channel_from_factorial("upc_only", "none", "quantity_only")
+    out = run_seed_channel(42, ch, n_days=3)
+    assert out["seed"] == 42
+    assert out["preset"] == "P0"
+    assert out["n_days"] == 3
+    assert "mae_f" in out
+    json.dumps(out)

@@ -12,15 +12,15 @@ from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
-# T-141 implement tip (seed=1, independent per-unit gamma aging, ADR 0143).
-_T141_BASELINE: dict[str, float] = {
-    "P0": 270.0,
-    "P1": 270.0,
-    "F1": 270.0,
-    "F1s": 270.0,
-    "F2a": 270.0,
-    "F2": 270.0,
-    "B-state": 283.0,
+# T-150 f-native arrival physics (t150-f-native-arrival); damped_sw only.
+_T150_BASELINE: dict[str, float] = {
+    "P0": 86.0,
+    "P1": 86.0,
+    "F1": 106.5,
+    "F1s": 106.5,
+    "F2a": 123.0,
+    "F2": 123.0,
+    "B-state": 123.0,
 }
 
 
@@ -38,12 +38,12 @@ def test_voi_crn_gamma_arrival_baseline(rust_backend: None) -> None:
         n_score=8,
         filter_n=32,
         H=2,
-        n_rollout_paths=2,
+        n_rollout_paths=0,
         lead_time=1,
     )
     for scenario in VOI_SCENARIOS:
         got = float(profits[scenario])
-        want = _T141_BASELINE[scenario]
+        want = _T150_BASELINE[scenario]
         assert math.isclose(got, want, rel_tol=0.0, abs_tol=1e-6), (
             f"{scenario}: got {got}, want {want}"
         )

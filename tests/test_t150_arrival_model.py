@@ -77,7 +77,7 @@ def _read(path: Path) -> str:
 
 
 def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
-    """AC2.18: committed artifact moments and duration share match parquet observations."""
+    """AC2.18: artifact moments and duration share match parquet observations."""
     shipments = load_abdella_shipments(_REPO_ROOT / "data" / "abdella")
     payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
     corridor = payload["corridors"]["abdella_all"]
@@ -112,7 +112,9 @@ def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
     e_d_art = float(corridor["d_min"]) + float(corridor["delay_shape"]) * float(
         corridor["delay_scale"]
     )
-    sd_d_art = float(corridor["delay_scale"]) * math.sqrt(float(corridor["delay_shape"]))
+    sd_d_art = float(corridor["delay_scale"]) * math.sqrt(
+        float(corridor["delay_shape"])
+    )
     assert abs(e_d_art - float(np.mean(d_i))) <= 0.5, (
         f"RED: E[d] artifact {e_d_art:.3f} vs observed {float(np.mean(d_i)):.3f}"
     )
@@ -159,7 +161,9 @@ def test_ac2_6_arrival_artifact_committed_schema() -> None:
     quad = payload["quadrature"]
     assert "nodes" in quad and "weights" in quad, "RED: quadrature spec required"
     prov = _read(_PROVENANCE)
-    assert "arrival_model" in prov.lower(), "RED: PROVENANCE.md must document arrival model"
+    assert "arrival_model" in prov.lower(), (
+        "RED: PROVENANCE.md must document arrival model"
+    )
 
 
 def test_ac2_6_unknown_schema_version_rejected() -> None:
@@ -174,12 +178,14 @@ def test_ac2_6_unknown_schema_version_rejected() -> None:
 
 def test_ac2_8_calibration_note_script_and_outputs() -> None:
     """AC2.8: calibration note script reports (no fitting) with required disclosures."""
-    assert _CALIB_SCRIPT.is_file(), "RED: scripts/arrival_calibration_note.py must exist"
+    assert _CALIB_SCRIPT.is_file(), (
+        "RED: scripts/arrival_calibration_note.py must exist"
+    )
     src = _CALIB_SCRIPT.read_text(encoding="utf-8")
     assert "parquet" in src, "RED: script must read data/abdella/*.parquet"
-    assert "fit" not in src.lower() or "no fit" in src.lower() or "not fit" in src.lower(), (
-        "RED: calibration note must not perform fitting"
-    )
+    assert (
+        "fit" not in src.lower() or "no fit" in src.lower() or "not fit" in src.lower()
+    ), "RED: calibration note must not perform fitting"
 
     note_md = _REPO_ROOT / "data" / "abdella" / "calibration_note.md"
     assert note_md.is_file(), "RED: calibration_note.md must be emitted"
@@ -198,7 +204,7 @@ def test_ac2_8_calibration_note_script_and_outputs() -> None:
 
 
 def test_ac2_17_python_rust_arrival_artifact_parity() -> None:
-    """AC2.17: Python/Rust parse the same committed artifact (mirrors demand_profile parity)."""
+    """AC2.17: Python/Rust parse the same committed arrival artifact."""
     if _maybe_core is None:
         pytest.skip("blueberries_voi._core not built")
 
@@ -210,7 +216,9 @@ def test_ac2_17_python_rust_arrival_artifact_parity() -> None:
         if callable(fn):
             rust_payload = json.loads(fn(str(_ARTIFACT)))
             assert rust_payload["schema_version"] == py_payload["schema_version"]
-            assert rust_payload["gamma_scale"] == pytest.approx(py_payload["gamma_scale"])
+            assert rust_payload["gamma_scale"] == pytest.approx(
+                py_payload["gamma_scale"]
+            )
             return
     pytest.fail(
         "RED: Rust must expose arrival_model_from_json_py or parse_arrival_model_py "
@@ -262,7 +270,9 @@ def test_ac3_3_arrival_summary_includes_f_zero_atom() -> None:
     sess = _maybe_core.PyEngineSession(7)
     sess.init(7)
     snap = sess.snapshot_value()
-    summary = snap.get("arrival_summary") or snap.get("result", {}).get("arrival_summary")
+    summary = snap.get("arrival_summary") or snap.get("result", {}).get(
+        "arrival_summary"
+    )
     assert summary is not None, "RED: arrival_summary must be on snapshot wire"
     blob = json.dumps(summary)
     assert "f_zero" in blob or "f=0" in blob or "atom" in blob, (
@@ -271,15 +281,18 @@ def test_ac3_3_arrival_summary_includes_f_zero_atom() -> None:
 
 
 def test_ac3_6_recalibration_artifacts_regenerated() -> None:
-    """AC3.6: α table, VOI CRN snapshots, notebooks revisited after physics epoch."""
+    """AC3.6: alpha table, VOI CRN snapshots, notebooks after physics epoch."""
     for nb in _NOTEBOOKS:
         assert nb.is_file(), f"RED: notebook {nb.name} must exist for narrative revisit"
     assert _PHYSICS_EPOCH_MARKER.is_file(), (
         "RED: physics-epoch marker data/abdella/.t150_physics_epoch must exist "
-        "after α tuning, VOI CRN regeneration, and notebook re-run"
+        "after alpha tuning, VOI CRN regeneration, and notebook re-run"
     )
-    crn_snapshots = list(_VOI_CRN_FIXTURES.glob("**/*.json")) if _VOI_CRN_FIXTURES.is_dir() else []
-    assert crn_snapshots, "RED: VOI CRN golden fixtures must be regenerated for T-150 epoch"
+    crn_dir = _VOI_CRN_FIXTURES
+    crn_snapshots = list(crn_dir.glob("**/*.json")) if crn_dir.is_dir() else []
+    assert crn_snapshots, (
+        "RED: VOI CRN golden fixtures must be regenerated for T-150 epoch"
+    )
 
 
 def test_ac3_7_changelog_plain_english_entry() -> None:
@@ -315,9 +328,7 @@ def test_ac1_3_python_legacy_paths_allowlisted() -> None:
     )
     paths = [p for p in filter_hits.stdout.splitlines() if p]
     outside = [
-        p
-        for p in paths
-        if not any(p.startswith(prefix) for prefix in allowed_prefixes)
+        p for p in paths if not any(p.startswith(prefix) for prefix in allowed_prefixes)
     ]
     assert not outside, (
         f"RED: age_at_receipt outside Python legacy allowlist: {outside}"

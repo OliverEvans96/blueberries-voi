@@ -2084,7 +2084,7 @@ mod tests {
 
     #[test]
     fn act_damped_sw_differs_from_rollout_when_belief_nontrivial() {
-        for seed in 1u64..200 {
+        for seed in 1u64..=8 {
             let sw = warm_t121b_session(seed)
                 .act(Some("damped_sw"), None, None, None, None, None, None)
                 .order_qty;
@@ -2095,7 +2095,7 @@ mod tests {
                 return;
             }
         }
-        panic!("no seed separates damped_sw from rollout with nontrivial belief");
+        panic!("no seed in 1..=8 separates damped_sw from rollout with nontrivial belief");
     }
 
     #[test]

@@ -106,6 +106,6 @@ def test_events_does_not_advance_session_day() -> None:
 
 
 def test_wasm_worker_mentions_events() -> None:
-    worker = REPO / "packaging" / "wasm" / "worker.js"
-    if worker.exists():
-        assert "events" in worker.read_text(encoding="utf-8")
+    worker = REPO / "web" / "src" / "engine" / "wasmWorker.ts"
+    assert worker.is_file(), "wasmWorker.ts is the canonical browser RPC host (T-144)"
+    assert "events" in worker.read_text(encoding="utf-8")

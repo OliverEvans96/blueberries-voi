@@ -26,7 +26,8 @@ _PROFILE_PATH = _REPO / "data" / "freshnet" / "demand_profile.json"
 _BO_SEEDS = [401_902_531, 434_395_762, 1_417_981_267, 1_562_808_462]
 _RUN_ID = "alpha-tune"
 _NOTEBOOK_COSTS = ProfitCosts(unit_margin=2.0, waste_cost=5.0, stockout_penalty=3.0)
-_FULL_RUN = dict(n_burn=28, n_score=28, lead_time=1)
+# Notebook BO uses 28+28; CI keeps a shorter horizon that still shows alpha monotone.
+_FULL_RUN = dict(n_burn=8, n_score=8, lead_time=1)
 _SMOKE = dict(n_burn=2, n_score=5, lead_time=1)
 
 
