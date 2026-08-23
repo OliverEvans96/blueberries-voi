@@ -156,8 +156,38 @@ src/blueberries_voi/   # installable package + CLI
 tests/                 # mirrors package modules (test_<module>.py)
 notebooks/             # exploration; import the package
 scripts/               # helpers (e.g. refresh-testmon.sh)
+web/                   # browser studio + publishable embed (dist-lib)
 .team/                 # intake, specs, ADRs, reviews, qa, changelog
 ```
+
+## Studio embed releases
+
+The browser embed (`@oliverevans96/blueberries-voi-studio`, `web/package.json`)
+is published to GitHub Releases. **Bump `web/package.json` `version` in the same
+PR** whenever you change code that alters the published `dist-lib` output.
+
+| Change type | Version bump |
+|-------------|--------------|
+| Bugfix / bundle fix | **patch** |
+| New feature, non-breaking embed API | **minor** |
+| Breaking embed API | **major** |
+
+**Publishable paths** — CI fails if any of these change vs merge-base without a
+strictly higher semver:
+
+- `web/src/`, `web/vite.lib.config.ts`, `web/scripts/`
+- `crates/voi_core/`, `crates/voi_wasm/`
+- `scripts/build-wasm.sh`
+
+Guard: `tests/test_studio_release_version.py` (Python CI job).
+
+**Workflow edits:** change `packaging/github-workflows/release-studio.yml` only;
+never edit live `.github/workflows/`. Ask a human to sync after merge.
+
+On `main`, CI auto-republishes `studio-latest` and cuts `studio-v{version}` when
+that tag is absent. Do not skip the version bump because only `studio-latest` moves
+— downstream consumers pin immutable `studio-v*` tags. See `EMBEDDING.md` and
+`README.md` (Studio embed releases).
 
 ## agent-dev-team state
 
@@ -176,6 +206,8 @@ done. Definition of done: acceptance criteria pass · `.team/reviews/` APPROVED 
 - Don't skip architect → qa → implement → reviewer → verifier for feature work.
 - Don't rely on testmon deselection for verify/CI coverage; don't commit
   testmon WAL/SHM sidecars.
+- Don't change publishable studio paths without bumping `web/package.json`
+  `version` in the same PR.
 
 ## CI
 
@@ -200,4 +232,4 @@ not a different local default. Prefer library code over notebook-only logic. Nev
 "fix" failures by weakening configuration. Use the role gate ladder — do not
 run full coverage on every qa/implement loop. Use `--testmon` for implement
 speed; refresh the LFS seed without `--cov`; never let testmon shrink the
-verify/CI gate.**
+verify/CI gate. Bump `web/package.json` when publishable studio paths change.**
