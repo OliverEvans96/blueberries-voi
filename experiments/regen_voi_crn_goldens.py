@@ -23,7 +23,7 @@ BUDGETS = {
     "n_score": 8,
     "filter_n": 32,
     "H": 2,
-    "n_rollout_paths": 2,
+    "n_rollout_paths": 0,
     "lead_time": 1,
 }
 SEEDS = (1, 42)
@@ -54,16 +54,27 @@ def _patch_test_t139(primary: dict[str, float]) -> None:
         lines.append(f'    "{name}": {primary[name]:.1f},')
     block = "\n".join(lines) + "\n}\n"
     text = TEST_T139.read_text(encoding="utf-8")
-    new_text, n = re.subn(
+    patterns = [
         r"# T-141 implement tip.*?\n_T141_BASELINE: dict\[str, float\] = \{.*?\n\}\n",
-        f"# T-150 f-native arrival physics ({PHYSICS_EPOCH}).\n{block}",
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if n != 1:
+        r"# T-150 f-native arrival physics.*?\n_T150_BASELINE: dict\[str, float\] = \{.*?\n\}\n",
+    ]
+    new_text = text
+    patched = 0
+    for pat in patterns:
+        new_text, n = re.subn(
+            pat,
+            f"# T-150 f-native arrival physics ({PHYSICS_EPOCH}); damped_sw only.\n{block}",
+            new_text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        patched += n
+        if n == 1:
+            break
+    if patched != 1:
         raise RuntimeError("could not patch test_t139 baseline block")
     new_text = new_text.replace("_T141_BASELINE[scenario]", "_T150_BASELINE[scenario]")
+    new_text = re.sub(r"n_rollout_paths=\d+", "n_rollout_paths=0", new_text, count=1)
     TEST_T139.write_text(new_text, encoding="utf-8")
 
 
@@ -81,7 +92,7 @@ def main() -> None:
             "physics_epoch": PHYSICS_EPOCH,
             "generated_from_commit": _git_head(),
             "alpha_note": (
-                "run_voi_crn_cell smoke default alpha=0.9; "
+                "damped_sw only (n_rollout_paths=0); default alpha=0.9; "
                 "tuned_alpha.json optional (see regen_tuned_alpha.py)"
             ),
             "budgets": {**BUDGETS, "root_seed": seed, "shipments": "default_shipments"},
