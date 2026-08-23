@@ -200,7 +200,7 @@ describe("renderSalesDemand forecast overlay", () => {
     expect(labels).toContain("p10–p90");
   });
 
-  it("anchors forecast on last history day when episode cursor is ahead", () => {
+  it("anchors forecast and today marker on last history day when episode cursor is ahead", () => {
     const history = [
       sampleDay(0, 5, 10),
       sampleDay(1, 8, 12),
@@ -213,7 +213,7 @@ describe("renderSalesDemand forecast overlay", () => {
     expect(forecast[0]!.day).toBe(history[history.length - 1]!.day);
 
     const el = host();
-    renderSalesDemand(el, history, 130, forecast, episodeDay);
+    renderSalesDemand(el, history, 130, forecast);
 
     const historyDays = history.map((d) => d.day);
     const forecastDays = forecast.map((r) => r.day);
@@ -224,6 +224,7 @@ describe("renderSalesDemand forecast overlay", () => {
     expect(firstForecastX).toBeCloseTo(lastHistoryX, 4);
 
     const todayX = Number(el.querySelector(".sd-forecast-today")?.getAttribute("x1"));
-    expect(todayX).toBeCloseTo(salesDemandX(allDays, innerW, episodeDay), 4);
+    expect(todayX).toBeCloseTo(firstForecastX, 4);
+    expect(todayX).not.toBeCloseTo(salesDemandX(allDays, innerW, episodeDay), 4);
   });
 });

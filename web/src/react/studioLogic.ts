@@ -983,7 +983,6 @@ export function initStudio(app: HTMLElement): () => void {
             vm.demand_summary,
             vm.config.demand_vm,
           ),
-          vm.episode_day,
         ),
       );
       renderCockpitBelief();
