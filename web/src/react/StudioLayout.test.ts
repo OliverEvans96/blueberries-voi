@@ -33,8 +33,10 @@ const REQUIRED_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
+  "chart-spoil",
   "chart-inventory-focus",
-  "chart-orders-waste-focus",
+  "chart-controller-orders-focus",
+  "chart-spoil-focus",
 ] as const;
 
 function stripComments(src: string): string {
@@ -84,8 +86,20 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(metrics!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(metrics!.querySelector("#chart-inventory")).not.toBeNull();
     expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-spoil")).toBeNull();
+    const impactRow = metrics!.querySelector(".impact-row");
+    expect(impactRow).not.toBeNull();
+    const totals = metrics!.querySelector("#pnl-totals-host");
+    expect(
+      totals!.compareDocumentPosition(impactRow!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      impactRow!.compareDocumentPosition(
+        metrics!.querySelector("#chart-pnl-economics")!,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("belief column hosts tradeoff charts and operator bar", () => {
@@ -151,6 +165,9 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     ).not.toBeNull();
     expect(
       container.querySelector('.focus-plot[data-plot="plot-controller-orders"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-spoil"]'),
     ).not.toBeNull();
   });
 

@@ -67,7 +67,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     label: "Autopilot",
     blurb:
       "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
-    plotIds: ["plot-controller-orders", "plot-inventory"],
+    plotIds: ["plot-controller-orders", "plot-spoil", "plot-inventory"],
     controlSection: "autopilot",
   },
 ];

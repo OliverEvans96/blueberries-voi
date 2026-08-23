@@ -42,7 +42,9 @@ import {
 import {
   marginalYMax,
   renderMarginal,
+  renderWasteBars,
   setMarginalHover,
+  setWasteBarsHover,
 } from "../charts/marginals";
 import {
   renderDailyDemand,
@@ -60,8 +62,8 @@ import {
   setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
-  renderOrdersWaste,
-  setOrdersWasteHover,
+  renderControllerOrders,
+  setControllerOrdersHover,
 } from "../charts/controllerOrders";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
@@ -256,7 +258,9 @@ export function initStudio(app: HTMLElement): () => void {
     arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
     gammaPath: q<HTMLElement>("#chart-gamma-path")!,
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    ordersWasteFocus: q<HTMLElement>("#chart-orders-waste-focus")!,
+    spoil: q<HTMLElement>("#chart-spoil")!,
+    controllerOrdersFocus: q<HTMLElement>("#chart-controller-orders-focus")!,
+    spoilFocus: q<HTMLElement>("#chart-spoil-focus")!,
     inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
     pickingVar: q<HTMLElement>("#picking-var-chart")!,
     tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
@@ -595,8 +599,10 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setOrdersWasteHover(els.controllerOrders, day);
-    setOrdersWasteHover(els.ordersWasteFocus, day);
+    setControllerOrdersHover(els.controllerOrders, day);
+    setControllerOrdersHover(els.controllerOrdersFocus, day);
+    setWasteBarsHover(els.spoil, day);
+    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
     setInventoryTargetHover(els.inventoryFocus, day);
@@ -685,7 +691,8 @@ export function initStudio(app: HTMLElement): () => void {
       ? inventorySeries(vm.history, vm.config)
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
     renderInventoryTarget(els.inventory, vm.history, vm.config, METRICS_STRIP_HEIGHT, invSeries);
-    renderOrdersWaste(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT);
+    renderControllerOrders(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT);
+    renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT);
     const ageRows = showTruth
       ? ageCompositionSeries(vm.history)
       : ageCompositionSeriesFromBelief(vm.belief_history);
@@ -761,7 +768,14 @@ export function initStudio(app: HTMLElement): () => void {
       renderGammaFreshnessPath(els.gammaPath, vm.config, 170);
     }
     if (plotVisible("plot-controller-orders")) {
-      renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT);
+      renderControllerOrders(
+        els.controllerOrdersFocus,
+        vm.history,
+        FOCUS_CHART_HEIGHT,
+      );
+    }
+    if (plotVisible("plot-spoil")) {
+      renderWasteBars(els.spoilFocus, vm.history, FOCUS_CHART_HEIGHT);
     }
   }
 
