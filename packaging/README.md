@@ -48,5 +48,13 @@ GitHub Actions.
 **Retired:** slim Python wheel release workflow (ADR 0129; studio is WASM-only).
 
 **Prod studio tarball:** after the studio release workflow is live, releases run
-only after **CI** succeeds on `main`. Pushes rebuild the moving tag
-`studio-latest` (see EMBEDDING.md). Immutable pins use `studio-v*` tags.
+only after **CI** succeeds on `main`. Each green run rebuilds the moving tag
+`studio-latest` (versioned tgz + `-latest.tgz` alias; see EMBEDDING.md). The
+same run auto-cuts **`studio-v{version}`** when that tag is absent (versioned
+tgz only, `make_latest: false`). Manual immutable pins use `studio-v*` tag
+pushes.
+
+**Version policy:** bump `web/package.json` semver whenever publishable studio
+paths change (`web/src/`, `web/vite.lib.config.ts`, `web/scripts/`,
+`crates/voi_core/`, `crates/voi_wasm/`, `scripts/build-wasm.sh`). Guard:
+`tests/test_studio_release_version.py`.
