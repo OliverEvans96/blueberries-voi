@@ -21,7 +21,7 @@ Four jobs start in parallel; only **rust** waits on **build**:
 | `build` | — | maturin wheel, WASM; upload `ci-rust-wasm-build` |
 | `rust` | `build` | download `target/`; `cargo test` (prebuilt) |
 | `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage |
-| `web` | — | `build-wasm.sh`; vitest, `build:lib`, `npm pack` smoke |
+| `web` | — | `build-wasm.sh`, `build:lib`, vitest, `npm pack` smoke |
 
 On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, and
 `web` succeed (production `npm run build` + dist artifact; WASM from `build`).
