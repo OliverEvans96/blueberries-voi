@@ -1,8 +1,11 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
   formatTempC,
   lotColor,
   LOT_COLORS,
+  renderDeliveryTempHistorySvg,
+  renderDeliveryTempMultiLot,
   tempSummaryFromTrace,
   tracesFromEvent,
 } from "./deliveryTempChart";
@@ -103,5 +106,74 @@ describe("lotColor", () => {
   it("cycles through LOT_COLORS", () => {
     expect(lotColor(0)).toBe(LOT_COLORS[0]);
     expect(lotColor(LOT_COLORS.length)).toBe(LOT_COLORS[0]);
+  });
+});
+
+describe("renderDeliveryTempHistorySvg", () => {
+  it("renders axis lines and temperature-colored segments", () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    renderDeliveryTempHistorySvg(svg, [
+      { t: -3, temp: 1 },
+      { t: -2, temp: 3 },
+      { t: -1, temp: 5 },
+      { t: 0, temp: 2 },
+    ]);
+    expect(svg.querySelector(".delivery-temp-axis-x")).not.toBeNull();
+    expect(svg.querySelector(".delivery-temp-axis-y")).not.toBeNull();
+    const segments = svg.querySelectorAll(".delivery-temp-segment");
+    expect(segments.length).toBeGreaterThan(0);
+    const strokes = new Set(
+      Array.from(segments).map((el) => el.getAttribute("stroke")),
+    );
+    expect(strokes.size).toBeGreaterThan(1);
+  });
+});
+
+describe("renderDeliveryTempMultiLot", () => {
+  const sampleTraces = [
+    {
+      lotId: 301,
+      times_d: [-3, -2, -1, 0],
+      temps_c: [2, 2.2, 2.4, 2.6],
+    },
+    {
+      lotId: 302,
+      times_d: [-3, -2, -1, 0],
+      temps_c: [2.5, 2.7, 2.9, 3.1],
+    },
+  ];
+
+  it("defaults height to 36", () => {
+    const host = document.createElement("div");
+    Object.defineProperty(host, "clientWidth", { value: 280, configurable: true });
+    renderDeliveryTempMultiLot(host, sampleTraces);
+    expect(host.querySelector("svg")?.getAttribute("viewBox")).toMatch(/ 36$/);
+  });
+
+  it("renders axis lines and temperature-colored segments per lot", () => {
+    const host = document.createElement("div");
+    Object.defineProperty(host, "clientWidth", { value: 280, configurable: true });
+    renderDeliveryTempMultiLot(host, sampleTraces);
+    const svg = host.querySelector("svg");
+    expect(svg?.querySelector(".delivery-temp-axis-x")).not.toBeNull();
+    expect(svg?.querySelector(".delivery-temp-axis-y")).not.toBeNull();
+    const segments = svg?.querySelectorAll(".delivery-temp-segment") ?? [];
+    expect(segments.length).toBeGreaterThan(0);
+    const strokes = new Set(
+      Array.from(segments).map((el) => el.getAttribute("stroke")),
+    );
+    expect(strokes.size).toBeGreaterThan(1);
+    expect(svg?.querySelectorAll('[data-lot="301"]').length).toBeGreaterThan(0);
+    expect(svg?.querySelectorAll('[data-lot="302"]').length).toBeGreaterThan(0);
+  });
+
+  it("keeps lot-colored legend swatches for multi-lot traces", () => {
+    const host = document.createElement("div");
+    Object.defineProperty(host, "clientWidth", { value: 280, configurable: true });
+    renderDeliveryTempMultiLot(host, sampleTraces);
+    const legendLines = host.querySelectorAll(".delivery-temp-legend line");
+    expect(legendLines.length).toBe(2);
+    expect(legendLines[0]?.getAttribute("stroke")).toBe(LOT_COLORS[0]);
+    expect(legendLines[1]?.getAttribute("stroke")).toBe(LOT_COLORS[1]);
   });
 });

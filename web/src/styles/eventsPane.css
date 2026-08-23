@@ -196,7 +196,7 @@
 
 .events-temp-chart-host {
   width: 100%;
-  min-height: 72px;
+  min-height: 36px;
 }
 
 .events-temp-chart-host svg {
