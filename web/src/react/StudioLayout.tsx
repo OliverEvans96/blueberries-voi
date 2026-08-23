@@ -492,6 +492,7 @@ export function StudioLayout() {
       >
         <div id="studio-loading-host" data-testid="studio-loading-host" />
         <div id="reference-drawer-host" data-testid="reference-drawer-host" />
+        <div id="day-inspector-host" data-testid="day-inspector-host" />
       </div>
     </div>
   );

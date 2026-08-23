@@ -224,6 +224,15 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     ).not.toBeNull();
   });
 
+  it("mounts day inspector host in portal root", () => {
+    const { container } = render(createElement(StudioLayout));
+    expect(
+      container.querySelector(
+        ".bv-studio-portal-root #day-inspector-host[data-testid='day-inspector-host']",
+      ),
+    ).not.toBeNull();
+  });
+
   it("mounts studio loading dialog host in portal root (T-149)", () => {
     const { container } = render(createElement(StudioLayout));
     expect(

@@ -522,13 +522,8 @@ export function initStudio(app: HTMLElement): () => void {
       );
     });
   }
-  let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
-  if (!dayInspectorPortal) {
-    dayInspectorPortal = document.createElement("div");
-    dayInspectorPortal.id = "day-inspector-portal";
-    app.appendChild(dayInspectorPortal);
-  }
-  const dayInspectorRoot = createRoot(dayInspectorPortal);
+  const dayInspectorHost = q<HTMLElement>("#day-inspector-host");
+  const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
 
   function renderTradeoffBeliefColumn(): void {
     profileSync(`renderTradeoff.${tradeoffTab}`, () => {
@@ -679,6 +674,7 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function renderDayInspector(): void {
+    if (!dayInspectorRoot) return;
     profileSync("renderDayInspector", () => {
       dayInspectorRoot.render(
         createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
