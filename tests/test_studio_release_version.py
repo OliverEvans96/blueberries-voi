@@ -68,9 +68,8 @@ def _read_package_version_at(ref: str) -> str:
 def _changed_paths_vs_base(base_ref: str) -> list[str]:
     result = _run_git("diff", "--name-only", f"{base_ref}...HEAD")
     if result.returncode != 0:
-        pytest.skip(
-            f"cannot diff {base_ref}...HEAD: {result.stderr.strip() or result.stdout.strip()}"
-        )
+        detail = result.stderr.strip() or result.stdout.strip()
+        pytest.skip(f"cannot diff {base_ref}...HEAD: {detail}")
     return [line for line in result.stdout.splitlines() if line]
 
 
