@@ -12,9 +12,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PACKAGE_JSON = _REPO_ROOT / "web" / "package.json"
-_RELEASE_WORKFLOW = (
-    _REPO_ROOT / "packaging" / "github-workflows" / "release-studio.yml"
-)
+_RELEASE_WORKFLOW = _REPO_ROOT / "packaging" / "github-workflows" / "release-studio.yml"
 
 _PUBLISHABLE_PREFIXES: tuple[str, ...] = (
     "web/src/",
@@ -111,12 +109,12 @@ def test_release_workflow_auto_creates_studio_v_on_workflow_run() -> None:
     text = _RELEASE_WORKFLOW.read_text(encoding="utf-8")
     assert "studio-v" in text
     assert "workflow_run" in text
-    assert re.search(
-        r"studio-v\$\{\{\s*steps\.pkg\.outputs\.version\s*\}\}", text
-    ), "expected studio-v${{ steps.pkg.outputs.version }} tag pattern"
-    assert re.search(
-        r"exists\s*==\s*['\"]false['\"]", text
-    ), "expected guard that skips when studio-v tag already exists"
+    assert re.search(r"studio-v\$\{\{\s*steps\.pkg\.outputs\.version\s*\}\}", text), (
+        "expected studio-v${{ steps.pkg.outputs.version }} tag pattern"
+    )
+    assert re.search(r"exists\s*==\s*['\"]false['\"]", text), (
+        "expected guard that skips when studio-v tag already exists"
+    )
 
 
 def test_studio_v_releases_attach_versioned_tarball_only() -> None:
