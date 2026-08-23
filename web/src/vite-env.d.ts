@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_WASM_WORKER_URL?: string;
   readonly VITE_WASM_PKG_URL?: string;
   readonly VITE_WASM_ASSET_BASE_URL?: string;
+  readonly VITE_STUDIO_VERSION?: string;
 }
 
 interface ImportMeta {
