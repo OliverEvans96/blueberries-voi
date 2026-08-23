@@ -216,7 +216,9 @@ fn run_scenario_episode(
             None,
             1.0,
         );
-        let order = if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
+        let order = if budgets.n_rollout_paths == 0 {
+            base_q
+        } else if oracle && lot_counts.iter().any(|&n| n > 0.0) || !oracle {
             let schedule = OrderSchedule {
                 lead_time_days: budgets.lead_time,
                 ..OrderSchedule::default()
@@ -233,7 +235,7 @@ fn run_scenario_episode(
                 shipments: shipments.to_vec(),
                 f_pipeline_default: 1.0,
                 h: budgets.h.max(1),
-                n_paths: budgets.n_rollout_paths.max(1),
+                n_paths: budgets.n_rollout_paths,
                 radius: budgets.candidate_case_radius,
             };
             rollout_order(
@@ -494,6 +496,34 @@ mod tests {
         assert!(f2.sales_by_lot && f2.waste_by_lot && f2.arrival_lot_ids);
         assert!(p1.waste_total && !p1.sales_by_lot);
 
+    }
+
+    #[test]
+    fn n_rollout_paths_zero_skips_rollout() {
+        let ships = [ShipmentTrace::smoke_cool()];
+        let narrow = CrnBudgets {
+            n_burn: 1,
+            n_score: 1,
+            filter_n: 8,
+            h: 1,
+            n_rollout_paths: 0,
+            lead_time: 1,
+            alpha: 0.9,
+            candidate_case_radius: 0,
+        };
+        let wide = CrnBudgets {
+            n_burn: 1,
+            n_score: 1,
+            filter_n: 8,
+            h: 1,
+            n_rollout_paths: 0,
+            lead_time: 1,
+            alpha: 0.9,
+            candidate_case_radius: 2,
+        };
+        let a = run_voi_crn_cell(2.0, 42, &ships, &narrow, &["P1"], None);
+        let b = run_voi_crn_cell(2.0, 42, &ships, &wide, &["P1"], None);
+        assert_eq!(a, b, "radius must not matter when rollout is disabled");
     }
 
     #[test]
