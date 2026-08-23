@@ -14,21 +14,17 @@ Use real file copies:
 
 ## CI layout (`ci.yml`)
 
-One **build** job compiles Rust (native + PyO3 wheel), WASM (`build-wasm.sh`), and
-runs `cargo test` once. It uploads `ci-rust-wasm-build` (target/, WASM pkg dirs,
-`dist/wheels/`).
+Four jobs start in parallel; only **rust** waits on **build**:
 
-Three parallel test jobs consume that artifact:
+| Job | Waits on | What |
+|-----|----------|------|
+| `build` | — | maturin wheel, WASM; upload `ci-rust-wasm-build` |
+| `rust` | `build` | download `target/`; `cargo test` (prebuilt) |
+| `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage |
+| `web` | — | `build-wasm.sh`; vitest, `build:lib`, `npm pack` smoke |
 
-| Job | What |
-|-----|------|
-| `build` | maturin wheel, WASM, `cargo test`; upload artifacts |
-| `rust` | download `target/`; `cargo test` (prebuilt) |
-| `python` | `uv sync`, `maturin develop` with shared `target/; ruff, mypy, pytest+coverage |
-| `web` | prebuilt WASM; vitest, `build:lib`, `npm pack` smoke |
-
-On **main/master** pushes only, `deploy` runs after all three test jobs succeed
-(production `npm run build` + dist artifact; WASM from CI artifact).
+On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, and
+`web` succeed (production `npm run build` + dist artifact; WASM from `build`).
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 
