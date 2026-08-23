@@ -1,7 +1,7 @@
 /**
  * Events pane — last 5 days with Delivered | Sold | Spoiled columns (T-148 layout v6).
  */
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { renderDeliveryTempMultiLot } from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
 import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
@@ -124,7 +124,7 @@ function DeliveryTempChart({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const traces =

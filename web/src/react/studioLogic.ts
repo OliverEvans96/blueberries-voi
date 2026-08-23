@@ -233,6 +233,7 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsLoading = false;
   let eventsRefreshing = false;
   let lastEventsKey = "";
+  let frameGen = 0;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -345,19 +346,21 @@ export function initStudio(app: HTMLElement): () => void {
 
   renderLoadingDialog();
 
-  async function fetchTradeoffForecast(): Promise<void> {
+  async function fetchTradeoffForecast(gen: number): Promise<void> {
     if (typeof adapter.tradeoffForecast !== "function") return;
     try {
       const result = (await adapter.tradeoffForecast({
         n_paths: TRADEOFF_FORECAST_N_PATHS,
       })) as TradeoffForecastResult;
+      if (gen !== frameGen) return;
       tradeoffForecasts = result.candidates ?? [];
     } catch {
+      if (gen !== frameGen) return;
       tradeoffForecasts = [];
     }
   }
 
-  async function fetchEvents(): Promise<void> {
+  async function fetchEvents(gen: number): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
     const sinceDay = Math.max(1, vm.episode_day - 5);
     const key = `${vm.episode_day}:${channelsCacheKey(vm.config.obs_channels)}:${sinceDay}`;
@@ -368,17 +371,25 @@ export function initStudio(app: HTMLElement): () => void {
     } else {
       eventsRefreshing = true;
     }
-    renderEventsPane();
     try {
       const result = await adapter.events({ since_day: sinceDay });
+      if (gen !== frameGen) return;
       eventDays = result.days ?? [];
     } catch {
+      if (gen !== frameGen) return;
       if (eventDays.length === 0) eventDays = [];
     } finally {
+      if (gen !== frameGen) return;
       eventsLoading = false;
       eventsRefreshing = false;
-      renderEventsPane();
     }
+  }
+
+  async function commitFrame(): Promise<void> {
+    const gen = ++frameGen;
+    await Promise.all([fetchTradeoffForecast(gen), fetchEvents(gen)]);
+    if (gen !== frameGen) return;
+    renderAll();
   }
 
   function renderMetricsPane(): void {
@@ -919,16 +930,6 @@ export function initStudio(app: HTMLElement): () => void {
     });
   }
 
-  async function refreshRemotePanes(): Promise<void> {
-    await profileAsync("fetchTradeoffForecast", () => fetchTradeoffForecast());
-    await profileAsync("fetchEvents", () => fetchEvents());
-    profileSync("refreshRemotePanes.paint", () => {
-      renderReferenceDrawer();
-      renderTradeoffBeliefColumn();
-      renderMetricsPane();
-    });
-  }
-
   function wireDemandPreview(): void {
     const slider = q<HTMLInputElement>("#demand_mu");
     if (!slider || slider.dataset.previewBound === "1") return;
@@ -962,8 +963,7 @@ export function initStudio(app: HTMLElement): () => void {
         vm = { ...vm, episode_day: completed + 1 };
       }
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Advance failed: ${formatAdapterError(err)}`,
@@ -989,8 +989,7 @@ export function initStudio(app: HTMLElement): () => void {
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
@@ -1013,7 +1012,7 @@ export function initStudio(app: HTMLElement): () => void {
       }
       return adapter.act(opts);
     },
-    applyDelta(delta) {
+    applyDelta: async (delta) => {
       // Sync order slider before renderAll so chrome matches day.order_qty (T-100 AC).
       const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
       if (typeof q === "number") {
@@ -1026,8 +1025,7 @@ export function initStudio(app: HTMLElement): () => void {
         autopilot.pause();
       }
       onHoverDay(null, null, null);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     },
     getOpts: controllerToActOpts,
     getIntervalMs: () => controllerState.intervalMs,
@@ -1040,15 +1038,7 @@ export function initStudio(app: HTMLElement): () => void {
       );
       syncAutopilotChrome();
     },
-    onTick(delta) {
-      const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
-      if (typeof q === "number") {
-        orderQty = snapOrder(q);
-        sectionControlsApi?.update(controlsFromVm(vm, orderQty, schedule));
-        renderReferenceDrawer();
-        renderTradeoffBeliefColumn();
-        renderOperatorBar();
-      }
+    onTick(_delta) {
       // Loop may pause for config_dirty after this callback returns.
       queueMicrotask(syncAutopilotChrome);
     },
@@ -1135,8 +1125,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       sectionControlsApi.update(controlsState());
       lastEventsKey = "";
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
       return;
     }
     const resumeAfter = autopilot.isRunning();
@@ -1153,8 +1142,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.patchEngineState(snap);
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_channels failed: ${formatAdapterError(err)}`,
@@ -1238,8 +1226,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       setSection(activeSection);
-      renderAll();
-      void refreshRemotePanes();
+      await commitFrame();
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
