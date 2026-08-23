@@ -52,8 +52,8 @@ describe("belief column tradeoff toggle wiring (T-151 E)", () => {
     expect(logicSrc).toMatch(/renderTradeoffHistogram\(\s*els\.tradeoffHistogram/);
   });
 
-  it("fetchTradeoffForecast uses display-only TRADEOFF_FORECAST_N_PATHS=30", () => {
-    expect(logicSrc).toMatch(/TRADEOFF_FORECAST_N_PATHS\s*=\s*30/);
+  it("fetchTradeoffForecast uses display-only TRADEOFF_FORECAST_N_PATHS=20", () => {
+    expect(logicSrc).toMatch(/TRADEOFF_FORECAST_N_PATHS\s*=\s*20/);
     expect(logicSrc).toMatch(/n_paths:\s*TRADEOFF_FORECAST_N_PATHS/);
     expect(logicSrc).not.toMatch(/n_paths:\s*200/);
   });

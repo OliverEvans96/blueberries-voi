@@ -152,7 +152,7 @@ export {
 };
 
 /** Display-only tradeoff bands; does not affect act/step_n (ADR 0130). */
-const TRADEOFF_FORECAST_N_PATHS = 30;
+const TRADEOFF_FORECAST_N_PATHS = 20;
 
 /** Set by initStudio — profile one full Advance (await remote panes). */
 let studioAdvanceOnce: (() => Promise<void>) | null = null;
