@@ -124,7 +124,7 @@ export type ControllerControlsState = {
 
 /** ADR 0099 dialed browser budgets + CTL-01 defaults. */
 export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
-  policy: "rollout",
+  policy: "damped_sw",
   alpha: 0.9,
   rho: 0.8,
   H: 7,

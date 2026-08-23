@@ -1,10 +1,10 @@
 /**
  * Events pane — last 5 days with Delivered | Sold | Spoiled columns (T-148 layout v6).
  */
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { renderDeliveryTempMultiLot } from "../charts/deliveryTempChart";
 import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
-import { weekdayMonday0 } from "../calendar/nextOrderAdvance";
+import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
 
@@ -124,7 +124,7 @@ function DeliveryTempChart({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const traces =
@@ -249,7 +249,9 @@ export function EventsPane({
             >
               {index > 0 ? <hr className="events-day-divider" /> : null}
               <header className="events-day-header">
-                <h3 className="events-day-heading">Day {day}</h3>
+                <h3 className="events-day-heading">
+                  {schedule ? `${weekdayLabel(day, schedule)} ` : ""}Day {day}
+                </h3>
                 <div className="events-day-markers">
                   {deliveryDay ? (
                     <span className="events-day-marker events-day-marker--delivery">

@@ -159,8 +159,8 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']rho["'][\s\S]*type="range"/);
   });
 
-  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to rollout (T-130)", () => {
-    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("rollout");
+  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to damped_sw", () => {
+    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("damped_sw");
   });
 
   it("controlsFromVm passes demand_summary for projected-demand preview", () => {

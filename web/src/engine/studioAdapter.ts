@@ -54,15 +54,20 @@ export function resolveLocalStudioDefaults(): LocalStudioDefaults {
   };
 }
 
+/** `@oliverevans96/blueberries-voi-studio` version from `web/package.json` (Vite define). */
+export const STUDIO_PACKAGE_VERSION =
+  import.meta.env.VITE_STUDIO_VERSION ?? "dev";
+
 /**
  * Footer copy for the resolved adapter kind.
  * Live WASM must not claim fake or mock data (T-074 / T-125).
  */
 export function studioFooterCopy(kind: StudioAdapterKind): string {
+  const pkgLabel = `blueberries-voi ${STUDIO_PACKAGE_VERSION}`;
   if (kind === "wasm") {
-    return "Live WASM studio · blueberries-voi · D3 + Vite";
+    return `Live WASM studio · ${pkgLabel} · D3 + Vite`;
   }
-  return "Mock debug studio · blueberries-voi · D3 + Vite";
+  return `Mock debug studio · ${pkgLabel} · D3 + Vite`;
 }
 
 /** Minimal element-like surface for vitest (node) and the browser DOM. */
