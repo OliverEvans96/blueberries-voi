@@ -30,6 +30,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -40,10 +45,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python tooling (maturin)
+      - name: Install maturin (rust extra only)
         run: |
           uv venv --python 3.11
-          uv sync --all-extras --python 3.11 --frozen
+          uv sync --extra rust --python 3.11 --frozen
 
       - name: Build PyO3 extension wheel
         run: >-
@@ -54,8 +59,8 @@ jobs:
       - name: Build WASM kernel
         run: ./scripts/build-wasm.sh
 
-      - name: Cargo build (release, shared with rust test job)
-        run: cargo build --release -p voi_core -p voi_py --locked
+      - name: Prebuild release test binaries
+        run: cargo test --release -p voi_core -p voi_py --locked --no-run
 
       - name: Upload Rust/WASM build artifacts
         uses: actions/upload-artifact@v4
@@ -79,6 +84,12 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -145,6 +156,12 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
 
       - name: Build WASM kernel
         run: ./scripts/build-wasm.sh
