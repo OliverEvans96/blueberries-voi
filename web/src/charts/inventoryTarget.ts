@@ -405,11 +405,15 @@ export function renderFreshnessComposition(
     .order(d3.stackOrderNone)
     .offset(d3.stackOffsetNone);
   const series = stack(rows);
+  const bandClassByKey = new Map(bands.map((b) => [b.key, b.cls]));
 
   g.selectAll(".freshness-series")
     .data(series)
     .join("g")
-    .attr("class", (d) => `freshness-series freshness-${d.key}`)
+    .attr(
+      "class",
+      (d) => `freshness-series ${bandClassByKey.get(d.key as (typeof bands)[number]["key"]) ?? ""}`,
+    )
     .selectAll("rect")
     .data((d) => d)
     .join("rect")

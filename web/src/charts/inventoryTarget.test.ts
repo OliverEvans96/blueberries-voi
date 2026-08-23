@@ -389,6 +389,23 @@ describe("renderFreshnessComposition freshness legend (T-148)", () => {
     expect(labels).toEqual(["fresh", "fair", "old"]);
   });
 
+  it("applies freshness-young / freshness-mid / freshness-old classes to stacked bar series", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    inv.renderFreshnessComposition(container, [LOT_DAY], 100);
+    const seriesClasses = Array.from(
+      container.querySelectorAll(".freshness-series"),
+    ).map((el) => el.getAttribute("class")?.trim());
+    expect(seriesClasses).toEqual([
+      "freshness-series freshness-young",
+      "freshness-series freshness-mid",
+      "freshness-series freshness-old",
+    ]);
+  });
+
   it("uses fresh / fair / old band labels for both truth and belief data rows (T-151 regression: labels must not revert to fraction-threshold wording when the truth overlay supplies rows)", () => {
     function labelsFor(rowsOverride: FreshnessRow[]): (string | undefined)[] {
       const container = document.createElement("div");
