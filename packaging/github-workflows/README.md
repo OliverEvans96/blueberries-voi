@@ -18,8 +18,8 @@ Four jobs start in parallel; only **rust** waits on **build**:
 
 | Job | Waits on | What |
 |-----|----------|------|
-| `build` | — | maturin wheel, WASM; upload `ci-rust-wasm-build` |
-| `rust` | `build` | download `target/`; `cargo test` (prebuilt) |
+| `build` | — | maturin wheel (`--release`), WASM (`--release`), `cargo build --release`; upload `ci-rust-wasm-build` |
+| `rust` | `build` | download `target/`; `cargo test --release` (reuses release artifacts) |
 | `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage |
 | `web` | — | `build-wasm.sh`, `build:lib`, vitest, `npm pack` smoke |
 
