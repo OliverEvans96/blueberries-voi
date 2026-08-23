@@ -23,5 +23,6 @@ describe("ImpactStat", () => {
     );
     expect(stat.querySelector(".impact-stat-label")).not.toBeNull();
     expect(stat.querySelector(".impact-stat-value")).not.toBeNull();
+    expect(stat.querySelector("strong")).toBeNull();
   });
 });
