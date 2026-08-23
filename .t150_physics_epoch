@@ -1,0 +1,13 @@
+T-150 arrival physics epoch (ADR 0144)
+
+Date: 2026-08-23
+Controller: damped survival-weighted base stock (n_rollout_paths=0)
+Notebook 13: Modal run ap-n9eIOGAYfnAVTUHuGyfsjw
+  wheel: dist/wheel/blueberries_voi_core-0.1.0-cp311-abi3-manylinux_2_34_x86_64.whl
+  built from team/T-150/recal (this worktree)
+  39 jobs × 30 days; wall-clock 95.1 s
+  artifacts: experiments/data/nb13_channel_rows.json
+             experiments/data/nb13_channel_rows_shards.json
+
+GSIN diagnostic JSON was not regenerated in this epoch.
+VOI CRN profits were regenerated under damped_sw on this branch.

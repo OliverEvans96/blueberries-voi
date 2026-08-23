@@ -48,6 +48,11 @@ rust = [
 freshnet = [
     "datasets>=3.0.0",
 ]
+# Modal batch map for notebook heavy jobs (T-155 / ADR 0145); ops-only.
+# T-150 keeps ADR 0144 for arrival physics; 0145 is the batch driver only.
+modal = [
+    "modal>=0.73.0",
+]
 
 [project.scripts]
 blueberries-voi = "blueberries_voi.__main__:main"
