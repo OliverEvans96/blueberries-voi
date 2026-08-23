@@ -33,8 +33,10 @@ const REQUIRED_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
+  "chart-spoil",
   "chart-inventory-focus",
-  "chart-orders-waste-focus",
+  "chart-controller-orders-focus",
+  "chart-spoil-focus",
 ] as const;
 
 function stripComments(src: string): string {
@@ -84,8 +86,20 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(metrics!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(metrics!.querySelector("#chart-inventory")).not.toBeNull();
     expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-spoil")).toBeNull();
+    const impactRow = metrics!.querySelector(".impact-row");
+    expect(impactRow).not.toBeNull();
+    const totals = metrics!.querySelector("#pnl-totals-host");
+    expect(
+      totals!.compareDocumentPosition(impactRow!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      impactRow!.compareDocumentPosition(
+        metrics!.querySelector("#chart-pnl-economics")!,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("belief column hosts tradeoff charts and operator bar", () => {
@@ -152,6 +166,9 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
     expect(
       container.querySelector('.focus-plot[data-plot="plot-controller-orders"]'),
     ).not.toBeNull();
+    expect(
+      container.querySelector('.focus-plot[data-plot="plot-spoil"]'),
+    ).not.toBeNull();
   });
 
   it("all D3ChartHost ids appear exactly once", () => {
@@ -209,5 +226,81 @@ describe("StudioLayout cockpit grid (T-148 v6)", () => {
         ".bv-studio-portal-root #studio-loading-host[data-testid='studio-loading-host']",
       ),
     ).not.toBeNull();
+  });
+});
+
+describe("StudioLayout metrics narration (T-154)", () => {
+  const cockpitCss = readFileSync(COCKPIT_CSS, "utf8");
+
+  it("metrics pane has Outcomes panel head and note", () => {
+    const { container } = render(createElement(StudioLayout));
+    const metrics = container.querySelector(".cockpit-pane--metrics");
+    const head = metrics!.querySelector(".panel-head");
+    expect(head).not.toBeNull();
+    expect(head!.querySelector("h2")?.textContent).toBe("Outcomes");
+    expect(head!.querySelector(".panel-note")?.textContent).toBe(
+      "Money, stock, and daily flow for this run.",
+    );
+    const totals = metrics!.querySelector("#pnl-totals-host");
+    expect(
+      head!.compareDocumentPosition(totals!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("metrics groups show Economics, Inventory, and Flow labels", () => {
+    const { container } = render(createElement(StudioLayout));
+    const metrics = container.querySelector(".cockpit-pane--metrics");
+    expect(
+      metrics!.querySelector(
+        ".metrics-group--economics .metrics-group-label",
+      )?.textContent,
+    ).toBe("Economics");
+    expect(
+      metrics!.querySelector(
+        ".metrics-group--inventory .metrics-group-label",
+      )?.textContent,
+    ).toBe("Inventory");
+    expect(
+      metrics!.querySelector(".metrics-group--flow .metrics-group-label")
+        ?.textContent,
+    ).toBe("Flow");
+  });
+
+  it("belief panel note links hover to charts", () => {
+    const { container } = render(createElement(StudioLayout));
+    const note = container.querySelector("#hover-note");
+    expect(note?.textContent).toBe(
+      "Filter belief over time — hover a day to link charts.",
+    );
+  });
+
+  it("cockpitGrid.css boldens metrics chart captions only", () => {
+    expect(cockpitCss).toMatch(
+      /\.cockpit-pane--metrics\s+\.chart-caption\s*\{[^}]*font-weight:\s*700/,
+    );
+    expect(cockpitCss).toMatch(
+      /\.cockpit-pane--metrics\s+\.chart-caption\s*\{[^}]*font-size:\s*0\.8rem/,
+    );
+    expect(cockpitCss).toMatch(
+      /\.cockpit-pane--metrics\s+\.chart-caption\s*\{[^}]*color:\s*var\(--ink-soft\)/,
+    );
+    expect(cockpitCss).not.toMatch(
+      /\.cockpit-pane--belief\s+\.chart-caption\s*\{[^}]*font-weight:\s*700/,
+    );
+  });
+
+  it("cockpitGrid.css de-emphasizes impact stat weight and Fraunces", () => {
+    expect(cockpitCss).toMatch(
+      /\.impact-stat-label\s*\{[^}]*font-weight:\s*(400|500)/,
+    );
+    expect(cockpitCss).toMatch(
+      /\.impact-stat-value\s*\{[^}]*font-weight:\s*(400|500)/,
+    );
+    expect(cockpitCss).not.toMatch(
+      /\.impact-stat-value\s*\{[^}]*font-family:\s*var\(--font-display\)/,
+    );
+    expect(cockpitCss).toMatch(
+      /\.impact-stat-value\s*\{[^}]*color:\s*var\(--ink-soft\)/,
+    );
   });
 });

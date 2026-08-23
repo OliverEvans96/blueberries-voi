@@ -15,8 +15,10 @@ const D3_CHART_IDS = [
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
+  "chart-spoil",
   "chart-inventory-focus",
-  "chart-orders-waste-focus",
+  "chart-controller-orders-focus",
+  "chart-spoil-focus",
 ] as const;
 
 /** Static studio shell — Cockpit Grid layout v6 (T-148). */
@@ -49,46 +51,67 @@ export function StudioLayout() {
             data-testid="cockpit-metrics"
             aria-label="Metrics"
           >
+            <div className="panel-head">
+              <h2>Outcomes</h2>
+              <span className="panel-note">
+                Money, stock, and daily flow for this run.
+              </span>
+            </div>
             <div id="pnl-totals-host" data-testid="pnl-totals-host" />
-            <div className="metrics-stack">
-              <div className="chart-caption">Cumulative revenue · cost · profit</div>
-              <D3ChartHost
-                id="chart-pnl-economics"
-                className="chart chart-pnl-economics"
-                ariaLabel="Cumulative profit and loss"
-              />
-              <div className="chart-caption impact-caption">
-                On-hand by freshness band
-              </div>
-              <D3ChartHost
-                id="chart-age-comp"
-                className="chart"
-                ariaLabel="On-hand inventory by freshness band"
-              />
-              <div className="chart-caption impact-caption">
-                Effective inventory
-              </div>
-              <D3ChartHost
-                id="chart-inventory"
-                className="chart"
-                ariaLabel="Inventory versus base stock target"
-              />
-              <div className="chart-caption impact-caption">
-                Order quantity &amp; spoilage
-              </div>
-              <D3ChartHost
-                id="chart-controller-orders"
-                className="chart"
-                ariaLabel="Order quantity and spoilage over days"
-              />
+            <div className="impact-row">
               <div id="impact-missed-host" data-testid="impact-missed-host" />
-              <div className="chart-caption impact-caption">Sales &amp; demand</div>
-              <D3ChartHost
-                id="chart-sales-demand"
-                className="chart"
-                ariaLabel="Sales versus demand with stockout gap"
-              />
               <div id="impact-waste-host" data-testid="impact-waste-host" />
+            </div>
+            <div className="metrics-stack">
+              <div className="metrics-group metrics-group--economics">
+                <div className="metrics-group-label">Economics</div>
+                <div className="chart-caption">Cumulative revenue · cost · profit</div>
+                <D3ChartHost
+                  id="chart-pnl-economics"
+                  className="chart chart-pnl-economics"
+                  ariaLabel="Cumulative profit and loss"
+                />
+              </div>
+              <div className="metrics-group metrics-group--inventory">
+                <div className="metrics-group-label">Inventory</div>
+                <div className="chart-caption impact-caption">
+                  On-hand by freshness band
+                </div>
+                <D3ChartHost
+                  id="chart-age-comp"
+                  className="chart"
+                  ariaLabel="On-hand inventory by freshness band"
+                />
+                <div className="chart-caption impact-caption">
+                  Effective inventory
+                </div>
+                <D3ChartHost
+                  id="chart-inventory"
+                  className="chart"
+                  ariaLabel="Inventory versus base stock target"
+                />
+              </div>
+              <div className="metrics-group metrics-group--flow">
+                <div className="metrics-group-label">Flow</div>
+                <div className="chart-caption impact-caption">Order quantity</div>
+                <D3ChartHost
+                  id="chart-controller-orders"
+                  className="chart"
+                  ariaLabel="Order quantity over days"
+                />
+                <div className="chart-caption impact-caption">Spoilage</div>
+                <D3ChartHost
+                  id="chart-spoil"
+                  className="chart"
+                  ariaLabel="Daily spoilage over days"
+                />
+                <div className="chart-caption impact-caption">Sales &amp; demand</div>
+                <D3ChartHost
+                  id="chart-sales-demand"
+                  className="chart"
+                  ariaLabel="Sales versus demand with stockout gap"
+                />
+              </div>
             </div>
           </section>
 
@@ -100,7 +123,7 @@ export function StudioLayout() {
             <div className="panel-head">
               <h2>Belief</h2>
               <span className="panel-note" id="hover-note">
-                Hover a day to highlight it everywhere
+                Filter belief over time — hover a day to link charts.
               </span>
             </div>
             <div className="chart-caption" data-truth-caption="lots">
@@ -359,12 +382,20 @@ export function StudioLayout() {
                       hidden
                     >
                       <div className="chart-caption impact-caption">
-                        Order quantity &amp; spoilage
+                        Order quantity
                       </div>
                       <D3ChartHost
-                        id="chart-orders-waste-focus"
+                        id="chart-controller-orders-focus"
                         className="chart"
-                        ariaLabel="Order quantity and spoilage preview"
+                        ariaLabel="Order quantity preview"
+                      />
+                    </div>
+                    <div className="focus-plot" data-plot="plot-spoil" hidden>
+                      <div className="chart-caption impact-caption">Spoilage</div>
+                      <D3ChartHost
+                        id="chart-spoil-focus"
+                        className="chart"
+                        ariaLabel="Spoilage preview"
                       />
                     </div>
                     <div className="focus-plot" data-plot="plot-arrival-prior" hidden>

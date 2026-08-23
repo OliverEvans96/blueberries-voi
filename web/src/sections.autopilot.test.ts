@@ -74,11 +74,12 @@ describe("Autopilot section registration (T-127 shell)", () => {
     expect(loadSection()).toBe("autopilot");
   });
 
-  it("autopilot plotIds include orders plot and reuse plot-inventory", () => {
+  it("autopilot plotIds include orders, spoil, and reuse plot-inventory", () => {
     const autopilot = STUDIO_SECTIONS.find((s) => s.id === "autopilot");
     expect(autopilot).toBeDefined();
     const ids = autopilot!.plotIds;
     expect(ids).toContain("plot-controller-orders");
+    expect(ids).toContain("plot-spoil");
     expect(ids).toContain("plot-inventory");
   });
 });
@@ -125,11 +126,16 @@ describe("Autopilot chart wiring (T-099)", () => {
     ).toBe(true);
   });
 
-  it("react/studioLogic.ts mounts controller orders in Run today strip (T-127)", () => {
+  it("react/studioLogic.ts mounts controller orders and spoil charts (T-153)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
-    expect(logic).toMatch(/renderOrdersWaste|ordersWasteFocus/);
+    expect(logic).toMatch(/renderControllerOrders/);
+    expect(logic).toMatch(/renderWasteBars/);
+    expect(logic).toMatch(/controllerOrdersFocus|spoilFocus/);
     expect(layout).toMatch(/id="chart-controller-orders"/);
-    expect(layout).toMatch(/id="chart-orders-waste-focus"/);
+    expect(layout).toMatch(/id="chart-spoil"/);
+    expect(layout).toMatch(/id="chart-controller-orders-focus"/);
+    expect(layout).toMatch(/id="chart-spoil-focus"/);
+    expect(layout).not.toMatch(/id="chart-orders-waste-focus"/);
   });
 });

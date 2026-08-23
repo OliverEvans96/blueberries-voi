@@ -58,111 +58,109 @@
 .metrics-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.7rem;
+}
+
+.metrics-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.metrics-group-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+
+.cockpit-pane--metrics .chart-caption {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
 }
 
 .metrics-stack .chart {
-  min-height: 130px;
+  min-height: 120px;
+}
+
+#chart-pnl-economics.chart,
+#chart-sales-demand.chart {
+  min-height: 150px;
 }
 
 #chart-belief-lg.chart {
-  min-height: 150px;
+  min-height: 130px;
+}
+
+#chart-belief-age-marginal.chart {
+  min-height: 96px;
+}
+
+.metrics-stack > .chart-caption:first-child {
+  margin-top: 0;
+}
+
+.metrics-stack .chart-caption.impact-caption {
+  margin-top: 0.3rem;
+}
+
+#chart-pnl-economics + .chart-caption.impact-caption,
+#chart-inventory + .chart-caption.impact-caption {
+  margin-top: 0.7rem;
+}
+
+#pnl-totals-host {
+  margin-bottom: 0.15rem;
+}
+
+.impact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1.25rem;
+  margin: 0.1rem 0 0.25rem;
 }
 
 #impact-missed-host,
 #impact-waste-host {
-  min-height: 1.2rem;
+  min-height: 0;
 }
 
-.metrics-stack .chart-caption {
-  margin-top: 0.15rem;
-}
-
-#pnl-totals-host {
-  margin-bottom: 0.25rem;
+.impact-row #impact-missed-host,
+.impact-row #impact-waste-host {
+  flex: 1 1 auto;
+  min-width: min(100%, 14rem);
 }
 
 .impact-stat {
   margin: 0;
-  font-size: 0.82rem;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.impact-stat-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 
 .impact-stat-value {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Events pane v6 */
-.events-day-header {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.65rem;
-  margin-bottom: 0.5rem;
-}
-
-.events-day-markers {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 5.5rem;
-}
-
-.events-day-marker {
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: lowercase;
-}
-
-.events-day-marker--delivery {
-  color: var(--accent, #2563eb);
-}
-
-.events-day-marker--order {
-  color: #c2410c;
-}
-
-.events-day-heading {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 650;
-}
-
-.events-columns {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.events-col-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  margin: 0 0 0.25rem;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.85rem;
   color: var(--ink-soft);
-}
-
-.events-table {
-  width: 100%;
-  font-size: 0.78rem;
-  border-collapse: collapse;
-}
-
-.events-table th,
-.events-table td {
-  padding: 0.15rem 0.25rem;
-  text-align: left;
   font-variant-numeric: tabular-nums;
-}
-
-.events-table-total th,
-.events-table-total td {
-  font-weight: 600;
-}
-
-.events-pack-date {
-  margin: 0.35rem 0 0;
-  font-size: 0.75rem;
-  color: var(--muted);
 }
 
 .title-bar {
@@ -238,10 +236,6 @@
       "belief"
       "sidebar"
       "tuning";
-  }
-
-  .events-columns {
-    grid-template-columns: 1fr;
   }
 }
 

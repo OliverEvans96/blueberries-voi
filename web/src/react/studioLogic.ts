@@ -43,7 +43,9 @@ import {
 import {
   marginalYMax,
   renderMarginal,
+  renderWasteBars,
   setMarginalHover,
+  setWasteBarsHover,
 } from "../charts/marginals";
 import {
   renderDailyDemand,
@@ -61,8 +63,8 @@ import {
   setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
-  renderOrdersWaste,
-  setOrdersWasteHover,
+  renderControllerOrders,
+  setControllerOrdersHover,
 } from "../charts/controllerOrders";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
@@ -322,7 +324,9 @@ export function initStudio(app: HTMLElement): () => void {
     arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
     gammaPath: q<HTMLElement>("#chart-gamma-path")!,
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    ordersWasteFocus: q<HTMLElement>("#chart-orders-waste-focus")!,
+    spoil: q<HTMLElement>("#chart-spoil")!,
+    controllerOrdersFocus: q<HTMLElement>("#chart-controller-orders-focus")!,
+    spoilFocus: q<HTMLElement>("#chart-spoil-focus")!,
     inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
     pickingVar: q<HTMLElement>("#picking-var-chart")!,
     tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
@@ -696,8 +700,10 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setOrdersWasteHover(els.controllerOrders, day);
-    setOrdersWasteHover(els.ordersWasteFocus, day);
+    setControllerOrdersHover(els.controllerOrders, day);
+    setControllerOrdersHover(els.controllerOrdersFocus, day);
+    setWasteBarsHover(els.spoil, day);
+    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
     setInventoryTargetHover(els.inventoryFocus, day);
@@ -797,8 +803,11 @@ export function initStudio(app: HTMLElement): () => void {
           invSeries,
         ),
       );
-      profileSync("renderRunStripCharts.ordersWaste", () =>
-        renderOrdersWaste(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
+      profileSync("renderRunStripCharts.controllerOrders", () =>
+        renderControllerOrders(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
+      );
+      profileSync("renderRunStripCharts.spoil", () =>
+        renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT),
       );
       const ageRows = showTruth
         ? ageCompositionSeries(vm.history)
@@ -905,8 +914,17 @@ export function initStudio(app: HTMLElement): () => void {
         );
       }
       if (plotVisible("plot-controller-orders")) {
-        profileSync("renderActiveFocusPlots.ordersWasteFocus", () =>
-          renderOrdersWaste(els.ordersWasteFocus, vm.history, FOCUS_CHART_HEIGHT),
+        profileSync("renderActiveFocusPlots.controllerOrdersFocus", () =>
+          renderControllerOrders(
+            els.controllerOrdersFocus,
+            vm.history,
+            FOCUS_CHART_HEIGHT,
+          ),
+        );
+      }
+      if (plotVisible("plot-spoil")) {
+        profileSync("renderActiveFocusPlots.spoilFocus", () =>
+          renderWasteBars(els.spoilFocus, vm.history, FOCUS_CHART_HEIGHT),
         );
       }
     });
