@@ -20,6 +20,32 @@ export type QForecastEntry = {
   };
 };
 
+/** Y-domain for tradeoff curve — padded extent with minimum span when flat. */
+export function tradeoffYExtent(data: QForecastEntry[]): [number, number] {
+  const values = data.flatMap((d) => [
+    d.waste_p10,
+    d.waste_p50,
+    d.waste_p90,
+    d.waste_mean,
+    d.missed_p10,
+    d.missed_p50,
+    d.missed_p90,
+    d.missed_mean,
+  ]).filter((v) => Number.isFinite(v));
+
+  if (values.length === 0) return [0, 1];
+
+  const yMin = d3.min(values) ?? 0;
+  const yMax = d3.max(values) ?? 0;
+  const span = yMax - yMin;
+  const pad =
+    span > 0
+      ? Math.max(1, span * 0.08)
+      : Math.max(1, Math.abs(yMax) * 0.05);
+
+  return [Math.max(0, yMin - pad), yMax + pad];
+}
+
 export function nearestCandidateQ(
   candidates: QForecastEntry[],
   currentQ: number,
@@ -61,16 +87,8 @@ export function renderTradeoffCurve(
     .scaleLinear()
     .domain(d3.extent(data, (d) => d.q) as [number, number])
     .range([0, innerW]);
-  const y = d3
-    .scaleLinear()
-    .domain([
-      0,
-      d3.max(data, (d) =>
-        Math.max(d.waste_p90, d.missed_p90, d.waste_mean, d.missed_mean),
-      ) ?? 1,
-    ])
-    .nice()
-    .range([innerH, 0]);
+  const [y0, y1] = tradeoffYExtent(data);
+  const y = d3.scaleLinear().domain([y0, y1]).nice().range([innerH, 0]);
   const areaWaste = d3
     .area<QForecastEntry>()
     .x((d) => x(d.q))
