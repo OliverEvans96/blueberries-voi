@@ -32,6 +32,7 @@ function ensureSvg(host: HTMLElement): SVGSVGElement {
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     host.appendChild(svg);
   }
+  svg.classList.add("chart-svg");
   return svg;
 }
 

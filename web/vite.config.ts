@@ -22,6 +22,8 @@ export default defineConfig({
   server: {
     port: 5173,
     open: false,
+    // Playwright starts its own webServer; skip inotify watches under ENOSPC pressure.
+    ...(process.env.PW_E2E || process.env.CI ? { watch: null } : {}),
   },
   build: {
     outDir: "dist",

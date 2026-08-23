@@ -396,7 +396,10 @@ export function renderFreshnessComposition(
     .attr("height", innerH);
 
   const x = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.18);
-  const yMax = d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 1;
+  const yMax = Math.max(
+    d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 0,
+    1,
+  );
   const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
 
   const stack = d3

@@ -389,6 +389,24 @@ describe("renderFreshnessComposition freshness legend (T-148)", () => {
     expect(labels).toEqual(["fresh", "fair", "old"]);
   });
 
+  it("keeps a readable y-axis when all band counts are zero (T-157)", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    inv.renderFreshnessComposition(container, [LOT_DAY], 100, [
+      { day: 0, fresh: 0, mid: 0, stale: 0 },
+      { day: 1, fresh: 0, mid: 0, stale: 0 },
+    ]);
+    const ticks = [...container.querySelectorAll(".axis-y .tick text")].map(
+      (t) => t.textContent?.trim() ?? "",
+    );
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.some((t) => t.includes("0000") || t === "-")).toBe(false);
+    expect(ticks.some((t) => Number(t) >= 1)).toBe(true);
+  });
+
   it("applies freshness-young / freshness-mid / freshness-old classes to stacked bar series", () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {

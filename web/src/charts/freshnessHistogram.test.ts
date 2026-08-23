@@ -133,7 +133,7 @@ describe("renderFreshnessHistogram", () => {
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
     renderFreshnessHistogram(el, data, false, 260);
 
-    const svg = el.querySelector("svg");
+    const svg = el.querySelector("svg.chart-svg");
     expect(svg).not.toBeNull();
     const bars = el.querySelectorAll(".freshness-belief-bar");
     expect(bars.length).toBeGreaterThan(0);
@@ -179,7 +179,7 @@ describe("renderFreshnessHistogram", () => {
     const el = host();
     const height = 150;
     renderFreshnessHistogram(el, emptyFreshnessHistogramData(), true, height);
-    const svg = el.querySelector("svg");
+    const svg = el.querySelector("svg.chart-svg");
     expect(svg).not.toBeNull();
     expect(svg?.getAttribute("height")).toBe(String(height));
     expect(el.querySelectorAll(".axis").length).toBeGreaterThan(0);
