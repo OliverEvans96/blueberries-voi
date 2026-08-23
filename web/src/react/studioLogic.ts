@@ -58,6 +58,7 @@ import {
   wasteBarYMax,
 } from "../charts/marginals";
 import {
+  buildDemandForecastRows,
   renderDailyDemand,
   renderDemandForecast,
   renderPickingVariability,
@@ -972,7 +973,16 @@ export function initStudio(app: HTMLElement): () => void {
         ),
       );
       profileSync("renderStore.salesDemand", () =>
-        renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT),
+        renderSalesDemand(
+          els.salesDemand,
+          vm.history,
+          METRICS_STRIP_HEIGHT,
+          buildDemandForecastRows(
+            vm.episode_day,
+            vm.demand_summary,
+            vm.config.demand_vm,
+          ),
+        ),
       );
       renderCockpitBelief();
       renderRunStripCharts();

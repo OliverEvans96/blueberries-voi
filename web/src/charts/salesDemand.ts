@@ -2,6 +2,9 @@ import * as d3 from "d3";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
 import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
+import type { DemandForecastRow } from "./demandDist";
+
+type DayHit = { day: number };
 
 function rootG(
   container: HTMLElement,
@@ -19,7 +22,7 @@ export function setSalesDemandHover(
   if (!g) return;
 
   g.classed("is-hovering", hoveredDay != null);
-  g.selectAll<SVGRectElement, Day>(".day-hit").classed(
+  g.selectAll<SVGRectElement, DayHit>(".day-hit").classed(
     "day-hit--active",
     (d) => hoveredDay === d.day,
   );
@@ -30,7 +33,7 @@ export function setSalesDemandHover(
     return;
   }
   const hit = g
-    .selectAll<SVGRectElement, Day>(".day-hit")
+    .selectAll<SVGRectElement, DayHit>(".day-hit")
     .filter((d) => d.day === hoveredDay);
   if (hit.empty()) {
     rule.attr("opacity", 0);
@@ -52,11 +55,12 @@ export function salesDemandX(
   return i * step + step / 2;
 }
 
-/** Sales vs demand over the rolling window. */
+/** Sales vs demand over the rolling window, with optional demand forecast overlay. */
 export function renderSalesDemand(
   container: HTMLElement,
   history: Day[],
   height = 130,
+  forecastRows: DemandForecastRow[] = [],
 ): void {
   const width = container.clientWidth || 320;
   const margin = {
@@ -85,23 +89,46 @@ export function renderSalesDemand(
     .attr("class", "chart-root")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const days = padDaysToMinRange(history.map((d) => d.day));
+  const historyDays = history.map((d) => d.day);
+  const forecastDays = forecastRows.map((r) => r.day);
+  const allDays = [...new Set([...historyDays, ...forecastDays])].sort(
+    (a, b) => a - b,
+  );
+  const days = padDaysToMinRange(allDays);
   const step = Math.max(0, innerW / days.length);
   const x = (day: number): number => salesDemandX(days, innerW, day);
 
   const yMax =
-    d3.max(history, (d) => Math.max(d.sales_total, d.demand, d.stockout)) ?? 1;
+    d3.max([
+      d3.max(history, (d) => Math.max(d.sales_total, d.demand, d.stockout)) ?? 0,
+      d3.max(forecastRows, (r) => r.p90) ?? 0,
+    ]) ?? 1;
   const y = d3.scaleLinear().domain([0, yMax * 1.1]).nice().range([innerH, 0]);
+
+  const hitData: DayHit[] = [];
+  const seenDays = new Set<number>();
+  for (const d of history) {
+    if (!seenDays.has(d.day)) {
+      hitData.push({ day: d.day });
+      seenDays.add(d.day);
+    }
+  }
+  for (const row of forecastRows) {
+    if (!seenDays.has(row.day)) {
+      hitData.push({ day: row.day });
+      seenDays.add(row.day);
+    }
+  }
 
   g.append("g")
     .attr("class", "day-hits")
     .attr("pointer-events", "none")
     .selectAll("rect")
-    .data(history, (d) => String((d as Day).day))
+    .data(hitData, (d) => String((d as DayHit).day))
     .join("rect")
     .attr("class", "day-hit")
     .attr("data-day", (d) => d.day)
-    .attr("x", (_, i) => i * step)
+    .attr("x", (d) => days.indexOf(d.day) * step)
     .attr("y", 0)
     .attr("width", step)
     .attr("height", innerH);
@@ -122,6 +149,23 @@ export function renderSalesDemand(
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
+  if (forecastRows.length > 0) {
+    const bandArea = d3
+      .area<DemandForecastRow>()
+      .x((d) => x(d.day))
+      .y0((d) => y(d.p10))
+      .y1((d) => y(d.p90))
+      .curve(d3.curveMonotoneX);
+
+    g.append("path")
+      .datum(forecastRows)
+      .attr("class", "sd-forecast-band")
+      .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))")
+      .attr("stroke", "none")
+      .attr("d", bandArea)
+      .attr("pointer-events", "none");
+  }
+
   const stockoutArea = d3
     .area<Day>()
     .x((d) => x(d.day))
@@ -138,6 +182,23 @@ export function renderSalesDemand(
       .attr("stroke", "none")
       .attr("d", stockoutArea)
       .attr("pointer-events", "none");
+  }
+
+  if (forecastRows.length > 0) {
+    const meanLine = d3
+      .line<DemandForecastRow>()
+      .x((d) => x(d.day))
+      .y((d) => y(d.mean))
+      .curve(d3.curveMonotoneX);
+
+    g.append("path")
+      .datum(forecastRows)
+      .attr("class", "sd-forecast-mean")
+      .attr("fill", "none")
+      .attr("stroke", "var(--chart-accent, #2563eb)")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "5,3")
+      .attr("d", meanLine);
   }
 
   const lineSales = d3
@@ -163,6 +224,20 @@ export function renderSalesDemand(
     .attr("fill", "none")
     .attr("d", lineSales);
 
+  if (forecastRows.length > 0) {
+    const episodeDay = forecastRows[0]!.day;
+    g.append("line")
+      .attr("class", "sd-forecast-today")
+      .attr("x1", x(episodeDay))
+      .attr("x2", x(episodeDay))
+      .attr("y1", 0)
+      .attr("y2", innerH)
+      .attr("stroke", "var(--chart-muted, #94a3b8)")
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "2,2")
+      .attr("pointer-events", "none");
+  }
+
   g.append("line")
     .attr("class", "hover-rule")
     .attr("y1", 0)
@@ -174,20 +249,44 @@ export function renderSalesDemand(
     .append("g")
     .attr("class", "legend")
     .attr("transform", `translate(${margin.left + 4}, 8)`);
-  (
-    [
-      ["sd-demand", "Demand"],
-      ["sd-sales", "Sales"],
-    ] as const
-  ).forEach(([cls, label], i) => {
-    const item = legend.append("g").attr("transform", `translate(${i * 72},0)`);
-    item
-      .append("line")
-      .attr("class", `sd-line ${cls}`)
-      .attr("x1", 0)
-      .attr("x2", 14)
-      .attr("y1", 0)
-      .attr("y2", 0);
-    item.append("text").attr("class", "legend-label").attr("x", 18).attr("y", 3).text(label);
-  });
+  const legendItems: { kind: "line" | "band"; cls: string; label: string }[] = [
+    { kind: "line", cls: "sd-demand", label: "Demand" },
+    { kind: "line", cls: "sd-sales", label: "Sales" },
+  ];
+  if (forecastRows.length > 0) {
+    legendItems.push(
+      { kind: "line", cls: "sd-forecast-mean", label: "Forecast μ" },
+      { kind: "band", cls: "sd-forecast-band", label: "p10–p90" },
+    );
+  }
+  let legendX = 0;
+  for (const item of legendItems) {
+    const group = legend.append("g").attr("transform", `translate(${legendX},0)`);
+    if (item.kind === "line") {
+      group
+        .append("line")
+        .attr("class", `sd-line ${item.cls}`)
+        .attr("x1", 0)
+        .attr("x2", 14)
+        .attr("y1", 0)
+        .attr("y2", 0);
+    } else {
+      group
+        .append("rect")
+        .attr("class", item.cls)
+        .attr("x", 0)
+        .attr("y", -4)
+        .attr("width", 14)
+        .attr("height", 8)
+        .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
+    }
+    const labelW = item.label.length * 6 + 22;
+    group
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 18)
+      .attr("y", 3)
+      .text(item.label);
+    legendX += labelW;
+  }
 }

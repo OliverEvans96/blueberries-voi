@@ -97,6 +97,15 @@ export function nbQuantiles(
   };
 }
 
+/** Build forecast rows for Sales & demand overlay (episode day + DOW profile + NB bands). */
+export function buildDemandForecastRows(
+  episodeDay: number,
+  summary: DemandSummary | null | undefined,
+  demandVm: number,
+): DemandForecastRow[] {
+  return demandForecastRows(episodeDay, summary ?? FALLBACK_SUMMARY, demandVm);
+}
+
 /** Next N episode days with expected μ and NB uncertainty bands. */
 export function demandForecastRows(
   episodeDay: number,

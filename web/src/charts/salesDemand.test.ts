@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Day } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
+import { buildDemandForecastRows } from "./demandDist";
 import { MIN_CHART_DAY_SPAN } from "./axisTicks";
 import { renderSalesDemand, salesDemandX, setSalesDemandHover } from "./salesDemand";
 
@@ -128,5 +129,74 @@ describe("renderSalesDemand narrow plot (T-139)", () => {
 
   it("salesDemandX never returns negative x for negative innerW", () => {
     expect(salesDemandX([0, 1, 2], -10, 1)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+const FORECAST_SUMMARY = {
+  scale_mu: 30,
+  dow_means: [29, 30, 28, 26, 28, 34, 35],
+};
+
+describe("renderSalesDemand forecast overlay", () => {
+  it("renders forecast band and mean with 5 forecast rows", () => {
+    const el = host();
+    const forecast = buildDemandForecastRows(3, FORECAST_SUMMARY, 2);
+    expect(forecast).toHaveLength(5);
+    renderSalesDemand(el, [sampleDay(0, 8, 10), sampleDay(1, 12, 12)], 130, forecast);
+    expect(el.querySelector(".sd-forecast-band")).not.toBeNull();
+    expect(el.querySelector(".sd-forecast-mean")).not.toBeNull();
+    expect(el.querySelector(".sd-forecast-today")).not.toBeNull();
+  });
+
+  it("x-axis spans through last forecast day", () => {
+    const el = host();
+    const forecast = buildDemandForecastRows(2, FORECAST_SUMMARY, 2);
+    const lastForecastDay = forecast[forecast.length - 1]!.day;
+    renderSalesDemand(el, [sampleDay(0, 5, 10), sampleDay(1, 8, 8)], 130, forecast);
+    const ticks = [...el.querySelectorAll(".axis-x .tick text")].map((t) =>
+      Number(t.textContent),
+    );
+    expect(Math.max(...ticks)).toBeGreaterThanOrEqual(lastForecastDay);
+  });
+
+  it("yMax accommodates p90 above historical demand", () => {
+    const history = [
+      sampleDay(0, 5, 10),
+      sampleDay(1, 8, 12),
+      sampleDay(2, 3, 9),
+    ];
+    const forecast = buildDemandForecastRows(5, FORECAST_SUMMARY, 2);
+    const maxP90 = Math.max(...forecast.map((r) => r.p90));
+    expect(maxP90).toBeGreaterThan(12);
+
+    const without = host();
+    renderSalesDemand(without, history, 130, []);
+    const yMaxWithout = Math.max(
+      ...[...without.querySelectorAll(".axis-y .tick text")].map((t) =>
+        Number(t.textContent),
+      ),
+    );
+
+    const withForecast = host();
+    renderSalesDemand(withForecast, history, 130, forecast);
+    const yMaxWith = Math.max(
+      ...[...withForecast.querySelectorAll(".axis-y .tick text")].map((t) =>
+        Number(t.textContent),
+      ),
+    );
+
+    expect(yMaxWith).toBeGreaterThan(yMaxWithout);
+    const bandD =
+      withForecast.querySelector(".sd-forecast-band")?.getAttribute("d") ?? "";
+    expect(bandD.length).toBeGreaterThan(0);
+  });
+
+  it("legend includes forecast entries when forecast is present", () => {
+    const el = host();
+    const forecast = buildDemandForecastRows(0, FORECAST_SUMMARY, 2);
+    renderSalesDemand(el, [sampleDay(0, 5, 10)], 130, forecast);
+    const labels = [...el.querySelectorAll(".legend-label")].map((t) => t.textContent);
+    expect(labels).toContain("Forecast μ");
+    expect(labels).toContain("p10–p90");
   });
 });
