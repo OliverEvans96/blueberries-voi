@@ -59,6 +59,7 @@ import type { QForecastEntry } from "./tradeoffCurve";
 import {
   nearestCandidateQ,
   renderTradeoffCurve as renderTradeoffCurveSvg,
+  tradeoffXExtent,
   tradeoffYExtent,
 } from "./tradeoffCurve";
 import { renderTradeoffHistogram as renderTradeoffHistogramSvg } from "./tradeoffHistogram";
@@ -164,10 +165,16 @@ describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {
     expect(missedMean?.getAttribute("d")).toBeTruthy();
   });
 
+  it("tradeoffXExtent avoids zero-width domain for empty or single-q data", () => {
+    expect(tradeoffXExtent([])).toEqual([0, 1]);
+    expect(tradeoffXExtent([flatForecast(24, 0)])).toEqual([23.5, 24.5]);
+  });
+
   it("tradeoffYExtent avoids zero-width domain when all values are zero", () => {
     const extent = tradeoffYExtent(flatSweep(0));
     expect(extent[1] - extent[0]).toBeGreaterThan(0);
-    expect(extent[0]).toBe(0);
+    expect(extent[0]).toBeLessThan(0);
+    expect(extent[1]).toBeGreaterThan(0);
   });
 
   it("tradeoffYExtent pads flat non-zero forecasts around the value", () => {
@@ -185,6 +192,27 @@ describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {
     expect(Math.max(...tickYs) - Math.min(...tickYs)).toBeGreaterThan(10);
     const missedD = svg.querySelector(".tradeoff-mean-missed")?.getAttribute("d");
     expect(missedD).not.toMatch(/NaN/);
+  });
+
+  it("renderTradeoffCurve centers flat-at-zero series instead of pinning to the axis", async () => {
+    const mod = await loadCurve();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mod!.renderTradeoffCurve(svg, flatSweep(0), 24, 300, 0.7);
+    const innerH = 140 - 16 - 32;
+    const y = firstPathY(
+      svg.querySelector(".tradeoff-mean-missed")?.getAttribute("d"),
+    );
+    expect(y).toBeGreaterThan(innerH * 0.25);
+    expect(y).toBeLessThan(innerH * 0.75);
+  });
+
+  it("renderTradeoffCurve does not emit NaN marker positions before forecasts load", async () => {
+    const mod = await loadCurve();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    mod!.renderTradeoffCurve(svg, [], 24, 300, 0.7);
+    const marker = svg.querySelector(".order-q-marker");
+    expect(marker?.getAttribute("x1")).not.toBe("NaN");
+    expect(marker?.getAttribute("x2")).not.toBe("NaN");
   });
 
   it("renderTradeoffCurve centers flat non-zero series instead of pinning to the top", async () => {
