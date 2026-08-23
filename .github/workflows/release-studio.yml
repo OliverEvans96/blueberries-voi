@@ -1,11 +1,12 @@
-# Canonical studio release workflow (T-146 / main-push prod).
+# Canonical studio release workflow (T-146 / T-148).
 #
 # Agent protocol forbids editing live `.github/workflows/`. A human must copy
 # this file to `.github/workflows/release-studio.yml` before GitHub runs it.
 #
 # WASM-only publish path (tests run in CI `web` job). Triggers:
-#   - successful CI on main/master → moving tag `studio-latest` (prod tarball)
-#   - push tag studio-v*  → immutable semver release (optional manual pins)
+#   - successful CI on main/master → moving tag `studio-latest` (prod tarball +
+#     -latest.tgz alias) plus auto-cut `studio-v{version}` when absent
+#   - push tag studio-v*  → immutable semver release (versioned tarball only)
 name: Release studio
 
 on:
@@ -39,6 +40,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           lfs: true
+          fetch-depth: 0
 
       - name: Download CI WASM artifacts
         if: github.event_name == 'workflow_run'
@@ -79,28 +81,60 @@ jobs:
           cp "$PACKED" oliverevans96-blueberries-voi-studio-latest.tgz
           echo "PACKED=$PACKED" >> "$GITHUB_ENV"
 
-      - name: Resolve release tag
-        id: rel
-        run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=studio-latest" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Read package version
         id: pkg
         working-directory: web
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Publish GitHub release
+      - name: Resolve pushed studio-v tag
+        id: rel
+        if: github.event_name == 'push'
+        run: echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Check immutable studio-v tag exists
+        id: imm
+        if: github.event_name == 'workflow_run'
+        run: |
+          git fetch --tags --force
+          TAG="studio-v${{ steps.pkg.outputs.version }}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish studio-latest (moving prod)
+        if: github.event_name == 'workflow_run'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          target_commitish: ${{ github.event.workflow_run.head_sha || github.sha }}
-          name: Blueberry studio v${{ steps.pkg.outputs.version }} (${{ github.sha }})
+          tag_name: studio-latest
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: Blueberry studio v${{ steps.pkg.outputs.version }} (${{ github.event.workflow_run.head_sha }})
           files: |
             web/${{ env.PACKED }}
             web/oliverevans96-blueberries-voi-studio-latest.tgz
           generate_release_notes: true
           make_latest: true
+
+      - name: Publish immutable studio-v release (workflow_run)
+        if: github.event_name == 'workflow_run' && steps.imm.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: studio-v${{ steps.pkg.outputs.version }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: Blueberry studio v${{ steps.pkg.outputs.version }} (${{ github.event.workflow_run.head_sha }})
+          files: web/${{ env.PACKED }}
+          generate_release_notes: true
+          make_latest: false
+
+      - name: Publish immutable studio-v release (tag push)
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Blueberry studio v${{ steps.pkg.outputs.version }} (${{ github.sha }})
+          files: web/${{ env.PACKED }}
+          generate_release_notes: true
+          make_latest: false

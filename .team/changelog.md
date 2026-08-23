@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-22
+- **The embeddable studio package now uses real version numbers and cuts immutable `studio-v*` releases — `studio-latest` still auto-updates for convenience, but you can pin a fixed tarball URL when you need to know exactly which build you installed** (T-148).
+
 ## 2026-08-21
 - **Spoilage now ages each pack on the shelf independently and the filter scores waste with an exact count-based formula — store inventory stays exact on every spoilage rung, lot-tracked scan data can sharpen freshness again, and the GSIN/UPC comparison notebook reflects the new physics** (T-141).
 - **Arrival uncertainty now follows one shelf-age law everywhere: calendar pack dates, temperature traces, and the default cold-chain mix all draw per-unit freshness from the same gamma model, with fleet temperature history setting how wide the prior is — the old hand-tuned F2a width knob is gone from the studio** (T-140).

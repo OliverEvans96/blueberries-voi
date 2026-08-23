@@ -24,17 +24,35 @@ Re-run `pnpm install` / `npm install` in your Astro site after each `main` push
 to pick up the new build (lockfile integrity hash will change when the tarball
 changes).
 
-### Immutable pin (optional)
+The versioned filename on `studio-latest` (for example
+`oliverevans96-blueberries-voi-studio-0.1.1.tgz`) updates with
+`web/package.json` but is **not** immutable — both assets on that release are
+overwritten on every publish.
 
-Explicit semver tags `studio-v*` (not legacy Python `v*`) also trigger a release:
+### Immutable pin (recommended for certainty)
+
+After each green CI run on `main`, the release workflow also creates
+**`studio-v{version}`** (for example `studio-v0.1.1`) the first time that
+semver appears. These releases attach **only** the versioned tarball — no
+`-latest.tgz` alias — so the URL and filename stay fixed.
+
+Manual tag pushes `studio-v*` (not legacy Python `v*`) publish the same
+immutable asset shape:
 
 ```json
 {
   "dependencies": {
-    "@oliverevans96/blueberries-voi-studio": "https://github.com/OliverEvans96/blueberries-voi/releases/download/studio-v0.1.0/oliverevans96-blueberries-voi-studio-0.1.0.tgz"
+    "@oliverevans96/blueberries-voi-studio": "https://github.com/OliverEvans96/blueberries-voi/releases/download/studio-v0.1.1/oliverevans96-blueberries-voi-studio-0.1.1.tgz"
   }
 }
 ```
+
+### Version bumps (contributors)
+
+Changes under publishable paths (`web/src/`, `web/vite.lib.config.ts`,
+`web/scripts/`, `crates/voi_core/`, `crates/voi_wasm/`, `scripts/build-wasm.sh`)
+require a **strict semver increase** in `web/package.json`. CI enforces this via
+`tests/test_studio_release_version.py`.
 
 ## Required imports
 
