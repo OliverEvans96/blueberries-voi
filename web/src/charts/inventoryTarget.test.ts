@@ -18,7 +18,7 @@ type InventoryOpts = {
   belief_history?: BeliefDay[];
 };
 
-type AgeRow = { day: number; young: number; mid: number; old: number };
+type FreshnessRow = { day: number; fresh: number; mid: number; stale: number };
 
 const LOT_DAY: Day = {
   day: 0,
@@ -97,37 +97,37 @@ describe("age composition lots vs belief (T-115)", () => {
   it("truth lots path: freshness thirds from lot mean_f and n", () => {
     const fn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
-    ).ageCompositionSeries;
-    expect(typeof fn, "expected ageCompositionSeries export").toBe("function");
+    ).fCompositionSeries;
+    expect(typeof fn, "expected fCompositionSeries export").toBe("function");
     const rows = fn!([LOT_DAY]);
-    expect(rows[0]).toEqual({ day: 0, young: 15, mid: 3, old: 0 });
+    expect(rows[0]).toEqual({ day: 0, fresh: 15, mid: 3, stale: 0 });
   });
 
   it("belief path: bands from expected ages, not truth lots", () => {
     const fn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
-        ageCompositionSeriesFromBelief?: (beliefHistory: BeliefDay[]) => AgeRow[];
+        ) => FreshnessRow[];
+        fCompositionSeriesFromBelief?: (beliefHistory: BeliefDay[]) => FreshnessRow[];
       }
-    ).ageCompositionSeriesFromBelief;
+    ).fCompositionSeriesFromBelief;
     const seriesFn = (
       inv as {
-        ageCompositionSeries?: (
+        fCompositionSeries?: (
           history: Day[],
           opts?: InventoryOpts,
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
-    ).ageCompositionSeries;
+    ).fCompositionSeries;
 
-    let rows: AgeRow[];
+    let rows: FreshnessRow[];
     if (typeof fn === "function") {
       rows = fn(BELIEF_HISTORY);
     } else {
@@ -138,10 +138,10 @@ describe("age composition lots vs belief (T-115)", () => {
       });
     }
     // lot 0: all mass at high f; lot 1: all mass at low f
-    expect(rows[0]!.young).toBeCloseTo(3.6);
-    expect(rows[0]!.old).toBeCloseTo(0);
+    expect(rows[0]!.fresh).toBeCloseTo(3.6);
+    expect(rows[0]!.stale).toBeCloseTo(0);
     expect(rows[0]!.mid).toBeCloseTo(3.32);
-    expect(rows[0]!.young + rows[0]!.mid + rows[0]!.old).not.toBe(18);
+    expect(rows[0]!.fresh + rows[0]!.mid + rows[0]!.stale).not.toBe(18);
   });
 });
 
@@ -329,37 +329,24 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
   it("belief path: bands partition by f_grid thirds, not τ-day 0–2 / 3–5 / 6+ buckets", () => {
     const fn = (
       inv as {
-        freshnessCompositionSeriesFromBelief?: (
+        fCompositionSeriesFromBelief?: (
           beliefHistory: BeliefDay[],
-        ) => Array<{ day: number; fresh: number; mid: number; stale: number }>;
-        ageCompositionSeriesFromBelief?: (
-          beliefHistory: BeliefDay[],
-        ) => AgeRow[];
+        ) => FreshnessRow[];
       }
-    ).freshnessCompositionSeriesFromBelief;
+    ).fCompositionSeriesFromBelief;
 
     const expected = expectedFreshnessBands(F_FLAT);
     expect(expected.stale).toBeCloseTo(10);
     expect(expected.fresh).toBeCloseTo(5);
     expect(expected.mid).toBeCloseTo(0);
 
-    let row: { fresh: number; mid: number; stale: number };
-    if (typeof fn === "function") {
-      row = fn(F_BELIEF_HISTORY)[0]!;
-    } else {
-      const legacy = (
-        inv as {
-          ageCompositionSeriesFromBelief: (
-            beliefHistory: BeliefDay[],
-          ) => AgeRow[];
-        }
-      ).ageCompositionSeriesFromBelief(F_BELIEF_HISTORY)[0]!;
-      row = {
-        fresh: legacy.young,
-        mid: legacy.mid,
-        stale: legacy.old,
-      };
-    }
+    const row = (
+      inv as {
+        fCompositionSeriesFromBelief: (
+          beliefHistory: BeliefDay[],
+        ) => FreshnessRow[];
+      }
+    ).fCompositionSeriesFromBelief(F_BELIEF_HISTORY)[0]!;
     expect(row.stale).toBeCloseTo(expected.stale);
     expect(row.fresh).toBeCloseTo(expected.fresh);
     expect(row.mid).toBeCloseTo(expected.mid);
@@ -376,41 +363,26 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
       f_grid: [1 / 3],
       f_marginals: [1],
     });
-    const fn = (
-      inv as {
-        freshnessCompositionSeriesFromBelief?: (
-          beliefHistory: BeliefDay[],
-        ) => Array<{ mid: number; stale: number; fresh: number }>;
-        ageCompositionSeriesFromBelief?: (
-          beliefHistory: BeliefDay[],
-        ) => AgeRow[];
-      }
-    ).freshnessCompositionSeriesFromBelief;
     const history = [{ day: 0, flatBelief: asFWireBelief(flat) }];
-    let mid: number;
-    if (typeof fn === "function") {
-      mid = fn(history)[0]!.mid;
-    } else {
-      mid = (
-        inv as {
-          ageCompositionSeriesFromBelief: (
-            h: BeliefDay[],
-          ) => AgeRow[];
-        }
-      ).ageCompositionSeriesFromBelief(history)[0]!.mid;
-    }
+    const mid = (
+      inv as {
+        fCompositionSeriesFromBelief: (
+          h: BeliefDay[],
+        ) => FreshnessRow[];
+      }
+    ).fCompositionSeriesFromBelief(history)[0]!.mid;
     expect(mid).toBeCloseTo(7);
   });
 });
 
-describe("renderAgeComposition freshness legend (T-148)", () => {
+describe("renderFreshnessComposition freshness legend (T-148)", () => {
   it("uses fresh / fair / old band labels", () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
       configurable: true,
     });
-    inv.renderAgeComposition(container, [LOT_DAY], 100);
+    inv.renderFreshnessComposition(container, [LOT_DAY], 100);
     const labels = Array.from(
       container.querySelectorAll(".legend-label"),
     ).map((el) => el.textContent?.trim());
@@ -418,24 +390,24 @@ describe("renderAgeComposition freshness legend (T-148)", () => {
   });
 
   it("uses fresh / fair / old band labels for both truth and belief data rows (T-151 regression: labels must not revert to fraction-threshold wording when the truth overlay supplies rows)", () => {
-    function labelsFor(rowsOverride: AgeRow[]): (string | undefined)[] {
+    function labelsFor(rowsOverride: FreshnessRow[]): (string | undefined)[] {
       const container = document.createElement("div");
       Object.defineProperty(container, "clientWidth", {
         value: 320,
         configurable: true,
       });
-      inv.renderAgeComposition(container, [LOT_DAY], 100, rowsOverride);
+      inv.renderFreshnessComposition(container, [LOT_DAY], 100, rowsOverride);
       return Array.from(container.querySelectorAll(".legend-label")).map(
         (el) => el.textContent?.trim(),
       );
     }
 
-    const truthRows = inv.ageCompositionSeries([LOT_DAY]);
+    const truthRows = inv.fCompositionSeries([LOT_DAY]);
     const beliefRows = (
       inv as {
-        ageCompositionSeriesFromBelief: (h: BeliefDay[]) => AgeRow[];
+        fCompositionSeriesFromBelief: (h: BeliefDay[]) => FreshnessRow[];
       }
-    ).ageCompositionSeriesFromBelief(BELIEF_HISTORY);
+    ).fCompositionSeriesFromBelief(BELIEF_HISTORY);
 
     expect(labelsFor(truthRows)).toEqual(["fresh", "fair", "old"]);
     expect(labelsFor(beliefRows)).toEqual(["fresh", "fair", "old"]);
@@ -466,14 +438,14 @@ describe("inventory target hover (T-151)", () => {
     expect(x1).toBeGreaterThan(0);
   });
 
-  it("setAgeCompositionHover toggles hover rule opacity and x position", () => {
+  it("setFreshnessCompositionHover toggles hover rule opacity and x position", () => {
     const el = host();
-    inv.renderAgeComposition(el, [LOT_DAY], 120);
-    inv.setAgeCompositionHover(el, 0);
+    inv.renderFreshnessComposition(el, [LOT_DAY], 120);
+    inv.setFreshnessCompositionHover(el, 0);
     const rule = el.querySelector(".hover-rule");
     expect(rule?.getAttribute("opacity")).toBe("1");
     const x1 = Number(rule?.getAttribute("x1"));
-    inv.setAgeCompositionHover(el, null);
+    inv.setFreshnessCompositionHover(el, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
     expect(x1).toBeGreaterThan(0);
   });

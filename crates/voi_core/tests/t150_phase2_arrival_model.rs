@@ -35,6 +35,25 @@ fn read_src(name: &str) -> String {
         .unwrap_or_else(|err| panic!("read src/{name}: {err}"))
 }
 
+fn walk_rs_files(root: &std::path::Path) -> Vec<PathBuf> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        let entries = fs::read_dir(dir).unwrap_or_else(|err| {
+            panic!("read_dir {} for T-150 grep guard: {err}", dir.display())
+        });
+        for entry in entries {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, &mut out);
+    out
+}
+
 fn old_shape_params() -> ModelParams {
     ModelParams {
         gamma_shape: 2.0,
@@ -244,20 +263,17 @@ fn ac2_6_arrival_artifact_schema() {
 /// AC2.7: artifact embedded exactly once; parity with committed file.
 #[test]
 fn ac2_7_single_embed_and_parity() {
-    let output = std::process::Command::new("rg")
-        .args(["-c", "arrival_model.json", "crates/voi_core/src"])
-        .current_dir(repo_root())
-        .output()
-        .expect("rg");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let total: usize = stdout
-        .lines()
-        .filter_map(|line| line.split(':').nth(1))
-        .filter_map(|n| n.trim().parse::<usize>().ok())
+    let src_root = repo_root().join("crates/voi_core/src");
+    let total: usize = walk_rs_files(&src_root)
+        .into_iter()
+        .map(|path| {
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            text.matches("arrival_model.json").count()
+        })
         .sum();
     assert_eq!(
         total, 1,
-        "RED: arrival_model.json must be include_str!'d at exactly one site; rg -c gave:\n{stdout}"
+        "RED: arrival_model.json must be include_str!'d at exactly one site; found {total} matches"
     );
 
     let arrival_src = read_src("arrival.rs");

@@ -57,13 +57,13 @@ import {
   setDemandHover,
 } from "../charts/demandDist";
 import {
-  ageCompositionSeries,
-  ageCompositionSeriesFromBelief,
+  fCompositionSeries,
+  fCompositionSeriesFromBelief,
   inventorySeries,
   inventorySeriesFromBelief,
-  renderAgeComposition,
+  renderFreshnessComposition,
   renderInventoryTarget,
-  setAgeCompositionHover,
+  setFreshnessCompositionHover,
   setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
@@ -715,7 +715,7 @@ export function initStudio(app: HTMLElement): () => void {
     setPnLHover(els.pnlEconomics, day);
     setInventoryTargetHover(els.inventory, day);
     setInventoryTargetHover(els.inventoryFocus, day);
-    setAgeCompositionHover(els.ageComp, day);
+    setFreshnessCompositionHover(els.ageComp, day);
     setDemandHover(els.demand, day);
     setDemandForecastHover(els.demandForecast, day);
   }
@@ -843,10 +843,10 @@ export function initStudio(app: HTMLElement): () => void {
         }
       });
       const ageRows = showTruth
-        ? ageCompositionSeries(vm.history)
-        : ageCompositionSeriesFromBelief(vm.belief_history);
-      profileSync("renderRunStripCharts.ageComposition", () =>
-        renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
+        ? fCompositionSeries(vm.history)
+        : fCompositionSeriesFromBelief(vm.belief_history);
+      profileSync("renderRunStripCharts.fComposition", () =>
+        renderFreshnessComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
       );
     });
   }
@@ -900,10 +900,10 @@ export function initStudio(app: HTMLElement): () => void {
       }
       if (plotVisible("plot-age-comp")) {
         const ageRows = showTruth
-          ? ageCompositionSeries(vm.history)
-          : ageCompositionSeriesFromBelief(vm.belief_history);
+          ? fCompositionSeries(vm.history)
+          : fCompositionSeriesFromBelief(vm.belief_history);
         profileSync("renderActiveFocusPlots.ageComp", () =>
-          renderAgeComposition(els.ageComp, vm.history, 140, ageRows),
+          renderFreshnessComposition(els.ageComp, vm.history, 140, ageRows),
         );
       }
       if (plotVisible("plot-demand")) {

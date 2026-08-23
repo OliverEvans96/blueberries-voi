@@ -20,9 +20,9 @@ function obsControlsPaneRootRule(): string {
 }
 
 describe("obsControls.css panel padding", () => {
-  it("uses padding-block on .obs-controls-pane so .panel keeps horizontal padding", () => {
+  it("keeps horizontal inset on .obs-controls-pane matching .panel side padding", () => {
     const rootRule = obsControlsPaneRootRule();
-    expect(rootRule).toMatch(/padding-block:\s*0\.35rem\s+0\.75rem/);
+    expect(rootRule).toMatch(/padding:\s*0\.35rem\s+1rem\s+0\.65rem/);
     expect(rootRule).not.toMatch(/padding:\s*[^;]*\s0\s/);
   });
 

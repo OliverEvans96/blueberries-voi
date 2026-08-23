@@ -26,18 +26,31 @@ fn read_web(rel: &str) -> String {
 }
 
 fn rg_hits(root: &Path, pattern: &str) -> Vec<String> {
-    let output = std::process::Command::new("rg")
-        .args(["-n", pattern])
-        .arg(root)
-        .output()
-        .expect("rg must be installed for T-150 grep guards");
-    if !output.status.success() && output.stdout.is_empty() {
-        return Vec::new();
+    fn walk(dir: &Path, pattern: &str, hits: &mut Vec<String>) {
+        let entries = fs::read_dir(dir).unwrap_or_else(|err| {
+            panic!("read_dir {} for T-150 grep guard: {err}", dir.display())
+        });
+        for entry in entries {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, pattern, hits);
+                continue;
+            }
+            let rel = path
+                .strip_prefix(repo_root())
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| path.to_string_lossy().to_string());
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            for (line_no, line) in text.lines().enumerate() {
+                if line.contains(pattern) {
+                    hits.push(format!("{}:{}:{}", rel, line_no + 1, line));
+                }
+            }
+        }
     }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::to_string)
-        .collect()
+    let mut hits = Vec::new();
+    walk(root, pattern, &mut hits);
+    hits
 }
 
 /// AC1.1: `age_at_receipt` retired from Rust live path and TypeScript wire types.

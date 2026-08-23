@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import math
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -49,21 +48,22 @@ _REQUIRED_ARTIFACT_KEYS = frozenset(
 )
 
 
-def _rg_count(pattern: str, path: str) -> int:
-    proc = subprocess.run(
-        ["rg", "-c", pattern, path],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode not in (0, 1):
-        pytest.fail(f"rg failed: {proc.stderr}")
-    total = 0
-    for line in proc.stdout.splitlines():
-        if ":" in line:
-            total += int(line.rsplit(":", 1)[-1])
-    return total
+def _grep_list(pattern: str, root_rel: str) -> list[str]:
+    """List repo-relative paths under root_rel whose file contents contain pattern."""
+    root = _REPO_ROOT / root_rel
+    hits: list[str] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if any(part in {".venv", "__pycache__", ".git"} for part in path.parts):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if pattern in text:
+            hits.append(str(path.relative_to(_REPO_ROOT)))
+    return hits
 
 
 def _read(path: Path) -> str:
@@ -315,18 +315,11 @@ def test_ac3_7_changelog_plain_english_entry() -> None:
 
 def test_ac1_3_python_legacy_paths_allowlisted() -> None:
     """AC1.3: Python filter/sim may keep age_at_receipt; live package must not."""
-    filter_hits = subprocess.run(
-        ["rg", "-l", "age_at_receipt", "src/blueberries_voi/"],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
     allowed_prefixes = (
         "src/blueberries_voi/filter/",
         "src/blueberries_voi/sim/",
     )
-    paths = [p for p in filter_hits.stdout.splitlines() if p]
+    paths = _grep_list("age_at_receipt", "src/blueberries_voi/")
     outside = [
         p for p in paths if not any(p.startswith(prefix) for prefix in allowed_prefixes)
     ]
