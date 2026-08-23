@@ -20,30 +20,64 @@ export type QForecastEntry = {
   };
 };
 
+function tradeoffNumeric(v: unknown): number | null {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** X-domain for tradeoff curve — avoids NaN when data is empty or a single q. */
+export function tradeoffXExtent(data: QForecastEntry[]): [number, number] {
+  const qs = data
+    .map((d) => tradeoffNumeric(d.q))
+    .filter((q): q is number => q != null);
+  if (qs.length === 0) return [0, 1];
+  const lo = d3.min(qs) ?? 0;
+  const hi = d3.max(qs) ?? 0;
+  if (lo === hi) return [lo - 0.5, hi + 0.5];
+  return [lo, hi];
+}
+
 /** Y-domain for tradeoff curve — padded extent with minimum span when flat. */
 export function tradeoffYExtent(data: QForecastEntry[]): [number, number] {
-  const values = data.flatMap((d) => [
-    d.waste_p10,
-    d.waste_p50,
-    d.waste_p90,
-    d.waste_mean,
-    d.missed_p10,
-    d.missed_p50,
-    d.missed_p90,
-    d.missed_mean,
-  ]).filter((v) => Number.isFinite(v));
+  const values = data
+    .flatMap((d) => [
+      d.waste_p10,
+      d.waste_p50,
+      d.waste_p90,
+      d.waste_mean,
+      d.missed_p10,
+      d.missed_p50,
+      d.missed_p90,
+      d.missed_mean,
+    ])
+    .map((v) => tradeoffNumeric(v))
+    .filter((v): v is number => v != null);
 
   if (values.length === 0) return [0, 1];
 
   const yMin = d3.min(values) ?? 0;
   const yMax = d3.max(values) ?? 0;
   const span = yMax - yMin;
-  const pad =
-    span > 0
-      ? Math.max(1, span * 0.08)
-      : Math.max(1, Math.abs(yMax) * 0.05);
+  if (span > 0) {
+    const pad = Math.max(1, span * 0.08);
+    return [Math.max(0, yMin - pad), yMax + pad];
+  }
 
-  return [Math.max(0, yMin - pad), yMax + pad];
+  const half = Math.max(1, Math.abs(yMax) * 0.05);
+  if (yMin === 0 && yMax === 0) {
+    return [-half, half];
+  }
+  return [Math.max(0, yMax - half), yMax + half];
+}
+
+function tradeoffYTickFormat(
+  domain: [number, number],
+): (value: d3.NumberValue) => string {
+  const span = domain[1] - domain[0];
+  if (domain[0] < 0 || span <= 2) {
+    return (value) => d3.format(".1f")(value as number);
+  }
+  return (value) => d3.format("~s")(value as number);
 }
 
 export function nearestCandidateQ(
@@ -82,13 +116,16 @@ export function renderTradeoffCurve(
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
   const innerW = width - margin.left - margin.right;
-  const innerH = height - margin.top - margin.bottom;
-  const x = d3
-    .scaleLinear()
-    .domain(d3.extent(data, (d) => d.q) as [number, number])
-    .range([0, innerW]);
+  const innerH = Math.max(1, height - margin.top - margin.bottom);
+  const [x0, x1] = tradeoffXExtent(data);
+  const x = d3.scaleLinear().domain([x0, x1]).nice().range([0, innerW]);
   const [y0, y1] = tradeoffYExtent(data);
-  const y = d3.scaleLinear().domain([y0, y1]).nice().range([innerH, 0]);
+  const y = d3
+    .scaleLinear()
+    .domain([y0, y1])
+    .nice()
+    .range([innerH, 0]);
+  const yDomain = y.domain() as [number, number];
   const areaWaste = d3
     .area<QForecastEntry>()
     .x((d) => x(d.q))
@@ -155,7 +192,13 @@ export function renderTradeoffCurve(
 
   g.append("g")
     .attr("class", "axis axis-y")
-    .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
+    .call(
+      d3
+        .axisLeft(y)
+        .ticks(4)
+        .tickFormat(tradeoffYTickFormat(yDomain))
+        .tickSizeOuter(0),
+    )
     .call((sel) => sel.select(".domain").remove());
 
   g.append("text")
