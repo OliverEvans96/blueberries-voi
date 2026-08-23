@@ -47,30 +47,52 @@ def test_engine_session_init_with_empty_shipments_still_raises_value_error() -> 
 
 
 def test_wasm_worker_contains_ensure_demo_shipments_hydrate() -> None:
-    text = _wasm_worker_source()
-    assert "ensureDemoShipments" in text, (
-        "wasm worker.js must export ensureDemoShipments "
-        "for demo hydrate (T-071 / T-125)"
+    demo_config = (_REPO_ROOT / "web" / "src" / "engine" / "demoConfig.ts").read_text(
+        encoding="utf-8"
     )
-    assert "hydrateRpcRequest" in text or "prepareDemoConfig" in text, (
-        "wasm worker.js must hydrate init/reset RPC before handle_rpc"
+    assert "ensureDemoShipments" in demo_config, (
+        "demoConfig.ts must export ensureDemoShipments for demo hydrate (T-071 / T-125)"
+    )
+    text = _wasm_worker_source()
+    assert "hydrateRpcRequest" in text or "demoConfig" in text, (
+        "wasm worker must hydrate init/reset RPC before handle_rpc"
     )
 
 
 def test_wasm_worker_uses_parquet_free_smoke_fixture() -> None:
-    text = _wasm_worker_source()
-    assert "smokeCoolShipments" in text or "smoke_cool_shipments" in text, (
+    demo_config = (_REPO_ROOT / "web" / "src" / "engine" / "demoConfig.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "smokeCoolShipments" in demo_config, (
         "wasm demo hydrate must use parquet-free smoke fixture (ADR 0107)"
     )
 
 
 def test_wasm_worker_hydrate_applies_on_init_and_reset() -> None:
     text = _wasm_worker_source()
-    hydrate_block = text.split("function hydrateRpcRequest", 1)
-    assert len(hydrate_block) == 2, "wasm worker must define hydrateRpcRequest"
-    body = hydrate_block[1][:600]
+    assert "hydrateRpcRequest" in text, (
+        "wasm worker must hydrate init/reset RPC before handle_rpc"
+    )
+    demo_config = (_REPO_ROOT / "web" / "src" / "engine" / "demoConfig.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "function hydrateRpcRequest" in demo_config or "export function hydrateRpcRequest" in demo_config
+    body = demo_config.split("hydrateRpcRequest", 1)[1][:600]
     assert "init" in body and "reset" in body, (
         "hydrateRpcRequest must handle init and reset methods"
+    )
+
+
+def test_wasm_worker_defers_shipments_when_arrival_product_set() -> None:
+    """T-134/T-150: studio init must not force smokeCool when Rust can hydrate mod21."""
+    demo_config = (_REPO_ROOT / "web" / "src" / "engine" / "demoConfig.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "arrival_product" in demo_config, (
+        "demoConfig must recognize arrival_product for mod21 deferral"
+    )
+    assert "delete out.shipments" in demo_config or "mod21" in demo_config, (
+        "demoConfig must leave shipments unset for Rust mod21_demo_shipments"
     )
 
 

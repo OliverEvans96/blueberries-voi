@@ -756,6 +756,36 @@ describe("ViewModelProjector heatmap density from snapshot.belief (T-117)", () =
     expect(vm.belief_history[1]!.flatBelief.f_marginals[3]).toBe(1);
   });
 
+  it("applySnapshot uses wire belief_history when present", () => {
+    const projector = new ViewModelProjector();
+    const vm = projector.applySnapshot(
+      sampleSnapshot({
+        belief: peakedBelief(3),
+        belief_history: [
+          { day: 0, belief: peakedBelief(1) },
+          { day: 1, belief: peakedBelief(2) },
+        ],
+        history: [sampleDay(0), sampleDay(1)],
+        episode_day: 2,
+      }),
+    );
+    expect(vm.belief_history[0]!.flatBelief.f_marginals[1]).toBe(1);
+    expect(vm.belief_history[1]!.flatBelief.f_marginals[2]).toBe(1);
+    expect(vm.belief_history).toHaveLength(2);
+  });
+
+  it("patchEngineState appends belief_history days missing from projector", () => {
+    const projector = new ViewModelProjector();
+    projector.applySnapshot(sampleSnapshot({ belief: peakedBelief(0) }));
+    const vm = projector.patchEngineState({
+      belief: peakedBelief(4),
+      belief_history: [{ day: 5, belief: peakedBelief(5) }],
+      episode_day: 6,
+    });
+    expect(vm.belief_history.some((b) => b.day === 5)).toBe(true);
+    expect(vm.belief_history.find((b) => b.day === 5)!.flatBelief.f_marginals[5]).toBe(1);
+  });
+
   it("patchEngineState skips belief_history update for empty stub belief", () => {
     const projector = new ViewModelProjector();
     projector.applySnapshot(

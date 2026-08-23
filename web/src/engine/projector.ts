@@ -303,10 +303,15 @@ export class ViewModelProjector {
       unit_exits: (d.unit_exits ?? []).map((e) => ({ ...e })),
       stockout: stockoutFromDayFields(d.demand, d.sales_total, d.stockout),
     }));
-    this.beliefHistory = this.history.map((d) => ({
-      day: d.day,
-      flatBelief: cloneFlat(snapshot.belief),
-    }));
+    this.beliefHistory = snapshot.belief_history?.length
+      ? snapshot.belief_history.map((entry) => ({
+          day: entry.day,
+          flatBelief: cloneFlat(entry.belief),
+        }))
+      : this.history.map((d) => ({
+          day: d.day,
+          flatBelief: cloneFlat(snapshot.belief),
+        }));
     this.liveLots = (snapshot.live_lots ?? []).map((l) => ({
       ...l,
       f_values: l.f_values ? [...l.f_values] : undefined,
@@ -406,16 +411,19 @@ export class ViewModelProjector {
       this.episodeDay = snapshot.episode_day;
     }
     if (snapshot.belief_history?.length) {
+      const next = [...this.beliefHistory];
       for (const entry of snapshot.belief_history) {
         if (entry.belief.L <= 0 || entry.belief.K <= 0) continue;
-        const idx = this.beliefHistory.findIndex((b) => b.day === entry.day);
+        const idx = next.findIndex((b) => b.day === entry.day);
+        const row = { day: entry.day, flatBelief: cloneFlat(entry.belief) };
         if (idx >= 0) {
-          this.beliefHistory[idx] = {
-            day: entry.day,
-            flatBelief: cloneFlat(entry.belief),
-          };
+          next[idx] = row;
+        } else {
+          next.push(row);
         }
       }
+      next.sort((a, b) => a.day - b.day);
+      this.beliefHistory = next;
     }
     if (snapshot.belief) {
       this.flatBelief = cloneFlat(snapshot.belief);
