@@ -9,6 +9,7 @@ import {
   aggregateBeliefMasses,
   binIndexForValue,
   DISPLAY_BIN_COUNT,
+  emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
   histogramEdges,
   rebinMasses,
@@ -172,5 +173,16 @@ describe("renderFreshnessHistogram", () => {
     );
     expect(labels).toEqual(["Belief", "Truth"]);
     expect(labels.some((label) => label?.startsWith("Lot"))).toBe(false);
+  });
+
+  it("empty scaffold renders fixed-height SVG with axes", () => {
+    const el = host();
+    const height = 150;
+    renderFreshnessHistogram(el, emptyFreshnessHistogramData(), true, height);
+    const svg = el.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute("height")).toBe(String(height));
+    expect(el.querySelectorAll(".axis").length).toBeGreaterThan(0);
+    expect(el.querySelectorAll(".freshness-belief-bar").length).toBe(0);
   });
 });

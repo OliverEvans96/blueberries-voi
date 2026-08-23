@@ -588,7 +588,7 @@ export function renderBeliefFreshnessTime(
     0,
   );
   const showTruthOverlay = showTruth && (truthPointCount > 0 || truthExitCount > 0);
-  const legendBand = showTruthOverlay ? TRUTH_LEGEND_BAND : 0;
+  const legendBand = showTruth ? TRUTH_LEGEND_BAND : 0;
 
   const margin = {
     ...BELIEF_FRESHNESS_TIME_MARGIN,

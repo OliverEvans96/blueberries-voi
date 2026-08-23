@@ -30,6 +30,12 @@ import {
   type BeliefFreshnessHoverFocus,
 } from "../charts/beliefFreshnessTime";
 import {
+  BELIEF_FRESHNESS_TIME_HEIGHT,
+  BELIEF_HISTOGRAM_HEIGHT,
+  METRICS_STRIP_HEIGHT,
+} from "../charts/chartHeights";
+import {
+  emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
   renderFreshnessHistogram,
 } from "../charts/freshnessHistogram";
@@ -359,7 +365,7 @@ export function initStudio(app: HTMLElement): () => void {
     if (pnlTotalsHost) {
       renderPnLTotals(pnlTotalsHost, vm);
     }
-    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, 130);
+    renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, METRICS_STRIP_HEIGHT);
     const impact = computeImpactTotals(vm.history);
     if (impactMissedRoot) {
       impactMissedRoot.render(
@@ -662,12 +668,15 @@ export function initStudio(app: HTMLElement): () => void {
 
   function renderCockpitBelief(): void {
     const flat = vm.belief_history.at(-1)?.flatBelief;
-    if (flat) {
-      const data = freshnessHistogramDataFromFlat(flat, vm.live_units);
-      renderFreshnessHistogram(els.beliefLg, data, showTruth, 150);
-    } else {
-      els.beliefLg.replaceChildren();
-    }
+    const data = flat
+      ? freshnessHistogramDataFromFlat(flat, vm.live_units)
+      : emptyFreshnessHistogramData();
+    renderFreshnessHistogram(
+      els.beliefLg,
+      data,
+      showTruth,
+      BELIEF_HISTOGRAM_HEIGHT,
+    );
     els.beliefAgeMarginal.replaceChildren();
   }
 
@@ -675,12 +684,12 @@ export function initStudio(app: HTMLElement): () => void {
     const invSeries = showTruth
       ? inventorySeries(vm.history, vm.config)
       : inventorySeriesFromBelief(vm.belief_history, vm.config);
-    renderInventoryTarget(els.inventory, vm.history, vm.config, 130, invSeries);
-    renderOrdersWaste(els.controllerOrders, vm.history, 130);
+    renderInventoryTarget(els.inventory, vm.history, vm.config, METRICS_STRIP_HEIGHT, invSeries);
+    renderOrdersWaste(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT);
     const ageRows = showTruth
       ? ageCompositionSeries(vm.history)
       : ageCompositionSeriesFromBelief(vm.belief_history);
-    renderAgeComposition(els.ageComp, vm.history, 130, ageRows);
+    renderAgeComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows);
   }
 
   function renderStore() {
@@ -692,11 +701,10 @@ export function initStudio(app: HTMLElement): () => void {
       historyForCharts(),
       vm.belief_history,
       showTruth,
-      { height: 220 },
+      { height: BELIEF_FRESHNESS_TIME_HEIGHT },
     );
-    renderSalesDemand(els.salesDemand, vm.history, 130);
+    renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT);
     renderCockpitBelief();
-    renderMetricsPane();
     renderRunStripCharts();
     renderTradeoffBeliefColumn();
     applyHoverStyles(hoveredDay);

@@ -65,6 +65,15 @@
   min-height: 130px;
 }
 
+#chart-belief-lg.chart {
+  min-height: 150px;
+}
+
+#impact-missed-host,
+#impact-waste-host {
+  min-height: 1.2rem;
+}
+
 .metrics-stack .chart-caption {
   margin-top: 0.15rem;
 }

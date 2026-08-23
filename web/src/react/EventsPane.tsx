@@ -164,16 +164,6 @@ export function EventsPane({
   loading,
   refreshing,
 }: EventsPaneProps) {
-  const showInitialLoading = loading && events.length === 0;
-
-  if (showInitialLoading) {
-    return (
-      <section className="events-pane panel" aria-label="Events" data-loading>
-        <p>Loading events…</p>
-      </section>
-    );
-  }
-
   const obsMask = vm.config.obs_channels
     ? maskFromChannels(vm.config.obs_channels)
     : maskFor(vm.config.obs_scenario);
@@ -186,18 +176,25 @@ export function EventsPane({
   ).sort((a, b) => b - a);
 
   const eventByDay = new Map(events.map((ev) => [ev.day ?? 0, ev]));
+  const showInitialLoading = loading && events.length === 0;
 
   return (
     <section
       className="events-pane panel"
       aria-label="Events"
+      data-loading={showInitialLoading ? "true" : undefined}
       data-refreshing={refreshing ? "true" : undefined}
     >
       <div className="panel-head">
         <h2>Events</h2>
         <span className="panel-note">
           Last 5 days
-          {refreshing ? (
+          {showInitialLoading ? (
+            <span className="events-refresh-indicator" aria-live="polite">
+              Loading events…
+            </span>
+          ) : null}
+          {!showInitialLoading && refreshing ? (
             <span className="events-refresh-indicator" aria-live="polite">
               Updating…
             </span>
@@ -205,7 +202,7 @@ export function EventsPane({
         </span>
       </div>
       <div className="events-list">
-        {windowDays.length === 0 ? (
+        {!showInitialLoading && windowDays.length === 0 ? (
           <p className="events-empty-note">No completed days yet.</p>
         ) : null}
         {windowDays.map((day, index) => {

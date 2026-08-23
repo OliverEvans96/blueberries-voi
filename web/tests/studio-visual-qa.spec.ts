@@ -166,4 +166,43 @@ test.describe("T-148 layout v6 — visual QA", () => {
     await setObsChannels(page, { codeType: "gsin", scanWaste: true });
     await expect(page.locator("#events-pane-host")).toBeVisible();
   });
+
+  test("9: chart host heights stay stable across first advances", async ({ page }) => {
+    await page.goto("/");
+    await waitForEngine(page);
+
+    const chartIds = [
+      "#chart-pnl-economics",
+      "#chart-history",
+      "#chart-belief-lg",
+      "#tradeoff-curve-host",
+    ];
+
+    const heightsBefore = await page.evaluate((ids) => {
+      const out: Record<string, number> = {};
+      for (const id of ids) {
+        const el = document.querySelector(id);
+        out[id] = el?.getBoundingClientRect().height ?? 0;
+      }
+      return out;
+    }, chartIds);
+
+    await advanceDays(page, 2);
+
+    const heightsAfter = await page.evaluate((ids) => {
+      const out: Record<string, number> = {};
+      for (const id of ids) {
+        const el = document.querySelector(id);
+        out[id] = el?.getBoundingClientRect().height ?? 0;
+      }
+      return out;
+    }, chartIds);
+
+    for (const id of chartIds) {
+      const before = heightsBefore[id] ?? 0;
+      const after = heightsAfter[id] ?? 0;
+      expect(before).toBeGreaterThan(0);
+      expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
+    }
+  });
 });

@@ -48,7 +48,10 @@ export function renderTradeoffCurve(
   const margin = { top: 16, right: 10, bottom: 32, left: 40 };
   const root = d3.select(svg);
   root.selectAll("*").remove();
-  root.attr("viewBox", `0 0 ${width} ${height}`);
+  root
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("width", "100%")
+    .attr("height", height);
   const g = root
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);

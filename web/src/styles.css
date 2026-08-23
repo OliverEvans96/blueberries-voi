@@ -482,7 +482,7 @@
 }
 
 #chart-history.chart {
-  min-height: 140px;
+  min-height: 220px;
 }
 
 .chart-svg {
@@ -1125,10 +1125,14 @@ input[type="number"] {
   margin-left: 0;
 }
 
+.tradeoff-chart-host {
+  min-height: 140px;
+}
+
 .tradeoff-chart-host svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 
 .chart-unavailable {
