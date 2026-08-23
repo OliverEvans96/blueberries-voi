@@ -21,6 +21,7 @@ import {
   createStudioAdapter,
   reportStudioAdapterError,
   resolveStudioAdapterKind,
+  STUDIO_PACKAGE_VERSION,
   studioFooterCopy,
   type StudioEnv,
 } from "../engine/studioAdapter";
@@ -141,6 +142,7 @@ export function initStudio(app: HTMLElement): () => void {
   if (footerEl) {
     footerEl.textContent = studioFooterCopy(adapterKind);
     footerEl.setAttribute("data-engine-adapter", adapterKind);
+    footerEl.setAttribute("data-studio-version", STUDIO_PACKAGE_VERSION);
     footerEl.setAttribute(
       "data-vite-engine-adapter",
       studioEnv.VITE_ENGINE_ADAPTER ?? "",

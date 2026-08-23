@@ -1,5 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { readWebPackageVersion } from "./vitePackageVersion";
+
+const studioVersion = readWebPackageVersion();
 
 /**
  * T-144: WASM worker + pkg resolve through the Vite graph (dev and production).
@@ -8,6 +11,9 @@ import { defineConfig } from "vitest/config";
  */
 export default defineConfig({
   root: ".",
+  define: {
+    "import.meta.env.VITE_STUDIO_VERSION": JSON.stringify(studioVersion),
+  },
   plugins: [react()],
   assetsInclude: ["**/*.wasm"],
   worker: {

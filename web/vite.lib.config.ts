@@ -3,8 +3,10 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
+import { readWebPackageVersion } from "./vitePackageVersion";
 
 const WEB_ROOT = fileURLToPath(new URL(".", import.meta.url));
+const studioVersion = readWebPackageVersion();
 
 /** Peer deps must resolve from the host app, not ship inside embed.js (issue #5). */
 function isReactPeerExternal(id: string): boolean {
@@ -20,6 +22,9 @@ function isReactPeerExternal(id: string): boolean {
 export default defineConfig({
   root: ".",
   base: "./",
+  define: {
+    "import.meta.env.VITE_STUDIO_VERSION": JSON.stringify(studioVersion),
+  },
   plugins: [
     react(),
     dts({
