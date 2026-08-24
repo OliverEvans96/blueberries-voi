@@ -14,7 +14,12 @@ export function StudioProvider({
 }: StudioProviderProps) {
   useEffect(() => {
     const app = containerRef?.current ?? document.getElementById("app");
-    if (!app) return undefined;
+    if (!app) {
+      console.error(
+        "StudioProvider: no mount container found. Pass containerRef or ensure #app exists.",
+      );
+      return undefined;
+    }
     return initStudio(app);
   }, [containerRef]);
 
