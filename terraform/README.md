@@ -17,6 +17,8 @@ cp terraform.tfvars.example terraform.tfvars
 
 Set `enable_github_actions = true` and the target `github_owner` / `github_repository`.
 
+If you run `terraform apply` without `terraform.tfvars`, `enable_github_actions` stays **false** (the default). Terraform will only refresh the SOPS data source and outputs — **no GitHub Actions secrets are created or updated**. Copy the example file before your first real apply.
+
 ## Apply
 
 The GitHub provider needs a PAT when syncing Actions secrets:

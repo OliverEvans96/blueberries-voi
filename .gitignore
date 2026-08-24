@@ -38,6 +38,8 @@ htmlcov/
 
 # Secrets / local config
 .env
+secrets/secrets.plain.yaml
+secrets/*.plain.yaml
 terraform/terraform.tfvars
 terraform/.terraform/
 terraform/*.tfstate

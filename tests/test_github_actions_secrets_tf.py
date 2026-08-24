@@ -13,6 +13,7 @@ _SECRETS_TEMPLATE = _SECRETS_DIR / "secrets.template.yaml"
 _SECRETS_README = _SECRETS_DIR / "README.md"
 _TF_DIR = _REPO_ROOT / "terraform"
 _TF_README = _TF_DIR / "README.md"
+_TF_LOCK = _TF_DIR / ".terraform.lock.hcl"
 _GHA_MODULE = _TF_DIR / "modules" / "github-actions" / "main.tf"
 
 
@@ -69,3 +70,19 @@ def test_terraform_readme_documents_bootstrap() -> None:
     assert "terraform apply" in lowered
     assert "enable_github_actions" in text
     assert "sops" in lowered or "secrets/" in text
+
+
+def test_terraform_lockfile_is_committed() -> None:
+    """Provider lockfile is tracked (mirrors personal-website)."""
+    assert _TF_LOCK.is_file(), "run terraform init and commit terraform/.terraform.lock.hcl"
+    text = _TF_LOCK.read_text(encoding="utf-8")
+    assert "integrations/github" in text
+    assert "carlpett/sops" in text
+
+
+def test_enable_github_actions_defaults_false_without_tfvars() -> None:
+    """Default off: apply without tfvars must not create GitHub resources."""
+    text = (_TF_DIR / "variables.tf").read_text(encoding="utf-8")
+    assert re.search(r'variable\s+"enable_github_actions"[\s\S]*default\s*=\s*false', text)
+    example = (_TF_DIR / "terraform.tfvars.example").read_text(encoding="utf-8")
+    assert "enable_github_actions = true" in example
