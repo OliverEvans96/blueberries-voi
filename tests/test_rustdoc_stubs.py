@@ -28,7 +28,7 @@ def _find_definition(path: Path, symbol: str) -> int | None:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
     if "::" in symbol:
-        ty, method = symbol.split("::", 1)
+        _ty, method = symbol.split("::", 1)
         method = method.split("(")[0]
         if method == "default":
             pat = re.compile(rf"^\s*fn\s+{re.escape(method)}\b")
@@ -41,7 +41,7 @@ def _find_definition(path: Path, symbol: str) -> int | None:
         )
         # Fallback: a plain struct/enum field declaration (`pub foo: Type,`), which the
         # item-level pattern above doesn't match but which can carry its own `///` doc
-        # comment -- e.g. `ModelParams::demand_mu` is cited by name, not as a `fn`/`struct`.
+        # comment (e.g. ModelParams::demand_mu field cites).
         field_pat = re.compile(rf"^\s*pub\s+{re.escape(base)}\s*:")
         for i, line in enumerate(lines):
             if pat.search(line):

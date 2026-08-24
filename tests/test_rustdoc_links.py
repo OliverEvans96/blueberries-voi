@@ -46,7 +46,9 @@ def test_rustdoc_links_in_docs_resolve() -> None:
             rel = url.removeprefix("/api/rust/").split("#", 1)[0]
             target = RUSTDOC_ROOT / rel
             if not target.is_file():
-                failures.append(f"{md}: link for `{symbol}` -> {url} missing at {target}")
+                failures.append(
+                    f"{md}: link for `{symbol}` -> {url} missing at {target}"
+                )
     assert not failures, "Broken rustdoc links:\n" + "\n".join(failures)
 
 

@@ -76,7 +76,10 @@ def test_wasm_worker_hydrate_applies_on_init_and_reset() -> None:
     demo_config = (_REPO_ROOT / "web" / "src" / "engine" / "demoConfig.ts").read_text(
         encoding="utf-8"
     )
-    assert "function hydrateRpcRequest" in demo_config or "export function hydrateRpcRequest" in demo_config
+    assert (
+        "function hydrateRpcRequest" in demo_config
+        or "export function hydrateRpcRequest" in demo_config
+    )
     body = demo_config.split("hydrateRpcRequest", 1)[1][:600]
     assert "init" in body and "reset" in body, (
         "hydrateRpcRequest must handle init and reset methods"

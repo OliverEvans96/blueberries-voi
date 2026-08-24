@@ -16,9 +16,7 @@ CITATION_RE = re.compile(
     r"(?:\(`(?P<symbol>[^`]+)`\)|\(\[`(?P<symbol_linked>[^`]+)`\]\(/api/rust/[^)]+\)\))"
 )
 
-LINKED_RE = re.compile(
-    r"\(\[`(?P<symbol>[^`]+)`\]\(/api/rust/[^)]+\)\)"
-)
+LINKED_RE = re.compile(r"\(\[`(?P<symbol>[^`]+)`\]\(/api/rust/[^)]+\)\)")
 
 
 def _load_link_map() -> dict[tuple[str, str], str]:
@@ -57,7 +55,9 @@ def _sync_file(path: Path, link_map: dict[tuple[str, str], str]) -> bool:
 
 def main() -> int:
     if not MANIFEST_PATH.is_file():
-        raise SystemExit(f"Missing {MANIFEST_PATH}; run rustdoc_inventory.py --write first")
+        raise SystemExit(
+            f"Missing {MANIFEST_PATH}; run rustdoc_inventory.py --write first"
+        )
     link_map = _load_link_map()
     n = 0
     for md in sorted(DOCS_ROOT.rglob("*.md")):

@@ -42,7 +42,7 @@ class ManifestEntry:
     source_file: str
     rustdoc_path: str
     linkable: bool
-  # nearest public symbol when linkable is false (optional)
+    # nearest public symbol when linkable is false (optional)
     link_target: str | None = None
 
 
@@ -147,7 +147,7 @@ def build_manifest() -> list[ManifestEntry]:
     crate_root = _parse_crate_root_exports()
     citations = _collect_citations()
     entries: list[ManifestEntry] = []
-    for (module, symbol), doc_page in sorted(citations.items()):
+    for (module, symbol), _doc_page in sorted(citations.items()):
         source = f"crates/voi_core/src/{module}.rs"
         linkable = _is_public_symbol(module, symbol)
         path = _rustdoc_path(module, symbol, crate_root)
