@@ -4,4 +4,4 @@
 creation_rules:
   - path_regex: ^secrets/.*\.enc\.(yaml|yml|json)$
     pgp: >-
-      8E6247AF5498E6BBFE46EAD119224FF795965F06
+      397878E57C7B94CB51D7359DDAB6719C752FBC23
