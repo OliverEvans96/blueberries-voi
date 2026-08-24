@@ -19,7 +19,7 @@ const GLOSSARY_TERMS = [
   ...(["P0", "P1", "F1", "F1s", "F2a", "F2"] as const).map(
     (id) => `${id} — ${SCENARIO_COPY[id].title}`,
   ),
-  "Sim truth overlay",
+  "Omniscience",
   "Base-stock",
 ];
 
@@ -151,7 +151,7 @@ describe("ReferenceDrawer (T-126 AC-refdrawer)", () => {
     expect(getDialog()).not.toBeNull();
     const tabs = getTabs();
     expect(tabs[2]).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Toggle sim truth overlay (when focused)")).toBeInTheDocument();
+    expect(screen.getByText("Toggle Omniscience (when focused)")).toBeInTheDocument();
     expect(screen.queryByText("Observation scenario")).not.toBeInTheDocument();
   });
 

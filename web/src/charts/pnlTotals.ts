@@ -1,8 +1,13 @@
+import { computeImpactTotals } from "../metrics/impactTotals";
 import type { ViewModel } from "../types";
 
 function money(n: number): string {
   const sign = n < 0 ? "−" : "";
   return `${sign}$${Math.abs(n).toFixed(0)}`;
+}
+
+function units(n: number): string {
+  return n.toFixed(0);
 }
 
 export function renderPnLTotals(
@@ -11,6 +16,7 @@ export function renderPnLTotals(
 ): void {
   // Episode totals for the full horizon (not a rolling window).
   const t = vm.pnl_totals;
+  const impact = computeImpactTotals(vm.history);
   container.innerHTML = `
     <div class="pnl-totals pnl-totals--compact">
       <div class="pnl-totals-line">
@@ -27,6 +33,17 @@ export function renderPnLTotals(
         <span class="pnl-item pnl-item--emphasis">
           <span class="pnl-label">Profit</span>
           <span class="pnl-value pnl-value--profit ${t.profit >= 0 ? "is-pos" : "is-neg"}">${money(t.profit)}</span>
+        </span>
+      </div>
+      <div class="pnl-totals-line">
+        <span class="pnl-item">
+          <span class="pnl-label">Missed sales</span>
+          <span class="pnl-value pnl-value--missed">${units(impact.missedTotal)}</span>
+        </span>
+        <span class="pnl-sep" aria-hidden="true">·</span>
+        <span class="pnl-item">
+          <span class="pnl-label">Waste</span>
+          <span class="pnl-value pnl-value--waste">${units(impact.wasteTotal)}</span>
         </span>
       </div>
     </div>

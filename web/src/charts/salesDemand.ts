@@ -255,38 +255,53 @@ export function renderSalesDemand(
   ];
   if (forecastRows.length > 0) {
     legendItems.push(
-      { kind: "line", cls: "sd-forecast-mean", label: "Forecast μ" },
+      { kind: "line", cls: "sd-forecast-mean", label: "Forecast" },
       { kind: "band", cls: "sd-forecast-band", label: "p10–p90" },
     );
   }
-  let legendX = 0;
-  for (const item of legendItems) {
-    const group = legend.append("g").attr("transform", `translate(${legendX},0)`);
-    if (item.kind === "line") {
+  const row1 = legendItems.slice(0, 2);
+  const row2 = legendItems.slice(2);
+  const legendRowHeight = 14;
+  const drawLegendRow = (
+    items: typeof legendItems,
+    rowIndex: number,
+  ): number => {
+    let legendX = 0;
+    for (const item of items) {
+      const group = legend
+        .append("g")
+        .attr("transform", `translate(${legendX},${rowIndex * legendRowHeight})`);
+      if (item.kind === "line") {
+        group
+          .append("line")
+          .attr("class", `sd-line ${item.cls}`)
+          .attr("x1", 0)
+          .attr("x2", 14)
+          .attr("y1", 0)
+          .attr("y2", 0);
+      } else {
+        group
+          .append("rect")
+          .attr("class", item.cls)
+          .attr("x", 0)
+          .attr("y", -4)
+          .attr("width", 14)
+          .attr("height", 8)
+          .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
+      }
+      const labelW = item.label.length * 6 + 22;
       group
-        .append("line")
-        .attr("class", `sd-line ${item.cls}`)
-        .attr("x1", 0)
-        .attr("x2", 14)
-        .attr("y1", 0)
-        .attr("y2", 0);
-    } else {
-      group
-        .append("rect")
-        .attr("class", item.cls)
-        .attr("x", 0)
-        .attr("y", -4)
-        .attr("width", 14)
-        .attr("height", 8)
-        .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
+        .append("text")
+        .attr("class", "legend-label")
+        .attr("x", 18)
+        .attr("y", 3)
+        .text(item.label);
+      legendX += labelW;
     }
-    const labelW = item.label.length * 6 + 22;
-    group
-      .append("text")
-      .attr("class", "legend-label")
-      .attr("x", 18)
-      .attr("y", 3)
-      .text(item.label);
-    legendX += labelW;
+    return legendX;
+  };
+  drawLegendRow(row1, 0);
+  if (row2.length > 0) {
+    drawLegendRow(row2, 1);
   }
 }

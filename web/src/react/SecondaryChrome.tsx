@@ -192,7 +192,12 @@ export function SecondaryChrome({
         </section>
 
         <div className="secondary-chrome-truth">
-          <span className="truth-toggle-label">Sim truth overlay</span>
+          <div className="obs-truth-copy">
+            <span className="truth-toggle-label">Omniscience</span>
+            <span className="truth-toggle-hint">
+              Visualize unobserved ground-truth
+            </span>
+          </div>
           <button
             type="button"
             className={`truth-toggle${showTruth ? " truth-toggle--on" : ""}`}

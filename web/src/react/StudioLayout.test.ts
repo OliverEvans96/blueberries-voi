@@ -25,7 +25,6 @@ const REQUIRED_CHART_IDS = [
   "chart-sales-demand",
   "chart-demand",
   "chart-demand-forecast-host",
-  "chart-inventory",
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
@@ -33,11 +32,9 @@ const REQUIRED_CHART_IDS = [
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-controller-orders",
-  "chart-spoil",
-  "chart-inventory-focus",
-  "chart-controller-orders-focus",
-  "chart-spoil-focus",
+  "chart-orders-spoilage",
+  "chart-age-comp-focus",
+  "chart-orders-spoilage-focus",
 ] as const;
 
 /** Tuning-drawer chart ids validated in TuningDrawer.test.ts */
@@ -76,8 +73,8 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(grid!.querySelector(".cockpit-pane--sidebar")).not.toBeNull();
     expect(grid!.querySelector("#obs-controls-pane-host")).not.toBeNull();
     expect(grid!.querySelector("#pnl-totals-host")).not.toBeNull();
-    expect(grid!.querySelector("#impact-missed-host")).not.toBeNull();
-    expect(grid!.querySelector("#impact-waste-host")).not.toBeNull();
+    expect(grid!.querySelector("#impact-missed-host")).toBeNull();
+    expect(grid!.querySelector("#impact-waste-host")).toBeNull();
     expect(grid!.querySelector("#secondary-chrome-host")).toBeNull();
     expect(grid!.querySelector("#economics-pane-host")).toBeNull();
     expect(container.querySelector(".cockpit-row--tuning")).toBeNull();
@@ -98,38 +95,58 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
-  it("metrics column stacks P&L, charts, and impact stat hosts", () => {
+  it("metrics column stacks P&L, revenue chart, sales demand, and orders+spoilage", () => {
     const { container } = render(createElement(StudioLayout));
     const metrics = container.querySelector(".cockpit-pane--metrics");
     expect(metrics).not.toBeNull();
     expect(metrics!.querySelector("#chart-pnl-economics")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-age-comp")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-inventory")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
-    const impactRow = metrics!.querySelector(".impact-row");
-    expect(impactRow).not.toBeNull();
+    expect(metrics!.querySelector("#chart-orders-spoilage")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-age-comp")).toBeNull();
+    expect(metrics!.querySelector("#chart-inventory")).toBeNull();
+    expect(metrics!.querySelector(".impact-row")).toBeNull();
     const totals = metrics!.querySelector("#pnl-totals-host");
+    const pnlChart = metrics!.querySelector("#chart-pnl-economics");
     expect(
-      totals!.compareDocumentPosition(impactRow!) &
+      totals!.compareDocumentPosition(pnlChart!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      impactRow!.compareDocumentPosition(
-        metrics!.querySelector("#chart-pnl-economics")!,
+      pnlChart!.compareDocumentPosition(
+        metrics!.querySelector("#chart-sales-demand")!,
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      metrics!
+        .querySelector("#chart-sales-demand")!
+        .compareDocumentPosition(metrics!.querySelector("#chart-orders-spoilage")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("belief column hosts tradeoff charts and operator bar", () => {
+  it("belief column hosts operator bar at top, freshness charts, and tradeoff", () => {
     const { container } = render(createElement(StudioLayout));
     const belief = container.querySelector(".cockpit-pane--belief");
+    expect(belief!.querySelector("#operator-bar-host")).not.toBeNull();
+    expect(belief!.querySelector("#chart-history")).not.toBeNull();
+    expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
+    expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
     expect(belief!.querySelector("#tradeoff-curve-host")).not.toBeNull();
     expect(belief!.querySelector("#tradeoff-histogram-host")).not.toBeNull();
-    expect(belief!.querySelector("#chart-history")).not.toBeNull();
-    expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
-    expect(belief!.querySelector("#operator-bar-host")).not.toBeNull();
+    const head = belief!.querySelector(".panel-head");
+    const operator = belief!.querySelector("#operator-bar-host");
+    const history = belief!.querySelector("#chart-history");
+    expect(
+      head!.compareDocumentPosition(operator!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      operator!.compareDocumentPosition(history!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      history!.compareDocumentPosition(belief!.querySelector("#chart-age-comp")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("belief column tradeoff uses Curve/Histogram tab toggle", () => {
@@ -165,19 +182,17 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).not.toBeNull();
   });
 
-  it("cockpit grid hosts metrics charts only (tuning charts live in drawer)", () => {
+  it("cockpit grid hosts metrics and belief charts (tuning charts live in drawer)", () => {
     const { container } = render(createElement(StudioLayout));
     const cockpitIds = [
       "chart-sales",
       "chart-stockout",
       "chart-history",
       "chart-sales-demand",
-      "chart-inventory",
       "chart-age-comp",
       "chart-belief-age-marginal",
       "chart-belief-lg",
-      "chart-controller-orders",
-      "chart-spoil",
+      "chart-orders-spoilage",
     ] as const;
     for (const id of cockpitIds) {
       const nodes = container.querySelectorAll(`#${id}`);
@@ -185,6 +200,9 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     }
     expect(container.querySelector("#chart-demand-host")).toBeNull();
     expect(container.querySelector("#chart-demand-forecast-host")).toBeNull();
+    expect(container.querySelector("#chart-inventory")).toBeNull();
+    expect(container.querySelector("#chart-controller-orders")).toBeNull();
+    expect(container.querySelector("#chart-spoil")).toBeNull();
   });
 
   it("renders OperatorBar controls exactly once", () => {
@@ -264,23 +282,13 @@ describe("StudioLayout metrics narration (T-154)", () => {
     ).toBeTruthy();
   });
 
-  it("metrics groups show Economics, Inventory, and Flow labels", () => {
+  it("metrics stack omits Economics, Inventory, and Flow section labels", () => {
     const { container } = render(createElement(StudioLayout));
     const metrics = container.querySelector(".cockpit-pane--metrics");
-    expect(
-      metrics!.querySelector(
-        ".metrics-group--economics .metrics-group-label",
-      )?.textContent,
-    ).toBe("Economics");
-    expect(
-      metrics!.querySelector(
-        ".metrics-group--inventory .metrics-group-label",
-      )?.textContent,
-    ).toBe("Inventory");
-    expect(
-      metrics!.querySelector(".metrics-group--flow .metrics-group-label")
-        ?.textContent,
-    ).toBe("Flow");
+    expect(metrics!.querySelector(".metrics-group-label")).toBeNull();
+    expect(metrics!.querySelector(".metrics-group--economics")).toBeNull();
+    expect(metrics!.querySelector(".metrics-group--inventory")).toBeNull();
+    expect(metrics!.querySelector(".metrics-group--flow")).toBeNull();
   });
 
   it("belief panel note links hover to charts", () => {
@@ -303,21 +311,6 @@ describe("StudioLayout metrics narration (T-154)", () => {
     );
     expect(cockpitCss).not.toMatch(
       /\.cockpit-pane--belief\s+\.chart-caption\s*\{[^}]*font-weight:\s*700/,
-    );
-  });
-
-  it("cockpitGrid.css de-emphasizes impact stat weight and Fraunces", () => {
-    expect(cockpitCss).toMatch(
-      /\.impact-stat-label\s*\{[^}]*font-weight:\s*(400|500)/,
-    );
-    expect(cockpitCss).toMatch(
-      /\.impact-stat-value\s*\{[^}]*font-weight:\s*(400|500)/,
-    );
-    expect(cockpitCss).not.toMatch(
-      /\.impact-stat-value\s*\{[^}]*font-family:\s*var\(--font-display\)/,
-    );
-    expect(cockpitCss).toMatch(
-      /\.impact-stat-value\s*\{[^}]*color:\s*var\(--ink-soft\)/,
     );
   });
 });

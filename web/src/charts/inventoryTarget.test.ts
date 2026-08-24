@@ -376,6 +376,26 @@ describe("freshness composition bands from f_marginals (T-C2-A / AC-frontend)", 
 });
 
 describe("renderFreshnessComposition freshness legend (T-148)", () => {
+  it("draws optional effective inventory overlay as dashed line", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    inv.renderFreshnessComposition(
+      container,
+      [LOT_DAY],
+      100,
+      undefined,
+      [{ day: LOT_DAY.day, effective: 8 }],
+    );
+    expect(container.querySelector(".inv-effective")).not.toBeNull();
+    const labels = Array.from(container.querySelectorAll(".legend-label")).map(
+      (el) => el.textContent?.trim(),
+    );
+    expect(labels).toContain("Effective");
+  });
+
   it("uses fresh / fair / old band labels", () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {

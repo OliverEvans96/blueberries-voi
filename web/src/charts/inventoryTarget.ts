@@ -338,11 +338,17 @@ export function renderInventoryTarget(
  * the truth path was a leftover of the pre-"fresh/fair/old" copy and made
  * the labels regress whenever "Sim truth overlay" was on.
  */
+export type EffectiveInventoryPoint = {
+  day: number;
+  effective: number;
+};
+
 export function renderFreshnessComposition(
   container: HTMLElement,
   history: Day[],
   height = 140,
   rowsOverride?: FreshnessCompositionRow[],
+  effectiveSeries?: EffectiveInventoryPoint[],
 ): void {
   const width = container.clientWidth || 320;
   const margin = { top: 10, right: 12, bottom: 28, left: 40 };
@@ -396,10 +402,12 @@ export function renderFreshnessComposition(
     .attr("height", innerH);
 
   const x = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.18);
-  const yMax = Math.max(
-    d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 0,
-    1,
-  );
+  const stackMax = d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 0;
+  const effectiveMax =
+    effectiveSeries && effectiveSeries.length > 0
+      ? (d3.max(effectiveSeries, (d) => d.effective) ?? 0)
+      : 0;
+  const yMax = Math.max(stackMax, effectiveMax, 1);
   const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
 
   const stack = d3
@@ -458,6 +466,21 @@ export function renderFreshnessComposition(
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
+  if (effectiveSeries && effectiveSeries.length > 0) {
+    const xCenter = (day: number): number =>
+      (x(day) ?? 0) + x.bandwidth() / 2;
+    const lineEff = d3
+      .line<EffectiveInventoryPoint>()
+      .x((d) => xCenter(d.day))
+      .y((d) => y(d.effective))
+      .curve(d3.curveMonotoneX);
+    g.append("path")
+      .datum(effectiveSeries)
+      .attr("class", "inv-line inv-effective")
+      .attr("fill", "none")
+      .attr("d", lineEff);
+  }
+
   g.append("line")
     .attr("class", "hover-rule")
     .attr("y1", 0)
@@ -469,8 +492,9 @@ export function renderFreshnessComposition(
     .append("g")
     .attr("class", "legend")
     .attr("transform", `translate(${margin.left + 4}, 8)`);
-  bands.forEach((b, i) => {
-    const item = legend.append("g").attr("transform", `translate(${i * 58},0)`);
+  let legendX = 0;
+  for (const b of bands) {
+    const item = legend.append("g").attr("transform", `translate(${legendX},0)`);
     item
       .append("rect")
       .attr("class", b.cls)
@@ -478,5 +502,22 @@ export function renderFreshnessComposition(
       .attr("height", 10)
       .attr("rx", 2);
     item.append("text").attr("class", "legend-label").attr("x", 14).attr("y", 9).text(b.label);
-  });
+    legendX += 58;
+  }
+  if (effectiveSeries && effectiveSeries.length > 0) {
+    const item = legend.append("g").attr("transform", `translate(${legendX},0)`);
+    item
+      .append("line")
+      .attr("class", "inv-line inv-effective")
+      .attr("x1", 0)
+      .attr("x2", 14)
+      .attr("y1", 5)
+      .attr("y2", 5);
+    item
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 18)
+      .attr("y", 9)
+      .text("Effective");
+  }
 }

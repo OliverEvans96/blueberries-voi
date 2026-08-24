@@ -28,7 +28,7 @@ describe("T-153 events pane CSS ownership", () => {
     expect(cockpitCss).not.toMatch(/\.events-columns/);
   });
 
-  it("anticipates impact-row wrapper from layout stream", () => {
-    expect(cockpitCss).toMatch(/\.impact-row/);
+  it("keeps P&L totals second-line spacing in cockpitGrid.css", () => {
+    expect(cockpitCss).toMatch(/\.pnl-totals-line \+ \.pnl-totals-line/);
   });
 });

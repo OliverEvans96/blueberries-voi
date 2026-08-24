@@ -128,8 +128,10 @@ export function ObsControlsPane({
 
       <div className="obs-controls-truth">
         <div className="obs-truth-copy">
-          <span className="truth-toggle-label">Sim truth overlay</span>
-          <span className="truth-toggle-hint">Show ground-truth inventory paths</span>
+          <span className="truth-toggle-label">Omniscience</span>
+          <span className="truth-toggle-hint">
+            Visualize unobserved ground-truth
+          </span>
         </div>
         <button
           type="button"

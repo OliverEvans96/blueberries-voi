@@ -196,7 +196,7 @@ describe("renderSalesDemand forecast overlay", () => {
     const forecast = buildDemandForecastRows(0, FORECAST_SUMMARY, 2);
     renderSalesDemand(el, [sampleDay(0, 5, 10)], 130, forecast);
     const labels = [...el.querySelectorAll(".legend-label")].map((t) => t.textContent);
-    expect(labels).toContain("Forecast μ");
+    expect(labels).toContain("Forecast");
     expect(labels).toContain("p10–p90");
   });
 

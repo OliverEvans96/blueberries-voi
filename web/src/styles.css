@@ -1029,6 +1029,14 @@ input[type="number"] {
   color: var(--spoil-strong);
 }
 
+.pnl-value--missed {
+  color: var(--missed-strong);
+}
+
+.pnl-value--waste {
+  color: var(--spoil-strong);
+}
+
 /* T-124 studio UX — insight strip, decision rail, responsive layout */
 .insight-strip {
   display: flex;
@@ -1335,6 +1343,22 @@ input[type="number"] {
   stroke-width: 2;
 }
 
+.order-bar {
+  fill: var(--accent);
+}
+
+.waste-bar {
+  fill: var(--spoil-strong);
+}
+
+.axis-y--orders .tick text {
+  fill: var(--accent);
+}
+
+.axis-y--waste .tick text {
+  fill: var(--spoil-strong);
+}
+
 .order-dot {
   fill: var(--accent);
 }
@@ -1442,7 +1466,8 @@ input[type="number"] {
   min-width: 28px;
   padding: 0;
   font: inherit;
-  font-size: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
   background: transparent;
   color: var(--ink-soft, #374151);
   cursor: pointer;
