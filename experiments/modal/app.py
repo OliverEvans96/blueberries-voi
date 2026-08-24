@@ -30,6 +30,8 @@ else:
 
 _PKG_SRC = _REPO / "src" / "blueberries_voi"
 _DATA_DIR = _REPO / "data"
+
+
 def _repo_relative_path(env_key: str, default: Path) -> Path:
     raw = os.environ.get(env_key)
     path = Path(raw) if raw else default
@@ -74,10 +76,17 @@ if modal.is_local():
             str(_GSIN_BIN), "/usr/local/bin/gsin_upc_diag", copy=True
         )
     if _TUNED_ALPHA.is_file():
-        image = image.add_local_file(
-            str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True
-        )
-    image = image.run_commands(f"pip install {_WHEEL_REMOTE}").env(
+        image = image.add_local_file(str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True)
+    image = image.run_commands(
+        f"pip install {_WHEEL_REMOTE}",
+        (
+            'python -c "import importlib.util, shutil; from pathlib import Path; '
+            "spec = importlib.util.find_spec('blueberries_voi._core'); "
+            "assert spec is not None and spec.origin; "
+            "dest = Path('/pkg/blueberries_voi') / Path(spec.origin).name; "
+            'shutil.copy2(spec.origin, dest)"'
+        ),
+    ).env(
         {
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",

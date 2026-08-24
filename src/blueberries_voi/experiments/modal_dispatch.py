@@ -8,7 +8,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal, assert_never
 
-from blueberries_voi.experiments.batch_progress import log_grid_progress, log_line
+from tqdm.auto import tqdm
+
+from blueberries_voi.experiments.batch_progress import log_line
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_N_DAYS,
     DEFAULT_SEEDS,
@@ -237,9 +239,7 @@ def _run_modal(
                 gsin_cells = gsin_job_grid()
             if smoke:
                 gsin_cells = gsin_cells[:1]
-            handles = [
-                gsin_shard.spawn(regime, seed) for regime, seed in gsin_cells
-            ]
+            handles = [gsin_shard.spawn(regime, seed) for regime, seed in gsin_cells]
             shards = _collect_handles(handles, progress=progress)
             rows = merge_gsin_diag_rows(shards)
             _write_optional_json(rows, out_path)
@@ -328,15 +328,16 @@ def _collect_handles(handles: list[Any], *, progress: bool) -> list[dict[str, An
     if not progress:
         return [h.get() for h in handles]
     shards: list[dict[str, Any]] = []
-    completed = 0
-    with ThreadPoolExecutor(max_workers=min(32, total)) as pool:
+    with (
+        ThreadPoolExecutor(max_workers=min(32, total)) as pool,
+        tqdm(total=total, desc="modal batch", unit="shard") as bar,
+    ):
         futs = {pool.submit(h.get): i for i, h in enumerate(handles)}
         for fut in as_completed(futs):
             shard = fut.result()
             if isinstance(shard, dict):
                 shard.pop("_elapsed_s", None)
             shards.append(shard)
-            completed += 1
-            log_grid_progress(completed, total)
+            bar.update(1)
     log_line(f"modal batch collected {len(shards)} shards")
     return shards
