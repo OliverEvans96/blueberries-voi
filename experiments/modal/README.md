@@ -72,9 +72,12 @@ Optional ``out_path`` writes gitignored cache under ``outputs/``.
 
 ## Preliminary notebooks (T-157)
 
+Scaling notes and next-tier budgets: [PRELIM_SCALING.md](PRELIM_SCALING.md).
+
 | Notebook | Batch jobs | Notes |
 |----------|------------|-------|
-| ``notebooks/17_prelim_channel_ladder.ipynb`` | ``gsin`` (``gsin_cells=[(2,0)]``), ``voi_profit`` | P0/P1/F2a/F3, seed 42, ``n_burn=2`` ``n_score=5``, oracle row |
-| ``notebooks/18_prelim_rollout_vs_sw.ipynb`` | ``rollout_eval`` | Loads ``outputs/sw_alpha_bo.json``; paired sw+rollout at α=0.9, CI budgets |
+| ``notebooks/17_prelim_channel_ladder.ipynb`` | ``gsin`` × 8, ``voi_profit`` × 28 | Part 1: 4 regimes × 2 seeds. Part 2: P0/P1/F1/F2a/F2/F3, 4 seeds, ``n_burn=2`` ``n_score=14``, oracle row |
+| ``notebooks/18_prelim_rollout_vs_sw.ipynb`` | ``rollout_eval`` × 8 | Oracle-shelf (SIM-01=B); 4 seeds, ``n_score=14``, ``H=7`` ``paths=4``; α from ``sw_alpha_bo.json`` |
 
-Set ``BATCH_MODE="local"`` for plumbing without Modal; build wheel + ``modal login`` for production.
+Set ``SMOKE=True`` for plumbing (shrinks grids via ``modal_dispatch``). Set
+``BATCH_MODE="local"`` without Modal; build wheel + ``modal login`` for production.
