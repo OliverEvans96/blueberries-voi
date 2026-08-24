@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, type RenderResult } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initStudio } from "./studioLogic";
@@ -60,11 +60,20 @@ describe("belief column tradeoff toggle wiring (T-151 E)", () => {
 });
 
 describe("belief column tradeoff toggle interaction (T-151 E)", () => {
+  let rendered: RenderResult | undefined;
+  let disposeStudio: (() => void) | undefined;
+
   beforeEach(() => {
     vi.stubEnv("VITE_ENGINE_ADAPTER", "mock");
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    disposeStudio?.();
+    disposeStudio = undefined;
+    await act(async () => {
+      rendered?.unmount();
+      rendered = undefined;
+    });
     vi.unstubAllEnvs();
     document.body.innerHTML = "";
   });
@@ -73,8 +82,8 @@ describe("belief column tradeoff toggle interaction (T-151 E)", () => {
     const app = document.createElement("div");
     app.id = "app";
     document.body.appendChild(app);
-    render(createElement(StudioLayout), { container: app });
-    initStudio(app);
+    rendered = render(createElement(StudioLayout), { container: app });
+    disposeStudio = initStudio(app);
     return app;
   }
 

@@ -1272,6 +1272,7 @@ export function initStudio(app: HTMLElement): () => void {
       }
       onHoverDay(null, null, null);
       await commitFrame();
+      if (studioTeardown) return;
     } catch (err) {
       reportStudioAdapterError(
         `Advance failed: ${formatAdapterError(err)}`,
@@ -1307,6 +1308,7 @@ export function initStudio(app: HTMLElement): () => void {
       orderQty = snapOrder(orderQty);
       onHoverDay(null, null, null);
       await commitFrame();
+      if (studioTeardown) return;
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
@@ -1364,6 +1366,7 @@ export function initStudio(app: HTMLElement): () => void {
   let sectionControlsApi!: ReturnType<typeof mountSectionControls>;
   let sectionControlsMounted = false;
   let sectionControlsMountCancelled = false;
+  let studioTeardown = false;
   let sectionControlsMountRaf = 0;
 
   function mountSectionControlsOnce(): void {
@@ -1499,6 +1502,7 @@ export function initStudio(app: HTMLElement): () => void {
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
       await commitFrame();
+      if (studioTeardown) return;
     } catch (err) {
       reportStudioAdapterError(
         `set_obs_channels failed: ${formatAdapterError(err)}`,
@@ -1581,11 +1585,13 @@ export function initStudio(app: HTMLElement): () => void {
     bootstrapped = true;
     try {
       const snap = await engineStatus.follow(adapter.init({ ...vm.config }));
+      if (studioTeardown) return;
       captureSchedule(snap);
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       setSection(activeSection);
       await commitFrame();
+      if (studioTeardown) return;
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,
@@ -1600,7 +1606,7 @@ export function initStudio(app: HTMLElement): () => void {
     paintPortalDrawers();
   });
   mountSectionControlsOnce();
-  setTimeout(() => {
+  const sectionControlsMountTimer = setTimeout(() => {
     mountSectionControlsOnce();
   }, 0);
   app.addEventListener("keydown", onKeydown);
@@ -1617,7 +1623,9 @@ export function initStudio(app: HTMLElement): () => void {
   };
   window.addEventListener("resize", onResize);
   return () => {
+    studioTeardown = true;
     sectionControlsMountCancelled = true;
+    clearTimeout(sectionControlsMountTimer);
     cancelAnimationFrame(sectionControlsMountRaf);
     app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
