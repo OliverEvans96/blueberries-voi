@@ -51,7 +51,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "logistics",
     label: "Logistics",
     blurb: "Case size and base-stock set how you refill the cooler each day.",
-    plotIds: ["plot-logistics-calendar", "plot-inventory"],
+    plotIds: ["plot-logistics-calendar", "plot-age-comp"],
     controlSection: "logistics",
   },
   {
@@ -67,7 +67,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     label: "Autopilot",
     blurb:
       "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
-    plotIds: ["plot-controller-orders", "plot-spoil", "plot-inventory"],
+    plotIds: ["plot-orders-spoilage", "plot-age-comp"],
     controlSection: "autopilot",
   },
 ];

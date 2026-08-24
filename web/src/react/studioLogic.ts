@@ -52,10 +52,7 @@ import {
 import {
   marginalYMax,
   renderMarginal,
-  renderWasteBars,
   setMarginalHover,
-  setWasteBarsHover,
-  wasteBarYMax,
 } from "../charts/marginals";
 import {
   buildDemandForecastRows,
@@ -72,13 +69,11 @@ import {
   inventorySeries,
   inventorySeriesFromBelief,
   renderFreshnessComposition,
-  renderInventoryTarget,
   setFreshnessCompositionHover,
-  setInventoryTargetHover,
 } from "../charts/inventoryTarget";
 import {
-  renderControllerOrders,
-  setControllerOrdersHover,
+  renderOrdersSpoilageGroupedBars,
+  setOrdersSpoilageGroupedBarsHover,
 } from "../charts/controllerOrders";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
@@ -128,14 +123,12 @@ import {
 } from "../charts/tradeoffForecast";
 import { DayInspector } from "./DayInspector";
 import { EventsPane } from "./EventsPane";
-import { ImpactStat } from "./ImpactStat";
 import { ObsControlsPane } from "./ObsControlsPane";
 import { OperatorBar } from "./OperatorBar";
 import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
 import { TuningDrawer, type TuningDrawerProps } from "./TuningDrawer";
-import { computeImpactTotals } from "../metrics/impactTotals";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
 import { ChartUnavailable } from "./ChartUnavailable";
 import {
@@ -339,8 +332,14 @@ export function initStudio(app: HTMLElement): () => void {
       return q<HTMLElement>("#chart-demand-forecast-host")!;
     },
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
-    inventory: q<HTMLElement>("#chart-inventory")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
+    ordersSpoilage: q<HTMLElement>("#chart-orders-spoilage")!,
+    get ageCompFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-age-comp-focus")!;
+    },
+    get ordersSpoilageFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-orders-spoilage-focus")!;
+    },
     get arrivalPrior(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-prior")!;
     },
@@ -352,17 +351,6 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get gammaPath(): HTMLElement {
       return q<HTMLElement>("#chart-gamma-path")!;
-    },
-    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    spoil: q<HTMLElement>("#chart-spoil")!,
-    get controllerOrdersFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-controller-orders-focus")!;
-    },
-    get spoilFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-spoil-focus")!;
-    },
-    get inventoryFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-inventory-focus")!;
     },
     get pickingVar(): HTMLElement {
       return q<HTMLElement>("#picking-var-chart")!;
@@ -402,17 +390,14 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   const pnlTotalsHost = q<HTMLElement>("#pnl-totals-host");
-  const impactMissedHost = q<HTMLElement>("#impact-missed-host");
-  const impactWasteHost = q<HTMLElement>("#impact-waste-host");
   const obsControlsHost = q<HTMLElement>("#obs-controls-pane-host");
   const eventsPaneHost = q<HTMLElement>("#events-pane-host");
   const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
   const tuningDrawerHost = q<HTMLElement>("#tuning-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
-  let spoilageUnavailableRoot: Root | null = null;
+  let ordersSpoilageUnavailableRef: { root: Root | null } = { root: null };
+  let ordersSpoilageFocusUnavailableRef: { root: Root | null } = { root: null };
   const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
-  const impactMissedRoot = impactMissedHost ? createRoot(impactMissedHost) : null;
-  const impactWasteRoot = impactWasteHost ? createRoot(impactWasteHost) : null;
   const referenceDrawerRoot = referenceDrawerHost
     ? createRoot(referenceDrawerHost)
     : null;
@@ -563,31 +548,6 @@ export function initStudio(app: HTMLElement): () => void {
       profileSync("renderMetricsPane.pnlTimeseries", () =>
         renderPnLTimeseries(els.pnlEconomics, vm.pnl_series, METRICS_STRIP_HEIGHT),
       );
-      const impact = computeImpactTotals(vm.history);
-      if (impactMissedRoot) {
-        profileSync("renderMetricsPane.impactMissed", () =>
-          impactMissedRoot.render(
-            createElement(ImpactStat, {
-              label: "Total missed sales",
-              absolute: impact.missedTotal,
-              percent: impact.missedPct,
-              percentCaption: `${(impact.missedPct * 100).toFixed(1)}% of cumulative demand`,
-            }),
-          ),
-        );
-      }
-      if (impactWasteRoot) {
-        profileSync("renderMetricsPane.impactWaste", () =>
-          impactWasteRoot.render(
-            createElement(ImpactStat, {
-              label: "Total waste",
-              absolute: impact.wasteTotal,
-              percent: impact.wastePct,
-              percentCaption: `${(impact.wastePct * 100).toFixed(1)}% of cumulative order qty`,
-            }),
-          ),
-        );
-      }
     });
   }
 
@@ -793,14 +753,11 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setControllerOrdersHover(els.controllerOrders, day);
-    setControllerOrdersHover(els.controllerOrdersFocus, day);
-    setWasteBarsHover(els.spoil, day);
-    setWasteBarsHover(els.spoilFocus, day);
+    setOrdersSpoilageGroupedBarsHover(els.ordersSpoilage, day);
+    setOrdersSpoilageGroupedBarsHover(els.ordersSpoilageFocus, day);
     setPnLHover(els.pnlEconomics, day);
-    setInventoryTargetHover(els.inventory, day);
-    setInventoryTargetHover(els.inventoryFocus, day);
     setFreshnessCompositionHover(els.ageComp, day);
+    setFreshnessCompositionHover(els.ageCompFocus, day);
     setDemandHover(els.demand, day);
     setDemandForecastHover(els.demandForecast, day);
   }
@@ -850,13 +807,18 @@ export function initStudio(app: HTMLElement): () => void {
       const kind = el.dataset.truthCaption;
       if (kind === "belief" || kind === "belief-lg") {
         el.textContent = showTruth
-          ? "Freshness histogram (truth overlay on)"
+          ? "Freshness histogram (Omniscience on)"
           : "Freshness histogram";
+      }
+      if (kind === "age-comp") {
+        el.textContent = showTruth
+          ? "On-hand by freshness band (Omniscience on)"
+          : "On-hand by freshness band";
       }
       if (kind === "lots") {
         el.textContent =
           !showTruth && vm.history.length > 0
-            ? "Freshness × time (turn on Sim truth overlay to see unit trajectories)"
+            ? "Freshness × time (turn on Omniscience to see unit trajectories)"
             : "Freshness × time";
       }
     });
@@ -961,8 +923,71 @@ export function initStudio(app: HTMLElement): () => void {
     return !!node && !node.hidden;
   }
 
+  function ageCompositionInputs(): {
+    ageRows: ReturnType<typeof fCompositionSeries>;
+    effectiveSeries: { day: number; effective: number }[];
+  } {
+    const ageRows = showTruth
+      ? fCompositionSeries(vm.history)
+      : fCompositionSeriesFromBelief(vm.belief_history);
+    const invSeries = showTruth
+      ? inventorySeries(vm.history, vm.config)
+      : inventorySeriesFromBelief(vm.belief_history, vm.config);
+    const effectiveSeries = invSeries.map((d) => ({
+      day: d.day,
+      effective: d.effective,
+    }));
+    return { ageRows, effectiveSeries };
+  }
+
+  function renderAgeCompositionChart(host: HTMLElement, height: number): void {
+    const { ageRows, effectiveSeries } = ageCompositionInputs();
+    renderFreshnessComposition(
+      host,
+      vm.history,
+      height,
+      ageRows,
+      effectiveSeries,
+    );
+  }
+
+  function renderOrdersSpoilageInto(
+    host: HTMLElement,
+    height: number,
+    unavailableRef: { root: Root | null },
+  ): void {
+    const spoilSlot = resolveStoreSpoilageSlot({
+      scenario: vm.config.obs_scenario,
+      channels: vm.config.obs_channels,
+      showTruth,
+    });
+    if (spoilSlot.kind === "unavailable") {
+      if (!unavailableRef.root) {
+        unavailableRef.root = createRoot(host);
+      }
+      flushSync(() => {
+        unavailableRef.root!.render(
+          createElement(ChartUnavailable, {
+            plotId: "store-spoilage",
+            caption: "Daily waste is not observed at this knowledge rung.",
+          }),
+        );
+      });
+      return;
+    }
+    if (unavailableRef.root) {
+      flushSync(() => {
+        unavailableRef.root!.render(null);
+      });
+    }
+    renderOrdersSpoilageGroupedBars(host, vm.history, height);
+  }
+
   function renderCockpitBelief(): void {
     profileSync("renderCockpitBelief", () => {
+      profileSync("renderCockpitBelief.ageComp", () =>
+        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
+      );
       const flat = vm.belief_history.at(-1)?.flatBelief;
       const data = flat
         ? freshnessHistogramDataFromFlat(flat, vm.live_units)
@@ -979,53 +1004,12 @@ export function initStudio(app: HTMLElement): () => void {
 
   function renderRunStripCharts(): void {
     profileSync("renderRunStripCharts", () => {
-      const invSeries = showTruth
-        ? inventorySeries(vm.history, vm.config)
-        : inventorySeriesFromBelief(vm.belief_history, vm.config);
-      profileSync("renderRunStripCharts.inventory", () =>
-        renderInventoryTarget(
-          els.inventory,
-          vm.history,
-          vm.config,
+      profileSync("renderRunStripCharts.ordersSpoilage", () =>
+        renderOrdersSpoilageInto(
+          els.ordersSpoilage,
           METRICS_STRIP_HEIGHT,
-          invSeries,
+          ordersSpoilageUnavailableRef,
         ),
-      );
-      profileSync("renderRunStripCharts.controllerOrders", () =>
-        renderControllerOrders(els.controllerOrders, vm.history, METRICS_STRIP_HEIGHT),
-      );
-      profileSync("renderRunStripCharts.spoil", () => {
-        const spoilSlot = resolveStoreSpoilageSlot({
-          scenario: vm.config.obs_scenario,
-          channels: vm.config.obs_channels,
-          showTruth,
-        });
-        if (spoilSlot.kind === "unavailable") {
-          if (!spoilageUnavailableRoot) {
-            spoilageUnavailableRoot = createRoot(els.spoil);
-          }
-          flushSync(() => {
-            spoilageUnavailableRoot!.render(
-              createElement(ChartUnavailable, {
-                plotId: "store-spoilage",
-                caption: "Daily waste is not observed at this knowledge rung.",
-              }),
-            );
-          });
-        } else {
-          if (spoilageUnavailableRoot) {
-            flushSync(() => {
-              spoilageUnavailableRoot!.render(null);
-            });
-          }
-          renderWasteBars(els.spoil, vm.history, METRICS_STRIP_HEIGHT, wasteBarYMax(vm.history));
-        }
-      });
-      const ageRows = showTruth
-        ? fCompositionSeries(vm.history)
-        : fCompositionSeriesFromBelief(vm.belief_history);
-      profileSync("renderRunStripCharts.fComposition", () =>
-        renderFreshnessComposition(els.ageComp, vm.history, METRICS_STRIP_HEIGHT, ageRows),
       );
     });
   }
@@ -1072,26 +1056,9 @@ export function initStudio(app: HTMLElement): () => void {
   function renderActiveFocusPlots(): void {
     profileSync("renderActiveFocusPlots", () => {
       renderRunStripCharts();
-      if (plotVisible("plot-inventory")) {
-        const invSeries = showTruth
-          ? inventorySeries(vm.history, vm.config)
-          : inventorySeriesFromBelief(vm.belief_history, vm.config);
-        profileSync("renderActiveFocusPlots.inventoryFocus", () =>
-          renderInventoryTarget(
-            els.inventoryFocus,
-            vm.history,
-            vm.config,
-            FOCUS_CHART_HEIGHT,
-            invSeries,
-          ),
-        );
-      }
       if (plotVisible("plot-age-comp")) {
-        const ageRows = showTruth
-          ? fCompositionSeries(vm.history)
-          : fCompositionSeriesFromBelief(vm.belief_history);
-        profileSync("renderActiveFocusPlots.ageComp", () =>
-          renderFreshnessComposition(els.ageComp, vm.history, 140, ageRows),
+        profileSync("renderActiveFocusPlots.ageCompFocus", () =>
+          renderAgeCompositionChart(els.ageCompFocus, FOCUS_CHART_HEIGHT),
         );
       }
       if (plotVisible("plot-demand")) {
@@ -1146,18 +1113,13 @@ export function initStudio(app: HTMLElement): () => void {
           renderGammaFreshnessPath(els.gammaPath, vm.config, 170),
         );
       }
-      if (plotVisible("plot-controller-orders")) {
-        profileSync("renderActiveFocusPlots.controllerOrdersFocus", () =>
-          renderControllerOrders(
-            els.controllerOrdersFocus,
-            vm.history,
+      if (plotVisible("plot-orders-spoilage")) {
+        profileSync("renderActiveFocusPlots.ordersSpoilageFocus", () =>
+          renderOrdersSpoilageInto(
+            els.ordersSpoilageFocus,
             FOCUS_CHART_HEIGHT,
+            ordersSpoilageFocusUnavailableRef,
           ),
-        );
-      }
-      if (plotVisible("plot-spoil")) {
-        profileSync("renderActiveFocusPlots.spoilFocus", () =>
-          renderWasteBars(els.spoilFocus, vm.history, FOCUS_CHART_HEIGHT),
         );
       }
     });

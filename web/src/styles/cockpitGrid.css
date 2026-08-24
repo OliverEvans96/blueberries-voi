@@ -51,29 +51,15 @@
 }
 
 .cockpit-pane--belief #operator-bar-host {
-  margin-top: auto;
-  padding-top: 12px;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--paper-edge);
 }
 
 .metrics-stack {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-}
-
-.metrics-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.metrics-group-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin: 0;
 }
 
 .cockpit-pane--metrics .chart-caption {
@@ -88,11 +74,16 @@
 }
 
 #chart-pnl-economics.chart,
-#chart-sales-demand.chart {
+#chart-sales-demand.chart,
+#chart-orders-spoilage.chart {
   min-height: 150px;
 }
 
 #chart-belief-lg.chart {
+  min-height: 130px;
+}
+
+#chart-age-comp.chart {
   min-height: 130px;
 }
 
@@ -108,59 +99,12 @@
   margin-top: 0.3rem;
 }
 
-#chart-pnl-economics + .chart-caption.impact-caption,
-#chart-inventory + .chart-caption.impact-caption {
-  margin-top: 0.7rem;
-}
-
 #pnl-totals-host {
   margin-bottom: 0.15rem;
 }
 
-.impact-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 1.25rem;
-  margin: 0.1rem 0 0.25rem;
-}
-
-#impact-missed-host,
-#impact-waste-host {
-  min-height: 0;
-}
-
-.impact-row #impact-missed-host,
-.impact-row #impact-waste-host {
-  flex: 1 1 auto;
-  min-width: min(100%, 14rem);
-}
-
-.impact-stat {
-  margin: 0;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.15rem 0.35rem;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  color: var(--ink-soft);
-}
-
-.impact-stat-label {
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.impact-stat-value {
-  font-family: var(--font-body);
-  font-weight: 400;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
+.pnl-totals-line + .pnl-totals-line {
+  margin-top: 0.2rem;
 }
 
 .belief-mae-stat {

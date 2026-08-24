@@ -89,18 +89,18 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await page.screenshot({ path: shotPath("01-full-page-initial"), fullPage: true });
   });
 
-  test("2: metrics column charts and impact stats", async ({ page }) => {
+  test("2: metrics column charts and P&L impact totals", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await advanceDays(page, 3);
     const metrics = page.locator(".cockpit-pane--metrics");
     await expect(metrics.locator("#chart-pnl-economics")).toBeVisible();
-    await expect(metrics.locator("#chart-age-comp")).toBeVisible();
-    await expect(metrics.locator("#chart-inventory")).toBeVisible();
-    await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
-    await expect(metrics.locator("#chart-spoil")).toHaveCount(1);
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
-    await expect(metrics.locator("[data-testid='impact-stat']")).toHaveCount(2);
+    await expect(metrics.locator("#chart-orders-spoilage")).toBeVisible();
+    await expect(metrics.locator("#chart-age-comp")).toHaveCount(0);
+    await expect(metrics.locator(".pnl-totals-line")).toHaveCount(2);
+    await expect(metrics.locator(".pnl-value--missed")).toBeVisible();
+    await expect(metrics.locator(".pnl-value--waste")).toBeVisible();
   });
 
   test("3: belief column and truth toggle in obs controls", async ({ page }) => {
@@ -113,6 +113,7 @@ test.describe("T-158 layout v7 — visual QA", () => {
 
     const truthToggle = page.locator("[data-testid='obs-controls-pane'] .truth-toggle");
     await expect(truthToggle).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator(".truth-toggle-label")).toContainText("Omniscience");
     await truthToggle.click();
     await expect(truthToggle).toHaveAttribute("aria-checked", "false");
   });

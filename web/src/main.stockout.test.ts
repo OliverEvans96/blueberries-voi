@@ -12,6 +12,7 @@ const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
 const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const STYLES_CSS = join(HERE, "styles.css");
 const SALES_DEMAND_TS = join(HERE, "charts/salesDemand.ts");
+const PNL_TOTALS_TS = join(HERE, "charts/pnlTotals.ts");
 
 function stripComments(src: string): string {
   return src
@@ -26,7 +27,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
   it("cockpit layout preserves chart-stockout host for hover wiring (T-128 hidden)", () => {
     expect(layoutSrc).toMatch(/id="chart-stockout"/);
     expect(layoutSrc).toMatch(/id="chart-history"/);
-    expect(layoutSrc).toMatch(/id="chart-spoil"/);
+    expect(layoutSrc).toMatch(/id="chart-orders-spoilage"/);
     expect(layoutSrc).toMatch(/visually-hidden/);
     expect(layoutSrc).toMatch(/ariaLabel="Missed sales by day"/);
   });
@@ -75,19 +76,27 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setControllerOrdersHover\(\s*els\.controllerOrders/);
-    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
+    expect(fn).toMatch(/setOrdersSpoilageGroupedBarsHover\(\s*els\.ordersSpoilage/);
     expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
-    expect(fn).toMatch(/setInventoryTargetHover\(\s*els\.inventory/);
     expect(fn).toMatch(/setFreshnessCompositionHover\(\s*els\.ageComp/);
     expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
   });
 
-  it("renderRunStripCharts renders orders and spoilage separately in metrics column", () => {
-    expect(logicSrc).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
-    expect(logicSrc).toMatch(/renderWasteBars\(\s*els\.spoil/);
-    expect(logicSrc).not.toMatch(/renderOrdersWaste\(\s*els\.controllerOrders/);
+  it("renderRunStripCharts renders grouped orders+spoilage in metrics column", () => {
+    expect(logicSrc).toMatch(/renderOrdersSpoilageGroupedBars/);
+    expect(logicSrc).toMatch(/renderOrdersSpoilageInto\(\s*[\s\S]*els\.ordersSpoilage/);
+    expect(logicSrc).not.toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
+    expect(logicSrc).not.toMatch(/renderWasteBars\(\s*els\.spoil/);
+  });
+
+  it("pnl totals host renders missed sales and waste in second line", () => {
+    const pnl = stripComments(readFileSync(PNL_TOTALS_TS, "utf8"));
+    expect(pnl).toMatch(/computeImpactTotals/);
+    expect(pnl).toMatch(/Missed sales/);
+    expect(pnl).toMatch(/Waste/);
+    expect(layoutSrc).not.toMatch(/impact-missed-host/);
+    expect(logicSrc).not.toMatch(/ImpactStat/);
   });
 
   it("renderStore shares marginalYMax / yMax for sales and stockout", () => {

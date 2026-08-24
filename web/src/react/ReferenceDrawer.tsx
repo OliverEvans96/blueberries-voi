@@ -14,8 +14,8 @@ const GLOSSARY_ENTRIES: { term: string; body: string }[] = [
     body: scenarioDescription(id),
   })),
   {
-    term: "Sim truth overlay",
-    body: "Shows hidden simulator state (lot ages, receipt rug) for teaching — orthogonal to the observation ladder.",
+    term: "Omniscience",
+    body: "Visualize unobserved ground-truth — lot ages, receipt rug, and other hidden simulator state for teaching. Orthogonal to the observation ladder.",
   },
   {
     term: "Base-stock",
@@ -28,7 +28,7 @@ const SHORTCUTS = [
   { keys: "← →", action: "Previous / next section" },
   { keys: "↑ ↓", action: "Previous / next section" },
   { keys: "?", action: "Open this help" },
-  { keys: "T", action: "Toggle sim truth overlay (when focused)" },
+  { keys: "T", action: "Toggle Omniscience (when focused)" },
 ];
 
 type ReferenceTab = "glossary" | "voi" | "shortcuts";

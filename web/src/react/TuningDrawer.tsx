@@ -312,42 +312,30 @@ export function TuningDrawer({
                   </div>
                   <div
                     className="focus-plot tuning-drawer-slot"
-                    data-plot="plot-inventory"
+                    data-plot="plot-age-comp"
                     hidden
                   >
                     <div className="chart-caption impact-caption">
-                      Effective inventory preview
+                      On-hand by freshness band
                     </div>
                     <D3ChartHost
-                      id="chart-inventory-focus"
+                      id="chart-age-comp-focus"
                       className="chart"
-                      ariaLabel="Inventory versus base stock target preview"
+                      ariaLabel="On-hand inventory by freshness band preview"
                     />
                   </div>
                   <div
                     className="focus-plot tuning-drawer-slot"
-                    data-plot="plot-controller-orders"
+                    data-plot="plot-orders-spoilage"
                     hidden
                   >
                     <div className="chart-caption impact-caption">
-                      Order quantity
+                      Orders &amp; spoilage
                     </div>
                     <D3ChartHost
-                      id="chart-controller-orders-focus"
+                      id="chart-orders-spoilage-focus"
                       className="chart"
-                      ariaLabel="Order quantity preview"
-                    />
-                  </div>
-                  <div
-                    className="focus-plot tuning-drawer-slot"
-                    data-plot="plot-spoil"
-                    hidden
-                  >
-                    <div className="chart-caption impact-caption">Spoilage</div>
-                    <D3ChartHost
-                      id="chart-spoil-focus"
-                      className="chart"
-                      ariaLabel="Spoilage preview"
+                      ariaLabel="Order quantity and spoilage preview"
                     />
                   </div>
                   <div

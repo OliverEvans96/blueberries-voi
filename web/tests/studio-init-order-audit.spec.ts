@@ -16,21 +16,15 @@ const MIN_CHART_DAY_SPAN = 5;
 
 const CHART_HOSTS = [
   "#chart-pnl-economics",
-  "#chart-age-comp",
-  "#chart-inventory",
-  "#chart-controller-orders",
-  "#chart-spoil",
+  "#chart-orders-spoilage",
   "#chart-sales-demand",
   "#chart-history",
+  "#chart-age-comp",
   "#chart-belief-lg",
   "#tradeoff-curve-host",
 ] as const;
 
-const TEXT_HOSTS = [
-  "#pnl-totals-host",
-  "#impact-missed-host",
-  "#impact-waste-host",
-] as const;
+const TEXT_HOSTS = ["#pnl-totals-host"] as const;
 
 const LAYOUT_HOSTS = [...TEXT_HOSTS, ...CHART_HOSTS] as const;
 
@@ -129,16 +123,8 @@ async function assertTextInitialized(page: Page): Promise<void> {
   await expect(pnl.locator(".pnl-value--rev")).toHaveText("$0");
   await expect(pnl.locator(".pnl-value--cost")).toHaveText("$0");
   await expect(pnl.locator(".pnl-value--profit")).toHaveText("$0");
-
-  const missed = page.locator("#impact-missed-host");
-  await expect(missed.locator("[data-testid='impact-stat']")).toBeVisible();
-  await expect(missed.locator(".impact-stat-value")).toContainText("0");
-  await expect(missed).toContainText("missed");
-
-  const waste = page.locator("#impact-waste-host");
-  await expect(waste.locator("[data-testid='impact-stat']")).toBeVisible();
-  await expect(waste.locator(".impact-stat-value")).toContainText("0");
-  await expect(waste).toContainText("waste");
+  await expect(pnl.locator(".pnl-value--missed")).toHaveText("0");
+  await expect(pnl.locator(".pnl-value--waste")).toHaveText("0");
 }
 
 test.describe("T-157 first-order init audit", () => {
@@ -211,12 +197,8 @@ test.describe("T-157 first-order init audit", () => {
     }
     // Text still populated (values may leave zero after first day).
     await expect(page.locator("#pnl-totals-host .pnl-totals")).toBeVisible();
-    await expect(
-      page.locator("#impact-missed-host [data-testid='impact-stat']"),
-    ).toBeVisible();
-    await expect(
-      page.locator("#impact-waste-host [data-testid='impact-stat']"),
-    ).toBeVisible();
+    await expect(page.locator("#pnl-totals-host .pnl-value--missed")).toBeVisible();
+    await expect(page.locator("#pnl-totals-host .pnl-value--waste")).toBeVisible();
 
     for (const sel of LAYOUT_HOSTS) {
       const after = await hostRect(page.locator(sel));

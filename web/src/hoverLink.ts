@@ -133,7 +133,7 @@ export function hoverChartSourceFromSvg(svg: SVGSVGElement): HoverChartSource {
     case "chart-sales":
     case "chart-sales-demand":
       return "sales";
-    case "chart-spoil":
+    case "chart-orders-spoilage":
       return "spoilage";
     case "chart-stockout":
       return "stockout";

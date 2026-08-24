@@ -6,7 +6,6 @@ const D3_CHART_IDS = [
   "chart-history",
   "chart-sales-demand",
   "chart-demand",
-  "chart-inventory",
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
@@ -14,11 +13,9 @@ const D3_CHART_IDS = [
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-controller-orders",
-  "chart-spoil",
-  "chart-inventory-focus",
-  "chart-controller-orders-focus",
-  "chart-spoil-focus",
+  "chart-orders-spoilage",
+  "chart-age-comp-focus",
+  "chart-orders-spoilage-focus",
 ] as const;
 
 /** Static studio shell — Cockpit Grid layout v7 (T-158). */
@@ -68,60 +65,31 @@ export function StudioLayout() {
               </span>
             </div>
             <div id="pnl-totals-host" data-testid="pnl-totals-host" />
-            <div className="impact-row">
-              <div id="impact-missed-host" data-testid="impact-missed-host" />
-              <div id="impact-waste-host" data-testid="impact-waste-host" />
-            </div>
             <div className="metrics-stack">
-              <div className="metrics-group metrics-group--economics">
-                <div className="metrics-group-label">Economics</div>
-                <div className="chart-caption">Cumulative revenue · cost · profit</div>
-                <D3ChartHost
-                  id="chart-pnl-economics"
-                  className="chart chart-pnl-economics"
-                  ariaLabel="Cumulative profit and loss"
-                />
+              <div className="chart-caption">
+                Cumulative revenue · cost · profit
               </div>
-              <div className="metrics-group metrics-group--inventory">
-                <div className="metrics-group-label">Inventory</div>
-                <div className="chart-caption impact-caption">
-                  On-hand by freshness band
-                </div>
-                <D3ChartHost
-                  id="chart-age-comp"
-                  className="chart"
-                  ariaLabel="On-hand inventory by freshness band"
-                />
-                <div className="chart-caption impact-caption">
-                  Effective inventory
-                </div>
-                <D3ChartHost
-                  id="chart-inventory"
-                  className="chart"
-                  ariaLabel="Inventory versus base stock target"
-                />
+              <D3ChartHost
+                id="chart-pnl-economics"
+                className="chart chart-pnl-economics"
+                ariaLabel="Cumulative profit and loss"
+              />
+              <div className="chart-caption impact-caption">
+                Sales &amp; demand
               </div>
-              <div className="metrics-group metrics-group--flow">
-                <div className="metrics-group-label">Flow</div>
-                <div className="chart-caption impact-caption">Order quantity</div>
-                <D3ChartHost
-                  id="chart-controller-orders"
-                  className="chart"
-                  ariaLabel="Order quantity over days"
-                />
-                <div className="chart-caption impact-caption">Spoilage</div>
-                <D3ChartHost
-                  id="chart-spoil"
-                  className="chart"
-                  ariaLabel="Daily spoilage over days"
-                />
-                <div className="chart-caption impact-caption">Sales &amp; demand</div>
-                <D3ChartHost
-                  id="chart-sales-demand"
-                  className="chart"
-                  ariaLabel="Sales versus demand with stockout gap"
-                />
+              <D3ChartHost
+                id="chart-sales-demand"
+                className="chart"
+                ariaLabel="Sales versus demand with stockout gap"
+              />
+              <div className="chart-caption impact-caption">
+                Orders &amp; spoilage
               </div>
+              <D3ChartHost
+                id="chart-orders-spoilage"
+                className="chart"
+                ariaLabel="Order quantity and spoilage over days"
+              />
             </div>
           </section>
 
@@ -136,6 +104,7 @@ export function StudioLayout() {
                 Filter belief over time — hover a day to link charts.
               </span>
             </div>
+            <div id="operator-bar-host" />
             <div className="chart-caption" data-truth-caption="lots">
               Freshness × time
             </div>
@@ -145,6 +114,17 @@ export function StudioLayout() {
               ariaLabel="Belief freshness over time with truth overlay"
             />
             <p className="belief-mae-stat" data-belief-mae="history" hidden />
+            <div
+              className="chart-caption impact-caption"
+              data-truth-caption="age-comp"
+            >
+              On-hand by freshness band
+            </div>
+            <D3ChartHost
+              id="chart-age-comp"
+              className="chart"
+              ariaLabel="On-hand inventory by freshness band with effective overlay"
+            />
             <div
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
@@ -214,7 +194,6 @@ export function StudioLayout() {
                 hidden
               />
             </div>
-            <div id="operator-bar-host" />
           </section>
 
           <div

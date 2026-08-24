@@ -94,7 +94,7 @@ describe("DecisionRail truth toggle", () => {
     const section = document.querySelector(".decision-rail-truth");
     expect(section).not.toBeNull();
     expect(section!.querySelector(".truth-toggle-label")?.textContent).toBe(
-      "Sim truth overlay",
+      "Omniscience",
     );
     expect(MEMORY_STORE.has(SHOW_TRUTH_STORAGE_KEY)).toBe(false);
   });
