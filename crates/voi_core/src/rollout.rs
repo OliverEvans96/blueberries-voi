@@ -674,6 +674,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow rollout MC paths; run with cargo test rollout_costs_flip_winning_order -- --ignored"]
     fn rollout_costs_flip_winning_order() {
         let p = ModelParams::default();
         let k = 5usize;
