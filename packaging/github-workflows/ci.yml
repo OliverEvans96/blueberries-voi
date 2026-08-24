@@ -186,6 +186,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Python dependencies for docs guards
+        run: |
+          uv venv --python 3.11
+          uv sync --extra dev --python 3.11 --frozen
+
       - name: Docs guards
         run: >-
           uv run --python 3.11 pytest

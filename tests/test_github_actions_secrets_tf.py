@@ -74,7 +74,9 @@ def test_terraform_readme_documents_bootstrap() -> None:
 
 def test_terraform_lockfile_is_committed() -> None:
     """Provider lockfile is tracked (mirrors personal-website)."""
-    assert _TF_LOCK.is_file(), "run terraform init and commit terraform/.terraform.lock.hcl"
+    assert _TF_LOCK.is_file(), (
+        "run terraform init and commit terraform/.terraform.lock.hcl"
+    )
     text = _TF_LOCK.read_text(encoding="utf-8")
     assert "integrations/github" in text
     assert "carlpett/sops" in text
@@ -83,6 +85,7 @@ def test_terraform_lockfile_is_committed() -> None:
 def test_enable_github_actions_defaults_false_without_tfvars() -> None:
     """Default off: apply without tfvars must not create GitHub resources."""
     text = (_TF_DIR / "variables.tf").read_text(encoding="utf-8")
-    assert re.search(r'variable\s+"enable_github_actions"[\s\S]*default\s*=\s*false', text)
+    pattern = r'variable\s+"enable_github_actions"[\s\S]*default\s*=\s*false'
+    assert re.search(pattern, text)
     example = (_TF_DIR / "terraform.tfvars.example").read_text(encoding="utf-8")
     assert "enable_github_actions = true" in example
