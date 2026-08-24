@@ -434,6 +434,23 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "ax-platform" },
+    { name = "datasets" },
+    { name = "ipykernel" },
+    { name = "jupyter" },
+    { name = "matplotlib" },
+    { name = "maturin" },
+    { name = "modal" },
+    { name = "mypy" },
+    { name = "pyarrow" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-testmon" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "tqdm" },
+]
 data = [
     { name = "pyarrow" },
 ]
@@ -466,9 +483,15 @@ viz = [
     { name = "matplotlib" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "blueberries-voi", extra = ["all"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "ax-platform", marker = "extra == 'notebooks'", specifier = ">=0.5.0" },
+    { name = "blueberries-voi", extras = ["data", "viz", "dev", "notebooks", "rust", "freshnet", "modal"], marker = "extra == 'all'" },
     { name = "datasets", marker = "extra == 'freshnet'", specifier = ">=3.0.0" },
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.29.0" },
     { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.0.0" },
@@ -488,7 +511,10 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "tqdm", marker = "extra == 'notebooks'", specifier = ">=4.66.0" },
 ]
-provides-extras = ["data", "viz", "dev", "notebooks", "rust", "freshnet", "modal"]
+provides-extras = ["data", "viz", "dev", "notebooks", "rust", "freshnet", "modal", "all"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "blueberries-voi", extras = ["all"] }]
 
 [[package]]
 name = "botorch"

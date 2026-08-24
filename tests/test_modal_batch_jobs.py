@@ -289,3 +289,31 @@ def test_run_seed_channel_profit_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "waste" in out
     assert "stockout" in out
     json.dumps(out)
+
+
+def test_modal_app_wheel_path_relative_to_repo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("modal")
+    import importlib
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+
+    import experiments.modal.app as app_mod
+
+    wheel_dir = repo / "dist" / "wheel"
+    if not wheel_dir.is_dir():
+        pytest.skip("dist/wheel not built")
+
+    notebooks_cwd = repo / "notebooks"
+    notebooks_cwd.mkdir(exist_ok=True)
+    monkeypatch.chdir(notebooks_cwd)
+    monkeypatch.setenv("BLUEBERRIES_VOI_WHEEL", "dist/wheel")
+    importlib.reload(app_mod)
+
+    assert app_mod.WHEEL_PATH.is_file()
+    assert app_mod.WHEEL_PATH.parent == wheel_dir.resolve()

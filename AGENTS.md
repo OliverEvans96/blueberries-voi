@@ -94,7 +94,7 @@ pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --co
 Uv form (same gate argv on the pinned interpreter):
 
 ```bash
-uv sync --all-extras --python 3.11
+uv sync --python 3.11
 uv run --python 3.11 ruff check .
 uv run --python 3.11 ruff format --check .
 uv run --python 3.11 mypy src tests
@@ -130,10 +130,9 @@ uv run pytest tests/test_foo.py --no-cov   # ticket slice / RED proof
   hand-merge SQLite; never block a ticket on cache merge.
 - Default `addopts` must stay free of `--testmon` and `--cov`.
 
-Notebooks:
+Notebooks (Jupyter + Ax BO) are included in the default `uv sync` via the `all` extra:
 
 ```bash
-uv sync --extra notebooks
 uv run jupyter lab
 # or: uv run python -m ipykernel install --user --name=blueberries-voi
 ```

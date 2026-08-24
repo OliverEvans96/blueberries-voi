@@ -30,7 +30,15 @@ else:
 
 _PKG_SRC = _REPO / "src" / "blueberries_voi"
 _DATA_DIR = _REPO / "data"
-_WHEEL = Path(os.environ.get("BLUEBERRIES_VOI_WHEEL", _REPO / "dist" / "wheel"))
+def _repo_relative_path(env_key: str, default: Path) -> Path:
+    raw = os.environ.get(env_key)
+    path = Path(raw) if raw else default
+    if not path.is_absolute():
+        path = (_REPO / path).resolve()
+    return path
+
+
+_WHEEL = _repo_relative_path("BLUEBERRIES_VOI_WHEEL", _REPO / "dist" / "wheel")
 if _WHEEL.is_dir():
     _wheel_files = sorted(_WHEEL.glob("blueberries_voi_core-*.whl"))
     if not _wheel_files:
@@ -43,11 +51,9 @@ if _WHEEL.is_dir():
 else:
     WHEEL_PATH = _WHEEL
 
-_GSIN_BIN = Path(
-    os.environ.get(
-        "GSIN_UPC_DIAG_BIN",
-        _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
-    )
+_GSIN_BIN = _repo_relative_path(
+    "GSIN_UPC_DIAG_BIN",
+    _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
 )
 
 _WHEEL_REMOTE = f"/tmp/{WHEEL_PATH.name}"

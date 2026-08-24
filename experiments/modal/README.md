@@ -11,7 +11,7 @@ From the repo root, on Python **3.11**:
 
 ```bash
 # PyO3 extension wheel (Modal does not compile Rust)
-uv sync --extra rust --extra modal --extra data --python 3.11
+uv sync --python 3.11
 uv run maturin build --release -m crates/voi_py/Cargo.toml -o dist/wheel
 # Wheel: dist/wheel/blueberries_voi_core-*.whl; Python package copied from src/
 
@@ -48,7 +48,7 @@ rollout_rows = run_batch("rollout_eval", BATCH_MODE, smoke=SMOKE, seeds=(42,), a
 
 ```bash
 pip install 'blueberries-voi[modal]'   # or: uv sync --extra modal
-export BLUEBERRIES_VOI_WHEEL=dist/wheel  # directory with the .whl
+export BLUEBERRIES_VOI_WHEEL=dist/wheel  # relative paths resolve from repo root (not notebook cwd)
 modal run experiments/modal/app.py::nb13 --out experiments/data/nb13_channel_rows.json
 modal run experiments/modal/app.py::gsin --out gsin_upc_sharded.json
 ```
