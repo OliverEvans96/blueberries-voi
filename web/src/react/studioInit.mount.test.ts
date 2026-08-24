@@ -1,5 +1,5 @@
 /**
- * T-158: initStudio must mount section controls after tuning drawer portal exists.
+ * T-158 / T-160: initStudio must mount section controls after tuning drawer portal exists.
  */
 // @vitest-environment jsdom
 import { act, render, waitFor, type RenderResult } from "@testing-library/react";
@@ -41,6 +41,19 @@ describe("studio init mount order (T-158)", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     const dialog = rootEl.querySelector("dialog#tuning-drawer");
     expect(dialog?.hasAttribute("open")).toBe(false);
-    expect(rootEl.dataset.studioInit).toBe("1");
+    expect(rootEl.querySelector('[data-studio-init="1"]')).not.toBeNull();
+  });
+
+  it("App mounts into #studio-slot without #app in document (T-160)", async () => {
+    const slotEl = document.createElement("div");
+    slotEl.id = "studio-slot";
+    document.body.appendChild(slotEl);
+
+    rendered = render(createElement(App), { container: slotEl });
+
+    await waitFor(() => {
+      expect(slotEl.querySelector("#section-controls")).not.toBeNull();
+    });
+    expect(slotEl.querySelector('[data-studio-init="1"]')).not.toBeNull();
   });
 });
