@@ -186,8 +186,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Docs guards (informational until content QA)
-        continue-on-error: true
+      - name: Docs guards
         run: >-
           uv run --python 3.11 pytest
           tests/test_docs_terminology.py
