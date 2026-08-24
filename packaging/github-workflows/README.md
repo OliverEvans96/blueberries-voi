@@ -14,7 +14,7 @@ Use real file copies:
 
 ## CI layout (`ci.yml`)
 
-Five jobs start in parallel; only **rust** waits on **build**:
+Five jobs start in parallel; **rust** and **web** wait on **build**:
 
 | Job | Waits on | What |
 |-----|----------|------|
@@ -22,11 +22,11 @@ Five jobs start in parallel; only **rust** waits on **build**:
 | `rust` | `build` | restore Cargo registry cache; download `target/`; `cargo test --release` (prebuilt binaries) |
 | `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage (`-m "not docs"`) |
 | `docs` | — | `npm ci` in `docs/`, VitePress + `cargo doc` rustdoc bundle, docs/rustdoc guards, upload `docs-dist` |
-| `web` | — | `build-wasm.sh`, `build:lib`, vitest, `npm pack` smoke |
+| `web` | `build` | download WASM from `ci-rust-wasm-build`; `build:lib`, vitest, `npm pack`; on main: `npm run build` + upload `studio-dist` |
 
 On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, `web`, and
-`docs` succeed (production `npm run build` + `studio-dist`; docs site + `docs-dist`).
-After both dist uploads, `deploy` dispatches `blueberries-docs-published` to
+`docs` succeed. It downloads `studio-dist` and `docs-dist` from those jobs, re-uploads
+both artifacts, then dispatches `blueberries-docs-published` to
 `OliverEvans96/personal-website` so the site redeploys and serves the latest
 `/docs/blueberries/` bundle.
 
