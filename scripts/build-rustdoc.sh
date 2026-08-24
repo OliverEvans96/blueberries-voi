@@ -10,6 +10,8 @@ cargo doc --no-deps -p voi_core --locked
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cp -a target/doc/voi_core "$OUT/"
-# cargo doc also writes target/doc/search.index and crates.js at target/doc/ root;
-# voi_core pages are self-contained under voi_core/ for our bundle layout.
-echo "rustdoc copied to $OUT/voi_core/"
+# Shared assets live at target/doc/ root; voi_core/*.html references them via ../
+cp -a target/doc/static.files "$OUT/"
+cp -a target/doc/crates.js "$OUT/"
+cp -a target/doc/src "$OUT/"
+echo "rustdoc copied to $OUT/voi_core/ (+ static.files, crates.js, src/)"
