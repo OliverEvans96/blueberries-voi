@@ -1,28 +1,28 @@
-/* T-148 Cockpit Grid — layout v6 (metrics | belief | sidebar + tuning dock).
+/* T-158 Cockpit Grid — layout v7 (metrics | belief | sidebar).
  *
- * Three content columns: metrics stack, belief + operator bar, obs + events.
- * Bottom row: full-width tuning dock.
+ * Three content columns only; tuning lives in right drawer (T-158).
  */
 
 .cockpit-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 360px);
-  grid-template-areas:
-    "metrics  belief   sidebar"
-    "tuning   tuning   tuning";
+  grid-template-areas: "metrics  belief   sidebar";
   align-items: start;
   gap: 1rem;
 }
 
-.cockpit-row {
-  display: grid;
+.title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.cockpit-row--tuning {
-  grid-area: tuning;
-  min-height: 200px;
-  grid-template-columns: 1fr;
+.title-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .cockpit-pane {
@@ -161,6 +161,48 @@
   font-size: 0.85rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+.belief-mae-stat {
+  margin: 0.2rem 0 0.35rem 44px;
+  padding: 0.35rem 0.65rem;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.35rem;
+  max-width: calc(100% - 44px);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ink);
+  background: rgba(230, 184, 0, 0.08);
+  border-radius: 4px;
+  border-left: 3px solid #e6b800;
+}
+
+.belief-mae-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.belief-mae-value {
+  font-size: 0.88rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.belief-mae-separator {
+  color: var(--ink-soft);
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.belief-mae-suffix {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
 }
 
 .title-bar {

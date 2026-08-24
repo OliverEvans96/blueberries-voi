@@ -396,7 +396,10 @@ export function renderFreshnessComposition(
     .attr("height", innerH);
 
   const x = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.18);
-  const yMax = d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 1;
+  const yMax = Math.max(
+    d3.max(rows, (r) => r.fresh + r.mid + r.stale) ?? 0,
+    1,
+  );
   const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
 
   const stack = d3
@@ -405,11 +408,15 @@ export function renderFreshnessComposition(
     .order(d3.stackOrderNone)
     .offset(d3.stackOffsetNone);
   const series = stack(rows);
+  const bandClassByKey = new Map(bands.map((b) => [b.key, b.cls]));
 
   g.selectAll(".freshness-series")
     .data(series)
     .join("g")
-    .attr("class", (d) => `freshness-series freshness-${d.key}`)
+    .attr(
+      "class",
+      (d) => `freshness-series ${bandClassByKey.get(d.key as (typeof bands)[number]["key"]) ?? ""}`,
+    )
     .selectAll("rect")
     .data((d) => d)
     .join("rect")

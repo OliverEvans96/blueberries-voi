@@ -2,6 +2,7 @@
  * Delivery temperature history from engine wire trace (times_d / temps_c).
  */
 import * as d3 from "d3";
+import type { MaskedObsWire } from "../obsMask";
 
 export type DeliveryTempPoint = { t: number; temp: number };
 
@@ -11,13 +12,60 @@ export type DeliveryLotTempTrace = {
   temps_c: number[];
 };
 
-const LOT_COLORS = [
+export type TempSummary = {
+  min: number;
+  max: number;
+  mean: number;
+  std: number;
+  n: number;
+};
+
+export const LOT_COLORS = [
   "var(--accent, #2563eb)",
   "#c2410c",
   "#15803d",
   "#7c3aed",
   "#b45309",
-];
+] as const;
+
+export function lotColor(index: number): string {
+  return LOT_COLORS[index % LOT_COLORS.length]!;
+}
+
+export function tracesFromEvent(ev: MaskedObsWire): DeliveryLotTempTrace[] {
+  return (
+    ev.temp_traces_by_lot?.map((trace) => ({
+      lotId: trace.lot_id,
+      times_d: trace.times_d,
+      temps_c: trace.temps_c,
+    })) ??
+    (ev.temp_times_d?.length && ev.temp_temps_c?.length
+      ? [
+          {
+            lotId: ev.arrival_lot_ids?.[0] ?? 0,
+            times_d: ev.temp_times_d,
+            temps_c: ev.temp_temps_c,
+          },
+        ]
+      : [])
+  );
+}
+
+export function tempSummaryFromTrace(
+  trace: DeliveryLotTempTrace,
+): TempSummary | null {
+  const finite = trace.temps_c.filter((t) => Number.isFinite(t));
+  if (!finite.length) return null;
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const mean = d3.mean(finite) ?? 0;
+  const std = finite.length < 2 ? 0 : (d3.deviation(finite) ?? 0);
+  return { min, max, mean, std, n: finite.length };
+}
+
+export function formatTempC(v: number): string {
+  return `${v.toFixed(1)}°C`;
+}
 
 export function pointsFromWire(
   times: number[] | null | undefined,
@@ -42,6 +90,87 @@ function ensureSvg(host: HTMLElement): SVGSVGElement {
   return svg;
 }
 
+function tempColorScale(yMin: number, yMax: number): (temp: number) => string {
+  return d3
+    .scaleSequential(d3.interpolateRdYlBu)
+    .domain([yMax, yMin]) as (temp: number) => string;
+}
+
+function appendTempBaseline(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  x1: number,
+  x2: number,
+  y2C: number,
+  y: (temp: number) => number,
+): void {
+  parent
+    .append("line")
+    .attr("class", "delivery-temp-baseline")
+    .attr("x1", x1)
+    .attr("x2", x2)
+    .attr("y1", y(y2C))
+    .attr("y2", y(y2C))
+    .attr("stroke", "var(--border, #ccc)")
+    .attr("stroke-width", 0.5)
+    .attr("stroke-dasharray", "2 2");
+}
+
+function appendTempAxes(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  innerW: number,
+  innerH: number,
+): void {
+  parent
+    .append("line")
+    .attr("class", "delivery-temp-axis-x")
+    .attr("x1", 0)
+    .attr("x2", innerW)
+    .attr("y1", innerH)
+    .attr("y2", innerH)
+    .attr("stroke", "var(--border, #999)")
+    .attr("stroke-width", 0.75);
+  parent
+    .append("line")
+    .attr("class", "delivery-temp-axis-y")
+    .attr("x1", innerW)
+    .attr("x2", innerW)
+    .attr("y1", 0)
+    .attr("y2", innerH)
+    .attr("stroke", "var(--border, #999)")
+    .attr("stroke-width", 0.75);
+}
+
+function appendTempColoredSegments(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  points: DeliveryTempPoint[],
+  x: (t: number) => number,
+  y: (temp: number) => number,
+  color: (temp: number) => string,
+  attrs?: Record<string, string>,
+): void {
+  if (points.length < 2) return;
+  const group = parent.append("g").attr("class", "delivery-temp-line");
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    const midTemp = (a.temp + b.temp) / 2;
+    const line = group
+      .append("line")
+      .attr("class", "delivery-temp-segment")
+      .attr("x1", x(a.t))
+      .attr("y1", y(a.temp))
+      .attr("x2", x(b.t))
+      .attr("y2", y(b.temp))
+      .attr("stroke", color(midTemp))
+      .attr("stroke-width", 1.5);
+    if (attrs) {
+      for (const [key, value] of Object.entries(attrs)) {
+        line.attr(key, value);
+      }
+    }
+  }
+}
+
 export function renderDeliveryTempHistorySvg(
   svg: SVGSVGElement,
   data: DeliveryTempPoint[],
@@ -58,30 +187,23 @@ export function renderDeliveryTempHistorySvg(
   const yMin = Math.min(0, ...temps);
   const yMax = Math.max(6, ...temps);
   const tMin = Math.min(...data.map((d) => d.t));
-  const x = d3.scaleLinear().domain([tMin, 0]).range([pad, width - pad]);
-  const y = d3.scaleLinear().domain([yMin, yMax]).range([height - pad, pad]);
-  root
-    .append("line")
-    .attr("class", "delivery-temp-baseline")
-    .attr("x1", pad)
-    .attr("x2", width - pad)
-    .attr("y1", y(2))
-    .attr("y2", y(2))
-    .attr("stroke", "var(--border, #ccc)")
-    .attr("stroke-width", 0.5)
-    .attr("stroke-dasharray", "2 2");
-  const line = d3
-    .line<DeliveryTempPoint>()
-    .x((d) => x(d.t))
-    .y((d) => y(d.temp));
-  root
-    .append("path")
-    .datum(data)
-    .attr("class", "delivery-temp-line")
-    .attr("fill", "none")
-    .attr("stroke", "var(--accent, #2563eb)")
-    .attr("stroke-width", 1.5)
-    .attr("d", line);
+  const innerW = width - pad * 2;
+  const innerH = height - pad * 2;
+  const x = d3.scaleLinear().domain([tMin, 0]).range([0, innerW]);
+  const y = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
+  const plot = root
+    .append("g")
+    .attr("class", "delivery-temp-plot")
+    .attr("transform", `translate(${pad},${pad})`);
+  appendTempBaseline(plot, 0, innerW, 2, y);
+  appendTempAxes(plot, innerW, innerH);
+  appendTempColoredSegments(
+    plot,
+    data,
+    (t) => x(t),
+    (temp) => y(temp),
+    tempColorScale(yMin, yMax),
+  );
 }
 
 export function renderDeliveryTempHistory(
@@ -97,7 +219,7 @@ export function renderDeliveryTempHistory(
 export function renderDeliveryTempMultiLot(
   host: HTMLElement,
   traces: DeliveryLotTempTrace[],
-  height = 72,
+  height = 36,
 ): void {
   const width = host.clientWidth || 280;
   const legendW = traces.length > 1 ? 56 : 0;
@@ -135,34 +257,19 @@ export function renderDeliveryTempMultiLot(
   const x = d3.scaleLinear().domain([tMin, 0]).range([0, innerW]);
   const y = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
 
-  plot
-    .append("line")
-    .attr("class", "delivery-temp-baseline")
-    .attr("x1", 0)
-    .attr("x2", innerW)
-    .attr("y1", y(2))
-    .attr("y2", y(2))
-    .attr("stroke", "var(--border, #ccc)")
-    .attr("stroke-width", 0.5)
-    .attr("stroke-dasharray", "2 2");
+  appendTempBaseline(plot, 0, innerW, 2, y);
+  appendTempAxes(plot, innerW, innerH);
 
-  const line = d3
-    .line<DeliveryTempPoint>()
-    .x((d) => x(d.t))
-    .y((d) => y(d.temp))
-    .curve(d3.curveMonotoneX);
-
-  series.forEach((trace, i) => {
-    plot
-      .append("path")
-      .datum(trace.points)
-      .attr("class", "delivery-temp-line")
-      .attr("data-series", "temp")
-      .attr("data-lot", String(trace.lotId))
-      .attr("fill", "none")
-      .attr("stroke", LOT_COLORS[i % LOT_COLORS.length]!)
-      .attr("stroke-width", 1.5)
-      .attr("d", line);
+  const color = tempColorScale(yMin, yMax);
+  series.forEach((trace) => {
+    appendTempColoredSegments(
+      plot,
+      trace.points,
+      (t) => x(t),
+      (temp) => y(temp),
+      color,
+      { "data-series": "temp", "data-lot": String(trace.lotId) },
+    );
   });
 
   if (series.length > 1) {
@@ -180,7 +287,7 @@ export function renderDeliveryTempMultiLot(
         .attr("x2", 10)
         .attr("y1", 0)
         .attr("y2", 0)
-        .attr("stroke", LOT_COLORS[i % LOT_COLORS.length]!)
+        .attr("stroke", lotColor(i))
         .attr("stroke-width", 1.5);
       item
         .append("text")

@@ -149,7 +149,8 @@ export function freshnessHistogramDataFromFlat(
   };
 }
 
-function displayBins(
+/** Rebin histogram chart data onto the standard 8 display bins on [0, 1]. */
+export function displayBinMassesFromHistogramData(
   data: FreshnessHistogramData,
   showTruth: boolean,
 ): { edges: number[]; belief: number[]; truth: number[] | null } {
@@ -173,7 +174,7 @@ export function renderFreshnessHistogram(
   const margin = { top: 16, right: 16, bottom: 40, left: 44 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
-  const { edges, belief, truth } = displayBins(data, showTruth);
+  const { edges, belief, truth } = displayBinMassesFromHistogramData(data, showTruth);
 
   container.replaceChildren();
   if (edges.length < 2) return;
@@ -195,6 +196,7 @@ export function renderFreshnessHistogram(
   const svg = d3
     .select(container)
     .append("svg")
+    .attr("class", "chart-svg")
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("width", "100%")
     .attr("height", height)

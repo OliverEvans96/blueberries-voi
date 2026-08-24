@@ -22,6 +22,10 @@ const ARRIVAL_GRID: usize = 4096;
 pub const STREAM_ARRIVAL_DURATION: &str = ":arrival_duration";
 /// CRN stream tag for the truth-path mean-transit-temperature draw.
 pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
+/// CRN stream tag for synthesizing a delivery's within-trip temperature trace (the F3
+/// temperature-history observation), seeded independently of the mean-temperature draw
+/// itself.
+pub const STREAM_ARRIVAL_TRACE: &str = ":arrival_trace";
 /// CRN stream tag for the truth-path within-pallet position draw.
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
 /// CRN stream tag for the truth-path per-unit freshness-loss gamma draw.

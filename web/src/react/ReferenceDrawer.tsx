@@ -111,11 +111,17 @@ export type ReferenceDrawerProps = {
   portalContainerRef?: RefObject<HTMLElement | null>;
   /** Hide visible trigger buttons — open via keyboard shortcut only. */
   hideTriggers?: boolean;
+  /** Called when the drawer is about to open (e.g. close tuning drawer). */
+  onOpen?: () => void;
+  /** Register imperative close for cross-drawer stacking (T-158). */
+  registerCloseHandler?: (close: () => void) => void;
 };
 
 export function ReferenceDrawer({
   portalContainerRef,
   hideTriggers = false,
+  onOpen,
+  registerCloseHandler,
 }: ReferenceDrawerProps = {}) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReferenceTab>("glossary");
@@ -124,11 +130,16 @@ export function ReferenceDrawer({
 
   const openDrawer = (tab: ReferenceTab) => {
     if (tab === "voi") setVoiMounted(true);
+    onOpen?.();
     setActiveTab(tab);
     setOpen(true);
   };
 
   const closeDrawer = () => setOpen(false);
+
+  useEffect(() => {
+    if (registerCloseHandler) registerCloseHandler(closeDrawer);
+  }, [registerCloseHandler]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -152,11 +163,12 @@ export function ReferenceDrawer({
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-      if (event.key === "?") {
+        if (event.key === "?") {
         event.preventDefault();
         if (open && activeTab === "shortcuts") {
           closeDrawer();
         } else {
+          onOpen?.();
           setActiveTab("shortcuts");
           setOpen(true);
         }

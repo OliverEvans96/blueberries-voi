@@ -1,0 +1,86 @@
+ticket: T-158
+parent_tip: main
+optimize: balanced
+max_parallel: 5
+description: >
+  Layout v7 — move tuning dock to right-side TuningDrawer (gear trigger), single-row
+  cockpit grid metrics | belief | sidebar, 2-column interleaved drawer interior.
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-158.md
+      - .team/adr/0140-studio-layout-v7-tuning-drawer.md
+      - .team/plans/T-158-concurrency.yaml
+    deps: []
+
+  - id: qa-red
+    role: qa
+    files:
+      - web/src/react/TuningDrawer.test.ts
+      - web/src/react/StudioLayout.test.ts
+      - web/src/controls.test.ts
+      - web/src/react/studioScope.test.ts
+      - web/tests/studio-visual-qa.spec.ts
+      - web/src/engine/engineStatus.test.ts
+      - tests/test_studio_release_version.py
+      - .team/qa/T-158-tests.md
+    deps: [architect]
+
+  - id: impl-drawer
+    role: implement
+    shard: drawer
+    files:
+      - web/src/react/TuningDrawer.tsx
+      - web/src/styles/tuningDrawer.css
+    deps: [qa-red]
+    file_owner:
+      web/src/react/TuningDrawer.tsx: impl-drawer
+      web/src/styles/tuningDrawer.css: impl-drawer
+
+  - id: impl-shell-grid
+    role: implement
+    shard: shell-grid
+    files:
+      - web/src/react/StudioLayout.tsx
+      - web/src/styles/cockpitGrid.css
+    deps: [qa-red]
+
+  - id: impl-studio-logic
+    role: implement
+    shard: studio-logic
+    files:
+      - web/src/react/studioLogic.ts
+    deps: [impl-drawer, impl-shell-grid]
+
+  - id: impl-interleave
+    role: implement
+    shard: interleave
+    files:
+      - web/src/styles/tuningDrawer.css
+    deps: [impl-drawer]
+    file_owner:
+      web/src/styles/tuningDrawer.css: impl-interleave
+
+  - id: impl-version-tests
+    role: implement
+    shard: version-tests
+    merge_last: true
+    files:
+      - web/package.json
+      - web/tests/studio-smoke.spec.ts
+      - web/tests/studio-visual-qa.spec.ts
+      - tests/test_studio_release_version.py
+      - .team/changelog.md
+    deps: [impl-studio-logic, impl-interleave]
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-158.md]
+    deps: [impl-version-tests]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-158.md]
+    deps: [impl-version-tests]

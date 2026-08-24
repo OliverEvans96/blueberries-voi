@@ -1,0 +1,175 @@
+/* T-158: tuning drawer — right overlay + 2-column interleaved body */
+
+.tuning-drawer-trigger {
+  appearance: none;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--paper-edge);
+  border-radius: 8px;
+  background: #fffdf8;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tuning-drawer-trigger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  color: var(--accent);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'/%3E%3Cpath d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.tuning-drawer-trigger:hover {
+  border-color: var(--focus);
+  background: var(--paper);
+}
+
+.tuning-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  margin: 0;
+  width: min(40rem, 100vw);
+  max-width: 100vw;
+  max-height: 100vh;
+  height: 100vh;
+  border: none;
+  border-left: 1px solid var(--paper-edge);
+  border-radius: 0;
+  padding: 0;
+  background: var(--paper);
+  box-shadow: -8px 0 24px rgba(28, 36, 32, 0.12);
+  z-index: 1200;
+}
+
+.tuning-drawer::backdrop {
+  background: rgba(28, 36, 32, 0.35);
+}
+
+.tuning-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--paper-edge);
+}
+
+.tuning-drawer-head > button[type="button"] {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.25rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.tuning-drawer-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: 1rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 4rem);
+}
+
+.tuning-drawer-slot--full {
+  grid-column: 1 / -1;
+}
+
+.tuning-drawer-controls {
+  min-width: 0;
+}
+
+.tuning-drawer-controls .section-controls,
+.tuning-drawer-controls .controls-block {
+  max-width: 100%;
+}
+
+.tuning-drawer-controls input[type="range"] {
+  width: 100%;
+  max-width: 100%;
+}
+
+.tuning-drawer .focus-header h2 {
+  font-size: 1.05rem;
+  line-height: 1.25;
+  margin: 0 0 0.35rem;
+}
+
+.tuning-drawer .focus-header .focus-blurb {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.tuning-drawer-plots {
+  display: contents;
+}
+
+.tuning-drawer-body .demand-chart-slot,
+.tuning-drawer-body .focus-plot .chart {
+  min-height: 120px;
+}
+
+/* Cluster tabs — shared with tuning dock */
+.tuning-cluster-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #6b7280);
+}
+
+.tuning-cluster-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tuning-cluster-tabs [role="tab"] {
+  border: 1px solid var(--paper-edge, #d1d5db);
+  border-radius: 4px;
+  background: var(--paper, #fff);
+  color: var(--ink, #111);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tuning-cluster-tabs [role="tab"]:hover {
+  border-color: var(--ink-muted, #6b7280);
+}
+
+.tuning-cluster-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--paper, #fff));
+  font-weight: 600;
+}
+
+.tuning-dock-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 600px) {
+  .tuning-drawer-body {
+    grid-template-columns: 1fr;
+  }
+}

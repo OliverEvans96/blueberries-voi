@@ -98,7 +98,7 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
     expect(screen.queryByText(/Day 7/)).toBeNull();
   });
 
-  it("renders a positioned tooltip with day stats and belief one-liner", () => {
+  it("renders a positioned tooltip with day stats", () => {
     renderInspector({
       day: 7,
       point: { clientX: 200, clientY: 150 },
@@ -115,9 +115,6 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
     expect(screen.getByText("Waste: 3")).toBeInTheDocument();
     expect(screen.getByText("Stockout: 1")).toBeInTheDocument();
     expect(screen.getByText("Order qty: 16")).toBeInTheDocument();
-    expect(
-      screen.getByText("Belief peaks near freshness bin 1."),
-    ).toBeInTheDocument();
   });
 
   it("positions the tooltip from point.clientX/clientY with a +12px offset", () => {
@@ -160,22 +157,4 @@ describe("DayInspector (T-126 AC-dayinspector)", () => {
     expect(screen.getByText("Day 99 — no history yet.")).toBeInTheDocument();
   });
 
-  it("uses the default belief one-liner when f_marginal is absent", () => {
-    renderInspector({
-      day: 7,
-      point: { clientX: 10, clientY: 10 },
-      vm: sampleViewModel({
-        belief: {
-          f_edges: [0, 1],
-          count_edges: [0, 1],
-          density: [[0.5]],
-        },
-      }),
-    });
-
-    expect(document.querySelector(".day-inspector-tooltip")).not.toBeNull();
-    expect(
-      screen.getByText("Belief updating from observed sales and shrink."),
-    ).toBeInTheDocument();
-  });
 });

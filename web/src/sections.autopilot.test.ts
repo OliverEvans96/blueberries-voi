@@ -15,6 +15,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LAYOUT_TS = join(HERE, "react/StudioLayout.tsx");
+const TUNING_DRAWER_TS = join(HERE, "react/TuningDrawer.tsx");
 const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const CONTROLS_TS = join(HERE, "controls.ts");
 const SECTIONS_TS = join(HERE, "sections.ts");
@@ -128,14 +129,15 @@ describe("Autopilot chart wiring (T-099)", () => {
 
   it("react/studioLogic.ts mounts controller orders and spoil charts (T-153)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
+    const tuningDrawer = readFileSync(TUNING_DRAWER_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
     expect(logic).toMatch(/renderControllerOrders/);
     expect(logic).toMatch(/renderWasteBars/);
     expect(logic).toMatch(/controllerOrdersFocus|spoilFocus/);
     expect(layout).toMatch(/id="chart-controller-orders"/);
     expect(layout).toMatch(/id="chart-spoil"/);
-    expect(layout).toMatch(/id="chart-controller-orders-focus"/);
-    expect(layout).toMatch(/id="chart-spoil-focus"/);
+    expect(tuningDrawer).toMatch(/id="chart-controller-orders-focus"/);
+    expect(tuningDrawer).toMatch(/id="chart-spoil-focus"/);
     expect(layout).not.toMatch(/id="chart-orders-waste-focus"/);
   });
 });

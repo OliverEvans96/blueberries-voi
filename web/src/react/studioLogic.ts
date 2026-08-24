@@ -37,6 +37,14 @@ import {
   METRICS_STRIP_HEIGHT,
 } from "../charts/chartHeights";
 import {
+  BELIEF_MAE_TOOLTIP,
+  currentDistributionAbsError,
+  currentMeanFAbsError,
+  formatMeanFAbsError,
+  meanDistributionAbsErrorOverHistory,
+  meanMeanFAbsErrorOverHistory,
+} from "../charts/beliefAccuracy";
+import {
   emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
   renderFreshnessHistogram,
@@ -50,6 +58,8 @@ import {
   wasteBarYMax,
 } from "../charts/marginals";
 import {
+  buildDemandForecastRows,
+  salesDemandForecastAnchor,
   renderDailyDemand,
   renderDemandForecast,
   renderPickingVariability,
@@ -124,6 +134,7 @@ import { OperatorBar } from "./OperatorBar";
 import { StudioLoadingDialog } from "./StudioLoadingDialog";
 import { createDelayedLoadingHandle } from "../delayedLoading";
 import { ReferenceDrawer, type ReferenceDrawerProps } from "./ReferenceDrawer";
+import { TuningDrawer, type TuningDrawerProps } from "./TuningDrawer";
 import { computeImpactTotals } from "../metrics/impactTotals";
 import { resolveStoreSpoilageSlot } from "./chartSlots";
 import { ChartUnavailable } from "./ChartUnavailable";
@@ -320,29 +331,75 @@ export function initStudio(app: HTMLElement): () => void {
     beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
     beliefLg: q<HTMLElement>("#chart-belief-lg")!,
     hoverNote: q<HTMLElement>("#hover-note")!,
-    sectionControls: q<HTMLElement>("#section-controls")!,
+    get sectionControls(): HTMLElement {
+      return q<HTMLElement>("#section-controls")!;
+    },
     demand: q<HTMLElement>("#chart-demand")!,
-    demandForecast: q<HTMLElement>("#chart-demand-forecast-host")!,
+    get demandForecast(): HTMLElement {
+      return q<HTMLElement>("#chart-demand-forecast-host")!;
+    },
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
     inventory: q<HTMLElement>("#chart-inventory")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
-    arrivalPrior: q<HTMLElement>("#chart-arrival-prior")!,
-    arrivalShift: q<HTMLElement>("#chart-arrival-shift")!,
-    arrheniusTemp: q<HTMLElement>("#chart-arrhenius-temp")!,
-    gammaPath: q<HTMLElement>("#chart-gamma-path")!,
+    get arrivalPrior(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-prior")!;
+    },
+    get arrivalShift(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-shift")!;
+    },
+    get arrheniusTemp(): HTMLElement {
+      return q<HTMLElement>("#chart-arrhenius-temp")!;
+    },
+    get gammaPath(): HTMLElement {
+      return q<HTMLElement>("#chart-gamma-path")!;
+    },
     controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
     spoil: q<HTMLElement>("#chart-spoil")!,
-    controllerOrdersFocus: q<HTMLElement>("#chart-controller-orders-focus")!,
-    spoilFocus: q<HTMLElement>("#chart-spoil-focus")!,
-    inventoryFocus: q<HTMLElement>("#chart-inventory-focus")!,
-    pickingVar: q<HTMLElement>("#picking-var-chart")!,
+    get controllerOrdersFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-controller-orders-focus")!;
+    },
+    get spoilFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-spoil-focus")!;
+    },
+    get inventoryFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-inventory-focus")!;
+    },
+    get pickingVar(): HTMLElement {
+      return q<HTMLElement>("#picking-var-chart")!;
+    },
     tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
     tradeoffHistogram: q<HTMLElement>("#tradeoff-histogram-host")!,
     pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
-    focusTitle: q<HTMLElement>("#focus-title")!,
-    focusBlurb: q<HTMLElement>("#focus-blurb")!,
-    focusPane: q<HTMLElement>(".tuning-dock")!,
+    get focusTitle(): HTMLElement {
+      return q<HTMLElement>("#focus-title")!;
+    },
+    get focusBlurb(): HTMLElement {
+      return q<HTMLElement>("#focus-blurb")!;
+    },
+    get focusPane(): HTMLElement {
+      return q<HTMLElement>(".tuning-drawer")!;
+    },
   };
+
+  let tuningDrawerOpen = false;
+  let closeReferenceDrawer: (() => void) | null = null;
+
+  function setTuningDrawerOpen(open: boolean): void {
+    tuningDrawerOpen = open;
+    if (open) closeReferenceDrawer?.();
+    const trigger = q<HTMLButtonElement>("#tuning-drawer-trigger");
+    if (trigger) trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    renderTuningDrawer();
+    if (open) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => renderActiveFocusPlots());
+      });
+    }
+  }
+
+  function openTuningDrawer(): void {
+    if (!tuningDrawerOpen) setTuningDrawerOpen(true);
+  }
 
   const pnlTotalsHost = q<HTMLElement>("#pnl-totals-host");
   const impactMissedHost = q<HTMLElement>("#impact-missed-host");
@@ -350,6 +407,7 @@ export function initStudio(app: HTMLElement): () => void {
   const obsControlsHost = q<HTMLElement>("#obs-controls-pane-host");
   const eventsPaneHost = q<HTMLElement>("#events-pane-host");
   const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
+  const tuningDrawerHost = q<HTMLElement>("#tuning-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
   let spoilageUnavailableRoot: Root | null = null;
   const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
@@ -358,8 +416,51 @@ export function initStudio(app: HTMLElement): () => void {
   const referenceDrawerRoot = referenceDrawerHost
     ? createRoot(referenceDrawerHost)
     : null;
+  const tuningDrawerRoot = tuningDrawerHost ? createRoot(tuningDrawerHost) : null;
   const operatorBarHost = q<HTMLElement>("#operator-bar-host");
   const operatorBarRoot = operatorBarHost ? createRoot(operatorBarHost) : null;
+
+  const tuningDrawerPortalRef = { current: tuningDrawerHost };
+
+  function renderReferenceDrawer(): void {
+    profileSync("renderReferenceDrawer", () => {
+      if (referenceDrawerRoot) {
+        referenceDrawerRoot.render(
+          createElement<ReferenceDrawerProps>(ReferenceDrawer, {
+            hideTriggers: true,
+            onOpen: () => setTuningDrawerOpen(false),
+            registerCloseHandler: (close) => {
+              closeReferenceDrawer = close;
+            },
+          }),
+        );
+      }
+    });
+  }
+
+  function renderTuningDrawer(): void {
+    profileSync("renderTuningDrawer", () => {
+      if (tuningDrawerRoot) {
+        tuningDrawerRoot.render(
+          createElement<TuningDrawerProps>(TuningDrawer, {
+            hideTrigger: true,
+            open: tuningDrawerOpen,
+            onOpenChange: setTuningDrawerOpen,
+            onOpen: () => closeReferenceDrawer?.(),
+            portalContainerRef: tuningDrawerPortalRef,
+          }),
+        );
+      }
+    });
+  }
+
+  function paintPortalDrawers(): void {
+    renderReferenceDrawer();
+    renderTuningDrawer();
+  }
+
+  renderReferenceDrawer();
+  renderTuningDrawer();
 
   const loadingHost = q<HTMLElement>("#studio-loading-host");
   const loadingPortalRef = { current: loadingHost };
@@ -514,13 +615,8 @@ export function initStudio(app: HTMLElement): () => void {
       );
     });
   }
-  let dayInspectorPortal = q<HTMLElement>("#day-inspector-portal");
-  if (!dayInspectorPortal) {
-    dayInspectorPortal = document.createElement("div");
-    dayInspectorPortal.id = "day-inspector-portal";
-    app.appendChild(dayInspectorPortal);
-  }
-  const dayInspectorRoot = createRoot(dayInspectorPortal);
+  const dayInspectorHost = q<HTMLElement>("#day-inspector-host");
+  const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
 
   function renderTradeoffBeliefColumn(): void {
     profileSync(`renderTradeoff.${tradeoffTab}`, () => {
@@ -648,8 +744,8 @@ export function initStudio(app: HTMLElement): () => void {
             onAutopilotPause: () => railHandlers.onAutopilotPause(),
             onOrderChange: (qty) => {
               orderQty = snapOrder(qty);
-              sectionControlsApi.update(controlsState());
-              renderReferenceDrawer();
+              sectionControlsApi?.update(controlsState());
+              paintPortalDrawers();
               renderOperatorBar();
             },
           }),
@@ -658,19 +754,8 @@ export function initStudio(app: HTMLElement): () => void {
     });
   }
 
-  function renderReferenceDrawer(): void {
-    profileSync("renderReferenceDrawer", () => {
-      if (referenceDrawerRoot) {
-        referenceDrawerRoot.render(
-          createElement<ReferenceDrawerProps>(ReferenceDrawer, {
-            hideTriggers: true,
-          }),
-        );
-      }
-    });
-  }
-
   function renderDayInspector(): void {
+    if (!dayInspectorRoot) return;
     profileSync("renderDayInspector", () => {
       dayInspectorRoot.render(
         createElement(DayInspector, { day: hoveredDay, point: hoveredPoint, vm }),
@@ -775,6 +860,100 @@ export function initStudio(app: HTMLElement): () => void {
             : "Freshness × time";
       }
     });
+    syncBeliefMaeStats();
+  }
+
+  function setBeliefMaeStatContent(
+    el: HTMLElement,
+    meanMae: number,
+    distMae: number,
+    suffix: string,
+  ): void {
+    el.replaceChildren();
+
+    const appendMetric = (label: string, value: string): void => {
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "belief-mae-label";
+      labelSpan.textContent = label;
+      el.appendChild(labelSpan);
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "belief-mae-value";
+      valueSpan.textContent = value;
+      el.appendChild(valueSpan);
+    };
+
+    const appendSeparator = (): void => {
+      const sep = document.createElement("span");
+      sep.className = "belief-mae-separator";
+      sep.textContent = "·";
+      el.appendChild(sep);
+    };
+
+    appendMetric("MAE(mean f):", formatMeanFAbsError(meanMae));
+    appendSeparator();
+    appendMetric("MAE(dist):", formatMeanFAbsError(distMae));
+    appendSeparator();
+    const suffixSpan = document.createElement("span");
+    suffixSpan.className = "belief-mae-suffix";
+    suffixSpan.textContent = suffix;
+    el.appendChild(suffixSpan);
+  }
+
+  function syncBeliefMaeStats(): void {
+    const visible = showTruth && vm.live_units.length > 0;
+    qa<HTMLElement>("[data-belief-mae]").forEach((el) => {
+      if (!visible) {
+        el.hidden = true;
+        el.replaceChildren();
+        el.removeAttribute("title");
+        return;
+      }
+
+      const kind = el.dataset.beliefMae;
+      el.title = BELIEF_MAE_TOOLTIP;
+
+      if (kind === "history") {
+        const meanSummary = meanMeanFAbsErrorOverHistory(
+          vm.history,
+          vm.belief_history,
+        );
+        const distSummary = meanDistributionAbsErrorOverHistory(
+          vm.history,
+          vm.belief_history,
+        );
+        if (!meanSummary || !distSummary) {
+          el.hidden = true;
+          el.replaceChildren();
+          return;
+        }
+        el.hidden = false;
+        setBeliefMaeStatContent(
+          el,
+          meanSummary.meanMae,
+          distSummary.meanMae,
+          `mean over ${meanSummary.dayCount} days`,
+        );
+        return;
+      }
+
+      if (kind === "histogram") {
+        const flat = vm.belief_history.at(-1)?.flatBelief;
+        if (!flat) {
+          el.hidden = true;
+          el.replaceChildren();
+          return;
+        }
+        const meanMae = currentMeanFAbsError(flat, vm.live_units);
+        const distMae = currentDistributionAbsError(flat, vm.live_units);
+        if (meanMae == null || distMae == null) {
+          el.hidden = true;
+          el.replaceChildren();
+          return;
+        }
+        el.hidden = false;
+        setBeliefMaeStatContent(el, meanMae, distMae, "current day");
+      }
+    });
   }
 
   function plotVisible(plotId: string): boolean {
@@ -870,7 +1049,16 @@ export function initStudio(app: HTMLElement): () => void {
         ),
       );
       profileSync("renderStore.salesDemand", () =>
-        renderSalesDemand(els.salesDemand, vm.history, METRICS_STRIP_HEIGHT),
+        renderSalesDemand(
+          els.salesDemand,
+          vm.history,
+          METRICS_STRIP_HEIGHT,
+          buildDemandForecastRows(
+            salesDemandForecastAnchor(vm.history, vm.episode_day),
+            vm.demand_summary,
+            vm.config.demand_vm,
+          ),
+        ),
       );
       renderCockpitBelief();
       renderRunStripCharts();
@@ -975,7 +1163,7 @@ export function initStudio(app: HTMLElement): () => void {
     });
   }
 
-  function syncTuningDockTabs(): void {
+  function syncTuningDrawerTabs(): void {
     qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
         const selected = tab.dataset.section === activeSection;
         tab.setAttribute("aria-selected", selected ? "true" : "false");
@@ -988,11 +1176,11 @@ export function initStudio(app: HTMLElement): () => void {
     saveSection(id);
     const meta = STUDIO_SECTIONS.find((s) => s.id === id)!;
 
-    syncTuningDockTabs();
+    syncTuningDrawerTabs();
 
     els.focusTitle.textContent = meta.label;
     els.focusBlurb.textContent = meta.blurb;
-    sectionControlsApi.showSection(id);
+    sectionControlsApi?.showSection(id);
 
     qa<HTMLElement>(".focus-plot").forEach((plot) => {
       const pid = plot.dataset.plot ?? "";
@@ -1033,10 +1221,12 @@ export function initStudio(app: HTMLElement): () => void {
       renderEventsPane();
       renderObsControlsPane();
       renderOperatorBar();
-      renderReferenceDrawer();
+      paintPortalDrawers();
       orderQty = snapOrder(orderQty);
       const state = controlsState();
-      profileSync("sectionControlsApi.update", () => sectionControlsApi.update(state));
+      profileSync("sectionControlsApi.update", () =>
+        sectionControlsApi?.update(state),
+      );
       profileSync("wireDemandPreview", () => wireDemandPreview());
     });
   }
@@ -1172,53 +1362,92 @@ export function initStudio(app: HTMLElement): () => void {
   });
 
   let sectionControlsApi!: ReturnType<typeof mountSectionControls>;
+  let sectionControlsMounted = false;
+  let sectionControlsMountCancelled = false;
+  let sectionControlsMountRaf = 0;
 
-  sectionControlsApi = mountSectionControls(
-    els.sectionControls,
-    controlsState(),
-    {
-      onEconomicsChange(partial: Partial<Economics>) {
-        // Local reproject only — never round-trip to the engine.
-        vm = projector.setEconomics(partial);
-        renderMetricsPane();
-        sectionControlsApi.update(controlsState());
+  function mountSectionControlsOnce(): void {
+    const host = q<HTMLElement>("#section-controls");
+    if (!host) return;
+    if (sectionControlsMounted && host.childElementCount > 0) return;
+    sectionControlsMounted = true;
+    sectionControlsApi = mountSectionControls(
+      host,
+      controlsState(),
+      {
+        onEconomicsChange(partial: Partial<Economics>) {
+          // Local reproject only — never round-trip to the engine.
+          vm = projector.setEconomics(partial);
+          renderMetricsPane();
+          sectionControlsApi.update(controlsState());
+        },
+        onConfigChange(partial: Partial<SimConfig>) {
+          // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
+          vm = projector.setConfig(partial);
+          if (partial.case_size != null) {
+            orderQty = snapOrder(orderQty);
+          }
+          sectionControlsApi.update(controlsState());
+          paintPortalDrawers();
+          renderTradeoffBeliefColumn();
+          renderOperatorBar();
+          renderActiveFocusPlots();
+          // Autopilot pauses when staged config is dirty (AC).
+          if (vm.config_dirty && autopilot.isRunning()) {
+            autopilot.pause();
+            syncAutopilotChrome();
+          }
+        },
+        onSetObsScenario: (id) => {
+          void railHandlers.onSetObsPreset(id);
+        },
+        onControllerChange(partial: Partial<ControllerControlsState>) {
+          controllerState = { ...controllerState, ...partial };
+          sectionControlsApi.updateController(controllerState);
+        },
       },
-      onConfigChange(partial: Partial<SimConfig>) {
-        // Stage knobs locally; engine applies on next reset/init (no Mock setConfig).
-        vm = projector.setConfig(partial);
-        if (partial.case_size != null) {
-          orderQty = snapOrder(orderQty);
-        }
-        sectionControlsApi.update(controlsState());
-        renderReferenceDrawer();
-        renderTradeoffBeliefColumn();
-        renderOperatorBar();
-        renderActiveFocusPlots();
-        // Autopilot pauses when staged config is dirty (AC).
-        if (vm.config_dirty && autopilot.isRunning()) {
-          autopilot.pause();
-          syncAutopilotChrome();
-        }
-      },
-      onSetObsScenario: (id) => {
-        void railHandlers.onSetObsPreset(id);
-      },
-      onControllerChange(partial: Partial<ControllerControlsState>) {
-        controllerState = { ...controllerState, ...partial };
-        sectionControlsApi.updateController(controllerState);
-      },
-    },
-    (caseSize) => {
-      orderQty = snapOrder(orderQty);
-      sectionControlsApi.update({
-        ...controlsState(),
-        orderQty,
-        config: { ...vm.config, case_size: caseSize },
-      });
+      (caseSize) => {
+        orderQty = snapOrder(orderQty);
+        sectionControlsApi.update({
+          ...controlsState(),
+          orderQty,
+          config: { ...vm.config, case_size: caseSize },
+        });
         renderObsControlsPane();
-    },
-    controllerState,
-  );
+      },
+      controllerState,
+    );
+    wireTuningDockTabs();
+
+    const tuningTrigger = q<HTMLButtonElement>("#tuning-drawer-trigger");
+    if (tuningTrigger && tuningTrigger.dataset.bound !== "1") {
+      tuningTrigger.dataset.bound = "1";
+      tuningTrigger.addEventListener("click", () => {
+        setTuningDrawerOpen(!tuningDrawerOpen);
+      });
+    }
+  }
+
+  function scheduleSectionControlsMount(): void {
+    let attempts = 0;
+    const attempt = () => {
+      if (sectionControlsMountCancelled) return;
+      paintPortalDrawers();
+      const host = q<HTMLElement>("#section-controls");
+      if (!host) {
+        attempts += 1;
+        if (attempts > 120) {
+          throw new Error(
+            "Tuning drawer #section-controls host missing after portal paint",
+          );
+        }
+        sectionControlsMountRaf = requestAnimationFrame(attempt);
+        return;
+      }
+      mountSectionControlsOnce();
+    };
+    attempt();
+  }
 
   railHandlers.onAdvance = () => {
     void advanceEpisode();
@@ -1309,11 +1538,13 @@ export function initStudio(app: HTMLElement): () => void {
     const idx = STUDIO_SECTIONS.findIndex((s) => s.id === activeSection);
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
+      openTuningDrawer();
       setSection(STUDIO_SECTIONS[(idx + 1) % STUDIO_SECTIONS.length]!.id);
       return;
     }
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
+      openTuningDrawer();
       setSection(
         STUDIO_SECTIONS[(idx - 1 + STUDIO_SECTIONS.length) % STUDIO_SECTIONS.length]!
           .id,
@@ -1323,11 +1554,10 @@ export function initStudio(app: HTMLElement): () => void {
     const n = Number(event.key);
     if (n >= 1 && n <= STUDIO_SECTIONS.length) {
       event.preventDefault();
+      openTuningDrawer();
       setSection(STUDIO_SECTIONS[n - 1]!.id);
     }
   };
-
-  app.addEventListener("keydown", onKeydown);
 
   function wireTuningDockTabs(): void {
     qa<HTMLButtonElement>(".tuning-dock-tabs [data-section]").forEach((tab) => {
@@ -1335,12 +1565,14 @@ export function initStudio(app: HTMLElement): () => void {
         tab.dataset.bound = "1";
         tab.addEventListener("click", () => {
           const id = tab.dataset.section as SectionId | undefined;
-          if (id) setSection(id);
+          if (id) {
+            openTuningDrawer();
+            setSection(id);
+          }
         });
       });
   }
 
-  wireTuningDockTabs();
   wireTradeoffTabs();
   syncTradeoffTabs();
 
@@ -1363,12 +1595,21 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  scheduleSectionControlsMount();
+  flushSync(() => {
+    paintPortalDrawers();
+  });
+  mountSectionControlsOnce();
+  setTimeout(() => {
+    mountSectionControlsOnce();
+  }, 0);
+  app.addEventListener("keydown", onKeydown);
+  void bootstrap();
+
   studioAdvanceOnce = advanceEpisode;
   if (typeof window !== "undefined") {
     window.__studioProfileAdvance = (steps = 5) => studioProfileAdvanceSteps(steps);
   }
-
-  void bootstrap();
 
   const onResize = () => {
     renderStore();
@@ -1376,6 +1617,8 @@ export function initStudio(app: HTMLElement): () => void {
   };
   window.addEventListener("resize", onResize);
   return () => {
+    sectionControlsMountCancelled = true;
+    cancelAnimationFrame(sectionControlsMountRaf);
     app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
   };

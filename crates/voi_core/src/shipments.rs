@@ -1,5 +1,7 @@
 //! Injected shipment traces (no parquet). Python `ShipmentTrace` numeric path.
 
+use rand::Rng;
+
 use crate::physics::{age_to_f, q10_age_increment};
 
 /// A shipment's recorded temperature history: elapsed-time / temperature sample pairs fed
@@ -70,6 +72,71 @@ pub fn phi_bar_from_trace(trace: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 
         return 1.0;
     }
     shipment_arrival_age(trace, q10, t_ref_c) / d
+}
+
+/// Stochastic piecewise transit profile for truth deliveries and F3 events.
+///
+/// Builds a visibly non-flat temperature path whose duration-averaged φ̄ matches
+/// `phi_bar_target` (the same scalar the filter conditions on via `resolve_arrival_exposure`).
+pub fn truth_transit_trace<R: Rng + ?Sized>(
+    duration_d: f64,
+    phi_bar_target: f64,
+    t_anchor: f64,
+    temp_floor_c: f64,
+    q10: f64,
+    t_ref_c: f64,
+    rng: &mut R,
+) -> ShipmentTrace {
+    const KNOTS: usize = 5;
+    if duration_d <= 1e-9 {
+        return ShipmentTrace {
+            times_d: vec![0.0, 0.0],
+            temps_c: vec![t_anchor, t_anchor],
+        };
+    }
+    let times: Vec<f64> = (0..KNOTS)
+        .map(|i| duration_d * i as f64 / (KNOTS - 1) as f64)
+        .collect();
+    let ramp_amp = 2.0;
+    let mut shape: Vec<f64> = (0..KNOTS)
+        .map(|i| {
+            let frac = i as f64 / (KNOTS - 1) as f64;
+            2.0 * (0.5 - frac)
+        })
+        .collect();
+    for i in 1..KNOTS - 1 {
+        shape[i] += (rng.random::<f64>() - 0.5) * 1.0;
+    }
+    let base_temps: Vec<f64> = shape
+        .iter()
+        .map(|&s| (t_anchor + ramp_amp * s).max(temp_floor_c))
+        .collect();
+    let target_phi = phi_bar_target.max(1e-12);
+    let mut lo = -20.0;
+    let mut hi = 20.0;
+    let mut best_temps = base_temps.clone();
+    for _ in 0..48 {
+        let mid = 0.5 * (lo + hi);
+        let trial_temps: Vec<f64> = base_temps
+            .iter()
+            .map(|t| (t + mid).max(temp_floor_c))
+            .collect();
+        let trial = ShipmentTrace {
+            times_d: times.clone(),
+            temps_c: trial_temps.clone(),
+        };
+        let phi = phi_bar_from_trace(&trial, q10, t_ref_c);
+        if phi < target_phi {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+        best_temps = trial_temps;
+    }
+    ShipmentTrace {
+        times_d: times,
+        temps_c: best_temps,
+    }
 }
 
 /// φ̄ summaries for every trace in a fleet.
@@ -149,5 +216,36 @@ mod tests {
         assert!((d - 2.0).abs() < 1e-12, "smoke_cool calendar d={d}");
         let phi = phi_bar_from_trace(&trace, 3.0, 0.0);
         assert!(phi > 1.0, "1C q10 factor phi_bar={phi}");
+    }
+
+    #[test]
+    fn truth_transit_trace_is_non_constant_and_matches_phi_bar() {
+        use rand::SeedableRng;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(7);
+        let duration_d = 5.5;
+        let phi_target = 1.35;
+        let trace = truth_transit_trace(
+            duration_d,
+            phi_target,
+            2.0,
+            -2.0,
+            3.0,
+            0.0,
+            &mut rng,
+        );
+        assert_eq!(trace.times_d.len(), trace.temps_c.len());
+        assert!(trace.times_d.len() >= 3);
+        let min_t = trace.temps_c.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_t = trace.temps_c.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            (max_t - min_t).abs() > 0.05,
+            "expected varying temps, got {:?}",
+            trace.temps_c
+        );
+        let phi = phi_bar_from_trace(&trace, 3.0, 0.0);
+        assert!(
+            (phi - phi_target).abs() < 1e-3,
+            "phi_bar {phi} vs target {phi_target}"
+        );
     }
 }

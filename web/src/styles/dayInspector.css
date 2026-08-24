@@ -1,12 +1,4 @@
 /* T-126: floating day-inspector hover tooltip */
-.day-inspector {
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-  font-size: 0.85rem;
-}
-
 .day-inspector-tooltip {
   position: fixed;
   z-index: 1000;
@@ -15,19 +7,17 @@
   max-width: 220px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--paper);
-  border: 1px solid var(--paper-edge);
+  background: color-mix(in srgb, var(--paper, #f7f2e8) 85%, transparent);
+  border: 1px solid var(--paper-edge, #cfc5b0);
+  color: var(--ink, #1c2420);
   box-shadow: 0 4px 16px rgba(28, 36, 32, 0.15);
+  font-family: var(--font-body, "IBM Plex Sans", "Segoe UI", sans-serif);
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .day-inspector-stats {
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
-}
-
-.day-inspector-belief {
-  margin: 6px 0 0;
-  font-size: 0.8rem;
-  color: var(--muted);
 }
