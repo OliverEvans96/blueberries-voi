@@ -26,6 +26,20 @@ Five jobs start in parallel; only **rust** waits on **build**:
 
 On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, `web`, and
 `docs` succeed (production `npm run build` + `studio-dist`; docs site + `docs-dist`).
+After both dist uploads, `deploy` dispatches `blueberries-docs-published` to
+`OliverEvans96/personal-website` so the site redeploys and serves the latest
+`/docs/blueberries/` bundle.
+
+### Personal-website docs redeploy (human setup)
+
+1. Create a fine-grained PAT (or classic token) with **Contents: read** on
+   `OliverEvans96/personal-website` and permission to trigger `repository_dispatch`.
+2. Add the token as repo secret **`PERSONAL_WEBSITE_DISPATCH_PAT`** on
+   `OliverEvans96/blueberries-voi`.
+3. In `personal-website`, ensure a workflow listens for
+   `repository_dispatch` with `types: [blueberries-docs-published]` and redeploys.
+4. After editing packaging YAML here, sync live workflows:
+   `./scripts/sync-github-workflows.sh`
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 
