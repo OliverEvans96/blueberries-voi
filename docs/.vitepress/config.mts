@@ -101,6 +101,7 @@ export default defineConfig({
         items: [
           { text: "Parameter reference", link: "/reference/parameters" },
           { text: "Decision index", link: "/reference/decision-index" },
+          { text: "Rust API (voi_core)", link: "/api/rust/voi_core/index.html" },
         ],
       },
     ],

@@ -41,7 +41,7 @@ ADR 0079 (MOD-25) then fixed the numeric value: $\sigma = 0.5$ as a single "mode
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Picking weights over alive units | $w_i$ | `crates/voi_core/src/physics.rs:360` (`picking_weights_f`) |
+| Picking weights over alive units | $w_i$ | `crates/voi_core/src/physics.rs:360` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
 | Picking-weight exponent (field, default `0.5`) | $\sigma$ | `crates/voi_core/src/params.rs:18` (field), `:44` (default) |
 | Uniform-picking override flag | — | `crates/voi_core/src/params.rs:22` (field), `:48` (default `false`) |
 | Sequential without-replacement sales loop (recomputes weights each pick) | — | `crates/voi_core/src/day_step.rs:136` (`pick_units_f`) |

@@ -59,7 +59,7 @@ normalized so $\sum_k \text{f\_marginals}[s,k] = 1$ for every slot $s$ (a slot w
 | Concept | Symbol / field | Location |
 | --- | --- | --- |
 | Flatten a particle bank onto the wire | `belief_flat_from_unit_bank` | `crates/voi_core/src/belief_flat.rs:31` |
-| Freshness bin centers, `K` evenly spaced points in `[0,1]` | `f_grid` | `crates/voi_core/src/belief_flat.rs:16` (`f_grid_k`) |
+| Freshness bin centers, `K` evenly spaced points in `[0,1]` | `f_grid` | `crates/voi_core/src/belief_flat.rs:16` ([`f_grid_k`](/api/rust/voi_core/belief_flat/fn.f_grid_k.html)) |
 | Per-lot particle-weighted alive-unit count | `lot_counts[L]` | `crates/voi_core/src/belief_flat.rs:38`, `:58` |
 | Per-lot freshness histogram, normalized | `f_marginals[L×K]` | `crates/voi_core/src/belief_flat.rs:39`, `:62`–`77` |
 | Keep newest `L` filter lots, oldest-first truncation | `first_lot = n_lots.saturating_sub(l)` | `crates/voi_core/src/belief_flat.rs:36` |

@@ -80,6 +80,9 @@ fn lot_index(lot_offsets: &[usize], unit_idx: usize) -> usize {
     l.saturating_sub(1)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn apply_gamma_step<R: Rng + ?Sized>(
     freshness: &mut [f64],
     gamma_decrement: Option<f64>,
@@ -95,6 +98,9 @@ fn apply_gamma_step<R: Rng + ?Sized>(
     }
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn count_spoil_by_lot(
     before: &[f64],
     after: &[f64],
@@ -111,6 +117,9 @@ fn count_spoil_by_lot(
     (waste_total, waste_by)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn spoil_unit_exits(
     before: &[f64],
     after: &[f64],
@@ -133,6 +142,9 @@ fn spoil_unit_exits(
         .collect()
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn pick_units_f<R: Rng + ?Sized>(
     freshness: &mut [f64],
     lot_offsets: &[usize],

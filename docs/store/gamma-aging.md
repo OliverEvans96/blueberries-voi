@@ -70,12 +70,12 @@ The other live defaults: $q_{10} = 3.0$ (aging triples for every 10°C of warmin
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Q10 temperature factor | $\bar\phi$ | `crates/voi_core/src/physics.rs:31` (`store_temp_factor`) |
+| Q10 temperature factor | $\bar\phi$ | `crates/voi_core/src/physics.rs:31` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
 | Shape-scaled gamma shape for one store day | $k \cdot \bar\phi$ | `crates/voi_core/src/physics.rs:42` (`store_gamma_shape`, private helper) |
-| Expected daily decrement | $k\theta\bar\phi$ | `crates/voi_core/src/physics.rs:36` (`gamma_decrement_for_store`) |
-| Random daily decrement draw | $\Delta$ | `crates/voi_core/src/physics.rs:48` (`draw_gamma_decrement`) |
-| Apply decrement, clamp at 0 | $f_\text{next} = \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` (`apply_gamma_decrement`) |
-| Per-unit independent daily aging (production, ADR 0143) | — | `crates/voi_core/src/physics.rs:245` (`apply_gamma_aging_independent`) |
+| Expected daily decrement | $k\theta\bar\phi$ | `crates/voi_core/src/physics.rs:36` ([`gamma_decrement_for_store`](/api/rust/voi_core/physics/fn.gamma_decrement_for_store.html)) |
+| Random daily decrement draw | $\Delta$ | `crates/voi_core/src/physics.rs:48` ([`draw_gamma_decrement`](/api/rust/voi_core/physics/fn.draw_gamma_decrement.html)) |
+| Apply decrement, clamp at 0 | $f_\text{next} = \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
+| Per-unit independent daily aging (production, ADR 0143) | — | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
 | Gamma shape (fixed) | $k$ | `crates/voi_core/src/params.rs:25` (field), `:50` (default `2.0`) |
 | Gamma scale (derived) | $\theta$ | `crates/voi_core/src/params.rs:27` (field), `:62` (`set_reference_life`, derives $\theta = 1/(k\eta_\text{ref})$) |
 | Reference shelf life | $\eta_\text{ref}$ | `crates/voi_core/src/params.rs:40` (default `14.0`) |

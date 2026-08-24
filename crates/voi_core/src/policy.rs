@@ -7,9 +7,15 @@ use rand_pcg::Pcg64;
 use crate::spawn_rng::negative_binomial_gamma_poisson;
 
 const PROTECTION_MC_BASE_SEED: u32 = 0xC41B_4B4D;
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 const PROTECTION_MC_DEFAULT_N: u32 = 20_000;
 const FLAT_MU_ATOL: f64 = 1e-9;
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 pub fn derive_protection_mc_seed(
     start_day: u32,
     protection_days: u32,
@@ -27,6 +33,9 @@ pub fn derive_protection_mc_seed(
     mixed & 0xFFFF_FFFF
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn homogeneous_closed_form(
     alpha: f64,
     mu: f64,
@@ -39,6 +48,9 @@ fn homogeneous_closed_form(
     nbinom_ppf(alpha, r_sum, p)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn heterogeneous_nb_sum_quantile_mc(
     alpha: f64,
     mus: &[f64],
@@ -70,6 +82,9 @@ fn heterogeneous_nb_sum_quantile_mc(
     samples[idx]
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 pub fn case_round(x: f64, case_size: u32) -> u32 {
     if case_size == 0 {
         panic!("case_size must be positive");
@@ -108,6 +123,9 @@ pub fn nbinom_ppf(alpha: f64, r: f64, p: f64) -> f64 {
     f64::from(k)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 pub fn protection_demand_quantile(
     alpha: f64,
     params: &ModelParams,

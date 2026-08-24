@@ -505,6 +505,9 @@ pub fn draw_demand<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams, day: Opti
     draw_demand_from_mu(rng, mu, params.demand_vm)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 fn draw_demand_from_mu<R: Rng + ?Sized>(rng: &mut R, mu: f64, demand_vm: f64) -> u32 {
     if demand_vm <= 1.0 {
         panic!("demand_vm must be > 1 for overdispersed NB");

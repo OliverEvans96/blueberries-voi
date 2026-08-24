@@ -106,6 +106,9 @@ impl UnitParticleBank {
         }
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     fn push_lot_births(&mut self, lot_id: i64, per_particle: &[Vec<f64>], units: usize) {
         for (row, seg) in self.freshness.iter_mut().zip(per_particle.iter()) {
             debug_assert_eq!(seg.len(), units);
@@ -218,6 +221,9 @@ fn uniform_segmentation(len: usize, units_per_lot: usize) -> (Vec<usize>, Vec<i6
     (offsets, ids)
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 pub fn systematic_resample(log_w: &[f64]) -> Vec<usize> {
     let n = log_w.len();
     if n == 0 {
@@ -435,6 +441,9 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     )
 }
 
+/// Stub API reference — full narrative is on the VitePress docs site.
+///
+/// See the concept pages that cite this symbol in their "In the code" tables.
 pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank: &mut UnitParticleBank,
     obs: &FilterObs,

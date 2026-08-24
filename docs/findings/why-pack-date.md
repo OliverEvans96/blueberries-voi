@@ -104,9 +104,9 @@ temperature is unimportant to any single trip's outcome.
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Cumulative thermal exposure | $\Lambda = d \cdot \bar\varphi \cdot \psi$ | `crates/voi_core/src/arrival.rs:464` (`draw_unit_f`) |
+| Cumulative thermal exposure | $\Lambda = d \cdot \bar\varphi \cdot \psi$ | `crates/voi_core/src/arrival.rs:464` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
 | Duration draw (shifted gamma, per corridor) | $d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})$ | `crates/voi_core/src/arrival.rs:375-377` |
-| Duration-averaged Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T - T_\mathrm{ref})/10}$ | `crates/voi_core/src/arrival.rs:366` (`phi_bar_from_t_bar`) |
+| Duration-averaged Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T - T_\mathrm{ref})/10}$ | `crates/voi_core/src/arrival.rs:366` ([`phi_bar_from_t_bar`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar)) |
 | Corridor duration/temperature parameters, fitted per corridor | `d_min`, `delay_shape`, `delay_scale`, `mu_T`, `sigma_T` | `data/abdella/arrival_model.json` |
 | Duration-share calibration guard (≥90% against observed 98.4%) | — | ADR 0144 §"the guard that replaces it" (T-150 AC2.18); calibration script `scripts/arrival_calibration_note.py` |
 | Six-shipment empirical overlay (duration vs. temperature factor) | — | `data/abdella/calibration_note.md`, `data/abdella/arrival_calibration_overlay.png` |

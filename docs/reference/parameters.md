@@ -180,7 +180,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Unit cost | $c_\text{unit}$ | \$1.80 | \$/unit | Studio purchase cost per unit | Studio (TS) `web/src/mock/generate.ts:18` |
 | Waste cost | $c_\text{waste}$ | \$1.20 | \$/unit | Studio cost per unit wasted | Studio (TS) `web/src/mock/generate.ts:19` |
 | Stockout cost | $c_\text{stockout}$ | \$2.50 | \$/unit | Studio penalty per unit of unmet demand | Studio (TS) `web/src/mock/generate.ts:20` |
-| Rollout margin / waste / stockout costs | — | 2.0 / 1.5 / 3.0 | \$/unit | *Separate* internal costs used only by the Rust rollout controller's own look-ahead objective — not the studio P&L figures above | `crates/voi_core/src/rollout.rs:26-39` (`RolloutCosts::default`) |
+| Rollout margin / waste / stockout costs | — | 2.0 / 1.5 / 3.0 | \$/unit | *Separate* internal costs used only by the Rust rollout controller's own look-ahead objective — not the studio P&L figures above | `crates/voi_core/src/rollout.rs:26-39` ([`RolloutCosts::default`](/api/rust/voi_core/rollout/struct.RolloutCosts.html#method.default)) |
 
 ### Episode / studio session
 

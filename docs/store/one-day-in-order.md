@@ -38,7 +38,7 @@ ADR 0034 (MOD-12) is the record of a deliberate choice, not an accident of imple
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Full day-step function (calls all four steps in order) | — | `crates/voi_core/src/day_step.rs:217` (`unit_day_step_with_birth`) |
+| Full day-step function (calls all four steps in order) | — | `crates/voi_core/src/day_step.rs:217` ([`unit_day_step_with_birth`](/api/rust/voi_core/day_step/fn.unit_day_step_with_birth.html)) |
 | Step 1 — age (independent per-unit decrement) | $f_i \leftarrow \max(f_i - \Delta_i, 0)$ | `crates/voi_core/src/day_step.rs:232` (calls `apply_gamma_step`) |
 | Step 2 — detect and record spoiled units | `waste_by`, `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:238` (`count_spoil_by_lot`), `:239` (`spoil_unit_exits`) |
 | Step 3 — sell from the post-spoilage alive set | `sales_total`, `sales_by` | `crates/voi_core/src/day_step.rs:242` (calls `pick_units_f`) |

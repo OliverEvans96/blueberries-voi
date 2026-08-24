@@ -48,11 +48,11 @@ Two alternatives were on the table and rejected: **A — plain base-stock, age-b
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Order quantity (Rust) | $q$ | `crates/voi_core/src/policy.rs:201` (`damped_sw_order_f_belief`) |
+| Order quantity (Rust) | $q$ | `crates/voi_core/src/policy.rs:201` ([`damped_sw_order_f_belief`](/api/rust/voi_core/policy/fn.damped_sw_order_f_belief.html)) |
 | Order quantity (Python) | $q$ | `src/blueberries_voi/controller/f_sw.py:20` (`damped_sw_order_f_belief`) |
 | Damped gap before case-rounding | $\rho\,[F^{-1}_D(\alpha) - \tilde I]^+$ | `crates/voi_core/src/policy.rs:227` (`raw = rho * (d_star - i_tilde).max(0.0)`) |
 | Damping factor, default value | $\rho = 0.8$ | `crates/voi_core/src/voi.rs:233` and `crates/voi_core/src/rollout.rs:535` (call-site literal); `src/blueberries_voi/sim/alpha_tune.py:76` (`_DEFAULT_RHO`) |
-| Case rounding, nearest multiple | $\text{caseRound}$ | `crates/voi_core/src/policy.rs:73` (`case_round`); `src/blueberries_voi/sim/bakeoff_ordering.py:23` (`case_round`) |
+| Case rounding, nearest multiple | $\text{caseRound}$ | `crates/voi_core/src/policy.rs:73` ([`case_round`](/api/rust/voi_core/policy/fn.case_round.html)); `src/blueberries_voi/sim/bakeoff_ordering.py:23` (`case_round`) |
 | Default case size | $c = 8$ | `crates/voi_core/src/params.rs:47` (`ModelParams::default`, `case_size`) |
 
 ## Caveats

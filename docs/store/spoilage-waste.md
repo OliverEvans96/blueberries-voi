@@ -47,13 +47,13 @@ Diagnostic work (an earlier notebook investigating GSIN vs. UPC-pooled observati
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Independent per-unit daily decrement (production ground truth) | $\Delta_i$ | `crates/voi_core/src/physics.rs:245` (`apply_gamma_aging_independent`) |
-| Apply one decrement, clamp at 0 | $f \leftarrow \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` (`apply_gamma_decrement`) |
+| Independent per-unit daily decrement (production ground truth) | $\Delta_i$ | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
+| Apply one decrement, clamp at 0 | $f \leftarrow \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
 | Spoil cause code on a per-unit exit record | `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:34` |
 | Detect newly-spoiled units (before/after comparison) | `waste_by[ℓ]` | `crates/voi_core/src/day_step.rs:98` (`count_spoil_by_lot`) |
 | Per-unit spoiled-exit records (unit id, freshness at spoil, cause) | — | `crates/voi_core/src/day_step.rs:114` (`spoil_unit_exits`) |
 | Deterministic shared-decrement path (tests only) | — | `crates/voi_core/src/day_step.rs:89` (`apply_gamma_step`, `gamma_decrement: Some(d)` branch) |
-| Precomputed spoil-probability table for the current parameters | $P(\delta \ge f)$ | `crates/voi_core/src/physics.rs:340` (`GammaDecrementTable::spoil_prob`) |
+| Precomputed spoil-probability table for the current parameters | $P(\delta \ge f)$ | `crates/voi_core/src/physics.rs:340` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
 
 ## Caveats
 

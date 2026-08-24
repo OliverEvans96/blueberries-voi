@@ -92,6 +92,9 @@ impl DemandProfile {
         })
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     pub fn mu(&self, day: u32) -> f64 {
         let dow = (day % 7) as usize;
         let week_cap = self.week_factors.len().saturating_sub(1) as u32;

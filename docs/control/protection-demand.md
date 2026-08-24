@@ -51,13 +51,13 @@ The Monte Carlo fallback for the heterogeneous-mean case is a pragmatic choice r
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Protection demand quantile, top-level router (Rust) | $F^{-1}_D(\alpha)$ | `crates/voi_core/src/policy.rs:111` (`protection_demand_quantile`) |
+| Protection demand quantile, top-level router (Rust) | $F^{-1}_D(\alpha)$ | `crates/voi_core/src/policy.rs:111` ([`protection_demand_quantile`](/api/rust/voi_core/policy/fn.protection_demand_quantile.html)) |
 | Protection demand quantile, top-level router (Python) | $F^{-1}_D(\alpha)$ | `src/blueberries_voi/model/demand_fractile.py:91` (`protection_interval_quantile`) |
 | Flat-mean closed form | $\text{NB-PPF}(\alpha; r_{\text{sum}}, p)$ | `crates/voi_core/src/policy.rs:30` (`homogeneous_closed_form`); `src/blueberries_voi/model/demand_fractile.py:46` (`_homogeneous_closed_form`) |
 | Calendar-varying Monte Carlo fallback | — | `crates/voi_core/src/policy.rs:42` (`heterogeneous_nb_sum_quantile_mc`); `src/blueberries_voi/model/demand_fractile.py:58` (`heterogeneous_nb_sum_quantile_mc`) |
 | Monte Carlo draw count, default | $n_{\text{mc}} = 20{,}000$ | `crates/voi_core/src/policy.rs:10` (`PROTECTION_MC_DEFAULT_N`); `src/blueberries_voi/model/demand_fractile.py:15` (`PROTECTION_MC_DEFAULT_N`) |
-| Deterministic MC seed derivation | — | `crates/voi_core/src/policy.rs:13` (`derive_protection_mc_seed`); `src/blueberries_voi/model/demand_fractile.py:19` (`derive_protection_mc_seed`) |
-| Protection window length for a given order day | $n$ | `crates/voi_core/src/schedule.rs:94` (`OrderSchedule::protection_days`); `src/blueberries_voi/sim/order_schedule.py:86` (`OrderSchedule.protection_days`) |
+| Deterministic MC seed derivation | — | `crates/voi_core/src/policy.rs:13` ([`derive_protection_mc_seed`](/api/rust/voi_core/policy/fn.derive_protection_mc_seed.html)); `src/blueberries_voi/model/demand_fractile.py:19` (`derive_protection_mc_seed`) |
+| Protection window length for a given order day | $n$ | `crates/voi_core/src/schedule.rs:94` ([`OrderSchedule::protection_days`](/api/rust/voi_core/schedule/struct.OrderSchedule.html#method.protection_days)); `src/blueberries_voi/sim/order_schedule.py:86` (`OrderSchedule.protection_days`) |
 | Default delivery / order weekdays | Mon/Wed/Fri delivery; Tue/Thu/Sun order | `crates/voi_core/src/schedule.rs:12` (`OrderSchedule::default`, via `with_delivery(&[0, 2, 4], 1)`); `src/blueberries_voi/sim/order_schedule.py:22-24` (`_DEFAULT_DELIVERY`, `_DEFAULT_LEAD_TIME`, `_DEFAULT_ORDER`) |
 
 ## Caveats

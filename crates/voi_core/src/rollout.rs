@@ -30,6 +30,9 @@ pub struct RolloutCosts {
 }
 
 impl Default for RolloutCosts {
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     fn default() -> Self {
         Self {
             unit_margin: 2.0,

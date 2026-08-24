@@ -105,12 +105,12 @@ measures.
 | Concept | Symbol | Location |
 | --- | --- | --- |
 | Channel-conditional stage table (doc comment) | — | `crates/voi_core/src/unit_pf.rs:1` (module doc) |
-| UPC pooled spoilage term | $\log P(W = w_\text{tot})$ | `crates/voi_core/src/unit_ll.rs:82` (`pb_loglik_pooled`) |
-| GSIN per-lot spoilage term | $\sum_\ell \log P(W_\ell = w_\ell)$ | `crates/voi_core/src/unit_ll.rs:57` (`pb_loglik_by_lot`) |
-| GSIN feasibility + multinomial allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:321` (`loglik_sales_by_units`) |
+| UPC pooled spoilage term | $\log P(W = w_\text{tot})$ | `crates/voi_core/src/unit_ll.rs:82` ([`pb_loglik_pooled`](/api/rust/voi_core/unit_ll/fn.pb_loglik_pooled.html)) |
+| GSIN per-lot spoilage term | $\sum_\ell \log P(W_\ell = w_\ell)$ | `crates/voi_core/src/unit_ll.rs:57` ([`pb_loglik_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_loglik_by_lot.html)) |
+| GSIN feasibility + multinomial allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:321` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
 | UPC pooled feasibility gate + removal | — | `crates/voi_core/src/unit_pf.rs:353` (`score_and_remove_sales`, aggregate branch) |
-| Per-lot picking share (the allocation weights) | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:231` (`lot_shares_from_freshness`) |
-| Lot-id → bank-segment matching | — | `crates/voi_core/src/unit_pf.rs:254` (`project_lot_map`) |
+| Per-lot picking share (the allocation weights) | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:231` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
+| Lot-id → bank-segment matching | — | `crates/voi_core/src/unit_pf.rs:254` ([`project_lot_map`](/api/rust/voi_core/unit_pf/fn.project_lot_map.html)) |
 | Unmatched-lot fallback to aggregate scoring | — | `crates/voi_core/src/unit_pf.rs:280` (drop → `None` inside `project_lot_map`, consumed by `DayEvidence::resolve` at `unit_pf.rs:311`) |
 | Bank's observed lot segmentation | `lot_offsets` / `lot_ids` | `crates/voi_core/src/unit_pf.rs:54` (`UnitParticleBank` fields) |
 

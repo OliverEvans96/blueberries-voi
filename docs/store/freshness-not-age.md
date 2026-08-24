@@ -41,7 +41,7 @@ The rejected alternative — keeping an age-in-days state variable and convertin
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Freshness state, mutated in place | $f$ | `crates/voi_core/src/physics.rs:223` (`apply_gamma_decrement`) |
+| Freshness state, mutated in place | $f$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
 | Cumulative thermal exposure along a trace | $\Lambda$ | `crates/voi_core/src/shipments.rs:21` (`arrival_exposure_from_path`, doc: "Cumulative thermal exposure along a temperature path (reference-days)") |
 | Legacy age↔freshness map (research path only) | `age_to_f` / `f_to_age` | `crates/voi_core/src/physics.rs:15`, `:23` |
 | Legacy consumer — Weibull salvage | — | `crates/voi_core/src/rollout.rs:90` (`f_to_age` in `terminal_salvage_unit_state`) |

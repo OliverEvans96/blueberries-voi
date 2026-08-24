@@ -45,7 +45,7 @@ ADR 0130 locked a single, unit-level freshness coordinate $f$ end-to-end: ground
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Effective inventory (Rust) | $\tilde I$ | `crates/voi_core/src/policy.rs:179` (`effective_inventory_f_belief`) |
+| Effective inventory (Rust) | $\tilde I$ | `crates/voi_core/src/policy.rs:179` ([`effective_inventory_f_belief`](/api/rust/voi_core/policy/fn.effective_inventory_f_belief.html)) |
 | Effective inventory (Python) | $\tilde I$ | `src/blueberries_voi/filter/belief.py:131` (`effective_inventory`) |
 | Effective inventory (TypeScript, studio charts) | $\tilde I$ | `web/src/charts/inventoryTarget.ts:99` (`effectiveInventoryFromFlatBelief`) |
 | Per-lot expected freshness loop | $\mathbb{E}[f \mid \ell] = \sum_k p_{\ell k} f_k$ | `crates/voi_core/src/policy.rs:189-196` (inline accumulation inside `effective_inventory_f_belief`) |

@@ -125,13 +125,13 @@ One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$
 
 | Concept | Symbol | Location |
 | --- | --- | --- |
-| Truth-path per-unit generative draw | $d, \bar T, \bar\varphi, \psi, \Lambda, D, f$ | `crates/voi_core/src/arrival.rs:448` (`draw_unit_f`) |
-| Whole-delivery truth draw (shared $d$, $\bar T$; per-unit $\psi$/loss) | — | `crates/voi_core/src/arrival.rs:471` (`draw_truth_delivery`) |
-| Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T-T_{\mathrm{ref}})/10}$ | `crates/voi_core/src/arrival.rs:366` (`phi_bar_from_t_bar`), calling `crates/voi_core/src/physics.rs:31` (`store_temp_factor`) |
-| Tail probability given exposure | $P(f>x\mid\Lambda)=\gamma_p(k\Lambda,(1-x)/\theta)$ | `crates/voi_core/src/arrival.rs:400` (`p_f_gt_at`) |
-| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:411` (`cdf_f_given_lambda`) |
-| Exact spoiled-on-arrival atom | $P(f=0\mid\Lambda)=\gamma_q(k\Lambda,1/\theta)$ | `crates/voi_core/src/arrival.rs:426` (`p_f_zero`) |
-| Regularized incomplete gamma functions | $\gamma_p, \gamma_q$ | `crates/voi_core/src/physics.rs:125` (`gamma_p`), `:140` (`gamma_q`) |
+| Truth-path per-unit generative draw | $d, \bar T, \bar\varphi, \psi, \Lambda, D, f$ | `crates/voi_core/src/arrival.rs:448` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
+| Whole-delivery truth draw (shared $d$, $\bar T$; per-unit $\psi$/loss) | — | `crates/voi_core/src/arrival.rs:471` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
+| Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T-T_{\mathrm{ref}})/10}$ | `crates/voi_core/src/arrival.rs:366` ([`phi_bar_from_t_bar`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar)), calling `crates/voi_core/src/physics.rs:31` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
+| Tail probability given exposure | $P(f>x\mid\Lambda)=\gamma_p(k\Lambda,(1-x)/\theta)$ | `crates/voi_core/src/arrival.rs:400` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
+| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:411` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
+| Exact spoiled-on-arrival atom | $P(f=0\mid\Lambda)=\gamma_q(k\Lambda,1/\theta)$ | `crates/voi_core/src/arrival.rs:426` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
+| Regularized incomplete gamma functions | $\gamma_p, \gamma_q$ | `crates/voi_core/src/physics.rs:125` ([`gamma_p`](/api/rust/voi_core/physics/fn.gamma_p.html)), `:140` (`gamma_q`) |
 | Position multiplier draw (per unit) | $\psi$ | `crates/voi_core/src/arrival.rs:442` (`draw_psi_pos`) |
 | Truncated-normal transit temperature draw | $\bar T$ | `crates/voi_core/src/arrival.rs:431` (`sample_truncated_normal`) |
 | Calibrated artifact (live numbers, corridors) | all of the above | `data/abdella/arrival_model.json` |

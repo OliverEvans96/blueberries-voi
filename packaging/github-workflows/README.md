@@ -21,7 +21,7 @@ Five jobs start in parallel; only **rust** waits on **build**:
 | `build` | — | `uv sync --extra rust`, maturin wheel (`--release`), WASM (`--release`), `cargo test --release --no-run`; upload `ci-rust-wasm-build` |
 | `rust` | `build` | restore Cargo registry cache; download `target/`; `cargo test --release` (prebuilt binaries) |
 | `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage (`-m "not docs"`) |
-| `docs` | — | `npm ci` in `docs/`, VitePress build, informational docs guards, upload `docs-dist` |
+| `docs` | — | `npm ci` in `docs/`, VitePress + `cargo doc` rustdoc bundle, docs/rustdoc guards, upload `docs-dist` |
 | `web` | — | `build-wasm.sh`, `build:lib`, vitest, `npm pack` smoke |
 
 On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, `web`, and

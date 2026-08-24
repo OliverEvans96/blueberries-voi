@@ -88,10 +88,10 @@ To draw one unit's birth freshness, draw $u \sim \mathrm{Uniform}(0,1)$; if $u <
 | --- | --- | --- |
 | Rung-appropriate condition (Exposure / Duration / Prior) | `ArrivalCondition` | `crates/voi_core/src/arrival.rs:25` |
 | Resolve which condition a delivery's observation implies | `resolve_arrival_f_law` | `crates/voi_core/src/unit_pf.rs:287` |
-| Exact temperature-trace exposure (F3) | $\Lambda_{\text{obs}}$ | `crates/voi_core/src/arrival.rs:776` (`resolve_arrival_exposure`) |
+| Exact temperature-trace exposure (F3) | $\Lambda_{\text{obs}}$ | `crates/voi_core/src/arrival.rs:776` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
 | Pack-date duration (F2 / F2a) | `obs.pack_date_days` | `crates/voi_core/src/obs.rs:68` |
 | Marginal CDF over $f$ for a condition, via product quadrature | `marginal_cdf_at` | `crates/voi_core/src/arrival.rs:507` |
-| Closed-form atom at $f=0$ | $\pi_0 = \gamma_q(k\Lambda, 1/\theta)$ | `crates/voi_core/src/arrival.rs:426` (`p_f_zero`) |
+| Closed-form atom at $f=0$ | $\pi_0 = \gamma_q(k\Lambda, 1/\theta)$ | `crates/voi_core/src/arrival.rs:426` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
 | Cached, atom-divided CDF for inverse-CDF sampling | `build_law_cdf` | `crates/voi_core/src/arrival.rs:621` |
 | Draw one unit's birth freshness from the cache | `sample_unit_f_from_cache` | `crates/voi_core/src/arrival.rs:672` |
 | Draw a whole lot's birth freshness for one particle | `sample_filter_birth_units` | `crates/voi_core/src/arrival.rs:703` |

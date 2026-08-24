@@ -363,6 +363,9 @@ impl ArrivalModel {
             .expect("arrival corridor")
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     pub fn phi_bar_from_t_bar(&self, t_bar: f64) -> f64 {
         store_temp_factor(t_bar, self.t_ref, self.q10)
     }
@@ -408,6 +411,9 @@ impl ArrivalModel {
         )
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     pub fn cdf_f_given_lambda(&self, lambda: f64, f: f64) -> f64 {
         let lam = Self::floor_lambda(lambda);
         if f <= 0.0 {
@@ -428,6 +434,9 @@ impl ArrivalModel {
         gamma_q(self.gamma_shape * lam, 1.0 / self.gamma_scale)
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     fn sample_truncated_normal<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let dist = Normal::new(self.mu_t, self.sigma_t).expect("trunc normal");
         for _ in 0..64 {
@@ -439,6 +448,9 @@ impl ArrivalModel {
         self.temp_floor_c
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     fn draw_psi_pos<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let dist = LogNormal::new(0.0, self.sigma_pos).expect("lognormal pos");
         dist.sample(rng).max(1e-6)
@@ -468,6 +480,9 @@ impl ArrivalModel {
         (1.0 - loss).max(0.0)
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     pub fn draw_truth_delivery<R: Rng + ?Sized>(
         &self,
         corridor_key: &str,

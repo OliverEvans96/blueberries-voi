@@ -51,8 +51,8 @@ The decision taken instead — **tuned by simulation**, chosen against the card'
 | Concept | Symbol | File:line |
 | --- | --- | --- |
 | Service-level target consumed by the ordering rule | $\alpha$ | `src/blueberries_voi/controller/rung0.py:60` (`CorrectedAgeBlindPolicy.__init__`, default `alpha: float = 0.9`) |
-| Protection-interval demand quantile $F^{-1}(\alpha)$ (Rust) | $F^{-1}_{D_{t:t+L}}(\alpha)$ | `crates/voi_core/src/policy.rs:111` (`protection_demand_quantile`) |
-| Order rule consuming $\alpha$ to produce $q_t$ (Rust) | $q_t$ | `crates/voi_core/src/policy.rs:201` (`damped_sw_order_f_belief`) |
+| Protection-interval demand quantile $F^{-1}(\alpha)$ (Rust) | $F^{-1}_{D_{t:t+L}}(\alpha)$ | `crates/voi_core/src/policy.rs:111` ([`protection_demand_quantile`](/api/rust/voi_core/policy/fn.protection_demand_quantile.html)) |
+| Order rule consuming $\alpha$ to produce $q_t$ (Rust) | $q_t$ | `crates/voi_core/src/policy.rs:201` ([`damped_sw_order_f_belief`](/api/rust/voi_core/policy/fn.damped_sw_order_f_belief.html)) |
 | Protection-interval demand quantile $F^{-1}(\alpha)$ (Python mirror) | $F^{-1}_{D_{t:t+L}}(\alpha)$ | `src/blueberries_voi/model/demand_fractile.py:91` (`protection_interval_quantile`) |
 | Grid search that picks $\alpha^\star$ by simulated profit | $\alpha^\star = \arg\max_\alpha \mathbb{E}[\text{profit}]$ | `src/blueberries_voi/sim/alpha_tune.py:481` (`tune_alpha_grid`) |
 | Candidate grid used for tuning | grid $= \{0.5,\dots,0.95\}$ | `src/blueberries_voi/sim/alpha_tune.py:65` (`DEFAULT_DESKTOP_ALPHAS`) |

@@ -47,12 +47,12 @@ ADR 0115 explains why the shape comes from a Chinese retail dataset rather than 
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Calendar mean for a day | $\mu(\text{day})$ | `crates/voi_core/src/demand_profile.rs:95` (`DemandProfile::mu`) |
-| Resolve calendar mean vs. legacy flat mean | — | `crates/voi_core/src/params.rs:69` (`demand_mu_for_day`) |
+| Calendar mean for a day | $\mu(\text{day})$ | `crates/voi_core/src/demand_profile.rs:95` ([`DemandProfile::mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.mu)) |
+| Resolve calendar mean vs. legacy flat mean | — | `crates/voi_core/src/params.rs:69` ([`demand_mu_for_day`](/api/rust/voi_core/params/struct.ModelParams.html#method.demand_mu_for_day)) |
 | Overall level (committed default `30.0`) | scale_target_mu | `data/freshnet/demand_profile.json` (`scale_target_mu`) |
 | Day-of-week / week multiplier tables | dow_factor, week_factor | `data/freshnet/demand_profile.json` (`dow_factors`, `week_factors`) |
 | Overdispersion (committed default `2.0`) | vm | `data/freshnet/demand_profile.json` (`demand_vm`); field default `crates/voi_core/src/params.rs:46` |
-| Negative-binomial demand draw (gamma-Poisson mixture) | $r$, $p$, $\lambda$, $X$ | `crates/voi_core/src/physics.rs:508` (`draw_demand_from_mu`), mixture sampler `crates/voi_core/src/spawn_rng.rs:71` (`negative_binomial_gamma_poisson`) |
+| Negative-binomial demand draw (gamma-Poisson mixture) | $r$, $p$, $\lambda$, $X$ | `crates/voi_core/src/physics.rs:508` (`draw_demand_from_mu`), mixture sampler `crates/voi_core/src/spawn_rng.rs:71` ([`negative_binomial_gamma_poisson`](/api/rust/voi_core/spawn_rng/fn.negative_binomial_gamma_poisson.html)) |
 | Every ordering policy reads the same calendar mean (no forecasting) | — | `crates/voi_core/src/policy.rs:133` (`protection_demand_quantile`, calls `demand_mu_for_day`) |
 | Dataset provenance | — | `data/freshnet/demand_profile.json` (`dataset_id: "Dingdong-Inc/FreshRetailNet-50K"`) |
 

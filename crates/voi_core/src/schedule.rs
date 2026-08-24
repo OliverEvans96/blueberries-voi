@@ -91,6 +91,9 @@ impl OrderSchedule {
         c
     }
 
+    /// Stub API reference — full narrative is on the VitePress docs site.
+    ///
+    /// See the concept pages that cite this symbol in their "In the code" tables.
     pub fn protection_days(&self, day: u32) -> u32 {
         self.next_order_day(day) - day + self.lead_time_days
     }
