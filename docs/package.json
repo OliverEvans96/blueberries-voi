@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev . --port 5174",
-    "docs:build": "bash ../scripts/build-rustdoc.sh public/api/rust && vitepress build .",
+    "docs:build": "bash ../scripts/build-rustdoc.sh && vitepress build .",
     "docs:preview": "vitepress preview ."
   },
   "devDependencies": {
