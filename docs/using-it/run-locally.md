@@ -2,7 +2,7 @@
 title: Run it locally
 sources:
   adr: [0119]
-  code: [README.md, scripts/build-wasm.sh, scripts/studio.sh, scripts/smoke-wasm.sh, web/package.json, web/.env.example]
+  code: [README.md, scripts/build-wasm.sh, scripts/studio.sh, scripts/smoke-wasm.sh, scripts/build-rustdoc.sh, web/package.json, web/.env.example]
 ---
 
 # Run it locally
@@ -55,6 +55,16 @@ To sanity-check the Rust↔WASM build in isolation, without the browser or Vite:
 
 This builds `voi_wasm` for a Node target and drives the same init/reset/step/act contract the browser worker uses, checking that responses have the shape the studio expects.
 
+### Rust API docs (rustdoc)
+
+The [Rust API reference](/reference/rust-api) published on this site is generated straight from `voi_core`'s own `///` comments and bundled into the site's own build (`npm run docs:build` runs this automatically). To regenerate it on its own, without a full docs-site build:
+
+```bash
+./scripts/build-rustdoc.sh
+```
+
+This runs `cargo doc --no-deps -p voi_core` and copies the output into `docs/public/api/rust/`.
+
 ## Why it's modelled this way
 
 ADR 0119 (accepted) put the model's hot compute in one Rust crate reachable from both Python (via PyO3) and the browser (via `wasm-bindgen`), rather than maintaining a second from-scratch implementation of the physics in JavaScript, or trying to run Python itself in the browser (Pyodide). A shared kernel means the studio and the notebooks can't quietly drift apart on how freshness decays or how demand is drawn — there is exactly one implementation to keep correct. The ADR explicitly rejected two other language choices for the shared core (Julia, and Numba/Cython in place) because neither gives a browser target without still needing something like Pyodide, and it rejected trying to make the Rust and NumPy random-number streams bit-identical, because NumPy's generator is not a public bit-stable contract to port against — Rust and Python paths are held to matching moments/distributions in tests, not identical numbers.
@@ -73,6 +83,7 @@ ADR 0119 (accepted) put the model's hot compute in one Rust crate reachable from
 | Same launcher via npm | `npm run studio` (from `web/`) | `web/package.json:18` |
 | WASM kernel contract smoke test (Node target) | `./scripts/smoke-wasm.sh` | `scripts/smoke-wasm.sh:1` |
 | Engine adapter env flags (`wasm` default; `mock` debug-only) | `web/.env.example` | `web/.env.example:4` |
+| Rust API docs (rustdoc) build | `./scripts/build-rustdoc.sh` | `scripts/build-rustdoc.sh:1` |
 
 ## Caveats
 
