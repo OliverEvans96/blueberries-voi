@@ -84,7 +84,7 @@ else:
 app = modal.App("blueberries-voi-batch", image=image)
 
 
-@app.function(timeout=600, cpu=2.0)
+@app.function(timeout=600, cpu=1.0)
 def nb13_shard(
     seed: int,
     channel: dict[str, object],
@@ -102,11 +102,45 @@ def nb13_shard(
     return result
 
 
-@app.function(timeout=300, cpu=2.0)
+@app.function(timeout=600, cpu=1.0)
 def gsin_shard(regime_index: int, seed_index: int) -> dict[str, Any]:
     from blueberries_voi.experiments.gsin_upc import run_regime_seed
 
     return run_regime_seed(regime_index, seed_index)
+
+
+@app.function(timeout=600, cpu=1.0)
+def voi_profit_shard(
+    seed: int,
+    channel_dict: dict[str, object],
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.voi_profit import run_seed_channel_profit
+
+    return run_seed_channel_profit(seed, channel_dict, **budgets_dict)
+
+
+@app.function(timeout=600, cpu=1.0)
+def voi_oracle_profit_shard(
+    seed: int,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.voi_profit import run_seed_oracle_profit
+
+    return run_seed_oracle_profit(seed, **budgets_dict)
+
+
+@app.function(timeout=900, cpu=1.0)
+def rollout_eval_shard(
+    seed: int,
+    arm_id: str,
+    alpha: float,
+    rho: float,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.rollout_bakeoff import run_rollout_eval
+
+    return run_rollout_eval(seed, arm_id, alpha, rho, **budgets_dict)
 
 
 @app.local_entrypoint()
