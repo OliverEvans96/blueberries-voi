@@ -40,7 +40,6 @@ htmlcov/
 .env
 secrets/secrets.plain.yaml
 secrets/*.plain.yaml
-terraform/terraform.tfvars
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
