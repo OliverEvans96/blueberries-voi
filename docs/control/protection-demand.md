@@ -1,7 +1,7 @@
 ---
 title: Protection demand under a calendar
 sources:
-  adr: [58, 60, 112, 114]
+  adr: [0058, 0060, 0112, 0114]
   code: [crates/voi_core/src/policy.rs, crates/voi_core/src/schedule.rs, src/blueberries_voi/model/demand_fractile.py, src/blueberries_voi/sim/order_schedule.py]
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: Notation and glossary
 sources:
-  adr: [144]
+  adr: [0144]
   code: [crates/voi_core/src/params.rs, crates/voi_core/src/arrival.rs, crates/voi_core/src/physics.rs, crates/voi_core/src/policy.rs, crates/voi_core/src/session.rs, crates/voi_core/src/demand_profile.rs]
 ---
 

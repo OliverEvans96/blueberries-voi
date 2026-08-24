@@ -97,7 +97,10 @@ def test_docs_cite_adrs_that_exist_and_are_not_superseded() -> None:
                 bare = number.lstrip("0")
                 if bare and bare in body_lower.replace("adr ", ""):
                     continue
-                if f"adr {number}" in body_lower or f"adr {bare}" in body_lower:
+                if (
+                    f"adr {number}" in body_lower
+                    or f"adr {bare}" in body_lower
+                ):
                     continue
                 failures.append(
                     f"{md_path}: frontmatter cites ADR {number}, whose status "

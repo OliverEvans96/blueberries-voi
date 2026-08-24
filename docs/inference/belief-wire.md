@@ -1,7 +1,7 @@
 ---
 title: The Belief Wire
 sources:
-  adr: [130, 131]
+  adr: [0130, 0131]
   code:
     - crates/voi_core/src/belief_flat.rs
     - crates/voi_core/src/unit_pf.rs

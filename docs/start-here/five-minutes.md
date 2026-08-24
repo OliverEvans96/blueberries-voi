@@ -1,7 +1,7 @@
 ---
 title: The store in five minutes
 sources:
-  adr: [34, 143, 144]
+  adr: [0034, 0143, 0144]
   code: [crates/voi_core/src/day_step.rs, crates/voi_core/src/physics.rs]
 ---
 
