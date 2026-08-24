@@ -6,8 +6,8 @@ sources:
 
 # Rust API (`voi_core`)
 
-The shared compute kernel is documented with **rustdoc** — auto-generated API
-reference from inline `///` comments on the Rust source, covering public
+The shared compute kernel is documented with **rustdoc** — API reference
+generated from inline `///` comments on the Rust source, covering public
 functions, types, and fields (plus key private helpers) across the crate.
 
 Browse the API:
@@ -24,8 +24,8 @@ Rustdoc and this VitePress site answer different questions, and each page's
   browsable by module.
 - **This site** is the narrative: the intuition, the math, and — in each page's
   **Why it's modelled this way** section — the modeling choice and the
-  alternative it beat, sourced from the project's ADRs. Rustdoc doesn't try to
-  re-argue those choices; it points back here instead.
+  alternative it beat. Rustdoc doesn't try to re-argue those choices; it
+  points back here instead.
 
 Use rustdoc when you need to know exactly what a symbol does; come back to the
 concept pages when you need to know why it exists.

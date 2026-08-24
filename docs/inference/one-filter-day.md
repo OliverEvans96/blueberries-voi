@@ -1,7 +1,6 @@
 ---
 title: One Filter Day
 sources:
-  adr: [0143, 0135, 0137, 0105]
   code: [crates/voi_core/src/unit_pf.rs, crates/voi_core/src/unit_ll.rs, crates/voi_core/src/physics.rs]
 ---
 
@@ -112,36 +111,27 @@ resample draws new parent indices from the normalized weights and copies each pa
 
 ## Why it's modelled this way
 
-The production scheme (ADR 0143) replaced an earlier design (ADR 0137, superseded) in
-which the whole store shared *one* daily decrement and spoilage was scored as an
-interval constraint on that single shared draw. That design forced every unit within a
-lot to be freshness-homogeneous by construction, which made GSIN's per-lot waste count a
-pure *contrast* signal — useful for rejecting particles whose lots were ordered wrong,
-but structurally unable to sharpen the posterior on freshness *level*, because there was
-no per-unit variation for a lot-level count to resolve. Moving to independent per-unit
-decrements (still drawn from the same shared gamma law) lets units within a lot diverge
-before any of them spoil, which is what makes a per-lot waste count carry information a
-pooled count doesn't.
+Every unit within a lot ages and spoils independently — each live unit draws its own
+daily decrement from the shared gamma law, rather than the whole store or lot sharing a
+single decrement. That's what lets units within a lot diverge in freshness before any of
+them spoil, which is what makes a per-lot waste count carry information a pooled count
+doesn't: if a lot's units were freshness-homogeneous by construction, a per-lot waste
+count could only reject particles whose lots were ordered wrong, not sharpen the
+posterior on freshness *level*.
 
-The fully adapted death proposal follows a standing principle in this codebase (ADR
-0105): importance weights should be exact and deterministic given the day's evidence,
-not a Monte Carlo estimate re-scored into the weight. An earlier sales-likelihood design
-(pre-ADR 0135) conflated "sample one weighted-without-replacement path" with "score that
-path's probability," which meant GSIN — despite observing *more* — paid a variance
+The fully adapted death proposal follows a standing design principle in this codebase:
+importance weights should be exact and deterministic given the day's evidence, not a
+Monte Carlo estimate re-scored into the weight. Scoring sales as "sample one
+weighted-without-replacement path, then score that path's probability" would conflate
+sampling with scoring, and would make GSIN — despite observing *more* — pay a variance
 penalty for every extra lot it scored separately, making its posteriors *more* diffuse
-than UPC's on the same data. ADR 0135 (status: **proposed**, not yet accepted) splits
-that into a deterministic closed-form likelihood (the multinomial allocation above) and
-a separate, unscored state-transition removal.
-
-The lot-segmentation architecture itself — one variable-width segment per delivery,
-carried on the bank and matched to observations by lot id — comes from ADR 0137 and
-survived its own supersession; only the *spoilage law* running on top of it changed
-under ADR 0143.
+than UPC's on the same data. Splitting the sales likelihood into a deterministic
+closed-form term (the multinomial allocation above) and a separate, unscored
+state-transition removal avoids that.
 
 **Caveat:** the Poisson-binomial DP costs $O(n \cdot w)$ per lot segment per particle per
-day. That's affordable at the particle and unit counts this project runs at, but it's a
-cost the earlier shared-decrement design didn't have to pay, and it scales with both the
-day's death count and the segment size.
+day. That's affordable at the particle and unit counts this project runs at, and it
+scales with both the day's death count and the segment size.
 
 ## In the code
 

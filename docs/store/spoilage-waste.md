@@ -1,7 +1,6 @@
 ---
 title: Spoilage and waste
 sources:
-  adr: [0143]
   code: [crates/voi_core/src/day_step.rs, crates/voi_core/src/physics.rs]
 ---
 
@@ -37,9 +36,7 @@ and every spoiled unit's identity, its freshness at the moment it spoiled, and a
 
 ## Why it's modelled this way
 
-An earlier design (ADR 0137, since superseded) drew **one shared decrement** for every live unit in the store on a given day. That kept every unit in a lot moving in lockstep — freshness-homogeneous within a lot — which had a specific downside: because a lot's units could only ever spoil together, observing how many units in a lot spoiled on a given day could tell the filter that its *ordering* of freshness across lots was wrong (a contrast check), but it could never sharpen the filter's belief about the freshness *level* itself, because there was nothing for individual units within a lot to disagree about.
-
-Diagnostic work (an earlier notebook investigating GSIN vs. UPC-pooled observation channels) found this was a real structural ceiling: information about the store's freshness level was coming from pack-date and delivery-history channels, not from lot-resolved spoilage counts, precisely because the shared-decrement model gave spoilage nothing to say about level. ADR 0143's decision — independent per-unit decrements — was adopted to test the hypothesis that letting units diverge *before* spoiling would unlock lot-resolved waste as a genuinely level-informative channel, scored with an exact Poisson-binomial likelihood over each unit's individual spoil probability rather than a single shared-event calculation. (How the filter actually uses that likelihood to update its beliefs is a separate topic, covered on the inference pages — this page only covers how spoilage happens in the ground truth.)
+Drawing an independent decrement for every unit, rather than one shared decrement for the whole store or lot, lets units within a lot diverge before any of them spoil. That divergence is what makes lot-resolved waste counts informative about the freshness *level* within a lot, not just about the relative ordering across lots. If every unit in a lot moved in lockstep, observing how many units in a lot spoiled on a given day could tell a filter that its *ordering* of freshness across lots was wrong (a contrast check), but it could never sharpen the filter's belief about the freshness *level* itself, because there'd be nothing for individual units within a lot to disagree about. Letting units diverge before spoiling unlocks lot-resolved waste as a genuinely level-informative channel, scored with an exact Poisson-binomial likelihood over each unit's individual spoil probability rather than a single shared-event calculation. (How the filter actually uses that likelihood to update its beliefs is a separate topic, covered on the inference pages — this page only covers how spoilage happens in the ground truth.)
 
 **Honest caveat.** Independent draws are still *identically* distributed — every unit in the same store, same day, draws from the same Gamma law; the model doesn't give units in, say, a colder part of a pallet a systematically different decrement day-to-day (any pallet-position effect is baked into a unit's *birth* freshness once, via the arrival model's within-pallet multiplier, not re-applied on every subsequent shelf day). And independence is a modeling assumption, not a claim about physical mechanism: real spoilage can be contagious — one moldy berry spreading to its neighbors within a punnet, or a whole case affected by one bad handling event — which independent per-unit draws don't represent at all.
 

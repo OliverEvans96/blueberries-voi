@@ -1,7 +1,6 @@
 ---
 title: The seven named rungs
 sources:
-  adr: [0133, 0144]
   code: [crates/voi_core/src/obs.rs, web/src/obsMask.ts]
 ---
 
@@ -36,26 +35,23 @@ forcing a nearest-rung label.
 
 ## Why it's modelled this way
 
-ADR 0133 kept the named presets specifically for "VOI backward compat" — existing value-
-of-information sweeps and charts are keyed by rung id, and rewriting them against raw
-channel triples would have thrown away that continuity for no teaching benefit. The
-seven names are also chosen to track a real adoption story (cheap process changes first,
-capital purchases later), which is why this page frames each row as a purchasing
-decision rather than just a row in a truth table.
+The named presets exist so that value-of-information sweeps and charts can be keyed by a
+short rung id rather than a raw channel triple. The seven names are also chosen to track
+a real adoption story — cheap process changes first, capital purchases later — which is
+why this page frames each row as a purchasing decision rather than just a row in a truth
+table.
 
-**Caveat — F1 and F1s currently collapse to the same rung.** ADR 0133 designed F1 ("lot
-ID at POS") and F1s ("lot ID on the shrink gun") to be genuinely different instruments:
-F1 reads lot codes at checkout with storewide waste counts, while F1s reads plain UPCs
-at checkout but reads lot codes on the *waste* gun, giving per-lot waste with no
-change to the register. The ADR's own alternatives section states plainly that "F1s is
-valid" as a combination distinct from F1. The current implementation does not produce
-that combination: because waste granularity is derived from the POS code-type switch
-(see [Channels](./channels.md)), a store cannot get per-lot waste without also reading
-lot codes at POS. `channels_for_preset` reflects this directly — its match arm handles
-`"F1" | "F1s"` together and returns the identical `ObsChannels` value for both, and a
-dedicated test (`mask_for_f1s_matches_f1`) asserts the two masks are equal. F1s survives
-in the UI and in VOI sweeps as a distinct *label* for continuity with earlier results,
-but it currently teaches nothing that F1 does not.
+**Caveat — F1 and F1s currently collapse to the same rung.** F1 ("lot ID at POS") and
+F1s ("lot ID on the shrink gun") describe two different instruments: F1 reads lot codes
+at checkout with storewide waste counts, while F1s reads plain UPCs at checkout but
+reads lot codes on the *waste* gun, giving per-lot waste with no change to the register.
+Because waste granularity is derived from the POS code-type switch (see
+[Channels](./channels.md)), the current model cannot produce that second combination — a
+store cannot get per-lot waste without also reading lot codes at POS. `channels_for_preset`
+reflects this directly: its match arm handles `"F1" | "F1s"` together and returns the
+identical `ObsChannels` value for both, and a dedicated test
+(`mask_for_f1s_matches_f1`) asserts the two masks are equal. F1s survives in the UI and
+in VOI sweeps as a distinct label, but it currently teaches nothing that F1 does not.
 
 ## In the code
 
@@ -64,7 +60,7 @@ but it currently teaches nothing that F1 does not.
 | **P0** — books only | upc, off, none | Nothing beyond ordinary POS and receiving — no new purchase. | `crates/voi_core/src/obs.rs:137` |
 | **P1** — shrink gun | upc, on, none | Buy a handheld scanner for daily storewide waste counts; no barcode change. | `crates/voi_core/src/obs.rs:142` |
 | **F1** — lot ID at POS | gsin, on, none | Switch checkout to lot-resolved (GSIN) codes; waste counts come back per lot as a side effect. | `crates/voi_core/src/obs.rs:147` |
-| **F1s** — lot ID on the shrink gun | gsin, on, none *(identical to F1 — see caveat above)* | Originally: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:147` |
+| **F1s** — lot ID on the shrink gun | gsin, on, none *(identical to F1 — see caveat above)* | Intended design: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:147` |
 | **F2a** — pack date on the supplier ASN | upc, on, pack_date | Get the supplier to print/transmit a pack date on the ASN; no barcode change at the register. | `crates/voi_core/src/obs.rs:152` |
 | **F2** — lot ID + pack date | gsin, on, pack_date | Both of the above: lot-resolved POS codes and a supplier pack date. | `crates/voi_core/src/obs.rs:157` |
 | **F3** — + temperature history | gsin, on, temperature_history | All of F2, plus a temperature logger that travels with the pallet and is read at receipt. | `crates/voi_core/src/obs.rs:162` |
@@ -78,9 +74,8 @@ The "business translation" column is illustrative narrative, not something the c
 enforces or prices — the model has no cost field for a shrink gun or a temperature
 logger. The rung names also do not imply a strict information ordering on every metric;
 [No channel observes freshness](./no-channel-observes-freshness.md) explains why later
-rungs sharpen belief in a specific, checkable sense (a genuinely narrower distribution
-over freshness) rather than "more data always better" in some vague sense. And as
-covered above, F1s is presently a relabeling of F1, not an independent instrument —
-readers comparing F1 vs. F1s results anywhere in this project should expect no
-difference, and that is expected code behavior, not a bug in whatever produced the
-comparison.
+rungs sharpen belief in a specific, checkable sense (a narrower distribution over
+freshness) rather than "more data always better" in some vague sense. And as covered
+above, F1s is presently a relabeling of F1, not an independent instrument — readers
+comparing F1 vs. F1s results anywhere in this project should expect no difference, and
+that is expected behavior of the current code, not a bug in the comparison.

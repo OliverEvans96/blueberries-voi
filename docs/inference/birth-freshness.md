@@ -1,7 +1,6 @@
 ---
 title: Birth Freshness by Rung
 sources:
-  adr: [0130, 0144]
   code:
     - crates/voi_core/src/arrival.rs
     - crates/voi_core/src/unit_pf.rs
@@ -74,13 +73,13 @@ To draw one unit's birth freshness, draw $u \sim \mathrm{Uniform}(0,1)$; if $u <
 
 ## Why it's modelled this way
 
-**One hierarchical model, three conditioning depths — never three separate models.** ADR 0144 is explicit that a date or a temperature trace reveals a *distribution* over $f$, not a scalar: "That distribution, not a scalar, is what seeds the lot." The alternative — deriving a single point-estimate freshness per rung and handing particles that scalar — was the design this remodel replaced. A point estimate throws away exactly the uncertainty a richer rung is supposed to *reduce*, so the whole point of comparing rungs on the knowledge ladder would be lost if birth collapsed to a number.
+**One hierarchical model, three conditioning depths — never three separate models.** A date or a temperature trace reveals a *distribution* over $f$, not a scalar, and that distribution is what seeds the lot. Deriving a single point-estimate freshness per rung and handing particles that scalar would throw away exactly the uncertainty a richer rung is supposed to *reduce*, so the whole point of comparing rungs on the knowledge ladder would be lost if birth collapsed to a number.
 
-**The rung table is deliberately joint, not marginal.** An earlier draft of this design had F3 pin only $\bar T$ and integrate over duration "if unobserved" — a bug later corrected (ADR 0144, "Correction 1") once it was noticed that F3 already knows duration exactly (it's derived from the trace's own timestamps), so re-integrating over it silently threw away real information and made the richest rung look less informative than F2. The fix was to condition F3 on the full joint exposure $\Lambda$, not a marginal piece of it — a reminder that getting the conditioning structure right, not just the closed forms, is what makes the rung comparison honest.
+**The rung conditioning is deliberately joint, not marginal.** F3 conditions on the full joint exposure $\Lambda$, not a marginal piece of it, because F3 already knows duration exactly (it's derived from the trace's own timestamps) — re-integrating over duration on that rung would silently throw away real information and make the richest rung look less informative than F2. Getting the conditioning structure right, not just the closed forms, is what makes the rung comparison honest.
 
-**Closed-form atom over grid-approximated atom.** The atom $P(f=0\mid\Lambda)$ has an exact closed form ($\gamma_q$) that costs nothing extra to compute, so it is deliberately computed once and divided out of the sampling CDF rather than left to whatever mass a 4096-point grid happens to assign to its first bin. The rejected alternative — just building a finer CDF grid and hoping bin 0 converges to the right mass — would silently misprice "already dead on arrival" for exactly the short, high-exposure deliveries where that probability matters most.
+**Closed-form atom over grid-approximated atom.** The atom $P(f=0\mid\Lambda)$ has an exact closed form ($\gamma_q$) that costs nothing extra to compute, so it is computed once and divided out of the sampling CDF rather than left to whatever mass a 4096-point grid happens to assign to its first bin. Building a finer CDF grid and hoping bin 0 converges to the right mass would risk mispricing "already dead on arrival" for exactly the short, high-exposure deliveries where that probability matters most.
 
-**Honest caveat:** the quadrature is exact for the *assumed* families (shifted-gamma duration, truncated-normal temperature, lognormal position) but those families are themselves hand-authored and only roughly calibrated against six real shipments (see the [cold-chain page](/store/cold-chain-arrival)'s caveats) — a wrong family shape would propagate through every rung's conditioning identically, since all three share the same quadrature machinery and the same underlying model.
+**Caveat:** the quadrature is exact for the *assumed* families (shifted-gamma duration, truncated-normal temperature, lognormal position), but those families are themselves hand-authored and only roughly calibrated against six real shipments (see the [cold-chain page](/store/cold-chain-arrival)'s caveats) — a wrong family shape would propagate through every rung's conditioning identically, since all three share the same quadrature machinery and the same underlying model.
 
 ## In the code
 

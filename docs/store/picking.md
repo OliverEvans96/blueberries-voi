@@ -1,7 +1,6 @@
 ---
 title: Who buys which punnet
 sources:
-  adr: [0029, 0079]
   code: [crates/voi_core/src/physics.rs, crates/voi_core/src/day_step.rs, crates/voi_core/src/params.rs]
 ---
 
@@ -31,11 +30,9 @@ One day's sales are not one draw from this distribution — they're a sequence o
 
 ## Why it's modelled this way
 
-ADR 0029 (MOD-07) fixed the *form* of the picking kernel and made the FIFO point explicit: "in self-service produce the issuing order is not a control" — almost every textbook perishable-inventory paper assumes the store can choose to sell its oldest stock first, and this model deliberately does not make that assumption. The rejected alternatives were a two-parameter logistic-in-age kernel (more flexible, but untethered from the physics) and a softmax-with-temperature form (equivalent to the chosen kernel up to reparameterization) — a uniform/random kernel was kept as a baseline switch (`uniform_picking`) rather than promoted to the model.
+The picking kernel's form is deliberate, and the FIFO point is explicit: in self-service produce, the issuing order isn't something the store controls. Almost every textbook perishable-inventory paper assumes the store can choose to sell its oldest stock first, and this model deliberately does not make that assumption. A two-parameter logistic-in-age kernel would be more flexible, but untethered from the physics; a softmax-with-temperature form is equivalent to the chosen kernel up to reparameterization. A uniform/random kernel is kept as a baseline switch (`uniform_picking`) rather than promoted to the model.
 
-ADR 0079 (MOD-25) then fixed the numeric value: $\sigma = 0.5$ as a single "moderately fresh-biased" base case, plus that one uniform-picking sensitivity cell — rejecting both the option of using one fixed $\sigma$ with no sensitivity check at all (leaves the result resting on an unjustified scalar) and the option of promoting $\sigma$ to a third sweep axis alongside the model's main experimental axes (which would have reopened a settled scope decision).
-
-**Caveat.** ADR 0029's kernel form was written for the earlier Weibull-survival physics, phrased as weight $\propto S(\tau)^{1/\sigma}$ on a unit's survival probability. The production f-native code carries the *numeric* default ($\sigma = 0.5$, moderately fresh-biased with a uniform toggle) forward unchanged, but implements it as a direct power of freshness, $f^\sigma$, rather than an inverse power of survival — a different formula shape from the same qualitative idea, reflecting that the underlying physics itself moved from a survival-curve model to the freshness-based gamma model described on [the gamma-aging page](/store/gamma-aging).
+The numeric value, $\sigma = 0.5$, is used as a single "moderately fresh-biased" base case, plus one uniform-picking sensitivity cell. Using one fixed $\sigma$ with no sensitivity check at all would leave the result resting on an unjustified scalar; promoting $\sigma$ to a third sweep axis alongside the model's main experimental axes would reopen a settled scope decision.
 
 ## In the code
 
@@ -52,5 +49,5 @@ ADR 0079 (MOD-25) then fixed the numeric value: $\sigma = 0.5$ as a single "mode
 
 - This is a lottery re-drawn per unit, not a single multinomial shot: the "Wallenius-style" sequential re-weighting means the *effective* selection probabilities for a whole day's sales are not simply the single-draw weights above — they shift as the shelf empties.
 - Freshness is the only thing that biases picking; the model doesn't represent shelf position, facing, package appearance, price markdowns, or any other real-world cue a shopper might actually use.
-- FIFO governs lot bookkeeping (when an emptied lot's record is retired), never which unit within the currently-alive stock gets sold — conflating the two is exactly the mistake ADR 0029 calls out.
+- FIFO governs lot bookkeeping (when an emptied lot's record is retired), never which unit within the currently-alive stock gets sold — conflating the two would be a mistake.
 - $\sigma$ is a single fixed number for the whole store and every rung; the model does not fit or vary it per experiment condition beyond the one uniform-picking sensitivity cell.

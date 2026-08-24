@@ -1,13 +1,12 @@
 ---
 title: Why a particle filter
 sources:
-  adr: [0130, 0143]
   code: [crates/voi_core/src/unit_pf.rs, crates/voi_core/src/physics.rs, crates/voi_core/src/unit_ll.rs, crates/voi_core/src/session.rs]
 ---
 
 # Why a particle filter
 
-The store never gets to see the shelf directly — only sales, and sometimes waste counts or a lot ID. To turn those partial signals into a belief about what's actually on the shelf, something has to represent "what the shelf plausibly looks like right now" and update that representation as each day's numbers come in. The model's state doesn't look like the smooth, single-hump distributions that most textbook filters assume, so the choice of *which* filtering method can do that job honestly is not incidental — it follows from the shape of the state itself.
+The store never sees the shelf directly — only sales, and sometimes waste counts or a lot ID. Turning those partial signals into a belief about what's actually on the shelf requires something that represents "what the shelf plausibly looks like right now" and updates that representation as each day's numbers come in. The model's state doesn't look like the smooth, single-hump distributions most textbook filters assume, so the choice of filtering method follows from the shape of the state itself.
 
 ![A particle-filter belief over freshness bins on one real episode day: several separated bars of probability mass, not a single smooth bump, with almost no mass anywhere near the true value](/figures/freshness-marginal-non-gaussian.png)
 
@@ -15,15 +14,15 @@ This is an actual filter output (books-only observations, day 24 of an episode):
 
 ## The idea
 
-Picture the true state of a shelf as a long list of numbers, one per unit currently on it: each unit's freshness $f$, somewhere between 1 (pristine) and 0 (spoiled). That list is not a single smooth curve you could summarize with a mean and a spread. Three things make it awkward:
+Picture the true state of a shelf as a long list of numbers, one per unit currently on it: each unit's freshness $f$, somewhere between 1 (pristine) and 0 (spoiled). That list is not a single smooth curve summarized by a mean and a spread. Three things make it awkward:
 
-- **A pile-up at zero.** A unit doesn't fade gradually into "spoiled" — it crosses a threshold and is dead. The state has a literal spike of probability sitting at $f=0$, not a thin tail. Nothing shaped like a bell curve can represent a spike.
+- **A pile-up at zero.** A unit doesn't fade gradually into "spoiled" — it crosses a threshold and is dead. The state has a literal spike of probability sitting at $f=0$, not a thin tail. A bell curve can't represent a spike.
 - **Sales are a lottery without replacement.** Each day, some units get bought and removed from the shelf, and fresher units are more likely to be picked. That's drawing distinct items from a finite basket — closer to shuffling a deck than to adding noise to a number.
-- **Spoilage is a threshold, not a gentle decay.** Whether a unit dies today depends on whether its freshness happened to cross zero today, which is a genuinely discrete yes/no event for every unit on the shelf.
+- **Spoilage is a threshold, not a gentle decay.** Whether a unit dies today depends on whether its freshness happened to cross zero today, a discrete yes/no event for every unit on the shelf.
 
-A filter that assumes the state is a single smooth, symmetric bump (the working assumption behind Kalman-style filters) would have to iron out the spike at zero and the discreteness of "who got picked" to fit that shape — which means throwing away exactly the structure that matters for deciding when to reorder. And writing down the state's distribution exactly, unit by unit, gets combinatorially expensive fast: with many units spread across several lots, there are far too many ways sales and spoilage could have played out to enumerate.
+A filter that assumes the state is a single smooth, symmetric bump (the working assumption behind Kalman-style filters) would have to iron out the spike at zero and the discreteness of "who got picked" to fit that shape — throwing away exactly the structure that matters for deciding when to reorder. Writing down the state's distribution exactly, unit by unit, also gets expensive fast: with many units spread across several lots, there are far too many ways sales and spoilage could have played out to enumerate.
 
-The practical alternative is to stop trying to describe the state with a formula and instead keep a **crowd of complete, concrete guesses** — call each one a *particle*. Each particle is one fully-specified hypothetical shelf: a freshness value for every unit that could be alive right now. Every day, each particle is aged forward, has sales and spoilage applied to it in the same combinatorial way the real shelf would experience them, and is then scored against what was actually observed — particles whose story matches the observations better are kept more heavily, in proportion to how well they explain the data. With enough particles, the crowd's shape approximates the true state's shape — spike at zero, discreteness, and all — without ever having to write that shape down as a formula.
+The practical alternative is to stop trying to describe the state with a formula and instead keep a **crowd of complete, concrete guesses** — call each one a *particle*. Each particle is one fully-specified hypothetical shelf: a freshness value for every unit that could be alive right now. Every day, each particle is aged forward, has sales and spoilage applied to it the same combinatorial way the real shelf would experience them, and is then scored against what was actually observed — particles whose story matches the observations better are kept more heavily, in proportion to how well they explain the data. With enough particles, the crowd's shape approximates the true state's shape — spike at zero, discreteness, and all — without writing that shape down as a formula.
 
 ## The math
 
@@ -39,7 +38,7 @@ $$
 p(x_t \mid y_{1:t}) \;\approx\; \sum_{i=1}^{N} w_t^{(i)}\, \delta\!\left(x_t - x_t^{(i)}\right)
 $$
 
-Each day, every particle is aged forward under the same gamma-decrement process the ground truth uses, sales and spoilage are applied to it consistently with what was actually observed, and its weight $w_t^{(i)}$ is updated by how well that particle's story matches the day's observation:
+Each day, every particle is aged forward under the same gamma-decrement process the ground truth uses, sales and spoilage are applied consistently with what was actually observed, and its weight $w_t^{(i)}$ is updated by how well that particle's story matches the day's observation:
 
 $$
 w_t^{(i)} \;\propto\; w_{t-1}^{(i)} \cdot p\!\left(y_t \mid x_t^{(i)}\right)
@@ -47,17 +46,17 @@ $$
 
 Periodically the particles are **resampled** — particles with tiny weight are dropped and particles with large weight are duplicated — so the crowd keeps tracking the informative region of the state space instead of collapsing its weight onto one lucky particle. In this codebase that's `systematic_resample`, used inside `filter_step_unit` in `unit_pf.rs`.
 
-No Gaussian, no closed-form update: the point mass at $f=0$, the without-replacement sales draw, and the threshold spoilage event are all represented directly by what the particles actually do, not approximated away by an assumed shape.
+No Gaussian, no closed-form update: the point mass at $f=0$, the without-replacement sales draw, and the threshold spoilage event are all represented directly by what the particles do, not approximated away by an assumed shape.
 
 ## Why it's modelled this way
 
-ADR 0130 replaced an earlier cohort-and-age filter with a unit-level, freshness-native particle filter (`unit_pf.rs`) after bench evidence showed the unit-level physics — gamma aging per unit, freshness-weighted picking, spoilage at $f \le 0$ — could be run directly at production speed (roughly 12 ms/day for 200 particles at a modest shelf size), so there was no accuracy-for-speed trade to make: exact particle-level simulation of the real generative process was already fast enough.
+The unit-level, freshness-native particle filter (`unit_pf.rs`) runs the real generative process directly — gamma aging per unit, freshness-weighted picking, spoilage at $f \le 0$ — at production speed (roughly 12 ms/day for 200 particles at a modest shelf size). There's no accuracy-for-speed trade to make here: exact particle-level simulation of the real process is already fast enough.
 
-**Alternative considered and rejected: keep a cohort/age abstraction plus an analytic survival curve (the earlier ADR 0105/0106 approach).** That representation tracked a lot as a single count-and-age pair with a Weibull survival curve standing in for spoilage. It was rejected because it doesn't match the picking and spoilage physics unit-for-unit — a cohort abstraction can't represent that different units within the same lot are drifting apart in freshness and dying individually, which is exactly what a richer observation channel (per-lot waste or sales counts) needs to be informative about.
+**Alternative considered: a cohort/age abstraction with an analytic survival curve.** Tracking a lot as a single count-and-age pair, with a Weibull survival curve standing in for spoilage, doesn't match the picking and spoilage physics unit-for-unit — a cohort abstraction can't represent that different units within the same lot drift apart in freshness and die individually, which is exactly what a richer observation channel (per-lot waste or sales counts) needs to be informative about.
 
-**Alternative considered and rejected: grid/exact enumeration of the joint state.** Feasible in principle for a single lot, but the state space grows combinatorially with the number of live units and lots, and production shelves carry several lots of ~15 units each simultaneously — this was never adopted as the production path.
+**Alternative considered: grid/exact enumeration of the joint state.** Feasible in principle for a single lot, but the state space grows combinatorially with the number of live units and lots, and production shelves carry several lots of roughly 15 units each simultaneously.
 
-**Honest caveat:** a particle filter is an approximation, not an exact posterior — its fidelity depends on having enough particles ($N=200$ by default, `session.rs`) to cover the state space, and on resampling often enough to avoid weight collapse. It also costs more per step than a closed-form filter would, which is why the unit-level design only became viable once the bench work in ADR 0130 showed it comfortably fits the per-day compute budget.
+**Caveat:** a particle filter is an approximation, not an exact posterior. Its fidelity depends on having enough particles ($N=200$ by default, `session.rs`) to cover the state space, and on resampling often enough to avoid weight collapse. It also costs more per step than a closed-form filter would, which is why this design only makes sense because the per-day compute budget comfortably absorbs that cost.
 
 ## In the code
 

@@ -1,7 +1,6 @@
 ---
 title: "Demand: a calendar, not a coin"
 sources:
-  adr: [0113, 0115]
   code: [crates/voi_core/src/demand_profile.rs, crates/voi_core/src/physics.rs, crates/voi_core/src/params.rs, crates/voi_core/src/policy.rs]
 ---
 
@@ -37,11 +36,11 @@ where $\text{vm}$ (variance-to-mean ratio) is the demand overdispersion, live de
 
 ## Why it's modelled this way
 
-ADR 0113 (MOD-09) locked in **calendar structure known to every policy** — day-of-week × week factors replacing an earlier flat (i.i.d.) demand assumption — while explicitly keeping the "known distribution" thesis from the model's original demand decision: every ordering policy in the project, including every baseline and every oracle, sees the *same* calendar mean $\mu(\text{day})$ for a given day. None of them forecast or estimate demand from past sales. The rejected alternative was inferring demand jointly with the freshness state, which ADR 0113 turned down specifically because it would confound forecasting skill with ordering skill and undermine the thing this whole project is trying to isolate — that differences in outcome come from *freshness* information, not from one policy being better at guessing tomorrow's footfall.
+Demand structure — the day-of-week × week factors — is known to every policy: every ordering policy in the project, including every baseline and every oracle, sees the *same* calendar mean $\mu(\text{day})$ for a given day. None of them forecast or estimate demand from past sales. Inferring demand jointly with the freshness state was set aside deliberately, because it would confound forecasting skill with ordering skill and undermine the thing this whole project is trying to isolate — that differences in outcome come from *freshness* information, not from one policy being better at guessing tomorrow's footfall.
 
 That's the point worth being explicit about: because $\mu(\text{day})$ is common knowledge to every policy on every rung of the observation ladder, any profit or accuracy gap measured across the ladder is attributable to what each rung knows about *freshness*, not to demand-forecasting differences — the calendar is a fixed backdrop, not a competitive variable.
 
-ADR 0115 explains why the shape comes from a Chinese retail dataset rather than a US one: no public, granular, day-level US blueberry sales series was available to fit against, while FreshRetailNet-50K offers real day-of-week and censoring structure for a comparable premium, high-velocity perishable category, during a window (March–June) that sits in China's *peak* domestic blueberry season. The ADR is deliberately narrow about what transfers: the **shape** (day-of-week rhythm, within-window drift, stockout censoring pattern) is treated as usable; the **absolute scale**, unit prices, pack sizes, and store-delivery logistics are explicitly not — the model borrows a rhythm, not a market.
+The demand shape comes from a Chinese retail dataset rather than a US one because no public, granular, day-level US blueberry sales series was available to fit against, while FreshRetailNet-50K offers real day-of-week and censoring structure for a comparable premium, high-velocity perishable category, during a window (March–June) that sits in China's *peak* domestic blueberry season. What transfers is deliberately narrow: the **shape** (day-of-week rhythm, within-window drift, stockout censoring pattern) is treated as usable; the **absolute scale**, unit prices, pack sizes, and store-delivery logistics are not — the model borrows a rhythm, not a market.
 
 ## In the code
 
@@ -58,7 +57,7 @@ ADR 0115 explains why the shape comes from a Chinese retail dataset rather than 
 
 ## Caveats
 
-- The demand shape is fit from Chinese fresh-retail data, not blueberry-specific US sales; ADR 0115 is explicit that only the day-of-week/seasonal *shape* and censoring pattern are meant to transfer, not absolute unit counts, prices, or logistics.
+- The demand shape is fit from Chinese fresh-retail data, not blueberry-specific US sales; only the day-of-week/seasonal *shape* and censoring pattern are meant to transfer, not absolute unit counts, prices, or logistics.
 - The fitted window covers roughly March–June of one year — a single season, not a full annual cycle, so any seasonality beyond that window is out of sample.
 - Overdispersion ($\text{vm} = 2.0$) is one fixed number for the whole window and every day, not fit separately per day-of-week or per week.
 - Because every policy shares the identical calendar mean, this model cannot say anything about how a store would fare if it had to *forecast* demand rather than merely order under known-but-random demand — that comparison is out of scope by construction.

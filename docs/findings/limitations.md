@@ -1,7 +1,6 @@
 ---
 title: Limitations
 sources:
-  adr: [0045, 0104, 0144]
   code:
     - crates/voi_core/src/arrival_wire.rs
     - crates/voi_core/src/session.rs
@@ -11,12 +10,11 @@ sources:
 
 # Limitations
 
-Every other page on this site describes what the model does; this one is a single place
-to see what it deliberately doesn't, or can't yet, do — gathered from across the project
-rather than scattered as footnotes. None of these are secret defects: each one is a
-documented, considered scope decision or a known gap, and most already have a caveat on
-the page where they're most relevant. This page exists so a reader doesn't have to hunt
-across the whole site to get the full list at once.
+Every other page on this site describes what the model does; this one gathers what it
+deliberately doesn't, or can't yet, do, in one place instead of scattered as footnotes.
+None of these are hidden defects: each is a considered scope decision or a known gap, and
+most already have a caveat on the page where they're most relevant. This page exists so a
+reader doesn't have to hunt across the whole site to get the full list at once.
 
 > **Figure (coming soon):** a single annotated timeline of one delivery's journey —
 > harvest, field heat (out of scope), refrigerated leg (modeled), shelf life (modeled) —
@@ -25,28 +23,26 @@ across the whole site to get the full list at once.
 
 ## The idea
 
-Treat this as a checklist for reading any result on this site skeptically in the right
-places, not as a reason to distrust the model wholesale. Some of these are hard scope
-boundaries the project chose deliberately (refrigerated-leg-only scope); some are honest
-consequences of a small dataset (six shipments); some are known display or wiring gaps
-that haven't been closed yet (a studio bias knob that doesn't reach one chart); and one is
-a philosophical idealization common to almost every survival-analysis model in this space
-(a smooth aging process standing in for partly-discrete spoilage).
+Treat this as a checklist for reading any result on this site with the right amount of
+skepticism, not as a reason to distrust the model wholesale. Some of these are hard scope
+boundaries chosen deliberately (refrigerated-leg-only scope); some are honest consequences
+of a small dataset (six shipments); some are known display or wiring gaps not yet closed
+(a studio bias knob that doesn't reach one chart); and one is an idealization common to
+almost every survival-analysis model in this space (a smooth aging process standing in
+for partly-discrete spoilage).
 
 ## The math
 
 This page is a synthesis, not a new derivation — the quantitative claims below (the 98.4%
 duration share, the uncalibrated cost constants, the six-shipment sample size) are each
-sourced from, and derived on, the page or ADR that owns them; see the cross-links in each
-item.
+sourced from, and derived on, the page that owns them; see the cross-links in each item.
 
 ## Why it's modelled this way
 
-Not applicable as a single modeling choice — each item below is its own decision, made for
-its own reasons, on its own page or ADR. What's consistent across all of them is a
-project-wide preference stated repeatedly in ADR 0144: prefer stating a limitation
-plainly and moving on, over quietly shipping a model that looks more capable than the
-underlying evidence supports.
+Not a single modeling choice — each item below is its own decision, made for its own
+reasons, described on its own page. What's consistent across all of them is a project-wide
+preference: state a limitation plainly and move on, rather than quietly shipping a model
+that looks more capable than the underlying evidence supports.
 
 ## In the code
 
@@ -73,15 +69,15 @@ section *is* the list rather than a coda to it.
 2. **Arrival families are assumed, not fitted, on n=6 shipments.** The duration and
    temperature distributions used to generate arrival freshness are hand-authored
    parametric families set to be roughly consistent with six real shipments — not an MLE
-   fit, and explicitly documented as not one, because six data points cannot support a
+   fit, and explicitly documented as not one, because six data points can't support a
    fitting claim. Treat the shape of these distributions as a documented modeling choice,
    not a measured fact about the real cold chain. See
    [Cold-chain arrival model](/store/cold-chain-arrival) and
    [Why a pack date does so much](./why-pack-date).
 
 3. **The profit-cost scaffold is uncalibrated.** Unit margin, waste cost, and stockout
-   penalty are a shared, explicitly-flagged-as-uncalibrated scaffold (`DEFAULT_PROFIT_COSTS`,
-   ADR 0104), not fitted to any real grocer's economics. Any dollar figure on this site
+   penalty are a shared scaffold (`DEFAULT_PROFIT_COSTS`), explicitly flagged as
+   uncalibrated, not fitted to any real grocer's economics. Any dollar figure on this site
    should be read as relative/illustrative, not as a real profit forecast. This is one of
    the leading candidate reasons profit doesn't yet track belief accuracy cleanly; see
    [Does the money follow?](./does-money-follow) and
@@ -90,18 +86,18 @@ section *is* the list rather than a coda to it.
 4. **Strawberry cold-chain data stands in for blueberry transit.** The only open
    multi-shipment, multi-position, harvest-started berry pallet temperature dataset
    available (Abdella, Brecht & Uysal 2021) is a strawberry logger study, not a
-   blueberry-specific one. ADR 0045 accepts this substitution deliberately — blueberry
-   *kinetics* ($q_{10}$, reference life) still come from blueberry-specific sources; only
-   the thermal-path ensemble (duration and temperature-spread shapes) is borrowed from the
-   strawberry loggers. The ADR calls for revisiting this "if an open blueberry
-   pallet-logger dataset of comparable resolution appears."
+   blueberry-specific one. This substitution is deliberate — blueberry *kinetics* ($q_{10}$,
+   reference life) still come from blueberry-specific sources; only the thermal-path
+   ensemble (duration and temperature-spread shapes) is borrowed from the strawberry
+   loggers. It's worth revisiting if an open blueberry pallet-logger dataset of comparable
+   resolution appears.
 
 5. **The gamma-process aging law is a smooth idealization.** Freshness loss is modeled as
    a continuously-accumulating random process (shape-scaled gamma decrements). Real berry
    spoilage is partly *discrete* — a single bruise, or mould spreading fruit-to-fruit
    within a punnet — which would be better described by a compound-Poisson or
    contagion-style process. Shape-scaling is the more defensible of the two gamma
-   conventions the project considered, not a claim of biological exactness. See
+   conventions considered, not a claim of biological exactness. See
    [How fruit ages: the gamma process](/store/gamma-aging).
 
 6. **A studio temperature-bias knob doesn't reach the displayed arrival chart.**
@@ -110,10 +106,10 @@ section *is* the list rather than a coda to it.
    truth-path temperature draw before freshness is generated), but the code comment on
    `arrival_summary_wire` states plainly that the same bias is "accepted for call-site
    stability but not applied here": the arrival-freshness-prior chart shown to the user
-   does not shift when this knob is moved, even though the underlying simulated deliveries
+   doesn't shift when this knob is moved, even though the underlying simulated deliveries
    do. This is a known display gap, not a hidden one — the source comment calls out that
-   adding a bias-shifted variant of the displayed law is a real extension of the surface,
-   left as a follow-up rather than implemented as part of this remodel.
+   adding a bias-shifted variant of the displayed curve is a real extension, left as a
+   follow-up.
 
 7. **The short-haul/long-haul corridor chips are illustrative, not calibrated.** The
    studio's corridor selector offers three chips — "All six" (the default), "Long-haul",

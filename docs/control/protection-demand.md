@@ -1,7 +1,6 @@
 ---
 title: Protection demand under a calendar
 sources:
-  adr: [0058, 0060, 0112, 0114]
   code: [crates/voi_core/src/policy.rs, crates/voi_core/src/schedule.rs, src/blueberries_voi/model/demand_fractile.py, src/blueberries_voi/sim/order_schedule.py]
 ---
 
@@ -13,7 +12,7 @@ The ordering rule (see [The ordering rule](/control/ordering-rule)) needs a targ
 
 ## The idea
 
-"Protection window" is the number of days a single order has to hold the shelf, on its own, before the next order can restock it. Under a delivery-every-day world this would always be one or two days. But real delivery calendars aren't daily — deliveries (and the orders that trigger them) land on specific weekdays — so the protection window's length depends on *which* weekday the order is placed. An order placed the day before a long gap between deliveries has to cover more days of demand than one placed right before a short gap.
+"Protection window" is the number of days a single order has to hold the shelf, on its own, before the next order can restock it. Under a delivery-every-day world this would always be one or two days. But this project's delivery calendar isn't daily — deliveries (and the orders that trigger them) land on specific weekdays — so the protection window's length depends on which weekday the order is placed. An order placed the day before a long gap between deliveries has to cover more days of demand than one placed right before a short gap.
 
 Once the protection window's length is fixed, the next question is: how much demand should the order defend against? Not the *average* demand over that window — that would leave the store short about half the time. Instead, the target is a high **quantile** of total demand: the $\alpha$-quantile (default $\alpha = 0.9$), chosen so demand exceeding the order is a relatively rare event, not a coin flip. When the average daily demand is the same on every day in the window, this quantile of the *sum* has a clean closed-form answer. When the calendar makes some days busier than others within the same window, there's no clean formula for the sum of those mismatched days, so the quantile is estimated by simulation instead.
 
@@ -29,11 +28,11 @@ $$
 
 read off directly from the negative binomial's inverse CDF.
 
-**Calendar-varying case (Monte Carlo).** When the calendar profile makes the daily means $\mu_{t}, \mu_{t+1}, \dots, \mu_{t+n-1}$ differ from each other, the sum of *non-identical* negative binomials has no simple closed form for its quantile. The model falls back to simulation: draw many independent samples of each day's demand from its own negative binomial, sum them per draw, and read off the $\alpha$-quantile as an order statistic across draws — **20,000** draws by default. The random draws are **deterministically seeded** from the order day, protection-window length, and $\alpha$ itself, so the same planning inputs always reproduce the same quantile, run to run.
+**Calendar-varying case (Monte Carlo).** When the calendar profile makes the daily means $\mu_{t}, \mu_{t+1}, \dots, \mu_{t+n-1}$ differ from each other, the sum of non-identical negative binomials has no simple closed form for its quantile. The model falls back to simulation: draw many independent samples of each day's demand from its own negative binomial, sum them per draw, and read off the $\alpha$-quantile as an order statistic across draws — **20,000** draws by default. The random draws are deterministically seeded from the order day, protection-window length, and $\alpha$ itself, so the same planning inputs always reproduce the same quantile, run to run.
 
 ## Why it's modelled this way
 
-The protection window's length comes directly from the delivery calendar (ADR 0112/0114, `CAL-01`): under the project's default **Monday/Wednesday/Friday** delivery calendar with a one-day lead time, orders can be placed on **Tuesday, Thursday, and Sunday** (the days that, one lead-time day later, line up with a delivery day). The number of protection days is not the same for every order day — it's the number of days until the *following* order's delivery arrives:
+The protection window's length comes directly from the delivery calendar: under the project's default **Monday/Wednesday/Friday** delivery calendar with a one-day lead time, orders can be placed on **Tuesday, Thursday, and Sunday** (the days that, one lead-time day later, line up with a delivery day). The number of protection days is not the same for every order day — it's the number of days until the *following* order's delivery arrives:
 
 | Order day | Protection window | Covers through |
 | --- | --- | --- |
@@ -41,7 +40,7 @@ The protection window's length comes directly from the delivery calendar (ADR 01
 | Thursday | 4 days | the delivery from Sunday's order, arriving Monday |
 | Sunday | 3 days | the delivery from Tuesday's order, arriving Wednesday |
 
-The choice of $\alpha$ itself — the quantile level, not the window length — is covered on [Why not the textbook fractile](/control/why-not-textbook-fractile) and traces to ADR 0058/0060; this page is only about computing $F^{-1}_D(\alpha)$ once $\alpha$ and the window are fixed.
+The choice of $\alpha$ itself — the quantile level, not the window length — is covered on [Why not the textbook fractile](/control/why-not-textbook-fractile); this page is only about computing $F^{-1}_D(\alpha)$ once $\alpha$ and the window are fixed.
 
 The Monte Carlo fallback for the heterogeneous-mean case is a pragmatic choice rather than a derived one: rather than deriving (or approximating analytically) the quantile of a sum of non-identical negative binomials, the model draws enough independent per-day samples that the empirical quantile is stable, and fixes the seed so the same order day, window length, and $\alpha$ always reproduce the same answer — important for reproducible comparisons across policy arms and repeated runs.
 

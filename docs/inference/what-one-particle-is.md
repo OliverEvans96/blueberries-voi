@@ -1,7 +1,6 @@
 ---
 title: What one particle is
 sources:
-  adr: [0130, 0136, 0143]
   code: [crates/voi_core/src/unit_pf.rs]
 ---
 
@@ -43,13 +42,13 @@ Because the offsets $o_0, \dots, o_L$ and lot ids do not carry a particle index 
 
 ## Why it's modelled this way
 
-Sharing the lot segmentation across particles (rather than letting each particle infer its own boundaries) is a deliberate simplification: delivery quantity is treated as directly observed truck-manifest data, not as something worth spending particle diversity on. ADR 0130 introduced the unit-level freshness grid this bank replaced an earlier cohort/age representation with; ADR 0143 is the current authority on how units within a lot age and spoil (each live unit draws its own daily decrement, rather than a single shared decrement for the whole lot), and it explicitly keeps the observed lot-segmentation structure from that earlier design.
+Sharing the lot segmentation across particles, rather than letting each particle infer its own boundaries, is a deliberate simplification: delivery quantity is treated as directly observed truck-manifest data, not as something worth spending particle diversity on. Units within a lot age and spoil individually — each live unit draws its own daily decrement, rather than a single shared decrement for the whole lot — while the observed segmentation itself stays shared.
 
-**Alternative considered and rejected: let each particle guess its own lot boundaries** (i.e. re-derive them from row length, or free-running per-particle segmentation). An earlier version of the filter did something like this, and it caused a serious accuracy regression: because the guessed boundaries and the true delivery boundaries drifted apart over an episode, the lot-resolved observation channel ended up scoring the wrong slots against the wrong evidence, degrading it toward an uninformative bootstrap filter. Tying every particle to one observed segmentation, built directly from the arrival stream, closed that gap.
+**Alternative considered: let each particle guess its own lot boundaries** (re-derive them from row length, or free-running per-particle segmentation). Guessed boundaries drift apart from the true delivery boundaries over an episode, so the lot-resolved observation channel would end up scoring the wrong slots against the wrong evidence, degrading it toward an uninformative bootstrap filter. Tying every particle to one observed segmentation, built directly from the arrival stream, avoids that.
 
-**Alternative considered and rejected: start particles pre-filled with plausible inventory.** ADR 0136 replaced this with zero-init — every particle bank and the physical shelf both start empty, and inventory only enters through observed arrivals — because pre-filling produced persistent "phantom" belief mass that didn't correspond to anything the store had actually received.
+**Alternative considered: start particles pre-filled with plausible inventory.** Every particle bank and the physical shelf both start empty instead, with inventory entering only through observed arrivals — pre-filling would produce persistent "phantom" belief mass that doesn't correspond to anything the store actually received.
 
-**Honest caveat:** because arrival quantity is shared and only freshness is stochastic per particle, the filter is structurally unable to represent uncertainty about *how many* units arrived — if that number is ever wrong on the wire (a miscount, a data error), no particle in the bank can express doubt about it. That's a deliberate trade: it buys a much simpler and faster filter in exchange for treating delivery counts as ground truth.
+**Caveat:** because arrival quantity is shared and only freshness is stochastic per particle, the filter is structurally unable to represent uncertainty about *how many* units arrived — if that number is ever wrong on the wire (a miscount, a data error), no particle in the bank can express doubt about it. That's a deliberate trade: a much simpler and faster filter, in exchange for treating delivery counts as ground truth.
 
 ## In the code
 
@@ -60,7 +59,7 @@ Sharing the lot segmentation across particles (rather than letting each particle
 | Per-particle freshness vector $f^{(i)}$ | `freshness: Vec<Vec<f64>>` | `crates/voi_core/src/unit_pf.rs:53` |
 | Shared lot segment boundaries $o_0,\dots,o_L$ | `lot_offsets: Vec<usize>` | `crates/voi_core/src/unit_pf.rs:55` |
 | Shared lot identities | `lot_ids: Vec<i64>` | `crates/voi_core/src/unit_pf.rs:57` |
-| Zero-init constructor (empty bank, ADR 0136) | `UnitParticleBank::empty` | `crates/voi_core/src/unit_pf.rs:62` |
+| Zero-init constructor (empty bank) | `UnitParticleBank::empty` | `crates/voi_core/src/unit_pf.rs:62` |
 | Number of lots currently tracked | `UnitParticleBank::n_lots` | `crates/voi_core/src/unit_pf.rs:87` |
 | Appending one delivery as a new shared segment | `push_lot_births` | `crates/voi_core/src/unit_pf.rs:109` |
 

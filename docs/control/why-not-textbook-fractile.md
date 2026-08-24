@@ -1,7 +1,6 @@
 ---
 title: Why not the textbook fractile
 sources:
-  adr: [0060]
   code: [crates/voi_core/src/policy.rs, src/blueberries_voi/model/demand_fractile.py, src/blueberries_voi/controller/rung0.py, src/blueberries_voi/sim/alpha_tune.py]
 ---
 
@@ -13,9 +12,9 @@ The [previous page](/control/newsvendor) derived a clean formula for the best or
 
 ## The idea
 
-The textbook fractile $\frac{c_u}{c_u+c_o}$ is the right answer to a specific question: "if every leftover unit is destroyed at the end of the period, what's the best order quantity?" But that's not the situation on the shelf here. A punnet of blueberries that doesn't sell today usually isn't thrown out today — it's still there tomorrow, a bit less fresh, available to be sold or to spoil on some later day. Inventory *carries over*, and it carries over as fruit that keeps aging rather than as fruit that resets.
+The textbook fractile $\frac{c_u}{c_u+c_o}$ answers a specific question: "if every leftover unit is destroyed at the end of the period, what's the best order quantity?" That's not the situation on the shelf here. A punnet of blueberries that doesn't sell today isn't thrown out — it's still there tomorrow, a bit less fresh, available to sell or spoil on some later day. Inventory carries over and keeps aging rather than resetting.
 
-That breaks the assumption the textbook formula depends on. The real cost of an "extra" unit ordered today isn't simply "this unit is wasted" — it's some mix of a small holding cost and a chance that the unit spoils *later*, and that chance depends on how the whole multi-day ordering policy behaves from here on: how aggressively future days re-order, how the fruit already on the shelf gets picked versus left behind, and so on. There's no way to write that down as a clean, fixed number the way $c_o$ is fixed in the one-shot problem — it's entangled with the policy itself. Rather than trying to derive a corrected formula for it, this project sidesteps the derivation: it runs the full closed-loop system under a range of candidate $\alpha$ values and simply keeps whichever one comes out most profitable in simulation.
+That breaks the assumption the textbook formula depends on. The real cost of an "extra" unit ordered today is some mix of a small holding cost and a chance the unit spoils later, and that chance depends on how the whole multi-day ordering policy behaves from here on — how aggressively future days re-order, how fruit already on the shelf gets picked versus left behind. There's no way to write that down as a clean, fixed number the way $c_o$ is fixed in the one-shot problem; it's entangled with the policy itself. Rather than deriving a corrected formula, this project sidesteps the derivation: it runs the full closed-loop system under a range of candidate $\alpha$ values and keeps whichever one comes out most profitable in simulation.
 
 ## The math
 
@@ -27,7 +26,7 @@ $$
 
 where $D_{t:t+L}$ is demand over the protection interval (the days a new order must cover before the next order can arrive), $F^{-1}_{D_{t:t+L}}(\alpha)$ is the $\alpha$-quantile of that demand — structurally the same inverse-CDF quantity as $q^*$ on the newsvendor page — $\tilde I_t$ is effective inventory already on hand (see [Effective inventory](/control/effective-inventory)), $(\,\cdot\,)^+$ is $\max(\cdot, 0)$, and $\text{caseRound}$ rounds to the nearest case pack.
 
-The difference from the textbook page is entirely in how $\alpha$ is chosen. There, $\alpha = \frac{c_u}{c_u+c_o}$, computed once from two fixed costs. Here, $\alpha$ is picked by grid search: for a set of candidate values $\{0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95\}$, the full closed-loop system — controller, filter, arrivals, demand, everything — is simulated end to end for each candidate, and the $\alpha$ that yields the highest simulated episode profit is kept:
+The difference from the textbook page is entirely in how $\alpha$ is chosen. There, $\alpha = \frac{c_u}{c_u+c_o}$, computed once from two fixed costs. Here, $\alpha$ is picked by grid search: for a set of candidate values $\{0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95\}$, the full closed-loop system — controller, filter, arrivals, demand — is simulated end to end for each candidate, and the $\alpha$ that yields the highest simulated episode profit is kept:
 
 $$
 \alpha^\star = \arg\max_{\alpha \,\in\, \text{grid}} \ \mathbb{E}\big[\text{episode profit} \mid \alpha\big]
@@ -37,14 +36,11 @@ where the expectation is estimated by running scored simulation days under share
 
 ## Why it's modelled this way
 
-ADR 0060 (`CTL-03`) frames the problem directly: a leftover unit here is usually sold tomorrow, so the true overage cost is closer to $h + c_w \cdot P(\text{outdates before selling})$ — a holding cost $h$ plus a waste cost $c_w$ weighted by the *policy-dependent* probability that the unit eventually spoils before it sells — and that probability isn't something the closed-form newsvendor derivation can produce, because it depends on the ordering policy's own future behavior. Two alternatives were on the table:
+A leftover unit here is usually sold tomorrow, so the true overage cost is closer to $h + c_w \cdot P(\text{outdates before selling})$ — a holding cost $h$ plus a waste cost $c_w$ weighted by the policy-dependent probability that the unit eventually spoils before it sells. That probability isn't something the closed-form newsvendor derivation can produce, because it depends on the ordering policy's own future behavior. Reporting the theoretical fractile as-is would be the wrong answer to this problem, since it assumes leftovers are destroyed, which isn't true here; showing it side by side with a tuned value as a reference comparison was considered but not adopted.
 
-- **Theoretical fractile ($c_u/(c_u+c_o)$ as-is)** — rejected as simply the wrong answer to this problem: it assumes leftovers are destroyed, which isn't true here.
-- **Report both, side by side** (the recommendation on the decision card, not what was chosen) — would have shown the theoretical fractile next to the tuned one as a small comparison figure, gap as a function of the demand's variance-to-mean ratio.
+Tuning $\alpha$ by simulation recovers, empirically, a correction that the perishable-inventory literature derives analytically: service levels for perishable goods should sit above the naive newsvendor fractile (Nahmias 1976; Nandakumar & Morton 1993). Doing it by simulation avoids re-deriving that correction from scratch for this project's specific dynamics. Every policy arm compared in this project's evaluations uses its own tuned $\alpha$, because an untuned baseline is an easy way to manufacture a misleadingly bad comparison — leaving one arm's $\alpha$ un-tuned would quietly cripple it next to the others.
 
-The decision taken instead — **tuned by simulation**, chosen against the card's own recommendation — is justified in the ADR as recovering a known correction (the Nahmias 1976 / Nandakumar & Morton 1993 result that perishable-inventory service levels should sit above the naive newsvendor fractile) empirically, without having to re-derive it. The ADR also ties this to fairness across the project's comparison ladder: every policy arm compared in this project's evaluations is required to use its own tuned $\alpha$, specifically because an *untuned* baseline is flagged in the ADR's own notes as "the easiest way to manufacture an impressive and worthless number" — i.e., a strawman comparison would quietly cripple one arm just by leaving its $\alpha$ un-tuned.
-
-**Honest caveat, from the ADR itself:** this is a deliberate, called-out override of the recommended approach (marked ⚑ in the ADR), and it comes with real cost — the tuned $\alpha$ is an empirical fit within a candidate grid, not a formula anyone can point to and say *this is why 0.9 is correct*. The ADR explicitly does not expect this to be revisited except if the grid search itself becomes a compute bottleneck; it is a tuning standard, not a modeling claim.
+**Honest caveat.** The tuned $\alpha$ is an empirical fit within a candidate grid, not a formula anyone can point to and say *this is why 0.9 is correct*. It is a tuning standard, not a modeling claim, and is expected to be revisited mainly if the grid search itself becomes a compute bottleneck.
 
 ## In the code
 
@@ -60,6 +56,6 @@ The decision taken instead — **tuned by simulation**, chosen against the card'
 
 ## Caveats
 
-- $\alpha$ is tuned *per policy arm*, not once globally: the checked-in table shows different arms landing on different values (e.g., 0.95 for the survival-weighted and Rung-0 arms versus 0.5 for the constant-order baseline), so "the tuned $\alpha$" is not a single universal number — the 0.9 seen as a default in several code paths is a fallback, not necessarily any given arm's tuned optimum.
-- The grid search only evaluates the specific candidate values in the grid (0.5 to 0.95 in the desktop grid; a smaller grid in CI) — it is not a continuous optimization, so the reported $\alpha^\star$ is the best of a finite set, not a guaranteed global optimum.
-- The profit costs used elsewhere in this project's simulations (`unit_margin`, `waste_cost`, `stockout_penalty`) are explicitly documented as an uncalibrated scaffold, not fitted blueberry-store economics — so even the theoretical fractile this page argues against would, today, be computed from made-up costs rather than real ones. That's a separate problem from the one this page addresses, but it means "tuned by simulated profit" is itself only as trustworthy as the profit model driving the simulation.
+- $\alpha$ is tuned *per policy arm*, not once globally: the checked-in table shows different arms landing on different values (e.g., 0.95 for the survival-weighted and Rung-0 arms versus 0.5 for the constant-order baseline), so "the tuned $\alpha$" is not a single universal number. The 0.9 seen as a default in several code paths is a fallback, not necessarily any given arm's tuned optimum.
+- The grid search only evaluates the specific candidate values in the grid (0.5 to 0.95 in the desktop grid; a smaller grid in CI). It is not a continuous optimization, so the reported $\alpha^\star$ is the best of a finite set, not a guaranteed global optimum.
+- The profit costs used elsewhere in this project's simulations (`unit_margin`, `waste_cost`, `stockout_penalty`) are an uncalibrated scaffold, not fitted blueberry-store economics — so even the theoretical fractile this page argues against would, today, be computed from made-up costs rather than real ones. That's a separate problem from the one this page addresses, but it means "tuned by simulated profit" is only as trustworthy as the profit model driving the simulation.

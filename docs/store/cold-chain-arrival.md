@@ -1,7 +1,6 @@
 ---
 title: Cold-Chain Arrival Model
 sources:
-  adr: [0144]
   code:
     - crates/voi_core/src/arrival.rs
     - crates/voi_core/src/physics.rs
@@ -104,9 +103,9 @@ Note that $k \cdot \theta \cdot \eta_{\text{ref}} = 2.0 \times \tfrac{1}{28} \ti
 
 ## Why it's modelled this way
 
-**Shape-scaling, not scale-scaling.** The daily in-store aging law and the arrival law both scale the gamma distribution's *shape* parameter by exposure ($\mathrm{Gamma}(k\Lambda, \theta)$), rather than its *scale*. This is a deliberate choice: Arrhenius kinetics describe a rate constant, meaning heat produces *more* degradation events of the same size, not the same number of *bigger* events. Shape-scaling is also what makes $\Lambda$ a genuine sufficient statistic for the whole trip — two journeys with equal $\Lambda$ but different temperature paths have the same freshness distribution under shape-scaling, but would differ under scale-scaling, which would mean a temperature log couldn't be summarized by one number at all. It also makes transit (one continuous exposure) and shelf life (a daily loop) the same process observed at different granularities. The honest caveat, stated directly in the ADR: the gamma process is itself an idealization — real spoilage is partly discrete (a bruise, mould spreading to a neighboring berry), which a compound-Poisson or contagion model would capture better than a continuous gamma subordinator. Shape-scaling is the more defensible of the two gamma conventions available, not a claim of physical exactness.
+**Shape-scaling, not scale-scaling.** The daily in-store aging law and the arrival law both scale the gamma distribution's *shape* parameter by exposure ($\mathrm{Gamma}(k\Lambda, \theta)$), rather than its *scale*. Arrhenius kinetics describe a rate constant, meaning heat produces *more* degradation events of the same size, not the same number of *bigger* events. Shape-scaling is also what makes $\Lambda$ a genuine sufficient statistic for the whole trip — two journeys with equal $\Lambda$ but different temperature paths have the same freshness distribution under shape-scaling, but would differ under scale-scaling, which would mean a temperature log couldn't be summarized by one number at all. It also makes transit (one continuous exposure) and shelf life (a daily loop) the same process observed at different granularities. The honest caveat: the gamma process is itself an idealization — real spoilage is partly discrete (a bruise, mould spreading to a neighboring berry), which a compound-Poisson or contagion model would capture better than a continuous gamma subordinator. Shape-scaling is the more defensible of the two gamma conventions available, not a claim of physical exactness.
 
-**"Assumed families, not a fit."** With only six real refrigerated shipments in hand, the parameters in `arrival_model.json` were **hand-authored** — round, interpretable numbers chosen to roughly bracket the six observed (duration, `phi_bar`) points — not fit by maximum likelihood. An MLE fit on six points would produce numbers that *look* validated by data when they aren't; the calibration note is explicit that "the data does not validate these families" and the calibration script performs no fitting step, only an overlay plot. The six shipments actually observed (`data/abdella/calibration_note.md`):
+**Assumed families, not a fit.** With only six real refrigerated shipments in hand, the parameters in `arrival_model.json` were **hand-authored** — round, interpretable numbers chosen to roughly bracket the six observed (duration, `phi_bar`) points — not fit by maximum likelihood. An MLE fit on six points would produce numbers that *look* validated by data when they aren't; the calibration note is explicit that "the data does not validate these families" and the calibration script performs no fitting step, only an overlay plot. The six shipments actually observed (`data/abdella/calibration_note.md`):
 
 | shipment | duration $d$ (days) | $\bar\varphi$ |
 | --- | --- | --- |
@@ -119,7 +118,7 @@ Note that $k \cdot \theta \cdot \eta_{\text{ref}} = 2.0 \times \tfrac{1}{28} \ti
 
 One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$ calibration as suspect — S4's recorded position-probe temperature factor implied a sustained temperature well above anything the lot-mean trace supported, so it was flagged and left out rather than silently averaged in.
 
-**Alternatives rejected:** scale-scaling everywhere (misreads Q10 as event severity rather than event frequency, and breaks $\Lambda$-sufficiency); separate gamma rates for transit vs. shelf (reintroduces exactly the two-conventions inconsistency the remodel removed); fitting the six shipments by MLE (over-reads six data points as validation); keeping the previous, lower reference life that made most corridors deliver fruit that was mostly dead on arrival, leaving no rung anything to learn.
+**Alternatives considered:** scale-scaling everywhere misreads Q10 as event severity rather than event frequency, and breaks $\Lambda$-sufficiency. Separate gamma rates for transit vs. shelf would let the two conventions drift apart from each other over time. Fitting the six shipments by MLE would over-read six data points as validation. And a lower reference life would leave most corridors delivering fruit that's mostly dead on arrival, leaving no rung anything to learn.
 
 ## In the code
 
@@ -139,7 +138,7 @@ One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$
 
 ## Caveats
 
-**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment of the whole chain — is excluded entirely. Real arrival freshness is therefore lower, likely meaningfully lower, than what this model reports. Extending the model to cover field heat would need its own segment, its own data treatment, and a harvest-date observation rung; it's a deliberate, documented scope choice for now, not an oversight.
+**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment of the whole chain — is excluded entirely. Real arrival freshness is therefore lower, likely meaningfully lower, than what this model reports. Extending the model to cover field heat would need its own segment, its own data treatment, and a harvest-date observation rung; it's a deliberate scope choice for now, not an oversight.
 
 **No observation channel ever reveals a unit's actual freshness.** Even the richest available observation — the full temperature-history trace — pins down the shared exposure $\Lambda$ for the delivery exactly. It never reveals $\psi$ (the per-unit position multiplier) or the per-unit gamma draw $D$. That is a hard floor on how sharp any belief about one specific unit's freshness can ever get, no matter how much is observed about the trip — and it's exactly why units within a single lot genuinely differ in freshness even under perfect trip knowledge.
 

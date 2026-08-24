@@ -1,7 +1,6 @@
 ---
 title: No channel observes freshness
 sources:
-  adr: [0144]
   code:
     [
       crates/voi_core/src/arrival.rs,
@@ -17,17 +16,15 @@ Even the richest rung on the [ladder](./rungs.md) — a full temperature-history
 off a logger that rode with the pallet — never hands the filter a freshness number. It
 hands a *duration* or a *heat integral*. Freshness itself, `f`, depends on things no
 sensor in this model reads: exactly where a unit sat inside the pallet, and how that
-particular unit's own spoilage happened to run. This page is the reason `FilterObs` (the
-struct every observation channel ultimately fills in) has no freshness-valued field at
-all — there is nothing in the wire format for it to fill.
+particular unit's own spoilage happened to run. This is why `FilterObs` (the struct
+every observation channel ultimately fills in) has no freshness-valued field at all —
+there is nothing in the wire format for it to fill.
 
-> **Figure (coming soon):** the three-tier conditioning diagram from ADR 0144 §5 —
-> corridor → duration `d` → temperature factor `φ̄` → cumulative exposure `Λ`, with the
-> three rungs (P0/P1, F2/F2a, F3) marked at the level each one conditions on, and the
-> remaining hidden variables (`ψ`, the per-unit gamma draw) shown as always-unresolved
-> beneath every rung. (An older `marginal_snapshot_p0_vs_f2.png` exists in the repo's
-> figure archive but labels its F2 panel "age at receipt," the terminology this project
-> retired — it is not used here.)
+> **Figure (coming soon):** a three-tier conditioning diagram — corridor → duration `d`
+> → temperature factor `φ̄` → cumulative exposure `Λ`, with the three rungs (P0/P1,
+> F2/F2a, F3) marked at the level each one conditions on, and the remaining hidden
+> variables (`ψ`, the per-unit gamma draw) shown as always-unresolved beneath every
+> rung.
 
 ## The idea
 
@@ -59,8 +56,8 @@ neighbors for reasons no sensor tracks.
 
 ## The math
 
-The arrival model (ADR 0144 §3) generates a unit's freshness through a short chain of
-unobserved and partly-observed quantities:
+The arrival model generates a unit's freshness through a short chain of unobserved and
+partly-observed quantities:
 
 - $d$ — the **calendar transit duration** in days: time from pack to arrival.
 - $\bar T$ — the shipment's mean transit temperature, and $\bar\phi$ (`phi_bar`) — the
@@ -96,40 +93,28 @@ remaining pieces are integrated out:
 | P0 / P1 (no delivery history) | nothing about the delivery | the corridor configuration only | $d$, $\bar T$, $\psi$, the per-unit gamma draw |
 
 Whatever is "integrated over" in that table is exactly the source of the residual spread
-described in the intuition above — it is not approximation error, it is the honest
-consequence of a variable no rung ever measures.
+described above — it is not approximation error, it is the honest consequence of a
+variable no rung ever measures.
 
 ## Why it's modelled this way
 
-ADR 0144 §5 states the invariant this page documents directly: "A date reveals a
-*calendar duration*. Freshness is derived by combining that duration with the modeled
-temperature distribution, which yields a **distribution** over `f`. That distribution,
-not a scalar, is what seeds the lot." The ADR calls this "the invariant the remodel
-exists to enforce" — earlier code let a delivery observation collapse straight to a
-single freshness number (a *point mass*), which silently threw away real uncertainty and
-produced a "flat-ladder bug": every rung would end up producing statistically
-indistinguishable beliefs, because the one place where richer information should have
-sharpened the belief was instead discarded at the conversion step.
+A date reveals a *calendar duration*. Freshness is derived by combining that duration
+with the modeled temperature distribution, which yields a **distribution** over `f`.
+That distribution, not a scalar, is what seeds the lot. Letting a delivery observation
+collapse straight to a single freshness number (a point mass) would silently discard
+real uncertainty: every rung would then end up producing very similar beliefs, because
+the one place where richer information should sharpen the belief would instead be
+discarded at the conversion step. Keeping the full distribution is what lets richer
+channels actually produce a measurably sharper belief.
 
-**Alternative rejected — a direct age/freshness-valued observation field.** An earlier
-rung design (ADR 0017, the original SCN-F2 "age at receipt") observed a measured age
-directly and converted it to a freshness scalar via `age_to_f`. ADR 0144 §7 deletes this
-from the production path outright: `ObsMask::age_at_receipt`, `RichDay::age_at_receipt`,
-`FilterObs::age_at_receipt`, and the two f-scalar helpers `f_at_receipt_from_age` and
-`birth_f_f2_dirac` are gone from the live Rust path specifically because
-`birth_f_f2_dirac` is "a literal point mass on freshness," which §5 forbids. (The
-`age_to_f`/`f_to_age` mapping still exists, but only for the retired, non-production
-Weibull research path — it is not used by any current rung.)
-
-**Honest caveat, from the ADR's own self-correction.** The conditioning table above was
-itself wrong in an earlier draft of ADR 0144: it had F3 conditioning on $\bar T$ alone
-and integrating over $d$ "if unobserved," even though the temperature trace F3 actually
-receives carries timestamps and therefore reveals $d$ exactly. That understated how much
-F3 should know, and the ADR's own "Correction 1" section documents the fix explicitly
-rather than quietly editing the number away. The lesson generalizes: getting this
-conditioning structure right is easy to get subtly wrong, and this project has already
-done so once in a way that would have understated one of its headline results (the
-F2→F3 information gain) had it shipped.
+**Alternative rejected — a direct age- or freshness-valued observation field.** A design
+that observes a measured age directly and converts it to a freshness scalar (via an
+`age_to_f` mapping) was considered and set aside: that conversion is a point mass on
+freshness, which conflicts with the invariant above. The corresponding fields
+(`ObsMask::age_at_receipt`, `RichDay::age_at_receipt`, `FilterObs::age_at_receipt`) and
+helpers (`f_at_receipt_from_age`, `birth_f_f2_dirac`) are not part of the live Rust
+path. The `age_to_f`/`f_to_age` mapping still exists, but only for a separate,
+non-production research path — it is not used by any current rung.
 
 ## In the code
 
@@ -149,16 +134,15 @@ F2→F3 information gain) had it shipped.
 ## Caveats
 
 - $\psi$ (within-pallet position) and the per-unit gamma draw are **never** observed by
-  any rung, including F3. That is a deliberate floor on how sharp belief can ever get —
-  ADR 0144 calls it "the belief-sharpness floor and the reason units within one lot
-  arrive with genuinely different freshness" — not a gap this project intends to close
-  with a richer channel.
+  any rung, including F3. That is a deliberate floor on how sharp belief can ever
+  get — and part of the reason units within one lot arrive with genuinely different
+  freshness — not a gap this project intends to close with a richer channel.
 - The whole arrival chain models the **refrigerated leg only**. The harvest-to-precool
   field-heat window before refrigeration starts is out of scope, so the freshness this
   model reports at arrival is an upper bound — real arrival freshness is likely somewhat
   lower than what any rung, including F3, would infer.
 - The conditional laws ($P(f>x\mid\Lambda)$, the $d$-marginal for F2/F2a) are built from
   **assumed parametric families calibrated by hand against six shipments**, not fit by
-  maximum likelihood — ADR 0144 §3 is explicit that six shipments cannot support a fit
-  claim. Treat the shape of these distributions as a documented modeling choice, not a
-  measured fact about the actual cold chain.
+  maximum likelihood — six shipments is not enough data to support a fitted claim. Treat
+  the shape of these distributions as a documented modeling choice, not a measured fact
+  about the actual cold chain.

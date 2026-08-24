@@ -1,7 +1,6 @@
 ---
 title: UPC vs GSIN
 sources:
-  adr: [0143, 0135, 0137]
   code: [crates/voi_core/src/unit_pf.rs, crates/voi_core/src/unit_ll.rs]
 ---
 
@@ -9,7 +8,7 @@ sources:
 
 A store can scan inventory two ways: a pooled UPC code that only says "one blueberry
 clamshell," or a per-lot GSIN code that also says *which delivery* that clamshell came
-from. This page explains what that difference actually buys the filter — it is not two
+from. This page explains what that difference buys the filter — it is not two
 different models bolted together, it is the same [one-day update](/inference/one-filter-day)
 run at two different resolutions of the same evidence.
 
@@ -73,28 +72,26 @@ $-\infty$ weight and collapsing the filter.
 
 ## Why it's modelled this way
 
-Matching by lot identity (rather than position) is what makes "refinement, not a
+Matching by lot identity, rather than position, is what makes "refinement, not a
 different model" true in practice, not just in principle: a particle's third segment and
 truth's third segment only refer to the same delivery if both parties agree on what that
 delivery *is*, and delivery identity is exactly what GSIN's serialized code provides that
-UPC's pooled code doesn't (ADR 0137). Falling back to aggregate scoring on an unmatched
-lot id, rather than killing every particle, was a deliberate choice to keep GSIN's worst
-case no worse than UPC's — a single misaligned observation shouldn't be able to zero out
-the entire bank when the same information would have scored fine as a pooled total.
+UPC's pooled code doesn't. Falling back to aggregate scoring on an unmatched lot id,
+rather than killing every particle, keeps GSIN's worst case no worse than UPC's — a
+single misaligned observation shouldn't be able to zero out the entire bank when the
+same information would have scored fine as a pooled total.
 
-The alternative that was tried and rejected here (see [One filter day](/inference/one-filter-day#why-it-s-modelled-this-way))
-was scoring GSIN's per-lot terms with single-sample Monte Carlo draws instead of the
-closed-form Poisson-binomial and multinomial terms above. That made GSIN's *estimated*
-variance compound with lot count, so on paper GSIN looked *less* informative than UPC
-even though it strictly observed more — an artifact of the estimator, not a property of
-the evidence. ADR 0135 (status: **proposed**) is what closes that gap by making the
-scoring itself exact and deterministic, which is what makes the refinement argument
-above hold in the implementation, not just as a statistical statement about the true
-likelihood.
+GSIN's per-lot terms are scored with closed-form Poisson-binomial and multinomial terms
+rather than single-sample Monte Carlo draws. Scoring with single samples would make
+GSIN's *estimated* variance compound with lot count, so on paper GSIN could look *less*
+informative than UPC even though it strictly observes more — an artifact of the
+estimator, not a property of the evidence. Making the scoring itself exact and
+deterministic is what makes the refinement argument above hold in the implementation,
+not just as a statistical statement about the true likelihood.
 
 **Caveat:** "GSIN is never less informative than UPC" is a statement about the
-*likelihood terms*, holding the state fixed — it is a non-regression guard on comparable
-metrics (checked empirically in this codebase's diagnostics), not a proof that GSIN's
+*likelihood terms*, holding the state fixed — it is a non-regression guard checked
+against comparable metrics in this codebase's diagnostics, not a proof that GSIN's
 *posterior* strictly dominates UPC's on every metric in every run. Finite particle counts,
 resampling variance, and the lot-identity fallback above all mean the guarantee is about
 what the evidence *could* tell the filter, not a hard bound on what any single run
