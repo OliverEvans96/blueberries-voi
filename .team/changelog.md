@@ -4,6 +4,7 @@ Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-24
 - **When the docs site is published from main CI, personal-website is automatically notified to redeploy so `/docs/blueberries/` stays current; immutable studio releases now trigger a separate dispatch so personal-website can bump its pinned semver, and the cross-repo PAT is managed through encrypted secrets plus Terraform instead of pasting into GitHub** (T-159).
+- **The embeddable studio now mounts correctly in any host container — you no longer need a hidden `#app` element in your page, and the studio logs a clear error if it cannot find where to attach** (T-160).
 
 ## 2026-08-23
 - **Simulation tuning (demand, arrival, physics, logistics, autopilot) now lives in a right-side drawer opened from the gear icon beside the loading indicator — the main cockpit shows only outcomes, belief, and the observation sidebar, giving charts more room** (T-158).

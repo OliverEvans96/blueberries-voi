@@ -61,9 +61,11 @@ import { Studio } from "@oliverevans96/blueberries-voi-studio";
 import "@oliverevans96/blueberries-voi-studio/styles.css";
 ```
 
-`Studio` is the full app shell (`StudioProvider` + layout). For custom mount
-roots, use `StudioProvider` with `containerRef` and render `StudioLayout` inside
-a host element you control.
+`Studio` is the full app shell (`StudioProvider` + layout). The exported
+`<Studio />` component is **self-contained**: it creates its own mount root via
+an internal `containerRef` and does **not** require a `#app` element in the host
+document. For custom mount roots or split layouts, use `StudioProvider` with
+`containerRef` and render `StudioLayout` inside a host element you control.
 
 ## Astro island (React 19, lazy)
 
@@ -137,3 +139,23 @@ smoke without a registry publish.
 
 Hosts must provide **React 19** and **React DOM 19** (`peerDependencies`). The
 library bundles D3 and the WASM worker graph.
+
+## Vite dev: `optimizeDeps.exclude`
+
+When developing against a linked or `file:` tarball install, Vite's dependency
+pre-bundling can hoist the studio package into `node_modules/.vite/deps` and
+break the WASM worker graph or duplicate React peers. Exclude the package from
+`optimizeDeps` in your host `vite.config.ts`:
+
+```ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  optimizeDeps: {
+    exclude: ["@oliverevans96/blueberries-voi-studio"],
+  },
+});
+```
+
+Restart the dev server after changing this setting. Production builds are
+unaffected — this applies only to Vite's dev pre-bundle step.

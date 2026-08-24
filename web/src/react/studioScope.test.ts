@@ -9,6 +9,7 @@ import { SECTION_STORAGE_KEY } from "../sections";
 import { SHOW_TRUTH_STORAGE_KEY } from "../showTruth";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const APP_TS = join(HERE, "../App.tsx");
 const STUDIO_LOGIC_TS = join(HERE, "studioLogic.ts");
 const STUDIO_PROVIDER_TS = join(HERE, "StudioProvider.tsx");
 const STUDIO_LAYOUT_TS = join(HERE, "StudioLayout.tsx");
@@ -22,6 +23,7 @@ function stripComments(src: string): string {
 }
 
 describe("T-142 studio mount scoping", () => {
+  const appSrc = stripComments(readFileSync(APP_TS, "utf8"));
   const logicSrc = stripComments(readFileSync(STUDIO_LOGIC_TS, "utf8"));
   const providerSrc = stripComments(readFileSync(STUDIO_PROVIDER_TS, "utf8"));
   const layoutSrc = stripComments(readFileSync(STUDIO_LAYOUT_TS, "utf8"));
@@ -45,6 +47,11 @@ describe("T-142 studio mount scoping", () => {
   it("StudioProvider accepts optional containerRef for embed mounts", () => {
     expect(providerSrc).toMatch(/containerRef\?: RefObject/);
     expect(providerSrc).toMatch(/containerRef\?\.current \?\? document\.getElementById\("app"\)/);
+  });
+
+  it("App.tsx passes containerRef to StudioProvider (T-160)", () => {
+    expect(appSrc).toMatch(/useRef<HTMLDivElement>/);
+    expect(appSrc).toMatch(/<StudioProvider containerRef=\{containerRef\}>/);
   });
 
   it("TuningDrawer portals into scoped host under .bv-studio", () => {
