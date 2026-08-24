@@ -28,6 +28,14 @@ def _step_index(block: str, step_name: str) -> int:
     return match.start()
 
 
+def _web_job_block(text: str) -> str:
+    match = re.search(r"^  web:\n", text, flags=re.MULTILINE)
+    assert match is not None, "web job missing from packaging/github-workflows/ci.yml"
+    deploy_match = re.search(r"^  deploy:\n", text[match.start() :], flags=re.MULTILINE)
+    assert deploy_match is not None
+    return text[match.start() : match.start() + deploy_match.start()]
+
+
 def test_deploy_job_dispatches_personal_website_after_docs_dist() -> None:
     """AC-dispatch-step + AC-step-order + AC-main-only: dispatch after uploads."""
     text = _CI_WORKFLOW.read_text(encoding="utf-8")
@@ -54,3 +62,39 @@ def test_deploy_job_dispatches_personal_website_after_docs_dist() -> None:
     assert "continue-on-error" not in dispatch_block, (
         "dispatch step must not use continue-on-error"
     )
+
+
+_DEPLOY_FORBIDDEN = (
+    "npm run build",
+    "npm run docs:build",
+    "npm ci",
+    "build-wasm.sh",
+)
+
+
+def test_deploy_job_does_not_rebuild_artifacts() -> None:
+    """Deploy must download pre-built dist artifacts, not compile them."""
+    deploy = _deploy_job_block(_CI_WORKFLOW.read_text(encoding="utf-8"))
+    for forbidden in _DEPLOY_FORBIDDEN:
+        assert forbidden not in deploy, (
+            f"deploy job must not run {forbidden!r}; reuse upstream artifacts"
+        )
+    assert "name: studio-dist" in deploy
+    assert "name: docs-dist" in deploy
+    assert "actions/download-artifact@v4" in deploy
+
+
+def test_web_job_uploads_studio_dist_on_main() -> None:
+    """Production studio build and studio-dist upload live in web on main pushes."""
+    web = _web_job_block(_CI_WORKFLOW.read_text(encoding="utf-8"))
+    main_gate = (
+        "if: github.event_name == 'push' && "
+        "(github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')"
+    )
+    assert main_gate in web
+    assert _STUDIO_UPLOAD in web
+    assert "name: studio-dist" in web
+    assert "npm run build" in web
+    assert "needs: build" in web
+    assert "name: ci-rust-wasm-build" in web
+    assert "build-wasm.sh" not in web

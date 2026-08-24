@@ -4,7 +4,7 @@
 # this file to `.github/workflows/ci.yml` before CI picks up changes.
 #
 # `build` compiles Rust (native + PyO3 wheel) and WASM; uploads artifacts for
-# `rust` (cargo test) and `deploy` / release-studio. `python` and `web` run in
+# `rust` (cargo test), `web`, and release-studio. `python` and `docs` run in
 # parallel without waiting on `build`.
 name: CI
 
@@ -218,6 +218,7 @@ jobs:
 
   web:
     name: web
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -225,17 +226,10 @@ jobs:
         with:
           lfs: true
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo registry
-        uses: swatinem/rust-cache@v2
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          shared-key: voi-kernel
-          cache-targets: "false"
-
-      - name: Build WASM kernel
-        run: ./scripts/build-wasm.sh
+          name: ci-rust-wasm-build
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -260,44 +254,36 @@ jobs:
         working-directory: web
         run: npm pack
 
+      - name: Production studio build
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        working-directory: web
+        run: npm run build
+
+      - name: Upload studio dist artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-dist
+          path: web/dist/
+          if-no-files-found: error
+
   deploy:
     name: deploy
     needs: [build, rust, python, web, docs]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Download build artifacts
+      - name: Download studio dist artifact
         uses: actions/download-artifact@v4
         with:
-          name: ci-rust-wasm-build
+          name: studio-dist
+          path: web/dist
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Download docs dist artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web dependencies
-        working-directory: web
-        run: npm ci
-
-      - name: Production studio build
-        working-directory: web
-        run: npm run build
-
-      - name: Install docs dependencies
-        working-directory: docs
-        run: npm ci
-
-      - name: Build docs site
-        working-directory: docs
-        run: npm run docs:build
+          name: docs-dist
+          path: docs/.vitepress/dist
 
       - name: Upload studio dist artifact
         uses: actions/upload-artifact@v4

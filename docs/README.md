@@ -20,4 +20,5 @@ npm run docs:build  # output in .vitepress/dist/
 npm run docs:preview
 ```
 
-CI uploads `docs/.vitepress/dist/` as the `docs-dist` artifact on green `main` pushes.
+CI builds the docs site in the `docs` job and uploads `docs-dist`; the `deploy`
+job re-publishes it on green `main` pushes.
