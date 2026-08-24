@@ -1,7 +1,7 @@
 ---
 title: Effective inventory
 sources:
-  adr: [130]
+  adr: [0130]
   code: [crates/voi_core/src/policy.rs, src/blueberries_voi/filter/belief.py, web/src/charts/inventoryTarget.ts]
 ---
 

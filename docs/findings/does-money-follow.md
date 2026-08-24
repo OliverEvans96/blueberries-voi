@@ -1,7 +1,7 @@
 ---
 title: Does the money follow?
 sources:
-  adr: [104, 130, 144]
+  adr: [0104, 0130, 0144]
   code:
     - crates/voi_core/src/policy.rs
     - crates/voi_core/src/session.rs

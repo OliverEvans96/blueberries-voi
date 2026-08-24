@@ -1,7 +1,7 @@
 ---
 title: The ordering rule
 sources:
-  adr: [58]
+  adr: [0058]
   code: [crates/voi_core/src/policy.rs, crates/voi_core/src/voi.rs, crates/voi_core/src/rollout.rs, crates/voi_core/src/params.rs, src/blueberries_voi/controller/f_sw.py, src/blueberries_voi/sim/bakeoff_ordering.py, src/blueberries_voi/sim/alpha_tune.py]
 ---
 
