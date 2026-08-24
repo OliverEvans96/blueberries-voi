@@ -30,16 +30,29 @@ After both dist uploads, `deploy` dispatches `blueberries-docs-published` to
 `OliverEvans96/personal-website` so the site redeploys and serves the latest
 `/docs/blueberries/` bundle.
 
-### Personal-website docs redeploy (human setup)
+### Personal-website dispatch (human setup)
+
+Cross-repo automation uses **`PERSONAL_WEBSITE_DISPATCH_PAT`** — provisioned via
+SOPS + Terraform (see [`secrets/`](../secrets/) and [`terraform/`](../terraform/)),
+not the GitHub UI.
 
 1. Create a fine-grained PAT (or classic token) with **Contents: read** on
    `OliverEvans96/personal-website` and permission to trigger `repository_dispatch`.
-2. Add the token as repo secret **`PERSONAL_WEBSITE_DISPATCH_PAT`** on
-   `OliverEvans96/blueberries-voi`.
-3. In `personal-website`, ensure a workflow listens for
-   `repository_dispatch` with `types: [blueberries-docs-published]` and redeploys.
+2. Store the token in `secrets/secrets.enc.yaml` and run `terraform apply` with
+   `enable_github_actions = true` to sync **`PERSONAL_WEBSITE_DISPATCH_PAT`** on
+   this repo.
+3. In `personal-website`, ensure workflows listen for:
+   - `repository_dispatch` type **`blueberries-docs-published`** (docs redeploy)
+   - `repository_dispatch` type **`blueberries-studio-published`** (studio semver bump PR)
 4. After editing packaging YAML here, sync live workflows:
    `./scripts/sync-github-workflows.sh`
+
+**Dispatch triggers:**
+
+| Event | Workflow | When |
+|-------|----------|------|
+| `blueberries-docs-published` | `ci.yml` `deploy` job | After `studio-dist` + `docs-dist` upload on green main |
+| `blueberries-studio-published` | `release-studio.yml` | After immutable `studio-v*` release (includes `client_payload.version`) |
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 

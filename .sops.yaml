@@ -1,0 +1,7 @@
+# SOPS encrypts secrets/secrets.enc.yaml using your OpenPGP key.
+# Replace the fingerprint below with yours (40 hex chars, no spaces):
+#   gpg --list-secret-keys --with-fingerprint
+creation_rules:
+  - path_regex: ^secrets/.*\.enc\.(yaml|yml|json)$
+    pgp: >-
+      8E6247AF5498E6BBFE46EAD119224FF795965F06
