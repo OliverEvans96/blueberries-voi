@@ -124,6 +124,20 @@ No manual `git tag` is needed for normal releases.
 
 Pin URLs and Astro embedding patterns: [`EMBEDDING.md`](EMBEDDING.md).
 
+## Documentation
+
+User-facing model docs live in [`docs/`](docs/) (VitePress). Published at
+[oliverevans.dev/docs/blueberries/](https://oliverevans.dev/docs/blueberries/).
+
+```bash
+cd docs
+npm ci
+npm run docs:dev    # http://127.0.0.1:5174
+```
+
+CI builds the static site and uploads a `docs-dist` artifact on green `main`
+pushes. Content QA and docs guard tests are ongoing (`pytest -m docs`).
+
 ## Quality gates
 
 Verify / CI is **Python 3.11** only, with coverage + xdist and **no** testmon

@@ -61,6 +61,7 @@ pub use unit_pf::{
 pub use voi::{run_voi_crn_cell, truth_f_belief, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};
 pub use wor::{sequential_wor_composition_prob, sequential_wor_composition_probs};
 
+/// Crate name string, used by the PyO3 and WASM hosts to identify this kernel build.
 pub fn crate_name() -> &'static str {
     "voi_core"
 }

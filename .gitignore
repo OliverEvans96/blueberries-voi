@@ -66,3 +66,10 @@ web/test-results/
 web/playwright-report/
 web/tests/__screenshots__/
 web/examples/embed/node_modules/
+
+# VitePress docs site
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/public/api/rust/
+/public/

@@ -154,8 +154,10 @@ uv run jupyter lab
 src/blueberries_voi/   # installable package + CLI
 tests/                 # mirrors package modules (test_<module>.py)
 notebooks/             # exploration; import the package
-scripts/               # helpers (e.g. refresh-testmon.sh)
+scripts/               # helpers (e.g. refresh-testmon.sh, rustdoc tooling)
+crates/                # voi_core (Rust kernel), voi_py (PyO3), voi_wasm (browser)
 web/                   # browser studio + publishable embed (dist-lib)
+docs/                  # VitePress user docs + rustdoc bundle (see below)
 .team/                 # intake, specs, ADRs, reviews, qa, changelog
 ```
 
@@ -188,6 +190,54 @@ that tag is absent. Do not skip the version bump because only `studio-latest` mo
 — downstream consumers pin immutable `studio-v*` tags. See `EMBEDDING.md` and
 `README.md` (Studio embed releases).
 
+## Keep the docs current
+
+This repo has two documentation surfaces beyond code comments, and both are
+**part of the change**, not a follow-up ticket, whenever you touch the code
+they describe:
+
+1. **Rustdoc (`///`/`//!` comments in `crates/voi_core`, `crates/voi_py`,
+   `crates/voi_wasm`).** Every `pub` item (function, method, struct, enum,
+   field, const, type alias) and every "key" private function (real logic,
+   not a trivial one-liner) carries a doc comment. Style is **semi-narrative
+   and brief**: state what the item is/does, then — only when it's not
+   obvious from the code — a short *why* (1-4 sentences), in the voice
+   already used throughout these crates. No fenced code examples/doctests.
+   When you add, rename, or meaningfully change a `pub` item, add or update
+   its doc comment in the same change; don't leave a new item undocumented
+   for a "docs pass" later.
+2. **VitePress user docs (`docs/**/*.md`).** These pages carry the
+   intuition → math → *why it's modelled this way* narrative for the store
+   physics, inference, control, and economics model, each with an "In the
+   code" table citing `crates/...`/`src/...` paths and symbols, and a
+   `sources: adr: [...]` frontmatter list. When a code change alters
+   behavior a page describes (a formula, a default, a modeling choice, a
+   file:line citation), moves an ADR from PROPOSED/ACCEPTED to SUPERSEDED,
+   or renames/removes a cited symbol, update the corresponding page(s) in
+   the same change. Retired terminology (see
+   `tests/test_docs_terminology.py`'s banned-substring list) must not leak
+   back into docs prose.
+
+**After editing `docs/**/*.md` or a doc-commented `voi_core` symbol**, run:
+
+```bash
+uv run --python 3.11 pytest -m docs           # terminology / code-ref / ADR-status /
+                                               # rustdoc-link / rustdoc-stub guards
+uv run --python 3.11 python scripts/rustdoc_inventory.py --check   # cross-link manifest fresh?
+cd docs && npm run docs:build                 # full site + rustdoc bundle, zero dead links
+```
+
+If a doc page's "In the code" table gained or changed a `` `crates/voi_core/src/{module}.rs:LINE` (`symbol`) `` citation, regenerate and re-sync the cross-link manifest before committing:
+
+```bash
+uv run --python 3.11 python scripts/rustdoc_inventory.py --write
+uv run --python 3.11 python scripts/sync_rustdoc_links.py
+```
+
+**Workflow edits:** as with `release-studio.yml`, change
+`packaging/github-workflows/ci.yml` only for the `docs` CI job; never edit
+live `.github/workflows/` directly.
+
 ## agent-dev-team state
 
 Roles are done when their files exist under `.team/`, not when an agent claims
@@ -207,6 +257,9 @@ done. Definition of done: acceptance criteria pass · `.team/reviews/` APPROVED 
   testmon WAL/SHM sidecars.
 - Don't change publishable studio paths without bumping `web/package.json`
   `version` in the same PR.
+- Don't add or rename a `pub` item in `crates/voi_core`/`voi_py`/`voi_wasm`
+  without a doc comment, or change model behavior a `docs/**/*.md` page
+  describes without updating that page (see "Keep the docs current").
 
 ## CI
 
@@ -217,6 +270,11 @@ Live GitHub Actions (`quality` job) runs on **Python 3.11** (repo pin):
 
 **Verifier contract:** `.team/qa/T-XXX.md` may say PASS only when those gates
 were run with CI-identical argv on **Python 3.11**.
+
+The `docs` job (`packaging/github-workflows/ci.yml`) builds the VitePress
+site + rustdoc bundle and runs the `docs`-marked pytest guards (see "Keep
+the docs current") as a hard gate — a red `docs` job usually means a page
+cites something (a symbol, a file:line, an ADR) that moved.
 
 Workflow edits are a human / privileged step (agents must not write
 `.github/workflows/`). Prefer updating `packaging/github-workflows/` then asking
@@ -231,4 +289,6 @@ not a different local default. Prefer library code over notebook-only logic. Nev
 "fix" failures by weakening configuration. Use the role gate ladder — do not
 run full coverage on every qa/implement loop. Use `--testmon` for implement
 speed; refresh the LFS seed without `--cov`; never let testmon shrink the
-verify/CI gate. Bump `web/package.json` when publishable studio paths change.**
+verify/CI gate. Bump `web/package.json` when publishable studio paths change.
+Keep rustdoc comments and `docs/**/*.md` in sync with the code they describe,
+in the same change, not a follow-up.**

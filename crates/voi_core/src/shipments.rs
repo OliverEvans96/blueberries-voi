@@ -4,13 +4,18 @@ use rand::Rng;
 
 use crate::physics::{age_to_f, q10_age_increment};
 
+/// A shipment's recorded temperature history: elapsed-time / temperature sample pairs fed
+/// into Q10 thermal-exposure integration for the arrival model.
 #[derive(Clone, Debug)]
 pub struct ShipmentTrace {
+    /// Elapsed time since shipment start, in days, index-paired with `temps_c`.
     pub times_d: Vec<f64>,
+    /// Temperature in °C at each sample time.
     pub temps_c: Vec<f64>,
 }
 
 impl ShipmentTrace {
+    /// A two-day trace at a constant 1 °C -- a cool, uneventful transit used as a smoke-test fixture.
     pub fn smoke_cool() -> Self {
         Self {
             times_d: vec![0.0, 1.0, 2.0],
@@ -46,6 +51,7 @@ pub fn arrival_age_from_path(temps_c: &[f64], times_d: &[f64], q10: f64, t_ref_c
     arrival_exposure_from_path(temps_c, times_d, q10, t_ref_c)
 }
 
+/// Cumulative thermal exposure for a shipment's full recorded trace.
 pub fn shipment_arrival_age(ship: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 {
     arrival_exposure_from_path(&ship.temps_c, &ship.times_d, q10, t_ref_c)
 }

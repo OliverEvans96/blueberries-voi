@@ -28,17 +28,24 @@ const STREAM_BIRTH: &str = ":birth";
 /// Ladder arms available for automated alpha tuning (`dp` remains a placeholder).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlphaTuneArm {
+    /// Fixed order quantity every eligible day, ignoring belief state entirely.
     Constant,
+    /// Rung-0 age-blind order from oracle lot counts only (no freshness belief).
     Rung0,
+    /// Damped survival-weighted order using the full f-belief histogram.
     Sw,
+    /// `Sw` base order refined by a short lookahead rollout over candidate quantities.
     Rollout,
 }
 
 /// Rollout compute budgets for the rollout ladder arm (CTL-02/04).
 #[derive(Clone, Debug)]
 pub struct AlphaTuneRolloutBudgets {
+    /// Lookahead horizon in days for the rollout evaluation.
     pub h: u32,
+    /// Number of simulated continuation paths averaged per candidate order quantity.
     pub n_rollout_paths: u32,
+    /// How many cases above and below the `Sw` base order to try as rollout candidates.
     pub candidate_case_radius: i32,
 }
 
@@ -52,10 +59,14 @@ impl Default for AlphaTuneRolloutBudgets {
     }
 }
 
+/// Per-unit economics used to score a tuning episode's profit.
 #[derive(Clone, Debug)]
 pub struct AlphaTuneCosts {
+    /// Profit earned per unit sold.
     pub unit_margin: f64,
+    /// Cost charged per unit that spoils unsold.
     pub waste_cost: f64,
+    /// Cost charged per unit of unmet demand (lost sale).
     pub stockout_penalty: f64,
 }
 
@@ -69,13 +80,20 @@ impl Default for AlphaTuneCosts {
     }
 }
 
+/// Outcome of one closed-loop tuning episode, scored only over its post-burn-in window.
 #[derive(Clone, Debug)]
 pub struct AlphaTuneEpisodeResult {
+    /// Days simulated before scoring starts, so the policy and belief state can settle.
     pub n_burn: u32,
+    /// Days over which profit, waste, and lost sales are actually accumulated.
     pub n_score: u32,
+    /// Total simulated days, `n_burn + n_score`.
     pub n_days: u32,
+    /// Summed profit over the scored window only.
     pub scored_profit: f64,
+    /// Summed spoiled units over the scored window only.
     pub scored_waste: u32,
+    /// Summed unmet demand over the scored window only.
     pub scored_lost_sales: u32,
 }
 
@@ -87,6 +105,10 @@ fn pop_arrival(pending: &mut BTreeMap<u32, u32>, day: u32) -> u32 {
     pending.remove(&day).unwrap_or(0)
 }
 
+/// First day in the initial week the schedule permits an order, defaulting to day 0 if
+/// none of the first seven days qualify. Used once, before the simulation loop starts, to
+/// compute a static protection-demand target for arms (`Constant`, `Rung0`) that don't
+/// recompute their target from the calendar every day.
 fn seed_order_day(schedule: &OrderSchedule) -> u32 {
     for day in 0..7 {
         if schedule.can_order(day) {
@@ -96,12 +118,18 @@ fn seed_order_day(schedule: &OrderSchedule) -> u32 {
     0
 }
 
+/// Demand quantile over the protection window anchored at the seed order day, used as the
+/// fixed target for the `Constant` and `Rung0` arms across the whole episode.
 fn protection_target_at_seed(alpha: f64, params: &ModelParams, schedule: &OrderSchedule) -> f64 {
     let seed_day = seed_order_day(schedule);
     let prot = schedule.protection_days(seed_day);
     protection_demand_quantile(alpha, params, prot, seed_day)
 }
 
+/// Dispatches one day's order decision to whichever policy `arm` selects, sharing the same
+/// belief snapshot and pending-arrival state across all arms so their orders are directly
+/// comparable. `Rollout` layers a short lookahead search (via [`RolloutContext`]) on top of
+/// the `Sw` base order, falling back to that base order if the rollout search fails.
 fn order_for_arm(
     arm: AlphaTuneArm,
     alpha: f64,
@@ -347,6 +375,7 @@ pub fn run_alpha_tune_episode(
     })
 }
 
+/// Parses a CLI/config arm identifier into an [`AlphaTuneArm`].
 pub fn parse_alpha_tune_arm(arm_id: &str) -> Result<AlphaTuneArm, String> {
     match arm_id {
         "constant" => Ok(AlphaTuneArm::Constant),

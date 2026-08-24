@@ -84,6 +84,9 @@ pub fn pb_loglik_pooled(freshness: &[f64], waste_tot: u32, table: &GammaDecremen
     pb_log_pmf(&probs, waste_tot as usize)
 }
 
+/// Forward Poisson-binomial DP: `alpha[j]` is the probability that exactly `j` of the
+/// trials in `probs` succeed, for `j` in `0..=w`. Same recursion as [`pb_log_pmf`], but
+/// returns the whole distribution over partial counts instead of a single log-probability.
 fn pb_alpha(probs: &[f64], w: usize) -> Vec<f64> {
     let n = probs.len();
     let mut alpha = vec![0.0; w + 1];
@@ -355,6 +358,10 @@ pub fn loglik_sales_by_units(
     multinomial_log_pmf(&sales_by, &lot_share)
 }
 
+/// Aligns a per-lot value slice to exactly `l` slots, oldest-first: drops the leading
+/// (oldest) entries when `values` is longer than `l`, or left-pads with zeros when it is
+/// shorter, so it lines up with a belief wire's `l` lot slots regardless of how many lots
+/// the shelf has actually seen.
 pub(crate) fn align_lot_map(values: &[u32], l: usize) -> Vec<u32> {
     if values.len() == l {
         return values.to_vec();

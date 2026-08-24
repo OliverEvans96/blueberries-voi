@@ -1,5 +1,16 @@
 //! Mix-radix sequential without-replacement composition PMF (Python sequential_wor).
 
+/// Exact PMF over ways `sales_tot` units can be drawn without replacement across `l`
+/// cohorts of sizes `counts`, when each draw picks a still-available cohort with
+/// probability proportional to `weights`.
+///
+/// Walks the sale-by-sale forward diffusion (mix-radix indexing over per-cohort counts
+/// drawn so far) rather than enumerating compositions combinatorially, so it stays
+/// tractable for the small cohort counts this is used for. Returns every composition with
+/// nonzero mass as a `(counts_sold_per_cohort, probability)` pair; the probabilities sum to
+/// 1 over the returned rows. Returns a single all-zero row with probability 1 when
+/// `sales_tot == 0` (including the degenerate `l == 0` case), and an empty vec when
+/// `sales_tot` is negative or exceeds the total available units.
 pub fn sequential_wor_composition_probs(
     counts: &[u32],
     sales_tot: i32,
@@ -87,6 +98,8 @@ pub fn sequential_wor_composition_probs(
     out
 }
 
+/// Probability of one specific per-cohort `sales` composition, looked up from the full
+/// [`sequential_wor_composition_probs`] table (0 if that composition has no mass).
 pub fn sequential_wor_composition_prob(counts: &[u32], sales: &[u32], weights: &[f64]) -> f64 {
     let demand: i32 = sales.iter().map(|&s| s as i32).sum();
     let table = sequential_wor_composition_probs(counts, demand, weights);

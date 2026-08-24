@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Shared blueberry VOI physics, filter, and episode kernels (no Python/JS types)"
 
+[package.metadata.docs.rs]
+html_root_url = "https://oliverevans.dev/docs/blueberries/api/rust/"
+
 [lib]
 crate-type = ["rlib"]
 

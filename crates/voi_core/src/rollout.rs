@@ -30,6 +30,9 @@ pub struct RolloutCosts {
 }
 
 impl Default for RolloutCosts {
+    /// The same uncalibrated scaffold margin/waste/stockout costs as the top-level profit
+    /// accounting (`DEFAULT_PROFIT_COSTS`), used here as the objective the rollout
+    /// controller's own forward search optimizes against.
     fn default() -> Self {
         Self {
             unit_margin: 2.0,
@@ -42,21 +45,38 @@ impl Default for RolloutCosts {
 /// Shared rollout forward-sim context (CRN addressing + continuation policy).
 #[derive(Clone, Debug)]
 pub struct RolloutContext {
+    /// Root CRN seed shared with the outer simulation, so every candidate order and every
+    /// path index draws from its own reproducible, independently addressable RNG stream.
     pub root_seed: u64,
+    /// CRN run-id string; combined with the path index to derive per-path RNG streams
+    /// distinct from the outer simulation's own.
     pub run_id: String,
+    /// Simulation day the rollout starts from.
     pub day0: u32,
+    /// Order-to-delivery lead time in days, used to schedule enqueued orders.
     pub lead_time: u32,
+    /// Which weekdays place orders vs. receive deliveries.
     pub schedule: OrderSchedule,
+    /// Service-level quantile `alpha` passed through to the continuation ordering policy.
     pub alpha: f64,
+    /// Damping factor `rho` passed through to the continuation ordering policy.
     pub rho: f64,
     pub costs: RolloutCosts,
+    /// Thermal exposure traces used to draw arrival freshness for simulated deliveries.
     pub shipments: Vec<ShipmentTrace>,
+    /// Assumed freshness of in-transit (pipeline) inventory that hasn't arrived yet.
     pub f_pipeline_default: f64,
+    /// Rollout horizon in days: how far forward each candidate order is simulated.
     pub h: u32,
+    /// Number of CRN-paired sample paths averaged per candidate order.
     pub n_paths: u32,
+    /// Search radius, in cases, around the base policy's suggestion for candidate orders.
     pub radius: i32,
 }
 
+/// Candidate order quantities near `base_q`: whole cases at `base_q +/- radius` cases,
+/// clamped at zero, sorted, and deduplicated. Always returns at least one candidate (`[0]`
+/// if the neighbourhood is empty), so callers never have to special-case an empty list.
 pub fn candidate_orders(base_q: u32, case_size: u32, radius: i32) -> Vec<u32> {
     let cs = case_size.max(1);
     let base_cases = (base_q / cs) as i32;
@@ -94,7 +114,7 @@ pub fn terminal_salvage_unit_state(
     margin * weighted
 }
 
-/// Terminal salvage V_T = m * E[f]-weighted on-hand at horizon (ADR 0061 / 0130 f-native).
+/// Terminal salvage V_T = m * E\[f\]-weighted on-hand at horizon (ADR 0061 / 0130 f-native).
 pub fn terminal_salvage_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
@@ -104,6 +124,7 @@ pub fn terminal_salvage_f_belief(
     margin * effective_inventory_f_belief(lot_counts, f_marginals, f_grid, 0, 0.0)
 }
 
+/// Single day's profit: margin on sales, minus waste and lost-sale (stockout) costs.
 pub fn day_profit(
     sales: u32,
     waste: u32,
@@ -116,6 +137,9 @@ pub fn day_profit(
     margin * f64::from(sales) - waste_cost * f64::from(waste) - stockout * f64::from(lost)
 }
 
+/// Draws one unit's freshness from lot `ell`'s marginal histogram over `f_grid`, via
+/// inverse-CDF sampling on the (unnormalized) bin weights. Falls back to the last grid bin
+/// if the marginal is all-zero or floating-point error leaves `u` past the accumulated sum.
 fn sample_f_from_lot_marginal(
     f_marginals: &[f64],
     ell: usize,
@@ -143,6 +167,13 @@ fn sample_f_from_lot_marginal(
     f_grid[k.saturating_sub(1)].clamp(1e-12, 1.0)
 }
 
+/// Materializes a per-unit freshness state (and matching `lot_offsets`) from lot-level
+/// belief marginals, so a rollout path can be forward-simulated with the same unit-level
+/// machinery as the real day-step. Each lot gets `units_per_lot` slots regardless of its
+/// actual count: alive units are sampled from the marginal via `sample_f_from_lot_marginal`,
+/// and any remaining slots are padded with freshness `0.0` (already-spoiled/absent) so lot
+/// widths stay uniform. Sampling uses the dedicated `:birth` stream, keyed by day, so it is
+/// CRN-paired across candidate order quantities and paths.
 fn unit_state_from_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
@@ -239,6 +270,11 @@ pub fn rollout_order(
     Ok(best_q)
 }
 
+/// Draws the oracle (ground-truth) per-unit arrival freshness for a simulated delivery,
+/// or `None` if nothing arrives that day. The rollout simulates against the true arrival
+/// law rather than the filter's belief, using the same per-stream RNG addressing
+/// (`:arrival_duration` / `:arrival_temp` / `:arrival_pos` / `:arrival_gamma`) as the outer
+/// simulation so draws are CRN-paired across candidates and paths.
 fn truth_delivery_units(
     arrival_model: &ArrivalModel,
     arrival: u32,
@@ -268,6 +304,19 @@ fn truth_delivery_units(
     )
 }
 
+/// Simulates one rollout sample path forward from `first_order` through `ctx.h` days and
+/// returns its total profit (day-by-day sales/waste margin plus terminal salvage of
+/// whatever inventory remains at the horizon).
+///
+/// Day 0 is forced to place `first_order` -- the candidate under evaluation -- while every
+/// later day within the horizon falls back to the base damped-survival-weighted policy
+/// (`damped_sw_order_f_belief`) so the candidate is scored against a realistic continuation,
+/// not a static one. That continuation policy is fed a *truth* belief (`truth_f_belief`,
+/// an oracle-resolution histogram over the simulated unit state) rather than a filtered
+/// belief, since the rollout has no separate observation model of its own to filter through.
+/// All draws (demand, spoilage, allocation, arrivals, births) key off `path_run`, which
+/// embeds the path index, so each candidate order is evaluated against the same physical
+/// randomness per path -- the CRN pairing that makes comparing candidates meaningful.
 fn path_value_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],

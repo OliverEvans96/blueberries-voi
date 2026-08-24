@@ -6,10 +6,18 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use crate::spawn_rng::negative_binomial_gamma_poisson;
 
+/// Fixed seed component mixed into every derived Monte Carlo seed, so runs are
+/// reproducible unless the caller supplies an explicit `mc_seed`.
 const PROTECTION_MC_BASE_SEED: u32 = 0xC41B_4B4D;
+/// Default sample count for the Monte Carlo protection-quantile estimate.
 const PROTECTION_MC_DEFAULT_N: u32 = 20_000;
+/// Tolerance below which per-day demand means are treated as flat, so the closed-form
+/// quantile is used instead of falling back to Monte Carlo.
 const FLAT_MU_ATOL: f64 = 1e-9;
 
+/// Derives a deterministic 32-bit seed for the protection-window Monte Carlo quantile
+/// from the query parameters that identify it, so repeated calls with the same inputs
+/// reproduce the same samples. An explicit `mc_seed` overrides the derivation entirely.
 pub fn derive_protection_mc_seed(
     start_day: u32,
     protection_days: u32,
@@ -27,6 +35,10 @@ pub fn derive_protection_mc_seed(
     mixed & 0xFFFF_FFFF
 }
 
+/// Closed-form negative-binomial quantile of total demand over `protection_days`, valid
+/// only when every day in the window shares the same mean `mu`. The per-day NB dispersion
+/// is reparameterized to `(r, p)` and summed across days by scaling `r`, since a sum of
+/// i.i.d. negative binomials with a common `p` is itself negative binomial.
 fn homogeneous_closed_form(
     alpha: f64,
     mu: f64,
@@ -39,6 +51,12 @@ fn homogeneous_closed_form(
     nbinom_ppf(alpha, r_sum, p)
 }
 
+/// Monte Carlo quantile of total demand over `protection_days` when the calendar profile
+/// gives each day a different mean, so the sum no longer has a closed-form negative-binomial
+/// distribution. Draws `n_mc` independent realizations of the summed demand (one negative
+/// binomial per day, accumulated per sample) and reads off the empirical `alpha` quantile.
+/// The seed is derived deterministically from the query parameters so results are
+/// reproducible across calls.
 fn heterogeneous_nb_sum_quantile_mc(
     alpha: f64,
     mus: &[f64],
@@ -70,6 +88,8 @@ fn heterogeneous_nb_sum_quantile_mc(
     samples[idx]
 }
 
+/// Rounds `x` to the nearest multiple of `case_size` (ties round up). Panics if
+/// `case_size` is zero or `x` is negative, since neither is a valid order quantity.
 pub fn case_round(x: f64, case_size: u32) -> u32 {
     if case_size == 0 {
         panic!("case_size must be positive");
@@ -81,6 +101,8 @@ pub fn case_round(x: f64, case_size: u32) -> u32 {
     (n + 0.5).floor() as u32 * case_size
 }
 
+/// Rounds `qty` up to the next multiple of `case_size` (always up, never down), unlike
+/// [`case_round`]'s nearest-with-ties-up rule. Returns 0 if either input is 0.
 pub fn case_round_ceil(qty: u32, case_size: u32) -> u32 {
     if qty == 0 || case_size == 0 {
         return 0;
@@ -89,6 +111,11 @@ pub fn case_round_ceil(qty: u32, case_size: u32) -> u32 {
     cases * case_size
 }
 
+/// Percent-point function (inverse CDF) of the negative binomial distribution with
+/// dispersion `r` and success probability `p`, returning the smallest `k` whose CDF
+/// reaches `alpha`. Walks the CDF upward term-by-term via the standard PMF recurrence
+/// rather than inverting a closed form, capped at `k = 10_000` and bailing out early if
+/// the running CDF stops being finite.
 pub fn nbinom_ppf(alpha: f64, r: f64, p: f64) -> f64 {
     if !(0.0..=1.0).contains(&p) || r <= 0.0 {
         return 0.0;
@@ -108,6 +135,11 @@ pub fn nbinom_ppf(alpha: f64, r: f64, p: f64) -> f64 {
     f64::from(k)
 }
 
+/// The `alpha`-quantile of total demand over the protection window, `F^-1(alpha)`, used
+/// as the base-stock target in the ordering rule. Dispatches to a closed-form
+/// negative-binomial quantile when the calendar demand profile is flat (or absent) over
+/// the window, and falls back to Monte Carlo when day-of-week/week variation makes the
+/// per-day means differ. Panics if `alpha` is not in `(0, 1)`.
 pub fn protection_demand_quantile(
     alpha: f64,
     params: &ModelParams,
@@ -176,6 +208,12 @@ pub fn constant_order(q: u32, case_size: u32) -> u32 {
 }
 
 /// `E[f]`-weighted on-hand from f-belief plus pipeline term (ADR 0130).
+///
+/// This is `I_tilde`: on-hand units are weighted by their expected freshness (read off
+/// `f_marginals` against `f_grid` per lot) rather than counted at face value, so a shelf
+/// full of nearly-spoiled stock contributes less to "effective inventory" than the same
+/// count of fresh stock. Units still in transit contribute at a fixed default freshness
+/// (`f_pipeline_default`) since their belief hasn't been observed yet.
 pub fn effective_inventory_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],
@@ -198,6 +236,13 @@ pub fn effective_inventory_f_belief(
 }
 
 /// Damped survival-weighted order from f-belief.
+///
+/// Implements the base-stock rule `q = caseRound(rho * [F^-1(alpha) - I_tilde]_+)`:
+/// order enough to bring quality-weighted effective inventory (`I_tilde`, see
+/// [`effective_inventory_f_belief`]) up toward the protection-window demand quantile
+/// (`F^-1(alpha)`, see [`protection_demand_quantile`]), damped by `rho` and rounded to a
+/// whole number of cases. Returns 0 on a non-order day per `schedule` (when supplied)
+/// without evaluating the rest of the rule.
 pub fn damped_sw_order_f_belief(
     lot_counts: &[f64],
     f_marginals: &[f64],

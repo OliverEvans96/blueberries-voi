@@ -40,6 +40,9 @@ use crate::unit_ll::{
 };
 use crate::ModelParams;
 
+/// Named RNG sub-stream used to draw birth freshness deterministically from a shared
+/// seed. Other call sites (e.g. `rollout.rs`, `session.rs`) define this same tag
+/// independently rather than importing it from here.
 pub const STREAM_BIRTH: &str = ":birth";
 
 /// Particle bank on the f-native unit grid, with a shared observed lot segmentation.
@@ -49,7 +52,10 @@ pub const STREAM_BIRTH: &str = ":birth";
 /// only in the freshness those units carry.
 #[derive(Clone, Debug, Default)]
 pub struct UnitParticleBank {
+    /// Per-particle importance weights, normalized to sum to 1 between filter steps.
     pub weights: Vec<f64>,
+    /// Per-particle freshness rows; each row lays every unit across all lots end to
+    /// end, segmented by `lot_offsets`.
     pub freshness: Vec<Vec<f64>>,
     /// Segment boundaries into every row: `len == n_lots + 1`, `lot_offsets[0] == 0`.
     pub lot_offsets: Vec<usize>,
@@ -84,6 +90,7 @@ impl UnitParticleBank {
         }
     }
 
+    /// Number of lot segments currently held (`lot_offsets.len() - 1`).
     pub fn n_lots(&self) -> usize {
         self.lot_offsets.len().saturating_sub(1)
     }
@@ -106,6 +113,10 @@ impl UnitParticleBank {
         }
     }
 
+    /// Append one delivery as a new segment, using each particle's own vector of
+    /// per-unit freshness draws rather than one scalar broadcast across the lot (see
+    /// `push_lot`). This is what production birth sampling uses, since arrival
+    /// freshness varies unit-to-unit even within a single particle.
     fn push_lot_births(&mut self, lot_id: i64, per_particle: &[Vec<f64>], units: usize) {
         for (row, seg) in self.freshness.iter_mut().zip(per_particle.iter()) {
             debug_assert_eq!(seg.len(), units);
@@ -207,6 +218,10 @@ impl UnitParticleBank {
     }
 }
 
+/// Carve `len` units into fixed `units_per_lot`-wide lots (the last lot may be
+/// partial). This is a synthetic segmentation for fixtures/benches and for
+/// `ensure_segmentation`'s repair fallback -- production lot boundaries instead come
+/// from the observed arrival stream.
 fn uniform_segmentation(len: usize, units_per_lot: usize) -> (Vec<usize>, Vec<i64>) {
     if len == 0 {
         return (vec![0], Vec::new());
@@ -218,6 +233,10 @@ fn uniform_segmentation(len: usize, units_per_lot: usize) -> (Vec<usize>, Vec<i6
     (offsets, ids)
 }
 
+/// Systematic resampling from unnormalized log-weights: returns `n` particle indices
+/// whose empirical frequencies track `exp(log_w)`. Strata are evenly spaced at
+/// `(i + 0.5) / n`, so the draw is deterministic given the weights (no extra RNG
+/// input) and lower-variance than independent multinomial sampling.
 pub fn systematic_resample(log_w: &[f64]) -> Vec<usize> {
     let n = log_w.len();
     if n == 0 {
@@ -308,6 +327,10 @@ struct DayEvidence {
 }
 
 impl DayEvidence {
+    /// Project today's raw `FilterObs` counts onto the bank's live lot ids. `waste_by`
+    /// is trusted only when `sales_by` also resolved to a lot-scoped map, so a day's
+    /// evidence is scored either fully aggregate or fully per-lot, never a per-lot
+    /// waste count paired with pooled sales.
     fn resolve(obs: &FilterObs, bank_ids: &[i64], _freshness: &[f64], _offsets: &[usize]) -> Self {
         let sales_by = obs
             .sales_by
@@ -328,6 +351,10 @@ impl DayEvidence {
         }
     }
 
+    /// Poisson-binomial spoilage log-likelihood for the day, dispatching to the
+    /// per-lot or pooled scorer depending on which waste evidence resolved. Returns
+    /// the waste count consumed alongside the score so the caller can size the
+    /// matching death-set draw.
     fn pb_spoilage_loglik(
         &self,
         freshness: &[f64],
@@ -421,6 +448,10 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
     )
 }
 
+/// Same as `filter_step_unit`, but lets the caller supply a separate `rng_birth`
+/// stream so birth draws can be kept on their own CRN sub-stream instead of sharing
+/// `rng`. Builds its own `GammaDecrementTable` per call; use
+/// `filter_step_unit_with_birth_cached` to reuse one across many days.
 pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank: &mut UnitParticleBank,
     obs: &FilterObs,
@@ -435,6 +466,19 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
     )
 }
 
+/// The unit-PF's one-day observation update, threading a cached `GammaDecrementTable`
+/// and optional reusable `ArrivalModel` through so callers stepping many days
+/// (rollouts, tuning) avoid rebuilding either per call.
+///
+/// Per particle: age each unit -- via the Poisson-binomial death-set proposal when
+/// waste counts are observed, or unconditioned independent Gamma decrements
+/// otherwise -- then accumulate the day's log-likelihood from spoilage and sales
+/// evidence. All particles are then resampled against those weights before anything
+/// is born, so a new lot from the channel-conditional arrival law only ever lands on
+/// particles that survived the day's evidence, and dead leading lots are pruned last.
+///
+/// `filter_step_unit` and `filter_step_unit_with_birth` are thin wrappers around this
+/// function for callers that don't need to reuse the table/model across steps.
 pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank: &mut UnitParticleBank,
     obs: &FilterObs,

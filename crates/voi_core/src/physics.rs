@@ -12,6 +12,10 @@ use crate::spawn_rng::{negative_binomial_gamma_poisson, SpawnRng};
 const SURV_FLOOR: f64 = 1e-300;
 
 /// Map cumulative thermal exposure τ (reference-days) to unit freshness `f ∈ [0, 1]` (bench C2-A convention).
+///
+/// Legacy age-clock helper only: the production path never scores units by a scalar τ, it
+/// carries freshness `f` directly and ages it with the shape-scaled gamma decrement (see
+/// module docs). Kept for the retired age-clock research path and test goldens.
 pub fn age_to_f(tau: f64, eta_ref: f64) -> f64 {
     if eta_ref <= 0.0 {
         panic!("eta_ref must be positive");
@@ -20,6 +24,9 @@ pub fn age_to_f(tau: f64, eta_ref: f64) -> f64 {
 }
 
 /// Inverse of [`age_to_f`]: freshness to cumulative thermal exposure τ (reference-days).
+///
+/// Legacy age-clock helper only, kept alongside [`age_to_f`] for the retired research path;
+/// not used by the production f-native aging model.
 pub fn f_to_age(f: f64, eta_ref: f64) -> f64 {
     if eta_ref <= 0.0 {
         panic!("eta_ref must be positive");
@@ -262,20 +269,29 @@ const GAMMA_TABLE_GRID: usize = 4096;
 pub struct GammaDecrementTable {
     shape: f64,
     scale: f64,
+    /// CDF sampled on `GAMMA_TABLE_GRID` evenly spaced freshness points in `[0, 1]`:
+    /// `cdf[i] == P(decrement < i / (GRID - 1))`.
     cdf: Vec<f64>,
 }
 
 impl GammaDecrementTable {
+    /// Number of freshness grid points the interpolation table is built on.
     pub const GRID: usize = GAMMA_TABLE_GRID;
 
+    /// Table size; always [`Self::GRID`] regardless of the params used to build it.
     pub fn len(&self) -> usize {
         GAMMA_TABLE_GRID
     }
 
+    /// Build a table for the shape-scaled gamma decrement implied by `params` at store
+    /// temperature (mirrors `store_gamma_shape`).
     pub fn for_params(params: &ModelParams) -> Self {
         Self::new(store_gamma_shape(params), params.gamma_scale)
     }
 
+    /// Build a table directly from a gamma shape/scale, precomputing the CDF at every grid
+    /// point so [`Self::cdf`], [`Self::quantile`], and [`Self::spoil_prob`] can answer by
+    /// interpolation instead of evaluating the incomplete gamma function per call.
     pub fn new(shape: f64, scale: f64) -> Self {
         let mut cdf = Vec::with_capacity(GAMMA_TABLE_GRID);
         for i in 0..GAMMA_TABLE_GRID {
@@ -344,11 +360,15 @@ impl GammaDecrementTable {
         (1.0 - self.interp_cdf(f)).clamp(0.0, 1.0)
     }
 
+    /// Whether this table was already built for the effective gamma shape/scale that
+    /// `params` implies at store temperature, within floating-point tolerance.
     pub fn matches_params(&self, params: &ModelParams) -> bool {
         (self.shape - store_gamma_shape(params)).abs() < 1e-12
             && (self.scale - params.gamma_scale).abs() < 1e-12
     }
 
+    /// Rebuild the table in place if `params` (e.g. after a store-temperature change) no
+    /// longer [`Self::matches_params`]; otherwise a no-op.
     pub fn rebuild_if_needed(&mut self, params: &ModelParams) {
         if !self.matches_params(params) {
             *self = Self::for_params(params);
@@ -376,6 +396,11 @@ pub fn picking_weights_f(f: &[f64], sigma: f64, uniform: bool) -> Vec<f64> {
     raw
 }
 
+/// Weibull survival probability `S(τ) = exp(-(τ/η)^β)` at cumulative age `τ`.
+///
+/// Legacy age-clock helper (see module docs): the production path never ages units by a
+/// Weibull hazard, only by the shape-scaled gamma decrement. Kept for the retired research
+/// path and test goldens.
 pub fn weibull_survival(tau: f64, beta: f64, eta: f64) -> f64 {
     if tau <= 0.0 {
         return 1.0;
@@ -386,6 +411,8 @@ pub fn weibull_survival(tau: f64, beta: f64, eta: f64) -> f64 {
     (-(tau / eta).powf(beta)).exp()
 }
 
+/// Exact probability of death over `[τ, τ + dτ]`, `1 - S(τ+dτ)/S(τ)`, under the legacy
+/// Weibull age clock. Legacy/research-path helper; not used by the production gamma model.
 pub fn death_prob_survival_ratio(tau: f64, dtau: f64, beta: f64, eta: f64) -> f64 {
     if dtau <= 0.0 {
         return 0.0;
@@ -398,6 +425,12 @@ pub fn death_prob_survival_ratio(tau: f64, dtau: f64, beta: f64, eta: f64) -> f6
     1.0 - s1 / s0
 }
 
+/// Hazard-times-interval approximation of death probability over `[τ, τ + dτ]` under the
+/// legacy Weibull age clock, clamped to `[0, 1]`.
+///
+/// Diverges from the exact [`death_prob_survival_ratio`] away from `β = 1` (see the
+/// `survival_ratio_diverges_from_hazard_at_beta4` test); `τ == 0` is special-cased because
+/// the instantaneous hazard is singular there for `β ≠ 1`. Legacy/research-path helper.
 pub fn death_prob_hazard_product(tau: f64, dtau: f64, beta: f64, eta: f64) -> f64 {
     if dtau <= 0.0 || tau < 0.0 {
         return 0.0;
@@ -415,11 +448,17 @@ pub fn death_prob_hazard_product(tau: f64, dtau: f64, beta: f64, eta: f64) -> f6
     (hazard * dtau).clamp(0.0, 1.0)
 }
 
+/// Q10-scaled τ increment for one calendar interval under the legacy age clock; the τ-space
+/// analog of [`store_temp_factor`]. Legacy/research-path helper.
 pub fn q10_age_increment(dt_calendar: f64, t_store_c: f64, t_ref_c: f64, q10: f64) -> f64 {
     let factor = q10.powf((t_store_c - t_ref_c) / 10.0);
     dt_calendar * factor
 }
 
+/// Picking weights on cumulative age τ: `w_i ∝ max(S(τ_i), SURV_FLOOR)^(1/σ)`, normalized.
+///
+/// τ-space counterpart of [`picking_weights_f`] under the legacy Weibull age clock;
+/// legacy/research-path helper kept for cohort research and test goldens.
 pub fn picking_weights(taus: &[f64], sigma: f64, beta: f64, eta: f64, uniform: bool) -> Vec<f64> {
     let n = taus.len();
     if n == 0 {
@@ -505,6 +544,10 @@ pub fn draw_demand<R: Rng + ?Sized>(rng: &mut R, params: &ModelParams, day: Opti
     draw_demand_from_mu(rng, mu, params.demand_vm)
 }
 
+/// Converts a target mean `mu` and variance-to-mean ratio `demand_vm` into the `(r, p)`
+/// parameterization negative binomial sampling needs, via `r = mu / (demand_vm - 1)`,
+/// then draws. `demand_vm > 1` is required so the implied variance exceeds the mean
+/// (over-dispersion); `demand_vm == 1` would need `r → ∞`.
 fn draw_demand_from_mu<R: Rng + ?Sized>(rng: &mut R, mu: f64, demand_vm: f64) -> u32 {
     if demand_vm <= 1.0 {
         panic!("demand_vm must be > 1 for overdispersed NB");

@@ -1,0 +1,461 @@
+{
+  "generated_by": "scripts/rustdoc_inventory.py",
+  "entries": [
+    {
+      "symbol": "cdf_f_given_lambda",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda"
+    },
+    {
+      "symbol": "draw_psi_pos",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.draw_psi_pos.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "draw_truth_delivery",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery"
+    },
+    {
+      "symbol": "draw_unit_f",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f"
+    },
+    {
+      "symbol": "p_f_gt_at",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at"
+    },
+    {
+      "symbol": "p_f_zero",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero"
+    },
+    {
+      "symbol": "phi_bar_from_t_bar",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar"
+    },
+    {
+      "symbol": "resolve_arrival_exposure",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.resolve_arrival_exposure.html",
+      "linkable": true,
+      "link_target": "voi_core/arrival/fn.resolve_arrival_exposure.html"
+    },
+    {
+      "symbol": "sample_truncated_normal",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.sample_truncated_normal.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "f_grid_k",
+      "module": "belief_flat",
+      "source_file": "crates/voi_core/src/belief_flat.rs",
+      "rustdoc_path": "voi_core/belief_flat/fn.f_grid_k.html",
+      "linkable": true,
+      "link_target": "voi_core/belief_flat/fn.f_grid_k.html"
+    },
+    {
+      "symbol": "apply_gamma_step",
+      "module": "day_step",
+      "source_file": "crates/voi_core/src/day_step.rs",
+      "rustdoc_path": "voi_core/day_step/fn.apply_gamma_step.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "count_spoil_by_lot",
+      "module": "day_step",
+      "source_file": "crates/voi_core/src/day_step.rs",
+      "rustdoc_path": "voi_core/day_step/fn.count_spoil_by_lot.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "pick_units_f",
+      "module": "day_step",
+      "source_file": "crates/voi_core/src/day_step.rs",
+      "rustdoc_path": "voi_core/day_step/fn.pick_units_f.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "spoil_unit_exits",
+      "module": "day_step",
+      "source_file": "crates/voi_core/src/day_step.rs",
+      "rustdoc_path": "voi_core/day_step/fn.spoil_unit_exits.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "unit_day_step_with_birth",
+      "module": "day_step",
+      "source_file": "crates/voi_core/src/day_step.rs",
+      "rustdoc_path": "voi_core/day_step/fn.unit_day_step_with_birth.html",
+      "linkable": true,
+      "link_target": "voi_core/day_step/fn.unit_day_step_with_birth.html"
+    },
+    {
+      "symbol": "DemandProfile::mu",
+      "module": "demand_profile",
+      "source_file": "crates/voi_core/src/demand_profile.rs",
+      "rustdoc_path": "voi_core/demand_profile/struct.DemandProfile.html#method.mu",
+      "linkable": true,
+      "link_target": "voi_core/demand_profile/struct.DemandProfile.html#method.mu"
+    },
+    {
+      "symbol": "scale_target_mu",
+      "module": "demand_profile",
+      "source_file": "crates/voi_core/src/demand_profile.rs",
+      "rustdoc_path": "voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu",
+      "linkable": true,
+      "link_target": "voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu"
+    },
+    {
+      "symbol": "demand_mu",
+      "module": "params",
+      "source_file": "crates/voi_core/src/params.rs",
+      "rustdoc_path": "voi_core/params/fn.demand_mu.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "demand_mu_for_day",
+      "module": "params",
+      "source_file": "crates/voi_core/src/params.rs",
+      "rustdoc_path": "voi_core/params/struct.ModelParams.html#method.demand_mu_for_day",
+      "linkable": true,
+      "link_target": "voi_core/params/struct.ModelParams.html#method.demand_mu_for_day"
+    },
+    {
+      "symbol": "GammaDecrementTable::spoil_prob",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob",
+      "linkable": true,
+      "link_target": "voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob"
+    },
+    {
+      "symbol": "apply_gamma_aging_independent",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.apply_gamma_aging_independent.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.apply_gamma_aging_independent.html"
+    },
+    {
+      "symbol": "apply_gamma_decrement",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.apply_gamma_decrement.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.apply_gamma_decrement.html"
+    },
+    {
+      "symbol": "draw_demand_from_mu",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.draw_demand_from_mu.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "draw_gamma_decrement",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.draw_gamma_decrement.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.draw_gamma_decrement.html"
+    },
+    {
+      "symbol": "draw_gamma_decrement_truncated",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.draw_gamma_decrement_truncated.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.draw_gamma_decrement_truncated.html"
+    },
+    {
+      "symbol": "gamma_decrement_for_store",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.gamma_decrement_for_store.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.gamma_decrement_for_store.html"
+    },
+    {
+      "symbol": "gamma_p",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.gamma_p.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.gamma_p.html"
+    },
+    {
+      "symbol": "picking_weights_f",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.picking_weights_f.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.picking_weights_f.html"
+    },
+    {
+      "symbol": "store_temp_factor",
+      "module": "physics",
+      "source_file": "crates/voi_core/src/physics.rs",
+      "rustdoc_path": "voi_core/physics/fn.store_temp_factor.html",
+      "linkable": true,
+      "link_target": "voi_core/physics/fn.store_temp_factor.html"
+    },
+    {
+      "symbol": "PROTECTION_MC_DEFAULT_N",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.PROTECTION_MC_DEFAULT_N.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "case_round",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.case_round.html",
+      "linkable": true,
+      "link_target": "voi_core/policy/fn.case_round.html"
+    },
+    {
+      "symbol": "damped_sw_order_f_belief",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.damped_sw_order_f_belief.html",
+      "linkable": true,
+      "link_target": "voi_core/policy/fn.damped_sw_order_f_belief.html"
+    },
+    {
+      "symbol": "derive_protection_mc_seed",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.derive_protection_mc_seed.html",
+      "linkable": true,
+      "link_target": "voi_core/policy/fn.derive_protection_mc_seed.html"
+    },
+    {
+      "symbol": "effective_inventory_f_belief",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.effective_inventory_f_belief.html",
+      "linkable": true,
+      "link_target": "voi_core/policy/fn.effective_inventory_f_belief.html"
+    },
+    {
+      "symbol": "heterogeneous_nb_sum_quantile_mc",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.heterogeneous_nb_sum_quantile_mc.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "homogeneous_closed_form",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.homogeneous_closed_form.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "protection_demand_quantile",
+      "module": "policy",
+      "source_file": "crates/voi_core/src/policy.rs",
+      "rustdoc_path": "voi_core/policy/fn.protection_demand_quantile.html",
+      "linkable": true,
+      "link_target": "voi_core/policy/fn.protection_demand_quantile.html"
+    },
+    {
+      "symbol": "RolloutCosts::default",
+      "module": "rollout",
+      "source_file": "crates/voi_core/src/rollout.rs",
+      "rustdoc_path": "voi_core/rollout/struct.RolloutCosts.html#method.default",
+      "linkable": true,
+      "link_target": "voi_core/rollout/struct.RolloutCosts.html#method.default"
+    },
+    {
+      "symbol": "OrderSchedule::protection_days",
+      "module": "schedule",
+      "source_file": "crates/voi_core/src/schedule.rs",
+      "rustdoc_path": "voi_core/schedule/struct.OrderSchedule.html#method.protection_days",
+      "linkable": true,
+      "link_target": "voi_core/schedule/struct.OrderSchedule.html#method.protection_days"
+    },
+    {
+      "symbol": "negative_binomial_gamma_poisson",
+      "module": "spawn_rng",
+      "source_file": "crates/voi_core/src/spawn_rng.rs",
+      "rustdoc_path": "voi_core/spawn_rng/fn.negative_binomial_gamma_poisson.html",
+      "linkable": true,
+      "link_target": "voi_core/spawn_rng/fn.negative_binomial_gamma_poisson.html"
+    },
+    {
+      "symbol": "apply_pb_aging_proposal",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.apply_pb_aging_proposal.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.apply_pb_aging_proposal.html"
+    },
+    {
+      "symbol": "loglik_sales_by_units",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.loglik_sales_by_units.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.loglik_sales_by_units.html"
+    },
+    {
+      "symbol": "lot_shares_from_freshness",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.lot_shares_from_freshness.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.lot_shares_from_freshness.html"
+    },
+    {
+      "symbol": "multinomial_log_pmf",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.multinomial_log_pmf.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.multinomial_log_pmf.html"
+    },
+    {
+      "symbol": "pb_log_pmf",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.pb_log_pmf.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.pb_log_pmf.html"
+    },
+    {
+      "symbol": "pb_loglik_by_lot",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.pb_loglik_by_lot.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.pb_loglik_by_lot.html"
+    },
+    {
+      "symbol": "pb_loglik_pooled",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.pb_loglik_pooled.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.pb_loglik_pooled.html"
+    },
+    {
+      "symbol": "pb_sample_deaths",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.pb_sample_deaths.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.pb_sample_deaths.html"
+    },
+    {
+      "symbol": "pb_sample_deaths_by_lot",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.pb_sample_deaths_by_lot.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.pb_sample_deaths_by_lot.html"
+    },
+    {
+      "symbol": "sequential_kernel_path_logprob",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.sequential_kernel_path_logprob.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.sequential_kernel_path_logprob.html"
+    },
+    {
+      "symbol": "spoil_probs_from_freshness",
+      "module": "unit_ll",
+      "source_file": "crates/voi_core/src/unit_ll.rs",
+      "rustdoc_path": "voi_core/unit_ll/fn.spoil_probs_from_freshness.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_ll/fn.spoil_probs_from_freshness.html"
+    },
+    {
+      "symbol": "filter_step_unit_with_birth_cached",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.filter_step_unit_with_birth_cached.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_pf/fn.filter_step_unit_with_birth_cached.html"
+    },
+    {
+      "symbol": "project_lot_map",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.project_lot_map.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_pf/fn.project_lot_map.html"
+    },
+    {
+      "symbol": "prune_dead_prefix",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.prune_dead_prefix.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "push_lot_births",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.push_lot_births.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "score_and_remove_sales",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.score_and_remove_sales.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "systematic_resample",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.systematic_resample.html",
+      "linkable": true,
+      "link_target": "voi_core/unit_pf/fn.systematic_resample.html"
+    }
+  ]
+}

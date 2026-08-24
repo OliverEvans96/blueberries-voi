@@ -7,25 +7,40 @@ use crate::shipments::ShipmentTrace;
 /// Which RichObs fields are present under a scenario id or channel combo.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ObsMask {
+    /// Today's arrival count is always observable (units in, not units' freshness).
     pub arrivals: bool,
+    /// Store-wide unit sales, pooled across lots.
     pub sales_total: bool,
+    /// Store-wide waste (spoilage) count, pooled across lots.
     pub waste_total: bool,
+    /// Sales broken out per live lot; requires lot-resolved (GSIN) codes.
     pub sales_by_lot: bool,
+    /// Waste broken out per live lot; requires lot-resolved (GSIN) codes.
     pub waste_by_lot: bool,
+    /// Pack date of today's arriving shipment, pinning transit duration `d`.
     pub pack_date: bool,
+    /// Lot ids of units currently live in the store's inventory.
     pub lot_ids_live: bool,
+    /// Lot ids attached to today's arriving shipment.
     pub arrival_lot_ids: bool,
+    /// Full temperature trace for today's arriving shipment, pinning exposure `Lambda`.
     pub temperature_history: bool,
 }
 
 /// Global scan observation channels (supersedes ADR 0133 pos/waste/deliveries).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObsChannels {
+    /// POS code granularity: pooled UPC vs lot-resolved GSIN.
     pub code_type: CodeType,
+    /// Whether the store scans waste at all (off = spoilage is invisible).
     pub scan_waste: bool,
+    /// What, if anything, is known about an arriving delivery's history.
     pub delivery_history: DeliveryHistory,
 }
 
+/// Point-of-sale code granularity. `Upc` pools every unit of an item under one barcode, so
+/// sales/waste can only be counted store-wide; `Gsin` carries lot identity, so counts can be
+/// attributed to the specific delivery a unit came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CodeType {
@@ -33,6 +48,9 @@ pub enum CodeType {
     Gsin,
 }
 
+/// What a store knows about an arriving delivery's transit history. Neither variant ever
+/// reveals arrival freshness directly -- `PackDate` pins the transit duration `d`, and
+/// `TemperatureHistory` additionally pins the cumulative thermal exposure `Lambda`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryHistory {
@@ -47,26 +65,41 @@ pub struct RichDay {
     pub sales_total: u32,
     pub waste_total: u32,
     pub arrivals: u32,
+    /// Sales for the day, one entry per live lot, aligned with `lot_ids`.
     pub sales_by: Vec<u32>,
+    /// Waste for the day, one entry per live lot, aligned with `lot_ids`.
     pub waste_by: Vec<u32>,
+    /// Ids of lots currently live in inventory, in the order `sales_by`/`waste_by` index into.
     pub lot_ids: Vec<i64>,
+    /// Ids of lots in today's arriving shipment, if any.
     pub arrival_lot_ids: Vec<i64>,
+    /// Full temperature/time trace for today's arrival, present only when one was recorded.
     pub shipment_trace: Option<ShipmentTrace>,
+    /// Pack date of today's arrival, in days, if known.
     pub pack_date_days: Option<i32>,
 }
 
 /// Masked observation consumed by `filter_step` (absent = `None`, never invented 0).
 #[derive(Clone, Debug)]
 pub struct FilterObs {
+    /// Store-wide sales count, if `sales_total` is in the mask.
     pub sales_tot: Option<i32>,
+    /// Store-wide waste count, if `waste_total` is in the mask.
     pub waste_tot: Option<i32>,
     pub arrivals: u32,
+    /// Per-lot sales, aligned with `lot_ids_live`, if `sales_by_lot` is in the mask.
     pub sales_by: Option<Vec<u32>>,
+    /// Per-lot waste, aligned with `lot_ids_live`, if `waste_by_lot` is in the mask.
     pub waste_by: Option<Vec<u32>>,
+    /// Live lot ids that `sales_by`/`waste_by` index into, if `lot_ids_live` is in the mask.
     pub lot_ids_live: Option<Vec<i64>>,
+    /// Lot ids of today's arrival, if `arrival_lot_ids` is in the mask.
     pub arrival_lot_ids: Option<Vec<i64>>,
+    /// Pack date of today's arrival in days, if `pack_date` is in the mask.
     pub pack_date_days: Option<i32>,
+    /// Elapsed times (days) for the temperature trace, if `temperature_history` is in the mask.
     pub temp_times_d: Option<Vec<f64>>,
+    /// Temperatures (°C) paired with `temp_times_d`, if `temperature_history` is in the mask.
     pub temp_temps_c: Option<Vec<f64>>,
 }
 
@@ -87,6 +120,8 @@ impl Default for FilterObs {
     }
 }
 
+/// Parses an `ObsChannels` out of an untyped JSON value, defaulting any missing or
+/// wrong-typed field so the underlying string enums can report a precise error.
 pub fn validate_channels_json(value: &serde_json::Value) -> Result<ObsChannels, String> {
     let code_type = value
         .get("code_type")
@@ -103,6 +138,8 @@ pub fn validate_channels_json(value: &serde_json::Value) -> Result<ObsChannels, 
     parse_channels(code_type, scan_waste, delivery_history)
 }
 
+/// Parses the wire string forms of `code_type` and `delivery_history` into an `ObsChannels`,
+/// erroring on any value outside the known set rather than silently falling back.
 pub fn parse_channels(
     code_type: &str,
     scan_waste: bool,
@@ -126,6 +163,11 @@ pub fn parse_channels(
     })
 }
 
+/// Looks up the fixed `ObsChannels` combo behind a named rung (`P0`, `P1`, `F1`, `F1s`,
+/// `F2a`, `F2`, `F3`). `F1s` is a channel-identical alias of `F1`. `B-state` is rejected
+/// explicitly: it's a verification bypass used to check the filter against ground truth, not
+/// a real observation rung, so it must never be turned into a mask that would let a policy
+/// see fabricated data.
 pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
     if id == "B-state" {
         return Err(
@@ -168,6 +210,8 @@ pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
     }
 }
 
+/// Reverse lookup of `channels_for_preset`: returns the named rung matching `ch` exactly, if
+/// any. `F1s` is never returned since it is channel-identical to `F1`.
 pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
     for id in ["P0", "P1", "F1", "F2a", "F2", "F3"] {
         if channels_for_preset(id).ok() == Some(ch) {
@@ -177,6 +221,8 @@ pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
     None
 }
 
+/// Canonical string key for `ch`, suitable for cache lookup or as a stable identifier
+/// independent of the enums' derived `Debug`/serde representations.
 pub fn channels_cache_key(ch: ObsChannels) -> String {
     let code = match ch.code_type {
         CodeType::Upc => "upc",
@@ -191,6 +237,7 @@ pub fn channels_cache_key(ch: ObsChannels) -> String {
     format!("code={code}|waste={waste}|hist={hist}")
 }
 
+/// Serializes `ch` to the same JSON shape `validate_channels_json` accepts.
 pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
     serde_json::json!({
         "code_type": match ch.code_type {
@@ -206,6 +253,11 @@ pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
     })
 }
 
+/// Derives which `RichDay` fields are visible from the three independent channel toggles.
+/// Arrivals and store-wide sales are always on. Per-lot breakdowns only turn on under
+/// `Gsin` codes, since pooled `Upc` codes can't attribute a sale/waste event to a lot; waste
+/// fields only turn on when `scan_waste` is set, and `waste_by_lot` further requires `Gsin`.
+/// `delivery_history` maps onto exactly one of `pack_date`/`temperature_history`, never both.
 pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
     let mut m = ObsMask {
         arrivals: true,

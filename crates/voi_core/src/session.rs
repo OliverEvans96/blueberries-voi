@@ -33,6 +33,10 @@ use rand_pcg::Pcg64;
 /// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
 const STREAM_BIRTH: u64 = 7;
 
+/// Derives a reproducible per-day, per-stream RNG seed from the root session seed —
+/// the CRN (common random numbers) mechanism: every observation rung draws from the
+/// same day/stream seed, so profit differences across rungs reflect what a rung could
+/// see, not which random seed it happened to draw.
 fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 {
     Pcg64::seed_from_u64(
         root.wrapping_add(u64::from(day) * 1_000_003)
@@ -44,44 +48,98 @@ fn stream_rng(root: u64, day: u32, stream: u64) -> Pcg64 {
 #[derive(Clone, Debug)]
 struct RungCache {
     bank: UnitParticleBank,
+    /// Last day index folded into `beliefs` for this rung; `-1` means the rung has
+    /// never been advanced, i.e. catch-up replay should start from day 0.
     last_day: i32,
     beliefs: Vec<serde_json::Value>,
 }
 
+/// The top-level stateful session object that the studio (over RPC) and notebooks
+/// drive one simulated day at a time. It owns ground truth (per-unit freshness, lot
+/// bookkeeping, the pending delivery pipeline), the unit particle filter and its
+/// per-observation-rung belief caches, the order/delivery schedule, and the knobs fed
+/// to the ordering policy and rollout. `init` must be called before `step`/`act`; most
+/// other pub methods either mutate this state one day at a time or render a slice of
+/// it to the JSON wire format the studio consumes.
 #[derive(Clone, Debug)]
 pub struct EngineSession {
+    /// Physics, demand, and case-size knobs shared by ground truth and the filter.
     params: ModelParams,
+    /// Ground-truth per-unit freshness, flat across all lots; indexed via `lot_offsets`.
     freshness: Vec<f64>,
+    /// Lot boundaries into `freshness`/`lot_ids`: lot `ell` spans
+    /// `lot_offsets[ell]..lot_offsets[ell + 1]`.
     lot_offsets: Vec<usize>,
+    /// External lot identifiers, one per lot segment in `lot_offsets`.
     lot_ids: Vec<i64>,
+    /// Units already ordered but not yet delivered, keyed by arrival day.
     pending: std::collections::BTreeMap<u32, u32>,
     day: u32,
+    /// Root RNG seed; every per-day/per-stream RNG (see `stream_rng`/`SpawnRng`) derives
+    /// from this so a fixed seed reproduces an entire episode across observation rungs.
     seed: u64,
+    /// Diagnostic counter of how many times an RPC/API entry point (`init`, `step`,
+    /// `step_n`, `act`) was crossed into; exposed via `host_crossings`.
     crossings: u32,
     initialized: bool,
+    /// Particle count backing `bank`; exposed via `n_particles` (leading underscore
+    /// because callers read it through that accessor, not the field).
     _n_particles: usize,
+    /// Rollout horizon `H` (days) used by the `rollout` policy.
     h: u32,
+    /// Number of rollout paths sampled per candidate order when policy is `rollout`.
     n_paths: u32,
+    /// Half-width, in cases, of the candidate order search window around the base
+    /// damped base-stock quantity when policy is `rollout`.
     radius: i32,
+    /// Order lead time in days (delivery day minus order day).
     lead_time: u32,
+    /// Whether the unit particle filter runs each day; when `false`, the policy falls
+    /// back to an uninformative belief (see `f_belief_for_policy`).
     enable_filter: bool,
     schedule: OrderSchedule,
+    /// Candidate transit temperature traces sampled when drawing a delivery's exposure.
     shipments: Vec<ShipmentTrace>,
+    /// Active particle filter bank for the currently selected observation rung.
     bank: UnitParticleBank,
+    /// Next lot id to assign to an arriving delivery.
     next_lot: i64,
+    /// RPC sequence number, incremented once per `step`/`step_n`/`act` call.
     seq: u32,
+    /// `L` dimension (lot slots) of the belief-wire histogram (see `belief_flat.rs`).
     l_dim: usize,
+    /// `K` dimension (freshness bins) of the belief-wire histogram.
     k_dim: usize,
+    /// Human-readable name of the active observation preset (e.g. `"P1"`), or
+    /// `"custom"` when `obs_channels` doesn't match any named preset.
     obs_scenario: String,
+    /// Active observation-ladder toggles (POS type, waste scanning, delivery history).
     obs_channels: ObsChannels,
+    /// Full per-day ground-truth log (every channel revealed), kept so switching
+    /// `obs_scenario` mid-episode can replay history through a different mask instead
+    /// of losing it.
     richest_log: Vec<RichDay>,
+    /// Per-observation-rung cache of particle bank + belief history, keyed by
+    /// `channels_cache_key`, so switching rungs mid-episode only needs to replay the
+    /// days that rung hasn't seen yet rather than the whole episode.
     rungs: HashMap<String, RungCache>,
+    /// Empty/seed bank state used as the starting point when a rung is first visited.
     bank_init: UnitParticleBank,
+    /// Number of days replayed during the most recent `set_obs_channels` catch-up.
     catchup_days_last: u32,
+    /// Precomputed Gamma decrement lookup table for the current `params`, shared by
+    /// ground truth and the filter to avoid rebuilding it every day.
     gamma_table: GammaDecrementTable,
+    /// Fitted arrival-law distributions (duration, temperature, within-pallet position)
+    /// used to draw both ground-truth deliveries and filter arrival priors.
     arrival_model: ArrivalModel,
+    /// Which product's arrival-model parameters to draw deliveries from.
     arrival_product: String,
+    /// Multiplier widening (>1) or narrowing (<1) the within-lot spread of arrival
+    /// freshness around its mean; a stress-test knob, 1.0 leaves the draw unchanged.
     spread_scale: f64,
+    /// Additive bias, in Celsius, applied to sampled transit temperature before it
+    /// feeds the Q10 exposure factor — used to simulate a systematic warm/cool bias.
     transit_temp_bias_c: f64,
 }
 
@@ -92,6 +150,11 @@ impl Default for EngineSession {
 }
 
 impl EngineSession {
+    /// Builds a session with default config (16 particles, weekly delivery/order
+    /// schedule, the embedded arrival model) for the given root seed. The session is
+    /// *not* marked initialized by `new` alone — call `init` (or `reset`) before
+    /// `step`/`act`, which also seeds the particle bank and applies the committed
+    /// demand profile if none was set.
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
         let params = ModelParams::default();
@@ -134,6 +197,10 @@ impl EngineSession {
         }
     }
 
+    /// Rebuilds the session to a fresh episode at the given seed and marks it
+    /// initialized. Must be called (directly or via `reset`) before `step`/`act`;
+    /// re-applies the committed demand profile and re-seeds the particle bank so a
+    /// prior episode's state can't leak into the new one.
     pub fn init(&mut self, seed: u64) {
         *self = Self::new(seed);
         self.initialized = true;
@@ -146,10 +213,15 @@ impl EngineSession {
         }
     }
 
+    /// Replaces the day-of-week/week demand calendar used to draw daily demand.
     pub fn set_demand_profile(&mut self, profile: DemandProfile) {
         apply_demand_profile(&mut self.params, profile);
     }
 
+    /// Applies session-wide config (lead time, filter on/off, rollout horizon/paths,
+    /// candidate order search radius, shipment traces, particle count, demand profile,
+    /// units per lot) and re-seeds the particle bank so the new particle count and
+    /// demand/shipment settings take effect immediately.
     pub fn configure(
         &mut self,
         lead_time: u32,
@@ -184,12 +256,17 @@ impl EngineSession {
         }
     }
 
+    /// Sets which weekdays deliveries arrive on and the order lead time; order weekdays
+    /// are derived from the delivery weekdays and lead time.
     pub fn set_delivery_schedule(&mut self, delivery: &[u32], lead_time: u32) {
         self.lead_time = lead_time.max(1);
         self.schedule = OrderSchedule::from_delivery(delivery, self.lead_time)
             .unwrap_or_else(|_| OrderSchedule::default());
     }
 
+    /// Resets the particle bank to empty and snapshots it as `bank_init`. Per ADR 0136
+    /// the bank starts zero-initialized rather than phantom-prefilled — the filter has
+    /// no belief about a shelf it hasn't observed arrivals onto yet.
     fn seed_particle_bank(&mut self) {
         let n = self._n_particles.max(1);
         // ADR 0136: zero-init — empty shelf until observed arrivals (no phantom L×U pre-fill).
@@ -229,6 +306,8 @@ impl EngineSession {
         belief_flat_from_unit_bank(bank, self.l_dim, self.k_dim)
     }
 
+    /// Renders a rung's sparse per-day belief array to the wire format, dropping the
+    /// `Null` placeholder days a rung hasn't been advanced through yet.
     fn belief_history_wire(beliefs: &[serde_json::Value]) -> serde_json::Value {
         let days: Vec<serde_json::Value> = beliefs
             .iter()
@@ -239,6 +318,9 @@ impl EngineSession {
         serde_json::Value::Array(days)
     }
 
+    /// Stores the flattened belief for `day_idx` under the currently active rung's
+    /// cache entry, growing its sparse `beliefs` vector as needed. No-op when the
+    /// filter is disabled, since there is no belief to record.
     fn record_belief_for_day(&mut self, day_idx: u32, bank: &UnitParticleBank) {
         if !self.enable_filter {
             return;
@@ -259,6 +341,9 @@ impl EngineSession {
         entry.last_day = day_idx as i32;
     }
 
+    /// Snapshots the currently active bank into its rung cache entry (keeping that
+    /// entry's existing belief history) before switching to a different observation
+    /// rung, so the previous rung can be resumed later without re-replaying it.
     fn persist_active_rung(&mut self) {
         if !self.enable_filter {
             return;
@@ -285,6 +370,16 @@ impl EngineSession {
         }
     }
 
+    /// Advances ground truth by exactly one simulated day: rounds and (schedule
+    /// permitting) places `order_qty` into the pending pipeline, applies any delivery
+    /// due today (drawing its duration/temperature/position/decrement from
+    /// `arrival_model` on dedicated CRN streams, then biasing it by
+    /// `transit_temp_bias_c`/`spread_scale`), draws demand, and runs `day_step` to
+    /// settle sales, spoilage, and the resulting freshness/lot state. When the filter
+    /// is enabled it then folds the day's masked observation into `bank` and records
+    /// the new belief for the active rung. Each RNG stream is derived from `(seed,
+    /// day, stream id)` so re-running a day is reproducible and independent of which
+    /// observation rung is active (CRN).
     fn advance_one(&mut self, order_qty: u32) -> DayDelta {
         self.require_init();
         if self.day >= 90 {
@@ -446,6 +541,10 @@ impl EngineSession {
         delta
     }
 
+    /// Assembles the full RPC/studio state snapshot: current belief, live lots/units,
+    /// pending pipeline, the config actually in effect (`applied_config`), the
+    /// delivery/order schedule, and demand/arrival summaries. This is the payload sent
+    /// after `init` and after any observation-rung switch.
     pub fn snapshot_value(&self) -> serde_json::Value {
         serde_json::json!({
             "seq": self.seq,
@@ -483,6 +582,8 @@ impl EngineSession {
         })
     }
 
+    /// Renders one `DayDelta` (and the live state it leaves behind) to the RPC wire
+    /// format sent to the studio after each `step`/`act` call.
     pub fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
         serde_json::json!({
             "seq": self.seq,
@@ -509,6 +610,9 @@ impl EngineSession {
         belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim)
     }
 
+    /// Finds which lot segment `unit_idx` falls in by scanning `lot_offsets`. Falls
+    /// back to the last lot if no segment contains the index (should not happen for a
+    /// valid unit index, but keeps this infallible for wire-building callers).
     fn lot_index_for_unit(&self, unit_idx: usize) -> usize {
         let l = self.lot_offsets.len().saturating_sub(1);
         for ell in 0..l {
@@ -558,6 +662,8 @@ impl EngineSession {
         serde_json::Value::Array(items)
     }
 
+    /// Builds the per-lot wire summary (count, mean freshness, and per-unit freshness
+    /// values) for every lot with at least one unit still alive.
     fn live_lots_value(&self) -> serde_json::Value {
         let l = self.lot_offsets.len().saturating_sub(1);
         let alive = alive_by_lot(&self.freshness, &self.lot_offsets);
@@ -598,21 +704,30 @@ impl EngineSession {
         serde_json::Value::Array(pipe)
     }
 
+    /// Sets the `L` (lot slots) and `K` (freshness bins) dimensions of the belief-wire
+    /// histogram used for charts and the ordering policy.
     pub fn set_belief_dims(&mut self, l: usize, k: usize) {
         self.l_dim = l;
         self.k_dim = k.max(1);
     }
 
+    /// Advances one day with a caller-chosen order quantity, bypassing policy dispatch.
     pub fn step(&mut self, order: u32) -> DayDelta {
         self.crossings += 1;
         self.advance_one(order)
     }
 
+    /// Advances one day per entry in `orders`, in order, returning each day's delta —
+    /// a batch form of `step` for callers stepping a whole pre-computed order sequence.
     pub fn step_n(&mut self, orders: &[u32]) -> Vec<DayDelta> {
         self.crossings += 1;
         orders.iter().map(|&q| self.advance_one(q)).collect()
     }
 
+    /// Gets the `(lot_counts, f_marginals, f_grid)` triple the ordering policy needs.
+    /// When the filter is enabled this is the flattened particle-bank belief; when
+    /// disabled there's no tracked inventory belief, so it synthesizes zero lot counts
+    /// with a uniform freshness prior — the "empty shelf" fallback `act` dispatches on.
     fn f_belief_for_policy(&self) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
         if self.enable_filter {
             let v = belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim);
@@ -711,14 +826,25 @@ impl EngineSession {
         self.advance_one(q)
     }
 
+    /// Shorthand for `act` with the `rollout` policy and its own default tuning.
     pub fn act_rollout(&mut self) -> DayDelta {
         self.act(Some("rollout"), None, None, None, None, None, None)
     }
 
+    /// Ends the current episode and starts a new one at `seed` (delegates to `init`).
     pub fn reset(&mut self, seed: u64) {
         self.init(seed);
     }
 
+    /// Switches the active observation-ladder rung to `channels`, replaying whatever
+    /// days of `richest_log` that rung's cache hasn't seen yet through its own mask so
+    /// its particle bank and belief history are caught up to the current day, then
+    /// persists the previous rung's bank so it can be resumed later. Each rung's cache
+    /// is keyed by `channels_cache_key` and starts from `bank_init` the first time it's
+    /// visited; `catchup_days_last` records how many days this call had to replay, and
+    /// the fast path (same channels, already-cached rung) replays nothing. Returns the
+    /// same snapshot shape as `snapshot_value`, with `belief_history` for the new rung
+    /// attached.
     pub fn set_obs_channels(&mut self, channels: ObsChannels) -> Result<serde_json::Value, String> {
         self.require_init();
         self.catchup_days_last = 0;
@@ -814,11 +940,15 @@ impl EngineSession {
         Ok(snap)
     }
 
+    /// Switches to the observation rung named by a preset id (e.g. `"P1"`, `"F2"`);
+    /// resolves the preset to `ObsChannels` and delegates to `set_obs_channels`.
     pub fn set_obs_scenario(&mut self, obs_scenario: &str) -> Result<serde_json::Value, String> {
         let channels = channels_for_preset(obs_scenario)?;
         self.set_obs_channels(channels)
     }
 
+    /// Forecasts the demand/spoilage/cost tradeoff over the delivery protection window
+    /// from the current belief, for the studio's forward-looking chart.
     pub fn tradeoff_forecast_value(
         &self,
         n_paths: Option<u32>,
@@ -838,6 +968,9 @@ impl EngineSession {
         )
     }
 
+    /// Replays `richest_log` from `since_day` through the currently active observation
+    /// mask, returning what that rung would have seen each day — never the raw ground
+    /// truth (no channel reveals more than its mask allows).
     pub fn events_value(&self, since_day: u32) -> serde_json::Value {
         self.require_init();
         let mask = self.mask_active();
@@ -869,18 +1002,24 @@ impl EngineSession {
         serde_json::json!({ "days": days })
     }
 
+    /// Current particle filter bank's per-particle weights, for external diagnostics.
     pub fn bank_weights(&self) -> Vec<f64> {
         self.bank.weights.clone()
     }
 
+    /// Number of days the most recent `set_obs_channels`/`set_obs_scenario` call had
+    /// to replay to catch that rung's cache up to the current day.
     pub fn catchup_days_last_call(&self) -> u32 {
         self.catchup_days_last
     }
 
+    /// Diagnostic count of RPC/API entry-point calls (`init`, `step`, `step_n`, `act`)
+    /// made against this session so far.
     pub fn host_crossings(&self) -> u32 {
         self.crossings
     }
 
+    /// Number of particles backing the unit particle filter bank.
     pub fn n_particles(&self) -> usize {
         self._n_particles
     }
@@ -889,6 +1028,8 @@ impl EngineSession {
 const SCHEDULE_EPOCH: &str = "2024-01-01";
 const EMBEDDED_DEMAND_PROFILE: &str = include_str!("../../../data/freshnet/demand_profile.json");
 
+/// Loads the demand profile baked into the binary at compile time, used whenever an RPC
+/// caller doesn't supply its own `demand_profile`/`demand_profile_json`.
 fn committed_demand_profile() -> DemandProfile {
     DemandProfile::from_json(EMBEDDED_DEMAND_PROFILE).expect("embedded demand profile")
 }
@@ -904,6 +1045,9 @@ fn json_f64_vec(value: &serde_json::Value) -> Vec<f64> {
         .unwrap_or_default()
 }
 
+/// Renders an [`OrderSchedule`]'s weekday bitmaps as the sparse weekday-index arrays the
+/// studio front end expects, alongside the fixed [`SCHEDULE_EPOCH`] the weekdays are
+/// anchored to.
 fn schedule_wire(sched: &OrderSchedule) -> serde_json::Value {
     let delivery: Vec<u32> = sched
         .delivery_weekdays
@@ -927,6 +1071,9 @@ fn schedule_wire(sched: &OrderSchedule) -> serde_json::Value {
     })
 }
 
+/// Summarizes the active demand profile (or the committed default, if none is set) into
+/// the scale and day-of-week means the studio charts need, without shipping the full
+/// profile over RPC.
 fn demand_summary_wire(params: &ModelParams) -> serde_json::Value {
     let profile = params
         .demand_profile
@@ -940,6 +1087,10 @@ fn demand_summary_wire(params: &ModelParams) -> serde_json::Value {
     })
 }
 
+/// Parses an RPC-supplied demand profile, accepting either a raw JSON string under
+/// `demand_profile_json` or a `demand_profile` field that is itself a JSON string or an
+/// inline object. Returns `None` if the caller supplied nothing usable, in which case
+/// callers fall back to [`committed_demand_profile`].
 fn parse_demand_profile_from_rpc(params: &serde_json::Value) -> Option<DemandProfile> {
     if let Some(json) = rpc_str(params, "demand_profile_json") {
         return DemandProfile::from_json(json).ok();
@@ -955,6 +1106,9 @@ fn parse_demand_profile_from_rpc(params: &serde_json::Value) -> Option<DemandPro
     None
 }
 
+/// Checks a scenario id against the set of legitimate `ObsMask` scenarios, rejecting
+/// `"B-state"` specifically because it is a verification bypass that fabricates
+/// observations rather than a real observation rung.
 fn validate_scenario(id: &str) -> Result<(), String> {
     if id == "B-state" {
         return Err(
@@ -968,6 +1122,9 @@ fn validate_scenario(id: &str) -> Result<(), String> {
     }
 }
 
+/// Looks up an RPC parameter, checking the top-level `params` object first and falling
+/// back to `params.config`. Every other `rpc_*` helper in this file goes through here, so
+/// callers can send fields either flat or nested under `config` interchangeably.
 fn rpc_field<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
     params
         .get(key)
@@ -990,6 +1147,9 @@ fn rpc_f64(params: &serde_json::Value, key: &str) -> Option<f64> {
     rpc_field(params, key).and_then(|v| v.as_f64())
 }
 
+/// Coerces a JSON array into a sorted, deduplicated list of valid weekday indices (`0..7`),
+/// dropping anything out of range. Returns `None` if nothing valid survives, so callers can
+/// tell "no weekdays configured" apart from "an empty list was configured".
 fn parse_weekday_list(value: &serde_json::Value) -> Option<Vec<u32>> {
     let arr = value.as_array()?;
     let mut days: Vec<u32> = arr
@@ -1022,6 +1182,10 @@ fn f64_array(value: &serde_json::Value) -> Vec<f64> {
         .unwrap_or_default()
 }
 
+/// Parses shipment temperature traces from an RPC configure request, accepting either the
+/// current `shipments: [{times_d, temps_c}, ...]` shape or the older parallel `times`/`temps`
+/// outer-array shape, in that order of preference. A shipment needs at least two points in
+/// each array to be usable, since a trace with one point can't define an exposure interval.
 fn parse_shipments_from_rpc(params: &serde_json::Value) -> Vec<ShipmentTrace> {
     if let Some(arr) = rpc_field(params, "shipments").and_then(|v| v.as_array()) {
         let ships: Vec<ShipmentTrace> = arr
@@ -1059,6 +1223,12 @@ fn parse_shipments_from_rpc(params: &serde_json::Value) -> Vec<ShipmentTrace> {
 }
 
 impl EngineSession {
+    /// Decodes a JSON `"init"`/`"reset"` configure payload and applies every field it
+    /// contains to `self`, filling in defaults for anything omitted. Shipment traces fall
+    /// back to a synthetic `mod21_demo_shipments` set keyed by `arrival_product` when the
+    /// caller doesn't supply real ones. `eta_ref` and `gamma_shape` each re-derive the
+    /// reference life and rebuild `gamma_table` unless the request also carries an explicit
+    /// `gamma_scale`, so an explicit scale always wins over the derived one.
     fn apply_rpc_configure(&mut self, params: &serde_json::Value) {
         let lead_time = rpc_u64(params, "lead_time").unwrap_or(1) as u32;
         let enable_filter = rpc_bool(params, "enable_filter").unwrap_or(true);
@@ -1122,6 +1292,7 @@ impl EngineSession {
     }
 }
 
+/// What changed in one simulated day, returned by `"step"`, `"step_n"`, and `"act"`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DayDelta {
     pub demand: u32,
@@ -1131,9 +1302,14 @@ pub struct DayDelta {
     pub order_qty: u32,
     pub arrivals: u32,
     pub episode_day: u32,
+    /// Every unit that left inventory this day, spoiled or sold, with the freshness it
+    /// held at the moment it exited.
     pub unit_exits: Vec<UnitExit>,
 }
 
+/// A decoded JSON-RPC request: `method` selects the [`EngineSession`] call in
+/// [`handle_rpc`]'s dispatch, `params` carries its arguments (missing entirely if the
+/// caller sent none), and `id` is echoed back verbatim in the response.
 #[derive(Deserialize)]
 struct RpcRequest {
     id: serde_json::Value,
@@ -1142,6 +1318,23 @@ struct RpcRequest {
     params: serde_json::Value,
 }
 
+/// The single JSON-RPC entry point both the WASM and PyO3 bindings call into: takes a
+/// request as a JSON string and returns a JSON response string, never panicking on bad
+/// input. A thread-local [`EngineSession`] holds the simulation state between calls, so a
+/// caller's requests on one thread see a consistent running session without threading a
+/// handle through the FFI boundary.
+///
+/// `method` dispatches to the matching `EngineSession` operation: `"init"`/`"reset"` (both
+/// aliases for the same handler) seed a fresh session, apply belief-histogram dimensions,
+/// run `EngineSession::apply_rpc_configure`, and set the observation channels or scenario
+/// from whichever of `obs_channels`/`obs_scenario` (flat or under `config`) was given;
+/// `"step"` and `"step_n"` advance the simulation by one or many days under caller-supplied
+/// order quantities; `"act"` lets the policy choose the order itself from optional
+/// overrides; `"set_obs_scenario"` and `"set_obs_channels"` change what the store can see
+/// mid-run; `"tradeoff_forecast"` and `"events"` are read-only queries over the running
+/// session. Parse failures, unknown methods, and validation errors from the session all
+/// come back as `{"ok": false, "error": {...}}` rather than an `Err`, since this function's
+/// contract is "always produce a response string".
 pub fn handle_rpc(request_json: &str) -> String {
     let req: RpcRequest = match serde_json::from_str(request_json) {
         Ok(r) => r,

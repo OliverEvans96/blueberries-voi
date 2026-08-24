@@ -7,14 +7,24 @@ use crate::arrival::ArrivalModel;
 use crate::day_step::{unit_day_step, UnitDayStepIn, ModelParams};
 use crate::shipments::ShipmentTrace;
 
+/// Totals from a closed-loop episode, split into the full horizon and the scored
+/// tail. The first `n_burn` days let the system reach a steady state and are excluded
+/// from the `scored_*` totals so startup transients don't bias the comparison.
 #[derive(Clone, Debug)]
 pub struct EpisodeResult {
+    /// Number of burn-in days excluded from the `scored_*` totals.
     pub n_burn: u32,
+    /// Number of days counted toward the `scored_*` totals.
     pub n_score: u32,
+    /// Total simulated days, `n_burn + n_score`.
     pub n_days: u32,
+    /// Units sold across the entire horizon, burn-in included.
     pub sales_total: u32,
+    /// Units wasted across the entire horizon, burn-in included.
     pub waste_total: u32,
+    /// Units sold during the scored tail only (days `>= n_burn`).
     pub scored_sales: u32,
+    /// Units wasted during the scored tail only (days `>= n_burn`).
     pub scored_waste: u32,
 }
 
@@ -23,6 +33,10 @@ fn can_order(day: u32) -> bool {
     matches!(day % 7, 0 | 2 | 4)
 }
 
+/// Runs a fixed-order closed-loop episode over `n_burn + n_score` days, drawing
+/// deliveries and demand from injected RNGs rather than any Abdella parquet input.
+/// Every scheduled order is the same constant `constant_order` quantity, so this is a
+/// smoke-test/harness episode rather than one driven by the ordering policy.
 pub fn run_closed_loop_episode(
     n_burn: u32,
     n_score: u32,

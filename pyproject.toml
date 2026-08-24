@@ -158,6 +158,7 @@ addopts = [
 ]
 markers = [
     "slow: expensive rollout / CRN parity tests (H=28, P=8)",
+    "docs: VitePress docs guards (content may be WIP)",
 ]
 
 [tool.coverage.run]

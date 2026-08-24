@@ -8,18 +8,41 @@ pub const DEFAULT_L_DIM: usize = 10;
 /// Default virtual units per lot on the f-native `L×U` grid (ADR 0130).
 pub const DEFAULT_UNITS_PER_LOT: usize = 15;
 
+/// The one struct holding every tunable default for the simulation: aging physics,
+/// demand, picking behavior, and ordering mechanics. Mirrors Python's
+/// `model.params.ModelParams` so the two hosts stay parameter-for-parameter identical.
 #[derive(Clone, Debug)]
 pub struct ModelParams {
+    /// Weibull shape parameter for the terminal-salvage survival weight `w_long`
+    /// (ADR 0061) — a separate valuation of remaining shelf life at the horizon's end,
+    /// not part of the Gamma freshness/spoilage model itself.
     pub beta: f64,
+    /// Reference shelf life in days. Anchors `gamma_scale`'s derivation
+    /// (`set_reference_life`) and the legacy age↔freshness conversions
+    /// (`age_to_f`/`f_to_age`).
     pub eta_ref: f64,
+    /// Q10 temperature factor: the multiplier on degradation rate per 10°C above
+    /// `t_ref_c`.
     pub q10: f64,
+    /// Reference temperature (°C) at which the Q10 factor is 1.
     pub t_ref_c: f64,
+    /// Store holding temperature (°C) actually driving the Q10 factor.
     pub t_store_c: f64,
+    /// Freshness-weighting exponent for picking: units are drawn with weight
+    /// proportional to `max(f, 0)^sigma`, so larger `sigma` biases picking toward
+    /// fresher stock. Ignored when `uniform_picking` is set.
     pub sigma: f64,
+    /// Legacy constant mean daily demand, used only when `demand_profile` is `None`.
     pub demand_mu: f64,
+    /// Variance-to-mean ratio for the negative-binomial demand noise (ADR 0113).
     pub demand_vm: f64,
+    /// Units per case; orders are rounded to multiples of this (`case_round`).
     pub case_size: u32,
+    /// When true, picking ignores freshness entirely and draws units uniformly at
+    /// random instead of freshness-weighted.
     pub uniform_picking: bool,
+    /// Optional calendar demand profile; when set, overrides `demand_mu`/`demand_vm`
+    /// with a day-of-week/week-varying mean and its matched variance-to-mean ratio.
     pub demand_profile: Option<DemandProfile>,
     /// Gamma aging shape (daily freshness decrement draw).
     pub gamma_shape: f64,

@@ -1,0 +1,14 @@
+{
+  "name": "blueberries-voi-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev . --port 5174",
+    "docs:build": "bash ../scripts/build-rustdoc.sh && vitepress build .",
+    "docs:preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "markdown-it-mathjax3": "^4.3.2",
+    "vitepress": "^1.6.4"
+  }
+}
