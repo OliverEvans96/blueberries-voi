@@ -14,17 +14,18 @@ Use real file copies:
 
 ## CI layout (`ci.yml`)
 
-Four jobs start in parallel; only **rust** waits on **build**:
+Five jobs start in parallel; only **rust** waits on **build**:
 
 | Job | Waits on | What |
 |-----|----------|------|
 | `build` | — | `uv sync --extra rust`, maturin wheel (`--release`), WASM (`--release`), `cargo test --release --no-run`; upload `ci-rust-wasm-build` |
 | `rust` | `build` | restore Cargo registry cache; download `target/`; `cargo test --release` (prebuilt binaries) |
-| `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage |
+| `python` | — | `uv sync`, `maturin develop`; ruff, mypy, pytest+coverage (`-m "not docs"`) |
+| `docs` | — | `npm ci` in `docs/`, VitePress build, informational docs guards, upload `docs-dist` |
 | `web` | — | `build-wasm.sh`, `build:lib`, vitest, `npm pack` smoke |
 
-On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, and
-`web` succeed (production `npm run build` + dist artifact; WASM from `build`).
+On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, `web`, and
+`docs` succeed (production `npm run build` + `studio-dist`; docs site + `docs-dist`).
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 
