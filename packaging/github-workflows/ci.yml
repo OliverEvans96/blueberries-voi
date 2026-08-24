@@ -186,6 +186,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Python dependencies for docs guards
+        run: |
+          uv venv --python 3.11
+          uv sync --extra dev --python 3.11 --frozen
+
       - name: Docs guards
         run: >-
           uv run --python 3.11 pytest
@@ -307,3 +312,10 @@ jobs:
           name: docs-dist
           path: docs/.vitepress/dist/
           if-no-files-found: error
+
+      - name: Notify personal-website to redeploy docs
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PERSONAL_WEBSITE_DISPATCH_PAT }}
+          repository: OliverEvans96/personal-website
+          event-type: blueberries-docs-published

@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (gitignored). Secrets live in secrets/secrets.enc.yaml (SOPS + PGP).
+#
+# Without terraform.tfvars, enable_github_actions defaults to false and apply only
+# refreshes the SOPS data source + outputs — no GitHub Actions secrets are created.
+
+enable_github_actions = true
+github_owner          = "OliverEvans96"
+github_repository     = "blueberries-voi"

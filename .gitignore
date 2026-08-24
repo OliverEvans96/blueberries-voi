@@ -38,6 +38,11 @@ htmlcov/
 
 # Secrets / local config
 .env
+secrets/secrets.plain.yaml
+secrets/*.plain.yaml
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
 
 # Nix
 result

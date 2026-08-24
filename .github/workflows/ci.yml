@@ -152,6 +152,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -163,7 +172,7 @@ jobs:
         working-directory: docs
         run: npm ci
 
-      - name: Build VitePress site
+      - name: Build VitePress site and rustdoc bundle
         working-directory: docs
         run: npm run docs:build
 
@@ -177,14 +186,28 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Docs guards (informational until content QA)
-        continue-on-error: true
+      - name: Install Python dependencies for docs guards
+        run: |
+          uv venv --python 3.11
+          uv sync --extra dev --python 3.11 --frozen
+
+      - name: Docs guards
         run: >-
           uv run --python 3.11 pytest
           tests/test_docs_terminology.py
           tests/test_docs_code_refs.py
           tests/test_docs_adr_status.py
           -m docs
+
+      - name: Rustdoc guards
+        run: >-
+          uv run --python 3.11 pytest
+          tests/test_rustdoc_stubs.py
+          tests/test_rustdoc_links.py
+          -m docs
+
+      - name: Rustdoc manifest freshness
+        run: uv run --python 3.11 python scripts/rustdoc_inventory.py --check
 
       - name: Upload docs dist artifact
         uses: actions/upload-artifact@v4
@@ -289,3 +312,10 @@ jobs:
           name: docs-dist
           path: docs/.vitepress/dist/
           if-no-files-found: error
+
+      - name: Notify personal-website to redeploy docs
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PERSONAL_WEBSITE_DISPATCH_PAT }}
+          repository: OliverEvans96/personal-website
+          event-type: blueberries-docs-published
