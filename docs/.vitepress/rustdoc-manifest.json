@@ -130,6 +130,22 @@
       "link_target": "voi_core/demand_profile/struct.DemandProfile.html#method.mu"
     },
     {
+      "symbol": "scale_target_mu",
+      "module": "demand_profile",
+      "source_file": "crates/voi_core/src/demand_profile.rs",
+      "rustdoc_path": "voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu",
+      "linkable": true,
+      "link_target": "voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu"
+    },
+    {
+      "symbol": "demand_mu",
+      "module": "params",
+      "source_file": "crates/voi_core/src/params.rs",
+      "rustdoc_path": "voi_core/params/fn.demand_mu.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
       "symbol": "demand_mu_for_day",
       "module": "params",
       "source_file": "crates/voi_core/src/params.rs",

@@ -147,7 +147,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Demand mean | $\mu$ | 30.0 | units/day | Negative-binomial mean demand: flat legacy default `demand_mu`; the calendar profile's own scale is the separate `scale_target_mu` field | `crates/voi_core/src/params.rs:45` (`demand_mu`); `crates/voi_core/src/demand_profile.rs:106` (`scale_target_mu`); `data/freshnet/demand_profile.json` |
+| Demand mean | $\mu$ | 30.0 | units/day | Negative-binomial mean demand: flat legacy default `demand_mu`; the calendar profile's own scale is the separate `scale_target_mu` field | `crates/voi_core/src/params.rs:45` (`demand_mu`); `crates/voi_core/src/demand_profile.rs:106` ([`scale_target_mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu)); `data/freshnet/demand_profile.json` |
 | Demand variance-to-mean | $V/M$ | 2.0 | — | NB dispersion: variance $= (V/M)\times$ mean | `crates/voi_core/src/params.rs:46`; `data/freshnet/demand_profile.json` |
 | Case size | — | 8 | units/case | Orders round up to whole cases | `crates/voi_core/src/params.rs:47` |
 | Units per lot | — | 15 | units/lot | Virtual grid width per delivered lot on the $L\times U$ truth/filter grid | `crates/voi_core/src/params.rs:9,53` |

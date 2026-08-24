@@ -39,6 +39,17 @@ def _find_definition(path: Path, symbol: str) -> int | None:
         pat = re.compile(
             rf"^\s*(?:pub\s+)?(?:fn|struct|enum|const|type)\s+{re.escape(base)}\b"
         )
+        # Fallback: a plain struct/enum field declaration (`pub foo: Type,`), which the
+        # item-level pattern above doesn't match but which can carry its own `///` doc
+        # comment -- e.g. `ModelParams::demand_mu` is cited by name, not as a `fn`/`struct`.
+        field_pat = re.compile(rf"^\s*pub\s+{re.escape(base)}\s*:")
+        for i, line in enumerate(lines):
+            if pat.search(line):
+                return i
+        for i, line in enumerate(lines):
+            if field_pat.search(line):
+                return i
+        return None
     for i, line in enumerate(lines):
         if pat.search(line):
             return i
