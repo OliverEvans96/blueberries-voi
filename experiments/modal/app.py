@@ -55,6 +55,8 @@ _GSIN_BIN = _repo_relative_path(
     "GSIN_UPC_DIAG_BIN",
     _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
 )
+_TUNED_ALPHA = _REPO / "experiments" / "tuned_alpha.json"
+_REMOTE_TUNED_ALPHA = "/experiments/tuned_alpha.json"
 
 _WHEEL_REMOTE = f"/tmp/{WHEEL_PATH.name}"
 
@@ -71,11 +73,16 @@ if modal.is_local():
         image = image.add_local_file(
             str(_GSIN_BIN), "/usr/local/bin/gsin_upc_diag", copy=True
         )
+    if _TUNED_ALPHA.is_file():
+        image = image.add_local_file(
+            str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True
+        )
     image = image.run_commands(f"pip install {_WHEEL_REMOTE}").env(
         {
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
         }
     )
 else:
@@ -84,6 +91,7 @@ else:
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
         }
     )
 

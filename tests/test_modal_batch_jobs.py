@@ -317,3 +317,5 @@ def test_modal_app_wheel_path_relative_to_repo(
 
     assert app_mod.WHEEL_PATH.is_file()
     assert app_mod.WHEEL_PATH.parent == wheel_dir.resolve()
+    assert app_mod._TUNED_ALPHA.is_file()
+    assert app_mod._REMOTE_TUNED_ALPHA == "/experiments/tuned_alpha.json"

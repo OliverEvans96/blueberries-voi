@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -45,14 +46,19 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _tuned_alpha_path(alpha_table_path: Path | str | None = None) -> Path:
+    if alpha_table_path is not None:
+        return Path(alpha_table_path)
+    env = os.environ.get("BLUEBERRIES_VOI_TUNED_ALPHA")
+    if env:
+        return Path(env)
+    return _repo_root() / DEFAULT_TUNED_ALPHA_PATH
+
+
 def _tuned_sw_alpha(
     alpha_table_path: Path | str | None = None,
 ) -> float:
-    path = (
-        Path(alpha_table_path)
-        if alpha_table_path is not None
-        else _repo_root() / DEFAULT_TUNED_ALPHA_PATH
-    )
+    path = _tuned_alpha_path(alpha_table_path)
     table = require_tuned_alpha_table(path)
     if "sw" not in table:
         msg = f"tuned alpha table missing 'sw' arm: {path}"
@@ -211,32 +217,31 @@ def run_seed_oracle_profit(
     costs: ProfitCosts | None = None,
     alpha_table_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """B-state / perfect-state oracle — not an ``ObsChannels`` preset."""
-    use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
-    alpha = _tuned_sw_alpha(alpha_table_path)
+    """B-state / perfect-state oracle via shared-physics CRN (not ``ObsChannels``)."""
+    del costs  # profit costs are Rust-owned on the CRN path
+    from blueberries_voi.voi.crn import run_voi_crn_cell
+
     ch = validate_channels(
         {"code_type": "upc", "scan_waste": False, "delivery_history": "none"}
     )
-
-    def _setup(session: EngineSession) -> None:
-        session.set_obs_scenario("B-state")
-
-    profit, waste, stockout = _run_scored_episode(
-        seed,
-        n_burn=n_burn,
-        n_score=n_score,
-        n_rollout_paths=n_rollout_paths,
-        filter_n=filter_n,
-        alpha=alpha,
-        setup=_setup,
-        costs=use_costs,
+    profits = run_voi_crn_cell(
+        beta=1.0,
+        root_seed=int(seed),
+        scenarios=("B-state",),
+        n_burn=int(n_burn),
+        n_score=int(n_score),
+        filter_n=int(filter_n),
+        n_rollout_paths=int(n_rollout_paths),
+        H=int(DEMO_BUDGETS["H"]),
+        alpha_table_path=_tuned_alpha_path(alpha_table_path),
     )
+    profit = float(profits["B-state"])
     return _channel_row(
         seed,
         ch,
         profit=profit,
-        waste=waste,
-        stockout=stockout,
+        waste=0,
+        stockout=0,
         oracle=True,
     )
 

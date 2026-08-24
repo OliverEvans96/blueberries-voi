@@ -237,7 +237,10 @@ def _run_modal(
                 gsin_cells = gsin_job_grid()
             if smoke:
                 gsin_cells = gsin_cells[:1]
-            shards = list(gsin_shard.starmap(gsin_cells))
+            handles = [
+                gsin_shard.spawn(regime, seed) for regime, seed in gsin_cells
+            ]
+            shards = _collect_handles(handles, progress=progress)
             rows = merge_gsin_diag_rows(shards)
             _write_optional_json(rows, out_path)
             return rows
