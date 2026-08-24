@@ -138,12 +138,79 @@ jobs:
 
       - name: Pytest with coverage
         run: >-
-          uv run --python 3.11 pytest -n auto
+          uv run --python 3.11 pytest -n auto -m "not docs"
           --cov=blueberries_voi
           --cov-branch
           --cov-report=term-missing
           --cov-report=xml
           --cov-fail-under=80
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+          cache-targets: "false"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install docs dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Build VitePress site and rustdoc bundle
+        working-directory: docs
+        run: npm run docs:build
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Docs guards (informational until content QA)
+        continue-on-error: true
+        run: >-
+          uv run --python 3.11 pytest
+          tests/test_docs_terminology.py
+          tests/test_docs_code_refs.py
+          tests/test_docs_adr_status.py
+          -m docs
+
+      - name: Rustdoc guards
+        run: >-
+          uv run --python 3.11 pytest
+          tests/test_rustdoc_stubs.py
+          tests/test_rustdoc_links.py
+          -m docs
+
+      - name: Rustdoc manifest freshness
+        run: uv run --python 3.11 python scripts/rustdoc_inventory.py --check
+
+      - name: Upload docs dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-dist
+          path: docs/.vitepress/dist/
+          if-no-files-found: error
 
   web:
     name: web
@@ -191,7 +258,7 @@ jobs:
 
   deploy:
     name: deploy
-    needs: [build, rust, python, web]
+    needs: [build, rust, python, web, docs]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     steps:
@@ -220,9 +287,24 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Install docs dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Build docs site
+        working-directory: docs
+        run: npm run docs:build
+
       - name: Upload studio dist artifact
         uses: actions/upload-artifact@v4
         with:
           name: studio-dist
           path: web/dist/
+          if-no-files-found: error
+
+      - name: Upload docs dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-dist
+          path: docs/.vitepress/dist/
           if-no-files-found: error

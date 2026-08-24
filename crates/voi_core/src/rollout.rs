@@ -30,6 +30,9 @@ pub struct RolloutCosts {
 }
 
 impl Default for RolloutCosts {
+    /// The same uncalibrated scaffold margin/waste/stockout costs as the top-level profit
+    /// accounting (`DEFAULT_PROFIT_COSTS`), used here as the objective the rollout
+    /// controller's own forward search optimizes against.
     fn default() -> Self {
         Self {
             unit_margin: 2.0,

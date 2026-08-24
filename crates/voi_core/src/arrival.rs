@@ -521,6 +521,10 @@ impl ArrivalModel {
         gamma_q(self.gamma_shape * lam, 1.0 / self.gamma_scale)
     }
 
+    /// Draws a delivery's mean transit temperature `T̄` from `TruncatedNormal(mu_t,
+    /// sigma_t)`, floored at `temp_floor_c` (a reefer can't usefully run colder than its
+    /// floor). Rejection-samples up to 64 times before falling back to the floor itself,
+    /// which is effectively exact for the small `sigma_t` this model is calibrated with.
     fn sample_truncated_normal<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let dist = Normal::new(self.mu_t, self.sigma_t).expect("trunc normal");
         for _ in 0..64 {
@@ -532,6 +536,10 @@ impl ArrivalModel {
         self.temp_floor_c
     }
 
+    /// Draws one unit's within-pallet position multiplier `psi ~ LogNormal(0, sigma_pos)`,
+    /// independently per unit (unlike duration and mean temperature, which are shared
+    /// across a whole delivery). This is the source of freshness variation between units
+    /// on the same truck; no observation channel ever reveals it directly.
     fn draw_psi_pos<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let dist = LogNormal::new(0.0, self.sigma_pos).expect("lognormal pos");
         dist.sample(rng).max(1e-6)
