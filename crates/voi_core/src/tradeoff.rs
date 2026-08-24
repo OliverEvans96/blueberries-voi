@@ -18,6 +18,11 @@ pub fn full_tradeoff_q_candidates(case_size: u32) -> Vec<u32> {
     (0..=max_q).step_by(cs as usize).collect()
 }
 
+/// Per-(path, day, stream) RNG for the tradeoff sweep, deliberately independent of the
+/// candidate order quantity `q`. Every candidate `q` in [`tradeoff_forecast`] therefore
+/// replays the same demand/gamma/allocation draws for a given path and day, so the
+/// waste/missed bands it reports differ only because of `q`, not because of which random
+/// draws each candidate happened to see (CRN across `q`).
 fn path_rng(seed: u64, path: u32, day: u32, stream: u64) -> Pcg64 {
     Pcg64::seed_from_u64(
         seed.wrapping_add(u64::from(path).wrapping_mul(1_000_003))
@@ -26,6 +31,10 @@ fn path_rng(seed: u64, path: u32, day: u32, stream: u64) -> Pcg64 {
     )
 }
 
+/// Picks one particle hypothesis for the given path (via systematic resampling on the
+/// bank's log-weights) and returns its freshness row and lot offsets as the path's starting
+/// state. Falls back to a fully-fresh, uniform-lot state when the bank has no freshness data
+/// yet.
 fn bank_start_state(
     bank: &UnitParticleBank,
     path: u32,
@@ -49,6 +58,10 @@ fn bank_start_state(
     (freshness, lot_offsets)
 }
 
+/// Advances one particle's freshness state through `protection_days` of `unit_day_step`,
+/// injecting `order_q` as an arrival on the day `lead_time` falls due, and accumulates the
+/// waste and missed-demand (demand minus sales) totals over the window. This is the
+/// per-path Monte Carlo rollout that [`tradeoff_forecast`] samples for each candidate `q`.
 fn simulate_protection_path(
     start_freshness: &[f64],
     start_offsets: &[usize],
@@ -104,6 +117,8 @@ fn simulate_protection_path(
     (waste_total, missed_total)
 }
 
+/// Nearest-rank percentile `p` (in `[0, 1]`) of `sorted`, which must already be sorted
+/// ascending.
 fn percentile(sorted: &[f64], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
@@ -112,6 +127,8 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
+/// Index of the bin containing `v` given ascending bin edges `bins`; values at or beyond
+/// the last edge clamp into the final bin.
 fn bin_index(v: f64, bins: &[f64]) -> usize {
     for i in 0..bins.len().saturating_sub(1) {
         if v < bins[i + 1] {
@@ -121,6 +138,14 @@ fn bin_index(v: f64, bins: &[f64]) -> usize {
     bins.len().saturating_sub(2)
 }
 
+/// Sweeps the case-snapped candidate order quantities from [`full_tradeoff_q_candidates`]
+/// and, for each one, rolls forward `n_paths` bank-resampled particle continuations over
+/// the protection window to estimate the waste/missed-demand tradeoff that quantity implies.
+///
+/// Every candidate reuses the same per-path, per-day random draws (see `path_rng`), so
+/// the reported percentile bands and joint waste/missed histogram reflect the effect of `q`
+/// alone rather than sampling noise between candidates. This backs the studio's tradeoff
+/// display, not the ordering policy itself.
 pub fn tradeoff_forecast(
     bank: &UnitParticleBank,
     l_dim: usize,

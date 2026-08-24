@@ -42,6 +42,10 @@ fn resolve_condition(
     }
 }
 
+/// Maps the observation ladder's three toggles onto the named rung a chart should
+/// label itself with (ADR 0133): duration-only delivery history splits into `F2`
+/// (GSIN, lot-resolved) vs `F2a` (UPC, pooled) since the two see the same duration
+/// conditioning but at different code-type resolution.
 fn rung_name(channels: ObsChannels) -> &'static str {
     match channels.delivery_history {
         DeliveryHistory::TemperatureHistory => "F3",

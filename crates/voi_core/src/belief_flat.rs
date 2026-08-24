@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::unit_pf::UnitParticleBank;
 
+/// Index of the `grid` entry closest to `value`; ties resolve to the lower index.
 fn nearest_bin(value: f64, grid: &[f64]) -> usize {
     grid.iter()
         .enumerate()

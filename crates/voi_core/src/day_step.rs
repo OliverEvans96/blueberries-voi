@@ -14,8 +14,11 @@ pub use crate::params::ModelParams;
 /// Input for one f-native day on the virtual `L×U` grid.
 #[derive(Clone, Debug)]
 pub struct UnitDayStepIn {
+    /// Per-unit freshness on entry, in the flat order that `lot_offsets` segments.
     pub freshness: Vec<f64>,
+    /// Lot segment boundaries into `freshness`: length `n_lots + 1`, first entry `0`.
     pub lot_offsets: Vec<usize>,
+    /// Units of demand to fill today; `None` is treated as zero demand.
     pub demand: Option<u32>,
     /// Fixed gamma decrement (deterministic tests); else stochastic draw from params.
     pub gamma_decrement: Option<f64>,
@@ -40,20 +43,30 @@ pub enum UnitExitCause {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UnitExit {
     pub unit_idx: usize,
+    /// Freshness the unit held just before it exited: the last positive value for
+    /// spoilage, the freshness at the moment of sale for sales.
     pub f: f64,
     pub cause: UnitExitCause,
 }
 
-/// Output state and [`RichDay`]-shaped aggregates from one f-native day.
+/// Output state and `RichDay`-shaped aggregates from one f-native day.
 #[derive(Clone, Debug)]
 pub struct UnitDayStepOut {
+    /// Freshness for all units after aging, spoilage, sales, and any delivery.
     pub freshness: Vec<f64>,
+    /// Lot boundaries into `freshness`; extended by one entry when `deliver` added a lot.
     pub lot_offsets: Vec<usize>,
+    /// Demand actually applied this day (`0` if none was supplied).
     pub demand: u32,
+    /// Total units sold today, summed across lots.
     pub sales_total: u32,
+    /// Units sold today, broken out per lot.
     pub sales_by: Vec<u32>,
+    /// Total units that spoiled today, summed across lots.
     pub waste_total: u32,
+    /// Units that spoiled today, broken out per lot.
     pub waste_by: Vec<u32>,
+    /// Per-unit spoil/sale events recorded this day, for the truth overlay.
     pub unit_exits: Vec<UnitExit>,
 }
 
@@ -70,6 +83,8 @@ pub fn alive_by_lot(freshness: &[f64], lot_offsets: &[usize]) -> Vec<u32> {
         .collect()
 }
 
+/// Locates the lot segment containing `unit_idx`. Clamps to the last lot rather than
+/// panicking if `unit_idx` is out of range, which should not happen on well-formed input.
 fn lot_index(lot_offsets: &[usize], unit_idx: usize) -> usize {
     let l = lot_offsets.len() - 1;
     for ell in 0..l {
@@ -80,6 +95,9 @@ fn lot_index(lot_offsets: &[usize], unit_idx: usize) -> usize {
     l.saturating_sub(1)
 }
 
+/// Applies the day's freshness decrement: a fixed test decrement takes priority when
+/// given, then a stochastic per-unit gamma draw when an aging RNG is supplied, else a
+/// single store-level decrement shared by every unit.
 fn apply_gamma_step<R: Rng + ?Sized>(
     freshness: &mut [f64],
     gamma_decrement: Option<f64>,
@@ -95,6 +113,8 @@ fn apply_gamma_step<R: Rng + ?Sized>(
     }
 }
 
+/// Counts units whose freshness crossed from positive to `<= 0` this day -- i.e.
+/// spoiled -- per lot.
 fn count_spoil_by_lot(
     before: &[f64],
     after: &[f64],
@@ -111,6 +131,8 @@ fn count_spoil_by_lot(
     (waste_total, waste_by)
 }
 
+/// Builds a [`UnitExit`] record for every unit that spoiled this day (freshness crossed
+/// from positive to `<= 0`).
 fn spoil_unit_exits(
     before: &[f64],
     after: &[f64],
@@ -133,6 +155,12 @@ fn spoil_unit_exits(
         .collect()
 }
 
+/// Fills `demand` from the currently alive (`f > 0`) units via freshness-weighted
+/// sampling without replacement: each draw recomputes [`picking_weights_f`] over the
+/// units still alive and zeroes the picked unit before the next draw, so a unit can
+/// never be picked twice and only the post-spoilage alive set is ever eligible. Falls
+/// back to a uniform draw among alive units if the weights sum to zero. Demand in excess
+/// of alive inventory is clamped to what's actually on the shelf.
 fn pick_units_f<R: Rng + ?Sized>(
     freshness: &mut [f64],
     lot_offsets: &[usize],
@@ -192,6 +220,13 @@ fn pick_units_f<R: Rng + ?Sized>(
 }
 
 /// Advance one calendar day on the unit-freshness grid.
+///
+/// Runs the day's mechanics in fixed order -- age (every alive unit draws its own
+/// independent gamma decrement), spoil (units whose freshness crossed zero exit as
+/// waste), sell (freshness-weighted draws without replacement fill demand from the
+/// post-spoilage alive set), deliver (a new lot is appended last, so today's truck can
+/// never be sold to today's customers) -- and reports the resulting state plus
+/// `RichDay`-shaped aggregates.
 pub fn unit_day_step<R: Rng + ?Sized>(
     input: &UnitDayStepIn,
     params: &ModelParams,

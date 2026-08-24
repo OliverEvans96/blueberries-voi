@@ -17,8 +17,12 @@ use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
 
+/// Run-id tag used to derive the shared physics RNG streams (demand, spoilage, arrivals)
+/// that every scenario in a CRN cell draws from identically.
 pub const PHYSICS_RUN_ID: &str = "voi-physics";
 
+/// The observation-ladder rungs (plus the `B-state` truth oracle) that
+/// [`run_voi_crn_cell`] runs by default when no explicit scenario list is given.
 pub const VOI_SCENARIOS: &[&str] = &["P0", "P1", "F1", "F1s", "F2a", "F2", "B-state"];
 
 const STREAM_DEMAND: u64 = 1;
@@ -45,6 +49,13 @@ const STREAM_ARRIVAL_TEMP: u64 = 11;
 const FILTER_INIT_L: usize = 3;
 const FILTER_INIT_K: usize = 8;
 
+/// Deterministically derives a substream RNG from `(root, run_tag, day, stream)`.
+///
+/// Mixing all four inputs through fixed odd constants means every (physics vs. filter,
+/// scenario, day, stream-kind) combination gets its own independent draw sequence, so
+/// scenarios sharing `root` and `run_tag` (i.e. the physics streams) stay bit-identical
+/// while filter streams — keyed by [`filter_tag`] — diverge per scenario without
+/// disturbing the shared physics.
 fn rng(root: u64, run_tag: u64, day: u32, stream: u64) -> Pcg64 {
     Pcg64::seed_from_u64(
         root.wrapping_mul(0x9E37_79B9_7F4A_7C15)
@@ -54,10 +65,14 @@ fn rng(root: u64, run_tag: u64, day: u32, stream: u64) -> Pcg64 {
     )
 }
 
+/// Fixed `run_tag` for the shared physics RNG streams, common to every scenario.
 fn physics_tag() -> u64 {
     0x7068_7973 // "phys"
 }
 
+/// Hashes a scenario name into a `run_tag` so each scenario's filter RNG streams are
+/// independent of one another and of the shared physics streams (which use
+/// [`physics_tag`] instead).
 fn filter_tag(scenario: &str) -> u64 {
     scenario
         .bytes()
@@ -72,6 +87,11 @@ fn pop_arrival(pending: &mut std::collections::BTreeMap<u32, u32>, day: u32) -> 
     pending.remove(&day).unwrap_or(0)
 }
 
+/// Builds the starting particle bank for a scenario's filter.
+///
+/// Currently always returns an empty bank of `n` particles regardless of the other
+/// arguments (an empty shelf is the correct prior at day 0); the unused parameters are
+/// kept so callers already pass the shape a richer prior would need.
 fn init_filter_bank(
     n: usize,
     _root_seed: u64,
@@ -84,6 +104,8 @@ fn init_filter_bank(
     UnitParticleBank::empty(n)
 }
 
+/// Flattens a particle bank's belief onto the `(lot_counts, f_marginals, f_grid)` triple
+/// the ordering policy expects, via the same `belief_flat` wire format used for charts.
 fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let v = belief_flat_from_unit_bank(bank, l, k);
     let lot_counts: Vec<f64> = v["lot_counts"]
@@ -101,6 +123,11 @@ fn f_belief_from_bank(bank: &UnitParticleBank, l: usize, k: usize) -> (Vec<f64>,
     (lot_counts, f_marginals, f_grid)
 }
 
+/// Builds the `B-state` oracle's belief directly from ground-truth per-unit freshness,
+/// in the same `(lot_counts, f_marginals, f_grid)` shape a particle filter's belief would
+/// take. Each alive unit's exact `f` is binned onto the nearest `f_grid` point and the
+/// per-lot histogram is normalized to a distribution, so the oracle policy sees a
+/// (degenerate, exact) belief rather than the true scalar freshness values themselves.
 pub fn truth_f_belief(
     freshness: &[f64],
     lot_offsets: &[usize],
@@ -142,14 +169,29 @@ pub fn truth_f_belief(
     (lot_counts, f_marginals, f_grid)
 }
 
+/// Tuning knobs and episode length for one [`run_voi_crn_cell`] call: how many days to
+/// run and discard vs. score, how many filter particles and rollout paths to spend per
+/// day, and the ordering policy's own parameters.
 pub struct CrnBudgets {
+    /// Days simulated before scoring starts, so the filter/oracle belief and pipeline
+    /// state can warm up before profit is measured.
     pub n_burn: u32,
+    /// Days after burn-in whose profit is accumulated into the scenario's score.
     pub n_score: u32,
+    /// Number of particles in each scenario's `UnitParticleBank` (ignored for `P0` and
+    /// the `B-state` oracle, which don't run a filter).
     pub filter_n: u32,
+    /// Rollout horizon (in days) passed through to [`RolloutContext`].
     pub h: u32,
+    /// Monte Carlo rollout paths sampled per candidate order; `0` disables rollout
+    /// entirely and the day's order falls back to the base damped SW quantity.
     pub n_rollout_paths: u32,
+    /// Delivery lead time in days, used both to schedule orders and to size the rollout
+    /// context's own lead time.
     pub lead_time: u32,
+    /// Target service-level quantile passed to the damped SW order rule.
     pub alpha: f64,
+    /// How many case-multiples around the base order the rollout search considers.
     pub candidate_case_radius: i32,
 }
 
@@ -168,6 +210,19 @@ impl Default for CrnBudgets {
     }
 }
 
+/// Runs one scenario's full CRN episode day by day and returns its accumulated
+/// (post-burn-in) profit.
+///
+/// The physics each day — demand, gamma spoilage decrements, allocation, and any
+/// arriving delivery's within-lot freshness draw — are seeded from `root_seed` and
+/// `physics_tag()` alone, so every scenario in the same cell replays the identical
+/// physical realization; only the belief each scenario's policy acts on differs. For
+/// `B-state` that belief is the exact truth ([`truth_f_belief`]); for every other
+/// scenario it comes from a `UnitParticleBank` updated through the scenario's own
+/// observation mask ([`mask_for`]) and its own filter RNG stream (keyed by
+/// [`filter_tag`]), so a scenario only ever sees what its rung of the observation
+/// ladder would actually reveal. Each day orders via the damped SW rule, optionally
+/// refined by rollout, then steps the world forward through `unit_day_step_with_birth`.
 fn run_scenario_episode(
     scenario: &str,
     shipments: &[ShipmentTrace],

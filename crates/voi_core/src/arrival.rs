@@ -12,12 +12,19 @@ use crate::physics::{gamma_p, gamma_q, store_temp_factor};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
 const SUPPORTED_SCHEMA_VERSION: u64 = 1;
+/// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
+/// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
 const LAMBDA_FLOOR: f64 = 1e-12;
+/// Resolution of the cached filter CDFs (`ArrivalCdfCache`) and inverse-sampling grid.
 const ARRIVAL_GRID: usize = 4096;
 
+/// CRN stream tag for the truth-path transit-duration draw.
 pub const STREAM_ARRIVAL_DURATION: &str = ":arrival_duration";
+/// CRN stream tag for the truth-path mean-transit-temperature draw.
 pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
+/// CRN stream tag for the truth-path within-pallet position draw.
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
+/// CRN stream tag for the truth-path per-unit freshness-loss gamma draw.
 pub const STREAM_ARRIVAL_GAMMA: &str = ":arrival_gamma";
 
 /// Mutually exclusive channel conditioning for filter-side arrival laws.
@@ -31,10 +38,15 @@ pub enum ArrivalCondition {
     Prior,
 }
 
+/// Failure modes for loading and validating an arrival model artifact.
 #[derive(Debug)]
 pub enum ArrivalModelError {
+    /// The artifact JSON did not parse.
     Json(serde_json::Error),
+    /// The artifact parsed but failed a structural check (e.g. mismatched quadrature
+    /// node/weight lengths, or no corridors).
     Invalid(String),
+    /// The artifact's `schema_version` isn't one this build of `voi_core` understands.
     UnknownSchemaVersion(u64),
 }
 
@@ -50,45 +62,88 @@ impl fmt::Display for ArrivalModelError {
 
 impl std::error::Error for ArrivalModelError {}
 
+/// One truth-path delivery: a single duration/temperature draw shared by every unit in
+/// the lot, plus one independent within-pallet position (and hence arrival freshness)
+/// draw per unit.
 #[derive(Clone, Debug)]
 pub struct TruthDeliveryDraw {
+    /// Arrival freshness for each unit in the delivery, one draw per unit.
     pub unit_f: Vec<f64>,
+    /// Rounded transit duration, in days, as it would appear on a pack date label.
     pub pack_date_days: i32,
+    /// Exact (unrounded) transit duration in days.
     pub duration_d: f64,
+    /// Sampled mean transit temperature in Celsius for this delivery.
     pub t_bar: f64,
+    /// Duration-averaged Q10 temperature factor implied by `t_bar`.
     pub phi_bar: f64,
 }
 
+/// A shipping lane's transit-duration prior: delivery duration is `d_min` plus a
+/// shifted-gamma delay.
 #[derive(Clone, Debug)]
 pub struct ArrivalCorridor {
+    /// Minimum possible transit duration in days (the delay distribution's shift).
     pub d_min: f64,
+    /// Shape parameter of the gamma delay-beyond-`d_min` distribution.
     pub delay_shape: f64,
+    /// Scale parameter of the gamma delay-beyond-`d_min` distribution.
     pub delay_scale: f64,
 }
 
+/// The cold-chain arrival model: truth-path draw parameters (duration corridor, transit
+/// temperature, within-pallet position, freshness-loss gamma) plus the filter-side
+/// channel-conditional laws and their caches, all fit from the committed Abdella arrival
+/// artifact.
 #[derive(Clone, Debug)]
 pub struct ArrivalModel {
+    /// Schema version of the artifact this model was built from; validated against
+    /// `SUPPORTED_SCHEMA_VERSION` at load time.
     pub schema_version: u64,
+    /// Shipping-lane transit-duration priors, keyed by corridor name.
     pub corridors: HashMap<String, ArrivalCorridor>,
+    /// Corridor key used when a caller doesn't specify one; `"abdella_all"` if present in
+    /// the artifact, otherwise an arbitrary corridor from it.
     pub default_corridor: String,
+    /// Mean of the (pre-truncation) mean-transit-temperature normal distribution, in
+    /// Celsius.
     pub mu_t: f64,
+    /// Standard deviation of the mean-transit-temperature normal distribution.
     pub sigma_t: f64,
+    /// Lower truncation bound for mean transit temperature; draws below this are rejected.
     pub temp_floor_c: f64,
+    /// Standard deviation (in log-space) of the log-normal within-pallet position
+    /// multiplier ψ.
     pub sigma_pos: f64,
+    /// Q10 temperature coefficient: the multiplicative change in the Arrhenius rate per
+    /// 10°C.
     pub q10: f64,
+    /// Reference temperature, in Celsius, at which the Q10 factor is 1.
     pub t_ref: f64,
+    /// Shape multiplier `k` of the per-unit freshness-loss gamma distribution;
+    /// exposure-scaled shape is `k * Λ`.
     pub gamma_shape: f64,
+    /// Scale `θ` of the per-unit freshness-loss gamma distribution.
     pub gamma_scale: f64,
+    /// Reference shelf life in days used to calibrate the freshness-loss rate.
     pub reference_life_days: f64,
+    /// Quadrature nodes on `[0, 1]`, shared across duration, temperature, and position
+    /// integration.
     pub quad_nodes: Vec<f64>,
+    /// Quadrature weights matching `quad_nodes`.
     pub quad_weights: Vec<f64>,
     /// Corridor the filter prior (`marginal_cdf`) and F2/F3 caches are currently built
     /// against (T-150 finding 4). Defaults to `default_corridor`; callers with a
     /// configured `arrival_product` must call `set_corridor` so the filter prior matches
     /// the truth path instead of silently staying on `abdella_all`.
     active_corridor: String,
+    /// Cached, atom-divided CDF for the `Prior` (P0/P1) channel law, rebuilt whenever
+    /// `active_corridor` or the physics parameters change.
     marginal_cdf: ArrivalCdfCache,
+    /// Cached `Duration` (F2/F2a) channel laws, keyed by pack-date days.
     f2_cache: HashMap<i32, ArrivalCdfCache>,
+    /// Cached `Exposure` (F3) channel laws, keyed by a fixed-point-rounded Λ so
+    /// near-identical exposures share a cache entry.
     f3_cache: HashMap<u64, ArrivalCdfCache>,
     /// Most recent `Duration` days the filter actually conditioned on via `law_cdf`
     /// (T-150: the wire adapter reads this instead of re-deriving a pack date, so the
@@ -102,6 +157,10 @@ pub struct ArrivalModel {
     prior_build_key: PriorCdfBuildKey,
 }
 
+/// Filter-side channel-conditional law, cached on the fixed `ARRIVAL_GRID` grid. Unlike
+/// `ArrivalRungLaw`, `cdf` here has the `f = 0` atom divided out (it is conditional on
+/// `f > 0`) so `sample_unit_f_from_cache` can invert it directly for the continuous part
+/// of the draw.
 #[derive(Clone, Debug)]
 struct ArrivalCdfCache {
     cdf: Vec<f64>,
@@ -156,9 +215,14 @@ impl PriorCdfBuildKey {
 /// built on this can never numerically diverge from the filter.
 #[derive(Clone, Debug)]
 pub struct ArrivalRungLaw {
+    /// `P(f <= x)` on a uniform grid over `[0, 1]`, index `i` corresponding to
+    /// `x = i / (len - 1)`; includes the `f = 0` atom mass.
     pub cdf: Vec<f64>,
+    /// `P(f = 0)`, the point mass at total spoilage.
     pub atom_f0: f64,
+    /// `E[f]` including the `f = 0` atom.
     pub mean_f: f64,
+    /// `sd[f]` including the `f = 0` atom.
     pub sd_f: f64,
 }
 
@@ -197,14 +261,20 @@ pub fn embedded_arrival_model() -> &'static str {
     EMBEDDED_ARRIVAL_JSON
 }
 
+/// Parse an arrival model artifact from a JSON string (e.g. an uploaded or overridden
+/// artifact rather than the embedded default).
 pub fn arrival_artifact_from_json(json: &str) -> Result<ArrivalModel, ArrivalModelError> {
     ArrivalModel::from_json(json)
 }
 
+/// Standard normal CDF, via the `erf` approximation below.
 fn normal_cdf(z: f64) -> f64 {
     0.5 * (1.0 + erf(z / std::f64::consts::SQRT_2))
 }
 
+/// Abramowitz & Stegun 7.1.26 rational approximation to the error function (max error
+/// ~1.5e-7); good enough for the truncated-normal transit-temperature draw without
+/// pulling in a special-functions dependency.
 fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
@@ -217,6 +287,9 @@ fn erf(x: f64) -> f64 {
     sign * y
 }
 
+/// Acklam's rational approximation to the standard normal inverse CDF. Used to map
+/// quadrature nodes `u ∈ [0, 1]` to draws from the (truncated) normal transit-temperature
+/// distribution without needing a root-finder.
 fn normal_quantile(u: f64) -> f64 {
     let u = u.clamp(1e-12, 1.0 - 1e-12);
     const A1: f64 = -39.69683028665376;
@@ -258,6 +331,10 @@ fn normal_quantile(u: f64) -> f64 {
     }
 }
 
+/// Inverse gamma CDF via bracket-and-bisect on the regularized incomplete gamma function
+/// (`gamma_p`): doubles an upper bound until it brackets `u`, then bisects to convergence.
+/// There is no closed form for the gamma quantile, so this is the standard fallback, used
+/// wherever a quadrature node needs to become a delay-beyond-`d_min` draw.
 fn gamma_dist_quantile(shape: f64, scale: f64, u: f64) -> f64 {
     let u = u.clamp(1e-12, 1.0 - 1e-12);
     if u <= 0.0 {
@@ -281,10 +358,15 @@ fn gamma_dist_quantile(shape: f64, scale: f64, u: f64) -> f64 {
 }
 
 impl ArrivalModel {
+    /// Build the model from the artifact committed into the binary. Panics if that
+    /// artifact is malformed, which would indicate a build-time packaging bug rather than
+    /// anything a caller can recover from.
     pub fn embedded() -> Self {
         Self::from_json(EMBEDDED_ARRIVAL_JSON).expect("embedded arrival artifact")
     }
 
+    /// Parse and validate an arrival model artifact, then build the filter prior
+    /// (`marginal_cdf`) against `default_corridor` so the model is immediately usable.
     pub fn from_json(json: &str) -> Result<Self, ArrivalModelError> {
         let raw: ArrivalModelJson = serde_json::from_str(json).map_err(ArrivalModelError::Json)?;
         if raw.schema_version != SUPPORTED_SCHEMA_VERSION {
@@ -356,6 +438,8 @@ impl ArrivalModel {
         Ok(model)
     }
 
+    /// Look up a corridor by key, falling back to `default_corridor` for an unrecognized
+    /// key rather than failing.
     pub fn corridor(&self, product: &str) -> &ArrivalCorridor {
         self.corridors
             .get(product)
@@ -363,10 +447,13 @@ impl ArrivalModel {
             .expect("arrival corridor")
     }
 
+    /// Duration-averaged Q10 temperature factor φ̄ for a given mean transit temperature.
     pub fn phi_bar_from_t_bar(&self, t_bar: f64) -> f64 {
         store_temp_factor(t_bar, self.t_ref, self.q10)
     }
 
+    /// Clamp cumulative exposure Λ away from zero so it never collapses the gamma shape
+    /// (`gamma_shape * Λ`) to zero in downstream calculations.
     pub fn floor_lambda(lambda: f64) -> f64 {
         lambda.max(LAMBDA_FLOOR)
     }
@@ -382,6 +469,10 @@ impl ArrivalModel {
         self.truncated_normal_quantile(u)
     }
 
+    /// Inverse CDF of the mean-transit-temperature distribution, truncated below at
+    /// `temp_floor_c`. Rescales `u` into the CDF mass above the truncation point (`alpha`)
+    /// before inverting, so a uniform `u ∈ [0, 1]` maps onto the truncated distribution
+    /// rather than the unbounded one.
     fn truncated_normal_quantile(&self, u: f64) -> f64 {
         let u = u.clamp(1e-12, 1.0 - 1e-12);
         let alpha = normal_cdf((self.temp_floor_c - self.mu_t) / self.sigma_t);
@@ -390,6 +481,7 @@ impl ArrivalModel {
         (self.mu_t + self.sigma_t * z).max(self.temp_floor_c)
     }
 
+    /// Inverse CDF of the log-normal within-pallet position multiplier ψ.
     fn psi_pos_quantile(&self, u: f64) -> f64 {
         let u = u.clamp(1e-12, 1.0 - 1e-12);
         let z = normal_quantile(u);
@@ -408,6 +500,7 @@ impl ArrivalModel {
         )
     }
 
+    /// `P(f <= x | Λ)` using shape-scaled gamma loss, including the `f = 0` atom.
     pub fn cdf_f_given_lambda(&self, lambda: f64, f: f64) -> f64 {
         let lam = Self::floor_lambda(lambda);
         if f <= 0.0 {
@@ -468,6 +561,9 @@ impl ArrivalModel {
         (1.0 - loss).max(0.0)
     }
 
+    /// Truth-path per-delivery draw: one duration and mean-transit-temperature draw
+    /// shared by the whole lot, plus an independent within-pallet position (and hence
+    /// arrival freshness) draw for each of the `n` units.
     pub fn draw_truth_delivery<R: Rng + ?Sized>(
         &self,
         corridor_key: &str,
@@ -504,6 +600,13 @@ impl ArrivalModel {
         }
     }
 
+    /// `P(f <= x)` at a single point, marginalized by product Gauss quadrature over
+    /// whichever latent variables `condition` leaves unpinned: `Prior` integrates over
+    /// duration, temperature, and position; `Duration` (pack date known) integrates over
+    /// temperature and position only; `Exposure` (Λ known exactly) integrates over
+    /// position only. Each combination of quadrature nodes yields one conditional Λ and
+    /// hence one closed-form `cdf_f_given_lambda`, which are then weighted and averaged —
+    /// this is the numerical core every channel-conditional law in the file is built from.
     fn marginal_cdf_at(&self, condition: ArrivalCondition, corridor_key: &str, f: f64) -> f64 {
         let corridor = self.corridor(corridor_key);
         let mut acc = 0.0;
@@ -618,6 +721,10 @@ impl ArrivalModel {
         }
     }
 
+    /// Build the filter's cached law for a channel condition, against `active_corridor`
+    /// and at the fixed `ARRIVAL_GRID` resolution. Divides the atom mass out of the CDF
+    /// (rescaling onto `[0, 1]` conditional on `f > 0`) because `sample_unit_f_from_cache`
+    /// samples the atom and the continuous part as two separate steps.
     fn build_law_cdf(&self, condition: ArrivalCondition) -> ArrivalCdfCache {
         let law = self.rung_law_on_grid(condition, &self.active_corridor, ARRIVAL_GRID);
         let denom = (1.0 - law.atom_f0).max(1e-12);
@@ -635,6 +742,8 @@ impl ArrivalModel {
         }
     }
 
+    /// Unconditional variance of `f` for the F2/F2a (`Duration`) channel law at a given
+    /// pack-date duration (includes the `f = 0` atom).
     pub fn variance_f_given_d(&mut self, d_days: i32) -> f64 {
         self.law_cdf(ArrivalCondition::Duration(d_days)).variance_f
     }
@@ -654,6 +763,7 @@ impl ArrivalModel {
         self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
 
+    /// The corridor the filter prior and F2/F3 caches are currently built against.
     pub fn active_corridor(&self) -> &str {
         &self.active_corridor
     }
@@ -669,6 +779,11 @@ impl ArrivalModel {
         self.last_exposure_lambda
     }
 
+    /// Inverse-sample one arrival freshness draw from a cached channel-conditional law.
+    /// First flips a coin against `atom_f0` to decide total spoilage; only if that misses
+    /// does it rescale the remaining uniform draw into `[0, 1]` and binary-search +
+    /// linearly interpolate the atom-divided CDF, so the `f = 0` point mass never gets
+    /// smeared across the grid's first bin.
     pub fn sample_unit_f_from_cache<R: Rng + ?Sized>(
         &self,
         cache: &ArrivalCdfCache,
@@ -700,6 +815,8 @@ impl ArrivalModel {
         (f_lo * (1.0 - t) + f_hi * t).clamp(0.0, 1.0)
     }
 
+    /// Draw `n` iid arrival freshness values for newly born filter particles under a
+    /// given channel condition, sharing one cached law across all `n` draws.
     pub fn sample_filter_birth_units<R: Rng + ?Sized>(
         &mut self,
         condition: ArrivalCondition,
@@ -717,6 +834,11 @@ impl ArrivalModel {
         self.law_cdf(condition).mean_f
     }
 
+    /// Fetch (building and caching on miss) the atom-divided law for a channel condition,
+    /// and record it as the most recent duration/exposure the filter conditioned on for
+    /// the wire adapter to read back. `Exposure` keys its cache on Λ rounded to six
+    /// decimal places so near-identical exposures reuse one entry instead of growing the
+    /// cache unboundedly.
     fn law_cdf(&mut self, condition: ArrivalCondition) -> ArrivalCdfCache {
         match condition {
             ArrivalCondition::Exposure(lambda) => {
@@ -740,10 +862,16 @@ impl ArrivalModel {
         }
     }
 
+    /// Unconditional variance of `f` for the `Prior` (P0/P1) channel law (includes the
+    /// `f = 0` atom).
     pub fn marginal_variance_f(&self) -> f64 {
         self.marginal_cdf.variance_f
     }
 
+    /// Pull the freshness-loss physics parameters (gamma shape/scale, Q10, reference
+    /// temperature/life) from `ModelParams` and rebuild the filter prior and F2/F3 caches
+    /// if any of them actually changed. A no-op when the fingerprint matches, so callers
+    /// can call this every tick without paying for a rebuild each time.
     pub fn sync_params(&mut self, params: &ModelParams) {
         let key = PriorCdfBuildKey::from_params(params, &self.active_corridor);
         if self.prior_build_key == key {

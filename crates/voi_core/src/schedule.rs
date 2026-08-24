@@ -1,8 +1,12 @@
 //! Order calendar (Python `OrderSchedule`). Day 0 = Monday.
 
+/// The recurring calendar of delivery days, order days, and lead time a store operates on.
 #[derive(Clone, Debug)]
 pub struct OrderSchedule {
+    /// Which weekdays (index 0 = Monday) a delivery arrives on.
     pub delivery_weekdays: [bool; 7],
+    /// Which weekdays (index 0 = Monday) an order may be placed, derived from
+    /// `delivery_weekdays` and `lead_time_days`.
     pub order_weekdays: [bool; 7],
     pub lead_time_days: u32,
 }
@@ -26,6 +30,7 @@ pub fn derive_order_weekdays(delivery: &[u32], lead_time_days: u32) -> Vec<u32> 
 }
 
 impl OrderSchedule {
+    /// Delivery weekdays (0 = Monday) as a sorted list.
     pub fn delivery_weekday_list(&self) -> Vec<u32> {
         self.delivery_weekdays
             .iter()
@@ -35,6 +40,7 @@ impl OrderSchedule {
             .collect()
     }
 
+    /// Order weekdays (0 = Monday) as a sorted list.
     pub fn order_weekday_list(&self) -> Vec<u32> {
         self.order_weekdays
             .iter()
@@ -44,6 +50,8 @@ impl OrderSchedule {
             .collect()
     }
 
+    /// Build a schedule from explicit delivery weekdays and a lead time, deriving order
+    /// weekdays. Errors if `delivery` is empty or contains an out-of-range weekday.
     pub fn from_delivery(delivery: &[u32], lead_time_days: u32) -> Result<Self, String> {
         if delivery.is_empty() {
             return Err("delivery_weekdays must be non-empty".into());
@@ -70,6 +78,8 @@ impl OrderSchedule {
         })
     }
 
+    /// Like [`Self::from_delivery`], but falls back to [`Self::default`] instead of
+    /// returning an error on invalid input.
     pub fn with_delivery(delivery: &[u32], lead_time_days: u32) -> Self {
         Self::from_delivery(delivery, lead_time_days).unwrap_or_else(|_| Self::default())
     }
@@ -79,10 +89,12 @@ impl OrderSchedule {
         (day % 7) as usize
     }
 
+    /// Whether an order may be placed on the given absolute `day`.
     pub fn can_order(&self, day: u32) -> bool {
         self.order_weekdays[Self::weekday(day)]
     }
 
+    /// The first absolute day strictly after `day` on which an order may be placed.
     pub fn next_order_day(&self, day: u32) -> u32 {
         let mut c = day + 1;
         while !self.can_order(c) {
@@ -91,6 +103,9 @@ impl OrderSchedule {
         c
     }
 
+    /// Length, in days, of the protection window an order placed on `day` must cover: the
+    /// span until the next order day, plus lead time. This is the horizon the ordering
+    /// policy's demand quantile `F^-1(alpha)` is evaluated over (ADR 0058/0060).
     pub fn protection_days(&self, day: u32) -> u32 {
         self.next_order_day(day) - day + self.lead_time_days
     }

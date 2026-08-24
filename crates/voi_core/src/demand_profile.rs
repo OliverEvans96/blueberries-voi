@@ -5,14 +5,23 @@
 use serde::Deserialize;
 use std::fmt;
 
+/// The calendar demand model: a day-of-week × week multiplier grid over a target scale,
+/// plus a negative-binomial noise ratio, per the module-level μ(day) formula.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DemandProfile {
+    /// Target daily demand scale that day-of-week and week factors multiply.
     scale_target_mu: f64,
+    /// Day-of-week multipliers, index 0 = Monday.
     dow_factors: [f64; 7],
+    /// Week-over-week multipliers, indexed by week number; the last entry is held constant
+    /// for any day beyond the covered horizon.
     week_factors: Vec<f64>,
+    /// Negative-binomial variance-to-mean ratio for demand noise (ADR 0113).
     demand_vm: f64,
 }
 
+/// Failure modes for building a [`DemandProfile`]: malformed JSON, or JSON that parsed but
+/// violates the model's invariants (see [`DemandProfile::from_parts`]).
 #[derive(Debug)]
 pub enum DemandProfileError {
     Json(serde_json::Error),
@@ -44,12 +53,17 @@ fn default_demand_vm() -> f64 {
 }
 
 impl DemandProfile {
+    /// Parse a `DemandProfile` from its JSON representation, validating the same
+    /// invariants as [`Self::from_parts`].
     pub fn from_json(json: &str) -> Result<Self, DemandProfileError> {
         let raw: DemandProfileJson =
             serde_json::from_str(json).map_err(DemandProfileError::Json)?;
         Self::from_parsed(raw)
     }
 
+    /// Build a `DemandProfile` from already-parsed components (the non-JSON entry point
+    /// for PyO3 / WASM callers). Errors if `dow_factors` has other than 7 entries,
+    /// `week_factors` is empty, or `scale_target_mu` is not positive.
     pub fn from_parts(
         scale_target_mu: f64,
         dow_factors: [f64; 7],
@@ -64,6 +78,8 @@ impl DemandProfile {
         })
     }
 
+    /// Shared validation and construction path for [`Self::from_json`] and
+    /// [`Self::from_parts`].
     fn from_parsed(raw: DemandProfileJson) -> Result<Self, DemandProfileError> {
         if raw.dow_factors.len() != 7 {
             return Err(DemandProfileError::Invalid(
@@ -92,6 +108,9 @@ impl DemandProfile {
         })
     }
 
+    /// Expected demand for absolute `day`, per the module-level μ(day) formula. Days
+    /// beyond the covered horizon clamp to the last `week_factors` entry rather than
+    /// indexing out of bounds.
     pub fn mu(&self, day: u32) -> f64 {
         let dow = (day % 7) as usize;
         let week_cap = self.week_factors.len().saturating_sub(1) as u32;
@@ -99,10 +118,12 @@ impl DemandProfile {
         self.scale_target_mu * self.dow_factors[dow] * self.week_factors[week]
     }
 
+    /// Negative-binomial variance-to-mean ratio for demand noise (ADR 0113).
     pub fn demand_vm(&self) -> f64 {
         self.demand_vm
     }
 
+    /// Target daily demand scale that day-of-week and week factors multiply.
     pub fn scale_target_mu(&self) -> f64 {
         self.scale_target_mu
     }

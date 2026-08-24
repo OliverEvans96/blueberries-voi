@@ -15,11 +15,22 @@ const MIX_MULT_R: u32 = 0x4973_f715;
 const XSHIFT: u32 = 16;
 const POOL_SIZE: usize = 4;
 
+/// A PCG64 stream addressed by `(root_seed, run, day, stream)` rather than drawn
+/// sequentially from a parent generator.
+///
+/// Any caller who knows the four address components can reconstruct the same stream
+/// independent of draw order elsewhere in the program, which is what lets Rust and Python
+/// (via NumPy's `SeedSequence`) land on identical draws for the same address.
 pub struct SpawnRng {
     inner: Pcg64,
 }
 
 impl SpawnRng {
+    /// Derives the child stream for one `(root_seed, run_id, day, stream)` address.
+    ///
+    /// Mirrors NumPy's `SeedSequence` entropy-pooling algorithm bit-for-bit so that a
+    /// Rust simulation and a Python one seeded from the same coordinates draw identically —
+    /// this is the addressing scheme common random numbers (CRN) depends on.
     pub fn spawn_rng(root_seed: u64, run_id: &str, day: u32, stream: &str) -> Self {
         let entropy = [
             (root_seed & 0xffff_ffff) as u32,
@@ -42,6 +53,7 @@ impl SpawnRng {
         }
     }
 
+    /// Draws a uniform `f64` in `[0, 1)` from the top 53 bits of a `u64` draw.
     #[inline]
     pub fn next_f64(&mut self) -> f64 {
         (self.inner.next_u64() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
@@ -83,11 +95,16 @@ pub fn negative_binomial_gamma_poisson<R: rand::Rng + ?Sized>(
     pois.sample(rng) as u32
 }
 
+/// Hashes a string label (e.g. `"run:..."`, `"stream:..."`) to a stable `u32` via SHA-256,
+/// so labels contribute deterministic entropy words regardless of platform hash
+/// randomization.
 fn stable_u32(label: &str) -> u32 {
     let digest = Sha256::digest(label.as_bytes());
     u32::from_le_bytes([digest[0], digest[1], digest[2], digest[3]])
 }
 
+/// Single-word mixing step used while stirring entropy into the pool, matching NumPy's
+/// `SeedSequence` algorithm word for word.
 fn hashmix(value: u32, hash_const: &mut u32) -> u32 {
     let mut v = value ^ *hash_const;
     *hash_const = hash_const.wrapping_mul(MULT_A);
@@ -95,11 +112,17 @@ fn hashmix(value: u32, hash_const: &mut u32) -> u32 {
     v ^ (v >> XSHIFT)
 }
 
+/// Two-word mixing step used to fold each pool entry against every other, matching
+/// NumPy's `SeedSequence` algorithm word for word.
 fn mix(x: u32, y: u32) -> u32 {
     let result = MIX_MULT_L.wrapping_mul(x).wrapping_sub(MIX_MULT_R.wrapping_mul(y));
     result ^ (result >> XSHIFT)
 }
 
+/// Reimplementation of NumPy's `SeedSequence.generate_state`: stirs the `entropy` words
+/// into a small pool (each entry mixed against every other, in the same order NumPy uses)
+/// and then extracts `n_words` of output from that pool. Getting this bit-for-bit identical
+/// to NumPy is what lets `spawn_rng` addresses match between the Rust and Python hosts.
 fn seed_sequence_generate_state(entropy: &[u32], n_words: usize) -> Vec<u32> {
     let mut pool = vec![0u32; POOL_SIZE];
     let mut hash_const = INIT_A;
