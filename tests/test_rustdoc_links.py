@@ -35,6 +35,29 @@ def test_rustdoc_bundle_exists() -> None:
     )
 
 
+def test_rustdoc_shared_static_assets_exist() -> None:
+    """Rustdoc HTML references ../static.files, ../crates.js, ../src/ from voi_core/."""
+    if not (RUSTDOC_ROOT / "voi_core" / "index.html").is_file():
+        pytest.skip("rustdoc bundle not built")
+
+    static_dir = RUSTDOC_ROOT / "static.files"
+    assert static_dir.is_dir(), (
+        f"Missing {static_dir}; build-rustdoc.sh must copy target/doc/static.files"
+    )
+    css_files = list(static_dir.glob("*.css"))
+    assert css_files, f"No CSS in {static_dir}"
+
+    crates_js = RUSTDOC_ROOT / "crates.js"
+    assert crates_js.is_file(), (
+        f"Missing {crates_js}; build-rustdoc.sh must copy target/doc/crates.js"
+    )
+
+    source_html = RUSTDOC_ROOT / "src" / "voi_core" / "lib.rs.html"
+    assert source_html.is_file(), (
+        f"Missing {source_html}; build-rustdoc.sh must copy target/doc/src"
+    )
+
+
 def test_rustdoc_links_in_docs_resolve() -> None:
     if not (RUSTDOC_ROOT / "voi_core" / "index.html").is_file():
         pytest.skip("rustdoc bundle not built")
