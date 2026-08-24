@@ -1,7 +1,6 @@
 ---
 title: One day, in order
 sources:
-  adr: [0034, 0143]
   code: [crates/voi_core/src/day_step.rs]
 ---
 
@@ -30,9 +29,9 @@ Steps 1–2 only ever remove units from the shelf (spoilage); step 3 only remove
 
 ## Why it's modelled this way
 
-ADR 0034 (MOD-12) is the record of a deliberate choice, not an accident of implementation order: it argues that at the high end of the model's hazard range, the difference between spoiling before selling and selling before spoiling produces a *systematic* shift in both waste and sales — it won't flip the sign of a headline result, but it changes the magnitude, and if the simulator and the belief-tracking filter ever disagreed about that order, the filter would be silently misspecified in a way that's very hard to notice from the outside. Whatever the order, ADR 0034 insists the simulator and the filter's transition model use the *identical* sequence.
+At the high end of the model's hazard range, the difference between spoiling before selling and selling before spoiling produces a systematic shift in both waste and sales — it doesn't flip the sign of a headline result, but it changes the magnitude. If the simulator and the belief-tracking filter ever used different orders, the filter would be misspecified in a way that's hard to notice from the outside. So the simulator and the filter's transition model use the identical sequence.
 
-**Honest caveat, read carefully against the current code.** ADR 0034's own decision text describes its chosen ordering as "age, demand, allocate sales, spoil survivors, deliver" — spoilage evaluated with a binomial draw *on the leftover units that weren't sold*, under the older Weibull hazard-curve physics that predated this model's freshness remodel. That is not what the current production code does. The step order verified directly above — age, then mark spoiled, then sell, then deliver — reads, in ADR 0034's own list of rejected alternatives, closer to option "B — Age, spoil, then sell survivors," which the board did *not* choose at the time. The honest reconciliation is that the physics changed underneath the sequencing question: ADR 0143's independent per-unit gamma aging (see [spoilage and waste](/store/spoilage-waste)) makes spoilage a direct, structural consequence of a unit's own aging draw crossing zero, rather than a separate binomial pass applied to whichever units happen to survive a sales draw. Once spoilage *is* "this unit's freshness hit zero," there's no longer a meaningful design choice about running a second, distinct spoilage lottery before or after sales — a unit that hit zero during aging simply isn't eligible for the picking lottery in step 3, by construction (see [who buys which punnet](/store/picking)). The invariant ADR 0034 actually cares about — that the simulator's step order and the filter's transition model must agree — does still hold in the current code: the filter's own transition step is documented as running "on freshness that has already been aged," matching the alive set the simulator hands to sales. But the literal step-ordering language in ADR 0034 is stale relative to the current gamma-native physics and would be worth updating in the ADR record itself.
+Independent per-unit gamma aging (see [spoilage and waste](/store/spoilage-waste)) makes spoilage a direct, structural consequence of a unit's own aging draw crossing zero, rather than a separate lottery applied afterward to whichever units happen to survive a sales draw. Once spoilage is defined that way, there's no separate spoilage lottery to place before or after sales — a unit that hit zero during aging simply isn't eligible for the picking lottery in step 3, by construction (see [who buys which punnet](/store/picking)). What the ordering has to preserve is that the simulator's step order and the filter's transition model agree: the filter's own transition step runs "on freshness that has already been aged," matching the alive set the simulator hands to sales.
 
 ## In the code
 
@@ -44,11 +43,9 @@ ADR 0034 (MOD-12) is the record of a deliberate choice, not an accident of imple
 | Step 3 — sell from the post-spoilage alive set | `sales_total`, `sales_by` | `crates/voi_core/src/day_step.rs:242` (calls `pick_units_f`) |
 | Step 4 — append today's delivery after sales | `lot_offsets.push(...)` | `crates/voi_core/src/day_step.rs:250` (`if input.deliver { ... }`) |
 | Filter's transition step assumes the same post-aging, post-spoilage alive set | — | `crates/voi_core/src/unit_pf.rs:351` (doc comment on the filter step) |
-| Order-of-operations decision record | — | `.team/adr/0034-mod-12-within-day-order-of-operations.md` (MOD-12) |
 
 ## Caveats
 
-- The step order is fixed for every rung and every policy in the model; there is no scenario where, say, delivery happens before sales (an alternative ADR 0034 considered and rejected).
+- The step order is fixed for every rung and every policy in the model; there is no scenario where, say, delivery happens before sales.
 - Everything within a step happens at day granularity — the model doesn't resolve *when during the day* aging, a sale, or a delivery occurred, only their fixed relative order.
-- As described above, ADR 0034's literal decision text (spoilage as a post-sale binomial draw on survivors) reflects the model's earlier Weibull-hazard physics and reads differently from what the current independent-gamma-aging code actually does, even though both share the goal the ADR was protecting: one shared order between simulator and filter.
 - Demand for the day is drawn as a single aggregate number (see the demand-calendar page), not as individual customers arriving at distinct times that could interleave with a same-day delivery — same-day delivery exclusion is enforced structurally (step ordering), not by modeling time-of-day.

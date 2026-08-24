@@ -1,19 +1,18 @@
 ---
 title: Run it locally
 sources:
-  adr: [0119]
   code: [README.md, scripts/build-wasm.sh, scripts/studio.sh, scripts/smoke-wasm.sh, scripts/build-rustdoc.sh, web/package.json, web/.env.example]
 ---
 
 # Run it locally
 
-Everything on this site can be run on your own machine: the Python package that notebooks and the CLI import, and the interactive browser studio that runs the same physics compiled to WebAssembly. The two have separate setup steps because they're separate build targets from one shared Rust core, not two independent reimplementations of the model.
+Everything on this site can be run on your own machine: the Python package that notebooks and the CLI import, and the interactive browser studio that runs the same physics compiled to WebAssembly. The two have separate setup steps because they're separate build targets from one shared Rust core, not two independent implementations of the model.
 
 > **Figure (coming soon):** a small diagram of the three run surfaces — Python package/CLI/notebooks, the Rust `voi_core` crate, and the browser studio — showing which artifact (wheel vs. `.wasm` bundle) each one consumes.
 
 ## The idea
 
-There is one home for the model's hot compute — the Rust crate `voi_core` — and two different doors into it. Python notebooks, the CLI, and pytest reach it through a PyO3 extension built by `uv`. The browser studio reaches the *same* Rust code through a `wasm-pack` build compiled to WebAssembly and loaded by Vite. That means getting notebooks running only needs Python tooling, but getting the interactive studio running additionally needs a working Rust toolchain, because the browser's copy of the physics has to be compiled from source before Vite can serve it.
+The model's hot compute lives in one place — the Rust crate `voi_core` — with two doors into it. Python notebooks, the CLI, and pytest reach it through a PyO3 extension built by `uv`. The browser studio reaches the *same* Rust code through a `wasm-pack` build compiled to WebAssembly and loaded by Vite. Getting notebooks running only needs Python tooling; getting the interactive studio running also needs a working Rust toolchain, because the browser's copy of the physics has to be compiled from source before Vite can serve it.
 
 ### Python package, CLI, and notebooks
 
@@ -67,9 +66,9 @@ This runs `cargo doc --no-deps -p voi_core` and copies the output into `docs/pub
 
 ## Why it's modelled this way
 
-ADR 0119 (accepted) put the model's hot compute in one Rust crate reachable from both Python (via PyO3) and the browser (via `wasm-bindgen`), rather than maintaining a second from-scratch implementation of the physics in JavaScript, or trying to run Python itself in the browser (Pyodide). A shared kernel means the studio and the notebooks can't quietly drift apart on how freshness decays or how demand is drawn — there is exactly one implementation to keep correct. The ADR explicitly rejected two other language choices for the shared core (Julia, and Numba/Cython in place) because neither gives a browser target without still needing something like Pyodide, and it rejected trying to make the Rust and NumPy random-number streams bit-identical, because NumPy's generator is not a public bit-stable contract to port against — Rust and Python paths are held to matching moments/distributions in tests, not identical numbers.
+The model's hot compute lives in one Rust crate, reachable from both Python (via PyO3) and the browser (via `wasm-bindgen`), rather than a second from-scratch implementation of the physics in JavaScript or running Python itself in the browser (Pyodide). A shared kernel means the studio and the notebooks can't quietly drift apart on how freshness decays or how demand is drawn — there is exactly one implementation to keep correct. Other language choices for the shared core (Julia, Numba/Cython) were set aside because none gives a browser target without still needing something like Pyodide. Rust and NumPy random-number streams are not made bit-identical, because NumPy's generator isn't a public bit-stable contract to port against; instead Rust and Python paths are held to matching moments/distributions in tests, not identical numbers.
 
-**Caveat.** This design's cost is exactly the extra local build step above: until Rust compute is accepted as the citeable path, Python remains the source of truth for citeable VOI numbers, and the repo carries two working implementations of the same physics rather than one — so a change to the model has to be made (or at least checked) in both places, and anyone running the studio locally needs a working Rust toolchain that notebook-only users don't.
+**Caveat.** This design's cost is the extra local build step above. Python is the source of truth for citeable VOI numbers, and the repo carries two working implementations of the same physics rather than one — so a change to the model has to be made (or at least checked) in both places, and anyone running the studio locally needs a working Rust toolchain that notebook-only users don't.
 
 ## In the code
 

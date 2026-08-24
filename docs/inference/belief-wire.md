@@ -1,7 +1,6 @@
 ---
 title: The Belief Wire
 sources:
-  adr: [0130, 0131]
   code:
     - crates/voi_core/src/belief_flat.rs
     - crates/voi_core/src/unit_pf.rs
@@ -46,13 +45,13 @@ normalized so $\sum_k \text{f\_marginals}[s,k] = 1$ for every slot $s$ (a slot w
 
 ## Why it's modelled this way
 
-**Fixed `L×K` shape, not a variable-length export.** ADR 0130 locked the belief wire to a flat `L×K` buffer (continuing the shape convention from an earlier ADR, 0100) specifically so that studio schema validators, Rust, Python, and the frontend all agree on one fixed contract regardless of how many lots or particles the filter is actually tracking internally. The rejected alternative — a dual wire that also carried the retired age/duration ("τ") coordinate during a migration window — was explicitly turned down: "orchestrator locked a breaking rename in one landing" rather than carrying two parallel semantics that studio code, goldens, and frontend charts would all have to disambiguate.
+**Fixed `L×K` shape, not a variable-length export.** The belief wire is a flat `L×K` buffer specifically so that studio schema validators, Rust, Python, and the frontend all agree on one fixed contract regardless of how many lots or particles the filter is actually tracking internally. A dual wire that also carried an age/duration coordinate alongside the freshness one was considered and rejected: two parallel semantics would leave studio code, goldens, and frontend charts all needing to disambiguate which one a given payload meant.
 
-**Histogram summary (Algorithm A / C2), not a richer per-particle export.** A bench comparison considered exporting a higher-fidelity histogram representation (an alternative called "Algorithm B" in the ADR) against the shipped design; the richer representation's better histogram-shape fidelity "does not justify cost" at the shelf sizes actually used, so the coarser, cheaper `f_marginals` summary was kept as the production default and the richer alternative demoted to research use only.
+**Histogram summary, not a richer per-particle export.** A richer, higher-fidelity histogram representation was compared against the shipped design in benchmarks; its better histogram-shape fidelity didn't justify the extra cost at the shelf sizes actually used, so the coarser, cheaper `f_marginals` summary is the production default.
 
 **`L` is a wire-sizing knob, not a filter capacity limit.** This is the detail most likely to be misunderstood, so it's worth stating precisely: the particle filter's own internal state is **not** bounded by `L` — it keeps every lot that *any* particle still believes has a live unit in it, and only drops a lot from its own bank once *every* particle agrees it's fully dead (`prune_dead_prefix`, run once per filter step, after birth). `L` only controls how many of the filter's *newest* lots get exported onto the wire, oldest-first truncation. Pick `L` too small, and a lot the filter still believes has live (if aging) units in it can fall outside the exported window — the wire will under-report on-hand inventory even though the filter's own internal belief is completely fine. Pick `L` large enough to comfortably cover the peak number of concurrently open cohorts with live units, under whatever delivery cadence and spoilage dynamics are in play, and the truncation becomes harmless: the oldest exported lot is already fully dead in every particle (all-zero histogram row, zero `lot_counts` entry) by the time it would fall out of the window, so nothing real is ever dropped. The **current production default is `L = 10`** (`DEFAULT_L_DIM`), with `K = 4` freshness bins by default in `EngineSession`.
 
-**Honest caveat, stated directly in the ADR:** totals-only observations (P0/P1, where the store never reports which specific lot a sale or a piece of waste came from) cannot recover a lot's *within-lot* freshness shape from evidence alone — the histogram in that case leans heavily on the birth model and gamma aging rather than on data. This is accepted and documented, not silently smoothed over: `f_marginals` under totals-only channels reflects the filter's prior aging trajectory more than it reflects anything the store actually reported that day.
+**Caveat:** totals-only observations (P0/P1, where the store never reports which specific lot a sale or a piece of waste came from) cannot recover a lot's *within-lot* freshness shape from evidence alone — the histogram in that case leans heavily on the birth model and gamma aging rather than on data. `f_marginals` under totals-only channels reflects the filter's prior aging trajectory more than it reflects anything the store actually reported that day.
 
 ## In the code
 

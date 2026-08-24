@@ -1,7 +1,6 @@
 ---
 title: The ordering rule
 sources:
-  adr: [0058]
   code: [crates/voi_core/src/policy.rs, crates/voi_core/src/voi.rs, crates/voi_core/src/rollout.rs, crates/voi_core/src/params.rs, src/blueberries_voi/controller/f_sw.py, src/blueberries_voi/sim/bakeoff_ordering.py, src/blueberries_voi/sim/alpha_tune.py]
 ---
 
@@ -15,7 +14,7 @@ This is the formula that turns everything else on this site — the demand model
 
 On each day the store is allowed to place an order, the policy asks two questions: "how much demand do I need to survive until I can order again?" (see [Protection demand](/control/protection-demand)) and "how much protection do I already have on the shelf and in transit?" (see [Effective inventory](/control/effective-inventory)). The gap between those two numbers is, roughly, how much more stock is needed.
 
-But closing that whole gap in one order turns out to be a mistake. A plain base-stock rule — order exactly enough to top up to the target every time — reacts *too strongly* to how much is already on hand: for every extra unit sitting on the shelf, it orders exactly one fewer unit. That's a much sharper reaction than the true optimal policy actually wants under this problem's dynamics (positive lead time, fruit that decays rather than staying pristine forever). So the rule **damps** its response: instead of closing the whole gap, it closes a fixed fraction $\rho$ of it (by default, 80%). Finally, because a store can't order half a case, the raw damped quantity is rounded to the nearest multiple of the case size — which can swallow a small gap into a full extra case, or drop it to zero, as the figure above shows for a raw gap of 0.55 units against a case size of 8.
+But closing that whole gap in one order turns out to be a mistake. A plain base-stock rule — order exactly enough to top up to the target every time — reacts too strongly to how much is already on hand: for every extra unit sitting on the shelf, it orders exactly one fewer unit. That's a sharper reaction than this problem's dynamics call for, given positive lead time and fruit that decays rather than staying pristine forever. So the rule **damps** its response: instead of closing the whole gap, it closes a fixed fraction $\rho$ of it (by default, 80%). Finally, because a store can't order half a case, the raw damped quantity is rounded to the nearest multiple of the case size — which can swallow a small gap into a full extra case, or drop it to zero, as the figure above shows for a raw gap of 0.55 units against a case size of 8.
 
 ## The math
 
@@ -36,13 +35,11 @@ where:
 
 ## Why it's modelled this way
 
-ADR 0058 (`CTL-01`) chose this **damped survival-weighted base-stock** family deliberately, and against the recommendation on its own decision card (marked ⚑, "against recommendation," in the ADR). The undamped version — order quantity only, no $\rho$ — was the recommended choice; the ADR adopted the damped version instead.
+This project uses a **damped survival-weighted base-stock** rule rather than an undamped one. Under proportional decay with zero lead time, a classical result (Van Zyl / Veinott, 1965) shows plain base-stock policies are exactly optimal — but this project's dynamics deviate from that ideal case in the two ways the whole project is about: decay isn't perfectly proportional, and lead time is positive, not zero. Plain base-stock has a known weak spot here: it has $\partial q/\partial x = -1$ exactly (order one fewer unit for every extra unit on hand), while the true optimum under this project's dynamics is a strictly muted response, $-1 < y' \le 0$. Nahmias (1975b) found that a damped correction performs comparably to the best "critical number" policy and should help further under parameter uncertainty — exactly the situation this project is in, since decay and lead time here aren't the textbook zero-lead-time, proportional-decay case.
 
-The reasoning given: under proportional decay with zero lead time, a classical result (Van Zyl / Veinott, 1965) proves plain base-stock policies are exactly optimal — and this project's dynamics deviate from that ideal case in exactly the two ways the whole project is about (decay isn't perfectly proportional, and lead time is positive, not zero). The ADR names a **known defect** of the base-stock family: it has $\partial q/\partial x = -1$ exactly (order one fewer unit for every extra unit on hand), while the true optimum under this project's dynamics satisfies $-1 < y' \le 0$ — a strictly muted response. Nahmias (1975b) found that a damped correction performs comparably to the best "critical number" policy and should help further under parameter uncertainty, which the ADR ties to a companion decision (the model-misspecification arm of the optimality-certificate work) as exactly where this policy family is exposed.
+Plain base-stock with raw (age-blind) unit counts was considered and rejected outright — it just counts units on hand, ignoring freshness entirely. An undamped, survival-weighted base-stock rule was also considered but not adopted, in favor of the damped version described here.
 
-Two alternatives were on the table and rejected: **A — plain base-stock, age-blind**, dismissed as "the strawman" (it deflates nothing, just counts raw units on hand); and **B — survival-weighted base-stock, undamped**, which was the card's own recommendation and was not chosen.
-
-**Honest caveat.** This is a deliberate, called-out override of the recommended approach — the ADR says explicitly not to reopen the decision without checking with the project owner first. The damping factor $\rho = 0.8$ is not itself derived from this project's specific cost structure; it's a general correction the ADR borrows from the Nahmias literature, applied as one extra scalar rather than re-derived from scratch. The ADR names its own revisit trigger: only if a separate optimality-gap certificate comes back showing a large gap *and* the shared-random-numbers evaluation is confirmed clean — that combination is called out as the trigger for reaching for a damping correction in the first place, which is arguably already what happened here.
+**Honest caveat.** The damping factor $\rho = 0.8$ is not derived from this project's specific cost structure; it's a general correction borrowed from the Nahmias literature, applied as one extra scalar rather than re-derived from scratch for this problem.
 
 ## In the code
 
@@ -58,5 +55,5 @@ Two alternatives were on the table and rejected: **A — plain base-stock, age-b
 ## Caveats
 
 - $\rho = 0.8$ ships as a fixed literal at the call sites that build production orders, not as a value tuned by grid search the way $\alpha$ is (see [Why not the textbook fractile](/control/why-not-textbook-fractile)) — the grid search over policy performance sweeps candidate $\alpha$ values only, with $\rho$ held fixed. There's no simulation evidence in this repo that $0.8$ specifically is the best damping factor for this exact problem instance, only the general Nahmias finding that damping of this kind helps.
-- This page describes the **base** policy only. A separate rollout layer (`CTL-02`) can wrap this base rule with a deeper multi-step search over candidate order quantities near $q$; that layer is not covered here.
+- This page describes the **base** policy only. A separate rollout layer can wrap this base rule with a deeper multi-step search over candidate order quantities near $q$; that layer is not covered here.
 - $\text{caseRound}$ rounds to the *nearest* case multiple, not always up — so the realized order can land a little under the raw computed target as well as over it, depending which side of the halfway point the raw gap falls on.

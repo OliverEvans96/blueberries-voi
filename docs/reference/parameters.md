@@ -1,7 +1,6 @@
 ---
 title: Model parameters
 sources:
-  adr: [0144, 0041, 0080, 0112, 0122]
   code:
     - crates/voi_core/src/params.rs
     - crates/voi_core/src/demand_profile.rs
@@ -20,9 +19,9 @@ sources:
 
 Every number the simulator runs on — how fast fruit spoils, how variable demand is, how
 cautious the ordering policy is, how big a look-ahead the controller uses — has a default
-value baked into the code. This page is the single place that lists them, what they mean in
-plain language, and exactly where in the repository each one is set, so a reader can check a
-claim in a figure or a report against the source of truth.
+value in the code. This page lists them, what they mean in plain language, and where in the
+repository each one is set, so a reader can check a claim in a figure or report against the
+source of truth.
 
 > **Figure (coming soon):** a labeled diagram of one delivered lot's journey — pack date to
 > store receipt — showing where $d$ (transit duration), $\bar T$ (mean transit temperature),
@@ -101,29 +100,28 @@ exposure has this unit absorbed."
 
 ## Why it's modeled this way
 
-ADR 0144 settles two things this table depends on. First, aging is **shape-scaled**
-($\text{Gamma}(k\phi,\theta)$), not **scale-scaled** ($\text{Gamma}(k,\theta\phi)$): heat is
-read as producing *more* degradation events of the same size (Arrhenius: a rate constant),
-not fewer, larger ones. The two conventions agree on the mean and disagree on the variance,
-and only shape-scaling keeps $\Lambda$ a sufficient statistic for the journey and keeps the
-transit and in-store clocks reconcilable as the same process observed over different amounts
-of warped time.
+This page's math rests on two design choices.
 
-Second, `gamma_scale` is *derived* from `eta_ref` and `gamma_shape` rather than set
-independently, so the two shelf-life numbers the repo used to carry — $\eta_\text{ref}=14$
-days and an un-reconciled $1/(k\theta)$ that used to work out to 6.25 days — can't drift apart
-again. The alternative (leaving `gamma_scale = 0.08` hard-coded, as it still is in one
-JS mock module — see Caveats) was rejected because it silently made transit degradation
-14× too cheap on some code paths and quietly capped mean shelf life at 6.25 reference-days,
-well below the literature-defensible 14-day figure for blueberries at 0°C.
+Aging is **shape-scaled** ($\text{Gamma}(k\phi,\theta)$), not **scale-scaled**
+($\text{Gamma}(k,\theta\phi)$): heat is modeled as producing *more* degradation events of the
+same size (an Arrhenius-style rate constant), not fewer, larger ones. The two conventions
+agree on the mean and disagree on the variance. Only shape-scaling keeps $\Lambda$ a
+sufficient statistic for the journey and keeps the transit and in-store clocks reconcilable as
+the same process observed over different amounts of warped time.
 
-**Honest caveat (from the ADR itself):** the gamma process is an idealization. Real spoilage
-is partly discrete — a bruise, or mould spreading fruit-to-fruit — and better described by a
-compound Poisson or contagion process than by a continuous subordinator. Shape-scaling is the
-more defensible of the two continuous conventions available, not a claim of physical
-exactness. The arrival-model temperature/position family (`mu_T`, `sigma_T`, `sigma_pos`) is
-also explicitly **hand-authored, not MLE-fitted** — the underlying sample is six shipments,
-too few to fit a distribution to with any confidence.
+`gamma_scale` is *derived* from `eta_ref` and `gamma_shape` rather than set independently, so
+the two numbers can't drift apart. Hard-coding `gamma_scale = 0.08` instead — which one JS
+mock module still does, see Caveats — makes transit degradation 14× too cheap on some code
+paths and caps mean shelf life at 6.25 reference-days, well below the literature-defensible
+14-day figure for blueberries at 0°C.
+
+**Caveat.** The gamma process is an idealization. Real spoilage is partly discrete — a bruise,
+or mould spreading fruit-to-fruit — and is better described by a compound Poisson or
+contagion process than by a continuous subordinator. Shape-scaling is the more defensible of
+the two continuous conventions available, not a claim of physical exactness. The arrival-model
+temperature/position family (`mu_T`, `sigma_T`, `sigma_pos`) is also **hand-authored, not
+MLE-fitted** — the underlying sample is six shipments, too few to fit a distribution to with
+any confidence.
 
 ## In the code
 
@@ -187,7 +185,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Episode horizon | — | 90 | days | Length of one studio episode (ADR 0122) | `crates/voi_core/src/session.rs:290`; Studio (TS) `web/src/mock/generate.ts:43` (`window_days`) |
+| Episode horizon | — | 90 | days | Length of one studio episode | `crates/voi_core/src/session.rs:290`; Studio (TS) `web/src/mock/generate.ts:43` (`window_days`) |
 | Default corridor | — | `abdella_all` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/params.rs:33,53` |
 
 ### Arrival-model artifact (`data/abdella/arrival_model.json`)
@@ -205,11 +203,11 @@ that live in TypeScript and are not part of `ModelParams` itself.
 - This table lists **defaults** — nearly every physics and demand parameter is exposed as a
   studio slider and can be changed at runtime; a session's actual parameters may differ from
   what's shown here.
-- **Confirmed drift:** `web/src/mock/generate.ts` (the browser-side mock/demo aging path,
-  separate from the live Rust/wasm engine) still hard-codes `GAMMA_SCALE = 0.08`
-  (`web/src/mock/generate.ts:25`) — the pre-ADR-0144 value. The canonical value, derived in
-  Rust from `eta_ref` and `gamma_shape`, is $1/28\approx0.035714$. Anything computed through
-  that mock path will not match the live engine's shelf-life calibration.
+- `web/src/mock/generate.ts` (the browser-side mock/demo aging path, separate from the live
+  Rust/wasm engine) hard-codes `GAMMA_SCALE = 0.08` (`web/src/mock/generate.ts:25`). The
+  canonical value, derived in Rust from `eta_ref` and `gamma_shape`, is
+  $1/28\approx0.035714$. Anything computed through that mock path will not match the live
+  engine's shelf-life calibration.
 - `short_haul` and `long_haul` corridors in the arrival-model artifact are explicitly
   documented as "illustrative studio corridors only" in the artifact's own provenance notes —
   not calibrated lanes, unlike `abdella_all`.

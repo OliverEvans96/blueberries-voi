@@ -1,7 +1,6 @@
 ---
 title: Why a pack date does so much
 sources:
-  adr: [0144]
   code:
     - crates/voi_core/src/arrival.rs
     - data/abdella/arrival_model.json
@@ -12,10 +11,9 @@ sources:
 # Why a pack date does so much
 
 [The previous finding](./does-belief-sharpen) showed that adding a supplier pack date to
-the delivery record cuts belief error roughly 3× — by far the largest single step on the
-whole knowledge ladder — while a full temperature-logger trace on top of that pack date
-buys a much smaller further gain. This page explains *why* a single calendar date, which
-says nothing at all about temperature, is worth that much: almost all of the trip-to-trip
+the delivery record cuts belief error roughly 3× — the largest single step on the whole
+knowledge ladder — while a full temperature-logger trace on top of that pack date buys a
+much smaller further gain. This page explains why: almost all of the trip-to-trip
 variation in cumulative thermal exposure comes from how long the trip took, not from how
 warm it ran.
 
@@ -24,18 +22,18 @@ warm it ran.
 ## The idea
 
 Every delivery's freshness at arrival is driven by one number: cumulative thermal exposure
-`Lambda` (Λ), which is roughly "duration times average heat." Two things could make Λ vary
-from one truck to the next: the trip could take a different number of days, or the truck
-could run at a different average temperature. If you only get to observe *one* of those
-two things, which one should you pick to explain the most variation?
+`Lambda` (Λ), roughly "duration times average heat." Two things could make Λ vary from one
+truck to the next: the trip could take a different number of days, or the truck could run
+at a different average temperature. If you only get to observe *one* of those two things,
+which one explains the most variation?
 
 Measured against the six real Abdella cold-chain shipments used to anchor this model's
 assumed families, the answer isn't close. Duration swings by more than 3× across the six
 trips (roughly 1.9 to 6.5 days); the temperature factor barely moves (roughly 1.29 to
-1.48). Almost all of the shipment-to-shipment spread in Λ traces back to *how long the
-truck was on the road*, not to how the reefer was running while it drove. A pack date is
-exactly the observation that pins down duration — that's the whole reason it buys so much
-belief-sharpening for so little instrumentation.
+1.48). Almost all of the shipment-to-shipment spread in Λ traces back to how long the
+truck was on the road, not to how the reefer was running while it drove. A pack date pins
+down duration — that's why it buys so much belief-sharpening for so little
+instrumentation.
 
 ## The math
 
@@ -50,7 +48,7 @@ $$
 
 (treating $d$ and $\bar\varphi$ as approximately independent across shipments, and
 ignoring the per-unit position term $\psi$, which is drawn independently per unit rather
-than varying trip-to-trip). Recomputed directly from the six-shipment Abdella parquet:
+than varying trip-to-trip). Computed directly from the six-shipment Abdella parquet:
 
 $$
 \mathrm{Var}(\log d) = 0.205, \qquad \mathrm{Var}(\log \bar\varphi) = 0.00335
@@ -64,32 +62,30 @@ $$
 
 Duration accounts for roughly 98.4% of the between-shipment variance in log cumulative
 exposure; the temperature factor accounts for the remaining ≈1.6%. A pack date is
-observationally exactly a duration measurement (calendar days from pack to arrival, once
-rounded to a whole day) — nothing more — so knowing it removes most of the shipment-level
+observationally a duration measurement (calendar days from pack to arrival, once rounded
+to a whole day) — nothing more — so knowing it removes most of the shipment-level
 uncertainty in $\Lambda$ before the filter does anything else. A full temperature trace
-adds $\bar\varphi$ (and de-rounds $d$ to its exact value), which is why F3 still helps, but
-only mops up what's left after duration is already known.
+adds $\bar\varphi$ (and de-rounds $d$ to its exact value), which is why F3 still helps,
+but it only mops up what's left after duration is already known.
 
 ## Why it's modelled this way
 
 This isn't an assumption baked into the model — it's a measurement from the six real
-Abdella shipments, and it directly shapes a modeling decision: ADR 0144 makes duration an
-*explicit corridor input* (drawn from a fitted family per corridor) precisely because six
-shipments are nowhere near enough to *infer* a duration distribution reliably from data
-alone, but they are enough to establish that duration, not temperature, is the dominant
-source of variation worth modeling carefully.
+Abdella shipments, and it directly shapes a modeling decision: duration is treated as an
+*explicit corridor input* (drawn from a fitted family per corridor) because six shipments
+are nowhere near enough to *infer* a duration distribution reliably from data alone, but
+they are enough to establish that duration, not temperature, is the dominant source of
+variation worth modeling carefully.
 
-**A rejected criterion, and why it matters here.** An earlier draft of ADR 0144 asserted
-that residual variance *after* observing temperature should be smaller than residual
-variance after observing duration ($\mathrm{Var}(f \mid \bar\varphi) < \mathrm{Var}(f \mid
-d)$) — which, given the 98.4%/1.6% split above, is backwards: requiring temperature to
-explain more of the *remaining* uncertainty than duration does requires duration to
-contribute *less* variance overall, exactly the opposite of what the data show. The ADR's
-own correction documents this directly: an earlier parameter set satisfied that inverted
-criterion only by giving duration a mere 23% share of $\mathrm{Var}(\log \Lambda)$ — a
-setting the corrected calibration guard (which pins the model's duration share to within a
-band of the observed 98.4%, computed directly from the parquet rather than asserted) now
-rejects.
+**An alternative considered.** One candidate calibration criterion required residual
+variance *after* observing temperature to be smaller than residual variance after
+observing duration ($\mathrm{Var}(f \mid \bar\varphi) < \mathrm{Var}(f \mid d)$). Given
+the 98.4%/1.6% split above, this is backwards: requiring temperature to explain more of
+the *remaining* uncertainty than duration does requires duration to contribute *less*
+variance overall — the opposite of what the data show. A parameter set satisfying that
+inverted criterion gave duration a mere 23% share of $\mathrm{Var}(\log \Lambda)$. The
+calibration guard actually used instead pins the model's duration share to within a band
+of the observed 98.4%, computed directly from the parquet rather than asserted.
 
 **Honest caveat.** This is a between-shipment decomposition from **six** cold-chain
 shipments (Abdella, Brecht & Uysal 2021), refrigerated leg only. It is not a claim that
@@ -108,7 +104,7 @@ temperature is unimportant to any single trip's outcome.
 | Duration draw (shifted gamma, per corridor) | $d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})$ | `crates/voi_core/src/arrival.rs:375-377` |
 | Duration-averaged Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T - T_\mathrm{ref})/10}$ | `crates/voi_core/src/arrival.rs:366` ([`phi_bar_from_t_bar`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar)) |
 | Corridor duration/temperature parameters, fitted per corridor | `d_min`, `delay_shape`, `delay_scale`, `mu_T`, `sigma_T` | `data/abdella/arrival_model.json` |
-| Duration-share calibration guard (≥90% against observed 98.4%) | — | ADR 0144 §"the guard that replaces it" (T-150 AC2.18); calibration script `scripts/arrival_calibration_note.py` |
+| Duration-share calibration guard (≥90% against observed 98.4%) | — | `scripts/arrival_calibration_note.py` |
 | Six-shipment empirical overlay (duration vs. temperature factor) | — | `data/abdella/calibration_note.md`, `data/abdella/arrival_calibration_overlay.png` |
 
 ## Caveats

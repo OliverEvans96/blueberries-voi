@@ -1,7 +1,6 @@
 ---
 title: Notation and glossary
 sources:
-  adr: [0144]
   code: [crates/voi_core/src/params.rs, crates/voi_core/src/arrival.rs, crates/voi_core/src/physics.rs, crates/voi_core/src/policy.rs, crates/voi_core/src/session.rs, crates/voi_core/src/demand_profile.rs]
 ---
 
@@ -10,8 +9,8 @@ sources:
 This site reuses a small set of symbols on almost every page. Rather than redefine
 them each time, they're collected here — look a symbol up once, then read the rest
 of the site without breaking stride. Every entry below is checked against the
-current Rust source, and defaults are the values `ModelParams::default()` actually
-ships with, not values quoted from memory or from older notebooks.
+current Rust source, and defaults are the values `ModelParams::default()` ships
+with.
 
 > **Figure (coming soon):** a one-page cheat sheet diagram showing where each symbol
 > lives on a unit's journey — corridor → truck → shelf → sale — with $f$, $\Lambda$,
@@ -55,12 +54,11 @@ ships with, not values quoted from memory or from older notebooks.
 
 ## A word this site does not use
 
-Older notes in this repo (and the code, before ticket **T-150**) called a unit's state
-"age" or "effective age," measured in days from zero upward. The production model
-now tracks **freshness** $f$ directly, running the other way (down from 1 to 0), and
-the two retired helper functions that mapped between them — `age_to_f` /
-`f_to_age` — survive in the code only as a legacy research-path mapping, not as
-anything the production truth or filter path uses to represent state.
+This site avoids "age" or "effective age" for a unit's state. The model tracks
+**freshness** $f$ directly, running from 1 down to 0. Two helper functions,
+`age_to_f` and `f_to_age`, exist in the code to convert between the two
+representations for a separate research path, but they are not part of how the
+production model or the filter represents state.
 
 ## Caveats
 
