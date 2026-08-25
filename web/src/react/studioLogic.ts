@@ -839,8 +839,30 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function plotVisible(plotId: string): boolean {
-    const node = q<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`);
-    return !!node && !node.hidden;
+    for (const node of qa<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`)) {
+      const block = node.closest(".controls-block") as HTMLElement | null;
+      if (block && !block.hidden) return true;
+    }
+    return false;
+  }
+
+  function mountChartIntoHost(chartEl: HTMLElement, hostId: string): void {
+    const host = q<HTMLElement>(`#${hostId}`);
+    if (host && chartEl.parentElement !== host) {
+      host.appendChild(chartEl);
+    }
+  }
+
+  function mountTuningChartHosts(sectionId: SectionId): void {
+    if (sectionId === "demand") {
+      mountChartIntoHost(els.demand, "chart-demand-host");
+    }
+    if (sectionId === "logistics") {
+      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
+    }
+    if (sectionId === "autopilot") {
+      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host-autopilot");
+    }
   }
 
   function ageCompositionInputs(): {
@@ -1073,21 +1095,11 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusBlurb.textContent = meta.blurb;
     sectionControlsApi?.showSection(id);
 
-    qa<HTMLElement>(".focus-plot").forEach((plot) => {
-      const pid = plot.dataset.plot ?? "";
-      plot.hidden = !meta.plotIds.includes(pid);
-    });
+    mountTuningChartHosts(id);
 
     els.focusPane.classList.remove("focus-flash");
     void els.focusPane.offsetWidth;
     els.focusPane.classList.add("focus-flash");
-
-    if (id === "demand") {
-      const slot = q<HTMLElement>("#chart-demand-host");
-      if (slot && els.demand.parentElement !== slot) {
-        slot.appendChild(els.demand);
-      }
-    }
 
     renderActiveFocusPlots();
     syncTruthCaptions();

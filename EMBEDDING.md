@@ -67,6 +67,18 @@ an internal `containerRef` and does **not** require a `#app` element in the host
 document. For custom mount roots or split layouts, use `StudioProvider` with
 `containerRef` and render `StudioLayout` inside a host element you control.
 
+### Optional `blogPostUrl`
+
+Override the title-bar “Read the blog post” link when embedding on a page that
+should point at a different article:
+
+```tsx
+<Studio blogPostUrl="https://yoursite.example.com/posts/blueberries" />
+```
+
+The same prop is available on `StudioProvider`. When omitted, the link falls
+back to the package default (`STUDIO_BLOG_POST_URL` in `studioLinks.ts`).
+
 ## Astro island (React 19, lazy)
 
 Use `client:only="react"` and defer loading until the island is near the viewport:
