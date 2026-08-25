@@ -25,7 +25,8 @@ def test_python_job_reuses_build_wheel() -> None:
     assert "needs: build" in python
     assert "name: ci-rust-wasm-build" in python
     assert "dist/wheels/blueberries_voi_core-" in python
-    assert "uv pip install dist/wheels/blueberries_voi_core-" in python
+    assert "unzip -oj" in python
+    assert "blueberries_voi/_core.abi3.so" in python
     assert "maturin develop" not in python
     assert "maturin build" not in python
     assert "dtolnay/rust-toolchain" in python

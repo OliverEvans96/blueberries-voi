@@ -131,7 +131,8 @@ jobs:
         run: |
           uv venv --python 3.11
           uv sync --all-extras --python 3.11 --frozen
-          uv pip install dist/wheels/blueberries_voi_core-*.whl
+          WHEEL="$(ls dist/wheels/blueberries_voi_core-*.whl)"
+          unzip -oj "$WHEEL" 'blueberries_voi/_core.abi3.so' -d src/blueberries_voi
 
       - name: Ruff (lint)
         run: uv run --python 3.11 ruff check .
