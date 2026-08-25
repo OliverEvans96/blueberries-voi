@@ -14,7 +14,7 @@ from blueberries_voi.sim.alpha_tune import DEFAULT_DESKTOP_ALPHAS
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "alpha-tune-profit-curve.png"
+OUTPUT = "alpha-profit-search.png"
 
 
 def render(out_dir: Path | None = None) -> Path:

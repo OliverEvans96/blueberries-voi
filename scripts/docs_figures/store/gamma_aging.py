@@ -16,7 +16,7 @@ from blueberries_voi.simulator.session import EngineSession
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "gamma-aging-decrement-and-path.png"
+OUTPUT = "gamma-aging-decrement.png"
 
 
 def render(out_dir: Path | None = None) -> Path:

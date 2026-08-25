@@ -13,7 +13,7 @@ from _style import apply_doc_style, save_fig
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "birth-freshness-cdf-by-rung-family.png"
+OUTPUT = "birth-freshness-cdf.png"
 ARTIFACT = REPO / "data" / "abdella" / "arrival_model.json"
 
 

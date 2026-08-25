@@ -14,7 +14,7 @@ from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "protection-window-by-order-day.png"
+OUTPUT = "protection-window-calendar.png"
 _EPOCH = date(2024, 1, 1)
 
 

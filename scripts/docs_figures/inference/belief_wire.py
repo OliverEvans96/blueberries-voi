@@ -16,7 +16,7 @@ from blueberries_voi.simulator.session import EngineSession
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "belief-wire-histogram-vs-units.png"
+OUTPUT = "belief-wire-histogram.png"
 
 
 def render(out_dir: Path | None = None) -> Path:

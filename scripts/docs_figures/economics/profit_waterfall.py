@@ -16,7 +16,7 @@ from blueberries_voi.simulator.session import EngineSession
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "profit-waterfall-p0-vs-f2.png"
+OUTPUT = "profit-waterfall-daily.png"
 
 
 def _day_components(day: dict[str, object]) -> tuple[float, float, float, float]:

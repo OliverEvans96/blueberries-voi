@@ -13,7 +13,7 @@ from _style import apply_doc_style, save_fig
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "demand-calendar-mu-13w.png"
+OUTPUT = "demand-calendar-sawtooth.png"
 PROFILE = REPO / "data" / "freshnet" / "demand_profile.json"
 
 

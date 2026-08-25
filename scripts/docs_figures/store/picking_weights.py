@@ -13,7 +13,7 @@ from _style import apply_doc_style, save_fig
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "picking-weights-sigma-comparison.png"
+OUTPUT = "picking-weight-freshness.png"
 
 
 def render(out_dir: Path | None = None) -> Path:

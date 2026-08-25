@@ -14,7 +14,7 @@ from blueberries_voi.filter.belief import ShelfBelief, effective_inventory
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "effective-inventory-raw-vs-weighted.png"
+OUTPUT = "effective-inventory-bars.png"
 
 
 def render(out_dir: Path | None = None) -> Path:
