@@ -263,6 +263,80 @@ def test_candidate_neighbourhood_is_plus_minus_two_cases() -> None:
     assert all(q >= 0 and q % case_size == 0 for q in near_zero)
 
 
+def test_candidate_orders_v2_wide_returns_k_unique_case_multiples() -> None:
+    mod = _resolve_rollout_module()
+    builder = getattr(mod, "candidate_orders_v2", None)
+    if builder is None:
+        builder = getattr(_rollout_defining_module(), "candidate_orders_v2", None)
+    cfg_cls = getattr(mod, "CandidateSearchConfig", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchConfig", None
+    )
+    mode_cls = getattr(mod, "CandidateSearchMode", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchMode", None
+    )
+    assert callable(builder) and cfg_cls is not None and mode_cls is not None
+    params = ModelParams()
+    case_size = int(params.case_size)
+    base_q = 24
+    cfg = cfg_cls(
+        mode=mode_cls.STRATIFIED_WIDE,
+        n_candidates=5,
+        span_cases=4,
+    )
+    got = list(builder(base_q, case_size=case_size, config=cfg))
+    assert len(got) == 5
+    assert base_q in got
+    assert len(set(got)) == 5
+    assert all(q >= 0 and q % case_size == 0 for q in got)
+
+
+def test_candidate_orders_v2_wide_span_scales_with_base_cases() -> None:
+    mod = _resolve_rollout_module()
+    builder = getattr(mod, "candidate_orders_v2", None)
+    cfg_cls = getattr(mod, "CandidateSearchConfig", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchConfig", None
+    )
+    mode_cls = getattr(mod, "CandidateSearchMode", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchMode", None
+    )
+    assert callable(builder) and cfg_cls is not None and mode_cls is not None
+    params = ModelParams()
+    case_size = int(params.case_size)
+    cfg = cfg_cls(
+        mode=mode_cls.STRATIFIED_WIDE,
+        n_candidates=5,
+        span_cases=0,
+        span_fraction=0.25,
+        min_span_cases=4,
+        max_span_cases=10,
+    )
+    small = list(builder(16, case_size=case_size, config=cfg))
+    large = list(builder(160, case_size=case_size, config=cfg))
+    assert max(large) - min(large) >= max(small) - min(small)
+
+
+def test_candidate_orders_v2_near_zero_includes_zero() -> None:
+    mod = _resolve_rollout_module()
+    builder = getattr(mod, "candidate_orders_v2", None)
+    cfg_cls = getattr(mod, "CandidateSearchConfig", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchConfig", None
+    )
+    mode_cls = getattr(mod, "CandidateSearchMode", None) or getattr(
+        _rollout_defining_module(), "CandidateSearchMode", None
+    )
+    assert callable(builder) and cfg_cls is not None and mode_cls is not None
+    params = ModelParams()
+    case_size = int(params.case_size)
+    cfg = cfg_cls(
+        mode=mode_cls.STRATIFIED_WIDE,
+        n_candidates=5,
+        span_cases=2,
+    )
+    got = list(builder(0, case_size=case_size, config=cfg))
+    assert 0 in got
+    assert all(q >= 0 and q % case_size == 0 for q in got)
+
+
 def test_candidate_orders_rejects_empty_or_invalid() -> None:
     """Unhappy path: empty / invalid neighbourhood must not silently proceed."""
     builder = getattr(_resolve_rollout_module(), "candidate_orders", None)

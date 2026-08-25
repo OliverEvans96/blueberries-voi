@@ -21,7 +21,9 @@ use crate::obs::{
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
-use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
+use crate::rollout::{
+    candidate_search_from_rpc, rollout_order, CandidateSearchConfig, RolloutContext, RolloutCosts,
+};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{calendar_transit_days, mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
@@ -89,9 +91,8 @@ pub struct EngineSession {
     h: u32,
     /// Number of rollout paths sampled per candidate order when policy is `rollout`.
     n_paths: u32,
-    /// Half-width, in cases, of the candidate order search window around the base
-    /// damped base-stock quantity when policy is `rollout`.
-    radius: i32,
+    /// Candidate order search geometry when policy is `rollout`.
+    candidate_search: CandidateSearchConfig,
     /// Order lead time in days (delivery day minus order day).
     lead_time: u32,
     /// Whether the unit particle filter runs each day; when `false`, the policy falls
@@ -172,7 +173,7 @@ impl EngineSession {
             _n_particles: n,
             h: 7,
             n_paths: 2,
-            radius: 1,
+            candidate_search: CandidateSearchConfig::neighborhood(1),
             lead_time: 1,
             enable_filter: true,
             schedule: OrderSchedule::from_delivery(&[0, 1, 2, 3, 4, 5, 6], 1)
@@ -228,7 +229,7 @@ impl EngineSession {
         enable_filter: bool,
         h: u32,
         n_paths: u32,
-        radius: i32,
+        candidate_search: CandidateSearchConfig,
         shipments: Vec<ShipmentTrace>,
         n_particles: usize,
         demand_profile: Option<DemandProfile>,
@@ -238,7 +239,7 @@ impl EngineSession {
         self.enable_filter = enable_filter;
         self.h = h.max(1);
         self.n_paths = n_paths.max(1);
-        self.radius = radius;
+        self.candidate_search = candidate_search;
         let n = n_particles.max(1);
         self._n_particles = n;
         self.params.units_per_lot = units_per_lot.unwrap_or(DEFAULT_UNITS_PER_LOT).max(1);
@@ -558,7 +559,13 @@ impl EngineSession {
                 "n_particles": self._n_particles,
                 "H": self.h,
                 "n_rollout_paths": self.n_paths,
-                "candidate_case_radius": self.radius,
+                "candidate_case_radius": self.candidate_search.radius,
+                "candidate_search_mode": match self.candidate_search.mode {
+                    crate::rollout::CandidateSearchMode::Neighborhood => "neighborhood",
+                    crate::rollout::CandidateSearchMode::StratifiedWide => "stratified_wide",
+                },
+                "candidate_span_cases": self.candidate_search.span_cases,
+                "n_candidates": self.candidate_search.n_candidates,
                 "L": self.l_dim,
                 "K": self.k_dim,
                 "enable_filter": self.enable_filter,
@@ -754,6 +761,9 @@ impl EngineSession {
         h: Option<u32>,
         n_rollout_paths: Option<u32>,
         candidate_case_radius: Option<i32>,
+        candidate_search_mode: Option<&str>,
+        candidate_span_cases: Option<i32>,
+        n_candidates: Option<u32>,
     ) -> DayDelta {
         self.require_init();
         let pending_sum: u32 = self.pending.values().copied().sum();
@@ -763,7 +773,13 @@ impl EngineSession {
         let rho = rho.unwrap_or(0.8);
         let h = h.unwrap_or(self.h);
         let n_paths = n_rollout_paths.unwrap_or(self.n_paths);
-        let radius = candidate_case_radius.unwrap_or(self.radius);
+        let search = CandidateSearchConfig::with_overrides(
+            &self.candidate_search,
+            candidate_case_radius,
+            candidate_search_mode,
+            candidate_span_cases,
+            n_candidates,
+        );
         let name = policy.unwrap_or("rollout").to_ascii_lowercase();
         let q = match name.as_str() {
             "constant" | "const" | "fixed" => {
@@ -807,7 +823,7 @@ impl EngineSession {
                     f_pipeline_default: f_pipe,
                     h,
                     n_paths,
-                    radius,
+                    candidate_search: search,
                 };
                 rollout_order(
                     &lot_counts,
@@ -828,7 +844,18 @@ impl EngineSession {
 
     /// Shorthand for `act` with the `rollout` policy and its own default tuning.
     pub fn act_rollout(&mut self) -> DayDelta {
-        self.act(Some("rollout"), None, None, None, None, None, None)
+        self.act(
+            Some("rollout"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
     /// Ends the current episode and starts a new one at `seed` (delegates to `init`).
@@ -1234,7 +1261,7 @@ impl EngineSession {
         let enable_filter = rpc_bool(params, "enable_filter").unwrap_or(true);
         let h = rpc_u64(params, "H").unwrap_or(7) as u32;
         let n_paths = rpc_u64(params, "n_rollout_paths").unwrap_or(2) as u32;
-        let radius = rpc_i64(params, "candidate_case_radius").unwrap_or(1) as i32;
+        let candidate_search = candidate_search_from_rpc(params);
         let n_particles = rpc_u64(params, "n_particles").unwrap_or(200) as usize;
         let arrival_product = rpc_str(params, "arrival_product").map(str::to_string);
         let mut shipments = parse_shipments_from_rpc(params);
@@ -1251,7 +1278,7 @@ impl EngineSession {
             enable_filter,
             h,
             n_paths,
-            radius,
+            candidate_search,
             shipments,
             n_particles,
             demand_profile,
@@ -1433,6 +1460,20 @@ pub fn handle_rpc(request_json: &str) -> String {
                     .get("candidate_case_radius")
                     .and_then(|v| v.as_i64())
                     .map(|n| n as i32);
+                let search_mode = req
+                    .params
+                    .get("candidate_search_mode")
+                    .and_then(|v| v.as_str());
+                let span_cases = req
+                    .params
+                    .get("candidate_span_cases")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n as i32);
+                let n_candidates = req
+                    .params
+                    .get("n_candidates")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
                 let d = sess.act(
                     policy,
                     order_qty,
@@ -1441,6 +1482,9 @@ pub fn handle_rpc(request_json: &str) -> String {
                     h,
                     n_paths,
                     radius,
+                    search_mode,
+                    span_cases,
+                    n_candidates,
                 );
                 sess.day_delta_value(&d)
             }
@@ -1537,7 +1581,7 @@ mod tests {
         s.init(seed);
         s.set_belief_dims(2, 4);
         // ADR 0136 zero-init: keep filter on so arrivals birth nontrivial belief mass.
-        s.configure(1, true, 7, 2, 1, vec![t121b_shipment()], 32, None, None);
+        s.configure(1, true, 7, 2, CandidateSearchConfig::neighborhood(1), vec![t121b_shipment()], 32, None, None);
         for &q in &[32u32, 0, 32, 0, 32, 0, 32, 0] {
             s.step(q);
         }
@@ -1950,7 +1994,7 @@ mod tests {
     fn configure_sets_particle_count() {
         let mut s = EngineSession::new(1);
         s.init(1);
-        s.configure(1, true, 7, 2, 1, vec![], 200, None, None);
+        s.configure(1, true, 7, 2, CandidateSearchConfig::neighborhood(1), vec![], 200, None, None);
         assert_eq!(s.n_particles(), 200);
     }
 
@@ -1977,11 +2021,11 @@ mod tests {
     fn session_configure_loads_calendar_profile_and_uses_day_in_demand() {
         let mut s = EngineSession::new(0);
         s.init(0);
-        s.configure(1, false, 3, 1, 0, vec![], 16, None, None);
+        s.configure(1, false, 3, 1, CandidateSearchConfig::neighborhood(0), vec![], 16, None, None);
         let d0 = s.step(0);
         let mut s_dup = EngineSession::new(0);
         s_dup.init(0);
-        s_dup.configure(1, false, 3, 1, 0, vec![], 16, None, None);
+        s_dup.configure(1, false, 3, 1, CandidateSearchConfig::neighborhood(0), vec![], 16, None, None);
         let d0_dup = s_dup.step(0);
         assert_eq!(
             d0.demand, d0_dup.demand,
@@ -1989,7 +2033,7 @@ mod tests {
         );
         let mut s2 = EngineSession::new(0);
         s2.init(0);
-        s2.configure(1, false, 3, 1, 0, vec![], 16, None, None);
+        s2.configure(1, false, 3, 1, CandidateSearchConfig::neighborhood(0), vec![], 16, None, None);
         let mut demands = Vec::new();
         for _ in 0..90 {
             let d = s2.step(0);
@@ -2261,13 +2305,24 @@ mod tests {
                     f_pipeline_default: f_pipe,
                     h: s.h,
                     n_paths: s.n_paths,
-                    radius: s.radius,
+                    candidate_search: s.candidate_search.clone(),
                 },
             )
             .unwrap_or(base)
         };
         let mut live = warm_t121b_session(_SEED);
-        let d = live.act(Some("rollout"), None, None, None, None, None, None);
+        let d = live.act(
+            Some("rollout"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(d.order_qty, belief_rollout);
     }
 
@@ -2275,10 +2330,32 @@ mod tests {
     fn act_damped_sw_differs_from_rollout_when_belief_nontrivial() {
         for seed in 1u64..=8 {
             let sw = warm_t121b_session(seed)
-                .act(Some("damped_sw"), None, None, None, None, None, None)
+                .act(
+                    Some("damped_sw"),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
                 .order_qty;
             let roll = warm_t121b_session(seed)
-                .act(Some("rollout"), None, None, None, None, None, None)
+                .act(
+                    Some("rollout"),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
                 .order_qty;
             if sw != roll {
                 return;
@@ -2291,12 +2368,34 @@ mod tests {
     fn act_alpha_budget_changes_damped_sw_order() {
         let mut low = warm_t121b_session(17);
         let q_low = low
-            .act(Some("damped_sw"), None, Some(0.5), None, None, None, None)
+            .act(
+                Some("damped_sw"),
+                None,
+                Some(0.5),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .order_qty;
 
         let mut high = warm_t121b_session(17);
         let q_high = high
-            .act(Some("damped_sw"), None, Some(0.99), None, None, None, None)
+            .act(
+                Some("damped_sw"),
+                None,
+                Some(0.99),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .order_qty;
 
         assert!(

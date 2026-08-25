@@ -42,6 +42,121 @@ impl Default for RolloutCosts {
     }
 }
 
+/// How rollout enumerates candidate order quantities around the base policy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CandidateSearchMode {
+    /// Dense ±`radius` case neighbourhood (legacy default).
+    Neighborhood,
+    /// Fixed-count stratified lattice over a wide ±span in cases (ADR 0146).
+    StratifiedWide,
+}
+
+/// Knobs for [`candidate_orders_v2`] and rollout candidate enumeration.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CandidateSearchConfig {
+    pub mode: CandidateSearchMode,
+    /// Target candidate count (including `base_q` after merge/dedupe/backfill).
+    pub n_candidates: u32,
+    /// Half-width in cases for [`CandidateSearchMode::Neighborhood`].
+    pub radius: i32,
+    /// Fixed span in cases for wide mode; `0` selects adaptive span from `span_fraction`.
+    pub span_cases: i32,
+    pub span_fraction: f64,
+    pub min_span_cases: i32,
+    pub max_span_cases: i32,
+}
+
+impl Default for CandidateSearchConfig {
+    fn default() -> Self {
+        Self {
+            mode: CandidateSearchMode::Neighborhood,
+            n_candidates: 5,
+            radius: 2,
+            span_cases: 0,
+            span_fraction: 0.25,
+            min_span_cases: 4,
+            max_span_cases: 10,
+        }
+    }
+}
+
+impl CandidateSearchConfig {
+    /// Legacy surface: `candidate_case_radius` alone maps to neighbourhood search.
+    pub fn neighborhood(radius: i32) -> Self {
+        Self {
+            mode: CandidateSearchMode::Neighborhood,
+            radius,
+            ..Self::default()
+        }
+    }
+
+    pub fn stratified_wide(n_candidates: u32) -> Self {
+        Self {
+            mode: CandidateSearchMode::StratifiedWide,
+            n_candidates: n_candidates.max(1),
+            ..Self::default()
+        }
+    }
+
+    /// Merge session defaults with optional per-act / RPC overrides.
+    pub fn with_overrides(
+        base: &Self,
+        candidate_case_radius: Option<i32>,
+        candidate_search_mode: Option<&str>,
+        candidate_span_cases: Option<i32>,
+        n_candidates: Option<u32>,
+    ) -> Self {
+        let mut cfg = base.clone();
+        if let Some(mode) = candidate_search_mode {
+            cfg.mode = match mode.to_ascii_lowercase().as_str() {
+                "stratified_wide" | "wide" | "stratified" => {
+                    CandidateSearchMode::StratifiedWide
+                }
+                _ => CandidateSearchMode::Neighborhood,
+            };
+        }
+        if let Some(span) = candidate_span_cases {
+            cfg.span_cases = span;
+        }
+        if let Some(k) = n_candidates {
+            cfg.n_candidates = k.max(1);
+        }
+        if let Some(r) = candidate_case_radius {
+            cfg.radius = r;
+            if candidate_search_mode.is_none() {
+                cfg.mode = CandidateSearchMode::Neighborhood;
+            }
+        }
+        cfg
+    }
+}
+
+/// Parse candidate-search knobs from a JSON configure / act payload.
+pub fn candidate_search_from_rpc(params: &serde_json::Value) -> CandidateSearchConfig {
+    let radius = params
+        .get("candidate_case_radius")
+        .and_then(|v| v.as_i64())
+        .map(|n| n as i32)
+        .unwrap_or(1);
+    let mut cfg = CandidateSearchConfig::neighborhood(radius);
+    if let Some(mode) = params.get("candidate_search_mode").and_then(|v| v.as_str()) {
+        cfg.mode = match mode.to_ascii_lowercase().as_str() {
+            "stratified_wide" | "wide" | "stratified" => CandidateSearchMode::StratifiedWide,
+            _ => CandidateSearchMode::Neighborhood,
+        };
+    }
+    if let Some(span) = params
+        .get("candidate_span_cases")
+        .and_then(|v| v.as_i64())
+    {
+        cfg.span_cases = span as i32;
+    }
+    if let Some(k) = params.get("n_candidates").and_then(|v| v.as_u64()) {
+        cfg.n_candidates = (k as u32).max(1);
+    }
+    cfg
+}
+
 /// Shared rollout forward-sim context (CRN addressing + continuation policy).
 #[derive(Clone, Debug)]
 pub struct RolloutContext {
@@ -70,8 +185,8 @@ pub struct RolloutContext {
     pub h: u32,
     /// Number of CRN-paired sample paths averaged per candidate order.
     pub n_paths: u32,
-    /// Search radius, in cases, around the base policy's suggestion for candidate orders.
-    pub radius: i32,
+    /// Candidate order search geometry (neighbourhood or stratified wide lattice).
+    pub candidate_search: CandidateSearchConfig,
 }
 
 /// Candidate order quantities near `base_q`: whole cases at `base_q +/- radius` cases,
@@ -91,6 +206,94 @@ pub fn candidate_orders(base_q: u32, case_size: u32, radius: i32) -> Vec<u32> {
         out.push(0);
     }
     out
+}
+
+fn effective_span_cases(base_cases: i32, cfg: &CandidateSearchConfig) -> i32 {
+    if cfg.span_cases > 0 {
+        cfg.span_cases
+    } else {
+        let adaptive = (cfg.span_fraction * f64::from(base_cases)).ceil() as i32;
+        adaptive.clamp(cfg.min_span_cases, cfg.max_span_cases)
+    }
+}
+
+fn backfill_case_multiples(
+    out: &mut Vec<u32>,
+    base_cases: i32,
+    case_size: u32,
+    target: usize,
+) {
+    let cs = case_size.max(1);
+    let mut seen: std::collections::BTreeSet<u32> = out.iter().copied().collect();
+    let mut delta = 1i32;
+    while out.len() < target {
+        for sign in [-1i32, 1] {
+            let c = (base_cases + sign * delta).max(0) as u32;
+            let q = c * cs;
+            if seen.insert(q) {
+                out.push(q);
+                if out.len() >= target {
+                    break;
+                }
+            }
+        }
+        delta += 1;
+        if delta > 10_000 {
+            break;
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+}
+
+/// Case-multiple candidate orders under [`CandidateSearchConfig`].
+///
+/// Always includes `base_q` (snapped to a case multiple). Neighbourhood mode delegates
+/// to [`candidate_orders`]; wide mode places `n_candidates` points on a stratified lattice.
+pub fn candidate_orders_v2(
+    base_q: u32,
+    case_size: u32,
+    cfg: &CandidateSearchConfig,
+) -> Vec<u32> {
+    let cs = case_size.max(1);
+    let base_cases = (base_q / cs) as i32;
+    let base_snapped = (base_cases as u32) * cs;
+
+    match cfg.mode {
+        CandidateSearchMode::Neighborhood => candidate_orders(base_snapped, cs, cfg.radius),
+        CandidateSearchMode::StratifiedWide => {
+            let k = cfg.n_candidates.max(1) as usize;
+            let span = effective_span_cases(base_cases, cfg);
+            let lo = (base_cases - span).max(0);
+            let hi = base_cases + span;
+            let mut out = vec![base_snapped];
+            let extra = k.saturating_sub(1);
+            for i in 0..extra {
+                let case = if extra <= 1 {
+                    lo
+                } else {
+                    let t = i as f64 / (extra.saturating_sub(1)) as f64;
+                    (f64::from(lo) + t * f64::from(hi - lo)).round() as i32
+                };
+                let q = (case.max(0) as u32) * cs;
+                out.push(q);
+            }
+            out.sort_unstable();
+            out.dedup();
+            if out.len() < k {
+                backfill_case_multiples(&mut out, base_cases, cs, k);
+            }
+            if !out.contains(&base_snapped) {
+                out.push(base_snapped);
+                out.sort_unstable();
+                out.dedup();
+            }
+            if out.is_empty() {
+                out.push(0);
+            }
+            out
+        }
+    }
 }
 
 /// Weibull survival weight at effective age τ (ADR 0061).
@@ -235,7 +438,7 @@ pub fn rollout_order(
             ctx.n_paths
         ));
     }
-    let mut cands = candidate_orders(base_q, params.case_size, ctx.radius);
+    let mut cands = candidate_orders_v2(base_q, params.case_size, &ctx.candidate_search);
     if cands.is_empty() {
         return Err("candidates must be non-empty".into());
     }
@@ -547,6 +750,88 @@ mod tests {
     }
 
     #[test]
+    fn candidate_orders_v2_wide_returns_k_unique_case_multiples_including_base() {
+        let cfg = CandidateSearchConfig {
+            mode: CandidateSearchMode::StratifiedWide,
+            n_candidates: 5,
+            span_cases: 4,
+            ..CandidateSearchConfig::default()
+        };
+        let base_q = 24u32;
+        let cs = 8u32;
+        let got = candidate_orders_v2(base_q, cs, &cfg);
+        assert_eq!(got.len(), 5);
+        assert!(got.contains(&base_q));
+        assert!(got.iter().all(|q| q % cs == 0));
+        assert_eq!(got.iter().copied().collect::<std::collections::BTreeSet<_>>().len(), 5);
+    }
+
+    #[test]
+    fn candidate_orders_v2_wide_span_scales_with_base_cases() {
+        let mut cfg = CandidateSearchConfig {
+            mode: CandidateSearchMode::StratifiedWide,
+            n_candidates: 5,
+            span_cases: 0,
+            span_fraction: 0.25,
+            min_span_cases: 4,
+            max_span_cases: 10,
+            ..CandidateSearchConfig::default()
+        };
+        let cs = 8u32;
+        let small = candidate_orders_v2(16, cs, &cfg);
+        let lo_small = *small.first().unwrap();
+        cfg.span_fraction = 0.25;
+        let large = candidate_orders_v2(160, cs, &cfg);
+        let lo_large = *large.first().unwrap();
+        assert!(lo_large <= lo_small || large.last() > small.last());
+        let span_small = effective_span_cases(2, &cfg);
+        let span_large = effective_span_cases(20, &cfg);
+        assert_eq!(span_small, 4);
+        assert_eq!(span_large, 5);
+    }
+
+    #[test]
+    fn candidate_orders_v2_near_zero_includes_zero_when_in_range() {
+        let cfg = CandidateSearchConfig {
+            mode: CandidateSearchMode::StratifiedWide,
+            n_candidates: 5,
+            span_cases: 2,
+            ..CandidateSearchConfig::default()
+        };
+        let got = candidate_orders_v2(0, 8, &cfg);
+        assert!(got.contains(&0));
+        assert!(got.iter().all(|q| q % 8 == 0));
+    }
+
+    #[test]
+    fn candidate_orders_v2_neighborhood_matches_legacy() {
+        let base_q = 24u32;
+        let cs = 8u32;
+        let radius = 2i32;
+        let legacy = candidate_orders(base_q, cs, radius);
+        let cfg = CandidateSearchConfig::neighborhood(radius);
+        assert_eq!(candidate_orders_v2(base_q, cs, &cfg), legacy);
+    }
+
+    fn mk_test_ctx(candidate_search: CandidateSearchConfig) -> RolloutContext {
+        RolloutContext {
+            root_seed: 1,
+            run_id: "t".into(),
+            day0: 0,
+            lead_time: 1,
+            schedule: OrderSchedule::default(),
+            alpha: 0.9,
+            rho: 0.8,
+            costs: RolloutCosts::default(),
+            shipments: vec![ShipmentTrace::smoke_cool()],
+            f_pipeline_default: 1.0,
+            h: 2,
+            n_paths: 1,
+            candidate_search,
+        }
+    }
+
+    #[test]
     fn terminal_salvage_unit_state_empty_is_zero() {
         assert_eq!(
             terminal_salvage_unit_state(&[], 2.0, &ModelParams::default()),
@@ -587,7 +872,7 @@ mod tests {
             f_pipeline_default: 1.0,
             h: 0,
             n_paths: 1,
-            radius: 1,
+            candidate_search: CandidateSearchConfig::neighborhood(1),
         };
         assert!(rollout_order(&[8.0], &[1.0], &f_grid_k(1), 8, &p, &BTreeMap::new(), &ctx).is_err());
     }
@@ -601,21 +886,7 @@ mod tests {
         let mut f_marginals = vec![0.0; 2 * k];
         f_marginals[1] = 1.0;
         f_marginals[2 * k - 1] = 1.0;
-        let ctx = RolloutContext {
-            root_seed: 3,
-            run_id: "t".into(),
-            day0: 0,
-            lead_time: 1,
-            schedule: OrderSchedule::default(),
-            alpha: 0.9,
-            rho: 0.8,
-            costs: RolloutCosts::default(),
-            shipments: vec![ShipmentTrace::smoke_cool()],
-            f_pipeline_default: 1.0,
-            h: 2,
-            n_paths: 1,
-            radius: 1,
-        };
+        let ctx = mk_test_ctx(CandidateSearchConfig::neighborhood(1));
         let q = rollout_order(
             &lot_counts,
             &f_marginals,
@@ -652,7 +923,7 @@ mod tests {
             f_pipeline_default: 1.0,
             h: 3,
             n_paths: 1,
-            radius: 0,
+            candidate_search: CandidateSearchConfig::neighborhood(0),
         };
         let first_order = 16u32;
         let delivered = path_arrival_units_sum(
@@ -714,7 +985,7 @@ mod tests {
             f_pipeline_default: 1.0,
             h: 6,
             n_paths: 16,
-            radius: 2,
+            candidate_search: CandidateSearchConfig::neighborhood(2),
         };
         let low = rollout_order(
             &lot_counts,

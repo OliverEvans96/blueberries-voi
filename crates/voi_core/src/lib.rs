@@ -44,8 +44,9 @@ pub use physics::{
     picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
 };
 pub use rollout::{
-    candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,
-    terminal_salvage_unit_state, w_long, RolloutContext, RolloutCosts,
+    candidate_orders, candidate_orders_v2, day_profit, rollout_order,
+    terminal_salvage_f_belief, terminal_salvage_unit_state, w_long, CandidateSearchConfig,
+    CandidateSearchMode, RolloutContext, RolloutCosts,
 };
 pub use session::{handle_rpc, DayDelta, EngineSession};
 pub use shipments::ShipmentTrace;

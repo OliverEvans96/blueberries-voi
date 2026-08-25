@@ -1220,7 +1220,7 @@ fn engine_session_init_belief_mass_zero() {
     let mut s = voi_core::EngineSession::new(42);
     s.init(42);
     s.set_belief_dims(2, 4);
-    s.configure(2, true, 7, 2, 1, vec![], 32, None, None);
+    s.configure(2, true, 7, 2, voi_core::rollout::CandidateSearchConfig::neighborhood(1), vec![], 32, None, None);
     s.set_obs_scenario("P1").unwrap();
     let snap = s.snapshot_value();
     let lc: Vec<f64> = snap["belief"]["lot_counts"]
@@ -1244,7 +1244,7 @@ fn p1_f1_zero_sales_belief_mass_parity() {
         let mut s = EngineSession::new(42);
         s.init(42);
         s.set_belief_dims(2, 4);
-        s.configure(2, true, 7, 2, 1, vec![], 32, None, None);
+        s.configure(2, true, 7, 2, voi_core::rollout::CandidateSearchConfig::neighborhood(1), vec![], 32, None, None);
         s.set_obs_scenario(scenario).unwrap();
         for _ in 0..days {
             s.step(0);

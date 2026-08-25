@@ -13,7 +13,9 @@ use crate::physics::draw_demand;
 use crate::policy::damped_sw_order_f_belief;
 use crate::physics::GammaDecrementTable;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
-use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
+use crate::rollout::{
+    day_profit, rollout_order, CandidateSearchConfig, RolloutContext, RolloutCosts,
+};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
 
@@ -191,8 +193,19 @@ pub struct CrnBudgets {
     pub lead_time: u32,
     /// Target service-level quantile passed to the damped SW order rule.
     pub alpha: f64,
-    /// How many case-multiples around the base order the rollout search considers.
+    /// How many case-multiples around the base order the rollout search considers
+    /// (neighbourhood radius when mode is neighbourhood).
     pub candidate_case_radius: i32,
+    /// Optional wide-lattice search; when `None`, derived from `candidate_case_radius`.
+    pub candidate_search: Option<CandidateSearchConfig>,
+}
+
+impl CrnBudgets {
+    pub fn candidate_search_config(&self) -> CandidateSearchConfig {
+        self.candidate_search
+            .clone()
+            .unwrap_or_else(|| CandidateSearchConfig::neighborhood(self.candidate_case_radius))
+    }
 }
 
 impl Default for CrnBudgets {
@@ -206,6 +219,7 @@ impl Default for CrnBudgets {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         }
     }
 }
@@ -291,7 +305,7 @@ fn run_scenario_episode(
                 f_pipeline_default: 1.0,
                 h: budgets.h.max(1),
                 n_paths: budgets.n_rollout_paths,
-                radius: budgets.candidate_case_radius,
+                candidate_search: budgets.candidate_search_config(),
             };
             rollout_order(
                 &lot_counts,
@@ -458,6 +472,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         };
         let profits = run_voi_crn_cell(2.0, 1, &ships, &b, &[], None);
         assert_eq!(profits.len(), 7);
@@ -478,6 +493,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         };
         let a = run_voi_crn_cell(2.0, 3, &ships, &b, &["P0", "P1"], None);
         assert_eq!(a.len(), 2);
@@ -504,6 +520,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         };
         let x = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"], None);
         let y = run_voi_crn_cell(2.0, 11, &ships, &b, &["P1"], None);
@@ -531,6 +548,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         };
         // damped_sw (n_rollout_paths=0) already separates P0/F1 on early seeds;
         // 200 rollout cells were minutes of the verify budget.
@@ -567,6 +585,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 0,
+            candidate_search: None,
         };
         let wide = CrnBudgets {
             n_burn: 1,
@@ -577,6 +596,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 2,
+            candidate_search: None,
         };
         let a = run_voi_crn_cell(2.0, 42, &ships, &narrow, &["P1"], None);
         let b = run_voi_crn_cell(2.0, 42, &ships, &wide, &["P1"], None);
@@ -607,10 +627,10 @@ mod tests {
             f_pipeline_default: 1.0,
             h: 2,
             n_paths: 2,
-            radius: 0,
+            candidate_search: CandidateSearchConfig::neighborhood(0),
         };
         let wide_ctx = RolloutContext {
-            radius: 2,
+            candidate_search: CandidateSearchConfig::neighborhood(2),
             ..narrow_ctx.clone()
         };
         let narrow = rollout_order(
@@ -655,6 +675,7 @@ mod tests {
             lead_time: 1,
             alpha: 0.9,
             candidate_case_radius: 1,
+            candidate_search: None,
         };
         let flat = run_voi_crn_cell(2.0, 42, &ships, &b, &["B-state"], None);
         let cal = run_voi_crn_cell(2.0, 42, &ships, &b, &["B-state"], Some(profile));

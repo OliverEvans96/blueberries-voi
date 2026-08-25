@@ -16,6 +16,7 @@ calendar days so weekly / MWF periodicity is preserved (H âˆˆ {7, 14, 21, 28, â€
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from enum import Enum
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -41,6 +42,11 @@ DEFAULT_ROLLOUT_HORIZONS: tuple[int, ...] = (7, 14, 21, 28)
 DEFAULT_ROLLOUT_H: int = 28
 DEFAULT_N_ROLLOUT_PATHS: int = 8
 DEFAULT_CANDIDATE_CASE_RADIUS: int = 2
+DEFAULT_N_CANDIDATES: int = 5
+DEMO_N_CANDIDATES: int = 3
+DEFAULT_CANDIDATE_SPAN_FRACTION: float = 0.25
+DEFAULT_MIN_SPAN_CASES: int = 4
+DEFAULT_MAX_SPAN_CASES: int = 10
 DEFAULT_N_PARTICLES: int = 64
 DEFAULT_LEAD_TIME: int = 1
 _DEFAULT_MARGIN: float = 2.0
@@ -57,6 +63,31 @@ class _BaseOrderPolicy(Protocol):
         day: int = 0,
         pending_orders: Mapping[int, int] | None = None,
     ) -> int: ...
+
+
+class CandidateSearchMode(str, Enum):
+    """Rollout candidate enumeration strategy (ADR 0146)."""
+
+    NEIGHBORHOOD = "neighborhood"
+    STRATIFIED_WIDE = "stratified_wide"
+
+
+@dataclass(frozen=True)
+class CandidateSearchConfig:
+    mode: CandidateSearchMode = CandidateSearchMode.NEIGHBORHOOD
+    n_candidates: int = DEFAULT_N_CANDIDATES
+    radius: int = DEFAULT_CANDIDATE_CASE_RADIUS
+    span_cases: int = 0
+    span_fraction: float = DEFAULT_CANDIDATE_SPAN_FRACTION
+    min_span_cases: int = DEFAULT_MIN_SPAN_CASES
+    max_span_cases: int = DEFAULT_MAX_SPAN_CASES
+
+    @classmethod
+    def neighborhood(cls, radius: int) -> CandidateSearchConfig:
+        return cls(
+            mode=CandidateSearchMode.NEIGHBORHOOD,
+            radius=int(radius),
+        )
 
 
 @dataclass(frozen=True)
@@ -341,6 +372,108 @@ def candidate_orders(
     return out
 
 
+def _effective_span_cases(base_cases: int, cfg: CandidateSearchConfig) -> int:
+    if int(cfg.span_cases) > 0:
+        return int(cfg.span_cases)
+    adaptive = int(np.ceil(float(cfg.span_fraction) * float(base_cases)))
+    return int(np.clip(adaptive, cfg.min_span_cases, cfg.max_span_cases))
+
+
+def _backfill_case_multiples(
+    out: list[int],
+    *,
+    base_cases: int,
+    case_size: int,
+    target: int,
+) -> list[int]:
+    seen = set(out)
+    delta = 1
+    while len(out) < target:
+        for sign in (-1, 1):
+            case = max(0, base_cases + sign * delta)
+            q = case * int(case_size)
+            if q not in seen:
+                seen.add(q)
+                out.append(q)
+                if len(out) >= target:
+                    break
+        delta += 1
+        if delta > 10_000:
+            break
+    out.sort()
+    return out
+
+
+def candidate_orders_v2(
+    base_q: int,
+    *,
+    case_size: int,
+    config: CandidateSearchConfig | None = None,
+) -> list[int]:
+    """Case-multiple candidates under neighbourhood or stratified-wide search."""
+    cfg = (
+        CandidateSearchConfig.neighborhood(DEFAULT_CANDIDATE_CASE_RADIUS)
+        if config is None
+        else config
+    )
+    if rust_available() and rust_core is not None:
+        fn = getattr(rust_core, "candidate_orders_v2_py", None)
+        if fn is not None:
+            return [
+                int(q)
+                for q in fn(
+                    int(base_q),
+                    int(case_size),
+                    str(cfg.mode.value),
+                    int(cfg.n_candidates),
+                    int(cfg.radius),
+                    int(cfg.span_cases),
+                    float(cfg.span_fraction),
+                    int(cfg.min_span_cases),
+                    int(cfg.max_span_cases),
+                )
+            ]
+    if case_size <= 0:
+        msg = f"case_size must be positive, got {case_size}"
+        raise ValueError(msg)
+    base_cases = int(base_q) // int(case_size)
+    base_snapped = base_cases * int(case_size)
+    if cfg.mode is CandidateSearchMode.NEIGHBORHOOD:
+        return candidate_orders(
+            base_snapped,
+            case_size=int(case_size),
+            radius=int(cfg.radius),
+        )
+    k = max(1, int(cfg.n_candidates))
+    span = _effective_span_cases(base_cases, cfg)
+    lo = max(0, base_cases - span)
+    hi = base_cases + span
+    out = [base_snapped]
+    extra = k - 1
+    for i in range(extra):
+        if extra <= 1:
+            case = lo
+        else:
+            t = i / (extra - 1)
+            case = int(round(lo + t * (hi - lo)))
+        out.append(max(0, case) * int(case_size))
+    out = sorted(set(out))
+    if len(out) < k:
+        out = _backfill_case_multiples(
+            list(out),
+            base_cases=base_cases,
+            case_size=int(case_size),
+            target=k,
+        )
+    if base_snapped not in out:
+        out.append(base_snapped)
+        out.sort()
+    if not out:
+        msg = "candidate neighbourhood is empty"
+        raise ValueError(msg)
+    return out
+
+
 def _try_rust_rollout_order(
     belief: ShelfBelief,
     *,
@@ -350,6 +483,9 @@ def _try_rust_rollout_order(
     H: int,
     n_rollout_paths: int,
     candidate_case_radius: int,
+    candidate_search_mode: str | None = None,
+    candidate_span_cases: int | None = None,
+    n_candidates: int | None = None,
     pending_orders: Mapping[int, int],
     day: int,
     lead_time: int,
@@ -368,6 +504,26 @@ def _try_rust_rollout_order(
     pending_days = [int(k) for k in pending_orders]
     pending_qtys = [int(pending_orders[k]) for k in pending_orders]
     flat_marginals = [float(x) for row in belief.f_marginals for x in row]
+    kwargs: dict[str, Any] = {
+        "day0": int(day),
+        "lead_time": int(lead_time),
+        "alpha": float(alpha),
+        "rho": float(rho),
+        "h": int(H),
+        "n_paths": int(n_rollout_paths),
+        "radius": int(candidate_case_radius),
+        "unit_margin": float(margin),
+        "waste_cost": float(waste_cost),
+        "stockout_penalty": float(stockout_penalty),
+        "pending_days": pending_days or None,
+        "pending_qtys": pending_qtys or None,
+    }
+    if candidate_search_mode is not None:
+        kwargs["candidate_search_mode"] = candidate_search_mode
+    if candidate_span_cases is not None:
+        kwargs["candidate_span_cases"] = int(candidate_span_cases)
+    if n_candidates is not None:
+        kwargs["n_candidates"] = int(n_candidates)
     return int(
         fn(
             list(map(float, belief.lot_counts)),
@@ -376,18 +532,7 @@ def _try_rust_rollout_order(
             int(base_q),
             int(rng_address["root_seed"]),
             str(rng_address["run_id"]),
-            day0=int(day),
-            lead_time=int(lead_time),
-            alpha=float(alpha),
-            rho=float(rho),
-            h=int(H),
-            n_paths=int(n_rollout_paths),
-            radius=int(candidate_case_radius),
-            unit_margin=float(margin),
-            waste_cost=float(waste_cost),
-            stockout_penalty=float(stockout_penalty),
-            pending_days=pending_days or None,
-            pending_qtys=pending_qtys or None,
+            **kwargs,
         )
     )
 
@@ -401,6 +546,9 @@ def rollout_order(
     H: int = DEFAULT_ROLLOUT_H,
     n_rollout_paths: int = DEFAULT_N_ROLLOUT_PATHS,
     candidate_case_radius: int = DEFAULT_CANDIDATE_CASE_RADIUS,
+    candidate_search_mode: str | None = None,
+    candidate_span_cases: int | None = None,
+    n_candidates: int | None = None,
     n_particles: int = DEFAULT_N_PARTICLES,
     candidates: Sequence[int] | None = None,
     pending_orders: Mapping[int, int] | None = None,
@@ -436,11 +584,26 @@ def rollout_order(
         else {}
     )
     base_q = int(base_policy.order(belief, day=int(day), pending_orders=dict(pending0)))
+    search_cfg = CandidateSearchConfig.neighborhood(int(candidate_case_radius))
+    if candidate_search_mode is not None:
+        search_cfg = CandidateSearchConfig(
+            mode=CandidateSearchMode(candidate_search_mode),
+            n_candidates=int(n_candidates or DEFAULT_N_CANDIDATES),
+            radius=int(candidate_case_radius),
+            span_cases=int(candidate_span_cases or 0),
+        )
+    elif n_candidates is not None or candidate_span_cases is not None:
+        search_cfg = CandidateSearchConfig(
+            mode=CandidateSearchMode.STRATIFIED_WIDE,
+            n_candidates=int(n_candidates or DEFAULT_N_CANDIDATES),
+            radius=int(candidate_case_radius),
+            span_cases=int(candidate_span_cases or 0),
+        )
     if candidates is None:
-        cand_list = candidate_orders(
+        cand_list = candidate_orders_v2(
             base_q,
             case_size=int(params.case_size),
-            radius=int(candidate_case_radius),
+            config=search_cfg,
         )
     else:
         cand_list = [int(q) for q in candidates]
@@ -469,6 +632,9 @@ def rollout_order(
         H=int(H),
         n_rollout_paths=int(n_rollout_paths),
         candidate_case_radius=int(candidate_case_radius),
+        candidate_search_mode=candidate_search_mode,
+        candidate_span_cases=candidate_span_cases,
+        n_candidates=n_candidates,
         pending_orders=pending0,
         day=int(day),
         lead_time=int(lead_time),
@@ -574,7 +740,14 @@ class RolloutPolicy:
 
 
 __all__ = [
+    "CandidateSearchConfig",
+    "CandidateSearchMode",
     "DEFAULT_CANDIDATE_CASE_RADIUS",
+    "DEFAULT_MAX_SPAN_CASES",
+    "DEFAULT_MIN_SPAN_CASES",
+    "DEFAULT_N_CANDIDATES",
+    "DEMO_N_CANDIDATES",
+    "DEFAULT_CANDIDATE_SPAN_FRACTION",
     "DEFAULT_N_PARTICLES",
     "DEFAULT_N_ROLLOUT_PATHS",
     "DEFAULT_ROLLOUT_H",
@@ -582,6 +755,7 @@ __all__ = [
     "CrnDesyncResult",
     "RolloutPolicy",
     "candidate_orders",
+    "candidate_orders_v2",
     "day_step",
     "detect_crn_desync",
     "rollout_order",

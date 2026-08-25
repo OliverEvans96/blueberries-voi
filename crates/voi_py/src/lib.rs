@@ -16,11 +16,13 @@ use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
 use voi_core::spawn_rng::SpawnRng;
 use voi_core::{
-    arrival_artifact_from_json, crate_name, parse_alpha_tune_arm, rollout_order,
+    arrival_artifact_from_json, candidate_orders_v2, crate_name, parse_alpha_tune_arm,
+    rollout_order,
     run_alpha_tune_episode, run_closed_loop_episode, run_voi_crn_cell,
     sequential_wor_composition_probs, terminal_salvage_unit_state, w_long, AlphaTuneCosts,
     AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, DemandProfile, EngineSession, ModelParams,
     RolloutContext, RolloutCosts, ShipmentTrace,
+    CandidateSearchConfig, CandidateSearchMode,
 };
 
 /// Loads a `DemandProfile` from `source`, treating it as a filesystem path if a file
@@ -204,6 +206,7 @@ fn run_voi_crn_cell_py(
         lead_time,
         alpha: 0.9,
         candidate_case_radius: 1,
+        candidate_search: None,
     };
     let demand_profile = match demand_profile_json {
         Some(json) => Some(
@@ -457,6 +460,46 @@ fn run_episode_py(
 /// returns the best one. `pending_days`/`pending_qtys` describe orders already in transit;
 /// when `times`/`temps` are both omitted, a single smoke-test cool shipment trace stands
 /// in for the delivery's thermal exposure.
+/// Case-multiple candidate lattice for rollout search (neighbourhood or stratified wide).
+#[pyfunction]
+#[pyo3(signature = (
+    base_q,
+    case_size,
+    candidate_search_mode="neighborhood",
+    n_candidates=5,
+    radius=2,
+    span_cases=0,
+    span_fraction=0.25,
+    min_span_cases=4,
+    max_span_cases=10,
+))]
+fn candidate_orders_v2_py(
+    base_q: u32,
+    case_size: u32,
+    candidate_search_mode: &str,
+    n_candidates: u32,
+    radius: i32,
+    span_cases: i32,
+    span_fraction: f64,
+    min_span_cases: i32,
+    max_span_cases: i32,
+) -> Vec<u32> {
+    let mode = match candidate_search_mode.to_ascii_lowercase().as_str() {
+        "stratified_wide" | "wide" | "stratified" => CandidateSearchMode::StratifiedWide,
+        _ => CandidateSearchMode::Neighborhood,
+    };
+    let cfg = CandidateSearchConfig {
+        mode,
+        n_candidates: n_candidates.max(1),
+        radius,
+        span_cases,
+        span_fraction,
+        min_span_cases,
+        max_span_cases,
+    };
+    candidate_orders_v2(base_q, case_size, &cfg)
+}
+
 #[pyfunction]
 #[pyo3(signature = (
     lot_counts,
@@ -472,6 +515,9 @@ fn run_episode_py(
     h=28,
     n_paths=8,
     radius=2,
+    candidate_search_mode=None,
+    candidate_span_cases=None,
+    n_candidates=None,
     unit_margin=2.0,
     waste_cost=1.5,
     stockout_penalty=3.0,
@@ -495,6 +541,9 @@ fn rollout_order_py(
     h: u32,
     n_paths: u32,
     radius: i32,
+    candidate_search_mode: Option<&str>,
+    candidate_span_cases: Option<i32>,
+    n_candidates: Option<u32>,
     unit_margin: f64,
     waste_cost: f64,
     stockout_penalty: f64,
@@ -524,6 +573,13 @@ fn rollout_order_py(
         }
     };
     let schedule = OrderSchedule::from_delivery(&[0, 2, 4], lead_time).unwrap_or_default();
+    let candidate_search = CandidateSearchConfig::with_overrides(
+        &CandidateSearchConfig::neighborhood(radius),
+        None,
+        candidate_search_mode,
+        candidate_span_cases,
+        n_candidates,
+    );
     let ctx = RolloutContext {
         root_seed,
         run_id: run_id.to_string(),
@@ -541,7 +597,7 @@ fn rollout_order_py(
         f_pipeline_default: 1.0,
         h,
         n_paths,
-        radius,
+        candidate_search,
     };
     rollout_order(
         &lot_counts,
@@ -761,7 +817,7 @@ impl PyEngineSession {
             enable_filter,
             h,
             n_paths,
-            radius,
+            CandidateSearchConfig::neighborhood(radius),
             ships_from(times, temps),
             n_particles,
             demand_profile,
@@ -836,6 +892,9 @@ impl PyEngineSession {
         h=None,
         n_rollout_paths=None,
         candidate_case_radius=None,
+        candidate_search_mode=None,
+        candidate_span_cases=None,
+        n_candidates=None,
         n_particles=None,
     ))]
     #[allow(non_snake_case)]
@@ -851,6 +910,9 @@ impl PyEngineSession {
         h: Option<u32>,
         n_rollout_paths: Option<u32>,
         candidate_case_radius: Option<i32>,
+        candidate_search_mode: Option<String>,
+        candidate_span_cases: Option<i32>,
+        n_candidates: Option<u32>,
         n_particles: Option<usize>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let _ = n_particles;
@@ -862,6 +924,9 @@ impl PyEngineSession {
             H.or(h),
             n_rollout_paths,
             candidate_case_radius,
+            candidate_search_mode.as_deref(),
+            candidate_span_cases,
+            n_candidates,
         );
         wire_day_delta(py, &self.inner, &d)
     }
@@ -869,9 +934,18 @@ impl PyEngineSession {
     /// Shorthand for `act(policy="rollout")` with every other tuning knob left at the
     /// session's configured defaults.
     fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let d = self
-            .inner
-            .act(Some("rollout"), None, None, None, None, None, None);
+        let d = self.inner.act(
+            Some("rollout"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
         wire_day_delta(py, &self.inner, &d)
     }
 
@@ -951,6 +1025,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_outcomes_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
+    m.add_function(wrap_pyfunction!(candidate_orders_v2_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_function(wrap_pyfunction!(terminal_salvage_unit_state_py, m)?)?;
     m.add_function(wrap_pyfunction!(w_long_py, m)?)?;

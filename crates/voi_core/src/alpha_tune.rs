@@ -12,7 +12,9 @@ use crate::physics::draw_demand_spawn;
 use crate::policy::{
     constant_order, damped_sw_order_f_belief, protection_demand_quantile, rung0_order_f_belief,
 };
-use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
+use crate::rollout::{
+    day_profit, rollout_order, CandidateSearchConfig, RolloutContext, RolloutCosts,
+};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
 use crate::spawn_rng::SpawnRng;
@@ -214,7 +216,9 @@ fn order_for_arm(
                 f_pipeline_default: 1.0,
                 h: rollout.h.max(1),
                 n_paths: rollout.n_rollout_paths.max(1),
-                radius: rollout.candidate_case_radius,
+                candidate_search: CandidateSearchConfig::neighborhood(
+                    rollout.candidate_case_radius,
+                ),
             };
             rollout_order(
                 lot_counts,
