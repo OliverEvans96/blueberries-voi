@@ -25,9 +25,9 @@ def render(out_dir: Path | None = None) -> Path:
     f_grid = list(np.linspace(0.0, 1.0, 81))
     source = str(ARTIFACT)
     panels = (
-        ("P0 · P1", "prior", "#8c8c8c"),
-        ("F2 · F2a", "duration:5", "#55a868"),
-        ("F3", "exposure:2.5", "#2ca02c"),
+        ("Books only", "prior", "#8c8c8c"),
+        ("Pack date", "duration:5", "#55a868"),
+        ("Temperature history", "exposure:2.5", "#2ca02c"),
     )
 
     fig, axes = plt.subplots(1, 3, figsize=(9, 3.5), sharey=True)

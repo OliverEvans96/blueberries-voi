@@ -14,7 +14,7 @@ the store more money once it's plugged into the ordering decision. The honest cu
 answer: at today's experiment budgets, mostly not, or at least not in a way that's been
 measured cleanly yet.
 
-![Box/strip plot of closed-loop profit per observation scenario across many seeds](/figures/profit-by-rung-boxplot.png)
+![Box/strip plot of closed-loop profit per observation scenario across many seeds](/figures/profit-by-scenario-boxplot.png)
 
 ## The idea
 

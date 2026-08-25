@@ -89,8 +89,8 @@ def render(out_dir: Path | None = None) -> Path:
     f2 = _one_scenario_day("F2", seed=12)
 
     fig, axes = plt.subplots(1, 2, figsize=(9, 4), sharey=True)
-    _waterfall(axes[0], p0, "P0 (books only)")
-    _waterfall(axes[1], f2, "F2 (pack date)")
+    _waterfall(axes[0], p0, "Books only")
+    _waterfall(axes[1], f2, "Lot ID + pack date")
     axes[0].set_ylabel("profit ($)")
     fig.suptitle("One scored day — DEFAULT_PROFIT_COSTS components", y=1.02)
     save_fig(target)

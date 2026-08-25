@@ -16,7 +16,11 @@ TIERS = [
     ("φ̄", "mean temp factor"),
     ("Λ", "cumulative exposure"),
 ]
-RUNG_MARKS = [("P0/P1", 1), ("F2/F2a", 2), ("F3", 4)]
+SCENARIO_MARKS = [
+    ("books only / shrink gun", 1),
+    ("pack date on ASN", 2),
+    ("temperature history", 4),
+]
 
 
 def render(out_dir: Path | None = None) -> Path:
@@ -38,8 +42,8 @@ def render(out_dir: Path | None = None) -> Path:
                 xytext=(3.5, y - 0.35),
                 arrowprops={"arrowstyle": "->", "color": "0.4"},
             )
-    for name, tier in RUNG_MARKS:
-        ax.text(6.3, tier, name, fontsize=9, color="#c44e52", fontweight="bold")
+    for name, tier in SCENARIO_MARKS:
+        ax.text(6.3, tier, name, fontsize=8, color="#c44e52", fontweight="bold")
     ax.set_xlim(0, 8)
     ax.set_ylim(0.5, len(TIERS) + 0.5)
     ax.axis("off")
