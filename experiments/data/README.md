@@ -47,6 +47,8 @@ harness, which reads `bank.lot_offsets` and `StepDiagnostics.ess`.
 |------|-------------|
 | `voi_profits_before.json` | `run_voi_crn_cell`, `n_burn=2 n_score=30 filter_n=24`, seeds 42/7/101/2024, on `team/T-137/implement` |
 | `voi_profits_after.json` | same budgets on this branch |
+| `nb19_joint_rows.json` | notebook 19 `channel_joint` batch — mean-f + distribution MAE + profit per `(seed, channel)` |
+
 
 ## Regenerating
 

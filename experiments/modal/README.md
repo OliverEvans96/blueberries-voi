@@ -44,6 +44,7 @@ gsin_df = run_batch("gsin", BATCH_MODE, smoke=SMOKE)
 rollout_rows = run_batch(
     "rollout_eval", BATCH_MODE, smoke=SMOKE, seeds=(42,), arms=("sw",)
 )
+joint_rows = run_batch("channel_joint", BATCH_MODE, smoke=SMOKE, seeds=(42,))
 ```
 
 ## Modal CLI (optional)
@@ -68,6 +69,8 @@ pre-built `_core` wheel, vendored `data/` (abdella + freshnet), copied
 | `gsin_upc_diag` | `(regime, seed)` × 4 × 12 | truth days; 6 masks replayed per shard |
 | VOI profit (nb15) | `(seed, ObsChannels)` | burn + scored `act()` days |
 | Rollout bakeoff (nb16) | `(seed, arm, alpha)` | burn + scored episode |
+| Channel joint (nb19) | `(seed, ObsChannels)` × 12 product grid | burn + scored `act()`; MAE + profit |
+| Channel joint (nb19) | `(seed, ObsChannels)` × 12 product grid | burn + scored `act()`; MAE + profit |
 
 Notebooks load results from the kernel session (DataFrame), not committed JSON.
 Optional ``out_path`` writes gitignored cache under ``outputs/``.
@@ -80,6 +83,7 @@ Scaling notes and next-tier budgets: [PRELIM_SCALING.md](PRELIM_SCALING.md).
 |----------|------------|-------|
 | ``notebooks/17_prelim_channel_ladder.ipynb`` | ``gsin`` × 8, ``voi_profit`` × 28 | Part 1: 4 regimes × 2 seeds. Part 2: P0/P1/F1/F2a/F2/F3, 4 seeds, ``n_burn=2`` ``n_score=14``, oracle row |
 | ``notebooks/18_prelim_rollout_vs_sw.ipynb`` | ``rollout_eval`` × 8 | Oracle-shelf (SIM-01=B); 4 seeds, ``n_score=14``, ``H=7`` ``paths=4``; α from ``sw_alpha_bo.json`` |
+| ``notebooks/19_channel_factorial_belief_vs_profit.ipynb`` | ``channel_joint`` × ~72 | 12-cell product grid × planned seeds; joint MAE + profit shard; ``nb19_joint_rows.json`` |
 
 Set ``SMOKE=True`` for plumbing (shrinks grids via ``modal_dispatch``). Set
 ``BATCH_MODE="local"`` without Modal; build wheel + ``modal login`` for production.

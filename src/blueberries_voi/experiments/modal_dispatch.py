@@ -11,6 +11,17 @@ from typing import Any, Literal, assert_never
 from tqdm.auto import tqdm
 
 from blueberries_voi.experiments.batch_progress import log_line
+from blueberries_voi.experiments.channel_joint import (
+    DEFAULT_N_BURN as JOINT_N_BURN,
+)
+from blueberries_voi.experiments.channel_joint import (
+    DEFAULT_N_SCORE as JOINT_N_SCORE,
+)
+from blueberries_voi.experiments.channel_joint import (
+    all_obs_channels_product,
+    channel_joint_job_grid,
+    merge_channel_joint_rows,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_N_DAYS,
     DEFAULT_SEEDS,
@@ -46,7 +57,7 @@ from blueberries_voi.filter.types import (
 )
 
 BatchMode = Literal["modal", "local"]
-BatchJob = Literal["nb13", "gsin", "voi_profit", "rollout_eval"]
+BatchJob = Literal["nb13", "gsin", "voi_profit", "rollout_eval", "channel_joint"]
 
 __all__ = ["BatchJob", "BatchMode", "run_batch"]
 
@@ -180,6 +191,27 @@ def _run_local(
             progress=progress,
         )
 
+    if job == "channel_joint":
+        seeds = tuple(kwargs.get("seeds", DEFAULT_PROFIT_SEEDS))
+        channels = list(kwargs.get("channels") or all_obs_channels_product())
+        if smoke:
+            seeds = _smoke_seeds(seeds)
+            channels = _smoke_channels(channels)
+            kwargs = {
+                **kwargs,
+                "n_burn": min(int(kwargs.get("n_burn", JOINT_N_BURN)), 1),
+                "n_score": min(int(kwargs.get("n_score", JOINT_N_SCORE)), 2),
+            }
+        rows = local_runner.run_channel_joint_local(
+            out_path or Path("/tmp/nb19_joint_rows.json"),
+            seeds=seeds,
+            channels=channels,
+            budgets=kwargs,
+            max_workers=kwargs.get("max_workers"),
+            progress=progress,
+        )
+        return rows
+
     assert_never(job)
 
 
@@ -209,6 +241,7 @@ def _run_modal(
     voi_profit_shard = app_mod.voi_profit_shard
     voi_oracle_profit_shard = app_mod.voi_oracle_profit_shard
     rollout_eval_shard = app_mod.rollout_eval_shard
+    channel_joint_shard = app_mod.channel_joint_shard
 
     with app.run():
         if job == "nb13":
@@ -288,12 +321,46 @@ def _run_modal(
             _write_optional_json(rows, out_path)
             return rows
 
+        if job == "channel_joint":
+            seeds = tuple(kwargs.get("seeds", DEFAULT_PROFIT_SEEDS))
+            channels = list(kwargs.get("channels") or all_obs_channels_product())
+            if smoke:
+                seeds = _smoke_seeds(seeds)
+                channels = _smoke_channels(channels)
+            budgets = _channel_joint_budgets_dict(kwargs, smoke=smoke)
+            grid = channel_joint_job_grid(seeds, channels)
+            handles = [
+                channel_joint_shard.spawn(seed, ch.__dict__, budgets)
+                for seed, ch in grid
+            ]
+            shards = _collect_handles(handles, progress=progress)
+            rows = merge_channel_joint_rows(shards)
+            _write_optional_json(rows, out_path)
+            return rows
+
     assert_never(job)
 
 
 def _voi_budgets_dict(kwargs: dict[str, Any], *, smoke: bool) -> dict[str, Any]:
     n_burn = int(kwargs.get("n_burn", DEFAULT_N_BURN))
     n_score = int(kwargs.get("n_score", DEFAULT_N_SCORE))
+    if smoke:
+        n_burn = min(n_burn, 1)
+        n_score = min(n_score, 2)
+    return {
+        "n_burn": n_burn,
+        "n_score": n_score,
+        "n_rollout_paths": int(kwargs.get("n_rollout_paths", 0)),
+        "filter_n": int(kwargs.get("filter_n", 24)),
+        "alpha_table_path": kwargs.get("alpha_table_path"),
+    }
+
+
+def _channel_joint_budgets_dict(
+    kwargs: dict[str, Any], *, smoke: bool
+) -> dict[str, Any]:
+    n_burn = int(kwargs.get("n_burn", JOINT_N_BURN))
+    n_score = int(kwargs.get("n_score", JOINT_N_SCORE))
     if smoke:
         n_burn = min(n_burn, 1)
         n_score = min(n_score, 2)

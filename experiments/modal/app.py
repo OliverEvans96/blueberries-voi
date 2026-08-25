@@ -153,6 +153,25 @@ def voi_oracle_profit_shard(
     return run_seed_oracle_profit(seed, **budgets_dict)
 
 
+@app.function(timeout=600, cpu=1.0)
+def channel_joint_shard(
+    seed: int,
+    channel_dict: dict[str, object],
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.batch_progress import (
+        log_channel_joint_done,
+        log_channel_joint_start,
+    )
+    from blueberries_voi.experiments.channel_joint import run_seed_channel_joint
+
+    t0 = log_channel_joint_start(seed, channel_dict)
+    result = run_seed_channel_joint(seed, channel_dict, **budgets_dict)
+    elapsed = log_channel_joint_done(seed, channel_dict, t0)
+    result["_elapsed_s"] = elapsed
+    return result
+
+
 @app.function(timeout=900, cpu=1.0)
 def rollout_eval_shard(
     seed: int,

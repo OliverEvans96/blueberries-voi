@@ -55,5 +55,36 @@ def log_nb13_done(
     return elapsed
 
 
+def log_channel_joint_start(
+    seed: int,
+    channel: dict[str, Any],
+    *,
+    job_index: int | None = None,
+) -> float:
+    pid = os.getpid()
+    idx = f" job={job_index}" if job_index is not None else ""
+    log_line(
+        f"channel_joint start seed={seed} channel={channel_key(channel)} pid={pid}{idx}"
+    )
+    return time.perf_counter()
+
+
+def log_channel_joint_done(
+    seed: int,
+    channel: dict[str, Any],
+    t0: float,
+    *,
+    job_index: int | None = None,
+) -> float:
+    elapsed = time.perf_counter() - t0
+    pid = os.getpid()
+    idx = f" job={job_index}" if job_index is not None else ""
+    log_line(
+        f"channel_joint done seed={seed} channel={channel_key(channel)} "
+        f"elapsed_s={elapsed:.1f} pid={pid}{idx}"
+    )
+    return elapsed
+
+
 def log_grid_progress(completed: int, total: int, *, label: str = "nb13") -> None:
     log_line(f"{label} grid: {completed}/{total} complete")
