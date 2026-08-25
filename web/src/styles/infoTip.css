@@ -16,6 +16,8 @@
 .info-tip {
   position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
+  width: 14px;
   vertical-align: middle;
   margin-left: 0.32em;
   line-height: 1;
@@ -76,16 +78,19 @@
   letter-spacing: normal;
   white-space: normal;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  visibility: hidden;
   opacity: 0;
   transform: translateY(-3px);
   pointer-events: none;
   transition:
     opacity 120ms ease,
-    transform 120ms ease;
+    transform 120ms ease,
+    visibility 120ms ease;
 }
 
 .info-tip-trigger:hover + .info-tip-bubble,
 .info-tip-trigger:focus-visible + .info-tip-bubble {
+  visibility: visible;
   opacity: 1;
   transform: translateY(0);
 }
@@ -106,5 +111,7 @@
 
 .info-tip--up .info-tip-trigger:hover + .info-tip-bubble,
 .info-tip--up .info-tip-trigger:focus-visible + .info-tip-bubble {
+  visibility: visible;
+  opacity: 1;
   transform: translateY(0);
 }

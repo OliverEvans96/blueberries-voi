@@ -148,16 +148,6 @@ export function TuningDrawer({
                       >
                         Demand
                       </button>
-                      <InfoTip>
-                        Sets the average daily demand level and how much
-                        random variability rides on top of the day-of-week
-                        and week-to-week calendar shape. It's split from
-                        Arrival and Physics because demand determines how
-                        many customers show up, not how fresh any unit is —
-                        every ordering policy sees the same demand calendar,
-                        so this cluster only affects the sales side of the
-                        simulation.
-                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -167,17 +157,6 @@ export function TuningDrawer({
                       >
                         Arrival
                       </button>
-                      <InfoTip>
-                        Sets the cold-chain corridor a delivery travels
-                        through — transit duration, mean temperature, and how
-                        much units vary within one pallet — which together
-                        determine each unit's freshness the moment it arrives
-                        on the shelf. It's split from Physics because Arrival
-                        governs a single trip's outcome before a unit is ever
-                        shelved, while Physics governs the daily aging that
-                        happens afterward, even though both draw from the
-                        same gamma decay law.
-                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -187,16 +166,6 @@ export function TuningDrawer({
                       >
                         Physics
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the daily in-store aging process: reference
-                        shelf life, the Q10 temperature sensitivity, and
-                        store temperature, which together determine how fast
-                        a unit's freshness decays once it's on the shelf.
-                        It's grouped apart from Arrival because these knobs
-                        control ongoing shelf-life physics rather than the
-                        one-time transit that sets a unit's freshness at
-                        receipt.
-                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -211,17 +180,6 @@ export function TuningDrawer({
                       >
                         Logistics
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the delivery calendar, case size, and lead time
-                        that determine how much stock the store carries and
-                        how it gets refilled (the base-stock target here only
-                        moves a chart reference line, not the live
-                        controller). It's kept separate from Autopilot
-                        because Logistics defines the physical constraints
-                        ordering has to work within — Autopilot decides how
-                        aggressively the ordering rule reacts to what's
-                        currently on the shelf.
-                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -236,16 +194,6 @@ export function TuningDrawer({
                       >
                         Autopilot
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the automated ordering policy's parameters: how
-                        aggressively the damped base-stock rule closes the
-                        gap between the demand target and effective
-                        inventory, plus the rollout search budget layered on
-                        top. It's split from Logistics because Autopilot
-                        controls decision-making — when and how much to
-                        order — while Logistics controls the physical
-                        constraints that decision has to work within.
-                      </InfoTip>
                     </div>
                   </div>
                 </nav>
