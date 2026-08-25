@@ -1,5 +1,6 @@
 import { D3ChartHost } from "./D3ChartHost";
 import { InfoTip } from "./InfoTip";
+import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 
 const D3_CHART_IDS = [
   "chart-sales",
@@ -25,8 +26,12 @@ export function StudioLayout() {
     <div className="bv-studio">
       <div className="shell studio">
         <header className="title-bar">
-          <h1>Blueberry inventory studio</h1>
+          <div className="title-bar-heading">
+            <h1>Blueberry inventory studio</h1>
+            <TitleBarBlogLink />
+          </div>
           <div className="title-bar-actions">
+            <TitleBarExternalActions />
             <button
               type="button"
               id="tuning-drawer-trigger"

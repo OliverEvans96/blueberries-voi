@@ -5,6 +5,7 @@
 @import "./styles/cockpitGrid.css";
 @import "./styles/eventsPane.css";
 @import "./styles/tuningDrawer.css";
+@import "./styles/titleBar.css";
 
 @font-face {
   font-family: "Fraunces";
