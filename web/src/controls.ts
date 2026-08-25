@@ -376,7 +376,7 @@ function sliderHtml(spec: SliderSpec): string {
   const label = meta?.label ?? spec.label;
   return `
     <label class="field">
-      <span class="field-label">${label}${infoTipHtml(meta?.tooltip ?? spec.label)} ${tierBadge(spec.id)} <span id="val-${spec.id}"></span></span>
+      <span class="field-label"><span class="field-label-main">${label}${infoTipHtml(meta?.tooltip ?? spec.label)} ${tierBadge(spec.id)}</span> <span id="val-${spec.id}"></span></span>
       <input type="range" id="${spec.id}" min="${spec.min}" max="${spec.max}" step="${spec.step}" />
     </label>
   `;
