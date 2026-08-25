@@ -15,7 +15,7 @@ if _maybe_core is None:
 # T-150 f-native arrival physics; ADR 0148 fitted arrival_model.json (P0 drift).
 _T150_BASELINE: dict[str, float] = {
     "P0": 79.5,
-    "P1": 86.0,
+    "P1": 79.5,
     "F1": 106.5,
     "F1s": 106.5,
     "F2a": 123.0,
