@@ -1,9 +1,21 @@
 import { useState } from "react";
+import { ChartLoadingShell } from "./ChartLoadingShell";
 import { D3ChartHost } from "./D3ChartHost";
+import { EventsPane } from "./EventsPane";
 import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
+import { ObsControlsPane } from "./ObsControlsPane";
+import { OperatorBar } from "./OperatorBar";
+import { PnLTotalsPlaceholder } from "./PnLTotalsPlaceholder";
+import {
+  STUDIO_SHELL_DEFAULT_ORDER_QTY,
+  STUDIO_SHELL_DEFAULT_SCHEDULE,
+  STUDIO_SHELL_DEFAULT_VM,
+} from "./studioShellDefaults";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 import { WelcomeModal } from "./WelcomeModal";
+
+const noop = (): void => undefined;
 
 const D3_CHART_IDS = [
   "chart-sales",
@@ -94,7 +106,9 @@ export function StudioLayout() {
                 Money, stock, and daily flow for this run.
               </span>
             </div>
-            <div id="pnl-totals-host" data-testid="pnl-totals-host" />
+            <div id="pnl-totals-host" data-testid="pnl-totals-host">
+              <PnLTotalsPlaceholder />
+            </div>
             <div className="metrics-stack">
               <div className="chart-caption">
                 Cumulative revenue · cost · profit
@@ -108,7 +122,9 @@ export function StudioLayout() {
                 id="chart-pnl-economics"
                 className="chart chart-pnl-economics"
                 ariaLabel="Cumulative profit and loss"
-              />
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
               <div className="chart-caption impact-caption">
                 Sales &amp; demand
                 <InfoTip>
@@ -121,7 +137,9 @@ export function StudioLayout() {
                 id="chart-sales-demand"
                 className="chart"
                 ariaLabel="Sales versus demand with stockout gap"
-              />
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
               <div className="chart-caption impact-caption">
                 Order quantity
                 <InfoTip>
@@ -134,7 +152,9 @@ export function StudioLayout() {
                 id="chart-controller-orders"
                 className="chart"
                 ariaLabel="Order quantity over days"
-              />
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
               <div className="chart-caption impact-caption">
                 Spoilage
                 <InfoTip>
@@ -147,7 +167,9 @@ export function StudioLayout() {
                 id="chart-spoil"
                 className="chart"
                 ariaLabel="Daily spoilage over days"
-              />
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
             </div>
           </section>
 
@@ -160,7 +182,18 @@ export function StudioLayout() {
               data-testid="cockpit-run"
               aria-label="Run"
             >
-              <div id="operator-bar-host" />
+              <div id="operator-bar-host">
+                <OperatorBar
+                  vm={STUDIO_SHELL_DEFAULT_VM}
+                  booting
+                  orderQty={STUDIO_SHELL_DEFAULT_ORDER_QTY}
+                  onAdvance={noop}
+                  onReset={noop}
+                  onAutopilotPlay={noop}
+                  onAutopilotPause={noop}
+                  onOrderChange={noop}
+                />
+              </div>
             </section>
 
             <section
@@ -197,7 +230,9 @@ export function StudioLayout() {
               id="chart-history"
               className="chart"
               ariaLabel="Belief freshness over time with truth overlay"
-            />
+            >
+              <ChartLoadingShell />
+            </D3ChartHost>
             <div
               className="chart-caption impact-caption"
               data-truth-caption="age-comp"
@@ -216,7 +251,9 @@ export function StudioLayout() {
               id="chart-age-comp"
               className="chart"
               ariaLabel="On-hand inventory by freshness band with effective overlay"
-            />
+            >
+              <ChartLoadingShell />
+            </D3ChartHost>
             <div
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
@@ -234,7 +271,9 @@ export function StudioLayout() {
               id="chart-belief-lg"
               className="chart"
               ariaLabel="Today's Freshness Distribution"
-            />
+            >
+              <ChartLoadingShell />
+            </D3ChartHost>
             <div className="chart-caption impact-caption" hidden>
               Age marginal
             </div>
@@ -278,12 +317,28 @@ export function StudioLayout() {
             className="cockpit-pane cockpit-pane--sidebar"
             data-testid="cockpit-sidebar"
           >
-            <div id="obs-controls-pane-host" data-testid="obs-controls-host" />
+            <div id="obs-controls-pane-host" data-testid="obs-controls-host">
+              <ObsControlsPane
+                vm={STUDIO_SHELL_DEFAULT_VM}
+                showTruth={false}
+                booting
+                onSetObsChannels={noop}
+                onSetObsPreset={noop}
+                onShowTruthChange={noop}
+              />
+            </div>
             <div
               id="events-pane-host"
               className="cockpit-pane--events"
               data-testid="cockpit-events-column"
-            />
+            >
+              <EventsPane
+                vm={STUDIO_SHELL_DEFAULT_VM}
+                schedule={STUDIO_SHELL_DEFAULT_SCHEDULE}
+                events={[]}
+                loading
+              />
+            </div>
           </div>
         </div>
 

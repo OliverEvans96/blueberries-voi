@@ -21,6 +21,8 @@ export type OperatorBarProps = {
   orderQty: number;
   onOrderChange: (qty: number) => void;
   autopilotRunning?: boolean;
+  /** WASM boot — show shell controls disabled until adapter.init settles. */
+  booting?: boolean;
 };
 
 export function OperatorBar({
@@ -33,11 +35,18 @@ export function OperatorBar({
   onOrderChange,
   autopilotRunning = false,
   advancing = false,
+  booting = false,
+  catchingUp = false,
 }: OperatorBarProps) {
   const atEnd = vm.episode_day >= vm.window_days;
+  const controlsDisabled = booting || catchingUp;
 
   return (
-    <section className="operator-bar" aria-label="Run controls">
+    <section
+      className="operator-bar"
+      aria-label="Run controls"
+      aria-busy={booting ? "true" : undefined}
+    >
       <span className="heading-with-tip">
         <h2 className="decision-rail-heading operator-bar-heading">Run</h2>
         <InfoTip>
@@ -61,6 +70,7 @@ export function OperatorBar({
             max={Math.max(160, vm.config.case_size * 20)}
             step={vm.config.case_size}
             value={orderQty}
+            disabled={controlsDisabled}
             onInput={(e) => onOrderChange(Number(e.currentTarget.value))}
           />
           <input
@@ -70,6 +80,7 @@ export function OperatorBar({
             max={320}
             step={vm.config.case_size}
             value={orderQty}
+            disabled={controlsDisabled}
             onChange={(e) => onOrderChange(Number(e.currentTarget.value))}
           />
         </div>
@@ -80,7 +91,7 @@ export function OperatorBar({
             type="button"
             className="btn-advance"
             id="btn-advance"
-            disabled={autopilotRunning || atEnd || advancing}
+            disabled={autopilotRunning || atEnd || advancing || controlsDisabled}
             onClick={onAdvance}
           >
             Place Order
@@ -94,7 +105,7 @@ export function OperatorBar({
             role="switch"
             aria-checked={autopilotRunning}
             aria-label="Autopilot"
-            disabled={!autopilotRunning && atEnd}
+            disabled={controlsDisabled || (!autopilotRunning && atEnd)}
             onClick={() => (autopilotRunning ? onAutopilotPause() : onAutopilotPlay())}
           >
             <span className="truth-toggle-track" aria-hidden="true">
@@ -109,7 +120,13 @@ export function OperatorBar({
           alignEnd
           tip="Re-simulates the full episode from day one with the current parameter values. Needed after changing any parameter tagged Reset in the tuning dock."
         >
-          <button type="button" className="btn-reset" id="btn-reset" onClick={onReset}>
+          <button
+            type="button"
+            className="btn-reset"
+            id="btn-reset"
+            disabled={controlsDisabled}
+            onClick={onReset}
+          >
             Reset
           </button>
         </HostHoverTip>

@@ -48,4 +48,20 @@ describe("ObsControlsPane (T-148)", () => {
     expect(screen.getByLabelText(/scan waste/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/delivery history/i)).toBeInTheDocument();
   });
+
+  it("disables chips and truth toggle while booting", () => {
+    render(
+      createElement(ObsControlsPane, {
+        vm: { config: DEFAULT_SIM_CONFIG },
+        showTruth: false,
+        booting: true,
+        onSetObsChannels: vi.fn(),
+        onSetObsPreset: vi.fn(),
+        onShowTruthChange: vi.fn(),
+      }),
+    );
+    expect(screen.getByLabelText(/show true state/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: /upc/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^on$/i })).toBeDisabled();
+  });
 });

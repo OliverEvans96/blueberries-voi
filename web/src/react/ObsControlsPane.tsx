@@ -27,6 +27,8 @@ export type ObsControlsPaneProps = {
   onSetObsChannels: (channels: ObsChannels) => void;
   onSetObsPreset: (id: import("../types").ScenarioId) => void;
   onShowTruthChange: (show: boolean) => void;
+  /** WASM boot — shell chips disabled until adapter.init settles. */
+  booting?: boolean;
 };
 
 export function ObsControlsPane({
@@ -35,8 +37,10 @@ export function ObsControlsPane({
   onShowTruthChange,
   vm,
   catchingUp = false,
+  booting = false,
 }: ObsControlsPaneProps) {
   const channels = vm.config.obs_channels;
+  const controlsDisabled = catchingUp || booting;
 
   const setChannel = (partial: Partial<ObsChannels>) => {
     onSetObsChannels({ ...channels, ...partial });
@@ -77,7 +81,7 @@ export function ObsControlsPane({
                 type="button"
                 className={`obs-chip${channels.code_type === code_type ? " is-active" : ""}`}
                 data-obs-code-type={code_type}
-                disabled={catchingUp}
+                disabled={controlsDisabled}
                 onClick={() => setChannel({ code_type })}
               >
                 {CODE_LABEL[code_type]}
@@ -100,7 +104,7 @@ export function ObsControlsPane({
               type="button"
               className={`obs-chip${channels.scan_waste ? " is-active" : ""}`}
               data-obs-scan-waste="true"
-              disabled={catchingUp}
+              disabled={controlsDisabled}
               onClick={() => setChannel({ scan_waste: true })}
             >
               On
@@ -109,7 +113,7 @@ export function ObsControlsPane({
               type="button"
               className={`obs-chip${!channels.scan_waste ? " is-active" : ""}`}
               data-obs-scan-waste="false"
-              disabled={catchingUp}
+              disabled={controlsDisabled}
               onClick={() => setChannel({ scan_waste: false })}
             >
               Off
@@ -138,7 +142,7 @@ export function ObsControlsPane({
                 type="button"
                 className={`obs-chip${channels.delivery_history === delivery_history ? " is-active" : ""}`}
                 data-obs-delivery-history={delivery_history}
-                disabled={catchingUp}
+                disabled={controlsDisabled}
                 onClick={() => setChannel({ delivery_history })}
               >
                 {HISTORY_LABEL[delivery_history]}
@@ -178,6 +182,7 @@ export function ObsControlsPane({
           aria-checked={showTruth}
           aria-label="Show true state"
           onClick={() => onShowTruthChange(!showTruth)}
+          disabled={controlsDisabled}
         >
           <span className="truth-toggle-track" aria-hidden="true">
             <span className="truth-toggle-thumb" />

@@ -1,15 +1,16 @@
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 
 type D3ChartHostProps = {
   id?: string;
   className?: string;
   /** Accessible summary when chart has rendered content. */
   ariaLabel?: string;
+  children?: ReactNode;
 };
 
 /** Stable DOM host for imperative D3 renders (pixel parity with pre-React shell). */
 export const D3ChartHost = forwardRef<HTMLDivElement, D3ChartHostProps>(
-  function D3ChartHost({ id, className, ariaLabel }, ref) {
+  function D3ChartHost({ id, className, ariaLabel, children }, ref) {
     return (
       <div
         ref={ref}
@@ -17,7 +18,9 @@ export const D3ChartHost = forwardRef<HTMLDivElement, D3ChartHostProps>(
         className={className}
         role="img"
         aria-label={ariaLabel}
-      />
+      >
+        {children}
+      </div>
     );
   },
 );
