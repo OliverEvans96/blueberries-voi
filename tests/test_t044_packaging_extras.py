@@ -84,7 +84,6 @@ def test_eng01_extras_are_data_and_viz_only() -> None:
         not in {
             "all",
             "dev",
-            "all",
             "notebooks",
             "test",
             "tests",
