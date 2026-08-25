@@ -52,12 +52,9 @@ export function ObsControlsPane({
         <span className="heading-with-tip">
           <h2>Observation</h2>
           <InfoTip>
-            These toggles set what the store's inventory system can actually
-            see each day, not the hidden ground-truth state the simulator
-            tracks internally. Every belief is built from three independent
-            switches — the code scanned at checkout, whether waste gets
-            scanned, and what the supplier reports about a shipment's journey
-            — and no combination of them ever reports freshness directly.
+            What the store's inventory system can actually see each day, not
+            the hidden ground truth the simulator tracks internally. No
+            combination of these switches ever reports freshness directly.
           </InfoTip>
         </span>
         <p className="obs-panel-lead">What the filter can see each day</p>
@@ -68,11 +65,9 @@ export function ObsControlsPane({
           <span className="obs-channel-label">
             Code type
             <InfoTip>
-              UPC is a plain barcode that looks the same for every clamshell,
-              so the register can't tell which delivery a unit came from.
-              GSIN also encodes the lot, so scans resolve to a specific
-              delivery — letting the filter track sales and spoilage per lot
-              instead of only as a storewide total.
+              UPC can't tell which delivery a unit came from. GSIN also
+              encodes the lot, so the filter can track sales and spoilage
+              per lot instead of only storewide.
             </InfoTip>
           </span>
           <div className="chip-row">
@@ -95,11 +90,9 @@ export function ObsControlsPane({
           <span className="obs-channel-label">
             Scan waste
             <InfoTip>
-              Off means spoiled units are simply pulled and discarded, with
-              no count ever reaching the filter. On means a handheld scanner
-              logs culled units each day, giving the filter a daily spoilage
-              total — storewide, or broken out per lot when Code type is
-              set to GSIN.
+              Off: spoiled units are discarded with no count reaching the
+              filter. On: a daily spoilage total reaches the filter —
+              storewide, or per lot when Code type is GSIN.
             </InfoTip>
           </span>
           <div className="chip-row">
@@ -132,13 +125,10 @@ export function ObsControlsPane({
           <span className="obs-channel-label">
             Delivery history
             <InfoTip>
-              None tells the filter nothing about the shipment beyond order
-              quantity. Pack date reports the calendar time since packing,
-              which alone cuts belief error roughly threefold, since trip
-              duration — not temperature — drives most of the
-              shipment-to-shipment spoilage variation. Temperature history
-              adds a full transit-temperature trace on top of that, narrowing
-              the remaining uncertainty a bit further.
+              None reports nothing beyond order quantity. Pack date reports
+              time since packing, cutting belief error roughly threefold.
+              Temperature history adds a full transit trace, narrowing it
+              further.
             </InfoTip>
           </span>
           <div className="chip-row chip-row--wrap">
@@ -172,13 +162,9 @@ export function ObsControlsPane({
             Omniscience
             <InfoTip>
               Shows the simulator's hidden ground truth — each lot's real
-              freshness, exactly when it arrived, and other state the filter
-              never gets to see — purely so you can watch how closely belief
-              tracks reality. It never feeds the filter's belief or the
-              ordering policy, and it's independent of the Code type, Scan
-              waste, and Delivery history channels: switching this on
-              doesn't give the filter any new information, it only changes
-              what you can see on screen.
+              freshness and arrival time — so you can compare belief to
+              reality. Purely a display: it never feeds the filter's belief
+              or the ordering policy.
             </InfoTip>
           </span>
           <span className="truth-toggle-hint">

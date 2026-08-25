@@ -242,7 +242,7 @@ function tuningPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-demand">
           <div class="chart-caption impact-caption">
             Daily demand${infoTipHtml(
-              "Shows the actual simulated demand draw for each day of the episode, following the day-of-week and week-to-week calendar shape with random overdispersed noise layered on top. Every ordering policy sees the same underlying calendar mean, so differences in outcome come from freshness information, not from guessing tomorrow's footfall.",
+              "The actual simulated demand draw for each day, following the day-of-week and weekly calendar shape with random noise on top.",
             )}
           </div>
           <div id="chart-demand-host" class="chart demand-chart-slot" role="img" aria-label="Daily demand over episode days"></div>
@@ -250,7 +250,7 @@ function tuningPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-demand-forecast">
           <div class="chart-caption impact-caption">
             Demand forecast${infoTipHtml(
-              "Projects what daily demand would look like under the mean-demand slider's current setting, without re-simulating any days. Mean demand is a Preview-tier control: dragging it updates this chart immediately, but the store's actual simulated history stays exactly as it was until you press Reset.",
+              "Projects daily demand under the mean-demand slider's current setting, without re-simulating any days. Updates immediately, but the simulated history doesn't change until you press Reset.",
             )}
           </div>
           <div id="chart-demand-forecast-host" class="chart demand-chart-slot" role="img" aria-label="Known demand distribution for the next few days"></div>
@@ -258,7 +258,7 @@ function tuningPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-picking-variability">
           <div class="chart-caption impact-caption">
             Picking variability shape${infoTipHtml(
-              "Shows how strongly the picking-weight exponent biases sales toward fresher units: each alive unit gets a lottery ticket count proportional to its freshness raised to this exponent, so a higher value favors the freshest stock more sharply while zero picks uniformly at random. This is not FIFO — shoppers never guarantee picking the oldest punnet, so even tired units can occasionally linger unsold.",
+              "How strongly the picking exponent biases sales toward fresher units — higher favors fresher stock, zero picks at random. Not FIFO: even old units can occasionally linger unsold.",
             )}
           </div>
           <div id="picking-var-chart" class="chart picking-var-chart" role="img" aria-label="Picking weight curve"></div>
@@ -270,7 +270,7 @@ function arrivalPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrival-prior">
           <div class="chart-caption impact-caption">
             Arrival freshness prior · receipt rug${infoTipHtml(
-              "Shows the distribution of freshness a unit is expected to have the moment it arrives, given the current corridor's transit and temperature assumptions, with a rug of actual receipt freshness values from the simulated deliveries. The particle filter draws each new lot's freshness from this same distribution, conditioned on whatever the active observation rung actually reveals about the trip — a full temperature trace, a pack date, or nothing at all.",
+              "The expected arrival-freshness distribution for the current corridor, with a rug of actual receipt freshness values from simulated deliveries. The particle filter draws each new lot's freshness from this same distribution.",
             )}
           </div>
           <div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div>
@@ -278,7 +278,7 @@ function arrivalPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrival-shift">
           <div class="chart-caption impact-caption">
             Transit ΔT shift vs baseline${infoTipHtml(
-              "Meant to compare the current transit-temperature-bias curve against an unbiased baseline, but the bias slider isn't wired into this chart's data yet (a known display gap) — both lines currently plot the same unbiased curve no matter where the slider is set. The bias does apply to the simulated deliveries themselves, just not to this preview.",
+              "Meant to compare the transit-temperature-bias curve against an unbiased baseline, but the bias slider isn't wired into this chart yet (known display gap) — both lines plot the same curve regardless. The bias does apply to the simulated deliveries themselves.",
             )}
           </div>
           <div id="chart-arrival-shift" class="chart" role="img" aria-label="Transit temperature shift"></div>
@@ -290,7 +290,7 @@ function physicsPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrhenius-temp">
           <div class="chart-caption impact-caption">
             Q10 aging rate vs temperature${infoTipHtml(
-              "Plots the Q10 temperature factor across a range of storage temperatures, showing how much faster freshness decays as the shelf gets warmer. Under the Q10 rule, the aging rate scales multiplicatively per 10°C of warming — the default value (3.0) triples the aging rate for every 10°C increase — rather than each degree adding a fixed amount.",
+              "How much faster freshness decays as the shelf gets warmer. The aging rate scales multiplicatively per 10°C — the default (3.0) triples it per 10°C of warming, not a fixed amount per degree.",
             )}
           </div>
           <div id="chart-arrhenius-temp" class="chart" role="img" aria-label="Q10 aging rate versus store temperature"></div>
@@ -298,7 +298,7 @@ function physicsPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-gamma-path">
           <div class="chart-caption impact-caption">
             Gamma freshness mean ± σ until expiry${infoTipHtml(
-              "Shows the expected freshness trajectory over time, with a shaded band for one standard deviation of spread, under the current gamma aging parameters. Because aging is shape-scaled rather than scale-scaled, a hotter storage temperature widens this band as well as steepening the mean line — heat makes loss events more frequent, not just larger, so higher temperatures bring more day-to-day unpredictability along with faster average decay.",
+              "Expected freshness trajectory over time, with a shaded one-standard-deviation band. A hotter storage temperature widens this band as well as steepening the mean line — heat brings more unpredictability along with faster average decay.",
             )}
           </div>
           <div id="chart-gamma-path" class="chart" role="img" aria-label="Unit freshness mean and standard deviation envelope"></div>
@@ -311,7 +311,7 @@ function logisticsPlotBlocks(): string {
           <div class="field week-calendar-field">
             <span class="field-label">
               Delivery schedule${infoTipHtml(
-                "Click weekdays in the calendar to set which days deliveries land on; order days are computed automatically as delivery day minus lead time, so shifting delivery days also shifts when orders go out. Changes here don't take effect until you press Reset, since the delivery calendar feeds the simulated arrival schedule from day one.",
+                "Click weekdays to set which days deliveries land on; order days are computed automatically as delivery day minus lead time. Takes effect on Reset.",
               )}
             </span>
             <div id="week-calendar" class="week-calendar" role="group" aria-label="Delivery and order weekdays"></div>
@@ -335,7 +335,7 @@ function logisticsPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
           <div class="chart-caption impact-caption">
             On-hand by freshness band${infoTipHtml(
-              "Shows on-hand inventory broken into freshness bands, from near-pristine to nearly spoiled, over the course of the simulated episode. This is the same per-unit freshness state that effective inventory weights when deciding how much to order — a shelf skewed toward low-freshness bands offers much less real protection against demand than the same unit count would suggest.",
+              "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
             )}
           </div>
           <div id="chart-age-comp-focus-host" class="chart-host">
@@ -349,7 +349,7 @@ function autopilotPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-controller-orders">
           <div class="chart-caption impact-caption">
             Order quantity${infoTipHtml(
-              "Preview of each day's order quantity from the active controller policy — the same series shown in the Outcomes column, enlarged for tuning autopilot parameters.",
+              "Preview of each day's order quantity from the active controller policy, enlarged for tuning autopilot parameters.",
             )}
           </div>
           <div id="chart-controller-orders-focus" class="chart" role="img" aria-label="Order quantity preview"></div>
@@ -357,7 +357,7 @@ function autopilotPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-spoil">
           <div class="chart-caption impact-caption">
             Spoilage${infoTipHtml(
-              "Preview of daily units spoiled — unavailable at the lowest observation rung where waste is not observed.",
+              "Preview of daily units spoiled. Unavailable when waste isn't observed.",
             )}
           </div>
           <div id="chart-spoil-focus" class="chart" role="img" aria-label="Spoilage preview"></div>
@@ -365,7 +365,7 @@ function autopilotPlotBlocks(): string {
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
           <div class="chart-caption impact-caption">
             On-hand by freshness band${infoTipHtml(
-              "Shows on-hand inventory broken into freshness bands, from near-pristine to nearly spoiled, over the course of the simulated episode. This is the same per-unit freshness state that effective inventory weights when deciding how much to order — a shelf skewed toward low-freshness bands offers much less real protection against demand than the same unit count would suggest.",
+              "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
             )}
           </div>
           <div id="chart-age-comp-focus-host-autopilot" class="chart-host"></div>
@@ -441,7 +441,7 @@ function mountSectionControlsDom(
         </p>
         <div class="field">
           <span class="field-label">Arrival product (MOD-21)${infoTipHtml(
-            "An arrival product (corridor) is the named transit lane — short_haul, long_haul, or the six-shipment-calibrated abdella_all — whose typical trip duration sets how much thermal exposure a delivered lot has already absorbed before it reaches the shelf (mean transit temperature is drawn from the same distribution regardless of corridor). Switching corridors changes the freshness distribution units arrive with: a short lane like short_haul delivers fresher stock on average than a longer one like long_haul, simply because a shorter trip accumulates less thermal exposure."
+            "The transit lane a delivery travels — its trip duration sets how much freshness a lot has already lost before reaching the shelf. Shorter lanes (e.g. short_haul) deliver fresher stock than longer ones (e.g. long_haul)."
           )}</span>
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival product">
             <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Bootstrap all six Abdella shipments">All six</button>
@@ -458,7 +458,7 @@ function mountSectionControlsDom(
         </p>
         <div class="field">
           <span class="field-label">Policy${infoTipHtml(
-            "The policy is how the controller turns the demand forecast and effective inventory into an order quantity each day. damped_sw closes a fixed fraction of the gap between a target service level and what's already effectively on hand, then rounds to the nearest case. rollout wraps that same base rule with a wider search across several nearby candidate order quantities, simulating each one forward over the horizon to pick the best — the chip's name refers to only today's decision being optimized this way, not to how many candidates are tried. constant always orders the same fixed amount regardless of conditions, as a baseline to compare against."
+            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. rollout simulates several candidate order sizes forward and picks the best. constant always orders the same amount, as a baseline."
           )}</span>
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
@@ -469,7 +469,7 @@ function mountSectionControlsDom(
         <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
         <div class="field alpha-rho-field">
           <span class="field-label">α / ρ${infoTipHtml(
-            "α is the target service-level quantile the order-up-to level is set to (default 0.9) — tuned by simulation rather than the textbook newsvendor fractile, because leftover blueberries carry over and keep aging instead of being discarded at period end. ρ is the damping factor (default 0.8) that closes only a fraction of the gap between that target and effective inventory each day, muting the policy's reaction to how much is already on hand. Drag the pad to set both at once: left-right moves α, up-down moves ρ."
+            "α is the target service-level quantile the order-up-to level is set to (default 0.9). ρ is the damping factor (default 0.8) that limits how much of the gap to that target is closed each day. Drag the pad: left-right moves α, up-down moves ρ."
           )}</span>
           <div class="alpha-rho-row">
             <svg
@@ -495,31 +495,31 @@ function mountSectionControlsDom(
         </div>
         <label class="field">
           <span class="field-label">H (horizon)${infoTipHtml(
-            "How many days ahead the rollout policy simulates when it evaluates a candidate order quantity — a longer horizon weighs more of the future at the cost of more compute per decision. This is one of the browser-dialed rollout budgets tuned for interactive wall-clock speed, not necessarily the same horizon a batch or notebook VOI sweep would use."
+            "How many days ahead the rollout policy simulates when evaluating a candidate order quantity. Longer horizons cost more compute per decision."
           )} <span id="val-H"></span></span>
           <input type="number" id="H" min="1" max="56" step="1" />
         </label>
         <label class="field">
           <span class="field-label">n_rollout_paths${infoTipHtml(
-            "How many simulated future demand-and-arrival paths the rollout policy averages over when it scores each candidate order quantity — more paths reduce noise in that comparison at the cost of more compute. Like the other rollout budgets, this is a browser-dialed value chosen for interactive speed, not the budget a batch or notebook VOI sweep would use."
+            "How many simulated future paths the rollout policy averages over when scoring each candidate order. More paths reduce noise but cost more compute."
           )} <span id="val-n_rollout_paths"></span></span>
           <input type="number" id="n_rollout_paths" min="1" max="64" step="1" />
         </label>
         <label class="field">
           <span class="field-label">candidate_case_radius${infoTipHtml(
-            "How many case-multiples above and below the base heuristic's order quantity the rollout policy searches when picking the best candidate — a radius of 1 checks the base order plus one case up and one case down. This is another browser-dialed rollout budget tuned for interactive speed, not necessarily what a batch or notebook VOI sweep would use."
+            "How many case-multiples above and below the base order quantity rollout searches — a radius of 1 checks one case up and one case down."
           )} <span id="val-candidate_case_radius"></span></span>
           <input type="number" id="candidate_case_radius" min="0" max="8" step="1" />
         </label>
         <label class="field">
           <span class="field-label">n_particles${infoTipHtml(
-            "How many particles the particle filter uses to track its belief about each unit's freshness on the shelf — more particles give a smoother, less noisy belief at the cost of more compute per step. Like the rollout budgets, this count is dialed down for interactive browser speed and is not necessarily the same budget a batch or notebook VOI sweep would use."
+            "How many particles the filter uses to track freshness belief. More particles give a smoother belief at the cost of more compute."
           )} <span id="val-n_particles"></span></span>
           <input type="number" id="n_particles" min="16" max="2000" step="16" />
         </label>
         <label class="field">
           <span class="field-label">Autopilot interval (ms)${infoTipHtml(
-            "How often, in milliseconds, Autopilot's timer fires another order-and-advance step while it's running. Autopilot issues the same controller call the manual Place Order button does, just on a repeating timer, so a shorter interval only advances the episode faster — it doesn't change what the controller decides."
+            "How often Autopilot's timer fires another order-and-advance step. A shorter interval only runs the episode faster — it doesn't change what the controller decides."
           )} <span id="val-intervalMs"></span></span>
           <input type="number" id="intervalMs" min="50" max="10000" step="50" />
         </label>
