@@ -12,9 +12,9 @@ from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
-# T-150 f-native arrival physics (t150-f-native-arrival); damped_sw only.
+# T-150 f-native arrival physics; ADR 0148 fitted arrival_model.json (P0 drift).
 _T150_BASELINE: dict[str, float] = {
-    "P0": 86.0,
+    "P0": 79.5,
     "P1": 86.0,
     "F1": 106.5,
     "F1s": 106.5,
