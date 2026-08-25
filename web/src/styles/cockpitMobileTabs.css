@@ -1,0 +1,55 @@
+/* Mobile cockpit column tabs — one pane visible at ≤1100px */
+
+.cockpit-mobile-tabs {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .cockpit-mobile-tabs {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .cockpit-mobile-tab {
+    flex: 1 1 0;
+    appearance: none;
+    border: 1px solid var(--paper-edge);
+    border-radius: 8px;
+    background: #fffdf8;
+    color: var(--ink-soft);
+    padding: 0.55rem 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    min-height: 44px;
+  }
+
+  .cockpit-mobile-tab:hover {
+    border-color: var(--focus);
+    background: var(--paper);
+  }
+
+  .cockpit-mobile-tab[aria-selected="true"] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, #fffdf8);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .cockpit-grid[data-mobile-tab="results"] .cockpit-column--center,
+  .cockpit-grid[data-mobile-tab="results"] .cockpit-pane--sidebar {
+    display: none;
+  }
+
+  .cockpit-grid[data-mobile-tab="run"] .cockpit-pane--metrics,
+  .cockpit-grid[data-mobile-tab="run"] .cockpit-pane--sidebar {
+    display: none;
+  }
+
+  .cockpit-grid[data-mobile-tab="observe"] .cockpit-pane--metrics,
+  .cockpit-grid[data-mobile-tab="observe"] .cockpit-column--center {
+    display: none;
+  }
+}

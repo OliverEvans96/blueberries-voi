@@ -30,6 +30,10 @@ async function advanceDays(page: Page, n: number) {
   }
 }
 
+async function selectMobileTab(page: Page, tab: "results" | "run" | "observe") {
+  await page.locator(`#cockpit-mobile-tab-${tab}`).click();
+}
+
 test.describe("mobile layout and touch (iPhone 13)", () => {
   test("welcome modal fits the viewport on first load", async ({ page }) => {
     await page.goto("/");
@@ -58,17 +62,31 @@ test.describe("mobile layout and touch (iPhone 13)", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("cockpit grid stacks to a single column", async ({ page }) => {
+  test("mobile cockpit tabs default to Run and switch panes", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await dismissWelcomeIfOpen(page);
 
     const grid = page.locator(".cockpit-grid[data-layout='v7']");
-    await expect(grid).toBeVisible();
-    const columns = await grid.evaluate((el) =>
-      getComputedStyle(el).gridTemplateColumns.split(/\s+/).length,
-    );
-    expect(columns).toBe(1);
+    await expect(grid).toHaveAttribute("data-mobile-tab", "run");
+
+    const runPane = page.locator("#cockpit-center-pane");
+    const resultsPane = page.locator("#cockpit-metrics-pane");
+    const observePane = page.locator("#cockpit-sidebar-pane");
+
+    await expect(runPane).toBeVisible();
+    await expect(resultsPane).toBeHidden();
+    await expect(observePane).toBeHidden();
+
+    await page.locator("#cockpit-mobile-tab-results").click();
+    await expect(grid).toHaveAttribute("data-mobile-tab", "results");
+    await expect(resultsPane).toBeVisible();
+    await expect(runPane).toBeHidden();
+
+    await page.locator("#cockpit-mobile-tab-observe").click();
+    await expect(grid).toHaveAttribute("data-mobile-tab", "observe");
+    await expect(observePane).toBeVisible();
+    await expect(resultsPane).toBeHidden();
   });
 
   test("title bar heading and actions fit without overlapping", async ({
@@ -93,7 +111,7 @@ test.describe("mobile layout and touch (iPhone 13)", () => {
     }
   });
 
-  test("tuning drawer fits the viewport", async ({ page }) => {
+  test("tuning drawer fits the viewport and closes via Done", async ({ page }) => {
     await page.goto("/");
     await waitForEngine(page);
     await dismissWelcomeIfOpen(page);
@@ -108,6 +126,9 @@ test.describe("mobile layout and touch (iPhone 13)", () => {
       expect(drawerBox.width).toBeLessThanOrEqual(viewport.width);
       expect(drawerBox.x).toBeGreaterThanOrEqual(0);
     }
+
+    await drawer.locator(".tuning-drawer-done").click();
+    await expect(drawer).toBeHidden();
   });
 
   test("chart tap pins the day inspector on touch", async ({ page }) => {
@@ -115,6 +136,7 @@ test.describe("mobile layout and touch (iPhone 13)", () => {
     await waitForEngine(page);
     await dismissWelcomeIfOpen(page);
     await advanceDays(page, 3);
+    await selectMobileTab(page, "results");
 
     const chart = page.locator("#chart-sales-demand svg.chart-svg").first();
     await chart.scrollIntoViewIfNeeded();
@@ -128,8 +150,11 @@ test.describe("mobile layout and touch (iPhone 13)", () => {
     await page.goto("/");
     await waitForEngine(page);
     await dismissWelcomeIfOpen(page);
+    await selectMobileTab(page, "results");
 
-    const trigger = page.locator(".info-tip-trigger").first();
+    const trigger = page.locator(
+      "#cockpit-metrics-pane .info-tip-trigger",
+    ).first();
     await trigger.scrollIntoViewIfNeeded();
     await trigger.tap();
 

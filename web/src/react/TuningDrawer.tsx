@@ -124,6 +124,10 @@ export function TuningDrawer({
               aria-modal="true"
               aria-label="Simulation parameters"
               onClose={() => setOpen(false)}
+              onCancel={(event) => {
+                event.preventDefault();
+                closeDrawer();
+              }}
               onClick={(e) => {
                 if (e.target === dialogRef.current) closeDrawer();
               }}
@@ -195,8 +199,20 @@ export function TuningDrawer({
                     </div>
                   </div>
                 </nav>
-                <button type="button" onClick={closeDrawer} aria-label="Close">
+                <button
+                  type="button"
+                  className="tuning-drawer-close"
+                  onClick={closeDrawer}
+                  aria-label="Close"
+                >
                   ×
+                </button>
+                <button
+                  type="button"
+                  className="tuning-drawer-done-header"
+                  onClick={closeDrawer}
+                >
+                  Done
                 </button>
               </header>
 
@@ -211,6 +227,15 @@ export function TuningDrawer({
                   className="tuning-drawer-controls"
                 />
               </div>
+              <footer className="tuning-drawer-foot">
+                <button
+                  type="button"
+                  className="tuning-drawer-done"
+                  onClick={closeDrawer}
+                >
+                  Done
+                </button>
+              </footer>
             </dialog>,
             portalTarget,
           )}
