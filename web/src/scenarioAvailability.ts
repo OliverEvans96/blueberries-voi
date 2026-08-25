@@ -18,7 +18,6 @@ function collectPlotIds(): string[] {
 
 /** Slider ids from controls.ts CONFIG_SLIDERS + PRICE_SLIDERS. */
 export const ALL_CONTROL_IDS: string[] = [
-  "base_stock",
   "c_stockout",
   "c_unit",
   "c_waste",

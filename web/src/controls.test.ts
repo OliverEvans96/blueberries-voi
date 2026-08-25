@@ -246,4 +246,29 @@ describe("T-127 tuning-dock content — demand controls", () => {
     expect(src).toMatch(/tier-badge tier-badge--/);
     expect(src).not.toMatch(/tier-badge[\s\S]{0,120}info-tip-trigger/);
   });
+
+  it("slider labels group the info glyph beside the label, value on the right", () => {
+    const host = document.createElement("div");
+    const api = mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+    );
+    api.showSection("demand");
+    const slider = host.querySelector("#sigma") as HTMLInputElement;
+    expect(slider).not.toBeNull();
+    const fieldLabel = slider.closest("label")?.querySelector(".field-label") as
+      | HTMLElement
+      | null;
+    expect(fieldLabel).not.toBeNull();
+    const main = fieldLabel.querySelector(".field-label-main");
+    expect(main).not.toBeNull();
+    expect(main!.querySelector(".info-tip-trigger")).not.toBeNull();
+    expect(main!.querySelector("#val-sigma")).toBeNull();
+    expect(fieldLabel.querySelector("#val-sigma")).not.toBeNull();
+  });
 });

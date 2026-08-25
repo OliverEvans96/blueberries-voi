@@ -208,7 +208,6 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
-  { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   {
     id: "spread_scale",
     label: "spread_scale (FIL-11)",
@@ -361,7 +360,7 @@ function sliderHtml(spec: SliderSpec): string {
   const label = meta?.label ?? spec.label;
   return `
     <label class="field">
-      <span class="field-label">${label}${infoTipHtml(meta?.tooltip ?? spec.label)} ${tierBadge(spec.id)} <span id="val-${spec.id}"></span></span>
+      <span class="field-label"><span class="field-label-main">${label}${infoTipHtml(meta?.tooltip ?? spec.label)} ${tierBadge(spec.id)}</span> <span id="val-${spec.id}"></span></span>
       <input type="range" id="${spec.id}" min="${spec.min}" max="${spec.max}" step="${spec.step}" />
     </label>
   `;
@@ -456,6 +455,7 @@ function mountSectionControlsDom(
             "Target service-level quantile for protection demand F⁻¹(α). Higher α raises the order-up-to target."
           )} <span id="val-alpha"></span></span>
           <input type="range" id="alpha" min="0.5" max="0.99" step="0.01" />
+        </label>
         </label>
         <label class="field" id="rho-field">
           <span class="field-label">ρ (damping)${infoTipHtml(

@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { initInfoTipPortal } from "../infoTipPortal";
+import { INFO_TIP_BUBBLE_Z_INDEX, initInfoTipPortal } from "../infoTipPortal";
 import { infoTipHtml } from "../infoTip";
 import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
@@ -107,6 +107,7 @@ describe("InfoTip portal", () => {
     expect(bubble).not.toBeNull();
     expect(bubble).toHaveTextContent("Portal tooltip body");
     expect(bubble).toHaveStyle({ position: "fixed" });
+    expect(bubble).toHaveStyle({ zIndex: String(INFO_TIP_BUBBLE_Z_INDEX) });
   });
 
   it("HostHoverTip shows a portaled bubble on host hover without an i glyph", () => {
@@ -150,6 +151,13 @@ describe("InfoTip portal", () => {
     expect(INFO_TIP_CSS).toMatch(
       /\.info-tip-bubble--portaled\s*\{[^}]*pointer-events:\s*auto/,
     );
+  });
+
+  it("infoTip.css stacks portaled bubbles above the tuning drawer", () => {
+    expect(INFO_TIP_CSS).toMatch(
+      /\.info-tip-bubble--portaled\s*\{[^}]*z-index:\s*1300/,
+    );
+    expect(INFO_TIP_BUBBLE_Z_INDEX).toBeGreaterThan(1200);
   });
 
   it("initInfoTipPortal portals vanilla infoTipHtml triggers on hover", () => {
