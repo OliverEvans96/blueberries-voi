@@ -733,7 +733,15 @@
   color: var(--ink-soft);
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
+}
+
+.field-label-main {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .field-label em {

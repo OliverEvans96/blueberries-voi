@@ -10,6 +10,8 @@ export type InfoTipPositionOpts = {
 const GAP_PX = 7;
 const VIEWPORT_PAD_PX = 8;
 const MAX_BUBBLE_WIDTH_PX = 260;
+/** Above `.tuning-drawer` (1200) so settings-pane tips stay visible. */
+export const INFO_TIP_BUBBLE_Z_INDEX = 1300;
 
 export function getInfoTipPortalRoot(): HTMLElement | null {
   return document.querySelector(".bv-studio-portal-root");
@@ -39,7 +41,7 @@ export function positionInfoTipBubble(
 ): void {
   const triggerRect = trigger.getBoundingClientRect();
   bubble.style.position = "fixed";
-  bubble.style.zIndex = "1000";
+  bubble.style.zIndex = String(INFO_TIP_BUBBLE_Z_INDEX);
   const availableWidth = Math.max(
     0,
     window.innerWidth - VIEWPORT_PAD_PX * 2,
