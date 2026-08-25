@@ -1,7 +1,6 @@
 import * as d3 from "d3";
 import type { Day, HoverDay } from "../types";
 import { CHART_MARGIN } from "../hoverLink";
-import { salesDemandX } from "./salesDemand";
 import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 
 export type MarginalKind = "sales" | "spoilage" | "stockout";
