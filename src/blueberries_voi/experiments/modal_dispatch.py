@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal, assert_never
 
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm  # type: ignore[import-untyped]
 
 from blueberries_voi.experiments.batch_progress import log_line
 from blueberries_voi.experiments.filter_accuracy import (
