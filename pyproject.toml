@@ -189,6 +189,8 @@ omit = [
     "*/blueberries_voi/filter/particle/mc_likelihood.py",
     "*/blueberries_voi/filter/age_likelihood/exact_likelihood.py",
     "*/blueberries_voi/voi/sweep.py",
+    "*/blueberries_voi/experiments/modal_dispatch.py",
+    "*/blueberries_voi/experiments/batch_progress.py",
 ]
 
 [tool.coverage.report]
