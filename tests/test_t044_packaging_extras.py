@@ -83,6 +83,7 @@ def test_eng01_extras_are_data_and_viz_only() -> None:
         if k
         not in {
             "dev",
+            "all",
             "notebooks",
             "test",
             "tests",
