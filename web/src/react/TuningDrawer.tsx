@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { D3ChartHost } from "./D3ChartHost";
+import { InfoTip } from "./InfoTip";
 import "../styles/tuningDrawer.css";
 
 export type TuningDrawerProps = {
@@ -147,6 +148,16 @@ export function TuningDrawer({
                       >
                         Demand
                       </button>
+                      <InfoTip>
+                        Sets the average daily demand level and how much
+                        random variability rides on top of the day-of-week
+                        and week-to-week calendar shape. It's split from
+                        Arrival and Physics because demand determines how
+                        many customers show up, not how fresh any unit is —
+                        every ordering policy sees the same demand calendar,
+                        so this cluster only affects the sales side of the
+                        simulation.
+                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -156,6 +167,17 @@ export function TuningDrawer({
                       >
                         Arrival
                       </button>
+                      <InfoTip>
+                        Sets the cold-chain corridor a delivery travels
+                        through — transit duration, mean temperature, and how
+                        much units vary within one pallet — which together
+                        determine each unit's freshness the moment it arrives
+                        on the shelf. It's split from Physics because Arrival
+                        governs a single trip's outcome before a unit is ever
+                        shelved, while Physics governs the daily aging that
+                        happens afterward, even though both draw from the
+                        same gamma decay law.
+                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -165,6 +187,16 @@ export function TuningDrawer({
                       >
                         Physics
                       </button>
+                      <InfoTip alignEnd>
+                        Sets the daily in-store aging process: reference
+                        shelf life, the Q10 temperature sensitivity, and
+                        store temperature, which together determine how fast
+                        a unit's freshness decays once it's on the shelf.
+                        It's grouped apart from Arrival because these knobs
+                        control ongoing shelf-life physics rather than the
+                        one-time transit that sets a unit's freshness at
+                        receipt.
+                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -179,6 +211,17 @@ export function TuningDrawer({
                       >
                         Logistics
                       </button>
+                      <InfoTip alignEnd>
+                        Sets the delivery calendar, case size, and lead time
+                        that determine how much stock the store carries and
+                        how it gets refilled (the base-stock target here only
+                        moves a chart reference line, not the live
+                        controller). It's kept separate from Autopilot
+                        because Logistics defines the physical constraints
+                        ordering has to work within — Autopilot decides how
+                        aggressively the ordering rule reacts to what's
+                        currently on the shelf.
+                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -193,6 +236,16 @@ export function TuningDrawer({
                       >
                         Autopilot
                       </button>
+                      <InfoTip alignEnd>
+                        Sets the automated ordering policy's parameters: how
+                        aggressively the damped base-stock rule closes the
+                        gap between the demand target and effective
+                        inventory, plus the rollout search budget layered on
+                        top. It's split from Logistics because Autopilot
+                        controls decision-making — when and how much to
+                        order — while Logistics controls the physical
+                        constraints that decision has to work within.
+                      </InfoTip>
                     </div>
                   </div>
                 </nav>
@@ -223,7 +276,18 @@ export function TuningDrawer({
                     data-plot="plot-demand"
                     hidden
                   >
-                    <div className="chart-caption impact-caption">Daily demand</div>
+                    <div className="chart-caption impact-caption">
+                      Daily demand
+                      <InfoTip>
+                        Shows the actual simulated demand draw for each day
+                        of the episode, following the day-of-week and
+                        week-to-week calendar shape with random overdispersed
+                        noise layered on top. Every ordering policy sees the
+                        same underlying calendar mean, so differences in
+                        outcome come from freshness information, not from
+                        guessing tomorrow's footfall.
+                      </InfoTip>
+                    </div>
                     <div
                       id="chart-demand-host"
                       className="chart demand-chart-slot"
@@ -238,6 +302,14 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Demand forecast
+                      <InfoTip>
+                        Projects what daily demand would look like under the
+                        mean-demand slider's current setting, without
+                        re-simulating any days. Mean demand is a
+                        Preview-tier control: dragging it updates this chart
+                        immediately, but the store's actual simulated history
+                        stays exactly as it was until you press Reset.
+                      </InfoTip>
                     </div>
                     <div
                       id="chart-demand-forecast-host"
@@ -253,6 +325,16 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Picking variability shape
+                      <InfoTip>
+                        Shows how strongly the picking-weight exponent biases
+                        sales toward fresher units: each alive unit gets a
+                        lottery ticket count proportional to its freshness
+                        raised to this exponent, so a higher value favors the
+                        freshest stock more sharply while zero picks
+                        uniformly at random. This is not FIFO — shoppers
+                        never guarantee picking the oldest punnet, so even
+                        tired units can occasionally linger unsold.
+                      </InfoTip>
                     </div>
                     <div
                       id="picking-var-chart"
@@ -267,7 +349,18 @@ export function TuningDrawer({
                     hidden
                   >
                     <div className="field week-calendar-field">
-                      <span className="field-label">Delivery schedule</span>
+                      <span className="field-label">
+                        Delivery schedule
+                        <InfoTip>
+                          Click weekdays in the calendar to set which days
+                          deliveries land on; order days are computed
+                          automatically as delivery day minus lead time, so
+                          shifting delivery days also shifts when orders go
+                          out. Changes here don't take effect until you press
+                          Reset, since the delivery calendar feeds the
+                          simulated arrival schedule from day one.
+                        </InfoTip>
+                      </span>
                       <div
                         id="week-calendar"
                         className="week-calendar"
@@ -317,6 +410,16 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       On-hand by freshness band
+                      <InfoTip>
+                        Shows on-hand inventory broken into freshness bands,
+                        from near-pristine to nearly spoiled, over the course
+                        of the simulated episode. This is the same per-unit
+                        freshness state that effective inventory weights when
+                        deciding how much to order — a shelf skewed toward
+                        low-freshness bands offers much less real protection
+                        against demand than the same unit count would
+                        suggest.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-age-comp-focus"
@@ -331,6 +434,16 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Orders &amp; spoilage
+                      <InfoTip>
+                        Tracks each day's order quantity alongside units
+                        spoiled, so you can see how ordering decisions play
+                        out as waste a few days later. Spoilage happens unit
+                        by unit — each alive unit loses freshness
+                        independently every day and is marked waste the
+                        instant its own freshness hits zero, so units from
+                        the same delivery can spoil across a span of days
+                        rather than all at once.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-orders-spoilage-focus"
@@ -345,6 +458,18 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Arrival freshness prior · receipt rug
+                      <InfoTip>
+                        Shows the distribution of freshness a unit is
+                        expected to have the moment it arrives, given the
+                        current corridor's transit and temperature
+                        assumptions, with a rug of actual receipt freshness
+                        values from the simulated deliveries. The particle
+                        filter draws each new lot's freshness from this same
+                        distribution, conditioned on whatever the active
+                        observation rung actually reveals about the trip — a
+                        full temperature trace, a pack date, or nothing at
+                        all.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-arrival-prior"
@@ -359,6 +484,15 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Transit ΔT shift vs baseline
+                      <InfoTip>
+                        Meant to compare the current transit-temperature-bias
+                        curve against an unbiased baseline, but the bias
+                        slider isn't wired into this chart's data yet (a
+                        known display gap) — both lines currently plot the
+                        same unbiased curve no matter where the slider is
+                        set. The bias does apply to the simulated deliveries
+                        themselves, just not to this preview.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-arrival-shift"
@@ -373,6 +507,15 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Q10 aging rate vs temperature
+                      <InfoTip>
+                        Plots the Q10 temperature factor across a range of
+                        storage temperatures, showing how much faster
+                        freshness decays as the shelf gets warmer. Under the
+                        Q10 rule, the aging rate scales multiplicatively per
+                        10°C of warming — the default value (3.0) triples
+                        the aging rate for every 10°C increase — rather than
+                        each degree adding a fixed amount.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-arrhenius-temp"
@@ -387,6 +530,17 @@ export function TuningDrawer({
                   >
                     <div className="chart-caption impact-caption">
                       Gamma freshness mean ± σ until expiry
+                      <InfoTip>
+                        Shows the expected freshness trajectory over time,
+                        with a shaded band for one standard deviation of
+                        spread, under the current gamma aging parameters.
+                        Because aging is shape-scaled rather than
+                        scale-scaled, a hotter storage temperature widens
+                        this band as well as steepening the mean line — heat
+                        makes loss events more frequent, not just larger, so
+                        higher temperatures bring more day-to-day
+                        unpredictability along with faster average decay.
+                      </InfoTip>
                     </div>
                     <D3ChartHost
                       id="chart-gamma-path"

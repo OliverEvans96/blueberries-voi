@@ -1,0 +1,110 @@
+/* Shared hover/focus info-circle tooltip (T-161). CSS-only — no JS
+   positioning — so the same markup works from React (InfoTip.tsx) and from
+   the vanilla template-string DOM builder in controls.ts (infoTip.ts). */
+
+/* Wraps a heading/label element together with its InfoTip so the two lay
+   out side by side, WITHOUT nesting the InfoTip inside the heading itself —
+   nesting would fold the tooltip body into the heading's own textContent,
+   which breaks exact-text assertions and pollutes what a screen reader
+   announces as the heading's name. */
+.heading-with-tip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+}
+
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.32em;
+  line-height: 1;
+}
+
+.info-tip-trigger {
+  all: unset;
+  /* `all: unset` resolves an INHERITED property (text-transform,
+     letter-spacing, font-variant, ...) to `inherit`, not to its initial
+     value — so without this explicit reset, sitting inside an ancestor
+     like `.chart-caption` or `.tier-badge` (both `text-transform:
+     uppercase`) turned the lowercase "i" glyph into "I". */
+  text-transform: none;
+  letter-spacing: normal;
+  font-variant: normal;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-soft);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 700;
+  cursor: help;
+  background: transparent;
+}
+
+.info-tip-trigger:hover,
+.info-tip-trigger:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.info-tip-bubble {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max-content;
+  max-width: 260px;
+  padding: 0.5em 0.65em;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.4;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  transform: translateY(-3px);
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.info-tip-trigger:hover + .info-tip-bubble,
+.info-tip-trigger:focus-visible + .info-tip-bubble {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Right-align the bubble when the trigger sits near a panel's right edge
+   (narrow sidebar columns, tab rows) so it doesn't overflow off-screen. */
+.info-tip--align-end .info-tip-bubble {
+  left: auto;
+  right: 0;
+}
+
+/* Open upward when the trigger sits at the bottom of a panel/scroll area. */
+.info-tip--up .info-tip-bubble {
+  top: auto;
+  bottom: calc(100% + 7px);
+  transform: translateY(3px);
+}
+
+.info-tip--up .info-tip-trigger:hover + .info-tip-bubble,
+.info-tip--up .info-tip-trigger:focus-visible + .info-tip-bubble {
+  transform: translateY(0);
+}
