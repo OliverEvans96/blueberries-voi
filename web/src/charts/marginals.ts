@@ -6,8 +6,9 @@ import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 export type MarginalKind = "sales" | "spoilage" | "stockout";
 
 function rootG(
-  container: HTMLElement,
+  container: HTMLElement | null,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  if (!container) return null;
   const g = container.querySelector("svg g.chart-root");
   return g ? d3.select(g as SVGGElement) : null;
 }
@@ -258,15 +259,9 @@ export function renderWasteBars(
     .attr("height", innerH);
 
   g.append("g")
-    .attr("class", "axis axis-y axis-y--waste")
+    .attr("class", "axis axis-y")
     .call(d3.axisLeft(y).ticks(2).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove())
-    .call((sel) =>
-      sel.selectAll(".tick text").attr("fill", "var(--spoil-strong)"),
-    )
-    .call((sel) =>
-      sel.selectAll(".tick line").attr("stroke", "var(--spoil-strong)"),
-    );
+    .call((sel) => sel.select(".domain").remove());
 
   const xAxis = d3
     .scaleBand<number>()

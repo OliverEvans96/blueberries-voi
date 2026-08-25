@@ -71,6 +71,8 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     const grid = container.querySelector(".cockpit-grid[data-layout='v7']");
     expect(grid).not.toBeNull();
     expect(grid!.querySelector(".cockpit-pane--metrics")).not.toBeNull();
+    expect(grid!.querySelector(".cockpit-column--center")).not.toBeNull();
+    expect(grid!.querySelector(".cockpit-pane--run")).not.toBeNull();
     expect(grid!.querySelector(".cockpit-pane--belief")).not.toBeNull();
     expect(grid!.querySelector(".cockpit-pane--sidebar")).not.toBeNull();
     expect(grid!.querySelector("#obs-controls-pane-host")).not.toBeNull();
@@ -153,23 +155,26 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
-  it("belief column hosts operator bar at top, freshness charts, and tradeoff", () => {
+  it("run pane hosts operator bar; belief pane hosts freshness charts only", () => {
     const { container } = render(createElement(StudioLayout));
+    const run = container.querySelector(".cockpit-pane--run");
     const belief = container.querySelector(".cockpit-pane--belief");
-    expect(belief!.querySelector("#operator-bar-host")).not.toBeNull();
+    expect(run!.querySelector("#operator-bar-host")).not.toBeNull();
+    expect(belief!.querySelector("#operator-bar-host")).toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
     expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
-    expect(belief!.querySelector("#tradeoff-curve-host")).not.toBeNull();
-    expect(belief!.querySelector("#tradeoff-histogram-host")).not.toBeNull();
-    const head = belief!.querySelector(".panel-head");
-    const operator = belief!.querySelector("#operator-bar-host");
+    expect(belief!.querySelector("#tradeoff-curve-host")).toBeNull();
+    expect(belief!.querySelector("#tradeoff-histogram-host")).toBeNull();
+    const runOperator = run!.querySelector("#operator-bar-host");
+    const beliefHead = belief!.querySelector(".panel-head");
     const history = belief!.querySelector("#chart-history");
     expect(
-      head!.compareDocumentPosition(operator!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      runOperator!.compareDocumentPosition(beliefHead!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      operator!.compareDocumentPosition(history!) &
+      beliefHead!.compareDocumentPosition(history!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
@@ -178,28 +183,11 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
-  it("belief column tradeoff uses Curve/Histogram tab toggle", () => {
+  it("belief column does not mount runtime tradeoff chrome", () => {
     const { container } = render(createElement(StudioLayout));
-    const belief = container.querySelector(".cockpit-pane--belief");
-    const tablist = belief!.querySelector(
-      '.belief-tradeoff-tabs[role="tablist"]',
-    );
-    expect(tablist).not.toBeNull();
-    expect(tablist).toHaveAttribute("aria-label", "Tradeoff view");
-    const tabs = tablist!.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(2);
-    expect(tabs[0]!.textContent).toBe("Curve");
-    expect(tabs[1]!.textContent).toBe("Histogram");
-    expect(tabs[0]).toHaveAttribute("data-tradeoff-tab", "curve");
-    expect(tabs[1]).toHaveAttribute("data-tradeoff-tab", "histogram");
-  });
-
-  it("belief column shows only the curve chart by default", () => {
-    const { container } = render(createElement(StudioLayout));
-    const curve = container.querySelector("#tradeoff-curve-host");
-    const hist = container.querySelector("#tradeoff-histogram-host");
-    expect(curve?.hasAttribute("hidden")).toBe(false);
-    expect(hist?.hasAttribute("hidden")).toBe(true);
+    expect(container.querySelector(".belief-tradeoff-panel")).toBeNull();
+    expect(container.querySelector("#tradeoff-curve-host")).toBeNull();
+    expect(container.querySelector("#tradeoff-histogram-host")).toBeNull();
   });
 
   it("mounts tuning drawer host in portal root", () => {

@@ -16,8 +16,9 @@ export type OrdersWastePoint = {
 };
 
 function rootG(
-  container: HTMLElement,
+  container: HTMLElement | null,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  if (!container) return null;
   const g = container.querySelector("svg g.chart-root");
   return g ? d3.select(g as SVGGElement) : null;
 }
@@ -304,11 +305,9 @@ export function renderControllerOrders(
     .range([innerH, 0]);
 
   g.append("g")
-    .attr("class", "axis axis-y axis-y--orders")
+    .attr("class", "axis axis-y")
     .call(d3.axisLeft(yOrders).ticks(4).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove())
-    .call((sel) => sel.selectAll(".tick text").attr("fill", "var(--accent)"))
-    .call((sel) => sel.selectAll(".tick line").attr("stroke", "var(--accent)"));
+    .call((sel) => sel.select(".domain").remove());
 
   g.append("g")
     .attr("class", "axis axis-x")

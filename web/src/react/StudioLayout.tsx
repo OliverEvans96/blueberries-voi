@@ -1,4 +1,5 @@
 import { D3ChartHost } from "./D3ChartHost";
+import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 
@@ -34,32 +35,34 @@ export function StudioLayout() {
           </div>
           <div className="title-bar-actions">
             <TitleBarExternalActions />
-            <button
-              type="button"
-              id="tuning-drawer-trigger"
-              className="tuning-drawer-trigger"
-              aria-label="Simulation parameters"
-              aria-expanded="false"
-              aria-controls="tuning-drawer"
-            />
-            <InfoTip alignEnd>
-              Opens the full tuning dock, with every parameter grouped into
-              topic tabs.
-            </InfoTip>
-            <span
-              id="engine-status"
-              className="engine-status"
-              data-status="loading"
-              role="status"
-              aria-live="polite"
+            <HostHoverTip
+              alignEnd
+              tip="Opens the full tuning dock, with every parameter grouped into topic tabs."
             >
-              <span className="engine-status-dot" aria-hidden="true" />
-              <span className="engine-status-label">Loading</span>
-            </span>
-            <InfoTip alignEnd>
-              Shows whether the simulation engine has finished loading and is
-              ready to advance days.
-            </InfoTip>
+              <button
+                type="button"
+                id="tuning-drawer-trigger"
+                className="tuning-drawer-trigger"
+                aria-label="Simulation parameters"
+                aria-expanded="false"
+                aria-controls="tuning-drawer"
+              />
+            </HostHoverTip>
+            <HostHoverTip
+              alignEnd
+              tip="Shows whether the simulation engine has finished loading and is ready to advance days."
+            >
+              <span
+                id="engine-status"
+                className="engine-status"
+                data-status="loading"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="engine-status-dot" aria-hidden="true" />
+                <span className="engine-status-label">Loading</span>
+              </span>
+            </HostHoverTip>
           </div>
         </header>
 
@@ -144,27 +147,38 @@ export function StudioLayout() {
             </div>
           </section>
 
-          <section
-            className="cockpit-pane cockpit-pane--belief panel"
-            data-testid="cockpit-belief"
-            aria-label="Belief"
+          <div
+            className="cockpit-column cockpit-column--center"
+            data-testid="cockpit-center"
           >
-            <div className="panel-head">
-              <span className="heading-with-tip">
-                <h2>Belief</h2>
-                <InfoTip>
-                  What the particle filter currently believes about
-                  freshness across the shelf's lots, based on sales, waste,
-                  and lot data observed so far. This is belief, not the
-                  hidden ground truth running underneath.
-                </InfoTip>
-              </span>
-              <span className="panel-note" id="hover-note">
-                Filter belief over time — hover a day to link charts.
-              </span>
-            </div>
-            <div id="operator-bar-host" />
-            <div className="chart-caption" data-truth-caption="lots">
+            <section
+              className="cockpit-pane cockpit-pane--run panel"
+              data-testid="cockpit-run"
+              aria-label="Run"
+            >
+              <div id="operator-bar-host" />
+            </section>
+
+            <section
+              className="cockpit-pane cockpit-pane--belief panel"
+              data-testid="cockpit-belief"
+              aria-label="Belief"
+            >
+              <div className="panel-head">
+                <span className="heading-with-tip">
+                  <h2>Belief</h2>
+                  <InfoTip>
+                    What the particle filter currently believes about
+                    freshness across the shelf's lots, based on sales, waste,
+                    and lot data observed so far. This is belief, not the
+                    hidden ground truth running underneath.
+                  </InfoTip>
+                </span>
+                <span className="panel-note" id="hover-note">
+                  Filter belief over time — hover a day to link charts.
+                </span>
+              </div>
+              <div className="chart-caption" data-truth-caption="lots">
               Freshness × time
               <InfoTip>
                 A heatmap of believed freshness per lot over time, with the
@@ -223,60 +237,8 @@ export function StudioLayout() {
               aria-label="Belief age marginal"
               hidden
             />
-            <div className="chart-caption impact-caption">
-              Controller tradeoff
-              <InfoTip>
-                The tradeoff the controller navigates between carrying too
-                much inventory (spoilage risk) and too little (stockout
-                risk). It orders up to a target quantile of expected demand,
-                tuned by simulating outcomes.
-              </InfoTip>
-            </div>
-            <div
-              className="belief-tradeoff-panel"
-              data-testid="belief-tradeoff-panel"
-            >
-              <div
-                className="tuning-cluster-tabs belief-tradeoff-tabs"
-                role="tablist"
-                aria-label="Tradeoff view"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  data-tradeoff-tab="curve"
-                  aria-selected="true"
-                  aria-controls="tradeoff-curve-host"
-                >
-                  Curve
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  data-tradeoff-tab="histogram"
-                  aria-selected="false"
-                  aria-controls="tradeoff-histogram-host"
-                >
-                  Histogram
-                </button>
-              </div>
-              <div
-                id="tradeoff-curve-host"
-                className="tradeoff-chart-host tradeoff-curve chart"
-                data-testid="tradeoff-curve"
-                role="img"
-                aria-label="Tradeoff curve"
-              />
-              <div
-                id="tradeoff-histogram-host"
-                className="tradeoff-chart-host tradeoff-histogram chart"
-                data-testid="tradeoff-histogram"
-                role="img"
-                aria-label="Tradeoff joint histogram"
-                hidden
-              />
-            </div>
-          </section>
+            </section>
+          </div>
 
           <div
             className="cockpit-pane cockpit-pane--sidebar"

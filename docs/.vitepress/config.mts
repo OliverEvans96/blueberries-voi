@@ -10,6 +10,7 @@ export default defineConfig({
     math: true,
   },
   themeConfig: {
+    siteTitle: false,
     nav: [
       { text: "Start here", link: "/" },
       { text: "The store", link: "/store/freshness-not-age" },
@@ -18,6 +19,7 @@ export default defineConfig({
       { text: "Control", link: "/control/newsvendor" },
       { text: "Findings", link: "/findings/does-belief-sharpen" },
       { text: "Studio", link: "/using-it/studio-guide" },
+      { text: "Rust API", link: "/api/rust/index.html" },
     ],
     sidebar: [
       {

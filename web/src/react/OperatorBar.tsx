@@ -1,4 +1,5 @@
 import type { ViewModel } from "../types";
+import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 
 /**
@@ -74,47 +75,44 @@ export function OperatorBar({
         </div>
       </label>
       <div className="btn-row operator-bar-buttons">
-        <button
-          type="button"
-          className="btn-advance"
-          id="btn-advance"
-          disabled={autopilotRunning || atEnd || advancing}
-          onClick={onAdvance}
+        <HostHoverTip tip="Submits your order quantity and advances the simulation by one day.">
+          <button
+            type="button"
+            className="btn-advance"
+            id="btn-advance"
+            disabled={autopilotRunning || atEnd || advancing}
+            onClick={onAdvance}
+          >
+            Place Order
+          </button>
+        </HostHoverTip>
+        <HostHoverTip tip="Repeats Place Order on a timer, using the policy selected in the Autopilot tuning tab.">
+          <button
+            type="button"
+            id="btn-autopilot-toggle"
+            className={`autopilot-toggle${autopilotRunning ? " autopilot-toggle--on" : ""}`}
+            role="switch"
+            aria-checked={autopilotRunning}
+            aria-label="Autopilot"
+            disabled={!autopilotRunning && atEnd}
+            onClick={() => (autopilotRunning ? onAutopilotPause() : onAutopilotPlay())}
+          >
+            <span className="truth-toggle-track" aria-hidden="true">
+              <span className="truth-toggle-thumb" />
+            </span>
+            <span className="autopilot-toggle-text">
+              Autopilot: {autopilotRunning ? "On" : "Off"}
+            </span>
+          </button>
+        </HostHoverTip>
+        <HostHoverTip
+          alignEnd
+          tip="Re-simulates the full episode from day one with the current parameter values. Needed after changing any parameter tagged Reset in the tuning dock."
         >
-          Place Order
-        </button>
-        <InfoTip>
-          Submits your order quantity and advances the simulation by one day.
-        </InfoTip>
-        <button
-          type="button"
-          id="btn-autopilot-toggle"
-          className={`autopilot-toggle${autopilotRunning ? " autopilot-toggle--on" : ""}`}
-          role="switch"
-          aria-checked={autopilotRunning}
-          aria-label="Autopilot"
-          disabled={!autopilotRunning && atEnd}
-          onClick={() => (autopilotRunning ? onAutopilotPause() : onAutopilotPlay())}
-        >
-          <span className="truth-toggle-track" aria-hidden="true">
-            <span className="truth-toggle-thumb" />
-          </span>
-          <span className="autopilot-toggle-text">
-            Autopilot: {autopilotRunning ? "On" : "Off"}
-          </span>
-        </button>
-        <InfoTip>
-          Repeats Place Order on a timer, using the policy selected in the
-          Autopilot tuning tab.
-        </InfoTip>
-        <button type="button" className="btn-reset" id="btn-reset" onClick={onReset}>
-          Reset
-        </button>
-        <InfoTip alignEnd>
-          Re-simulates the full episode from day one with the current
-          parameter values. Needed after changing any parameter tagged
-          Reset in the tuning dock.
-        </InfoTip>
+          <button type="button" className="btn-reset" id="btn-reset" onClick={onReset}>
+            Reset
+          </button>
+        </HostHoverTip>
       </div>
     </section>
   );
