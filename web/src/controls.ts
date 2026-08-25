@@ -233,10 +233,10 @@ const CONFIG_SLIDERS: SliderSpec[] = [
 
 /** Tier-meaning sentences (ADR-grounded in docs/using-it/studio-guide.md's "The math"). */
 const TIER_MEANING: Record<ControlTier, string> = {
-  Live: "Live parameters only rescale the profit-and-loss total from units already sold, purchased, spoiled, and missed this run, so dragging this slider updates the charts immediately with no re-simulation.",
-  Preview: "Preview parameters live-update a projected chart of their effect without touching days already simulated — press Reset to actually apply the new value to the run.",
-  Reset: "This parameter feeds the freshness-decay, demand, or arrival draws for the simulated days, so changing it leaves the current run's history inconsistent until you press Reset to re-simulate.",
-  Autopilot: "Autopilot parameters govern the repeating order-and-advance loop and take effect on its next tick without needing a Reset.",
+  Live: "Rescales the P&L chart from this run's history immediately — no re-simulation needed.",
+  Preview: "Live-updates a projected chart without touching simulated days — press Reset to apply it.",
+  Reset: "Changes the simulated days themselves — press Reset to re-simulate with the new value.",
+  Autopilot: "Governs the repeating order-and-advance loop; takes effect on its next tick, no Reset needed.",
 };
 
 function tierBadge(id: string): string {
@@ -311,7 +311,7 @@ function mountSectionControlsDom(
         </p>
         <div class="field">
           <span class="field-label">Arrival product (MOD-21)${infoTipHtml(
-            "An arrival product (corridor) is the named transit lane — short_haul, long_haul, or the six-shipment-calibrated abdella_all — whose typical trip duration sets how much thermal exposure a delivered lot has already absorbed before it reaches the shelf (mean transit temperature is drawn from the same distribution regardless of corridor). Switching corridors changes the freshness distribution units arrive with: a short lane like short_haul delivers fresher stock on average than a longer one like long_haul, simply because a shorter trip accumulates less thermal exposure."
+            "The transit lane a delivery travels — its trip duration sets how much freshness a lot has already lost before reaching the shelf. Shorter lanes (e.g. short_haul) deliver fresher stock than longer ones (e.g. long_haul)."
           )}</span>
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival product">
             <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Bootstrap all six Abdella shipments">All six</button>
@@ -327,7 +327,7 @@ function mountSectionControlsDom(
         </p>
         <div class="field">
           <span class="field-label">Policy${infoTipHtml(
-            "The policy is how the controller turns the demand forecast and effective inventory into an order quantity each day. damped_sw closes a fixed fraction of the gap between a target service level and what's already effectively on hand, then rounds to the nearest case. rollout wraps that same base rule with a wider search across several nearby candidate order quantities, simulating each one forward over the horizon to pick the best — the chip's name refers to only today's decision being optimized this way, not to how many candidates are tried. constant always orders the same fixed amount regardless of conditions, as a baseline to compare against."
+            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. rollout simulates several candidate order sizes forward and picks the best. constant always orders the same amount, as a baseline."
           )}</span>
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
@@ -338,7 +338,7 @@ function mountSectionControlsDom(
         <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
         <div class="field alpha-rho-field">
           <span class="field-label">α / ρ${infoTipHtml(
-            "α is the target service-level quantile the order-up-to level is set to (default 0.9) — tuned by simulation rather than the textbook newsvendor fractile, because leftover blueberries carry over and keep aging instead of being discarded at period end. ρ is the damping factor (default 0.8) that closes only a fraction of the gap between that target and effective inventory each day, muting the policy's reaction to how much is already on hand. Drag the pad to set both at once: left-right moves α, up-down moves ρ."
+            "α is the target service-level quantile the order-up-to level is set to (default 0.9). ρ is the damping factor (default 0.8) that limits how much of the gap to that target is closed each day. Drag the pad: left-right moves α, up-down moves ρ."
           )}</span>
           <div class="alpha-rho-row">
             <svg
@@ -364,31 +364,31 @@ function mountSectionControlsDom(
         </div>
         <label class="field">
           <span class="field-label">H (horizon)${infoTipHtml(
-            "How many days ahead the rollout policy simulates when it evaluates a candidate order quantity — a longer horizon weighs more of the future at the cost of more compute per decision. This is one of the browser-dialed rollout budgets tuned for interactive wall-clock speed, not necessarily the same horizon a batch or notebook VOI sweep would use."
+            "How many days ahead the rollout policy simulates when evaluating a candidate order quantity. Longer horizons cost more compute per decision."
           )} <span id="val-H"></span></span>
           <input type="number" id="H" min="1" max="56" step="1" />
         </label>
         <label class="field">
           <span class="field-label">n_rollout_paths${infoTipHtml(
-            "How many simulated future demand-and-arrival paths the rollout policy averages over when it scores each candidate order quantity — more paths reduce noise in that comparison at the cost of more compute. Like the other rollout budgets, this is a browser-dialed value chosen for interactive speed, not the budget a batch or notebook VOI sweep would use."
+            "How many simulated future paths the rollout policy averages over when scoring each candidate order. More paths reduce noise but cost more compute."
           )} <span id="val-n_rollout_paths"></span></span>
           <input type="number" id="n_rollout_paths" min="1" max="64" step="1" />
         </label>
         <label class="field">
           <span class="field-label">candidate_case_radius${infoTipHtml(
-            "How many case-multiples above and below the base heuristic's order quantity the rollout policy searches when picking the best candidate — a radius of 1 checks the base order plus one case up and one case down. This is another browser-dialed rollout budget tuned for interactive speed, not necessarily what a batch or notebook VOI sweep would use."
+            "How many case-multiples above and below the base order quantity rollout searches — a radius of 1 checks one case up and one case down."
           )} <span id="val-candidate_case_radius"></span></span>
           <input type="number" id="candidate_case_radius" min="0" max="8" step="1" />
         </label>
         <label class="field">
           <span class="field-label">n_particles${infoTipHtml(
-            "How many particles the particle filter uses to track its belief about each unit's freshness on the shelf — more particles give a smoother, less noisy belief at the cost of more compute per step. Like the rollout budgets, this count is dialed down for interactive browser speed and is not necessarily the same budget a batch or notebook VOI sweep would use."
+            "How many particles the filter uses to track freshness belief. More particles give a smoother belief at the cost of more compute."
           )} <span id="val-n_particles"></span></span>
           <input type="number" id="n_particles" min="16" max="2000" step="16" />
         </label>
         <label class="field">
           <span class="field-label">Autopilot interval (ms)${infoTipHtml(
-            "How often, in milliseconds, Autopilot's timer fires another order-and-advance step while it's running. Autopilot issues the same controller call the manual Place Order button does, just on a repeating timer, so a shorter interval only advances the episode faster — it doesn't change what the controller decides."
+            "How often Autopilot's timer fires another order-and-advance step. A shorter interval only runs the episode faster — it doesn't change what the controller decides."
           )} <span id="val-intervalMs"></span></span>
           <input type="number" id="intervalMs" min="50" max="10000" step="50" />
         </label>

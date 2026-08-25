@@ -43,9 +43,8 @@ export function StudioLayout() {
               aria-controls="tuning-drawer"
             />
             <InfoTip alignEnd>
-              Opens the full simulation-parameters tuning dock, with every
-              knob for demand, arrival, physics, logistics, and autopilot
-              grouped into topic tabs.
+              Opens the full tuning dock, with every parameter grouped into
+              topic tabs.
             </InfoTip>
             <span
               id="engine-status"
@@ -58,9 +57,8 @@ export function StudioLayout() {
               <span className="engine-status-label">Loading</span>
             </span>
             <InfoTip alignEnd>
-              Shows whether the Rust simulation engine, compiled to
-              WebAssembly and running entirely in your browser, has finished
-              loading and is ready to advance days.
+              Shows whether the simulation engine has finished loading and is
+              ready to advance days.
             </InfoTip>
           </div>
         </header>
@@ -80,10 +78,9 @@ export function StudioLayout() {
               <span className="heading-with-tip">
                 <h2>Outcomes</h2>
                 <InfoTip>
-                  Turns each simulated day into profit-and-loss, on-hand
-                  inventory by freshness band, and order, spoilage, and sales
-                  flow — the numbers used to judge whether an ordering policy
-                  is actually paying off.
+                  The numbers used to judge whether an ordering policy is
+                  paying off: profit and loss, on-hand inventory, and daily
+                  order, spoilage, and sales flow.
                 </InfoTip>
               </span>
               <span className="panel-note">
@@ -95,11 +92,9 @@ export function StudioLayout() {
               <div className="chart-caption">
                 Cumulative revenue · cost · profit
                 <InfoTip>
-                  Running totals of revenue, cost, and profit across the days
-                  simulated so far. Each day's profit is margin earned on
-                  units sold, minus waste cost on units spoiled, minus a
-                  stockout penalty on demand the shelf couldn't meet — holding
-                  unsold inventory overnight costs nothing in this accounting.
+                  Running totals of revenue, cost, and profit. Each day's
+                  profit is margin on units sold, minus waste cost on units
+                  spoiled, minus a stockout penalty on unmet demand.
                 </InfoTip>
               </div>
               <D3ChartHost
@@ -110,11 +105,9 @@ export function StudioLayout() {
               <div className="chart-caption impact-caption">
                 Sales &amp; demand
                 <InfoTip>
-                  Units actually sold each day plotted against that day's
-                  total demand, which follows a repeating day-of-week rhythm
-                  rather than a flat average. The gap between the two lines is
-                  a stockout — demand that showed up but couldn't be met
-                  because the shelf ran empty first.
+                  Units sold each day versus that day's total demand. The gap
+                  between the lines is a stockout — demand the empty shelf
+                  couldn't meet.
                 </InfoTip>
               </div>
               <D3ChartHost
@@ -125,10 +118,9 @@ export function StudioLayout() {
               <div className="chart-caption impact-caption">
                 Order quantity
                 <InfoTip>
-                  Units the controller ordered each simulated day — the
-                  policy's refill decision given on-hand stock, demand
-                  expectations, and spoilage risk. Spikes usually line up
-                  with delivery days or stockout recovery.
+                  Units the controller ordered each day, given on-hand stock,
+                  demand, and spoilage risk. Spikes usually line up with
+                  delivery days or stockout recovery.
                 </InfoTip>
               </div>
               <D3ChartHost
@@ -139,11 +131,9 @@ export function StudioLayout() {
               <div className="chart-caption impact-caption">
                 Spoilage
                 <InfoTip>
-                  Units spoiled each day as individual freshness runs out.
-                  Spoilage happens unit by unit, so deliveries can waste
-                  across several days rather than all at once — watching
-                  this alongside orders shows whether buying is outpacing
-                  what the shelf can sell through in time.
+                  Units spoiled each day. Watching this alongside orders shows
+                  whether buying is outpacing what the shelf can sell through
+                  in time.
                 </InfoTip>
               </div>
               <D3ChartHost
@@ -163,13 +153,10 @@ export function StudioLayout() {
               <span className="heading-with-tip">
                 <h2>Belief</h2>
                 <InfoTip>
-                  This column shows what the particle filter currently
-                  believes about freshness across the shelf's lots: a crowd of
-                  hundreds of complete hypothetical shelf states, weighted by
-                  how well each matches the sales, waste, and lot data
-                  observed so far. It reflects belief, not the hidden
-                  ground-truth freshness state the simulation is actually
-                  running underneath.
+                  What the particle filter currently believes about
+                  freshness across the shelf's lots, based on sales, waste,
+                  and lot data observed so far. This is belief, not the
+                  hidden ground truth running underneath.
                 </InfoTip>
               </span>
               <span className="panel-note" id="hover-note">
@@ -180,12 +167,10 @@ export function StudioLayout() {
             <div className="chart-caption" data-truth-caption="lots">
               Freshness × time
               <InfoTip>
-                A heatmap of the particle filter's believed freshness
-                distribution for each lot over time, with the hidden
-                ground-truth freshness the simulation actually tracked
-                overlaid for comparison. Freshness runs from 1 (pristine) down
-                to 0 (spoiled) and decays at each unit's own pace, not on a
-                calendar age shared by everything from the same delivery.
+                A heatmap of believed freshness per lot over time, with the
+                hidden ground truth overlaid for comparison. Freshness runs
+                from 1 (pristine) to 0 (spoiled) and decays at each unit's own
+                pace.
               </InfoTip>
             </div>
             <D3ChartHost
@@ -200,11 +185,10 @@ export function StudioLayout() {
             >
               On-hand by freshness band
               <InfoTip>
-                Groups on-hand units into freshness bands instead of one flat
-                count, because a unit close to spoiling barely protects
-                against tomorrow's demand the way a pristine one does. The
+                Groups on-hand units into freshness bands, since a unit close
+                to spoiling barely protects against tomorrow's demand. The
                 controller orders off this freshness-weighted total, called
-                effective inventory, rather than a plain unit count.
+                effective inventory.
               </InfoTip>
             </div>
             <D3ChartHost
@@ -218,12 +202,9 @@ export function StudioLayout() {
             >
               Freshness histogram
               <InfoTip>
-                A histogram of the particle filter's current belief over
-                freshness values across the shelf's units, built from the bank
-                of hypothetical shelf states the filter maintains rather than
-                a single number. It can show several separated bumps instead
-                of one smooth curve, reflecting genuine uncertainty about
-                which units are still fresh and which are close to spoiling.
+                A histogram of the filter's current belief over freshness
+                values. Separate bumps instead of one smooth curve reflect
+                genuine uncertainty about which units are close to spoiling.
               </InfoTip>
             </div>
             <D3ChartHost
@@ -245,13 +226,10 @@ export function StudioLayout() {
             <div className="chart-caption impact-caption">
               Controller tradeoff
               <InfoTip>
-                Shows the tradeoff the ordering controller navigates between
-                carrying too much inventory (spoilage risk) and too little
-                (stockout risk). The controller orders up to a target
-                quantile of expected demand, tuned by simulating outcomes
-                rather than taken from the classic newsvendor formula,
-                because leftover fruit here doesn't vanish at day's end — it
-                stays on the shelf and keeps aging into tomorrow.
+                The tradeoff the controller navigates between carrying too
+                much inventory (spoilage risk) and too little (stockout
+                risk). It orders up to a target quantile of expected demand,
+                tuned by simulating outcomes.
               </InfoTip>
             </div>
             <div
