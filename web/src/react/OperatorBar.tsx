@@ -47,7 +47,7 @@ export function OperatorBar({
       </span>
       <label className="field">
         <span className="field-label">
-          Order quantity <em>(case {vm.config.case_size})</em>
+          Order quantity <em>(cases of {vm.config.case_size})</em>
           <InfoTip>
             Units to order for the next delivery, snapped to the case size
             shown alongside it. Submitted by Place Order or Autopilot.

@@ -57,7 +57,7 @@ export function ObsControlsPane({
             combination of these switches ever reports freshness directly.
           </InfoTip>
         </span>
-        <p className="obs-panel-lead">What the filter can see each day</p>
+        <p className="obs-panel-lead">What the filter can see</p>
       </div>
 
       <section className="obs-channels" data-testid="obs-channels">

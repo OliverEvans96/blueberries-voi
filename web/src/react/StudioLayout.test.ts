@@ -183,6 +183,26 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
+  it("belief pane chart captions use renamed freshness titles", () => {
+    const { container } = render(createElement(StudioLayout));
+    const belief = container.querySelector(".cockpit-pane--belief")!;
+    expect(
+      belief.querySelector('[data-truth-caption="lots"] [data-truth-caption-label]')
+        ?.textContent,
+    ).toBe("Historical Freshness Distribution");
+    expect(
+      belief.querySelector('[data-truth-caption="age-comp"] [data-truth-caption-label]')
+        ?.textContent,
+    ).toBe("Historical Freshness Summary");
+    expect(
+      belief.querySelector('[data-truth-caption="belief-lg"] [data-truth-caption-label]')
+        ?.textContent,
+    ).toBe("Today's Freshness Distribution");
+    expect(
+      belief.querySelector("#chart-belief-lg")?.getAttribute("aria-label"),
+    ).toBe("Today's Freshness Distribution");
+  });
+
   it("belief column does not mount runtime tradeoff chrome", () => {
     const { container } = render(createElement(StudioLayout));
     expect(container.querySelector(".belief-tradeoff-panel")).toBeNull();

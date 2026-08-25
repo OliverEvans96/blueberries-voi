@@ -751,6 +751,25 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function syncTruthCaptions(): void {
+    qa<HTMLElement>("[data-truth-caption]").forEach((el) => {
+      const label = el.querySelector<HTMLElement>("[data-truth-caption-label]");
+      if (!label) return;
+      const kind = el.dataset.truthCaption;
+      if (kind === "belief-lg") {
+        label.textContent = "Today's Freshness Distribution";
+      }
+      if (kind === "age-comp") {
+        label.textContent = showTruth
+          ? "Historical Freshness Summary (Truth)"
+          : "Historical Freshness Summary (Belief)";
+      }
+      if (kind === "lots") {
+        label.textContent =
+          !showTruth && vm.history.length > 0
+            ? "Historical Freshness Distribution (turn on Omniscience to see unit trajectories)"
+            : "Historical Freshness Distribution";
+      }
+    });
     syncBeliefMaeStats();
   }
 
