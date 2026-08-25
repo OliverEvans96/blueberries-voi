@@ -22,7 +22,15 @@ from blueberries_voi.filter.types import (
 )
 from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
-from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
+from blueberries_voi.sim.profit import (
+    DEFAULT_PROFIT_COSTS,
+    DEFAULT_STORE_ECONOMICS,
+    ProfitCosts,
+    StoreEconomics,
+    day_profit,
+    day_profit_store,
+    profit_costs_from_store_economics,
+)
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.sim.types_log import DayLog
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
@@ -63,61 +71,60 @@ def default_session_config(**overrides: Any) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class DemandSummary:
-    """Committed demand profile summary from the session snapshot."""
+class DemandForecast:
+    """Committed demand profile from the session snapshot."""
 
     scale_mu: float
     dow_means: tuple[float, ...]
 
 
 @dataclass(frozen=True)
-class ControllerBelief:
-    """Filter posterior exposed to controllers: freshness grid + per-lot marginals only.
+class FreshnessBelief:
+    """Filter posterior: per-lot freshness marginals on a shared grid."""
 
-    Does not include per-lot count fields or simulator ``live_lots`` truth.
-    """
-
-    f_grid: tuple[float, ...]
-    f_marginals: tuple[tuple[float, ...], ...]
+    freshness_grid: tuple[float, ...]
+    lot_marginals: tuple[tuple[float, ...], ...]
 
     def expected_freshness(self, lot_index: int) -> float:
-        """``E[f]`` for one lot row: ``Σ_k p_{l,k} · f_grid[k]``."""
-        row = self.f_marginals[lot_index]
-        return float(sum(p * f for p, f in zip(row, self.f_grid, strict=False)))
+        """``E[f]`` for one lot row: ``Σ_k p_{l,k} · freshness_grid[k]``."""
+        row = self.lot_marginals[lot_index]
+        return float(
+            sum(p * f for p, f in zip(row, self.freshness_grid, strict=False))
+        )
 
 
 @dataclass(frozen=True)
 class ControllerContext:
-    """Controller-facing view of one ``EngineSession`` snapshot (pre-step).
+    """Pre-step decision view for custom controllers (filter posterior, not truth).
 
-    Belief is the filter posterior (``f_grid`` + ``f_marginals`` only). Optional
-    ``belief_on_hand`` summarizes total posterior unit mass; it is not simulator
-    truth. ``pending_orders`` is the observable order pipeline (placed, not yet
-    arrived).
+    ``posterior_units`` is optional summed belief mass (not simulator inventory).
+    ``inbound_pipeline`` is orders already placed (arrival day → units).
+    ``store_economics`` are session business constants (Studio money knobs).
     """
 
     episode_day: int
-    seq: int
-    belief: ControllerBelief
-    belief_on_hand: float
-    pending_orders: dict[int, int]
-    schedule: OrderSchedule
-    can_order: bool
-    demand: DemandSummary
+    step_seq: int
+    belief: FreshnessBelief
+    posterior_units: float
+    inbound_pipeline: dict[int, int]
+    order_schedule: OrderSchedule
+    can_order_today: bool
+    demand_forecast: DemandForecast
+    store_economics: StoreEconomics
 
 
-def controller_belief_from_wire(wire: Mapping[str, Any]) -> ControllerBelief:
+def freshness_belief_from_wire(wire: Mapping[str, Any]) -> FreshnessBelief:
     """Build controller-safe belief from snapshot ``belief`` wire (no lot counts)."""
     grid = tuple(float(f) for f in wire["f_grid"])
     k = len(grid)
     flat = [float(x) for x in wire["f_marginals"]]
     l_dim = int(wire.get("L", len(flat) // k if k else 0))
     rows = tuple(tuple(flat[ell * k : (ell + 1) * k]) for ell in range(l_dim))
-    return ControllerBelief(f_grid=grid, f_marginals=rows)
+    return FreshnessBelief(freshness_grid=grid, lot_marginals=rows)
 
 
 def _slot_masses_from_wire(wire: Mapping[str, Any]) -> list[float]:
-    """Per-lot posterior slot masses used only when building ``belief_on_hand``."""
+    """Per-lot posterior slot masses used only when building ``posterior_units``."""
     raw = wire.get("lot_counts", [])
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
         return []
@@ -143,28 +150,32 @@ def _schedule_from_wire(wire: Mapping[str, Any]) -> OrderSchedule:
     return OrderSchedule.with_delivery(delivery, lead_time_days=lead)
 
 
-def _demand_from_snapshot(snap: Mapping[str, Any]) -> DemandSummary:
+def _demand_from_snapshot(snap: Mapping[str, Any]) -> DemandForecast:
     wire = snap.get("demand_summary")
     if isinstance(wire, Mapping):
         scale = float(wire.get("scale_mu", 0.0))
         raw_means = wire.get("dow_means", [])
         if isinstance(raw_means, Sequence) and not isinstance(raw_means, (str, bytes)):
             means = tuple(float(x) for x in raw_means)
-            return DemandSummary(scale_mu=scale, dow_means=means)
-    return DemandSummary(scale_mu=0.0, dow_means=())
+            return DemandForecast(scale_mu=scale, dow_means=means)
+    return DemandForecast(scale_mu=0.0, dow_means=())
 
 
-def context_from_snapshot(snap: Mapping[str, Any]) -> ControllerContext:
+def context_from_snapshot(
+    snap: Mapping[str, Any],
+    *,
+    store_economics: StoreEconomics = DEFAULT_STORE_ECONOMICS,
+) -> ControllerContext:
     """Build a ``ControllerContext`` from an ``EngineSession`` snapshot mapping."""
     belief_wire = snap["belief"]
-    belief = controller_belief_from_wire(belief_wire)
+    belief = freshness_belief_from_wire(belief_wire)
     slot_masses = _slot_masses_from_wire(belief_wire)
-    belief_on_hand = posterior_unit_mass(
-        belief.f_marginals,
+    posterior_units = posterior_unit_mass(
+        belief.lot_marginals,
         slot_masses=slot_masses,
     )
     schedule_wire = snap.get("schedule")
-    schedule = (
+    order_schedule = (
         _schedule_from_wire(schedule_wire)
         if isinstance(schedule_wire, Mapping)
         else DEFAULT_ORDER_SCHEDULE
@@ -174,16 +185,17 @@ def context_from_snapshot(snap: Mapping[str, Any]) -> ControllerContext:
     is_seq = isinstance(pipeline_raw, Sequence) and not isinstance(
         pipeline_raw, (str, bytes)
     )
-    pending = pipeline_wire_to_pending(pipeline_raw) if is_seq else {}
+    inbound = pipeline_wire_to_pending(pipeline_raw) if is_seq else {}
     return ControllerContext(
         episode_day=episode_day,
-        seq=int(snap.get("seq", 0)),
+        step_seq=int(snap.get("seq", 0)),
         belief=belief,
-        belief_on_hand=belief_on_hand,
-        pending_orders=pending,
-        schedule=schedule,
-        can_order=schedule.can_order(episode_day),
-        demand=_demand_from_snapshot(snap),
+        posterior_units=posterior_units,
+        inbound_pipeline=inbound,
+        order_schedule=order_schedule,
+        can_order_today=order_schedule.can_order(episode_day),
+        demand_forecast=_demand_from_snapshot(snap),
+        store_economics=store_economics,
     )
 
 
@@ -206,7 +218,8 @@ class ControllerStepLog:
         cls,
         delta: Mapping[str, Any],
         *,
-        costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+        costs: ProfitCosts | None = None,
+        store_economics: StoreEconomics | None = None,
     ) -> ControllerStepLog:
         day = delta["day"]
         if not isinstance(day, Mapping):
@@ -222,7 +235,10 @@ class ControllerStepLog:
             demand=int(day.get("demand", 0)),
             L=int(day.get("L", 0)),
         )
-        profit = float(day_profit(day_log, costs))
+        if store_economics is not None:
+            profit = float(day_profit_store(day_log, store_economics))
+        else:
+            profit = float(day_profit(day_log, costs or DEFAULT_PROFIT_COSTS))
         return ControllerStepLog(
             episode_day=int(delta.get("episode_day", day_log.day)),
             seq=int(delta.get("seq", 0)),
@@ -264,10 +280,10 @@ class PolicyController:
         ctx: ControllerContext,
         shelf: ShelfBelief,
     ) -> int:
-        if not ctx.can_order:
+        if not ctx.can_order_today:
             return 0
-        pending = ctx.pending_orders
-        schedule = ctx.schedule
+        pending = ctx.inbound_pipeline
+        schedule = ctx.order_schedule
         if isinstance(self._policy, DampedSurvivalWeightedPolicy):
             return int(
                 self._policy.order(
@@ -325,7 +341,7 @@ def run_controller_episode(
     seed: int,
     n_days: int,
     *,
-    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    store_economics: StoreEconomics = DEFAULT_STORE_ECONOMICS,
     policy_label: str = "",
 ) -> EpisodeTotals:
     """Run ``n_days`` of Option A controller loop and return episode aggregates."""
@@ -334,7 +350,10 @@ def run_controller_episode(
         raise ValueError(msg)
     session = EngineSession()
     session.init(session_cfg, seed=seed)
-    logs = run_controller_session(session, controller, n_days, costs=costs)
+    logs = run_controller_session(
+        session, controller, n_days, store_economics=store_economics
+    )
+    costs = profit_costs_from_store_economics(store_economics)
     return episode_totals_from_logs(
         logs,
         costs,
@@ -349,7 +368,7 @@ def run_act_episode(
     n_days: int,
     policy: str,
     *,
-    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    store_economics: StoreEconomics = DEFAULT_STORE_ECONOMICS,
     policy_label: str | None = None,
     **act_kw: Any,
 ) -> EpisodeTotals:
@@ -362,8 +381,11 @@ def run_act_episode(
     logs: list[ControllerStepLog] = []
     for _ in range(n_days):
         delta = session.act(policy=policy, **act_kw)
-        logs.append(ControllerStepLog.from_delta(delta, costs=costs))
+        logs.append(
+            ControllerStepLog.from_delta(delta, store_economics=store_economics)
+        )
     label = policy if policy_label is None else policy_label
+    costs = profit_costs_from_store_economics(store_economics)
     return episode_totals_from_logs(
         logs,
         costs,
@@ -377,7 +399,7 @@ def run_controller_session(
     controller: ControllerProtocol,
     n_days: int,
     *,
-    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    store_economics: StoreEconomics = DEFAULT_STORE_ECONOMICS,
 ) -> list[ControllerStepLog]:
     """Run ``n_days`` of snapshot → order → step with optional ``observe`` hook."""
     if n_days < 0:
@@ -386,14 +408,15 @@ def run_controller_session(
     logs: list[ControllerStepLog] = []
     for _ in range(n_days):
         snap = session.snapshot()
-        ctx = context_from_snapshot(snap)
+        ctx = context_from_snapshot(snap, store_economics=store_economics)
         shelf = unflatten_shelf_belief(snap["belief"])
-        if isinstance(controller, PolicyController):
-            order_qty = int(controller.order(ctx, shelf))
+        ctrl_any: Any = controller
+        if isinstance(ctrl_any, PolicyController):
+            order_qty = int(ctrl_any.order(ctx, shelf))
         else:
             order_qty = int(controller.order(ctx))
         delta = session.step(order_qty)
-        log = ControllerStepLog.from_delta(delta, costs=costs)
+        log = ControllerStepLog.from_delta(delta, store_economics=store_economics)
         if isinstance(controller, LearningController):
             controller.observe(ctx, log)
         logs.append(log)
@@ -401,18 +424,18 @@ def run_controller_session(
 
 
 __all__ = [
-    "ControllerBelief",
     "ControllerContext",
     "ControllerProtocol",
     "ControllerStepLog",
-    "DemandSummary",
+    "DemandForecast",
     "EpisodeTotals",
+    "FreshnessBelief",
     "LearningController",
     "PolicyController",
     "context_from_snapshot",
-    "controller_belief_from_wire",
     "default_session_config",
     "episode_totals_from_logs",
+    "freshness_belief_from_wire",
     "pipeline_wire_to_pending",
     "run_act_episode",
     "run_controller_episode",

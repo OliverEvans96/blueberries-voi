@@ -7,15 +7,14 @@ from typing import Any
 import pytest
 
 from blueberries_voi.controller.session_loop import (
-    ControllerBelief,
     ControllerContext,
     ControllerStepLog,
-    DemandSummary,
+    DemandForecast,
     EpisodeTotals,
     context_from_snapshot,
-    controller_belief_from_wire,
     default_session_config,
     episode_totals_from_logs,
+    freshness_belief_from_wire,
     pipeline_wire_to_pending,
     run_act_episode,
     run_controller_episode,
@@ -29,6 +28,11 @@ from blueberries_voi.controller.starter import (
 )
 from blueberries_voi.filter.belief import posterior_unit_mass
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
+from blueberries_voi.sim.profit import (
+    DEFAULT_STORE_ECONOMICS,
+    StoreEconomics,
+    day_profit_store,
+)
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.simulator import EngineSession
 
@@ -58,17 +62,24 @@ def test_pipeline_wire_to_pending_skips_zero_qty() -> None:
     assert pipeline_wire_to_pending(wire) == {3: 16, 7: 8}
 
 
-def _empty_demand() -> DemandSummary:
-    return DemandSummary(scale_mu=0.0, dow_means=())
+def _empty_demand() -> DemandForecast:
+    return DemandForecast(scale_mu=0.0, dow_means=())
 
 
-def test_controller_belief_from_wire_omits_lot_counts() -> None:
+def _sample_economics() -> StoreEconomics:
+    return StoreEconomics(
+        sell_price=4.5,
+        purchase_cost=1.8,
+        waste_cost=1.2,
+        stockout_penalty=2.5,
+    )
+
+
+def test_freshness_belief_from_wire_omits_lot_counts() -> None:
     wire = _flat_belief()
-    belief = controller_belief_from_wire(wire)
-    assert isinstance(belief, ControllerBelief)
-    assert not hasattr(belief, "lot_counts")
-    assert belief.f_grid == (0.0, 0.5, 1.0)
-    assert len(belief.f_marginals) == 2
+    belief = freshness_belief_from_wire(wire)
+    assert belief.freshness_grid == (0.0, 0.5, 1.0)
+    assert len(belief.lot_marginals) == 2
     assert belief.expected_freshness(0) == pytest.approx(0.5)
 
 
@@ -87,18 +98,18 @@ def test_context_from_snapshot_builds_schedule_and_gates() -> None:
         "live_lots": [{"lot_id": 0, "n": 99, "mean_f": 0.9}],
         "demand_summary": {"scale_mu": 12.0, "dow_means": [10.0] * 7},
     }
-    ctx = context_from_snapshot(snap)
-    assert ctx.seq == 2
+    ctx = context_from_snapshot(snap, store_economics=_sample_economics())
+    assert ctx.step_seq == 2
     assert ctx.episode_day == 1
-    assert ctx.pending_orders == {4: 8}
-    assert ctx.belief_on_hand == pytest.approx(16.0)
-    assert ctx.belief_on_hand != 99.0
-    assert isinstance(ctx.belief, ControllerBelief)
+    assert ctx.inbound_pipeline == {4: 8}
+    assert ctx.posterior_units == pytest.approx(16.0)
+    assert ctx.posterior_units != 99.0
     assert not hasattr(ctx.belief, "lot_counts")
-    assert ctx.demand.scale_mu == 12.0
-    assert len(ctx.demand.dow_means) == 7
-    assert ctx.schedule.order_weekdays == DEFAULT_ORDER_SCHEDULE.order_weekdays
-    assert ctx.can_order == ctx.schedule.can_order(1)
+    assert ctx.demand_forecast.scale_mu == 12.0
+    assert len(ctx.demand_forecast.dow_means) == 7
+    assert ctx.order_schedule.order_weekdays == DEFAULT_ORDER_SCHEDULE.order_weekdays
+    assert ctx.can_order_today == ctx.order_schedule.can_order(1)
+    assert ctx.store_economics.sell_price == 4.5
 
 
 def test_belief_on_hand_uses_posterior_mass_not_live_lots() -> None:
@@ -119,15 +130,34 @@ def test_belief_on_hand_uses_posterior_mass_not_live_lots() -> None:
     }
     ctx = context_from_snapshot(snap)
     expected = posterior_unit_mass(
-        ctx.belief.f_marginals,
+        ctx.belief.lot_marginals,
         slot_masses=belief_wire["lot_counts"],
     )
-    assert ctx.belief_on_hand == pytest.approx(expected)
-    assert ctx.belief_on_hand == pytest.approx(13.0)
-    assert ctx.belief_on_hand != 50.0
+    assert ctx.posterior_units == pytest.approx(expected)
+    assert ctx.posterior_units == pytest.approx(13.0)
+    assert ctx.posterior_units != 50.0
 
 
-def test_controller_step_log_day_profit() -> None:
+def test_day_profit_store_matches_studio_formula() -> None:
+    from blueberries_voi.sim.types_log import DayLog
+
+    economics = _sample_economics()
+    day = DayLog(
+        day=0,
+        lots=[],
+        sales_total=10,
+        waste_total=2,
+        arrivals=8,
+        order_qty=8,
+        demand=12,
+        L=20,
+    )
+    profit = day_profit_store(day, economics)
+    expected = 10 * 4.5 - (8 * 1.8 + 2 * 1.2 + 2 * 2.5)
+    assert profit == pytest.approx(expected)
+
+
+def test_controller_step_log_day_profit_scaffold() -> None:
     delta = {
         "seq": 1,
         "episode_day": 0,
@@ -179,45 +209,51 @@ def test_starter_helpers() -> None:
 
 
 def test_naive_base_stock_zero_on_non_order_day() -> None:
+    econ = DEFAULT_STORE_ECONOMICS
     ctx = ControllerContext(
         episode_day=2,
-        seq=0,
-        belief=controller_belief_from_wire(_flat_belief()),
-        belief_on_hand=10.0,
-        pending_orders={},
-        schedule=DEFAULT_ORDER_SCHEDULE,
-        can_order=False,
-        demand=_empty_demand(),
+        step_seq=0,
+        belief=freshness_belief_from_wire(_flat_belief()),
+        posterior_units=10.0,
+        inbound_pipeline={},
+        order_schedule=DEFAULT_ORDER_SCHEDULE,
+        can_order_today=False,
+        demand_forecast=_empty_demand(),
+        store_economics=econ,
     )
     ctrl = NaiveBaseStockController(target_units=48, case_size=8)
     assert ctrl.order(ctx) == 0
 
 
 def test_tabular_q_learning_no_order_when_gated() -> None:
+    econ = DEFAULT_STORE_ECONOMICS
     ctx = ControllerContext(
         episode_day=0,
-        seq=0,
-        belief=controller_belief_from_wire(_flat_belief()),
-        belief_on_hand=5.0,
-        pending_orders={},
-        schedule=DEFAULT_ORDER_SCHEDULE,
-        can_order=False,
-        demand=_empty_demand(),
+        step_seq=0,
+        belief=freshness_belief_from_wire(_flat_belief()),
+        posterior_units=5.0,
+        inbound_pipeline={},
+        order_schedule=DEFAULT_ORDER_SCHEDULE,
+        can_order_today=False,
+        demand_forecast=_empty_demand(),
+        store_economics=econ,
     )
     ctrl = TabularQLearningController([0, 8, 16], epsilon=0.0, seed=1)
     assert ctrl.order(ctx) == 0
 
 
 def test_tabular_q_learning_observe_updates_q() -> None:
+    econ = DEFAULT_STORE_ECONOMICS
     ctx = ControllerContext(
         episode_day=1,
-        seq=1,
-        belief=controller_belief_from_wire(_flat_belief()),
-        belief_on_hand=20.0,
-        pending_orders={},
-        schedule=DEFAULT_ORDER_SCHEDULE,
-        can_order=True,
-        demand=_empty_demand(),
+        step_seq=1,
+        belief=freshness_belief_from_wire(_flat_belief()),
+        posterior_units=20.0,
+        inbound_pipeline={},
+        order_schedule=DEFAULT_ORDER_SCHEDULE,
+        can_order_today=True,
+        demand_forecast=_empty_demand(),
+        store_economics=econ,
     )
     ctrl = TabularQLearningController([8, 16], epsilon=0.0, seed=0)
     qty = ctrl.order(ctx)
@@ -243,7 +279,7 @@ class _ConstantController:
         self.qty = int(qty)
 
     def order(self, ctx: ControllerContext) -> int:
-        return self.qty if ctx.can_order else 0
+        return self.qty if ctx.can_order_today else 0
 
 
 @pytestmark_rust
@@ -256,7 +292,6 @@ def test_engine_session_snapshot_after_init(monkeypatch: pytest.MonkeyPatch) -> 
     assert "schedule" in snap
     ctx = context_from_snapshot(snap)
     assert ctx.episode_day == 0
-    assert isinstance(ctx.belief, ControllerBelief)
     assert not hasattr(ctx.belief, "lot_counts")
 
 

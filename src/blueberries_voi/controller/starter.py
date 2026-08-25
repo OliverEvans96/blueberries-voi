@@ -59,12 +59,12 @@ class NaiveBaseStockController(ControllerTemplate):
         self.case_size = int(case_size)
 
     def order(self, ctx: ControllerContext) -> int:
-        if not ctx.can_order:
+        if not ctx.can_order_today:
             return 0
-        pipeline_units = sum(int(q) for q in ctx.pending_orders.values())
+        pipeline_units = sum(int(q) for q in ctx.inbound_pipeline.values())
         gap = max(
             0.0,
-            float(self.target_units - ctx.belief_on_hand - pipeline_units),
+            float(self.target_units - ctx.posterior_units - pipeline_units),
         )
         return case_round(gap, self.case_size)
 
@@ -102,14 +102,14 @@ class TabularQLearningController(ControllerTemplate):
     def _state(self, ctx: ControllerContext) -> tuple[int, int]:
         wd = weekday_index(ctx.episode_day)
         bin_idx = discretize_on_hand(
-            ctx.belief_on_hand,
+            ctx.posterior_units,
             max_on_hand=self.max_on_hand,
             n_bins=self.on_hand_bins,
         )
         return wd, bin_idx
 
     def order(self, ctx: ControllerContext) -> int:
-        if not ctx.can_order:
+        if not ctx.can_order_today:
             self._last_state = None
             self._last_action = None
             return 0

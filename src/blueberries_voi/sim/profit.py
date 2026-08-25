@@ -10,9 +10,13 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DEFAULT_PROFIT_COSTS",
+    "DEFAULT_STORE_ECONOMICS",
     "ProfitCosts",
+    "StoreEconomics",
     "day_profit",
+    "day_profit_store",
     "episode_profit",
+    "profit_costs_from_store_economics",
 ]
 
 
@@ -52,3 +56,42 @@ def day_profit(day: DayLog, costs: ProfitCosts) -> float:
 def episode_profit(episode: EpisodeLog, costs: ProfitCosts) -> float:
     """Sum day profits over scored days only (after SIM-03 burn-in)."""
     return sum(day_profit(day, costs) for day in episode.scored)
+
+
+@dataclass(frozen=True)
+class StoreEconomics:
+    """Studio-style per-unit money knobs (not filter observations)."""
+
+    sell_price: float
+    purchase_cost: float
+    waste_cost: float
+    stockout_penalty: float
+
+
+DEFAULT_STORE_ECONOMICS = StoreEconomics(
+    sell_price=4.5,
+    purchase_cost=1.8,
+    waste_cost=1.2,
+    stockout_penalty=2.5,
+)
+
+
+def profit_costs_from_store_economics(economics: StoreEconomics) -> ProfitCosts:
+    """Map Studio economics to scaffold ``ProfitCosts`` (net margin per sale)."""
+    return ProfitCosts(
+        unit_margin=float(economics.sell_price - economics.purchase_cost),
+        waste_cost=float(economics.waste_cost),
+        stockout_penalty=float(economics.stockout_penalty),
+    )
+
+
+def day_profit_store(day: DayLog, economics: StoreEconomics) -> float:
+    """Studio P&L: revenue minus purchase, waste, and stockout costs."""
+    lost = max(0, day.demand - day.sales_total)
+    revenue = economics.sell_price * day.sales_total
+    costs = (
+        economics.purchase_cost * day.arrivals
+        + economics.waste_cost * day.waste_total
+        + economics.stockout_penalty * lost
+    )
+    return float(revenue - costs)
