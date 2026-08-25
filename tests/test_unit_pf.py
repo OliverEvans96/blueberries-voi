@@ -276,7 +276,7 @@ def test_f1_mask_exposes_sales_by_for_per_lot_ll() -> None:
 def test_filter_step_unit_p1_router_uses_poisson_binomial_spoilage() -> None:
     _require_unit_pf_wired()
     body = _read(VOI_CORE / "src" / "unit_pf.rs")
-    assert "spoil_probs_from_freshness" in body
+    assert "pb_loglik_pooled" in body
     assert "pb_log_pmf" in body or "pb_loglik_by_lot" in body
     assert "spoil_delta_interval" not in body
     assert "delta_interval_loglik" not in body

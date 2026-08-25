@@ -15,15 +15,15 @@ use crate::day_step::{
 };
 use crate::demand_profile::DemandProfile;
 use crate::obs::{
-    channels_cache_key, channels_for_preset, channels_json, mask_for, mask_from_channels,
-    parse_channels, preset_for_channels, validate_channels_json, ObsChannels, RichDay,
+    channels_cache_key, channels_for_preset, channels_json, mask_from_channels,
+    preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{calendar_transit_days, mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
+use crate::shipments::{mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
@@ -1108,22 +1108,6 @@ fn parse_demand_profile_from_rpc(params: &serde_json::Value) -> Option<DemandPro
         }
     }
     None
-}
-
-/// Checks a scenario id against the set of legitimate `ObsMask` scenarios, rejecting
-/// `"B-state"` specifically because it is a verification bypass that fabricates
-/// observations rather than a real observation rung.
-fn validate_scenario(id: &str) -> Result<(), String> {
-    if id == "B-state" {
-        return Err(
-            "SCN-B-state is a verification bypass, not an ObsMask; do not fabricate observations via mask_for"
-                .to_string(),
-        );
-    }
-    match id {
-        "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" => Ok(()),
-        _ => Err(format!("Unknown scenario for ObsMask: {id:?}")),
-    }
 }
 
 /// Looks up an RPC parameter, checking the top-level `params` object first and falling

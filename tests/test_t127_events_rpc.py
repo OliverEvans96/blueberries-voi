@@ -37,7 +37,7 @@ def test_session_rs_dispatches_events_method() -> None:
 
 def test_session_rs_events_uses_mask_for() -> None:
     text = SESSION_RS.read_text(encoding="utf-8")
-    assert "mask_for" in text or "obs::mask_for" in text
+    assert "mask_active" in text and "mask.apply" in text
 
 
 @_RUST
