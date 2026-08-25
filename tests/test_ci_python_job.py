@@ -27,3 +27,18 @@ def test_python_job_reuses_build_wheel() -> None:
     assert "dist/wheels/blueberries_voi_core-" in python
     assert "maturin develop" not in python
     assert "dtolnay/rust-toolchain" not in python
+
+
+def test_python_job_sync_skips_rust_extra() -> None:
+    """Python install must not pull maturin/rust extra (wheel supplies _core)."""
+    python = _python_job_block(_CI_WORKFLOW.read_text(encoding="utf-8"))
+    assert "--all-extras" not in python
+    assert "--extra rust" not in python
+    assert "--extra dev" in python
+
+
+def test_python_job_asserts_prebuilt_rust_artifacts() -> None:
+    """Python must verify target/ reuse before pytest (no voi_* recompile)."""
+    python = _python_job_block(_CI_WORKFLOW.read_text(encoding="utf-8"))
+    assert "Verify prebuilt Rust artifacts" in python
+    assert "Compiling (voi_core|voi_py|voi_wasm)" in python

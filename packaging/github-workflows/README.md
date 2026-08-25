@@ -20,7 +20,7 @@ Five jobs start in parallel; **rust**, **web**, and **python** wait on **build**
 |-----|----------|------|
 | `build` | — | `uv sync --extra rust`, maturin wheel (`--release`), WASM (`--release`), `cargo test --release --no-run`; upload `ci-rust-wasm-build` |
 | `rust` | `build` | restore Cargo registry cache; download `target/`; `cargo test --release` (prebuilt binaries) |
-| `python` | `build` | download PyO3 wheel from `ci-rust-wasm-build`; `uv sync`; ruff, mypy, pytest+coverage (`-m "not docs"`) |
+| `python` | `build` | download PyO3 wheel + `target/` from `ci-rust-wasm-build`; `uv sync` (no `rust` extra); ruff, mypy, pytest+coverage (`-m "not docs"`) |
 | `docs` | — | `npm ci` in `docs/`, VitePress + `cargo doc` rustdoc bundle, docs/rustdoc guards, upload `docs-dist` |
 | `web` | `build` | download WASM from `ci-rust-wasm-build`; `build:lib`, vitest, `npm pack`; on main: `npm run build` + upload `studio-dist` |
 
