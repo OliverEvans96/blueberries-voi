@@ -1,10 +1,14 @@
 import * as d3 from "d3";
-import { storeTempFactor } from "../mock/generate";
+import { etaEffective, storeTempFactor } from "../mock/generate";
 import type { SimConfig } from "../types";
 
 /** Gamma aging defaults (ModelParams / voi_core). */
 export const GAMMA_SHAPE = 2.0;
-export const GAMMA_SCALE = 0.08;
+
+/** θ from reference life: k·θ·η_ref = 1 (production `set_reference_life`). */
+export function gammaScale(cfg: SimConfig): number {
+  return 1 / (GAMMA_SHAPE * cfg.eta_ref);
+}
 
 /** Q10 aging-rate multiplier at store temperature T (°C). */
 export function q10RateAtTemp(
@@ -33,14 +37,21 @@ export function arrheniusCurve(
   return pts;
 }
 
+/** Shape-scaled gamma decrement stats at store temperature (ADR 0144 parity). */
 export function gammaDecrementStats(cfg: SimConfig): {
+  shape: number;
+  theta: number;
+  phi: number;
   meanDelta: number;
-  thetaEff: number;
 } {
-  const thetaEff = GAMMA_SCALE * storeTempFactor(cfg);
+  const theta = gammaScale(cfg);
+  const phi = storeTempFactor(cfg);
+  const shape = GAMMA_SHAPE * phi;
   return {
-    meanDelta: GAMMA_SHAPE * thetaEff,
-    thetaEff,
+    shape,
+    theta,
+    phi,
+    meanDelta: shape * theta,
   };
 }
 
@@ -58,14 +69,14 @@ export function gammaFreshnessEnvelope(
   opts?: { startF?: number },
 ): FreshnessEnvelopePoint[] {
   const startF = opts?.startF ?? 1;
-  const { meanDelta, thetaEff } = gammaDecrementStats(cfg);
+  const { meanDelta, shape, theta } = gammaDecrementStats(cfg);
   if (meanDelta <= 0) return [{ day: 0, mean: startF, std: 0, lower: startF, upper: startF }];
 
   const spoilDay = expectedSpoilDay(cfg, startF);
   const rows: FreshnessEnvelopePoint[] = [];
   for (let day = 0; day <= spoilDay; day += 1) {
     const mean = startF - day * meanDelta;
-    const std = day === 0 ? 0 : thetaEff * Math.sqrt(day * GAMMA_SHAPE);
+    const std = day === 0 ? 0 : theta * Math.sqrt(day * shape);
     rows.push({
       day,
       mean,
@@ -91,13 +102,14 @@ export function renderArrheniusTemp(
   height = 160,
 ): void {
   const width = container.clientWidth || 320;
-  const margin = { top: 12, right: 12, bottom: 28, left: 44 };
+  const margin = { top: 12, right: 12, bottom: 40, left: 44 };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
   const curve = arrheniusCurve(config);
   const storeRate = storeTempFactor(config);
+  const etaEff = etaEffective(config);
   const yMax = Math.max(d3.max(curve, (d) => d.rate) ?? 1, storeRate) * 1.12;
 
   const svg = d3
@@ -170,7 +182,7 @@ export function renderArrheniusTemp(
     .attr("y", innerH + 24)
     .attr("text-anchor", "middle")
     .text(
-      `Q10 aging rate · store ${config.t_store_c.toFixed(0)}°C vs T_ref ${config.t_ref_c.toFixed(0)}°C`,
+      `Q10 aging rate · store ${config.t_store_c.toFixed(0)}°C vs T_ref ${config.t_ref_c.toFixed(0)}°C · η_eff ${etaEff.toFixed(1)} d`,
     );
 }
 
@@ -188,6 +200,7 @@ export function renderGammaFreshnessPath(
   container.replaceChildren();
   const envelope = gammaFreshnessEnvelope(config);
   const spoilDay = expectedSpoilDay(config);
+  const { shape, theta } = gammaDecrementStats(config);
   const xMax = Math.max(spoilDay, 1);
 
   const svg = d3
@@ -265,6 +278,6 @@ export function renderGammaFreshnessPath(
     .attr("y", innerH + 24)
     .attr("text-anchor", "middle")
     .text(
-      `γ(${GAMMA_SHAPE}, ${GAMMA_SCALE}×Q10) mean ± σ · expiry day ${spoilDay}`,
+      `γ(${shape.toFixed(2)}, ${theta.toFixed(4)}) mean ± σ · expiry day ${spoilDay}`,
     );
 }

@@ -570,6 +570,10 @@ impl EngineSession {
                 "arrival_product": self.arrival_product,
                 "spread_scale": self.spread_scale,
                 "transit_temp_bias_c": self.transit_temp_bias_c,
+                "eta_ref": self.params.eta_ref,
+                "q10": self.params.q10,
+                "t_ref_c": self.params.t_ref_c,
+                "t_store_c": self.params.t_store_c,
             },
             "schedule": schedule_wire(&self.schedule),
             "demand_summary": demand_summary_wire(&self.params),
@@ -1288,6 +1292,23 @@ impl EngineSession {
                 self.params.set_reference_life();
             }
             self.gamma_table = GammaDecrementTable::for_params(&self.params);
+        }
+        let mut store_physics_changed = false;
+        if let Some(q10) = rpc_f64(params, "q10") {
+            self.params.q10 = q10;
+            store_physics_changed = true;
+        }
+        if let Some(t_ref) = rpc_f64(params, "t_ref_c") {
+            self.params.t_ref_c = t_ref;
+            store_physics_changed = true;
+        }
+        if let Some(t_store) = rpc_f64(params, "t_store_c") {
+            self.params.t_store_c = t_store;
+            store_physics_changed = true;
+        }
+        if store_physics_changed {
+            self.gamma_table = GammaDecrementTable::for_params(&self.params);
+            self.arrival_model.sync_params(&self.params);
         }
     }
 }
