@@ -24,7 +24,12 @@ def default_session_config(**overrides: Any) -> dict[str, Any]:
     """Build an ``EngineSession.init`` config dict with smoke-cool defaults."""
     cfg: dict[str, Any] = {
         "shipments": smoke_cool_shipments(),
+        "lead_time": int(DEFAULT_ORDER_SCHEDULE.lead_time_days),
+        "delivery_weekdays": sorted(
+            int(d) for d in DEFAULT_ORDER_SCHEDULE.delivery_weekdays
+        ),
         "enable_filter": True,
+        "belief_source": "filter",
         "obs_scenario": "P1",
         "n_particles": int(DEMO_BUDGETS["n_particles"]),
         "H": int(DEMO_BUDGETS["H"]),

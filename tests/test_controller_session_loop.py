@@ -104,6 +104,9 @@ def test_default_session_config_smoke_shipments() -> None:
     assert len(cfg["shipments"]) == len(smoke)
     assert cfg["shipments"][0].shipment_id == smoke[0].shipment_id
     assert cfg["n_particles"] == 200
+    assert cfg["lead_time"] == 1
+    assert cfg["belief_source"] == "filter"
+    assert cfg["delivery_weekdays"] == [0, 2, 4]
 
 
 def test_starter_helpers() -> None:
