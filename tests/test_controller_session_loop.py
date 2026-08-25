@@ -7,11 +7,13 @@ from typing import Any
 import pytest
 
 from blueberries_voi.controller.session_loop import (
+    ControllerBelief,
     ControllerContext,
     ControllerStepLog,
     DemandSummary,
     EpisodeTotals,
     context_from_snapshot,
+    controller_belief_from_wire,
     default_session_config,
     episode_totals_from_logs,
     pipeline_wire_to_pending,
@@ -25,11 +27,10 @@ from blueberries_voi.controller.starter import (
     discretize_on_hand,
     weekday_index,
 )
-from blueberries_voi.filter.belief import ShelfBelief, unflatten_shelf_belief
+from blueberries_voi.filter.belief import posterior_unit_mass
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.simulator import EngineSession
-from blueberries_voi.simulator.belief import shelf_belief_from_flat
 
 pytestmark_rust = pytest.mark.skipif(
     __import__("blueberries_voi.backend", fromlist=["rust_available"]).rust_available()
@@ -41,7 +42,7 @@ pytestmark_rust = pytest.mark.skipif(
 def _flat_belief() -> dict[str, Any]:
     return {
         "lot_counts": [12.0, 4.0],
-        "f_marginals": [0.0, 0.25, 0.5, 0.25] * 2,
+        "f_marginals": [0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         "f_grid": [0.0, 0.5, 1.0],
         "L": 2,
         "K": 3,
@@ -61,6 +62,16 @@ def _empty_demand() -> DemandSummary:
     return DemandSummary(scale_mu=0.0, dow_means=())
 
 
+def test_controller_belief_from_wire_omits_lot_counts() -> None:
+    wire = _flat_belief()
+    belief = controller_belief_from_wire(wire)
+    assert isinstance(belief, ControllerBelief)
+    assert not hasattr(belief, "lot_counts")
+    assert belief.f_grid == (0.0, 0.5, 1.0)
+    assert len(belief.f_marginals) == 2
+    assert belief.expected_freshness(0) == pytest.approx(0.5)
+
+
 def test_context_from_snapshot_builds_schedule_and_gates() -> None:
     snap = {
         "seq": 2,
@@ -73,19 +84,47 @@ def test_context_from_snapshot_builds_schedule_and_gates() -> None:
             "lead_time_days": 1,
             "epoch": "2024-01-01",
         },
-        "live_lots": [{"lot_id": 0, "n": 16, "mean_f": 0.9}],
+        "live_lots": [{"lot_id": 0, "n": 99, "mean_f": 0.9}],
         "demand_summary": {"scale_mu": 12.0, "dow_means": [10.0] * 7},
     }
     ctx = context_from_snapshot(snap)
     assert ctx.seq == 2
     assert ctx.episode_day == 1
     assert ctx.pending_orders == {4: 8}
-    assert ctx.on_hand == 16
+    assert ctx.belief_on_hand == pytest.approx(16.0)
+    assert ctx.belief_on_hand != 99.0
+    assert isinstance(ctx.belief, ControllerBelief)
+    assert not hasattr(ctx.belief, "lot_counts")
     assert ctx.demand.scale_mu == 12.0
     assert len(ctx.demand.dow_means) == 7
-    assert isinstance(ctx.belief, ShelfBelief)
     assert ctx.schedule.order_weekdays == DEFAULT_ORDER_SCHEDULE.order_weekdays
     assert ctx.can_order == ctx.schedule.can_order(1)
+
+
+def test_belief_on_hand_uses_posterior_mass_not_live_lots() -> None:
+    """When truth inventory differs, context exposes posterior mass only."""
+    belief_wire = {
+        "lot_counts": [10.0, 3.0],
+        "f_marginals": [0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        "f_grid": [0.0, 0.5, 1.0],
+        "L": 2,
+        "K": 3,
+    }
+    snap = {
+        "seq": 0,
+        "episode_day": 0,
+        "belief": belief_wire,
+        "pipeline": [],
+        "live_lots": [{"lot_id": 0, "n": 50, "mean_f": 0.8}],
+    }
+    ctx = context_from_snapshot(snap)
+    expected = posterior_unit_mass(
+        ctx.belief.f_marginals,
+        slot_masses=belief_wire["lot_counts"],
+    )
+    assert ctx.belief_on_hand == pytest.approx(expected)
+    assert ctx.belief_on_hand == pytest.approx(13.0)
+    assert ctx.belief_on_hand != 50.0
 
 
 def test_controller_step_log_day_profit() -> None:
@@ -140,15 +179,14 @@ def test_starter_helpers() -> None:
 
 
 def test_naive_base_stock_zero_on_non_order_day() -> None:
-    belief = unflatten_shelf_belief(_flat_belief())
     ctx = ControllerContext(
         episode_day=2,
         seq=0,
-        belief=belief,
+        belief=controller_belief_from_wire(_flat_belief()),
+        belief_on_hand=10.0,
         pending_orders={},
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=False,
-        on_hand=10,
         demand=_empty_demand(),
     )
     ctrl = NaiveBaseStockController(target_units=48, case_size=8)
@@ -156,15 +194,14 @@ def test_naive_base_stock_zero_on_non_order_day() -> None:
 
 
 def test_tabular_q_learning_no_order_when_gated() -> None:
-    belief = unflatten_shelf_belief(_flat_belief())
     ctx = ControllerContext(
         episode_day=0,
         seq=0,
-        belief=belief,
+        belief=controller_belief_from_wire(_flat_belief()),
+        belief_on_hand=5.0,
         pending_orders={},
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=False,
-        on_hand=5,
         demand=_empty_demand(),
     )
     ctrl = TabularQLearningController([0, 8, 16], epsilon=0.0, seed=1)
@@ -172,15 +209,14 @@ def test_tabular_q_learning_no_order_when_gated() -> None:
 
 
 def test_tabular_q_learning_observe_updates_q() -> None:
-    belief = shelf_belief_from_flat(_flat_belief())
     ctx = ControllerContext(
         episode_day=1,
         seq=1,
-        belief=belief,
+        belief=controller_belief_from_wire(_flat_belief()),
+        belief_on_hand=20.0,
         pending_orders={},
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=True,
-        on_hand=20,
         demand=_empty_demand(),
     )
     ctrl = TabularQLearningController([8, 16], epsilon=0.0, seed=0)
@@ -198,7 +234,7 @@ def test_tabular_q_learning_observe_updates_q() -> None:
         day_profit=17.5,
     )
     ctrl.observe(ctx, log)
-    state = (weekday_index(1), discretize_on_hand(20))
+    state = (weekday_index(1), discretize_on_hand(20.0))
     assert ctrl._q[state][qty] > 0.0
 
 
@@ -220,6 +256,8 @@ def test_engine_session_snapshot_after_init(monkeypatch: pytest.MonkeyPatch) -> 
     assert "schedule" in snap
     ctx = context_from_snapshot(snap)
     assert ctx.episode_day == 0
+    assert isinstance(ctx.belief, ControllerBelief)
+    assert not hasattr(ctx.belief, "lot_counts")
 
 
 @pytestmark_rust

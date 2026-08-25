@@ -17,6 +17,7 @@ from blueberries_voi.controller.constants import (
 )
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy
 from blueberries_voi.controller.session_loop import (
+    ControllerBelief,
     ControllerContext,
     ControllerProtocol,
     ControllerStepLog,
@@ -49,6 +50,7 @@ __all__: list[str] = [
     "DEFAULT_ROLLOUT_H",
     "DEFAULT_ROLLOUT_HORIZONS",
     "TARGET_UNITS",
+    "ControllerBelief",
     "ControllerContext",
     "ControllerProtocol",
     "ControllerStepLog",

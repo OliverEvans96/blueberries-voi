@@ -149,6 +149,32 @@ def effective_inventory(
     return float(on_hand + pipeline)
 
 
+def merged_f_bin_mass(
+    f_marginals: Sequence[Sequence[float]],
+    slot_masses: Sequence[float],
+) -> list[float]:
+    """Length-``K`` merged freshness mass ``m[k] = Σ_l n_l · p_l(k)`` (T-090)."""
+    if not f_marginals:
+        return []
+    k = len(f_marginals[0])
+    merged = [0.0] * k
+    for ell, row in enumerate(f_marginals):
+        n_l = float(slot_masses[ell]) if ell < len(slot_masses) else 0.0
+        for b, p in enumerate(row):
+            if b < k:
+                merged[b] += n_l * float(p)
+    return merged
+
+
+def posterior_unit_mass(
+    f_marginals: Sequence[Sequence[float]],
+    *,
+    slot_masses: Sequence[float],
+) -> float:
+    """Total posterior expected on-shelf units: ``Σ_k m[k]`` from LxK marginals."""
+    return float(sum(merged_f_bin_mass(f_marginals, slot_masses)))
+
+
 def mean_f_from_belief(belief: ShelfBelief, *, lot_index: int) -> float:
     """Expected freshness for one lot slot (helper for cohort bridge code)."""
     k = len(belief.f_grid)
@@ -170,6 +196,8 @@ __all__ = [
     "empty_shelf_belief",
     "flatten_shelf_belief",
     "mean_f_from_belief",
+    "merged_f_bin_mass",
+    "posterior_unit_mass",
     "shelf_belief_from_cohorts_oracle",
     "shelf_belief_from_oracle",
     "unflatten_shelf_belief",

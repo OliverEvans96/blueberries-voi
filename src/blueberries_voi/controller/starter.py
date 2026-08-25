@@ -21,20 +21,20 @@ def weekday_index(episode_day: int) -> int:
 
 
 def discretize_on_hand(
-    on_hand: int,
+    on_hand: float,
     *,
     max_on_hand: int = 80,
     n_bins: int = 10,
 ) -> int:
-    """Bin total on-hand into ``[0, n_bins - 1]`` for tabular RL."""
+    """Bin posterior on-hand mass into ``[0, n_bins - 1]`` for tabular RL."""
     if max_on_hand <= 0:
         msg = f"max_on_hand must be positive, got {max_on_hand}"
         raise ValueError(msg)
     if n_bins <= 0:
         msg = f"n_bins must be positive, got {n_bins}"
         raise ValueError(msg)
-    clamped = max(0, min(int(on_hand), max_on_hand))
-    if clamped == max_on_hand:
+    clamped = max(0.0, min(float(on_hand), float(max_on_hand)))
+    if clamped >= float(max_on_hand):
         return n_bins - 1
     return int(clamped * n_bins // max_on_hand)
 
@@ -62,7 +62,10 @@ class NaiveBaseStockController(ControllerTemplate):
         if not ctx.can_order:
             return 0
         pipeline_units = sum(int(q) for q in ctx.pending_orders.values())
-        gap = max(0.0, float(self.target_units - ctx.on_hand - pipeline_units))
+        gap = max(
+            0.0,
+            float(self.target_units - ctx.belief_on_hand - pipeline_units),
+        )
         return case_round(gap, self.case_size)
 
 
@@ -99,7 +102,7 @@ class TabularQLearningController(ControllerTemplate):
     def _state(self, ctx: ControllerContext) -> tuple[int, int]:
         wd = weekday_index(ctx.episode_day)
         bin_idx = discretize_on_hand(
-            ctx.on_hand,
+            ctx.belief_on_hand,
             max_on_hand=self.max_on_hand,
             n_bins=self.on_hand_bins,
         )

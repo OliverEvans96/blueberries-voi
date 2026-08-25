@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy  # noqa: TC001
-from blueberries_voi.filter.belief import ShelfBelief, unflatten_shelf_belief
+from blueberries_voi.filter.belief import (
+    ShelfBelief,
+    posterior_unit_mass,
+    unflatten_shelf_belief,
+)
 from blueberries_voi.filter.types import (
     preset_for_channels,
     validate_channels,
@@ -67,20 +71,57 @@ class DemandSummary:
 
 
 @dataclass(frozen=True)
-class ControllerContext:
-    """Controller-facing view of one ``EngineSession`` snapshot.
+class ControllerBelief:
+    """Filter posterior exposed to controllers: freshness grid + per-lot marginals only.
 
-    Belief is always the filter posterior on the wire (never simulator truth).
+    Does not include per-lot count fields or simulator ``live_lots`` truth.
+    """
+
+    f_grid: tuple[float, ...]
+    f_marginals: tuple[tuple[float, ...], ...]
+
+    def expected_freshness(self, lot_index: int) -> float:
+        """``E[f]`` for one lot row: ``Σ_k p_{l,k} · f_grid[k]``."""
+        row = self.f_marginals[lot_index]
+        return float(sum(p * f for p, f in zip(row, self.f_grid, strict=False)))
+
+
+@dataclass(frozen=True)
+class ControllerContext:
+    """Controller-facing view of one ``EngineSession`` snapshot (pre-step).
+
+    Belief is the filter posterior (``f_grid`` + ``f_marginals`` only). Optional
+    ``belief_on_hand`` summarizes total posterior unit mass; it is not simulator
+    truth. ``pending_orders`` is the observable order pipeline (placed, not yet
+    arrived).
     """
 
     episode_day: int
     seq: int
-    belief: ShelfBelief
+    belief: ControllerBelief
+    belief_on_hand: float
     pending_orders: dict[int, int]
     schedule: OrderSchedule
     can_order: bool
-    on_hand: int
     demand: DemandSummary
+
+
+def controller_belief_from_wire(wire: Mapping[str, Any]) -> ControllerBelief:
+    """Build controller-safe belief from snapshot ``belief`` wire (no lot counts)."""
+    grid = tuple(float(f) for f in wire["f_grid"])
+    k = len(grid)
+    flat = [float(x) for x in wire["f_marginals"]]
+    l_dim = int(wire.get("L", len(flat) // k if k else 0))
+    rows = tuple(tuple(flat[ell * k : (ell + 1) * k]) for ell in range(l_dim))
+    return ControllerBelief(f_grid=grid, f_marginals=rows)
+
+
+def _slot_masses_from_wire(wire: Mapping[str, Any]) -> list[float]:
+    """Per-lot posterior slot masses used only when building ``belief_on_hand``."""
+    raw = wire.get("lot_counts", [])
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return []
+    return [float(x) for x in raw]
 
 
 def pipeline_wire_to_pending(pipeline: Sequence[Mapping[str, Any]]) -> dict[int, int]:
@@ -113,21 +154,15 @@ def _demand_from_snapshot(snap: Mapping[str, Any]) -> DemandSummary:
     return DemandSummary(scale_mu=0.0, dow_means=())
 
 
-def _on_hand_from_snapshot(snap: Mapping[str, Any], belief: ShelfBelief) -> int:
-    live_lots = snap.get("live_lots")
-    if isinstance(live_lots, Sequence) and not isinstance(live_lots, (str, bytes)):
-        total = 0
-        for lot in live_lots:
-            if isinstance(lot, Mapping):
-                total += int(lot.get("n", 0))
-        if total > 0:
-            return total
-    return sum(round(x) for x in belief.lot_counts)
-
-
 def context_from_snapshot(snap: Mapping[str, Any]) -> ControllerContext:
     """Build a ``ControllerContext`` from an ``EngineSession`` snapshot mapping."""
-    belief = unflatten_shelf_belief(snap["belief"])
+    belief_wire = snap["belief"]
+    belief = controller_belief_from_wire(belief_wire)
+    slot_masses = _slot_masses_from_wire(belief_wire)
+    belief_on_hand = posterior_unit_mass(
+        belief.f_marginals,
+        slot_masses=slot_masses,
+    )
     schedule_wire = snap.get("schedule")
     schedule = (
         _schedule_from_wire(schedule_wire)
@@ -140,15 +175,14 @@ def context_from_snapshot(snap: Mapping[str, Any]) -> ControllerContext:
         pipeline_raw, (str, bytes)
     )
     pending = pipeline_wire_to_pending(pipeline_raw) if is_seq else {}
-    on_hand = _on_hand_from_snapshot(snap, belief)
     return ControllerContext(
         episode_day=episode_day,
         seq=int(snap.get("seq", 0)),
         belief=belief,
+        belief_on_hand=belief_on_hand,
         pending_orders=pending,
         schedule=schedule,
         can_order=schedule.can_order(episode_day),
-        on_hand=on_hand,
         demand=_demand_from_snapshot(snap),
     )
 
@@ -225,7 +259,11 @@ class PolicyController:
     ) -> None:
         self._policy = policy
 
-    def order(self, ctx: ControllerContext) -> int:
+    def order(
+        self,
+        ctx: ControllerContext,
+        shelf: ShelfBelief,
+    ) -> int:
         if not ctx.can_order:
             return 0
         pending = ctx.pending_orders
@@ -233,7 +271,7 @@ class PolicyController:
         if isinstance(self._policy, DampedSurvivalWeightedPolicy):
             return int(
                 self._policy.order(
-                    ctx.belief,
+                    shelf,
                     day=ctx.episode_day,
                     pending_orders=pending,
                     schedule=schedule,
@@ -242,7 +280,7 @@ class PolicyController:
         return int(
             self._policy.order(
                 ctx.episode_day,
-                ctx.belief,
+                shelf,
                 pending_orders=pending,
                 schedule=schedule,
             )
@@ -349,7 +387,11 @@ def run_controller_session(
     for _ in range(n_days):
         snap = session.snapshot()
         ctx = context_from_snapshot(snap)
-        order_qty = int(controller.order(ctx))
+        shelf = unflatten_shelf_belief(snap["belief"])
+        if isinstance(controller, PolicyController):
+            order_qty = int(controller.order(ctx, shelf))
+        else:
+            order_qty = int(controller.order(ctx))
         delta = session.step(order_qty)
         log = ControllerStepLog.from_delta(delta, costs=costs)
         if isinstance(controller, LearningController):
@@ -359,6 +401,7 @@ def run_controller_session(
 
 
 __all__ = [
+    "ControllerBelief",
     "ControllerContext",
     "ControllerProtocol",
     "ControllerStepLog",
@@ -367,6 +410,7 @@ __all__ = [
     "LearningController",
     "PolicyController",
     "context_from_snapshot",
+    "controller_belief_from_wire",
     "default_session_config",
     "episode_totals_from_logs",
     "pipeline_wire_to_pending",
