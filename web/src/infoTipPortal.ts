@@ -126,8 +126,21 @@ function isInfoTipTrigger(target: EventTarget | null): target is HTMLElement {
   );
 }
 
+/** True on a device with no real hover (touch) — where tap substitutes for
+ * the hover/focus that opens the tip on desktop, via {@link onClick} below
+ * instead of the pointerover/pointerout pair (which fire back-to-back for a
+ * touch tap, closing the tip before it's readable). */
+function hasNoHover(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: none)").matches
+  );
+}
+
 function onPointerOver(event: Event): void {
   const pointer = event as PointerEvent;
+  if (pointer.pointerType === "touch") return;
   const from = pointer.relatedTarget;
   const trigger = isInfoTipTrigger(pointer.target)
     ? pointer.target
@@ -139,12 +152,39 @@ function onPointerOver(event: Event): void {
 
 function onPointerOut(event: Event): void {
   const pointer = event as PointerEvent;
+  if (pointer.pointerType === "touch") return;
   const trigger = isInfoTipTrigger(pointer.target)
     ? pointer.target
     : activeVanilla?.trigger ?? null;
   if (!trigger || activeVanilla?.trigger !== trigger) return;
   const to = pointer.relatedTarget;
   if (to instanceof Node && trigger.contains(to)) return;
+  closeVanillaTip();
+}
+
+function onClick(event: Event): void {
+  if (!hasNoHover()) return;
+  const target = event.target;
+  const trigger = isInfoTipTrigger(target)
+    ? target
+    : target instanceof HTMLElement
+      ? target.closest<HTMLElement>(".info-tip-trigger")
+      : null;
+  if (!trigger) return;
+  if (activeVanilla?.trigger === trigger) {
+    closeVanillaTip();
+  } else {
+    openVanillaTip(trigger);
+  }
+}
+
+function onDocumentPointerDown(event: Event): void {
+  if (!activeVanilla) return;
+  const target = (event as PointerEvent).target;
+  const node = target instanceof Node ? target : null;
+  if (node && (activeVanilla.trigger.contains(node) || activeVanilla.bubble.contains(node))) {
+    return;
+  }
   closeVanillaTip();
 }
 
@@ -181,6 +221,8 @@ export function initInfoTipPortal(root: ParentNode = document): () => void {
   host.addEventListener("pointerout", onPointerOut);
   host.addEventListener("focusin", onFocusIn);
   host.addEventListener("focusout", onFocusOut);
+  host.addEventListener("click", onClick);
+  document.addEventListener("pointerdown", onDocumentPointerDown);
   const onReflow = () => repositionActiveVanilla();
   window.addEventListener("scroll", onReflow, true);
   window.addEventListener("resize", onReflow);
@@ -190,6 +232,8 @@ export function initInfoTipPortal(root: ParentNode = document): () => void {
     host.removeEventListener("pointerout", onPointerOut);
     host.removeEventListener("focusin", onFocusIn);
     host.removeEventListener("focusout", onFocusOut);
+    host.removeEventListener("click", onClick);
+    document.removeEventListener("pointerdown", onDocumentPointerDown);
     window.removeEventListener("scroll", onReflow, true);
     window.removeEventListener("resize", onReflow);
   };

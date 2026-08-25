@@ -36,7 +36,6 @@ use crate::shipments::ShipmentTrace;
 use crate::unit_ll::{
     apply_pb_aging_proposal, loglik_sales_by_units, pb_loglik_by_lot, pb_loglik_pooled,
     pb_sample_deaths, pb_sample_deaths_by_lot, sequential_kernel_path_logprob,
-    spoil_probs_from_freshness,
 };
 use crate::ModelParams;
 
@@ -121,16 +120,6 @@ impl UnitParticleBank {
         for (row, seg) in self.freshness.iter_mut().zip(per_particle.iter()) {
             debug_assert_eq!(seg.len(), units);
             row.extend(seg.iter().copied());
-        }
-        let end = self.lot_offsets.last().copied().unwrap_or(0) + units;
-        self.lot_offsets.push(end);
-        self.lot_ids.push(lot_id);
-    }
-
-    /// Append one delivery as a new segment on every particle.
-    fn push_lot(&mut self, lot_id: i64, births: &[f64], units: usize) {
-        for (row, &birth) in self.freshness.iter_mut().zip(births.iter()) {
-            row.extend(vec![birth; units]);
         }
         let end = self.lot_offsets.last().copied().unwrap_or(0) + units;
         self.lot_offsets.push(end);

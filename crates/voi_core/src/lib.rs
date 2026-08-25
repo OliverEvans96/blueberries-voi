@@ -100,7 +100,7 @@ pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,
     terminal_salvage_unit_state, w_long, RolloutContext, RolloutCosts,
 };
-pub use session::{handle_rpc, DayDelta, EngineSession};
+pub use session::{handle_rpc, BeliefSource, DayDelta, EngineSession};
 pub use shipments::ShipmentTrace;
 pub use tradeoff::{full_tradeoff_q_candidates, tradeoff_forecast};
 pub use unit_ll::{

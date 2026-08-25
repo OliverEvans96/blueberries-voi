@@ -57,6 +57,25 @@
   outline: none;
 }
 
+/* Coarse pointers only (no change for a mouse): the visible glyph stays
+ * 14x14px, but an invisible ::before expands the actual hit area to a
+ * comfortable ~36px so the "i" is reliably tappable. */
+@media (hover: none) and (pointer: coarse) {
+  .info-tip-trigger {
+    position: relative;
+  }
+
+  .info-tip-trigger::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 36px;
+    height: 36px;
+    transform: translate(-50%, -50%);
+  }
+}
+
 .info-tip-bubble {
   width: max-content;
   max-width: 260px;

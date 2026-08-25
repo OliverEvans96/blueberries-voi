@@ -84,30 +84,6 @@ pub fn pb_loglik_pooled(freshness: &[f64], waste_tot: u32, table: &GammaDecremen
     pb_log_pmf(&probs, waste_tot as usize)
 }
 
-/// Forward Poisson-binomial DP: `alpha[j]` is the probability that exactly `j` of the
-/// trials in `probs` succeed, for `j` in `0..=w`. Same recursion as [`pb_log_pmf`], but
-/// returns the whole distribution over partial counts instead of a single log-probability.
-fn pb_alpha(probs: &[f64], w: usize) -> Vec<f64> {
-    let n = probs.len();
-    let mut alpha = vec![0.0; w + 1];
-    alpha[0] = 1.0;
-    for &p in probs {
-        let p = p.clamp(0.0, 1.0);
-        let mut next = vec![0.0; w + 1];
-        for j in 0..=w {
-            if alpha[j] == 0.0 {
-                continue;
-            }
-            next[j] += alpha[j] * (1.0 - p);
-            if j + 1 <= w {
-                next[j + 1] += alpha[j] * p;
-            }
-        }
-        alpha = next;
-    }
-    alpha
-}
-
 /// Backward-sample which live units spoil; returns `(indices, log q)`.
 pub fn pb_sample_deaths<R: Rng + ?Sized>(
     freshness: &[f64],

@@ -82,10 +82,28 @@ def profit_session_config(
         "L": 3,
         "K": 8,
         "enable_filter": True,
+        "belief_source": "filter",
         "lead_time": 1,
         "obs_scenario": "P0",
         "alpha": _tuned_sw_alpha(alpha_table_path),
     }
+
+
+def oracle_session_config(
+    *,
+    n_rollout_paths: int = 0,
+    filter_n: int = DEFAULT_FILTER_N,
+    alpha_table_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """EngineSession config for perfect-belief oracle profit (nb17 ceiling row)."""
+    cfg = profit_session_config(
+        n_rollout_paths=n_rollout_paths,
+        filter_n=filter_n,
+        alpha_table_path=alpha_table_path,
+    )
+    cfg["belief_source"] = "truth"
+    cfg["enable_filter"] = False
+    return cfg
 
 
 def _day_log_from_delta(day_idx: int, delta: dict[str, Any]) -> DayLog:
@@ -112,9 +130,10 @@ def _run_scored_episode(
     alpha: float,
     setup: Any,
     costs: ProfitCosts,
+    session_config: dict[str, Any] | None = None,
 ) -> tuple[float, int, int]:
     session = EngineSession()
-    cfg = profit_session_config(
+    cfg = session_config or profit_session_config(
         n_rollout_paths=n_rollout_paths,
         filter_n=filter_n,
     )
@@ -217,31 +236,37 @@ def run_seed_oracle_profit(
     costs: ProfitCosts | None = None,
     alpha_table_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """B-state / perfect-state oracle via shared-physics CRN (not ``ObsChannels``)."""
-    del costs  # profit costs are Rust-owned on the CRN path
-    from blueberries_voi.voi.crn import run_voi_crn_cell
+    """B-state ceiling via ``EngineSession`` truth belief.
 
+    Uses the same physics and policy stack as channel profit rows.
+    """
+    use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    alpha = _tuned_sw_alpha(alpha_table_path)
     ch = validate_channels(
         {"code_type": "upc", "scan_waste": False, "delivery_history": "none"}
     )
-    profits = run_voi_crn_cell(
-        beta=1.0,
-        root_seed=int(seed),
-        scenarios=("B-state",),
-        n_burn=int(n_burn),
-        n_score=int(n_score),
-        filter_n=int(filter_n),
-        n_rollout_paths=int(n_rollout_paths),
-        H=int(DEMO_BUDGETS["H"]),
-        alpha_table_path=_tuned_alpha_path(alpha_table_path),
+
+    profit, waste, stockout = _run_scored_episode(
+        seed,
+        n_burn=n_burn,
+        n_score=n_score,
+        n_rollout_paths=n_rollout_paths,
+        filter_n=filter_n,
+        alpha=alpha,
+        setup=lambda _session: None,
+        costs=use_costs,
+        session_config=oracle_session_config(
+            n_rollout_paths=n_rollout_paths,
+            filter_n=filter_n,
+            alpha_table_path=alpha_table_path,
+        ),
     )
-    profit = float(profits["B-state"])
     return _channel_row(
         seed,
         ch,
         profit=profit,
-        waste=0,
-        stockout=0,
+        waste=waste,
+        stockout=stockout,
         oracle=True,
     )
 

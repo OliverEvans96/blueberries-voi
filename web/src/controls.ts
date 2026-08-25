@@ -415,7 +415,7 @@ function mountSectionControlsDom(
         ${PRICE_SLIDERS.map(sliderHtml).join("")}
       </div>
       <div class="controls-block" data-section="physics" hidden>
-        <p class="hint">Gamma freshness aging + Q10 temperature shift.</p>
+        <p class="hint">η_ref sets θ; heat scales event rate via φ on gamma shape (γ(k·φ, θ)).</p>
         <p class="meta-readonly">No separate gamma shape knob post f-native migration — aging draws from ModelParams defaults.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
         ${physicsPlotBlocks()}

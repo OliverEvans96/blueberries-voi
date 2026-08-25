@@ -31,6 +31,7 @@ dev = [
     "mypy>=1.8.0",
     "types-tqdm>=4.66.0",
     "ruff>=0.4.0",
+    "types-tqdm>=4.66.0",
     # Native/CI tests exercise desktop Gate 0 + viz (not on the browser wheel).
     "pyarrow>=25.0.1",
     "matplotlib>=3.11.1",
