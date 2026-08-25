@@ -284,6 +284,12 @@ class EngineSession:
             fn(ch.code_type, ch.scan_waste, ch.delivery_history)
         )
 
+    def snapshot(self) -> Snapshot:
+        """Current session state without advancing (Rust ``snapshot_value``)."""
+        self._require_init()
+        raw = self._require_rust().snapshot_value()
+        return self._coerce_snapshot(raw)
+
     def host_crossings(self) -> int:
         """Host/FFI crossings (Rust backend)."""
         return int(self._require_rust().host_crossings())
