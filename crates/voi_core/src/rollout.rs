@@ -137,30 +137,32 @@ impl CandidateSearchConfig {
 
 /// Parse candidate-search knobs from a JSON configure / act payload.
 pub fn candidate_search_from_rpc(params: &serde_json::Value) -> CandidateSearchConfig {
-    let radius = params
-        .get("candidate_case_radius")
+    fn field<'a>(params: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
+        params
+            .get(key)
+            .or_else(|| params.get("config").and_then(|c| c.get(key)))
+    }
+    let radius = field(params, "candidate_case_radius")
         .and_then(|v| v.as_i64())
         .map(|n| n as i32)
         .unwrap_or(1);
     let mut cfg = CandidateSearchConfig::neighborhood(radius);
-    if let Some(mode) = params.get("candidate_search_mode").and_then(|v| v.as_str()) {
+    if let Some(mode) = field(params, "candidate_search_mode").and_then(|v| v.as_str()) {
         cfg.mode = match mode.to_ascii_lowercase().as_str() {
             "stratified_wide" | "wide" | "stratified" => CandidateSearchMode::StratifiedWide,
             _ => CandidateSearchMode::Neighborhood,
         };
     }
-    if let Some(span) = params
-        .get("candidate_span_cases")
-        .and_then(|v| v.as_i64())
-    {
+    if let Some(span) = field(params, "candidate_span_cases").and_then(|v| v.as_i64()) {
         cfg.span_cases = span as i32;
     }
-    if let Some(k) = params.get("n_candidates").and_then(|v| v.as_u64()) {
+    if let Some(k) = field(params, "n_candidates").and_then(|v| v.as_u64()) {
         cfg.n_candidates = (k as u32).max(1);
     }
     if cfg.mode == CandidateSearchMode::Neighborhood
-        && params.get("candidate_search_mode").is_none()
-        && (params.get("n_candidates").is_some() || params.get("candidate_span_cases").is_some())
+        && field(params, "candidate_search_mode").is_none()
+        && (field(params, "n_candidates").is_some()
+            || field(params, "candidate_span_cases").is_some())
     {
         cfg.mode = CandidateSearchMode::StratifiedWide;
     }
@@ -821,6 +823,17 @@ mod tests {
         let legacy = candidate_orders(base_q, cs, radius);
         let cfg = CandidateSearchConfig::neighborhood(radius);
         assert_eq!(candidate_orders_v2(base_q, cs, &cfg), legacy);
+    }
+
+    #[test]
+    fn candidate_search_from_rpc_reads_nested_config_radius() {
+        let params: serde_json::Value = serde_json::json!({
+            "seed": 42,
+            "config": { "candidate_case_radius": 2 }
+        });
+        let cfg = candidate_search_from_rpc(&params);
+        assert_eq!(cfg.mode, CandidateSearchMode::Neighborhood);
+        assert_eq!(cfg.radius, 2);
     }
 
     #[test]
