@@ -88,9 +88,7 @@ class FreshnessBelief:
     def expected_freshness(self, lot_index: int) -> float:
         """``E[f]`` for one lot row: ``Σ_k p_{l,k} · freshness_grid[k]``."""
         row = self.lot_marginals[lot_index]
-        return float(
-            sum(p * f for p, f in zip(row, self.freshness_grid, strict=False))
-        )
+        return float(sum(p * f for p, f in zip(row, self.freshness_grid, strict=False)))
 
 
 @dataclass(frozen=True)
