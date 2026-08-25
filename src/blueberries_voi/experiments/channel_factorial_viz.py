@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Any, Literal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.figure import Figure
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from matplotlib.figure import Figure
 
 from blueberries_voi.experiments.channel_joint import (
     CODE_OPTS,

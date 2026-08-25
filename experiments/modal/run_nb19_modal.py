@@ -7,14 +7,10 @@ import os
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-os.chdir(REPO)
-os.environ.setdefault("BLUEBERRIES_VOI_BACKEND", "rust")
-wheel_dir = REPO / "dist" / "wheel"
-if wheel_dir.is_dir():
-    os.environ["BLUEBERRIES_VOI_WHEEL"] = str(wheel_dir)
-
-from blueberries_voi.experiments.batch_budget import assert_within_budget, plan_channel_joint_budget
+from blueberries_voi.experiments.batch_budget import (
+    assert_within_budget,
+    plan_channel_joint_budget,
+)
 from blueberries_voi.experiments.channel_factorial_viz import save_nb19_figures
 from blueberries_voi.experiments.channel_joint import (
     all_obs_channels_product,
@@ -24,6 +20,7 @@ from blueberries_voi.experiments.channel_joint import (
 from blueberries_voi.experiments.modal_dispatch import run_batch
 from blueberries_voi.filter.types import channels_for_preset
 
+REPO = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO / "experiments" / "data"
 FIG_DIR = REPO / "figures" / "channel_joint"
 OUT_JSON = DATA_DIR / "nb19_joint_rows.json"
@@ -33,7 +30,17 @@ PROBE_SEED = 42
 PROBE_CHANNEL = channels_for_preset("P0")
 
 
+def _configure_runtime() -> None:
+    os.chdir(REPO)
+    os.environ.setdefault("BLUEBERRIES_VOI_BACKEND", "rust")
+    wheel_dir = REPO / "dist" / "wheel"
+    if wheel_dir.is_dir():
+        os.environ["BLUEBERRIES_VOI_WHEEL"] = str(wheel_dir)
+
+
 def main() -> None:
+    _configure_runtime()
+
     probe_t0 = time.perf_counter()
     probe_row = run_seed_channel_joint(
         PROBE_SEED,
@@ -46,7 +53,7 @@ def main() -> None:
 
     plan = plan_channel_joint_budget(probe_elapsed_s, max_seeds=len(CANDIDATE_SEEDS))
     assert_within_budget(plan)
-    seeds = tuple(CANDIDATE_SEEDS[:plan.n_seeds])
+    seeds = tuple(CANDIDATE_SEEDS[: plan.n_seeds])
     print(plan.as_dict())
 
     run_t0 = time.perf_counter()
