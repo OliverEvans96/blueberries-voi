@@ -37,13 +37,13 @@ def test_ensure_demo_shipments_preserves_nonempty() -> None:
     assert out["shipments"] is existing
 
 
-def test_default_shipments_delegates_to_loader(
+def test_default_shipments_delegates_to_mod21_demo(
     monkeypatch: MonkeyPatch,
 ) -> None:
     import blueberries_voi.sim.shipments as shipments_mod
 
     sentinel = smoke_cool_shipments()
     monkeypatch.setattr(
-        shipments_mod, "load_abdella_shipments", lambda root=None: sentinel
+        shipments_mod, "mod21_demo_shipments", lambda product="abdella_all": sentinel
     )
     assert default_shipments() is sentinel

@@ -142,4 +142,8 @@ One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$
 
 **No observation channel ever reveals a unit's actual freshness.** Even the richest available observation — the full temperature-history trace — pins down the shared exposure $\Lambda$ for the delivery exactly. It never reveals $\psi$ (the per-unit position multiplier) or the per-unit gamma draw $D$. That is a hard floor on how sharp any belief about one specific unit's freshness can ever get, no matter how much is observed about the trip — and it's exactly why units within a single lot genuinely differ in freshness even under perfect trip knowledge.
 
-**Assumed, not fitted.** The corridor and distribution-family parameters are hand-authored to be roughly consistent with six real shipments, not statistically validated by them. Treat the specific numbers as a defensible starting point, not a calibrated fact about real cold chains.
+**Assumed families, offline-fitted with adjustment knobs.** With only six real refrigerated
+shipments, `scripts/fit_abdella_arrival.py` moment-matches corridor duration and transit
+temperature parameters into `arrival_model.json`; `gamma_shape`, `gamma_scale`, `q10`, and
+`sigma_pos` remain documented adjustment knobs (see `fit_report.md`). An MLE fit on six
+points would over-read the data; treat specific numbers as defensible starting points.

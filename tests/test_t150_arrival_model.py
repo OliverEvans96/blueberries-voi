@@ -17,6 +17,7 @@ from blueberries_voi.model.abdella import arrival_age_from_path, load_abdella_sh
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ARTIFACT = _REPO_ROOT / "data" / "abdella" / "arrival_model.json"
 _PROVENANCE = _REPO_ROOT / "data" / "abdella" / "PROVENANCE.md"
+_FIT_SCRIPT = _REPO_ROOT / "scripts" / "fit_abdella_arrival.py"
 _CALIB_SCRIPT = _REPO_ROOT / "scripts" / "arrival_calibration_note.py"
 _CHANGELOG = _REPO_ROOT / ".team" / "changelog.md"
 _PHYSICS_EPOCH_MARKER = _REPO_ROOT / "data" / "abdella" / ".t150_physics_epoch"
@@ -150,7 +151,7 @@ def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
 
 
 def test_ac2_6_arrival_artifact_committed_schema() -> None:
-    """AC2.6: hand-authored arrival_model.json with versioned schema."""
+    """AC2.6: fitted arrival_model.json with versioned schema."""
     assert _ARTIFACT.is_file(), "RED: data/abdella/arrival_model.json must exist"
     payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
     missing = _REQUIRED_ARTIFACT_KEYS - set(payload)
@@ -177,21 +178,28 @@ def test_ac2_6_unknown_schema_version_rejected() -> None:
 
 
 def test_ac2_8_calibration_note_script_and_outputs() -> None:
-    """AC2.8: calibration note script reports (no fitting) with required disclosures."""
+    """AC2.8: fit script + calibration note with required disclosures."""
+    assert _FIT_SCRIPT.is_file(), "RED: scripts/fit_abdella_arrival.py must exist"
+    fit_src = _FIT_SCRIPT.read_text(encoding="utf-8")
+    assert "parquet" in fit_src, "RED: fit script must read data/abdella/*.parquet"
+    assert "fit_report" in fit_src, "RED: fit script must write fit_report.md"
+
     assert _CALIB_SCRIPT.is_file(), (
         "RED: scripts/arrival_calibration_note.py must exist"
     )
-    src = _CALIB_SCRIPT.read_text(encoding="utf-8")
-    assert "parquet" in src, "RED: script must read data/abdella/*.parquet"
-    assert (
-        "fit" not in src.lower() or "no fit" in src.lower() or "not fit" in src.lower()
-    ), "RED: calibration note must not perform fitting"
+    cal_src = _CALIB_SCRIPT.read_text(encoding="utf-8")
+    assert "arrival_model.json" in cal_src, (
+        "RED: calibration script must read committed artifact"
+    )
+    assert "load_abdella_shipments" in cal_src, (
+        "RED: calibration overlay must scatter vendored shipment traces"
+    )
 
     note_md = _REPO_ROOT / "data" / "abdella" / "calibration_note.md"
     assert note_md.is_file(), "RED: calibration_note.md must be emitted"
     note = note_md.read_text(encoding="utf-8").lower()
     for phrase in (
-        "assumed",
+        "fitted",
         "six",
         "does not validate",
         "s4",

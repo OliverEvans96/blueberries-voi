@@ -1,21 +1,20 @@
-# Abdella arrival calibration note (T-150)
+# Abdella arrival calibration note
 
-This note is **reporting only**. Parameters in `arrival_model.json` are **assumed**
-parametric families roughly consistent with the **six** Abdella cold-chain shipments.
-The data **does not validate** these families; with only six corridors, MLE or other
-fitting would be misleading. This script performs **no fitting**.
+Parameters in `arrival_model.json` are **fitted offline** from six Abdella shipments
+(`scripts/fit_abdella_arrival.py`). The data **does not validate** the assumed families;
+with only six corridors, treat numbers as defensible starting points, not MLE proof.
 
 ## Window consistency
 
 Both duration `d` and `phi_bar` are measured over the **same refrigerated leg**:
-from the first lot-mean sample below **10 °C** through the published Table 2
-harvest→end-of-chain clip. Warm harvest spikes and field heat are excluded. Arrival
-freshness from the model is therefore an **upper bound** on store-relevant quality.
+from the first lot-mean sample below **10 °C** through the published Table 2 clip.
+Warm harvest spikes and **field heat** are excluded. Arrival freshness is an
+**upper bound** on store-relevant quality.
 
 ## Position spread (`sigma_pos`)
 
-The lognormal within-pallet multiplier `sigma_pos` in the artifact was set with **S4**
-suspect position probes excluded from spread calibration.
+keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)
+**S4** suspect position probes excluded when estimating spread.
 
 ## Empirical overlay (six shipments)
 
@@ -28,6 +27,4 @@ suspect position probes excluded from spread calibration.
 | S5 | 6.514 | 1.286 |
 | S6 | 4.083 | 1.478 |
 
-Overlay figure: `data/abdella/arrival_calibration_overlay.png`.
-
-Committed artifact schema version: 1.
+See also `data/abdella/fit_report.md` (fit_utc: 2026-08-25T20:16:00Z).
