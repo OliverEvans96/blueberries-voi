@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rust API — Blueberries VOI</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #24292f;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --card-bg: #f6f8fa;
+    --link: #0550ae;
+    --code-bg: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #30363d;
+      --card-bg: #161b22;
+      --link: #79c0ff;
+      --code-bg: #1c2128;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  main {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 4rem;
+  }
+  h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; }
+  p { color: var(--fg); }
+  .tagline { color: var(--muted); margin-top: 0; }
+  a { color: var(--link); }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+    font-size: 0.9em;
+  }
+  .crates { display: grid; gap: 1rem; margin: 1rem 0; }
+  .crate {
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+  .crate h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+  .crate p { margin: 0 0 0.6rem; color: var(--muted); }
+  .crate a.open { font-weight: 600; text-decoration: none; }
+  .crate a.open::after { content: " →"; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Blueberries VOI — Rust API</h1>
+  <p class="tagline">Generated rustdoc reference for the project's shared Rust kernel and its two host bindings.</p>
+
+  <p>
+    <strong>Blueberries VOI</strong> is a value-of-information study asking how much a
+    grocery store's profit changes when it can see more about the true freshness of the
+    blueberries on its shelf, not just how old they are. The compute that answers that
+    question — shelf physics, a particle filter, and an ordering policy — is written
+    once, in Rust, and reused everywhere the project needs it: in Python notebooks and
+    the CLI, and in the in-browser "studio" that runs the same simulation live. This is
+    the generated API reference for that Rust code, produced straight from each crate's
+    own <code>///</code> doc comments.
+  </p>
+
+  <p>
+    For the narrative version — why the model is built this way, what each observation
+    "rung" actually sees, and what the experiment currently finds — see the
+    <a href="https://oliverevans.dev/docs/blueberries/">project documentation site</a>,
+    in particular its
+    <a href="https://oliverevans.dev/docs/blueberries/reference/rust-api">Rust API overview page</a>.
+  </p>
+
+  <h2>The three crates</h2>
+  <div class="crates">
+    <div class="crate">
+      <h3><code>voi_core</code></h3>
+      <p>
+        The shared kernel: shelf physics (aging, spoilage, demand), the particle filter
+        that turns a store's observations into a belief about what's on the shelf, and
+        the ordering policy that acts on it. Everything else in the project calls into
+        this crate rather than reimplementing any of it.
+      </p>
+      <a class="open" href="voi_core/index.html">Open voi_core docs</a>
+    </div>
+    <div class="crate">
+      <h3><code>voi_py</code> <span style="font-weight:400; color:var(--muted)">(compiles to <code>blueberries_voi._core</code>)</span></h3>
+      <p>
+        PyO3 bindings that expose <code>voi_core</code> to Python as a native extension
+        module. Python notebooks, the CLI, and the pytest suite all reach the kernel
+        through this door.
+      </p>
+      <a class="open" href="_core/index.html">Open voi_py docs</a>
+    </div>
+    <div class="crate">
+      <h3><code>voi_wasm</code></h3>
+      <p>
+        A <code>wasm-bindgen</code> binding that compiles the same kernel to
+        WebAssembly. The in-browser studio (a React + D3 app) loads it and drives it
+        with the same JSON RPC contract the native build uses.
+      </p>
+      <a class="open" href="voi_wasm/index.html">Open voi_wasm docs</a>
+    </div>
+  </div>
+
+  <h2>Where each piece lives</h2>
+  <table>
+    <thead>
+      <tr><th>Piece</th><th>Crate / package</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Shelf physics, particle filter, ordering policy</td><td><code>voi_core</code></td><td>The one implementation of the model</td></tr>
+      <tr><td>Native Python bindings</td><td><code>voi_py</code></td><td>Notebooks, CLI, pytest</td></tr>
+      <tr><td>WebAssembly bindings</td><td><code>voi_wasm</code></td><td>The in-browser studio</td></tr>
+      <tr><td>In-browser studio (React + D3)</td><td><code>@oliverevans96/blueberries-voi-studio</code></td><td>Runs <code>voi_wasm</code> in a browser</td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    Regenerated from source by <code>scripts/build-rustdoc.sh</code> (<code>cargo doc --workspace</code>).
+    Source: <a href="https://github.com/OliverEvans96/blueberries-voi">github.com/OliverEvans96/blueberries-voi</a>.
+  </footer>
+</main>
+</body>
+</html>

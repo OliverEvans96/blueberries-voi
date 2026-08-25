@@ -3,6 +3,14 @@
 //! core Rust function or type -- the underlying model, RNG, and policy logic all live in
 //! `voi_core`, so this crate's job is argument marshalling and error translation
 //! (`voi_core` errors become `PyValueError`/`PyRuntimeError`), not modeling (ADR 0119).
+//!
+//! This is one of two thin wrappers around [`voi_core`](../voi_core/index.html), the
+//! crate that actually implements the shelf physics, filter, and policy. The other is
+//! [`voi_wasm`](../voi_wasm/index.html), which compiles the same kernel to WebAssembly
+//! for the in-browser studio instead of to a Python extension -- see `voi_core`'s crate
+//! docs for how the whole project fits together, or the [Rust API
+//! reference](https://oliverevans.dev/docs/blueberries/reference/rust-api) on the
+//! project's narrative documentation site.
 
 mod demand_profile;
 

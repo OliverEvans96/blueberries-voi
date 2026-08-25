@@ -1,7 +1,7 @@
 ---
 title: Rust API (voi_core)
 sources:
-  code: [crates/voi_core/src/lib.rs]
+  code: [crates/voi_core/src/lib.rs, crates/voi_py/src/lib.rs, crates/voi_wasm/src/lib.rs]
 ---
 
 # Rust API (`voi_core`)
@@ -13,6 +13,18 @@ functions, types, and fields (plus key private helpers) across the crate.
 Browse the API:
 
 **[Open rustdoc →](/api/rust/voi_core/index.html)**
+
+`voi_core` has no Python or JavaScript in it; two thin wrapper crates expose
+it to the rest of the project instead, and each is documented the same way:
+
+- **[`voi_py`](/api/rust/_core/index.html)** — PyO3 bindings, compiled as the
+  `blueberries_voi._core` extension module used by notebooks, the CLI, and
+  `pytest`.
+- **[`voi_wasm`](/api/rust/voi_wasm/index.html)** — a `wasm-bindgen` binding
+  compiled to WebAssembly and loaded by the in-browser studio.
+
+A [combined landing page](/api/rust/index.html) links all three crates'
+rustdoc together with a short overview of how they fit into the project.
 
 ## What's here vs. what's on this site
 
