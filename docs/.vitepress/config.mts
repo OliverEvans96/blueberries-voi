@@ -44,7 +44,7 @@ export default defineConfig({
         text: "What the store can see — the knowledge ladder",
         items: [
           { text: "Three channels, not seven scenarios", link: "/ladder/channels" },
-          { text: "The rungs, in a real store", link: "/ladder/rungs" },
+          { text: "The observation scenarios, in a real store", link: "/ladder/observation-scenarios" },
           {
             text: "No channel ever observes freshness",
             link: "/ladder/no-channel-observes-freshness",
@@ -58,7 +58,7 @@ export default defineConfig({
           { text: "What one particle is", link: "/inference/what-one-particle-is" },
           { text: "One filter day, four stages", link: "/inference/one-filter-day" },
           { text: "UPC vs GSIN: refinement, not a different model", link: "/inference/upc-vs-gsin" },
-          { text: "Birth freshness: what each rung conditions on", link: "/inference/birth-freshness" },
+          { text: "Birth freshness: what each observation scenario conditions on", link: "/inference/birth-freshness" },
           { text: "From particles to charts: the wire", link: "/inference/belief-wire" },
         ],
       },
