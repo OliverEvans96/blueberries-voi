@@ -249,59 +249,56 @@ export function renderSalesDemand(
     .append("g")
     .attr("class", "legend")
     .attr("transform", `translate(${margin.left + 4}, 8)`);
-  const legendItems: { kind: "line" | "band"; cls: string; label: string }[] = [
+  type LegendItem =
+    | { kind: "line"; cls: string; label: string }
+    | { kind: "forecast"; label: string };
+  const legendItems: LegendItem[] = [
     { kind: "line", cls: "sd-demand", label: "Demand" },
     { kind: "line", cls: "sd-sales", label: "Sales" },
   ];
   if (forecastRows.length > 0) {
-    legendItems.push(
-      { kind: "line", cls: "sd-forecast-mean", label: "Forecast" },
-      { kind: "band", cls: "sd-forecast-band", label: "p10–p90" },
-    );
+    legendItems.push({ kind: "forecast", label: "Forecast" });
   }
-  const row1 = legendItems.slice(0, 2);
-  const row2 = legendItems.slice(2);
-  const legendRowHeight = 14;
-  const drawLegendRow = (
-    items: typeof legendItems,
-    rowIndex: number,
-  ): number => {
-    let legendX = 0;
-    for (const item of items) {
-      const group = legend
-        .append("g")
-        .attr("transform", `translate(${legendX},${rowIndex * legendRowHeight})`);
-      if (item.kind === "line") {
-        group
-          .append("line")
-          .attr("class", `sd-line ${item.cls}`)
-          .attr("x1", 0)
-          .attr("x2", 14)
-          .attr("y1", 0)
-          .attr("y2", 0);
-      } else {
-        group
-          .append("rect")
-          .attr("class", item.cls)
-          .attr("x", 0)
-          .attr("y", -4)
-          .attr("width", 14)
-          .attr("height", 8)
-          .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
-      }
-      const labelW = item.label.length * 6 + 22;
+  let legendX = 0;
+  const legendGap = 10;
+  for (const item of legendItems) {
+    const group = legend.append("g").attr("transform", `translate(${legendX},0)`);
+    if (item.kind === "line") {
       group
-        .append("text")
-        .attr("class", "legend-label")
-        .attr("x", 18)
-        .attr("y", 3)
-        .text(item.label);
-      legendX += labelW;
+        .append("line")
+        .attr("class", `sd-line ${item.cls}`)
+        .attr("x1", 0)
+        .attr("x2", 14)
+        .attr("y1", 0)
+        .attr("y2", 0);
+    } else {
+      group
+        .append("rect")
+        .attr("class", "sd-forecast-band")
+        .attr("x", 0)
+        .attr("y", -4)
+        .attr("width", 14)
+        .attr("height", 8)
+        .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
+      group
+        .append("line")
+        .attr("class", "sd-forecast-mean")
+        .attr("x1", 0)
+        .attr("x2", 14)
+        .attr("y1", 0)
+        .attr("y2", 0)
+        .attr("fill", "none")
+        .attr("stroke", "var(--chart-accent, #2563eb)")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "5,3");
     }
-    return legendX;
-  };
-  drawLegendRow(row1, 0);
-  if (row2.length > 0) {
-    drawLegendRow(row2, 1);
+    group
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 18)
+      .attr("y", 3)
+      .text(item.label);
+    const labelW = item.label.length * 6 + 32 + legendGap;
+    legendX += labelW;
   }
 }

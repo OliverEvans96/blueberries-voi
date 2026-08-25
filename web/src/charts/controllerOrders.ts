@@ -304,11 +304,9 @@ export function renderControllerOrders(
     .range([innerH, 0]);
 
   g.append("g")
-    .attr("class", "axis axis-y axis-y--orders")
+    .attr("class", "axis axis-y")
     .call(d3.axisLeft(yOrders).ticks(4).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove())
-    .call((sel) => sel.selectAll(".tick text").attr("fill", "var(--accent)"))
-    .call((sel) => sel.selectAll(".tick line").attr("stroke", "var(--accent)"));
+    .call((sel) => sel.select(".domain").remove());
 
   g.append("g")
     .attr("class", "axis axis-x")
