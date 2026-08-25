@@ -87,6 +87,7 @@ class EngineSession:
         )
         self._schedule: OrderSchedule = DEFAULT_ORDER_SCHEDULE
         self._enable_filter: bool = True
+        self._belief_source: str = "filter"
         self._obs_scenario: ScenarioId | str = "P1"
         self._L: int = 10
         self._K: int = 4
@@ -111,6 +112,7 @@ class EngineSession:
         temps = [list(map(float, getattr(s, "temps_c", []))) for s in self._shipments]
         init_fn = sess.init
         delivery = sorted(int(d) for d in self._delivery_weekdays)
+        belief_source = str(self._belief_source)
         try:
             raw = init_fn(
                 int(self._seed),
@@ -128,6 +130,7 @@ class EngineSession:
                 None,
                 delivery,
                 None,
+                belief_source,
             )
         except TypeError:
             try:
@@ -145,19 +148,38 @@ class EngineSession:
                     int(self._K),
                     str(self._obs_scenario),
                     None,
+                    delivery,
+                    None,
                 )
             except TypeError:
-                raw = init_fn(
-                    int(self._seed),
-                    int(self._lead_time),
-                    bool(self._enable_filter),
-                    int(self._H),
-                    int(self._n_rollout_paths),
-                    int(self._candidate_case_radius),
-                    times,
-                    temps,
-                    int(self._n_particles),
-                )
+                try:
+                    raw = init_fn(
+                        int(self._seed),
+                        int(self._lead_time),
+                        bool(self._enable_filter),
+                        int(self._H),
+                        int(self._n_rollout_paths),
+                        int(self._candidate_case_radius),
+                        times,
+                        temps,
+                        int(self._n_particles),
+                        int(self._L),
+                        int(self._K),
+                        str(self._obs_scenario),
+                        None,
+                    )
+                except TypeError:
+                    raw = init_fn(
+                        int(self._seed),
+                        int(self._lead_time),
+                        bool(self._enable_filter),
+                        int(self._H),
+                        int(self._n_rollout_paths),
+                        int(self._candidate_case_radius),
+                        times,
+                        temps,
+                        int(self._n_particles),
+                    )
         return self._coerce_snapshot(raw)
 
     def reset(
@@ -348,6 +370,11 @@ class EngineSession:
             lead_time_days=self._lead_time,
         )
         self._enable_filter = bool(config.get("enable_filter", True))
+        raw_belief = str(config.get("belief_source", "filter")).strip().lower()
+        if raw_belief not in {"filter", "truth"}:
+            msg = f"belief_source must be 'filter' or 'truth'; got {raw_belief!r}"
+            raise ValueError(msg)
+        self._belief_source = raw_belief
         raw_scenario = config.get("obs_scenario", "P1")
         mask_for(raw_scenario)
         self._obs_scenario = raw_scenario
@@ -371,6 +398,7 @@ class EngineSession:
             "L": int(self._L),
             "K": int(self._K),
             "enable_filter": bool(self._enable_filter),
+            "belief_source": str(self._belief_source),
             "lead_time": int(self._lead_time),
             "delivery_weekdays": sorted(int(d) for d in self._delivery_weekdays),
             "obs_scenario": self._obs_scenario,

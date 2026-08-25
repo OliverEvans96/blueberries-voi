@@ -27,8 +27,32 @@ use crate::shipments::{calendar_transit_days, mod21_demo_shipments, truth_transi
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
+use crate::voi::truth_f_belief;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
+
+/// Whether the ordering policy reads a particle-filter belief or ground-truth freshness.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BeliefSource {
+    /// Standard path: fold masked observations into the unit particle filter each day.
+    #[default]
+    Filter,
+    /// Oracle path: policy sees exact shelf state via [`truth_f_belief`]; filter steps are skipped.
+    Truth,
+}
+
+impl BeliefSource {
+    /// Parse RPC / Python configure strings (`"filter"` | `"truth"`).
+    pub fn from_rpc_str(s: &str) -> Result<Self, String> {
+        match s.to_ascii_lowercase().as_str() {
+            "filter" => Ok(Self::Filter),
+            "truth" => Ok(Self::Truth),
+            other => Err(format!(
+                "belief_source must be 'filter' or 'truth'; got {other:?}"
+            )),
+        }
+    }
+}
 
 /// Numeric stream id 7 — dedicated `:birth` CRN for within-lot freshness spread.
 const STREAM_BIRTH: u64 = 7;
@@ -95,8 +119,11 @@ pub struct EngineSession {
     /// Order lead time in days (delivery day minus order day).
     lead_time: u32,
     /// Whether the unit particle filter runs each day; when `false`, the policy falls
-    /// back to an uninformative belief (see `f_belief_for_policy`).
+    /// back to an uninformative belief (see `f_belief_for_policy`) unless
+    /// [`BeliefSource::Truth`] is active.
     enable_filter: bool,
+    /// Where the ordering policy reads its belief: filtered posterior or ground truth.
+    belief_source: BeliefSource,
     schedule: OrderSchedule,
     /// Candidate transit temperature traces sampled when drawing a delivery's exposure.
     shipments: Vec<ShipmentTrace>,
@@ -175,6 +202,7 @@ impl EngineSession {
             radius: 1,
             lead_time: 1,
             enable_filter: true,
+            belief_source: BeliefSource::Filter,
             schedule: OrderSchedule::from_delivery(&[0, 1, 2, 3, 4, 5, 6], 1)
                 .unwrap_or_else(|_| OrderSchedule::default()),
             shipments: mod21_demo_shipments("abdella_all"),
@@ -208,9 +236,18 @@ impl EngineSession {
         if self.params.demand_profile.is_none() {
             apply_demand_profile(&mut self.params, committed_demand_profile());
         }
-        if self.enable_filter {
+        if self.uses_filter() {
             self.seed_particle_bank();
         }
+    }
+
+    fn uses_filter(&self) -> bool {
+        self.enable_filter && self.belief_source == BeliefSource::Filter
+    }
+
+    /// Sets whether the ordering policy reads filter posterior or ground-truth freshness.
+    pub fn set_belief_source(&mut self, source: BeliefSource) {
+        self.belief_source = source;
     }
 
     /// Replaces the day-of-week/week demand calendar used to draw daily demand.
@@ -251,7 +288,7 @@ impl EngineSession {
         } else if self.params.demand_profile.is_none() {
             apply_demand_profile(&mut self.params, committed_demand_profile());
         }
-        if self.enable_filter {
+        if self.uses_filter() {
             self.seed_particle_bank();
         }
     }
@@ -322,7 +359,7 @@ impl EngineSession {
     /// cache entry, growing its sparse `beliefs` vector as needed. No-op when the
     /// filter is disabled, since there is no belief to record.
     fn record_belief_for_day(&mut self, day_idx: u32, bank: &UnitParticleBank) {
-        if !self.enable_filter {
+        if !self.uses_filter() {
             return;
         }
         let key = self.active_rung_key();
@@ -345,7 +382,7 @@ impl EngineSession {
     /// entry's existing belief history) before switching to a different observation
     /// rung, so the previous rung can be resumed later without re-replaying it.
     fn persist_active_rung(&mut self) {
-        if !self.enable_filter {
+        if !self.uses_filter() {
             return;
         }
         let key = self.active_rung_key();
@@ -498,7 +535,7 @@ impl EngineSession {
             pack_date_days,
         };
         let day_idx = self.day;
-        if self.enable_filter {
+        if self.uses_filter() {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 {
@@ -562,6 +599,10 @@ impl EngineSession {
                 "L": self.l_dim,
                 "K": self.k_dim,
                 "enable_filter": self.enable_filter,
+                "belief_source": match self.belief_source {
+                    BeliefSource::Filter => "filter",
+                    BeliefSource::Truth => "truth",
+                },
                 "lead_time": self.lead_time,
                 "delivery_weekdays": self.schedule.delivery_weekday_list(),
                 "obs_scenario": self.obs_scenario,
@@ -607,6 +648,17 @@ impl EngineSession {
     }
 
     fn belief_value(&self) -> serde_json::Value {
+        if self.belief_source == BeliefSource::Truth {
+            let (lot_counts, f_marginals, f_grid) =
+                truth_f_belief(&self.freshness, &self.lot_offsets, self.k_dim);
+            return serde_json::json!({
+                "L": self.l_dim,
+                "K": self.k_dim,
+                "lot_counts": lot_counts,
+                "f_marginals": f_marginals,
+                "f_grid": f_grid,
+            });
+        }
         belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim)
     }
 
@@ -729,6 +781,9 @@ impl EngineSession {
     /// disabled there's no tracked inventory belief, so it synthesizes zero lot counts
     /// with a uniform freshness prior — the "empty shelf" fallback `act` dispatches on.
     fn f_belief_for_policy(&self) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        if self.belief_source == BeliefSource::Truth {
+            return truth_f_belief(&self.freshness, &self.lot_offsets, self.k_dim);
+        }
         if self.enable_filter {
             let v = belief_flat_from_unit_bank(&self.bank, self.l_dim, self.k_dim);
             (
@@ -851,7 +906,7 @@ impl EngineSession {
         let key = channels_cache_key(channels);
         if channels == self.obs_channels && self.rungs.contains_key(&key) {
             let mut snap = self.snapshot_value();
-            if self.enable_filter {
+            if self.uses_filter() {
                 if let Some(rung) = self.rungs.get(&key) {
                     if let Some(obj) = snap.as_object_mut() {
                         obj.insert(
@@ -863,14 +918,14 @@ impl EngineSession {
             }
             return Ok(snap);
         }
-        if self.enable_filter {
+        if self.uses_filter() {
             self.persist_active_rung();
         }
         self.obs_channels = channels;
         self.obs_scenario = preset_for_channels(channels)
             .map(|s| s.to_string())
             .unwrap_or_else(|| "custom".to_string());
-        if self.enable_filter {
+        if self.uses_filter() {
             let cached = self
                 .rungs
                 .get(&key)
@@ -1245,6 +1300,11 @@ impl EngineSession {
         }
         let demand_profile = parse_demand_profile_from_rpc(params);
         let units_per_lot = rpc_u64(params, "units_per_lot").map(|n| n as usize);
+        if let Some(source) = rpc_str(params, "belief_source") {
+            if let Ok(bs) = BeliefSource::from_rpc_str(source) {
+                self.belief_source = bs;
+            }
+        }
         self.lead_time = lead_time.max(1);
         self.configure(
             self.lead_time,
@@ -2302,6 +2362,46 @@ mod tests {
         assert!(
             q_high >= q_low,
             "higher alpha should not reduce damped_sw order"
+        );
+    }
+
+    #[test]
+    fn apply_rpc_configure_parses_belief_source_truth() {
+        let mut s = EngineSession::new(0);
+        s.init(0);
+        s.apply_rpc_configure(&serde_json::json!({
+            "belief_source": "truth",
+            "enable_filter": false,
+        }));
+        let snap = s.snapshot_value();
+        assert_eq!(snap["applied_config"]["belief_source"], "truth");
+        assert_eq!(snap["applied_config"]["enable_filter"], false);
+    }
+
+    #[test]
+    fn truth_belief_source_skips_filter_updates() {
+        let mut s = EngineSession::new(7);
+        s.init(7);
+        s.set_belief_source(BeliefSource::Truth);
+        s.enable_filter = false;
+        let w0 = s.bank_weights();
+        for _ in 0..40 {
+            s.step(32);
+        }
+        assert_eq!(s.bank_weights(), w0, "truth mode must not mutate particle bank");
+        let belief = s.snapshot_value()["belief"].clone();
+        let live = s.snapshot_value()["live_lots"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let live_n: f64 = live
+            .iter()
+            .filter_map(|lot| lot.get("n").and_then(|v| v.as_f64()))
+            .sum();
+        let belief_n: f64 = json_f64s(&belief, "lot_counts").iter().sum();
+        assert!(
+            (live_n - belief_n).abs() < 1e-9,
+            "truth snapshot belief must match live lot counts"
         );
     }
 
