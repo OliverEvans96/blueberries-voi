@@ -520,6 +520,8 @@ def _try_rust_rollout_order(
     }
     if candidate_search_mode is not None:
         kwargs["candidate_search_mode"] = candidate_search_mode
+    elif n_candidates is not None or candidate_span_cases is not None:
+        kwargs["candidate_search_mode"] = "stratified_wide"
     if candidate_span_cases is not None:
         kwargs["candidate_span_cases"] = int(candidate_span_cases)
     if n_candidates is not None:

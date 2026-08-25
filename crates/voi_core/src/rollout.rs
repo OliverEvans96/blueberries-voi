@@ -107,14 +107,6 @@ impl CandidateSearchConfig {
         n_candidates: Option<u32>,
     ) -> Self {
         let mut cfg = base.clone();
-        if let Some(mode) = candidate_search_mode {
-            cfg.mode = match mode.to_ascii_lowercase().as_str() {
-                "stratified_wide" | "wide" | "stratified" => {
-                    CandidateSearchMode::StratifiedWide
-                }
-                _ => CandidateSearchMode::Neighborhood,
-            };
-        }
         if let Some(span) = candidate_span_cases {
             cfg.span_cases = span;
         }
@@ -123,9 +115,21 @@ impl CandidateSearchConfig {
         }
         if let Some(r) = candidate_case_radius {
             cfg.radius = r;
-            if candidate_search_mode.is_none() {
-                cfg.mode = CandidateSearchMode::Neighborhood;
-            }
+        }
+        if let Some(mode) = candidate_search_mode {
+            cfg.mode = match mode.to_ascii_lowercase().as_str() {
+                "stratified_wide" | "wide" | "stratified" => {
+                    CandidateSearchMode::StratifiedWide
+                }
+                _ => CandidateSearchMode::Neighborhood,
+            };
+        } else if candidate_case_radius.is_some()
+            && n_candidates.is_none()
+            && candidate_span_cases.is_none()
+        {
+            cfg.mode = CandidateSearchMode::Neighborhood;
+        } else if n_candidates.is_some() || candidate_span_cases.is_some() {
+            cfg.mode = CandidateSearchMode::StratifiedWide;
         }
         cfg
     }
@@ -153,6 +157,12 @@ pub fn candidate_search_from_rpc(params: &serde_json::Value) -> CandidateSearchC
     }
     if let Some(k) = params.get("n_candidates").and_then(|v| v.as_u64()) {
         cfg.n_candidates = (k as u32).max(1);
+    }
+    if cfg.mode == CandidateSearchMode::Neighborhood
+        && params.get("candidate_search_mode").is_none()
+        && (params.get("n_candidates").is_some() || params.get("candidate_span_cases").is_some())
+    {
+        cfg.mode = CandidateSearchMode::StratifiedWide;
     }
     cfg
 }
@@ -811,6 +821,23 @@ mod tests {
         let legacy = candidate_orders(base_q, cs, radius);
         let cfg = CandidateSearchConfig::neighborhood(radius);
         assert_eq!(candidate_orders_v2(base_q, cs, &cfg), legacy);
+    }
+
+    #[test]
+    fn with_overrides_infers_wide_from_n_candidates_or_span_alone() {
+        let base = CandidateSearchConfig::default();
+        let wide_k = CandidateSearchConfig::with_overrides(&base, None, None, None, Some(7));
+        assert_eq!(wide_k.mode, CandidateSearchMode::StratifiedWide);
+        assert_eq!(wide_k.n_candidates, 7);
+
+        let wide_span =
+            CandidateSearchConfig::with_overrides(&base, None, None, Some(6), None);
+        assert_eq!(wide_span.mode, CandidateSearchMode::StratifiedWide);
+        assert_eq!(wide_span.span_cases, 6);
+
+        let hood_only = CandidateSearchConfig::with_overrides(&base, Some(2), None, None, None);
+        assert_eq!(hood_only.mode, CandidateSearchMode::Neighborhood);
+        assert_eq!(hood_only.radius, 2);
     }
 
     fn mk_test_ctx(candidate_search: CandidateSearchConfig) -> RolloutContext {
