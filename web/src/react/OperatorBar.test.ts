@@ -120,4 +120,19 @@ describe("OperatorBar (T-127 layout v3)", () => {
 
     expect(screen.getByRole("button", { name: /^place order$/i })).toBeDisabled();
   });
+
+  it("disables all controls while booting (pre-WASM shell)", () => {
+    const props = { ...baseProps(), booting: true };
+    render(createElement(OperatorBar, props));
+
+    expect(screen.getByRole("region", { name: /run controls/i })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^place order$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /reset/i })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: /autopilot/i })).toBeDisabled();
+    expect(document.querySelector("#order-range")).toBeDisabled();
+    expect(document.querySelector("#order-num")).toBeDisabled();
+  });
 });

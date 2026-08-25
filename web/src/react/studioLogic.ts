@@ -220,11 +220,21 @@ export function initStudio(app: HTMLElement): () => void {
   const adapter = createStudioAdapter({
     env: studioEnv,
   });
+  let loadingMessage = "";
+  let loadingDialogVisible = false;
   const engineStatus = createEngineStatusTracker("loading");
   const engineStatusEl = q<HTMLElement>("#engine-status");
   if (engineStatusEl) {
     engineStatus.subscribe((kind) => {
       applyEngineStatusChip(engineStatusEl, kind, adapterKind);
+      const shell = q<HTMLElement>(".shell.studio");
+      if (shell) {
+        if (kind === "loading") {
+          shell.setAttribute("aria-busy", "true");
+        } else if (!loadingDialogVisible) {
+          shell.removeAttribute("aria-busy");
+        }
+      }
     });
   }
   const projector = new ViewModelProjector();
@@ -470,8 +480,6 @@ export function initStudio(app: HTMLElement): () => void {
   const loadingHost = q<HTMLElement>("#studio-loading-host");
   const loadingPortalRef = { current: loadingHost };
   const loadingRoot = loadingHost ? createRoot(loadingHost) : null;
-  let loadingMessage = "";
-  let loadingDialogVisible = false;
 
   function renderLoadingDialog(): void {
     if (!loadingRoot) return;
@@ -1520,5 +1528,14 @@ export function initStudio(app: HTMLElement): () => void {
     cancelAnimationFrame(sectionControlsMountRaf);
     app.removeEventListener("keydown", onKeydown);
     window.removeEventListener("resize", onResize);
+    eventsPaneRoot?.unmount();
+    obsControlsRoot?.unmount();
+    operatorBarRoot?.unmount();
+    referenceDrawerRoot?.unmount();
+    tuningDrawerRoot?.unmount();
+    loadingRoot?.unmount();
+    dayInspectorRoot?.unmount();
+    spoilageUnavailableRoot?.unmount();
+    delete app.dataset.studioInit;
   };
 }

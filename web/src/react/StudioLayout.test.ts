@@ -85,6 +85,26 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(container.querySelector(".tuning-dock")).toBeNull();
   });
 
+  it("renders pre-WASM shell placeholders in imperative mount hosts", () => {
+    const { container } = render(createElement(StudioLayout));
+    expect(
+      container.querySelector("#pnl-totals-host [data-testid='pnl-totals-placeholder']"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector("#operator-bar-host .operator-bar[aria-busy='true']"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        "#obs-controls-pane-host [data-testid='obs-controls-pane']",
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector("#events-pane-host [data-loading='true']"),
+    ).not.toBeNull();
+    const shells = container.querySelectorAll("[data-testid='chart-loading-shell']");
+    expect(shells.length).toBeGreaterThanOrEqual(7);
+  });
+
   it("title bar has gear trigger left of engine status", () => {
     const { container } = render(createElement(StudioLayout));
     const actions = container.querySelector(".title-bar-actions");

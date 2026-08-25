@@ -41,6 +41,12 @@ describe("studio init mount order (T-158)", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     const dialog = rootEl.querySelector("dialog#tuning-drawer");
     expect(dialog?.hasAttribute("open")).toBe(false);
+    await waitFor(() => {
+      expect(rootEl.querySelector('[data-testid="chart-loading-shell"]')).toBeNull();
+    });
+    await waitFor(() => {
+      expect(rootEl.querySelector(".operator-bar[aria-busy='true']")).toBeNull();
+    });
     expect(rootEl.querySelector('[data-studio-init="1"]')).not.toBeNull();
   });
 
