@@ -7,6 +7,11 @@ import json
 import pytest
 
 from blueberries_voi.backend import rust_core as _maybe_core
+from blueberries_voi.experiments.channel_joint import (
+    all_obs_channels_product,
+    channel_joint_job_grid,
+    merge_channel_joint_rows,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_SEEDS,
     all_channel_combos,
@@ -39,6 +44,41 @@ _RUST = pytest.mark.skipif(
     _maybe_core is None,
     reason="blueberries_voi._core not built",
 )
+
+
+def test_all_obs_channels_product_count() -> None:
+    combos = all_obs_channels_product()
+    assert len(combos) == 12
+
+
+def test_channel_joint_job_grid_size() -> None:
+    grid = channel_joint_job_grid((42, 7))
+    assert len(grid) == 2 * 12
+
+
+def test_merge_channel_joint_rows_schema() -> None:
+    shard = {
+        "seed": 42,
+        "key": "code=upc|waste=0|hist=none",
+        "profit": 1.0,
+        "waste_total": 0,
+        "stockout": 0,
+        "mae_f": 0.1,
+        "mae_dist": 0.2,
+        "code_type": "upc",
+        "waste": "off",
+        "delivery": "none",
+        "preset": "P0",
+    }
+    rows = merge_channel_joint_rows([shard])
+    assert rows[0]["mae_dist"] == 0.2
+
+
+def test_modal_channel_joint_grid_dry_run() -> None:
+    pytest.importorskip("modal")
+    grid = channel_joint_job_grid((42,))
+    args = [(seed, ch.__dict__, {"n_burn": 2, "n_score": 10}) for seed, ch in grid]
+    assert len(args) == 12
 
 
 def test_all_channel_combos_count() -> None:

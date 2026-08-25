@@ -12,11 +12,20 @@ under roughly **10 min wall** and **2 CPU-hr** per notebook on Modal CPU workers
 | **18** (`rollout_eval`) | 8 shards | 4 seeds × 2 arms (sw + rollout) | `n_burn=2`, `n_score=14`, `H=7`, `paths=4` | ~8 × 60–120 s ≈ 8–16 CPU-min |
 
 **Smoke mode** (`SMOKE=True`): one gsin shard, one profit seed/channel, two scored
-days; one rollout seed/arm — for plumbing only.
+days; one rollout seed/arm; one channel_joint seed/channel — for plumbing only.
 
 **Controller worlds differ:** nb17 Part 2 uses filtered beliefs per data package;
 nb18 `rollout_eval` uses **oracle-shelf** (SIM-01=B) — perfect on-shelf state, not
-nb17 filter outputs.
+nb17 filter outputs. nb19 `channel_joint` uses filtered beliefs in closed loop (same
+physics as nb15 profit shards) but records accuracy on scored days.
+
+## Notebook 19 (`channel_joint`)
+
+| Target | Grid | Scored window | Rough CPU |
+|--------|------|---------------|-----------|
+| **19** joint shard | ~72 shards (6 seeds × 12 channels) | `n_burn=2`, planned `n_score` 10–30 | probe one shard → `plan_channel_joint_budget` under 20 min / 2 CPU-hr |
+
+Use `experiments/modal/render_nb19_figures.py` after `nb19_joint_rows.json` lands.
 
 ## Medium-priority increases
 
