@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
+import { CHART_PAPER, oklabDistance } from "./beliefFreshnessPalette";
 import {
+  DELIVERY_TEMP_COLOR_STOPS,
   formatTempC,
   lotColor,
   LOT_COLORS,
   renderDeliveryTempHistorySvg,
   renderDeliveryTempMultiLot,
+  tempColorScale,
   tempSummaryFromTrace,
   tracesFromEvent,
 } from "./deliveryTempChart";
@@ -118,6 +121,7 @@ describe("renderDeliveryTempHistorySvg", () => {
       { t: -1, temp: 5 },
       { t: 0, temp: 2 },
     ]);
+    expect(svg.querySelector(".delivery-temp-bg")).not.toBeNull();
     expect(svg.querySelector(".delivery-temp-axis-x")).not.toBeNull();
     expect(svg.querySelector(".delivery-temp-axis-y")).not.toBeNull();
     const segments = svg.querySelectorAll(".delivery-temp-segment");
@@ -126,6 +130,17 @@ describe("renderDeliveryTempHistorySvg", () => {
       Array.from(segments).map((el) => el.getAttribute("stroke")),
     );
     expect(strokes.size).toBeGreaterThan(1);
+  });
+});
+
+describe("tempColorScale (OKLab contrast)", () => {
+  it("keeps cold and warm endpoint stops readable on chart paper", () => {
+    const color = tempColorScale(0, 6);
+    for (const stop of DELIVERY_TEMP_COLOR_STOPS) {
+      expect(oklabDistance(stop, CHART_PAPER)).toBeGreaterThanOrEqual(18);
+    }
+    expect(oklabDistance(color(0), CHART_PAPER)).toBeGreaterThanOrEqual(18);
+    expect(oklabDistance(color(6), CHART_PAPER)).toBeGreaterThanOrEqual(18);
   });
 });
 
@@ -143,11 +158,11 @@ describe("renderDeliveryTempMultiLot", () => {
     },
   ];
 
-  it("defaults height to 36", () => {
+  it("defaults height to 48", () => {
     const host = document.createElement("div");
     Object.defineProperty(host, "clientWidth", { value: 280, configurable: true });
     renderDeliveryTempMultiLot(host, sampleTraces);
-    expect(host.querySelector("svg")?.getAttribute("viewBox")).toMatch(/ 36$/);
+    expect(host.querySelector("svg")?.getAttribute("viewBox")).toMatch(/ 48$/);
   });
 
   it("renders axis lines and temperature-colored segments per lot", () => {
@@ -155,6 +170,7 @@ describe("renderDeliveryTempMultiLot", () => {
     Object.defineProperty(host, "clientWidth", { value: 280, configurable: true });
     renderDeliveryTempMultiLot(host, sampleTraces);
     const svg = host.querySelector("svg");
+    expect(svg?.querySelector(".delivery-temp-bg")).not.toBeNull();
     expect(svg?.querySelector(".delivery-temp-axis-x")).not.toBeNull();
     expect(svg?.querySelector(".delivery-temp-axis-y")).not.toBeNull();
     const segments = svg?.querySelectorAll(".delivery-temp-segment") ?? [];

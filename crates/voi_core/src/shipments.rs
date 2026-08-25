@@ -76,8 +76,10 @@ pub fn phi_bar_from_trace(trace: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 
 
 /// Stochastic piecewise transit profile for truth deliveries and F3 events.
 ///
-/// Builds a visibly non-flat temperature path whose duration-averaged φ̄ matches
-/// `phi_bar_target` (the same scalar the filter conditions on via `resolve_arrival_exposure`).
+/// Samples at roughly hourly resolution (`n_knots = ceil(duration_d × 24) + 1`, capped at 500)
+/// so long-haul traces render smoothly in the event-log temperature chart. Builds a visibly
+/// non-flat path whose duration-averaged φ̄ matches `phi_bar_target` (the same scalar the filter
+/// conditions on via `resolve_arrival_exposure`).
 pub fn truth_transit_trace<R: Rng + ?Sized>(
     duration_d: f64,
     phi_bar_target: f64,
@@ -87,24 +89,24 @@ pub fn truth_transit_trace<R: Rng + ?Sized>(
     t_ref_c: f64,
     rng: &mut R,
 ) -> ShipmentTrace {
-    const KNOTS: usize = 5;
     if duration_d <= 1e-9 {
         return ShipmentTrace {
             times_d: vec![0.0, 0.0],
             temps_c: vec![t_anchor, t_anchor],
         };
     }
-    let times: Vec<f64> = (0..KNOTS)
-        .map(|i| duration_d * i as f64 / (KNOTS - 1) as f64)
+    let n_knots = ((duration_d * 24.0).ceil() as usize + 1).clamp(2, 500);
+    let times: Vec<f64> = (0..n_knots)
+        .map(|i| duration_d * i as f64 / (n_knots - 1) as f64)
         .collect();
     let ramp_amp = 2.0;
-    let mut shape: Vec<f64> = (0..KNOTS)
+    let mut shape: Vec<f64> = (0..n_knots)
         .map(|i| {
-            let frac = i as f64 / (KNOTS - 1) as f64;
+            let frac = i as f64 / (n_knots - 1) as f64;
             2.0 * (0.5 - frac)
         })
         .collect();
-    for i in 1..KNOTS - 1 {
+    for i in 1..n_knots - 1 {
         shape[i] += (rng.random::<f64>() - 0.5) * 1.0;
     }
     let base_temps: Vec<f64> = shape
@@ -234,7 +236,8 @@ mod tests {
             &mut rng,
         );
         assert_eq!(trace.times_d.len(), trace.temps_c.len());
-        assert!(trace.times_d.len() >= 3);
+        let expected_knots = ((duration_d * 24.0).ceil() as usize + 1).clamp(2, 500);
+        assert_eq!(trace.times_d.len(), expected_knots);
         let min_t = trace.temps_c.iter().cloned().fold(f64::INFINITY, f64::min);
         let max_t = trace.temps_c.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         assert!(

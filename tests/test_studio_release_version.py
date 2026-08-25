@@ -86,7 +86,7 @@ def _publishable_paths_changed(base_ref: str) -> bool:
 def test_studio_package_version_is_0_5_0() -> None:
     """Release semver pinned for studio embed package."""
     payload = json.loads(_PACKAGE_JSON.read_text(encoding="utf-8"))
-    assert payload["version"] == "0.5.0"
+    assert payload["version"] == "0.5.1"
 
 
 def test_publishable_path_changes_require_strict_version_bump() -> None:
