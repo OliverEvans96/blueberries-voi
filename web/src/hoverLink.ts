@@ -148,6 +148,15 @@ export type LinkedHoverHandlers = {
   onDay: (day: HoverDay, point: HoverPoint, source: HoverChartSource) => void;
 };
 
+/** Touch-primary devices — no real hover; tap-outside clears instead of leave. */
+function hasNoHover(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: none)").matches
+  );
+}
+
 /**
  * One shared hover controller for stacked/linked charts.
  * Uses pointermove + day-from-xy; clears when leaving the plot band or
@@ -159,6 +168,9 @@ export function attachLinkedHover(
   handlers: LinkedHoverHandlers,
 ): () => void {
   const onMove = (event: PointerEvent): void => {
+    // A touch tap synthesizes mouse pointer events with the same coords; ignore
+    // those so a pinned touch day isn't cleared by the follow-up mousemove.
+    if (hasNoHover() && event.pointerType !== "touch") return;
     const target = event.target as Element | null;
     if (!target) {
       handlers.onDay(null, null, null);
@@ -193,16 +205,39 @@ export function attachLinkedHover(
   };
 
   const onLeave = (event: PointerEvent): void => {
+    // Touch taps fire pointerleave when the finger lifts even though nothing
+    // "left" in the mouse sense — tap-outside clears the pin instead.
+    if (hasNoHover()) return;
     const next = event.relatedTarget as Node | null;
     if (next && root.contains(next)) return;
     handlers.onDay(null, null, null);
   };
 
+  // Touch has no hover: a stationary tap never fires pointermove, so nothing
+  // would show without this — tap-and-hold pins it, matching pointermove's
+  // drag-to-scrub. It also has no natural "leave" once the finger lifts, so
+  // (unlike a mouse) it stays pinned after pointerup and is only cleared by
+  // a tap elsewhere outside this linked region. Mouse/pen behavior, which
+  // already has real hover, is untouched by either.
+  const onTouchDown = (event: PointerEvent): void => {
+    if (event.pointerType === "touch") onMove(event);
+  };
+  const onOutsideTouchDown = (event: PointerEvent): void => {
+    if (event.pointerType !== "touch") return;
+    const target = event.target as Node | null;
+    if (target && root.contains(target)) return;
+    handlers.onDay(null, null, null);
+  };
+
   root.addEventListener("pointermove", onMove);
   root.addEventListener("pointerleave", onLeave);
+  root.addEventListener("pointerdown", onTouchDown);
+  document.addEventListener("pointerdown", onOutsideTouchDown);
 
   return () => {
     root.removeEventListener("pointermove", onMove);
     root.removeEventListener("pointerleave", onLeave);
+    root.removeEventListener("pointerdown", onTouchDown);
+    document.removeEventListener("pointerdown", onOutsideTouchDown);
   };
 }

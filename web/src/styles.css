@@ -97,6 +97,20 @@
   padding: 28px 24px 48px;
 }
 
+@media (max-width: 480px) {
+  .shell {
+    padding: 16px 12px 32px;
+  }
+
+  .panel {
+    padding: 12px 12px 14px;
+  }
+
+  .panel-head h2 {
+    font-size: 1.05rem;
+  }
+}
+
 .hero {
   margin-bottom: 16px;
   padding: 6px 4px 2px;
@@ -489,7 +503,10 @@
 .chart-svg {
   display: block;
   cursor: crosshair;
-  touch-action: none;
+  /* pan-y (not none): lets a vertical swipe that starts on a chart still
+   * scroll the page natively — only horizontal drag is claimed for the
+   * linked-hover scrub. */
+  touch-action: pan-y;
 }
 
 .chart-caption {
@@ -1546,5 +1563,20 @@ input[type="number"] {
   margin-top: 4px;
   color: var(--spoil-strong, #b45309);
   font-size: 0.78rem;
+}
+
+/* Touch tap targets — coarse pointers only, so mouse users on desktop see no
+ * change at all. Buttons/chips are sized for a mouse cursor (~30px tall);
+ * bump them toward the ~40-44px minimum recommended for a fingertip. */
+@media (hover: none) and (pointer: coarse) {
+  .btn-advance,
+  .btn-reset,
+  .autopilot-toggle,
+  .truth-toggle,
+  .obs-chip {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }
 

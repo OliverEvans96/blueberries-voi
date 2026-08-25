@@ -4,7 +4,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initInfoTipPortal } from "../infoTipPortal";
 import { infoTipHtml } from "../infoTip";
 import { HostHoverTip } from "./HostHoverTip";
@@ -18,9 +18,61 @@ function mountPortalRoot(): HTMLElement {
   return root;
 }
 
+/** Stub matchMedia so `(hover: none)` reports the given touch/mouse state. */
+function stubHover(hasHover: boolean): void {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(hover: none)" ? !hasHover : hasHover,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  );
+}
+
 describe("InfoTip portal", () => {
   afterEach(() => {
     document.body.innerHTML = "";
+    vi.unstubAllGlobals();
+  });
+
+  it("tapping the glyph toggles the tip open/closed on a no-hover (touch) device", () => {
+    stubHover(false);
+    const portalRoot = mountPortalRoot();
+    render(createElement(InfoTip, null, "Tap-toggle tooltip"));
+
+    const trigger = screen.getByRole("button", { name: /more information/i });
+    fireEvent.click(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+
+    fireEvent.click(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
+  });
+
+  it("closes an open tip on an outside tap", () => {
+    stubHover(false);
+    const portalRoot = mountPortalRoot();
+    render(createElement(InfoTip, null, "Outside tap closes"));
+
+    fireEvent.click(screen.getByRole("button", { name: /more information/i }));
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+
+    fireEvent.pointerDown(document.body);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
+  });
+
+  it("a click does not close a hover-opened tip on a device with real hover", () => {
+    stubHover(true);
+    const portalRoot = mountPortalRoot();
+    render(createElement(InfoTip, null, "Hover-only tooltip"));
+
+    const trigger = screen.getByRole("button", { name: /more information/i });
+    fireEvent.mouseEnter(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+
+    fireEvent.click(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
   });
 
   it("portals the glyph tooltip bubble on hover", () => {
@@ -80,6 +132,30 @@ describe("InfoTip portal", () => {
     const bubble = portalRoot.querySelector(".info-tip-bubble--portaled");
     expect(bubble).not.toBeNull();
     expect(bubble).toHaveTextContent("Vanilla portal tooltip");
+
+    cleanup();
+  });
+
+  it("ignores touch pointerover/pointerout, using tap-to-toggle instead", () => {
+    stubHover(false);
+    const portalRoot = mountPortalRoot();
+    const host = document.createElement("div");
+    host.innerHTML = infoTipHtml("Touch vanilla tooltip");
+    document.body.appendChild(host);
+
+    const cleanup = initInfoTipPortal(document);
+    const trigger = host.querySelector(".info-tip-trigger") as HTMLElement;
+
+    fireEvent.pointerOver(trigger, { relatedTarget: null, pointerType: "touch" });
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
+
+    fireEvent.click(trigger);
+    const bubble = portalRoot.querySelector(".info-tip-bubble--portaled");
+    expect(bubble).not.toBeNull();
+    expect(bubble).toHaveTextContent("Touch vanilla tooltip");
+
+    fireEvent.click(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
 
     cleanup();
   });

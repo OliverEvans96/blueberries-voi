@@ -31,6 +31,16 @@ export type InfoTipProps = {
  * mention the nearby control's own name (e.g. "press Reset to..." next to
  * the Reset button).
  */
+/** True on a device with no real hover (touch) — where tap must substitute
+ * for the hover/focus that already opens the tip on desktop. */
+function hasNoHover(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: none)").matches
+  );
+}
+
 export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
   const bubbleId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -64,6 +74,21 @@ export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
     };
   }, [open, updatePosition]);
 
+  // Tap-to-toggle for touch devices, which have no real hover state to open
+  // the tip and no "leave" event to close it. Closing on an outside tap
+  // covers both the tap-opened case and (harmlessly) the hover-opened one.
+  useEffect(() => {
+    if (!open) return;
+    const onOutside = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (triggerRef.current?.contains(target)) return;
+      if (bubbleRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [open]);
+
   const portalRoot = getInfoTipPortalRoot();
   const bubble =
     open && portalRoot
@@ -96,10 +121,24 @@ export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
         className="info-tip-trigger"
         aria-label="More information"
         aria-describedby={bubbleId}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onMouseEnter={() => {
+          if (!hasNoHover()) setOpen(true);
+        }}
+        onMouseLeave={() => {
+          if (!hasNoHover()) setOpen(false);
+        }}
+        onFocus={() => {
+          if (!hasNoHover()) setOpen(true);
+        }}
+        onBlur={() => {
+          if (!hasNoHover()) setOpen(false);
+        }}
+        onClick={() => {
+          // Hover/focus already open this on desktop; only toggle here on a
+          // device with no real hover, so a mouse click doesn't fight hover.
+          if (!hasNoHover()) return;
+          setOpen((wasOpen) => !wasOpen);
+        }}
       >
         i
       </button>

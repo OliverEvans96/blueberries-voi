@@ -216,6 +216,130 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     detach();
   });
 
+  it("shows the day on a touch pointerdown, without requiring pointermove", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    const clientX = 100 + CHART_MARGIN.left + 4;
+    const clientY = 90;
+    fireEvent.pointerDown(svg, {
+      clientX,
+      clientY,
+      pointerType: "touch",
+      bubbles: true,
+    });
+
+    expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY }, "other");
+
+    detach();
+  });
+
+  it("ignores mouse pointerdown (hover/pointermove already covers it)", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "mouse",
+      bubbles: true,
+    });
+
+    expect(onDay).not.toHaveBeenCalled();
+
+    detach();
+  });
+
+  it("stays pinned on a touch pointerup — a plain tap must not flash and vanish", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "touch",
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    fireEvent.pointerUp(svg, { pointerType: "touch", bubbles: true });
+
+    expect(onDay).not.toHaveBeenCalled();
+
+    detach();
+  });
+
+  it("clears a pinned touch day on a tap outside the linked region", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "touch",
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    fireEvent.pointerDown(outside, { pointerType: "touch", bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(null, null, null);
+
+    detach();
+  });
+
+  it("re-tapping a chart moves the pin instead of clearing it", () => {
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "touch",
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    const clientX = 234;
+    fireEvent.pointerDown(svg, { clientX, clientY: 90, pointerType: "touch", bubbles: true });
+
+    expect(onDay).toHaveBeenCalledWith(4, { clientX, clientY: 90 }, "other");
+
+    detach();
+  });
+
   it("maps chart-sales-demand to sales hover source", () => {
     const { root, svg } = makeChartRoot("chart-sales-demand");
     const onDay = vi.fn<
@@ -232,5 +356,86 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
     expect(onDay).toHaveBeenCalledWith(1, { clientX, clientY: 90 }, "sales");
 
     detach();
+  });
+
+  it("ignores pointerleave on touch-primary devices (tap-outside clears instead)", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query === "(hover: none)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "touch",
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    fireEvent.pointerLeave(root, {
+      relatedTarget: document.body,
+      pointerType: "touch",
+      bubbles: true,
+    });
+
+    expect(onDay).not.toHaveBeenCalled();
+
+    detach();
+    vi.unstubAllGlobals();
+  });
+
+  it("ignores synthetic mouse pointermove on touch-primary devices", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query === "(hover: none)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+
+    const { root, svg } = makeChartRoot();
+    const onDay = vi.fn<
+      (day: HoverDay, point: HoverPoint, source: HoverSource) => void
+    >();
+
+    const detach = attachLinkedHover(root, () => [1, 2, 3, 4, 5], {
+      onDay,
+    } as LinkedHoverHandlers);
+
+    fireEvent.pointerDown(svg, {
+      clientX: 100 + CHART_MARGIN.left + 4,
+      clientY: 90,
+      pointerType: "touch",
+      bubbles: true,
+    });
+    onDay.mockClear();
+
+    fireEvent.pointerMove(svg, {
+      clientX: 295,
+      clientY: 90,
+      pointerType: "mouse",
+      bubbles: true,
+    });
+
+    expect(onDay).not.toHaveBeenCalled();
+
+    detach();
+    vi.unstubAllGlobals();
   });
 });
