@@ -60,6 +60,9 @@ describe("WelcomeModal", () => {
     expect(host).toHaveTextContent("A hidden shelf of blueberries");
     expect(host).toHaveTextContent(/produce manager/i);
     expect(host).toHaveTextContent(/Autopilot mode/i);
+    expect(host).toHaveTextContent(
+      /Turn a knob, then hit Start exploring to watch these three pieces play out together/i,
+    );
   });
 
   it("shows green step circles inline with labels, body full-width below", () => {
