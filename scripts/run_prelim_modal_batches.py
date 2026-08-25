@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run notebook 17–18 Modal calculation batches and record wall times."""
+"""Run notebook 17-18 Modal calculation batches and record wall times."""
 
 from __future__ import annotations
 
