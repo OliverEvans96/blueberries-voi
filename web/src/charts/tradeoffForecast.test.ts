@@ -160,7 +160,7 @@ describe("tradeoff chart modules (T-127 AC-tradeoff-ui)", () => {
     expect(wasteMean).not.toBeNull();
     expect(missedMean).not.toBeNull();
     expect(wasteMean?.getAttribute("stroke")).toBe("var(--missed, #c44)");
-    expect(missedMean?.getAttribute("stroke")).toBe("var(--sales, #48a)");
+    expect(missedMean?.getAttribute("stroke")).toBe("var(--forecast)");
     expect(wasteMean?.getAttribute("d")).toBeTruthy();
     expect(missedMean?.getAttribute("d")).toBeTruthy();
   });

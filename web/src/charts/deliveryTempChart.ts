@@ -7,7 +7,7 @@ import type { MaskedObsWire } from "../obsMask";
 
 /** Cold→warm segment colors (blue → orange → red), OKLab-friendly like belief heatmap. */
 export const DELIVERY_TEMP_COLOR_STOPS = [
-  "#2563eb",
+  "#3d7ea6",
   "#f97316",
   "#dc2626",
 ] as const;
@@ -29,7 +29,7 @@ export type TempSummary = {
 };
 
 export const LOT_COLORS = [
-  "var(--accent, #2563eb)",
+  "var(--sales)",
   "#c2410c",
   "#15803d",
   "#7c3aed",

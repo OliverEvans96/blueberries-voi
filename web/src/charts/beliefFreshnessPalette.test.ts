@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  BELIEF_BAR_COLOR,
+  BELIEF_BAR_SOFT,
   BELIEF_HEATMAP_STOPS,
   CHART_PAPER,
+  TRUTH_BAR_COLOR,
   TRUTH_OVERLAY_PALETTE,
   TRUTH_TRAJECTORY_STROKE,
+  TRUTH_UI_STRONG,
   UNIT_TERMINAL_SOLD,
   UNIT_TERMINAL_SPOILED,
   minHueSeparationDegrees,
@@ -47,8 +51,18 @@ describe("beliefFreshnessPalette (OKLab constraints)", () => {
     );
   });
 
-  it("separates sold cyan from secondary histogram truth blue (#2563eb)", () => {
-    expect(oklabDistance(UNIT_TERMINAL_SOLD, "#2563eb")).toBeGreaterThanOrEqual(12);
+  it("exports bar and UI role colors aligned with studio tokens", () => {
+    expect(BELIEF_BAR_COLOR).toBe("#2f5d4a");
+    expect(BELIEF_BAR_SOFT).toBe("#9bbf9a");
+    expect(TRUTH_BAR_COLOR).toBe("#f97316");
+    expect(TRUTH_UI_STRONG).toBe("#c2410c");
+    expect(BELIEF_HEATMAP_STOPS).toContain(BELIEF_BAR_COLOR);
+    expect(BELIEF_HEATMAP_STOPS).toContain(BELIEF_BAR_SOFT);
+    expect(TRUTH_BAR_COLOR).toBe(TRUTH_TRAJECTORY_STROKE);
+  });
+
+  it("separates sold cyan from truth orange histogram bar", () => {
+    expect(oklabDistance(UNIT_TERMINAL_SOLD, TRUTH_BAR_COLOR)).toBeGreaterThanOrEqual(12);
   });
 
   it("exports stable role map for legend and markers", () => {

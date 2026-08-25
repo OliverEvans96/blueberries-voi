@@ -70,9 +70,9 @@
 }
 
 .events-day-marker--delivery {
-  color: var(--accent, #2563eb);
-  background: color-mix(in srgb, var(--accent, #2563eb) 16%, var(--paper, #fff));
-  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 35%, transparent);
+  color: var(--forecast);
+  background: color-mix(in srgb, var(--forecast) 16%, var(--paper, #fff));
+  border: 1px solid color-mix(in srgb, var(--forecast) 35%, transparent);
 }
 
 .events-day-marker--order {

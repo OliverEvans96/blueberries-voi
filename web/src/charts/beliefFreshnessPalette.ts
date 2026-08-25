@@ -11,10 +11,22 @@
  * - sold↔spoiled was ΔE≈13 / Δhue≈29° (#1d4ed8 vs #7c3aed) → confusable at r≈1.25px.
  * - Chosen triple min pairwise ΔE≈29.7, min Δhue≈84.7° on #f97316 / #0891b2 / #c026d3.
  * - Trajectory orange kept off red/spoil axis (>80° from fuchsia).
- * - Sold cyan separates from heatmap dark green (ΔE≈19 vs #2f5d4a) and secondary truth blue (#2563eb).
+ * - Sold cyan separates from heatmap dark green (ΔE≈19 vs #2f5d4a) and truth orange (#f97316).
  *
  * Paper reference: Björn Ottosson OKLab (2020); hues verified with in-repo OKLab helper + pytest/vitest.
  */
+
+/** Belief bar / UI accent (matches --belief). */
+export const BELIEF_BAR_COLOR = "#2f5d4a";
+
+/** Soft belief fill (matches --belief-soft). */
+export const BELIEF_BAR_SOFT = "#9bbf9a";
+
+/** Truth histogram / overlay bar (matches --truth). */
+export const TRUTH_BAR_COLOR = "#f97316";
+
+/** Strong truth UI chrome (matches --truth-strong). */
+export const TRUTH_UI_STRONG = "#c2410c";
 
 /** Belief mass heatmap stops (light → dark, green sequential). */
 export const BELIEF_HEATMAP_STOPS = [

@@ -57,6 +57,18 @@
   --cost: #8a5a2b;
   --revenue: #2a6f8f;
   --accent: #1a3d32;
+  --belief: #2f5d4a;
+  --belief-soft: #9bbf9a;
+  --truth: #f97316;
+  --truth-strong: #c2410c;
+  --truth-sold: #0891b2;
+  --truth-spoiled: #c026d3;
+  --forecast: #3d7ea6;
+  --forecast-band: color-mix(in srgb, var(--forecast) 18%, transparent);
+  --chart-accent: var(--forecast);
+  --chart-band: var(--forecast-band);
+  --chart-muted: var(--muted);
+  --chart-ink: var(--ink);
   --focus: #b8860b;
   --shadow: 0 10px 30px rgba(28, 36, 32, 0.08);
   --radius: 14px;
@@ -910,8 +922,8 @@ input[type="number"] {
 }
 
 .truth-toggle--on {
-  background: #8a2f1f;
-  border-color: #8a2f1f;
+  background: var(--truth-strong);
+  border-color: var(--truth-strong);
   color: #f4f7f4;
 }
 
@@ -925,9 +937,9 @@ input[type="number"] {
 }
 
 .studio--show-truth .chip-lots {
-  background: rgba(138, 47, 31, 0.14);
-  border-color: rgba(138, 47, 31, 0.45);
-  color: #8a2f1f;
+  background: color-mix(in srgb, var(--truth-strong) 14%, transparent);
+  border-color: color-mix(in srgb, var(--truth-strong) 45%, transparent);
+  color: var(--truth-strong);
   font-weight: 700;
 }
 
@@ -1378,13 +1390,13 @@ input[type="number"] {
 }
 
 .truth-cross {
-  stroke: #8a2f1f;
+  stroke: var(--truth-strong);
   stroke-width: 1;
   opacity: 0.85;
 }
 
 .truth-circle {
-  stroke: #8a2f1f;
+  stroke: var(--truth-strong);
   stroke-width: 1.5;
   fill: none;
 }
@@ -1419,7 +1431,7 @@ input[type="number"] {
 }
 
 .alpha-rho-crosshair {
-  stroke: var(--accent, #2563eb);
+  stroke: var(--forecast);
   stroke-width: 1;
   stroke-dasharray: 4 3;
   opacity: 0.75;
@@ -1428,7 +1440,7 @@ input[type="number"] {
 
 .alpha-rho-handle {
   fill: #f59e0b;
-  stroke: var(--accent, #2563eb);
+  stroke: var(--forecast);
   stroke-width: 2;
   cursor: grab;
 }
@@ -1493,8 +1505,8 @@ input[type="number"] {
 }
 
 .week-calendar-day.is-delivery {
-  background: color-mix(in srgb, var(--accent, #2563eb) 22%, transparent);
-  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  background: color-mix(in srgb, var(--forecast) 22%, transparent);
+  border-color: color-mix(in srgb, var(--forecast) 45%, transparent);
 }
 
 .week-calendar-day.is-order {
@@ -1506,12 +1518,12 @@ input[type="number"] {
   background:
     repeating-linear-gradient(
       -45deg,
-      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent),
-      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent) 4px,
+      color-mix(in srgb, var(--forecast) 22%, transparent),
+      color-mix(in srgb, var(--forecast) 22%, transparent) 4px,
       color-mix(in srgb, #ea580c 22%, transparent) 4px,
       color-mix(in srgb, #ea580c 22%, transparent) 8px
     );
-  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  border-color: color-mix(in srgb, var(--forecast) 45%, transparent);
 }
 
 .week-calendar-legend {
@@ -1538,8 +1550,8 @@ input[type="number"] {
 }
 
 .week-calendar-swatch.is-delivery {
-  background: color-mix(in srgb, var(--accent, #2563eb) 22%, transparent);
-  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  background: color-mix(in srgb, var(--forecast) 22%, transparent);
+  border-color: color-mix(in srgb, var(--forecast) 45%, transparent);
 }
 
 .week-calendar-swatch.is-order {
@@ -1551,12 +1563,12 @@ input[type="number"] {
   background:
     repeating-linear-gradient(
       -45deg,
-      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent),
-      color-mix(in srgb, var(--accent, #2563eb) 22%, transparent) 3px,
+      color-mix(in srgb, var(--forecast) 22%, transparent),
+      color-mix(in srgb, var(--forecast) 22%, transparent) 3px,
       color-mix(in srgb, #ea580c 22%, transparent) 3px,
       color-mix(in srgb, #ea580c 22%, transparent) 6px
     );
-  border-color: color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  border-color: color-mix(in srgb, var(--forecast) 45%, transparent);
 }
 
 .week-calendar-hint {
