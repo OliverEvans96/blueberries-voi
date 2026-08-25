@@ -19,17 +19,17 @@ const STEPS: WelcomeStep[] = [
   {
     label: "The model",
     title: "A hidden shelf of blueberries",
-    body: "Behind the scenes, a physics model ages every carton, sells what customers buy, and spoils what sits too long. That hidden state is the ground truth — and like a real produce manager, you rarely know it exactly. With hundreds of punnets on the shelf, small gaps in what you can see turn into real uncertainty about what's still fresh and what's quietly going soft.",
+    body: "A simulated shelf ages, sells, and spoils blueberries behind the scenes — the true state of things. Like a real manager, you never see it directly, only clues about what's fresh.",
   },
   {
     label: "The filter",
     title: "A best guess from clues",
-    body: "You can't see the shelf directly — only receipts, scans, and delivery notes. A “filter” turns those clues into a running best guess about what's really back there.",
+    body: "You only see receipts, scans, and delivery notes — never the shelf itself. A “filter” turns those clues into a running best guess of what's really back there.",
   },
   {
     label: "The controller",
     title: "An order, every day",
-    body: "Each day, a “controller” looks at that guess and decides how much to order, weighing empty shelves against spoiled cartons. That controller can be you — a produce manager placing one order — or Autopilot mode, where an algorithm takes the same decision loop for you.",
+    body: "Each day, a “controller” turns that guess into an order, balancing empty shelves against spoiled cartons. That's you, placing one order — or Autopilot, running the same decision for you.",
   },
 ];
 
@@ -104,7 +104,7 @@ export function WelcomeModal({
           </button>
 
           <h2 id="welcome-modal-title" className="welcome-modal-title">
-            Welcome to Blueberry Aisle
+            Welcome to the blueberry aisle
           </h2>
 
           <p className="welcome-modal-lede">

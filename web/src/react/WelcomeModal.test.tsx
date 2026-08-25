@@ -39,7 +39,7 @@ describe("WelcomeModal", () => {
 
     const dialog = host.querySelector("dialog.welcome-modal");
     expect(dialog).not.toBeNull();
-    expect(dialog).toHaveTextContent("Welcome to Blueberry Aisle");
+    expect(dialog).toHaveTextContent("Welcome to the blueberry aisle");
     expect(dialog).toHaveTextContent("store manager");
   });
 
@@ -58,8 +58,8 @@ describe("WelcomeModal", () => {
     expect(host).toHaveTextContent("The filter");
     expect(host).toHaveTextContent("The controller");
     expect(host).toHaveTextContent("A hidden shelf of blueberries");
-    expect(host).toHaveTextContent(/produce manager/i);
-    expect(host).toHaveTextContent(/Autopilot mode/i);
+    expect(host).toHaveTextContent(/Like a real manager/i);
+    expect(host).toHaveTextContent(/Autopilot/i);
     expect(host).toHaveTextContent(
       /Turn a knob, press Place Order, and watch these three pieces play out together/i,
     );
