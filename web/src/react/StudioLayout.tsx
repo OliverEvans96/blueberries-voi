@@ -183,7 +183,9 @@ export function StudioLayout() {
                 </span>
               </div>
               <div className="chart-caption" data-truth-caption="lots">
-              Freshness × time
+              <span data-truth-caption-label>
+                Historical Freshness Distribution
+              </span>
               <InfoTip>
                 A heatmap of believed freshness per lot over time, with the
                 hidden ground truth overlaid for comparison. Freshness runs
@@ -200,7 +202,9 @@ export function StudioLayout() {
               className="chart-caption impact-caption"
               data-truth-caption="age-comp"
             >
-              On-hand by freshness band
+              <span data-truth-caption-label>
+                Historical Freshness Summary
+              </span>
               <InfoTip>
                 Groups on-hand units into freshness bands, since a unit close
                 to spoiling barely protects against tomorrow's demand. The
@@ -217,7 +221,9 @@ export function StudioLayout() {
               className="chart-caption impact-caption"
               data-truth-caption="belief-lg"
             >
-              Freshness histogram
+              <span data-truth-caption-label>
+                Today&apos;s Freshness Distribution
+              </span>
               <InfoTip>
                 A histogram of the filter's current belief over freshness
                 values. Separate bumps instead of one smooth curve reflect
@@ -227,7 +233,7 @@ export function StudioLayout() {
             <D3ChartHost
               id="chart-belief-lg"
               className="chart"
-              ariaLabel="Freshness histogram"
+              ariaLabel="Today's Freshness Distribution"
             />
             <div className="chart-caption impact-caption" hidden>
               Age marginal
