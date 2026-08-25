@@ -54,8 +54,20 @@
   flex-shrink: 0;
 }
 
+.cockpit-pane--run.panel {
+  /* OperatorBar fills the card — no empty band above the gold highlight. */
+  padding: 0;
+}
+
 .cockpit-pane--run #operator-bar-host {
   min-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.cockpit-pane--run .operator-bar {
+  margin: 0;
+  border-radius: var(--radius);
 }
 
 .cockpit-pane--sidebar {
@@ -64,10 +76,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.cockpit-pane--run #operator-bar-host {
-  padding-top: 0;
 }
 
 .metrics-stack {

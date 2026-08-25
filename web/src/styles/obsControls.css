@@ -73,8 +73,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.35rem 0 0;
-  border-top: 1px solid var(--paper-edge);
+  margin: 0.35rem -1rem -0.65rem;
+  padding: 0.5rem 1rem 0.65rem;
+  border-top: 2px solid rgba(184, 134, 11, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(184, 134, 11, 0.1),
+    rgba(184, 134, 11, 0.03)
+  );
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .obs-truth-copy {

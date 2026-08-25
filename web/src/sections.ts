@@ -50,7 +50,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   {
     id: "logistics",
     label: "Logistics",
-    blurb: "Case size and base-stock set how you refill the cooler each day.",
+    blurb: "Case size and lead time set how you refill the cooler each day.",
     plotIds: ["plot-logistics-calendar", "plot-age-comp"],
     controlSection: "logistics",
   },
@@ -66,8 +66,8 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "autopilot",
     label: "Autopilot",
     blurb:
-      "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
-    plotIds: ["plot-controller-orders", "plot-spoil", "plot-age-comp"],
+      "Tune damped_sw α and ρ — live decomposition of protection target, gap, and case order.",
+    plotIds: ["plot-damped-sw-demo"],
     controlSection: "autopilot",
   },
 ];

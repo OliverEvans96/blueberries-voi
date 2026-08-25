@@ -1,5 +1,5 @@
 /**
- * T-115 RED: inventory vs target and age composition from belief vs truth lots.
+ * T-115 RED: inventory series and age composition from belief vs truth lots.
  * T-C2-A RED: E[f] effective inventory and freshness bands (not τ / Weibull).
  */
 // @vitest-environment jsdom
@@ -8,8 +8,7 @@ import type { FlatBelief } from "../engine/types";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Day } from "../types";
 import * as inv from "./inventoryTarget";
-import { inventorySeries, renderInventoryTarget } from "./inventoryTarget";
-import { MIN_CHART_DAY_SPAN } from "./axisTicks";
+import { inventorySeries } from "./inventoryTarget";
 
 type BeliefDay = { day: number; flatBelief: FlatBelief };
 
@@ -481,7 +480,7 @@ describe("renderFreshnessComposition freshness legend (T-148)", () => {
   });
 });
 
-describe("inventory target hover (T-151)", () => {
+describe("freshness composition hover (T-151)", () => {
   function host(width = 320): HTMLElement {
     const el = document.createElement("div");
     Object.defineProperty(el, "clientWidth", { value: width, configurable: true });
@@ -491,18 +490,6 @@ describe("inventory target hover (T-151)", () => {
 
   afterEach(() => {
     document.body.replaceChildren();
-  });
-
-  it("setInventoryTargetHover toggles hover rule opacity and x position", () => {
-    const el = host();
-    inv.renderInventoryTarget(el, [LOT_DAY], DEFAULT_SIM_CONFIG, 120);
-    inv.setInventoryTargetHover(el, 0);
-    const rule = el.querySelector(".hover-rule");
-    expect(rule?.getAttribute("opacity")).toBe("1");
-    const x1 = Number(rule?.getAttribute("x1"));
-    inv.setInventoryTargetHover(el, null);
-    expect(rule?.getAttribute("opacity")).toBe("0");
-    expect(x1).toBeGreaterThan(0);
   });
 
   it("setFreshnessCompositionHover toggles hover rule opacity and x position", () => {
@@ -515,38 +502,5 @@ describe("inventory target hover (T-151)", () => {
     inv.setFreshnessCompositionHover(el, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
     expect(x1).toBeGreaterThan(0);
-  });
-});
-
-describe("renderInventoryTarget min day span (T-151)", () => {
-  function host(): HTMLElement {
-    const el = document.createElement("div");
-    Object.defineProperty(el, "clientWidth", { configurable: true, value: 400 });
-    document.body.appendChild(el);
-    return el;
-  }
-
-  afterEach(() => {
-    document.body.replaceChildren();
-  });
-
-  it("pads x-axis to at least MIN_CHART_DAY_SPAN days with one day of history", () => {
-    const el = host();
-    renderInventoryTarget(el, [LOT_DAY], DEFAULT_SIM_CONFIG, 120);
-    const ticks = [...el.querySelectorAll(".axis-x .tick text")].map((t) =>
-      Number(t.textContent),
-    );
-    expect(Math.max(...ticks) - Math.min(...ticks) + 1).toBeGreaterThanOrEqual(
-      MIN_CHART_DAY_SPAN,
-    );
-  });
-
-  it("renders empty inventory frame when history is empty", () => {
-    const el = host();
-    renderInventoryTarget(el, [], DEFAULT_SIM_CONFIG, 120);
-    expect(el.querySelector("svg.chart-svg")).not.toBeNull();
-    expect(el.querySelectorAll(".axis-x .tick").length).toBeGreaterThanOrEqual(
-      MIN_CHART_DAY_SPAN,
-    );
   });
 });

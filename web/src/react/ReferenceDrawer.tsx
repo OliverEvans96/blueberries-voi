@@ -19,7 +19,7 @@ const GLOSSARY_ENTRIES: { term: string; body: string }[] = [
   },
   {
     term: "Base-stock",
-    body: "Target on-hand inventory the replenishment policy tries to maintain.",
+    body: "Order-up-to policy: each order day the controller targets enough on-hand to cover demand at a chosen service level (α), then damps how much of the gap it closes (ρ).",
   },
 ];
 

@@ -19,7 +19,7 @@ const TUNING_DRAWER_TS = join(HERE, "react/TuningDrawer.tsx");
 const LOGIC_TS = join(HERE, "react/studioLogic.ts");
 const CONTROLS_TS = join(HERE, "controls.ts");
 const SECTIONS_TS = join(HERE, "sections.ts");
-const CONTROLLER_ORDERS_TS = join(HERE, "charts/controllerOrders.ts");
+const DAMPED_SW_DEMO_TS = join(HERE, "charts/dampedSwDemo.ts");
 
 const MEMORY_STORE = new Map<string, string>();
 
@@ -75,38 +75,36 @@ describe("Autopilot section registration (T-127 shell)", () => {
     expect(loadSection()).toBe("autopilot");
   });
 
-  it("autopilot plotIds include separate orders, spoilage, and age composition", () => {
+  it("autopilot plotIds use single damped_sw demo chart", () => {
     const autopilot = STUDIO_SECTIONS.find((s) => s.id === "autopilot");
     expect(autopilot).toBeDefined();
     const ids = autopilot!.plotIds;
-    expect(ids).toContain("plot-controller-orders");
-    expect(ids).toContain("plot-spoil");
-    expect(ids).toContain("plot-age-comp");
-    expect(ids).not.toContain("plot-orders-spoilage");
+    expect(ids).toEqual(["plot-damped-sw-demo"]);
+    expect(ids).not.toContain("plot-controller-orders");
+    expect(ids).not.toContain("plot-spoil");
+    expect(ids).not.toContain("plot-age-comp");
   });
 });
 
 describe("Autopilot controls (T-127 autopilot block)", () => {
-  it("controls.ts mounts an autopilot block with policy chips, alpha-rho pad, budgets / interval", () => {
+  it("controls.ts mounts an autopilot block with damped_sw + constant chips, alpha/rho sliders, n_particles / interval", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).toMatch(/data-section=["']autopilot["']/);
     expect(src).not.toMatch(/data-section=["']controller["']/);
 
-    for (const policy of ["damped_sw", "rollout", "constant"] as const) {
+    for (const policy of ["damped_sw", "constant"] as const) {
       expect(
         src,
         `expected policy chip data-policy="${policy}"`,
       ).toMatch(new RegExp(`data-policy=["']${policy}["']`));
     }
+    expect(src).not.toMatch(/data-policy=["']rollout["']/);
 
-    expect(src).toMatch(/id=["']alpha-rho-pad["']/);
+    expect(src).toMatch(/type="range"[\s\S]*id=["']alpha["']/);
+    expect(src).toMatch(/type="range"[\s\S]*id=["']rho["']/);
+    expect(src).not.toMatch(/id=["']alpha-rho-pad["']/);
 
-    for (const id of [
-      "H",
-      "n_rollout_paths",
-      "candidate_case_radius",
-      "n_particles",
-    ] as const) {
+    for (const id of ["n_particles"] as const) {
       expect(
         src,
         `expected control input id for ${id}`,
@@ -120,28 +118,23 @@ describe("Autopilot controls (T-127 autopilot block)", () => {
   });
 });
 
-describe("Autopilot chart wiring (T-099)", () => {
-  it("ships controllerOrders chart module", () => {
+describe("Autopilot chart wiring (damped_sw demo)", () => {
+  it("ships dampedSwDemo chart module", () => {
     expect(
-      existsSync(CONTROLLER_ORDERS_TS),
-      "expected web/src/charts/controllerOrders.ts",
+      existsSync(DAMPED_SW_DEMO_TS),
+      "expected web/src/charts/dampedSwDemo.ts",
     ).toBe(true);
   });
 
-  it("react/studioLogic.ts mounts separate orders and spoilage charts (T-153)", () => {
-    const layout = readFileSync(LAYOUT_TS, "utf8");
+  it("react/studioLogic.ts renders damped_sw demo on controller change and section visible", () => {
     const controls = readFileSync(CONTROLS_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
-    expect(logic).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
-    expect(logic).toMatch(/renderWasteBars\(\s*els\.spoil/);
-    expect(logic).toMatch(/spoilFocus/);
-    expect(layout).toMatch(/id="chart-controller-orders"/);
-    expect(layout).toMatch(/id="chart-spoil"/);
-    expect(layout).not.toMatch(/id="chart-orders-spoilage"/);
-    expect(controls).toMatch(/id="chart-controller-orders-focus"/);
-    expect(controls).toMatch(/id="chart-spoil-focus"/);
-    expect(controls).toMatch(/data-plot="plot-controller-orders"/);
-    expect(controls).toMatch(/data-plot="plot-spoil"/);
-    expect(controls).not.toMatch(/id="chart-orders-spoilage-focus"/);
+    expect(logic).toMatch(/renderDampedSwDemo\(/);
+    expect(logic).toMatch(/plot-damped-sw-demo/);
+    expect(logic).toMatch(/onControllerChange[\s\S]*renderActiveFocusPlots/);
+    expect(controls).toMatch(/id="chart-damped-sw-demo"/);
+    expect(controls).toMatch(/data-plot="plot-damped-sw-demo"/);
+    expect(controls).not.toMatch(/id="chart-controller-orders-focus"/);
+    expect(controls).not.toMatch(/id="chart-spoil-focus"/);
   });
 });
