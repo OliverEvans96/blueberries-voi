@@ -409,6 +409,18 @@ describe("renderFreshnessComposition freshness legend (T-148)", () => {
     expect(labels).toEqual(["fresh", "fair", "old"]);
   });
 
+  it("exports FRESHNESS_LEGEND_BAND and reserves top margin for legend", () => {
+    expect(inv.FRESHNESS_LEGEND_BAND).toBe(14);
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", {
+      value: 320,
+      configurable: true,
+    });
+    inv.renderFreshnessComposition(container, [LOT_DAY], 100);
+    const legend = container.querySelector(".legend");
+    expect(legend?.getAttribute("transform")).toBe("translate(44, 4)");
+  });
+
   it("keeps a readable y-axis when all band counts are zero (T-157)", () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {

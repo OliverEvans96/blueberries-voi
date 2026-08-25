@@ -66,6 +66,10 @@
   gap: 0.75rem;
 }
 
+.cockpit-pane--run #operator-bar-host {
+  padding-top: 0;
+}
+
 .metrics-stack {
   display: flex;
   flex-direction: column;
@@ -117,14 +121,10 @@
   margin-top: 0.2rem;
 }
 
-.belief-mae-stat {
-  margin: 0.2rem 0 0.35rem 44px;
-  padding: 0.35rem 0.65rem;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.15rem 0.35rem;
-  max-width: calc(100% - 44px);
+.belief-mae-table {
+  width: 100%;
+  margin: 0.5rem 0 0;
+  border-collapse: collapse;
   font-size: 0.78rem;
   line-height: 1.35;
   color: var(--ink);
@@ -133,7 +133,9 @@
   border-left: 3px solid #e6b800;
 }
 
-.belief-mae-label {
+.belief-mae-table caption {
+  padding: 0.35rem 0.65rem 0.15rem;
+  text-align: left;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -141,22 +143,34 @@
   color: var(--ink-soft);
 }
 
-.belief-mae-value {
-  font-size: 0.88rem;
-  font-weight: 500;
+.belief-mae-table th,
+.belief-mae-table td {
+  padding: 0.25rem 0.65rem;
+  text-align: left;
   font-variant-numeric: tabular-nums;
+}
+
+.belief-mae-table thead th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.belief-mae-table tbody th {
+  font-weight: 600;
   color: var(--ink);
 }
 
-.belief-mae-separator {
-  color: var(--ink-soft);
-  opacity: 0.55;
-  font-weight: 400;
+.belief-mae-table tbody td {
+  font-weight: 500;
+  color: var(--ink);
 }
 
-.belief-mae-suffix {
-  font-size: 0.72rem;
-  color: var(--ink-soft);
+.belief-mae-table tbody tr:last-child th,
+.belief-mae-table tbody tr:last-child td {
+  padding-bottom: 0.45rem;
 }
 
 .title-bar {

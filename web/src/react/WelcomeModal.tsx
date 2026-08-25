@@ -19,7 +19,7 @@ const STEPS: WelcomeStep[] = [
   {
     label: "The model",
     title: "A hidden shelf of blueberries",
-    body: "Behind the scenes, a physics model ages every carton, sells what customers buy, and spoils what sits too long. That's the ground truth — the studio doesn't show it to you directly.",
+    body: "Behind the scenes, a physics model ages every carton, sells what customers buy, and spoils what sits too long. That hidden state is the ground truth — and like a real produce manager, you rarely know it exactly. With hundreds of punnets on the shelf, small gaps in what you can see turn into real uncertainty about what's still fresh and what's quietly going soft.",
   },
   {
     label: "The filter",
@@ -29,7 +29,7 @@ const STEPS: WelcomeStep[] = [
   {
     label: "The controller",
     title: "An order, every day",
-    body: "Each day, a “controller” looks at that guess and recommends how much to order, weighing empty shelves against spoiled cartons.",
+    body: "Each day, a “controller” looks at that guess and decides how much to order, weighing empty shelves against spoiled cartons. That controller can be you — a produce manager placing one order — or Autopilot mode, where an algorithm takes the same decision loop for you.",
   },
 ];
 
@@ -104,7 +104,7 @@ export function WelcomeModal({
           </button>
 
           <h2 id="welcome-modal-title" className="welcome-modal-title">
-            Welcome to the blueberry inventory studio
+            Welcome to Blueberry Aisle
           </h2>
 
           <p className="welcome-modal-lede">
@@ -122,21 +122,18 @@ export function WelcomeModal({
           <div className="welcome-modal-steps">
             {STEPS.map((step, i) => (
               <div className="welcome-modal-step" key={step.label}>
-                <span className="welcome-modal-step-index" aria-hidden="true">
-                  {i + 1}
-                </span>
-                <div className="welcome-modal-step-copy">
-                  <p className="welcome-modal-step-label">{step.label}</p>
-                  <p className="welcome-modal-step-title">{step.title}</p>
-                  <p className="welcome-modal-step-body">{step.body}</p>
-                </div>
+                <h3 className="welcome-modal-step-heading">
+                  ({i + 1}) {step.label}
+                </h3>
+                <p className="welcome-modal-step-title">{step.title}</p>
+                <p className="welcome-modal-step-body">{step.body}</p>
               </div>
             ))}
           </div>
 
           <p className="welcome-modal-footer-note">
-            Turn a knob, press Advance, and watch these three pieces play out
-            together. The{" "}
+            Turn a knob, press Place Order, and watch these three pieces play
+            out together. The{" "}
             <a href={STUDIO_DOCS_URL} target="_blank" rel="noopener noreferrer">
               docs
             </a>{" "}
@@ -148,7 +145,7 @@ export function WelcomeModal({
             className="welcome-modal-cta"
             onClick={onDismiss}
           >
-            Start exploring
+            Place Order
           </button>
         </dialog>,
         host,

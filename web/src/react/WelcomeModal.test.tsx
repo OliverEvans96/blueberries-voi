@@ -39,9 +39,7 @@ describe("WelcomeModal", () => {
 
     const dialog = host.querySelector("dialog.welcome-modal");
     expect(dialog).not.toBeNull();
-    expect(dialog).toHaveTextContent(
-      "Welcome to the blueberry inventory studio",
-    );
+    expect(dialog).toHaveTextContent("Welcome to Blueberry Aisle");
     expect(dialog).toHaveTextContent("store manager");
   });
 
@@ -56,9 +54,27 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    expect(host).toHaveTextContent("The model");
-    expect(host).toHaveTextContent("The filter");
-    expect(host).toHaveTextContent("The controller");
+    expect(host).toHaveTextContent("(1) The model");
+    expect(host).toHaveTextContent("(2) The filter");
+    expect(host).toHaveTextContent("(3) The controller");
+    expect(host).toHaveTextContent("A hidden shelf of blueberries");
+    expect(host).toHaveTextContent(/produce manager/i);
+    expect(host).toHaveTextContent(/Autopilot mode/i);
+  });
+
+  it("uses inline step numbers without hanging body indent", () => {
+    const host = makeHost();
+
+    render(
+      createElement(WelcomeModal, {
+        open: true,
+        onDismiss: () => undefined,
+        portalContainerRef: { current: host },
+      }),
+    );
+
+    expect(host.querySelector(".welcome-modal-step-index")).toBeNull();
+    expect(host.querySelector(".welcome-modal-step-heading")).not.toBeNull();
   });
 
   it("calls onDismiss when the close button is clicked", () => {
@@ -77,7 +93,7 @@ describe("WelcomeModal", () => {
     expect(onDismiss).toHaveBeenCalled();
   });
 
-  it("calls onDismiss when the CTA button is clicked", () => {
+  it("calls onDismiss when the Place Order button is clicked", () => {
     const host = makeHost();
     const onDismiss = vi.fn();
 
@@ -89,7 +105,7 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start exploring" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
     expect(onDismiss).toHaveBeenCalled();
   });
 
@@ -112,6 +128,6 @@ describe("WelcomeModal", () => {
       createElement(WelcomeModal, { open: true, onDismiss: () => undefined }),
     );
 
-    expect(screen.getByText("Start exploring")).toBeInTheDocument();
+    expect(screen.getByText("Place Order")).toBeInTheDocument();
   });
 });

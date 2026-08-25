@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { InfoTip } from "./InfoTip";
 import "../styles/tuningDrawer.css";
 
 export type TuningDrawerProps = {
@@ -147,11 +146,6 @@ export function TuningDrawer({
                       >
                         Demand
                       </button>
-                      <InfoTip>
-                        Sets the average daily demand level and how much
-                        random variability rides on top of the day-of-week
-                        and weekly calendar shape.
-                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -161,12 +155,6 @@ export function TuningDrawer({
                       >
                         Arrival
                       </button>
-                      <InfoTip>
-                        Sets the cold-chain corridor a delivery travels
-                        through — transit duration, mean temperature, and
-                        within-pallet variation — which determine each
-                        unit's freshness the moment it arrives on the shelf.
-                      </InfoTip>
                       <button
                         type="button"
                         role="tab"
@@ -176,12 +164,6 @@ export function TuningDrawer({
                       >
                         Physics
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the daily in-store aging process: reference
-                        shelf life, Q10 temperature sensitivity, and store
-                        temperature, which determine how fast a unit's
-                        freshness decays on the shelf.
-                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -196,11 +178,6 @@ export function TuningDrawer({
                       >
                         Logistics
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the delivery calendar, case size, and lead time
-                        that determine how much stock the store carries and
-                        how it gets refilled.
-                      </InfoTip>
                     </div>
                   </div>
                   <div className="tuning-cluster" role="presentation">
@@ -215,11 +192,6 @@ export function TuningDrawer({
                       >
                         Autopilot
                       </button>
-                      <InfoTip alignEnd>
-                        Sets the automated ordering policy's parameters: how
-                        aggressively it closes the gap to the demand target,
-                        plus the rollout search budget.
-                      </InfoTip>
                     </div>
                   </div>
                 </nav>

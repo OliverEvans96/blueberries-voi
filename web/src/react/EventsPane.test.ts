@@ -164,6 +164,8 @@ describe("EventsPane (T-148 v6)", () => {
     expect(day2Card).not.toBeNull();
     expect(day2Card!.querySelector(".events-day-marker--delivery")).not.toBeNull();
     expect(day2Card!.querySelector(".events-day-marker--order")).toBeNull();
+    expect(day2Card!.textContent).toContain("Delivery day");
+    expect(day2Card!.textContent).not.toContain("delivery day");
 
     const header = day2Card!.querySelector(".events-day-header");
     const heading = header?.querySelector(".events-day-heading");

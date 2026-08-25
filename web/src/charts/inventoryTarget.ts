@@ -344,6 +344,8 @@ export type EffectiveInventoryPoint = {
   effective: number;
 };
 
+export const FRESHNESS_LEGEND_BAND = 14;
+
 export function renderFreshnessComposition(
   container: HTMLElement,
   history: Day[],
@@ -352,7 +354,12 @@ export function renderFreshnessComposition(
   effectiveSeries?: EffectiveInventoryPoint[],
 ): void {
   const width = container.clientWidth || 320;
-  const margin = { top: 10, right: 12, bottom: 28, left: 40 };
+  const margin = {
+    top: 10 + FRESHNESS_LEGEND_BAND,
+    right: 12,
+    bottom: 28,
+    left: 40,
+  };
   const innerW = width - margin.left - margin.right;
   const innerH = height - margin.top - margin.bottom;
 
@@ -492,7 +499,7 @@ export function renderFreshnessComposition(
   const legend = svg
     .append("g")
     .attr("class", "legend")
-    .attr("transform", `translate(${margin.left + 4}, 8)`);
+    .attr("transform", `translate(${margin.left + 4}, 4)`);
   let legendX = 0;
   for (const b of bands) {
     const item = legend.append("g").attr("transform", `translate(${legendX},0)`);

@@ -69,46 +69,25 @@
 }
 
 .welcome-modal-step {
-  display: flex;
-  gap: 10px;
   padding: 14px;
   border: 1px solid var(--paper-edge, #cfc5b0);
   border-radius: 10px;
   background: color-mix(in srgb, var(--paper, #f7f2e8) 70%, #fff);
 }
 
-.welcome-modal-step-index {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--accent, #1a3d32);
-  color: var(--paper, #f7f2e8);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.welcome-modal-step-copy {
-  min-width: 0;
-}
-
-.welcome-modal-step-label {
-  margin: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.welcome-modal-step-heading {
+  margin: 0 0 4px;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 600;
+  font-size: 0.95rem;
   color: var(--focus, #b8860b);
 }
 
 .welcome-modal-step-title {
-  margin: 2px 0 4px;
+  margin: 0 0 6px;
   font-family: var(--font-display, "Fraunces", Georgia, serif);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--ink, #1c2420);
 }
 

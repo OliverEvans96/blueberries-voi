@@ -751,119 +751,65 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function syncTruthCaptions(): void {
-    qa<HTMLElement>("[data-truth-caption]").forEach((el) => {
-      const kind = el.dataset.truthCaption;
-      if (kind === "belief" || kind === "belief-lg") {
-        el.textContent = showTruth
-          ? "Freshness histogram (Omniscience on)"
-          : "Freshness histogram";
-      }
-      if (kind === "age-comp") {
-        el.textContent = showTruth
-          ? "On-hand by freshness band (Omniscience on)"
-          : "On-hand by freshness band";
-      }
-      if (kind === "lots") {
-        el.textContent =
-          !showTruth && vm.history.length > 0
-            ? "Freshness × time (turn on Omniscience to see unit trajectories)"
-            : "Freshness × time";
-      }
-    });
     syncBeliefMaeStats();
   }
 
-  function setBeliefMaeStatContent(
-    el: HTMLElement,
-    meanMae: number,
-    distMae: number,
-    suffix: string,
-  ): void {
-    el.replaceChildren();
-
-    const appendMetric = (label: string, value: string): void => {
-      const labelSpan = document.createElement("span");
-      labelSpan.className = "belief-mae-label";
-      labelSpan.textContent = label;
-      el.appendChild(labelSpan);
-      const valueSpan = document.createElement("span");
-      valueSpan.className = "belief-mae-value";
-      valueSpan.textContent = value;
-      el.appendChild(valueSpan);
-    };
-
-    const appendSeparator = (): void => {
-      const sep = document.createElement("span");
-      sep.className = "belief-mae-separator";
-      sep.textContent = "·";
-      el.appendChild(sep);
-    };
-
-    appendMetric("MAE(mean f):", formatMeanFAbsError(meanMae));
-    appendSeparator();
-    appendMetric("MAE(dist):", formatMeanFAbsError(distMae));
-    appendSeparator();
-    const suffixSpan = document.createElement("span");
-    suffixSpan.className = "belief-mae-suffix";
-    suffixSpan.textContent = suffix;
-    el.appendChild(suffixSpan);
-  }
-
   function syncBeliefMaeStats(): void {
+    const table = q<HTMLTableElement>("[data-belief-mae-table]");
+    if (!table) return;
+
     const visible = showTruth && vm.live_units.length > 0;
-    qa<HTMLElement>("[data-belief-mae]").forEach((el) => {
-      if (!visible) {
-        el.hidden = true;
-        el.replaceChildren();
-        el.removeAttribute("title");
-        return;
-      }
+    const todayMeanCell = q<HTMLElement>("[data-belief-mae-today-mean]");
+    const todayDistCell = q<HTMLElement>("[data-belief-mae-today-dist]");
+    const allMeanCell = q<HTMLElement>("[data-belief-mae-all-mean]");
+    const allDistCell = q<HTMLElement>("[data-belief-mae-all-dist]");
 
-      const kind = el.dataset.beliefMae;
-      el.title = BELIEF_MAE_TOOLTIP;
+    if (!visible || !todayMeanCell || !todayDistCell || !allMeanCell || !allDistCell) {
+      table.hidden = true;
+      table.removeAttribute("title");
+      todayMeanCell?.replaceChildren();
+      todayDistCell?.replaceChildren();
+      allMeanCell?.replaceChildren();
+      allDistCell?.replaceChildren();
+      return;
+    }
 
-      if (kind === "history") {
-        const meanSummary = meanMeanFAbsErrorOverHistory(
-          vm.history,
-          vm.belief_history,
-        );
-        const distSummary = meanDistributionAbsErrorOverHistory(
-          vm.history,
-          vm.belief_history,
-        );
-        if (!meanSummary || !distSummary) {
-          el.hidden = true;
-          el.replaceChildren();
-          return;
-        }
-        el.hidden = false;
-        setBeliefMaeStatContent(
-          el,
-          meanSummary.meanMae,
-          distSummary.meanMae,
-          `mean over ${meanSummary.dayCount} days`,
-        );
-        return;
-      }
+    const flat = vm.belief_history.at(-1)?.flatBelief;
+    const todayMeanMae = flat ? currentMeanFAbsError(flat, vm.live_units) : null;
+    const todayDistMae = flat
+      ? currentDistributionAbsError(flat, vm.live_units)
+      : null;
 
-      if (kind === "histogram") {
-        const flat = vm.belief_history.at(-1)?.flatBelief;
-        if (!flat) {
-          el.hidden = true;
-          el.replaceChildren();
-          return;
-        }
-        const meanMae = currentMeanFAbsError(flat, vm.live_units);
-        const distMae = currentDistributionAbsError(flat, vm.live_units);
-        if (meanMae == null || distMae == null) {
-          el.hidden = true;
-          el.replaceChildren();
-          return;
-        }
-        el.hidden = false;
-        setBeliefMaeStatContent(el, meanMae, distMae, "current day");
-      }
-    });
+    const meanSummary = meanMeanFAbsErrorOverHistory(
+      vm.history,
+      vm.belief_history,
+    );
+    const distSummary = meanDistributionAbsErrorOverHistory(
+      vm.history,
+      vm.belief_history,
+    );
+
+    if (
+      todayMeanMae == null ||
+      todayDistMae == null ||
+      !meanSummary ||
+      !distSummary
+    ) {
+      table.hidden = true;
+      table.removeAttribute("title");
+      todayMeanCell.replaceChildren();
+      todayDistCell.replaceChildren();
+      allMeanCell.replaceChildren();
+      allDistCell.replaceChildren();
+      return;
+    }
+
+    table.hidden = false;
+    table.title = BELIEF_MAE_TOOLTIP;
+    todayMeanCell.textContent = formatMeanFAbsError(todayMeanMae);
+    todayDistCell.textContent = formatMeanFAbsError(todayDistMae);
+    allMeanCell.textContent = formatMeanFAbsError(meanSummary.meanMae);
+    allDistCell.textContent = formatMeanFAbsError(distSummary.meanMae);
   }
 
   function plotVisible(plotId: string): boolean {

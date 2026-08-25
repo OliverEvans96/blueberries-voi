@@ -16,6 +16,8 @@
 .info-tip {
   position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
+  width: 14px;
   vertical-align: middle;
   margin-left: 0.32em;
   line-height: 1;

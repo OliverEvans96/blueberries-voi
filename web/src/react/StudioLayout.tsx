@@ -196,7 +196,6 @@ export function StudioLayout() {
               className="chart"
               ariaLabel="Belief freshness over time with truth overlay"
             />
-            <p className="belief-mae-stat" data-belief-mae="history" hidden />
             <div
               className="chart-caption impact-caption"
               data-truth-caption="age-comp"
@@ -230,7 +229,6 @@ export function StudioLayout() {
               className="chart"
               ariaLabel="Freshness histogram"
             />
-            <p className="belief-mae-stat" data-belief-mae="histogram" hidden />
             <div className="chart-caption impact-caption" hidden>
               Age marginal
             </div>
@@ -241,6 +239,32 @@ export function StudioLayout() {
               aria-label="Belief age marginal"
               hidden
             />
+            <table
+              className="belief-mae-table"
+              data-belief-mae-table
+              hidden
+            >
+              <caption>Belief accuracy (Omniscience)</caption>
+              <thead>
+                <tr>
+                  <th scope="col" />
+                  <th scope="col">Mean</th>
+                  <th scope="col">Distribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Today</th>
+                  <td data-belief-mae-today-mean />
+                  <td data-belief-mae-today-dist />
+                </tr>
+                <tr>
+                  <th scope="row">All days</th>
+                  <td data-belief-mae-all-mean />
+                  <td data-belief-mae-all-dist />
+                </tr>
+              </tbody>
+            </table>
             </section>
           </div>
 

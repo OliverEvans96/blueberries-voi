@@ -344,12 +344,12 @@ export function EventsPane({
                 <div className="events-day-markers">
                   {deliveryDay ? (
                     <span className="events-day-marker events-day-marker--delivery">
-                      delivery day
+                      Delivery day
                     </span>
                   ) : null}
                   {orderDay ? (
                     <span className="events-day-marker events-day-marker--order">
-                      order day
+                      Order day
                     </span>
                   ) : null}
                 </div>
