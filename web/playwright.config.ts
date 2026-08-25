@@ -18,15 +18,26 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      // Mobile-only specs run under the "mobile" project below instead —
+      // they assert on a phone-width layout the desktop project never sees.
+      testIgnore: /\.mobile\.spec\.ts$/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1920, height: 1080 },
       },
     },
+    {
+      name: "mobile",
+      testMatch: /\.mobile\.spec\.ts$/,
+      use: {
+        ...devices["iPhone 13"],
+      },
+    },
   ],
 
   webServer: {
-    command: `npm run dev -- --port ${PORT}`,
+    // Production preview — dev-mode StrictMode can skip mounting operator bar / panes.
+    command: `npm run preview -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     env: {

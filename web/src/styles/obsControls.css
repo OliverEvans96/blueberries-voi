@@ -93,3 +93,10 @@
   font-size: 0.7rem;
   color: var(--muted);
 }
+
+@media (max-width: 380px) {
+  .obs-controls-pane .obs-channel-group {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}
