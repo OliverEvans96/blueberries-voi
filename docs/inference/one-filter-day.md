@@ -33,8 +33,8 @@ A day breaks into four moves, always in this order:
    sales split across lots (only possible if lots are separately identified), and then
    removes the sold units from the particle's state.
 3. **Birth.** A new delivery arrives as one new lot, and each of its units gets a
-   starting freshness drawn from the arrival law appropriate to what this rung knows
-   about the shipment (see [Birth freshness](/inference/birth-freshness)).
+   starting freshness drawn from the arrival law appropriate to what this observation
+   scenario knows about the shipment (see [Birth freshness](/inference/birth-freshness)).
 4. **Resample and retire.** Particles that explained the day well get copied more often
    than particles that explained it poorly; particles that are completely inconsistent
    with the day's evidence get dropped. Lots that no particle believes still hold a live

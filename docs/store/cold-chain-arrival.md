@@ -11,7 +11,7 @@ sources:
 
 # Cold-chain arrival model
 
-Every delivery starts its life in the store already partway degraded, because it spent a day or several inside a truck before it ever reached a shelf. This page describes how the simulator turns "a shipment travelled through a refrigerated corridor" into a probability distribution over each unit's freshness `f` the moment it arrives. It matters because every observation rung in the knowledge ladder (P0 through F3) is a different amount of information about the *same* underlying trip, not a different model — get the generative story right here and the whole ladder's information gains become meaningful.
+Every delivery starts its life in the store already partway degraded, because it spent a day or several inside a truck before it ever reached a shelf. This page describes how the simulator turns "a shipment travelled through a refrigerated corridor" into a probability distribution over each unit's freshness `f` the moment it arrives. It matters because every observation scenario in the knowledge ladder — from books only through the full temperature-history scenario — is a different amount of information about the *same* underlying trip, not a different model — get the generative story right here and the whole ladder's information gains become meaningful.
 
 ![Six Abdella cold-chain shipments (duration vs. mean temperature factor) plotted against the corridor families the arrival model assumes](/figures/cold-chain-arrival-calibration-overlay.png)
 
@@ -118,7 +118,7 @@ Note that $k \cdot \theta \cdot \eta_{\text{ref}} = 2.0 \times \tfrac{1}{28} \ti
 
 One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$ calibration as suspect — S4's recorded position-probe temperature factor implied a sustained temperature well above anything the lot-mean trace supported, so it was flagged and left out rather than silently averaged in.
 
-**Alternatives considered:** scale-scaling everywhere misreads Q10 as event severity rather than event frequency, and breaks $\Lambda$-sufficiency. Separate gamma rates for transit vs. shelf would let the two conventions drift apart from each other over time. Fitting the six shipments by MLE would over-read six data points as validation. And a lower reference life would leave most corridors delivering fruit that's mostly dead on arrival, leaving no rung anything to learn.
+**Alternatives considered:** scale-scaling everywhere misreads Q10 as event severity rather than event frequency, and breaks $\Lambda$-sufficiency. Separate gamma rates for transit vs. shelf would let the two conventions drift apart from each other over time. Fitting the six shipments by MLE would over-read six data points as validation. And a lower reference life would leave most corridors delivering fruit that's mostly dead on arrival, leaving no observation scenario anything to learn.
 
 ## In the code
 
@@ -138,7 +138,7 @@ One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$
 
 ## Caveats
 
-**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment of the whole chain — is excluded entirely. Real arrival freshness is therefore lower, likely meaningfully lower, than what this model reports. Extending the model to cover field heat would need its own segment, its own data treatment, and a harvest-date observation rung; it's a deliberate scope choice for now, not an oversight.
+**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment of the whole chain — is excluded entirely. Real arrival freshness is therefore lower, likely meaningfully lower, than what this model reports. Extending the model to cover field heat would need its own segment, its own data treatment, and a harvest-date observation scenario; it's a deliberate scope choice for now, not an oversight.
 
 **No observation channel ever reveals a unit's actual freshness.** Even the richest available observation — the full temperature-history trace — pins down the shared exposure $\Lambda$ for the delivery exactly. It never reveals $\psi$ (the per-unit position multiplier) or the per-unit gamma draw $D$. That is a hard floor on how sharp any belief about one specific unit's freshness can ever get, no matter how much is observed about the trip — and it's exactly why units within a single lot genuinely differ in freshness even under perfect trip knowledge.
 

@@ -65,8 +65,9 @@ exposure; the temperature factor accounts for the remaining ≈1.6%. A pack date
 observationally a duration measurement (calendar days from pack to arrival, once rounded
 to a whole day) — nothing more — so knowing it removes most of the shipment-level
 uncertainty in $\Lambda$ before the filter does anything else. A full temperature trace
-adds $\bar\varphi$ (and de-rounds $d$ to its exact value), which is why F3 still helps,
-but it only mops up what's left after duration is already known.
+adds $\bar\varphi$ (and de-rounds $d$ to its exact value), which is why the full
+temperature-history scenario still helps, but it only mops up what's left after duration
+is already known.
 
 ## Why it's modelled this way
 
@@ -119,5 +120,5 @@ temperature is unimportant to any single trip's outcome.
   made and what it means for how much to trust the absolute numbers.
 - This explains why *duration* observations (pack date) help so much and *temperature*
   observations add comparatively little on top — it does not by itself explain why waste
-  totals (P1) fail to help at all; that's a separate finding, covered in
-  [Does belief actually sharpen?](./does-belief-sharpen)
+  totals (the "shrink gun" scenario) fail to help at all; that's a separate finding,
+  covered in [Does belief actually sharpen?](./does-belief-sharpen)

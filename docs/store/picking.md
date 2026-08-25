@@ -50,4 +50,4 @@ The numeric value, $\sigma = 0.5$, is used as a single "moderately fresh-biased"
 - This is a lottery re-drawn per unit, not a single multinomial shot: the "Wallenius-style" sequential re-weighting means the *effective* selection probabilities for a whole day's sales are not simply the single-draw weights above — they shift as the shelf empties.
 - Freshness is the only thing that biases picking; the model doesn't represent shelf position, facing, package appearance, price markdowns, or any other real-world cue a shopper might actually use.
 - FIFO governs lot bookkeeping (when an emptied lot's record is retired), never which unit within the currently-alive stock gets sold — conflating the two would be a mistake.
-- $\sigma$ is a single fixed number for the whole store and every rung; the model does not fit or vary it per experiment condition beyond the one uniform-picking sensitivity cell.
+- $\sigma$ is a single fixed number for the whole store and every observation scenario; the model does not fit or vary it per experiment condition beyond the one uniform-picking sensitivity cell.

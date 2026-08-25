@@ -25,7 +25,7 @@ For how rustdoc fits this narrative site, see
 [Rust API (voi_core)](/reference/rust-api).
 :::
 
-![Filter accuracy improves as the store's observation channel gets richer, from books-only (P0) down to a full temperature trace (F3)](/figures/accuracy-ladder-mae-f.png)
+![Filter accuracy improves as the store's observation channel gets richer, from books-only down to a full temperature trace](/figures/accuracy-ladder-mae-f.png)
 
 ## The idea
 
@@ -43,11 +43,12 @@ React + D3 app (`web/`) where you can watch a store run day by day and change wh
 it's allowed to see.
 
 The "what it's allowed to see" part is the whole point. The site calls each preset
-level of observability a **rung** on a knowledge ladder — from `P0` (books only:
-today's sales and waste totals) up through `F3` (a full cold-chain temperature
-trace on every shipment) — and the central experiment reruns the same simulated
-weather and demand under each rung, so any difference in outcome is attributable
-to what the store could see, not to which random day it happened to get.
+level of observability an **observation scenario** on a knowledge ladder — from
+"books only" (today's sales and waste totals) up through a full cold-chain
+temperature trace on every shipment — and the central experiment reruns the same
+simulated weather and demand under each scenario, so any difference in outcome is
+attributable to what the store could see, not to which random day it happened to
+get.
 
 ## Why it's modelled this way
 
@@ -57,7 +58,8 @@ analytically. That's not the approach here: real cold-chain and point-of-sale
 data for a comparison this granular — the same store, the same days, several
 different knowledge states — doesn't exist and can't be collected after the fact.
 Simulating a store from first-principles physics, with a filter that only sees
-what a given rung would really expose, holds "everything except what's observed"
+what a given observation scenario would really expose, holds "everything except
+what's observed"
 fixed and gives a defensible answer. The cost of that choice is that every number
 on this site is only as good as the physics and demand model underneath it — see
 the caveats on the individual model pages for where those assumptions are
@@ -75,13 +77,14 @@ weakest.
 ## Caveats
 
 The headline result, in short, with detail left for the
-[Findings](/findings/does-belief-sharpen) section: richer observation rungs
+[Findings](/findings/does-belief-sharpen) section: richer observation scenarios
 noticeably sharpen the filter's belief about arrival freshness — on a recent
 replay, mean |belief − truth| on shelf freshness drops roughly **6×** from the
-books-only rung to the full temperature-trace rung. What that sharper belief has
-not yet reliably done, at the experiment budgets run so far, is translate into
-more profit — closed-loop profit under the current ordering policy still moves
-more with which random seed you happen to draw than with which rung the store is
-on. That gap between "we can see more clearly" and "we haven't shown it pays" is
+books-only scenario to the full temperature-trace scenario. What that sharper
+belief has not yet reliably done, at the experiment budgets run so far, is
+translate into more profit — closed-loop profit under the current ordering policy
+still moves more with which random seed you happen to draw than with which
+observation scenario the store is on. That gap between "we can see more clearly"
+and "we haven't shown it pays" is
 explored further on the Findings pages; this page is just the short summary up
 front.
