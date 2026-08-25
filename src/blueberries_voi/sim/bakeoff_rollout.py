@@ -16,8 +16,8 @@ calendar days so weekly / MWF periodicity is preserved (H âˆˆ {7, 14, 21, 28, â€
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from enum import Enum
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Protocol
 
 import numpy as np
@@ -65,7 +65,7 @@ class _BaseOrderPolicy(Protocol):
     ) -> int: ...
 
 
-class CandidateSearchMode(str, Enum):
+class CandidateSearchMode(StrEnum):
     """Rollout candidate enumeration strategy (ADR 0146)."""
 
     NEIGHBORHOOD = "neighborhood"
@@ -455,7 +455,7 @@ def candidate_orders_v2(
             case = lo
         else:
             t = i / (extra - 1)
-            case = int(round(lo + t * (hi - lo)))
+            case = round(lo + t * (hi - lo))
         out.append(max(0, case) * int(case_size))
     out = sorted(set(out))
     if len(out) < k:
@@ -740,18 +740,18 @@ class RolloutPolicy:
 
 
 __all__ = [
-    "CandidateSearchConfig",
-    "CandidateSearchMode",
     "DEFAULT_CANDIDATE_CASE_RADIUS",
+    "DEFAULT_CANDIDATE_SPAN_FRACTION",
     "DEFAULT_MAX_SPAN_CASES",
     "DEFAULT_MIN_SPAN_CASES",
     "DEFAULT_N_CANDIDATES",
-    "DEMO_N_CANDIDATES",
-    "DEFAULT_CANDIDATE_SPAN_FRACTION",
     "DEFAULT_N_PARTICLES",
     "DEFAULT_N_ROLLOUT_PATHS",
     "DEFAULT_ROLLOUT_H",
     "DEFAULT_ROLLOUT_HORIZONS",
+    "DEMO_N_CANDIDATES",
+    "CandidateSearchConfig",
+    "CandidateSearchMode",
     "CrnDesyncResult",
     "RolloutPolicy",
     "candidate_orders",
