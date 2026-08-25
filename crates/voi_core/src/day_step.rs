@@ -252,7 +252,7 @@ pub fn unit_day_step<R: Rng + ?Sized>(
 pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
     input: &UnitDayStepIn,
     params: &ModelParams,
-    shipments: &[ShipmentTrace],
+    _shipments: &[ShipmentTrace],
     rng_gamma: Option<&mut R>,
     rng_alloc: Option<&mut R>,
     _rng_ship: Option<&mut R>,
@@ -322,7 +322,6 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
 mod tests {
     use super::*;
     use crate::arrival::ArrivalModel;
-    use crate::shipments::ShipmentTrace;
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
 

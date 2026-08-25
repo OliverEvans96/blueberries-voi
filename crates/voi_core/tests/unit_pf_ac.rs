@@ -22,14 +22,6 @@ fn demo_shipments() -> Vec<voi_core::ShipmentTrace> {
     voi_core::shipments::mod21_demo_shipments("short_haul")
 }
 
-fn unit_ll_wired() -> bool {
-    manifest_dir().join("src/unit_ll.rs").is_file() && read_lib_rs().contains("pub mod unit_ll")
-}
-
-fn unit_pf_wired() -> bool {
-    manifest_dir().join("src/unit_pf.rs").is_file() && read_lib_rs().contains("pub mod unit_pf")
-}
-
 fn require_unit_ll() {
     if !manifest_dir().join("src/unit_ll.rs").is_file() {
         panic!("AC-unit-pf: missing crates/voi_core/src/unit_ll.rs");
@@ -357,33 +349,6 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     // Pre-0135 (MC path in importance weight, no state mutation): ADR 0130 cited ~0.0014 @ L=20.
     const SCRIPTED_SEED: u64 = 50_000 + N_LOTS as u64 * 1_000;
 
-    fn unit_tau(f: f64, eta: f64) -> f64 {
-        (1.0 - f).max(0.0) * eta
-    }
-
-    fn lot_mean_f(units_f: &[f64], offsets: &[usize]) -> Vec<f64> {
-        (0..offsets.len() - 1)
-            .map(|ell| {
-                let sl = &units_f[offsets[ell]..offsets[ell + 1]];
-                sl.iter().sum::<f64>() / sl.len() as f64
-            })
-            .collect()
-    }
-
-    fn lot_tau_from_units(units_f: &[f64], offsets: &[usize], eta: f64) -> Vec<f64> {
-        (0..offsets.len() - 1)
-            .map(|ell| {
-                let sl = &units_f[offsets[ell]..offsets[ell + 1]];
-                let alive: Vec<f64> = sl.iter().copied().filter(|&f| f > 0.0).collect();
-                if alive.is_empty() {
-                    return 0.0;
-                }
-                let mean_f = alive.iter().sum::<f64>() / alive.len() as f64;
-                unit_tau(mean_f, eta)
-            })
-            .collect()
-    }
-
     fn f_grid_k(k: usize) -> Vec<f64> {
         if k <= 1 {
             return vec![0.0];
@@ -405,13 +370,12 @@ fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
 
     fn simulate_pick_units(
         units_f: &[f64],
-        offsets: &[usize],
+        _offsets: &[usize],
         demand: usize,
         params: &ModelParams,
         rng: &mut Pcg64,
     ) -> Vec<bool> {
         let n_units = units_f.len();
-        let l = offsets.len() - 1;
         let alive = vec![true; n_units];
         let mut sold = vec![false; n_units];
         let to_sell = demand.min(alive.iter().filter(|&&a| a).count());
@@ -691,7 +655,7 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
 
     use rand::Rng;
     use rand::SeedableRng;
-    use rand_distr::{Distribution, Gamma};
+    use rand_distr::Gamma;
     use rand_pcg::Pcg64;
     use voi_core::obs::{mask_for, RichDay};
     use voi_core::{filter_step_unit, ModelParams, UnitParticleBank};
@@ -741,7 +705,6 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
         seed: u64,
         n: usize,
     ) -> f64 {
-        let total = init.len();
         let mut bank_rng = Pcg64::seed_from_u64(seed);
         let mut bank = UnitParticleBank::from_rows_uniform_lots(
             vec![1.0 / n as f64; n],

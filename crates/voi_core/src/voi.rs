@@ -1,6 +1,5 @@
 //! SIM-02 CRN cell: shared physics, scenario-masked unit PF, SW+rollout policy.
 
-use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 

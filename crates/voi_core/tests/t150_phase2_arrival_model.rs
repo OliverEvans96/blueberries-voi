@@ -3,13 +3,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use rand::Rng;
 use rand::SeedableRng;
 use rand_distr::{Distribution, Gamma, LogNormal};
 use rand_pcg::Pcg64;
 use voi_core::arrival::{
     resolve_arrival_exposure, resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel,
-    STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
 };
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
@@ -20,7 +18,6 @@ use voi_core::physics::{
 use voi_core::demand_profile::DemandProfile;
 use voi_core::session::EngineSession;
 use voi_core::shipments::{arrival_exposure_from_path, ShipmentTrace};
-use voi_core::spawn_rng::SpawnRng;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -475,7 +472,7 @@ fn law_sd_and_atom(model: &mut ArrivalModel, condition: ArrivalCondition) -> (f6
         samples.push(model.sample_filter_birth_units(condition, 1, &mut rng)[0]);
     }
     let atom = samples.iter().filter(|&&f| f <= 0.0).count() as f64 / n as f64;
-    let (mean, sd) = empirical_mean_sd(&samples);
+    let (_mean, sd) = empirical_mean_sd(&samples);
     (sd, atom)
 }
 
@@ -938,7 +935,7 @@ fn ac2_19_quadrature_integrates_modeled_densities() {
 #[test]
 fn ac2_19_sigma_pos_in_filter_law() {
     let path = repo_root().join("data/abdella/arrival_model.json");
-    let mut payload: serde_json::Value =
+    let payload: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
     let embedded = ArrivalModel::embedded();
     let phi = embedded.phi_bar_from_t_bar(payload["mu_T"].as_f64().unwrap());
@@ -1272,7 +1269,7 @@ fn ac2_16_lambda_floor_finite_cdf() {
         "RED: arrival.rs must floor Λ before forming Gamma(kΛ, θ)"
     );
 
-    let params = ModelParams::default();
+    let _params = ModelParams::default();
     let model = ArrivalModel::embedded();
     let tiny = 1e-300;
     let p0 = model.p_f_zero(tiny);

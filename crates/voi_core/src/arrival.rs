@@ -166,7 +166,7 @@ pub struct ArrivalModel {
 /// `f > 0`) so `sample_unit_f_from_cache` can invert it directly for the continuous part
 /// of the draw.
 #[derive(Clone, Debug)]
-struct ArrivalCdfCache {
+pub struct ArrivalCdfCache {
     cdf: Vec<f64>,
     atom_f0: f64,
     mean_f: f64,
@@ -233,13 +233,16 @@ pub struct ArrivalRungLaw {
 #[derive(Deserialize)]
 struct ArrivalModelJson {
     schema_version: u64,
-    mu_T: f64,
-    sigma_T: f64,
+    #[serde(rename = "mu_T")]
+    mu_t: f64,
+    #[serde(rename = "sigma_T")]
+    sigma_t: f64,
     #[serde(default)]
     temp_floor_c: f64,
     sigma_pos: f64,
     q10: f64,
-    T_ref: f64,
+    #[serde(rename = "T_ref")]
+    t_ref: f64,
     gamma_shape: f64,
     gamma_scale: f64,
     reference_life_days: f64,
@@ -411,12 +414,12 @@ impl ArrivalModel {
             schema_version: raw.schema_version,
             corridors,
             default_corridor: default_corridor.clone(),
-            mu_t: raw.mu_T,
-            sigma_t: raw.sigma_T,
+            mu_t: raw.mu_t,
+            sigma_t: raw.sigma_t,
             temp_floor_c: raw.temp_floor_c,
             sigma_pos: raw.sigma_pos,
             q10: raw.q10,
-            t_ref: raw.T_ref,
+            t_ref: raw.t_ref,
             gamma_shape: raw.gamma_shape,
             gamma_scale: raw.gamma_scale,
             reference_life_days: raw.reference_life_days,
@@ -432,7 +435,7 @@ impl ArrivalModel {
                 gamma_shape: raw.gamma_shape,
                 gamma_scale: raw.gamma_scale,
                 q10: raw.q10,
-                t_ref: raw.T_ref,
+                t_ref: raw.t_ref,
                 eta_ref: raw.reference_life_days,
                 active_corridor: default_corridor.clone(),
             },
