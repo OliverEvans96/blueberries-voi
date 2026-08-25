@@ -973,7 +973,7 @@ input[type="number"] {
 
 .pnl-totals {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: baseline;
 }
 

@@ -31,4 +31,9 @@ describe("T-153 events pane CSS ownership", () => {
   it("keeps P&L totals second-line spacing in cockpitGrid.css", () => {
     expect(cockpitCss).toMatch(/\.pnl-totals-line \+ \.pnl-totals-line/);
   });
+
+  it("stacks P&L total lines vertically in styles.css", () => {
+    const stylesCss = readFileSync(join(HERE, "..", "styles.css"), "utf8");
+    expect(stylesCss).toMatch(/\.pnl-totals[\s\S]*flex-direction:\s*column/);
+  });
 });
