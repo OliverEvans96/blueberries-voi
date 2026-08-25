@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { D3ChartHost } from "./D3ChartHost";
 import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
+import { WelcomeModal } from "./WelcomeModal";
 
 const D3_CHART_IDS = [
   "chart-sales",
@@ -25,6 +27,8 @@ const D3_CHART_IDS = [
 
 /** Static studio shell — Cockpit Grid layout v7 (T-158). */
 export function StudioLayout() {
+  const [welcomeOpen, setWelcomeOpen] = useState(true);
+
   return (
     <div className="bv-studio">
       <div className="shell studio">
@@ -303,6 +307,10 @@ export function StudioLayout() {
         <div id="tuning-drawer-host" data-testid="tuning-drawer-host" />
         <div id="day-inspector-host" data-testid="day-inspector-host" />
       </div>
+      <WelcomeModal
+        open={welcomeOpen}
+        onDismiss={() => setWelcomeOpen(false)}
+      />
     </div>
   );
 }

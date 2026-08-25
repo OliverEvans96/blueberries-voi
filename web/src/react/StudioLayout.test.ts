@@ -279,6 +279,14 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       ),
     ).not.toBeNull();
   });
+
+  it("shows the welcome modal open on load, outside the aria-hidden portal root", () => {
+    const { container } = render(createElement(StudioLayout));
+    const dialog = container.querySelector("dialog.welcome-modal");
+    expect(dialog).not.toBeNull();
+    expect(dialog!.closest(".bv-studio-portal-root")).toBeNull();
+    expect(dialog!.closest(".bv-studio")).not.toBeNull();
+  });
 });
 
 describe("StudioLayout metrics narration (T-154)", () => {
