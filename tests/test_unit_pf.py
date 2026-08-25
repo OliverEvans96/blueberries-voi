@@ -6,6 +6,7 @@ Reference bench: ``crates/voi_core/src/bin/bench_c2_a_totals_study.rs``.
 from __future__ import annotations
 
 import math
+import os
 import subprocess
 from pathlib import Path
 
@@ -24,6 +25,14 @@ UNITS_PER_LOT = 15
 MEAN_F_MAE_MAX = 0.02
 FILTER_DAY_MS_MAX = 500.0
 SCRIPTED_SEED = 50_000 + L_STUDY * 1_000
+
+
+def _cargo_test_profile() -> tuple[str, ...]:
+    """CI prebuilds release test binaries; dev profile would recompile voi_*."""
+    profile: tuple[str, ...] = ("--locked",)
+    if os.environ.get("CI", "").lower() == "true":
+        profile = ("--release", *profile)
+    return profile
 
 
 def _read(path: Path) -> str:
@@ -65,8 +74,7 @@ def _cargo_unit_pf_ac(*test_names: str) -> subprocess.CompletedProcess[str]:
     cmd = [
         "cargo",
         "test",
-        "--release",
-        "--locked",
+        *_cargo_test_profile(),
         "-p",
         "voi_core",
         "--test",
@@ -335,6 +343,7 @@ def test_pb_log_pmf_hand_reference_normalizes() -> None:
         [
             "cargo",
             "test",
+            *_cargo_test_profile(),
             "-p",
             "voi_core",
             "t141_poisson_binomial",
@@ -361,6 +370,7 @@ def test_pb_loglik_by_lot_hand_reference_matches_brute_force() -> None:
         [
             "cargo",
             "test",
+            *_cargo_test_profile(),
             "-p",
             "voi_core",
             "t141_poisson_binomial",
@@ -413,8 +423,7 @@ def test_obs_mask_for_router_table_tests_pass() -> None:
         [
             "cargo",
             "test",
-            "--release",
-            "--locked",
+            *_cargo_test_profile(),
             "-p",
             "voi_core",
             "mask_for",

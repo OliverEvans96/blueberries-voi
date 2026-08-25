@@ -130,9 +130,24 @@ jobs:
       - name: Install dependencies and extension
         run: |
           uv venv --python 3.11
-          uv sync --all-extras --python 3.11 --frozen
+          # All optional extras except ``rust`` (maturin); PyO3 comes from the wheel below.
+          uv sync --extra dev --extra data --extra viz --extra notebooks \
+            --extra freshnet --extra modal --python 3.11 --frozen
           WHEEL="$(ls dist/wheels/blueberries_voi_core-*.whl)"
           unzip -oj "$WHEEL" 'blueberries_voi/_core.abi3.so' -d src/blueberries_voi
+
+      - name: Verify prebuilt Rust artifacts (no voi recompile)
+        run: |
+          test -f src/blueberries_voi/_core.abi3.so
+          test -d target/release/deps
+          ls target/release/deps/libvoi_core-*.rlib
+          set -o pipefail
+          out="$(cargo test --release -p voi_core -p voi_py --locked --no-run 2>&1)"
+          echo "$out"
+          if echo "$out" | grep -Eq 'Compiling (voi_core|voi_py|voi_wasm)'; then
+            echo "::error::target/ artifact not reused — voi_* crate recompiled in python job"
+            exit 1
+          fi
 
       - name: Ruff (lint)
         run: uv run --python 3.11 ruff check .

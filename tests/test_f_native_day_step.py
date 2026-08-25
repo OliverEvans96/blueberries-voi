@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DAY_STEP_SRC = REPO_ROOT / "crates" / "voi_core" / "src" / "day_step.rs"
 PHYSICS_SRC = REPO_ROOT / "crates" / "voi_core" / "src" / "physics.rs"
+
+
+def _cargo_test_profile() -> tuple[str, ...]:
+    """CI prebuilds release test binaries; dev profile would recompile voi_*."""
+    profile: tuple[str, ...] = ("--locked",)
+    if os.environ.get("CI", "").lower() == "true":
+        profile = ("--release", *profile)
+    return profile
 
 
 def _production_src(path: Path) -> str:
@@ -118,14 +128,11 @@ def test_day_step_f_native_delivery_defaults_units_per_lot_15(
 
 def test_day_step_f_native_conservation_rust_tests_pass() -> None:
     """Rust behavioral tests must pass once f-native day_step lands."""
-    import subprocess
-
     proc = subprocess.run(
         [
             "cargo",
             "test",
-            "--release",
-            "--locked",
+            *_cargo_test_profile(),
             "-p",
             "voi_core",
             "day_step_f_native",
