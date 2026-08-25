@@ -56,13 +56,15 @@ This builds `voi_wasm` for a Node target and drives the same init/reset/step/act
 
 ### Rust API docs (rustdoc)
 
-The [Rust API reference](/reference/rust-api) published on this site is generated straight from `voi_core`'s own `///` comments and bundled into the site's own build (`npm run docs:build` runs this automatically). To regenerate it on its own, without a full docs-site build:
+The [Rust API reference](/reference/rust-api) published on this site is generated straight from each crate's own `///`/`//!` comments — `voi_core`, and its two thin wrappers `voi_py` and `voi_wasm` — and bundled into the site's own build (`npm run docs:build` runs this automatically). To regenerate it on its own, without a full docs-site build:
 
 ```bash
 ./scripts/build-rustdoc.sh
 ```
 
-This runs `cargo doc --no-deps -p voi_core` and copies the output into `docs/public/api/rust/`.
+This runs `cargo doc --no-deps --workspace` and copies the per-crate output, plus a
+hand-authored landing page linking the three crates together, into
+`docs/public/api/rust/`.
 
 ## Why it's modelled this way
 
