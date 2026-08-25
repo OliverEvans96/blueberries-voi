@@ -42,7 +42,9 @@ COLORS = ["#2ca02c", "#8172b3", "#55a868", "#c44e52", "#dd8452", "#4c72b0", "#8c
 def render(out_dir: Path | None = None) -> Path:
     setup_style()
     fig, ax = plt.subplots(figsize=(9, 6))
-    for i, ((name, triple, buy), color) in enumerate(zip(SCENARIOS, COLORS, strict=True)):
+    for i, ((name, triple, buy), color) in enumerate(
+        zip(SCENARIOS, COLORS, strict=True)
+    ):
         y = len(SCENARIOS) - i
         ax.barh(y, 6, left=1.5, height=0.6, color=color, alpha=0.25, edgecolor=color)
         ax.text(0.05, y, name, fontweight="bold", fontsize=9, color=color)
