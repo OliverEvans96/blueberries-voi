@@ -39,7 +39,7 @@ describe("WelcomeModal", () => {
 
     const dialog = host.querySelector("dialog.welcome-modal");
     expect(dialog).not.toBeNull();
-    expect(dialog).toHaveTextContent("Welcome to Blueberry Aisle");
+    expect(dialog).toHaveTextContent("Welcome to the blueberry aisle");
     expect(dialog).toHaveTextContent("store manager");
   });
 
@@ -58,8 +58,8 @@ describe("WelcomeModal", () => {
     expect(host).toHaveTextContent("(2) The filter");
     expect(host).toHaveTextContent("(3) The controller");
     expect(host).toHaveTextContent("A hidden shelf of blueberries");
-    expect(host).toHaveTextContent(/produce manager/i);
-    expect(host).toHaveTextContent(/Autopilot mode/i);
+    expect(host).toHaveTextContent(/Like a real manager/i);
+    expect(host).toHaveTextContent(/Autopilot/i);
   });
 
   it("uses inline step numbers without hanging body indent", () => {
