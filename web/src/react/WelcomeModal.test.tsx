@@ -61,7 +61,7 @@ describe("WelcomeModal", () => {
     expect(host).toHaveTextContent(/produce manager/i);
     expect(host).toHaveTextContent(/Autopilot mode/i);
     expect(host).toHaveTextContent(
-      /Turn a knob, then hit Start exploring to watch these three pieces play out together/i,
+      /Turn a knob, press Place Order, and watch these three pieces play out together/i,
     );
   });
 

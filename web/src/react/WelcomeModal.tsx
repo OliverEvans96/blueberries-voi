@@ -135,8 +135,8 @@ export function WelcomeModal({
           </div>
 
           <p className="welcome-modal-footer-note">
-            Turn a knob, then hit Start exploring to watch these three pieces
-            play out together. The{" "}
+            Turn a knob, press Place Order, and watch these three pieces play
+            out together. The{" "}
             <a href={STUDIO_DOCS_URL} target="_blank" rel="noopener noreferrer">
               docs
             </a>{" "}
