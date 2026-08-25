@@ -76,7 +76,28 @@
 }
 
 .welcome-modal-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 4px;
+}
+
+.welcome-modal-step-index {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent, #1a3d32);
+  color: var(--paper, #f7f2e8);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.welcome-modal-step-label {
+  margin: 0;
   font-family: var(--font-display, "Fraunces", Georgia, serif);
   font-weight: 600;
   font-size: 0.95rem;

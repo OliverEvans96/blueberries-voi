@@ -122,9 +122,12 @@ export function WelcomeModal({
           <div className="welcome-modal-steps">
             {STEPS.map((step, i) => (
               <div className="welcome-modal-step" key={step.label}>
-                <h3 className="welcome-modal-step-heading">
-                  ({i + 1}) {step.label}
-                </h3>
+                <div className="welcome-modal-step-heading">
+                  <span className="welcome-modal-step-index" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <p className="welcome-modal-step-label">{step.label}</p>
+                </div>
                 <p className="welcome-modal-step-title">{step.title}</p>
                 <p className="welcome-modal-step-body">{step.body}</p>
               </div>
@@ -145,7 +148,7 @@ export function WelcomeModal({
             className="welcome-modal-cta"
             onClick={onDismiss}
           >
-            Place Order
+            Start exploring
           </button>
         </dialog>,
         host,
