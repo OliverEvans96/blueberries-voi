@@ -1,4 +1,5 @@
 import { D3ChartHost } from "./D3ChartHost";
+import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 
@@ -34,34 +35,34 @@ export function StudioLayout() {
           </div>
           <div className="title-bar-actions">
             <TitleBarExternalActions />
-            <button
-              type="button"
-              id="tuning-drawer-trigger"
-              className="tuning-drawer-trigger"
-              aria-label="Simulation parameters"
-              aria-expanded="false"
-              aria-controls="tuning-drawer"
-            />
-            <InfoTip alignEnd>
-              Opens the full simulation-parameters tuning dock, with every
-              knob for demand, arrival, physics, logistics, and autopilot
-              grouped into topic tabs.
-            </InfoTip>
-            <span
-              id="engine-status"
-              className="engine-status"
-              data-status="loading"
-              role="status"
-              aria-live="polite"
+            <HostHoverTip
+              alignEnd
+              tip="Opens the full simulation-parameters tuning dock, with every knob for demand, arrival, physics, logistics, and autopilot grouped into topic tabs."
             >
-              <span className="engine-status-dot" aria-hidden="true" />
-              <span className="engine-status-label">Loading</span>
-            </span>
-            <InfoTip alignEnd>
-              Shows whether the Rust simulation engine, compiled to
-              WebAssembly and running entirely in your browser, has finished
-              loading and is ready to advance days.
-            </InfoTip>
+              <button
+                type="button"
+                id="tuning-drawer-trigger"
+                className="tuning-drawer-trigger"
+                aria-label="Simulation parameters"
+                aria-expanded="false"
+                aria-controls="tuning-drawer"
+              />
+            </HostHoverTip>
+            <HostHoverTip
+              alignEnd
+              tip="Shows whether the Rust simulation engine, compiled to WebAssembly and running entirely in your browser, has finished loading and is ready to advance days."
+            >
+              <span
+                id="engine-status"
+                className="engine-status"
+                data-status="loading"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="engine-status-dot" aria-hidden="true" />
+                <span className="engine-status-label">Loading</span>
+              </span>
+            </HostHoverTip>
           </div>
         </header>
 

@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { initInfoTipPortal } from "../infoTipPortal";
 import { initStudio } from "./studioLogic";
 
 export type StudioProviderProps = {
@@ -20,7 +21,12 @@ export function StudioProvider({
       );
       return undefined;
     }
-    return initStudio(app);
+    const cleanupStudio = initStudio(app);
+    const cleanupInfoTips = initInfoTipPortal(app);
+    return () => {
+      cleanupInfoTips();
+      cleanupStudio();
+    };
   }, [containerRef]);
 
   return <>{children}</>;
