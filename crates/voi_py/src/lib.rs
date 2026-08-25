@@ -831,7 +831,7 @@ impl PyEngineSession {
     /// dimensions, filter/rollout budgets, shipment thermal traces, particle count,
     /// delivery schedule, and optional demand profile and observation scenario, then
     /// returns a fresh state snapshot. Must be called before `step`/`step_n`/`act`.
-    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None, delivery_weekdays=None, units_per_lot=None))]
+    #[pyo3(signature = (seed, lead_time=1, enable_filter=true, h=7, n_paths=2, radius=1, times=vec![], temps=vec![], n_particles=200, l=2, k=4, obs_scenario=None, demand_profile_json=None, delivery_weekdays=None, units_per_lot=None, belief_source=None))]
     fn init<'py>(
         &mut self,
         py: Python<'py>,
@@ -850,6 +850,7 @@ impl PyEngineSession {
         demand_profile_json: Option<String>,
         delivery_weekdays: Option<Vec<u32>>,
         units_per_lot: Option<usize>,
+        belief_source: Option<String>,
     ) -> PyResult<Bound<'py, PyDict>> {
         self.inner.init(seed);
         self.inner.set_belief_dims(l, k.max(1));
@@ -867,6 +868,12 @@ impl PyEngineSession {
             demand_profile,
             units_per_lot,
         );
+        if let Some(source) = belief_source.as_deref() {
+            self.inner.set_belief_source(
+                voi_core::BeliefSource::from_rpc_str(source)
+                    .map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?,
+            );
+        }
         let delivery =
             delivery_weekdays.unwrap_or_else(|| OrderSchedule::default().delivery_weekday_list());
         self.inner
@@ -895,6 +902,7 @@ impl PyEngineSession {
             200,
             2,
             4,
+            None,
             None,
             None,
             None,
