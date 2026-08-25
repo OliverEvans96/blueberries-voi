@@ -9,9 +9,13 @@ import pytest
 from blueberries_voi.controller.session_loop import (
     ControllerContext,
     ControllerStepLog,
+    EpisodeTotals,
     context_from_snapshot,
     default_session_config,
+    episode_totals_from_logs,
     pipeline_wire_to_pending,
+    run_act_episode,
+    run_controller_episode,
     run_controller_session,
 )
 from blueberries_voi.controller.starter import (
@@ -215,3 +219,143 @@ def test_schedule_gate_zeros_orders_on_non_order_days(
         day = log.episode_day
         if not DEFAULT_ORDER_SCHEDULE.can_order(day):
             assert log.order_qty == 0
+
+
+def test_episode_totals_from_logs_sums_profit_waste_stockout() -> None:
+    logs = [
+        ControllerStepLog(
+            episode_day=0,
+            seq=1,
+            order_qty=8,
+            sales_total=10,
+            waste_total=2,
+            demand=12,
+            arrivals=0,
+            on_hand=20,
+            day_profit=17.0,
+        ),
+        ControllerStepLog(
+            episode_day=1,
+            seq=2,
+            order_qty=0,
+            sales_total=8,
+            waste_total=1,
+            demand=8,
+            arrivals=0,
+            on_hand=18,
+            day_profit=14.5,
+        ),
+        ControllerStepLog(
+            episode_day=2,
+            seq=3,
+            order_qty=0,
+            sales_total=5,
+            waste_total=0,
+            demand=7,
+            arrivals=0,
+            on_hand=13,
+            day_profit=4.0,
+        ),
+    ]
+    totals = episode_totals_from_logs(
+        logs,
+        seed=99,
+        policy_label="fixture",
+    )
+    assert totals == EpisodeTotals(
+        profit=35.5,
+        waste=3,
+        stockout=4,
+        seed=99,
+        policy_label="fixture",
+    )
+
+
+@pytestmark_rust
+def test_run_act_episode_damped_sw_one_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    cfg = default_session_config(n_particles=32, H=3, n_rollout_paths=0)
+    totals = run_act_episode(
+        cfg,
+        seed=17,
+        n_days=7,
+        policy="damped_sw",
+        alpha=0.9,
+        rho=0.8,
+        policy_label="damped_sw",
+    )
+    assert totals.seed == 17
+    assert totals.policy_label == "damped_sw"
+    assert totals.waste >= 0
+    assert totals.stockout >= 0
+
+
+@pytestmark_rust
+def test_run_act_episode_paired_seed_reproducible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    cfg = default_session_config(n_particles=32, H=3, n_rollout_paths=0)
+    first = run_act_episode(
+        cfg,
+        seed=42,
+        n_days=5,
+        policy="damped_sw",
+        policy_label="damped_sw",
+    )
+    second = run_act_episode(
+        cfg,
+        seed=42,
+        n_days=5,
+        policy="damped_sw",
+        policy_label="damped_sw",
+    )
+    assert first == second
+
+
+@pytestmark_rust
+def test_run_controller_episode_naive_base_stock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    cfg = default_session_config(n_particles=32, H=3, n_rollout_paths=0)
+    ctrl = NaiveBaseStockController(target_units=48, case_size=8)
+    totals = run_controller_episode(
+        cfg,
+        ctrl,
+        seed=23,
+        n_days=7,
+        policy_label="naive",
+    )
+    assert totals.seed == 23
+    assert totals.policy_label == "naive"
+    assert totals.waste >= 0
+    assert totals.stockout >= 0
+
+
+@pytestmark_rust
+def test_paired_seed_benchmark_naive_and_damped_sw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same seed + config → comparable EpisodeTotals across Option A and act()."""
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    cfg = default_session_config(n_particles=32, H=3, n_rollout_paths=0)
+    seed = 31
+    n_days = 7
+    naive = run_controller_episode(
+        cfg,
+        NaiveBaseStockController(target_units=48, case_size=8),
+        seed,
+        n_days,
+        policy_label="naive",
+    )
+    damped = run_act_episode(
+        cfg,
+        seed,
+        n_days,
+        policy="damped_sw",
+        policy_label="damped_sw",
+    )
+    assert naive.seed == damped.seed == seed
+    assert naive.policy_label == "naive"
+    assert damped.policy_label == "damped_sw"

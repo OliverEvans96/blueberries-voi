@@ -33,8 +33,9 @@ and Modal profit jobs.
      `DampedSurvivalWeightedPolicy`
 2. Add `EngineSession.snapshot()` delegating to PyO3 `snapshot_value()` + `_coerce_snapshot`.
 3. Add `controller.starter` with `NaiveBaseStockController` and tabular Q-learning starter.
-4. Notebook `19_build_your_own_controller.ipynb` uses Option A; optional `act(policy="rollout")`
-   comparison only — **do not** teach `run_closed_loop_episode`.
+4. Notebook `19_build_your_own_controller.ipynb` uses Option A; paired-seed benchmarks compare
+   custom controllers to production `act(policy="damped_sw")` only — **do not** teach
+   `run_closed_loop_episode` or rollout autopilot.
 5. **Rounding:** Option A policies call `sim.case_round` (nearest, ADR 0104). Episode.py
    closed-loop must keep the same nearest semantic when updated; divergent ceil rounding
    on the episode path remains a known audit item (T-042), not introduced on Option A.

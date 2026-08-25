@@ -204,6 +204,91 @@ class PolicyController:
         )
 
 
+@dataclass(frozen=True)
+class EpisodeTotals:
+    """Episode-level aggregates for benchmark charts."""
+
+    profit: float
+    waste: int
+    stockout: int
+    seed: int
+    policy_label: str
+
+
+def episode_totals_from_logs(
+    logs: Sequence[ControllerStepLog],
+    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    *,
+    seed: int = 0,
+    policy_label: str = "",
+) -> EpisodeTotals:
+    """Sum profit, waste, and lost-sales stockout from controller step logs."""
+    _ = costs  # day_profit already applied on each log
+    profit = sum(log.day_profit for log in logs)
+    waste = sum(log.waste_total for log in logs)
+    stockout = sum(max(0, log.demand - log.sales_total) for log in logs)
+    return EpisodeTotals(
+        profit=profit,
+        waste=waste,
+        stockout=stockout,
+        seed=seed,
+        policy_label=policy_label,
+    )
+
+
+def run_controller_episode(
+    session_cfg: Mapping[str, Any],
+    controller: ControllerProtocol,
+    seed: int,
+    n_days: int,
+    *,
+    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    policy_label: str = "",
+) -> EpisodeTotals:
+    """Run ``n_days`` of Option A controller loop and return episode aggregates."""
+    if n_days < 0:
+        msg = f"n_days must be non-negative, got {n_days}"
+        raise ValueError(msg)
+    session = EngineSession()
+    session.init(session_cfg, seed=seed)
+    logs = run_controller_session(session, controller, n_days, costs=costs)
+    return episode_totals_from_logs(
+        logs,
+        costs,
+        seed=seed,
+        policy_label=policy_label,
+    )
+
+
+def run_act_episode(
+    session_cfg: Mapping[str, Any],
+    seed: int,
+    n_days: int,
+    policy: str,
+    *,
+    costs: ProfitCosts = DEFAULT_PROFIT_COSTS,
+    policy_label: str | None = None,
+    **act_kw: Any,
+) -> EpisodeTotals:
+    """Run ``n_days`` of ``EngineSession.act`` and return episode aggregates."""
+    if n_days < 0:
+        msg = f"n_days must be non-negative, got {n_days}"
+        raise ValueError(msg)
+    session = EngineSession()
+    session.init(session_cfg, seed=seed)
+    logs: list[ControllerStepLog] = []
+    for _ in range(n_days):
+        delta = session.act(policy=policy, **act_kw)
+        logs.append(ControllerStepLog.from_delta(delta, costs=costs))
+    label = policy if policy_label is None else policy_label
+    return episode_totals_from_logs(
+        logs,
+        costs,
+        seed=seed,
+        policy_label=label,
+    )
+
+
 def run_controller_session(
     session: EngineSession,
     controller: ControllerProtocol,
@@ -232,10 +317,14 @@ __all__ = [
     "ControllerContext",
     "ControllerProtocol",
     "ControllerStepLog",
+    "EpisodeTotals",
     "LearningController",
     "PolicyController",
     "context_from_snapshot",
     "default_session_config",
+    "episode_totals_from_logs",
     "pipeline_wire_to_pending",
+    "run_act_episode",
+    "run_controller_episode",
     "run_controller_session",
 ]
