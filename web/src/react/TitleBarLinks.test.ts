@@ -10,6 +10,7 @@ import {
   STUDIO_DOCS_URL,
   STUDIO_GITHUB_URL,
 } from "../studioLinks";
+import { StudioEmbedContext } from "./StudioEmbedContext";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 
 describe("TitleBarLinks", () => {
@@ -21,6 +22,19 @@ describe("TitleBarLinks", () => {
     expect(link?.textContent).toBe("Read the blog post");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("blog link uses blogPostUrl from StudioEmbedContext when provided", () => {
+    const customUrl = "https://example.com/my-post";
+    const { container } = render(
+      createElement(
+        StudioEmbedContext.Provider,
+        { value: { blogPostUrl: customUrl } },
+        createElement(TitleBarBlogLink),
+      ),
+    );
+    const link = container.querySelector("a.title-bar-blog-link");
+    expect(link).toHaveAttribute("href", customUrl);
   });
 
   it("external actions include docs (icon + label) and GitHub (icon only)", () => {

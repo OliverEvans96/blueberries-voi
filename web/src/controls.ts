@@ -231,18 +231,145 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "seed", label: "seed", min: 1, max: 9999, step: 1, format: (v) => String(Math.round(v)), group: "episode" },
 ];
 
-/** Tier-meaning sentences (ADR-grounded in docs/using-it/studio-guide.md's "The math"). */
-const TIER_MEANING: Record<ControlTier, string> = {
-  Live: "Live parameters only rescale the profit-and-loss total from units already sold, purchased, spoiled, and missed this run, so dragging this slider updates the charts immediately with no re-simulation.",
-  Preview: "Preview parameters live-update a projected chart of their effect without touching days already simulated — press Reset to actually apply the new value to the run.",
-  Reset: "This parameter feeds the freshness-decay, demand, or arrival draws for the simulated days, so changing it leaves the current run's history inconsistent until you press Reset to re-simulate.",
-  Autopilot: "Autopilot parameters govern the repeating order-and-advance loop and take effect on its next tick without needing a Reset.",
-};
-
 function tierBadge(id: string): string {
   const meta = PARAM_LABELS[id];
   const tier: ControlTier = meta?.tier ?? "Reset";
-  return `<span class="tier-badge tier-badge--${tier.toLowerCase()}">${tier}${infoTipHtml(TIER_MEANING[tier])}</span>`;
+  return `<span class="tier-badge tier-badge--${tier.toLowerCase()}">${tier}</span>`;
+}
+
+function tuningPlotBlocks(): string {
+  return `
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-demand">
+          <div class="chart-caption impact-caption">
+            Daily demand${infoTipHtml(
+              "Shows the actual simulated demand draw for each day of the episode, following the day-of-week and week-to-week calendar shape with random overdispersed noise layered on top. Every ordering policy sees the same underlying calendar mean, so differences in outcome come from freshness information, not from guessing tomorrow's footfall.",
+            )}
+          </div>
+          <div id="chart-demand-host" class="chart demand-chart-slot" role="img" aria-label="Daily demand over episode days"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-demand-forecast">
+          <div class="chart-caption impact-caption">
+            Demand forecast${infoTipHtml(
+              "Projects what daily demand would look like under the mean-demand slider's current setting, without re-simulating any days. Mean demand is a Preview-tier control: dragging it updates this chart immediately, but the store's actual simulated history stays exactly as it was until you press Reset.",
+            )}
+          </div>
+          <div id="chart-demand-forecast-host" class="chart demand-chart-slot" role="img" aria-label="Known demand distribution for the next few days"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-picking-variability">
+          <div class="chart-caption impact-caption">
+            Picking variability shape${infoTipHtml(
+              "Shows how strongly the picking-weight exponent biases sales toward fresher units: each alive unit gets a lottery ticket count proportional to its freshness raised to this exponent, so a higher value favors the freshest stock more sharply while zero picks uniformly at random. This is not FIFO — shoppers never guarantee picking the oldest punnet, so even tired units can occasionally linger unsold.",
+            )}
+          </div>
+          <div id="picking-var-chart" class="chart picking-var-chart" role="img" aria-label="Picking weight curve"></div>
+        </div>`;
+}
+
+function arrivalPlotBlocks(): string {
+  return `
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrival-prior">
+          <div class="chart-caption impact-caption">
+            Arrival freshness prior · receipt rug${infoTipHtml(
+              "Shows the distribution of freshness a unit is expected to have the moment it arrives, given the current corridor's transit and temperature assumptions, with a rug of actual receipt freshness values from the simulated deliveries. The particle filter draws each new lot's freshness from this same distribution, conditioned on whatever the active observation rung actually reveals about the trip — a full temperature trace, a pack date, or nothing at all.",
+            )}
+          </div>
+          <div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrival-shift">
+          <div class="chart-caption impact-caption">
+            Transit ΔT shift vs baseline${infoTipHtml(
+              "Meant to compare the current transit-temperature-bias curve against an unbiased baseline, but the bias slider isn't wired into this chart's data yet (a known display gap) — both lines currently plot the same unbiased curve no matter where the slider is set. The bias does apply to the simulated deliveries themselves, just not to this preview.",
+            )}
+          </div>
+          <div id="chart-arrival-shift" class="chart" role="img" aria-label="Transit temperature shift"></div>
+        </div>`;
+}
+
+function physicsPlotBlocks(): string {
+  return `
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-arrhenius-temp">
+          <div class="chart-caption impact-caption">
+            Q10 aging rate vs temperature${infoTipHtml(
+              "Plots the Q10 temperature factor across a range of storage temperatures, showing how much faster freshness decays as the shelf gets warmer. Under the Q10 rule, the aging rate scales multiplicatively per 10°C of warming — the default value (3.0) triples the aging rate for every 10°C increase — rather than each degree adding a fixed amount.",
+            )}
+          </div>
+          <div id="chart-arrhenius-temp" class="chart" role="img" aria-label="Q10 aging rate versus store temperature"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-gamma-path">
+          <div class="chart-caption impact-caption">
+            Gamma freshness mean ± σ until expiry${infoTipHtml(
+              "Shows the expected freshness trajectory over time, with a shaded band for one standard deviation of spread, under the current gamma aging parameters. Because aging is shape-scaled rather than scale-scaled, a hotter storage temperature widens this band as well as steepening the mean line — heat makes loss events more frequent, not just larger, so higher temperatures bring more day-to-day unpredictability along with faster average decay.",
+            )}
+          </div>
+          <div id="chart-gamma-path" class="chart" role="img" aria-label="Unit freshness mean and standard deviation envelope"></div>
+        </div>`;
+}
+
+function logisticsPlotBlocks(): string {
+  return `
+        <div class="focus-plot tuning-drawer-slot tuning-drawer-slot--full" data-plot="plot-logistics-calendar">
+          <div class="field week-calendar-field">
+            <span class="field-label">
+              Delivery schedule${infoTipHtml(
+                "Click weekdays in the calendar to set which days deliveries land on; order days are computed automatically as delivery day minus lead time, so shifting delivery days also shifts when orders go out. Changes here don't take effect until you press Reset, since the delivery calendar feeds the simulated arrival schedule from day one.",
+              )}
+            </span>
+            <div id="week-calendar" class="week-calendar" role="group" aria-label="Delivery and order weekdays"></div>
+            <div class="week-calendar-legend" role="note" aria-label="Calendar legend">
+              <span class="week-calendar-legend-item">
+                <span class="week-calendar-swatch is-delivery" aria-hidden="true"></span>
+                Delivery day
+              </span>
+              <span class="week-calendar-legend-item">
+                <span class="week-calendar-swatch is-order" aria-hidden="true"></span>
+                Order day
+              </span>
+              <span class="week-calendar-legend-item">
+                <span class="week-calendar-swatch is-both" aria-hidden="true"></span>
+                Both
+              </span>
+            </div>
+            <p class="meta-readonly week-calendar-hint" id="week-calendar-hint" hidden>Reset to apply schedule</p>
+          </div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
+          <div class="chart-caption impact-caption">
+            On-hand by freshness band${infoTipHtml(
+              "Shows on-hand inventory broken into freshness bands, from near-pristine to nearly spoiled, over the course of the simulated episode. This is the same per-unit freshness state that effective inventory weights when deciding how much to order — a shelf skewed toward low-freshness bands offers much less real protection against demand than the same unit count would suggest.",
+            )}
+          </div>
+          <div id="chart-age-comp-focus-host" class="chart-host">
+            <div id="chart-age-comp-focus" class="chart" role="img" aria-label="On-hand inventory by freshness band preview"></div>
+          </div>
+        </div>`;
+}
+
+function autopilotPlotBlocks(): string {
+  return `
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-controller-orders">
+          <div class="chart-caption impact-caption">
+            Order quantity${infoTipHtml(
+              "Preview of each day's order quantity from the active controller policy — the same series shown in the Outcomes column, enlarged for tuning autopilot parameters.",
+            )}
+          </div>
+          <div id="chart-controller-orders-focus" class="chart" role="img" aria-label="Order quantity preview"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-spoil">
+          <div class="chart-caption impact-caption">
+            Spoilage${infoTipHtml(
+              "Preview of daily units spoiled — unavailable at the lowest observation rung where waste is not observed.",
+            )}
+          </div>
+          <div id="chart-spoil-focus" class="chart" role="img" aria-label="Spoilage preview"></div>
+        </div>
+        <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
+          <div class="chart-caption impact-caption">
+            On-hand by freshness band${infoTipHtml(
+              "Shows on-hand inventory broken into freshness bands, from near-pristine to nearly spoiled, over the course of the simulated episode. This is the same per-unit freshness state that effective inventory weights when deciding how much to order — a shelf skewed toward low-freshness bands offers much less real protection against demand than the same unit count would suggest.",
+            )}
+          </div>
+          <div id="chart-age-comp-focus-host-autopilot" class="chart-host"></div>
+        </div>`;
 }
 
 function sliderHtml(spec: SliderSpec): string {
@@ -291,6 +418,7 @@ function mountSectionControlsDom(
         <p class="hint">Gamma freshness aging + Q10 temperature shift.</p>
         <p class="meta-readonly">No separate gamma shape knob post f-native migration — aging draws from ModelParams defaults.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "physics").map(sliderHtml).join("")}
+        ${physicsPlotBlocks()}
       </div>
       <div class="controls-block" data-section="demand" hidden>
         <p class="hint">Negative-binomial-ish demand from mean and V/M; 1/σ shapes lot picking spread.</p>
@@ -299,10 +427,12 @@ function mountSectionControlsDom(
           <p class="meta-readonly" id="play-window-days">Episode window: ${initial.config.window_days} days</p>
           ${CONFIG_SLIDERS.filter((s) => s.group === "episode").map(sliderHtml).join("")}
         </div>
+        ${tuningPlotBlocks()}
       </div>
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
         ${CONFIG_SLIDERS.filter((s) => s.group === "logistics").map(sliderHtml).join("")}
+        ${logisticsPlotBlocks()}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
         <p class="hint">
@@ -320,6 +450,7 @@ function mountSectionControlsDom(
           </div>
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
+        ${arrivalPlotBlocks()}
       </div>
       <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">
@@ -392,6 +523,7 @@ function mountSectionControlsDom(
           )} <span id="val-intervalMs"></span></span>
           <input type="number" id="intervalMs" min="50" max="10000" step="50" />
         </label>
+        ${autopilotPlotBlocks()}
       </div>
     </div>
   `;

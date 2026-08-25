@@ -1,7 +1,11 @@
 import { useEffect, type RefObject } from "react";
+import {
+  StudioEmbedContext,
+  type StudioEmbedContextValue,
+} from "./StudioEmbedContext";
 import { initStudio } from "./studioLogic";
 
-export type StudioProviderProps = {
+export type StudioProviderProps = StudioEmbedContextValue & {
   children: React.ReactNode;
   /** Embed mount root; defaults to `#app` for standalone dev. */
   containerRef?: RefObject<HTMLElement | null>;
@@ -11,6 +15,7 @@ export type StudioProviderProps = {
 export function StudioProvider({
   children,
   containerRef,
+  blogPostUrl,
 }: StudioProviderProps) {
   useEffect(() => {
     const app = containerRef?.current ?? document.getElementById("app");
@@ -23,5 +28,9 @@ export function StudioProvider({
     return initStudio(app);
   }, [containerRef]);
 
-  return <>{children}</>;
+  return (
+    <StudioEmbedContext.Provider value={{ blogPostUrl }}>
+      {children}
+    </StudioEmbedContext.Provider>
+  );
 }
