@@ -16,10 +16,7 @@ None of these are hidden defects: each is a considered scope decision or a known
 most already have a caveat on the page where they're most relevant. This page exists so a
 reader doesn't have to hunt across the whole site to get the full list at once.
 
-> **Figure (coming soon):** a single annotated timeline of one delivery's journey —
-> harvest, field heat (out of scope), refrigerated leg (modeled), shelf life (modeled) —
-> with each limitation on this page pinned to the stage of the journey or the modeling
-> step it applies to.
+![Annotated delivery journey: harvest and field heat out of scope; refrigerated leg and shelf life modeled](/figures/limitations-journey-map.png)
 
 ## The idea
 

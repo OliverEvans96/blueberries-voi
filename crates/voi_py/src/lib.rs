@@ -19,7 +19,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
-use voi_core::physics::draw_demand_spawn;
+use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::physics::{draw_demand_spawn, draw_gamma_decrement, picking_weights_f};
 use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
 use voi_core::spawn_rng::SpawnRng;
@@ -580,6 +581,97 @@ pub fn terminal_salvage_unit_state_py(
     terminal_salvage_unit_state(&freshness, margin, &params)
 }
 
+/// Picking weights on freshness bins — thin PyO3 wrapper over
+/// [`voi_core::physics::picking_weights_f`] for doc-figure scripts.
+#[pyfunction]
+#[pyo3(signature = (f, sigma, uniform))]
+pub fn picking_weights_f_py(f: Vec<f64>, sigma: f64, uniform: bool) -> Vec<f64> {
+    picking_weights_f(&f, sigma, uniform)
+}
+
+/// Draw `n` independent gamma freshness decrements at store temperature `t_store_c`,
+/// using default [`ModelParams`] with only `t_store_c` overridden — mirrors the store
+/// physics doc figures without running a full session.
+#[pyfunction]
+#[pyo3(signature = (n, t_store_c, seed))]
+pub fn draw_gamma_decrement_samples_py(n: u32, t_store_c: f64, seed: u64) -> Vec<f64> {
+    use rand::SeedableRng;
+    let mut params = ModelParams::default();
+    params.t_store_c = t_store_c;
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+    (0..n)
+        .map(|_| draw_gamma_decrement(&mut rng, &params))
+        .collect()
+}
+
+/// Parse `condition` for [`arrival_marginal_cdf_py`]: `prior`, `duration:{d}`, or
+/// `exposure:{lambda}`.
+fn parse_arrival_condition_str(condition: &str) -> PyResult<ArrivalCondition> {
+    if condition == "prior" {
+        return Ok(ArrivalCondition::Prior);
+    }
+    if let Some(days) = condition.strip_prefix("duration:") {
+        let d = days
+            .parse::<i32>()
+            .map_err(|err| pyo3::exceptions::PyValueError::new_err(format!(
+                "invalid duration days in condition {condition:?}: {err}"
+            )))?;
+        return Ok(ArrivalCondition::Duration(d));
+    }
+    if let Some(lambda) = condition.strip_prefix("exposure:") {
+        let lam = lambda
+            .parse::<f64>()
+            .map_err(|err| pyo3::exceptions::PyValueError::new_err(format!(
+                "invalid exposure lambda in condition {condition:?}: {err}"
+            )))?;
+        return Ok(ArrivalCondition::Exposure(lam));
+    }
+    Err(pyo3::exceptions::PyValueError::new_err(format!(
+        "condition must be prior, duration:{{d}}, or exposure:{{lambda}}; got {condition:?}"
+    )))
+}
+
+/// Whether `f_grid` is a uniform `[0, 1]` lattice (required by `rung_law_on_grid`).
+fn is_uniform_unit_grid(f_grid: &[f64]) -> bool {
+    if f_grid.len() < 2 {
+        return false;
+    }
+    let step = 1.0 / (f_grid.len() - 1) as f64;
+    f_grid
+        .iter()
+        .enumerate()
+        .all(|(i, &f)| (f - i as f64 * step).abs() < 1e-9)
+}
+
+/// Marginal arrival CDF on a uniform `f_grid` in `[0, 1]`, for doc figures. Loads an
+/// [`ArrivalModel`] from `source` (filesystem path or inline JSON) and evaluates the same
+/// channel-conditional law the filter uses (`prior`, `duration:{d}`, `exposure:{lambda}`).
+#[pyfunction]
+#[pyo3(signature = (source, condition, f_grid))]
+pub fn arrival_marginal_cdf_py(
+    source: &str,
+    condition: &str,
+    f_grid: Vec<f64>,
+) -> PyResult<Vec<f64>> {
+    if f_grid.len() < 2 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "f_grid must have at least two points",
+        ));
+    }
+    if !is_uniform_unit_grid(&f_grid) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "f_grid must be a uniform lattice from 0.0 to 1.0 (e.g. np.linspace(0, 1, n))",
+        ));
+    }
+    let json = read_json_source(source)?;
+    let model = ArrivalModel::from_json(&json)
+        .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
+    let cond = parse_arrival_condition_str(condition)?;
+    let corridor = model.default_corridor.clone();
+    let law = model.rung_law_on_grid(cond, &corridor, f_grid.len());
+    Ok(law.cdf)
+}
+
 /// Weibull survival weight at effective age `tau`, for Python callers checking the same
 /// long-run salvage weighting the rollout scorer applies.
 #[pyfunction]
@@ -962,6 +1054,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_function(wrap_pyfunction!(terminal_salvage_unit_state_py, m)?)?;
     m.add_function(wrap_pyfunction!(w_long_py, m)?)?;
+    m.add_function(wrap_pyfunction!(picking_weights_f_py, m)?)?;
+    m.add_function(wrap_pyfunction!(draw_gamma_decrement_samples_py, m)?)?;
+    m.add_function(wrap_pyfunction!(arrival_marginal_cdf_py, m)?)?;
     m.add_class::<PyDemandProfile>()?;
     m.add_class::<PyEngineSession>()?;
     Ok(())

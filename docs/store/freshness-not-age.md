@@ -8,7 +8,7 @@ sources:
 
 Every unit of fruit in this model carries one number for how good it still is: **freshness**, $f$, running from $1$ (pristine) down to $0$ (spoiled). The model doesn't track how many days old a punnet is. "Age" implies one clock ticking the same way for every berry, and that isn't true here — a berry that rode in the warm part of a pallet is worse off than one that rode in the cold part, even though they left the farm on the same day and arrived on the same truck.
 
-> **Figure (coming soon):** two units with identical calendar age but different freshness $f$, next to a schematic of $f$ decaying toward 0 while calendar days tick forward at a constant rate.
+![Two units with identical calendar age but different freshness f, beside f decaying toward zero while calendar days advance](/figures/freshness-not-age-schematic.png)
 
 ## The idea
 

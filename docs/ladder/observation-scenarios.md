@@ -12,8 +12,7 @@ project's charts, tests, and VOI sweeps refer to just seven named points on it. 
 switches, kept as a named shorthand because they trace a plausible investment path a real
 grocer would walk, cheapest first.
 
-> **Figure (coming soon):** a vertical ladder diagram of the seven observation scenarios,
-> each row showing its channel triple and a one-line "what you'd have to buy" caption.
+![Vertical ladder of seven observation scenarios with channel triple and what you'd buy at each step](/figures/observation-scenarios-ladder.png)
 
 ## The idea
 

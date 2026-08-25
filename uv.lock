@@ -440,6 +440,7 @@ data = [
 dev = [
     { name = "matplotlib" },
     { name = "mypy" },
+    { name = "pillow" },
     { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -478,6 +479,7 @@ requires-dist = [
     { name = "modal", marker = "extra == 'modal'", specifier = ">=0.73.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "numpy", specifier = ">=2.4.6" },
+    { name = "pillow", marker = "extra == 'dev'", specifier = ">=11.0.0" },
     { name = "pyarrow", marker = "extra == 'data'", specifier = ">=25.0.1" },
     { name = "pyarrow", marker = "extra == 'dev'", specifier = ">=25.0.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },

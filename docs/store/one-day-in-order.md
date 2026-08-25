@@ -8,7 +8,7 @@ sources:
 
 Every simulated day runs through the same four events in the same fixed order: age, then spoil, then sell, then deliver. That order isn't an implementation detail — swapping any two of these steps changes the store's numbers, because it changes what's actually available to sell or to spoil at each moment. This page walks through the sequence and why it's fixed the way it is.
 
-> **Figure (coming soon):** a horizontal timeline for one simulated day showing the four steps left to right — Age, Spoil, Sell, Deliver — each annotated with what changes to the freshness array at that step.
+![Horizontal timeline for one simulated day: Age, Spoil, Sell, Deliver, each step annotated with freshness-array changes](/figures/one-day-four-steps.png)
 
 ## The idea
 

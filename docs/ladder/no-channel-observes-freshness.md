@@ -21,11 +21,7 @@ particular unit's own spoilage happened to run. This is why `FilterObs` (the str
 every observation channel ultimately fills in) has no freshness-valued field at all —
 there is nothing in the wire format for it to fill.
 
-> **Figure (coming soon):** a three-tier conditioning diagram — corridor → duration `d`
-> → temperature factor `φ̄` → cumulative exposure `Λ`, with the three delivery-history
-> levels (none, pack date, temperature history) marked at the level each one conditions
-> on, and the remaining hidden variables (`ψ`, the per-unit gamma draw) shown as
-> always-unresolved beneath every one of them.
+![Conditioning tiers corridor → d → φ̄ → Λ with books-only, lot ID + pack date, and temperature-history scenarios marked](/figures/conditioning-tier-diagram.png)
 
 ## The idea
 

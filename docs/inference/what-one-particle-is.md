@@ -8,7 +8,7 @@ sources:
 
 The [previous page](/inference/why-particle-filter) argued that the filter should track its belief as a crowd of complete hypothetical shelves rather than a single smooth summary. This page looks at what a single member of that crowd — one particle — actually stores, and how the crowd is laid out in memory so that hundreds of them can be updated every simulated day.
 
-> **Figure (coming soon):** one particle drawn as a shelf with lots side by side (e.g. Lot A: 15 slots, Lot B: 9 slots), each slot shaded by its freshness value, next to two more particles with the same lot widths but different shading — showing that quantity is fixed across particles while freshness varies.
+![Three particles as shaded shelves: same lot widths, different freshness shading](/figures/particle-shelf-shading.png)
 
 ## The idea
 

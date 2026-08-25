@@ -11,7 +11,7 @@ sources:
 
 The [particle filter's internal state](/inference/what-one-particle-is) is a bank of hundreds of complete, unit-level shelf hypotheses — one freshness number per believed-alive unit, in every particle. Nothing downstream (a studio chart, the ordering policy, a Python or TypeScript client) wants to receive that directly: it's too much data, shaped inconveniently, and tied to Rust-internal representations. So on every step the filter's belief gets flattened onto a small, fixed-shape summary called the **belief wire** — a histogram-per-lot projection that throws away most of the particle-level detail on purpose. This page explains what that projection keeps, what it discards, and how to size it correctly.
 
-> **Figure (coming soon):** a bar-chart grid, one row per lot slot (oldest at top), each row a small histogram over the `K` freshness bins in `f_grid`, with a callout showing the same lots' *actual* particle-level freshness values (a scatter of dots) collapsing into the histogram above it — visually showing the wire as a lossy projection of a richer internal state.
+![Belief wire: per-slot f_grid histograms above actual particle freshness scatter](/figures/belief-wire-histogram.png)
 
 ## The idea
 

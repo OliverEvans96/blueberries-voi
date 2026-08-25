@@ -8,7 +8,7 @@ sources:
 
 When a customer buys blueberries, the model has to decide *which physical unit* on the shelf they took — the punnet from Monday's delivery, or the one from Wednesday's? This page is about that choice. It is not first-in-first-out, and getting that right matters: it determines how long an old, unlucky punnet can linger on the shelf before it either sells or spoils, which is exactly the kind of thing a store's freshness beliefs are trying to track.
 
-> **Figure (coming soon):** a bar chart of picking weight vs. freshness $f$ for a shelf holding a mix of fresh and tired units, showing how the weighted lottery favors — but does not guarantee — the fresher punnets, at $\sigma = 0.5$ next to $\sigma = 0$ (uniform).
+![Picking weight vs freshness f at σ = 0 (uniform) and σ = 0.5 (weighted lottery favors fresher units)](/figures/picking-weight-freshness.png)
 
 ## The idea
 

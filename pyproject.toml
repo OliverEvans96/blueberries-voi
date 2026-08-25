@@ -33,6 +33,7 @@ dev = [
     # Native/CI tests exercise desktop Gate 0 + viz (not on the browser wheel).
     "pyarrow>=25.0.1",
     "matplotlib>=3.11.1",
+    "pillow>=11.0.0",
 ]
 notebooks = [
     "jupyter>=1.0.0",
@@ -90,6 +91,10 @@ select = [
 "experiments/generate_*.py" = ["E501", "RUF001"]
 "experiments/regen_*.py" = ["E501"]
 "scripts/arrival_calibration_note.py" = ["E501"]
+# Doc figure scripts use Greek symbols in matplotlib labels and long JS selectors.
+"scripts/docs_figures/**" = ["E501", "RUF001", "RUF002"]
+# Matplotlib doc-figure scripts: Greek symbols in labels, schematic fig handles.
+"scripts/docs_figures/**/*.py" = ["E501", "RUF001", "RUF002", "RUF034", "RUF059", "TC003"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -133,6 +138,8 @@ module = [
     "huggingface_hub.*",
     "modal",
     "modal.*",
+    "PIL",
+    "PIL.*",
 ]
 ignore_missing_imports = true
 

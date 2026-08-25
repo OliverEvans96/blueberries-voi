@@ -14,10 +14,7 @@ the store more money once it's plugged into the ordering decision. The honest cu
 answer: at today's experiment budgets, mostly not, or at least not in a way that's been
 measured cleanly yet.
 
-> **Figure (coming soon):** a box/strip plot of closed-loop profit per observation
-> scenario, replicated across many seeds, with the spread *within* a scenario (across
-> seeds) shown next to the spread *across* scenarios at a fixed seed — making the "seed
-> variance dominates scenario variance" claim checkable at a glance.
+![Box/strip plot of closed-loop profit per observation scenario across many seeds](/figures/profit-by-scenario-boxplot.png)
 
 ## The idea
 
