@@ -82,7 +82,6 @@ export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
     const onOutside = (event: PointerEvent) => {
       const target = event.target as Node | null;
       if (triggerRef.current?.contains(target)) return;
-      if (bubbleRef.current?.contains(target)) return;
       setOpen(false);
     };
     document.addEventListener("pointerdown", onOutside);
