@@ -8,7 +8,7 @@ sources:
 
 Every day a unit sits on the shelf (or rides in the truck), it loses a random amount of freshness — not a fixed amount, a random one, drawn fresh each day, whose size depends on that day's temperature. This is the physical engine underneath the whole model: everything the store believes, orders, and eventually sells or throws away traces back to how this daily loss is drawn.
 
-> **Figure (coming soon):** overlaid histograms of the daily freshness decrement $\Delta$ at a cold temperature (narrow, small mean) versus a warm temperature (wider, larger mean) — showing both the mean and the spread growing together under shape-scaling, next to a sample path of $f$ stepping down to zero over several weeks.
+![Overlaid Δ histograms at cold vs warm temperature beside one unit's f path stepping to zero](/figures/gamma-aging-decrement.png)
 
 ## The idea
 

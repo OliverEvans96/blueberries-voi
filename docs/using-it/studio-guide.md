@@ -8,7 +8,7 @@ sources:
 
 The interactive studio is a single-page store simulator. It runs the same Rust engine as the notebooks and CLI, compiled to WebAssembly, driven day by day (or on Autopilot) from your browser. It lets you watch freshness, orders, and profit move together in real time: turn a knob, press Advance, and see the store react.
 
-> **Figure (coming soon):** a full-page screenshot of the studio's cockpit grid — metrics column, belief column, sidebar, and tuning dock — annotated with the four zones named below.
+![Studio cockpit grid annotated: metrics column, belief column, sidebar, tuning dock](/figures/studio-cockpit-annotated.png)
 
 ## The idea
 

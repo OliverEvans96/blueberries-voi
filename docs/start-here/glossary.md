@@ -12,9 +12,7 @@ of the site without breaking stride. Every entry below is checked against the
 current Rust source, and defaults are the values `ModelParams::default()` ships
 with.
 
-> **Figure (coming soon):** a one-page cheat sheet diagram showing where each symbol
-> lives on a unit's journey — corridor → truck → shelf → sale — with $f$, $\Lambda$,
-> $\bar\varphi$, $d$, and $\psi$ each pointing at the stage that produces it.
+![Cheat sheet: where f, Λ, φ̄, d, and ψ live on corridor → truck → shelf → sale](/figures/glossary-symbol-journey.png)
 
 ## State and physics
 

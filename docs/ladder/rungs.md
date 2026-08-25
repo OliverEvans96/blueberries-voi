@@ -12,8 +12,7 @@ F1, F1s, F2a, F2, F3. These are **presets**, not separate models — each one is
 choice of the same three channel switches, kept as a named shorthand because they trace
 a plausible investment path a real grocer would walk, cheapest first.
 
-> **Figure (coming soon):** a vertical ladder diagram of the seven rungs, each row
-> showing its channel triple and a one-line "what you'd have to buy" caption.
+![Vertical ladder of seven rungs with channel triple and what you'd buy at each step](/figures/knowledge-rungs-ladder.png)
 
 ## The idea
 

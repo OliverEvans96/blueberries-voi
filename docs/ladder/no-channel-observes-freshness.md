@@ -20,11 +20,7 @@ particular unit's own spoilage happened to run. This is why `FilterObs` (the str
 every observation channel ultimately fills in) has no freshness-valued field at all —
 there is nothing in the wire format for it to fill.
 
-> **Figure (coming soon):** a three-tier conditioning diagram — corridor → duration `d`
-> → temperature factor `φ̄` → cumulative exposure `Λ`, with the three rungs (P0/P1,
-> F2/F2a, F3) marked at the level each one conditions on, and the remaining hidden
-> variables (`ψ`, the per-unit gamma draw) shown as always-unresolved beneath every
-> rung.
+![Conditioning tiers corridor → d → φ̄ → Λ with P0/P1, F2/F2a, and F3 marked](/figures/conditioning-tier-diagram.png)
 
 ## The idea
 

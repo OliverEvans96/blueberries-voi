@@ -8,7 +8,7 @@ sources:
 
 Everything on this site can be run on your own machine: the Python package that notebooks and the CLI import, and the interactive browser studio that runs the same physics compiled to WebAssembly. The two have separate setup steps because they're separate build targets from one shared Rust core, not two independent implementations of the model.
 
-> **Figure (coming soon):** a small diagram of the three run surfaces — Python package/CLI/notebooks, the Rust `voi_core` crate, and the browser studio — showing which artifact (wheel vs. `.wasm` bundle) each one consumes.
+![Three run surfaces — Python, Rust voi_core, browser studio — and wheel vs wasm artifacts](/figures/run-surfaces-architecture.png)
 
 ## The idea
 

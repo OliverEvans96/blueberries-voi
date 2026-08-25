@@ -8,7 +8,7 @@ sources:
 
 A unit becomes waste the moment its freshness hits zero — no separate coin flip, no shared store-wide event, just one unit's own daily freshness draw running out. This page covers how that's tracked in the simulator: which unit spoiled, when, and in which lot, all of which feed the waste counts a store (and its filter) actually gets to see.
 
-> **Figure (coming soon):** a small multiples plot of freshness trajectories for the ~15 units in one lot over a couple of weeks, each aging independently, showing them crossing zero on different days rather than all together.
+![Small multiples: ~15 units in one lot crossing f = 0 on different days](/figures/spoilage-freshness-paths.png)
 
 ## The idea
 

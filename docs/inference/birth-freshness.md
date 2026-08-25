@@ -11,7 +11,7 @@ sources:
 
 Every time a delivery arrives, the particle filter has to decide what freshness to hand the units in that new lot — inside every one of its hundreds of hypothetical shelves. It can never simply ask "how fresh did this lot actually arrive?", because no observation channel on the [knowledge ladder](/ladder/rungs) reveals freshness directly. What the filter *can* do is draw from the same generative story used to make the [cold-chain arrival model](/store/cold-chain-arrival), but conditioned on whichever piece of that story this rung's channels actually handed it — a temperature trace, a pack date, or nothing at all. This page is about that conditioning step: what gets pinned down, what gets integrated away, and how a particle can be born already dead with exactly the right probability.
 
-> **Figure (coming soon):** three small panels, one per rung family (F3 / F2·F2a / P0·P1), each showing the same arrival CDF over `f ∈ [0,1]` narrowing as more of the hierarchy gets pinned down by the observed evidence, with the `f=0` atom drawn as a filled dot at the CDF's left edge.
+![Arrival CDF over birth freshness narrowing across P0/P1, F2/F2a, and F3 families](/figures/birth-freshness-cdf.png)
 
 ## The idea
 

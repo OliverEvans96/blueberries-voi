@@ -8,7 +8,7 @@ sources:
 
 How many customers buy blueberries on a given day isn't a flat average with a bit of noise sprinkled on — real grocery demand has a weekly rhythm (weekends busier than midweek) and a slower drift across the weeks, and even after accounting for both of those, the day-to-day count is noisier than a simple random count would be. This page covers where that shape comes from and, just as importantly, what every ordering policy in this project is — and isn't — allowed to know about it.
 
-> **Figure (coming soon):** a bar chart of $\mu(\text{day})$ over one ~13-week window, showing the day-of-week sawtooth riding on top of the slower week-to-week drift.
+![μ(day) over a ~13-week window: day-of-week sawtooth on slower week-to-week drift](/figures/demand-calendar-sawtooth.png)
 
 ## The idea
 

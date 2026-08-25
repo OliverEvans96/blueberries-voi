@@ -8,7 +8,7 @@ sources:
 
 Before the store can decide how much to order, it needs one number that answers "how much protection against running out do I already have?" Just counting units on the shelf overstates that protection, because a unit that's nearly spoiled barely helps tomorrow's customers. **Effective inventory**, $\tilde I$, is that number done right: every unit counted in proportion to how much sellable life it has left, not as a flat $1$.
 
-> **Figure (coming soon):** a bar chart of one shelf's lots (raw unit counts) next to the same lots re-weighted by expected freshness, showing the two totals diverge as the shelf skews toward less-fresh stock.
+![Raw unit counts vs freshness-weighted totals for one shelf's lots](/figures/effective-inventory-bars.png)
 
 ## The idea
 

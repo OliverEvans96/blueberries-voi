@@ -14,9 +14,7 @@ the model — there is no fourth channel and no way to observe freshness directl
 Understanding this grid helps in reading the rest of this section, since the named
 "rungs" (P0, P1, F1, ...) are just labels for points on it.
 
-> **Figure (coming soon):** a 2×2×3 grid diagram showing the three channel axes (POS
-> code type, waste scanning, delivery history) with the 12 resulting combinations, and
-> the seven named presets highlighted as a subset of that grid.
+![Three channel axes with named presets highlighted on the 12-combination grid](/figures/obs-channel-grid-presets.png)
 
 ## The idea
 

@@ -14,10 +14,7 @@ the store more money once it's plugged into the ordering decision. The honest cu
 answer: at today's experiment budgets, mostly not, or at least not in a way that's been
 measured cleanly yet.
 
-> **Figure (coming soon):** a box/strip plot of closed-loop profit per rung, replicated
-> across many seeds, with the spread *within* a rung (across seeds) shown next to the
-> spread *across* rungs at a fixed seed — making the "seed variance dominates rung
-> variance" claim checkable at a glance.
+![Box/strip plot of closed-loop profit per rung across many seeds](/figures/profit-by-rung-boxplot.png)
 
 ## The idea
 

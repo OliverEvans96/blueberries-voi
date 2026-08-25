@@ -13,10 +13,7 @@ with uncertainty layered on top. This page walks through one day in plain words,
 the order the code runs it. No equations yet; those come once the pieces have
 names.
 
-> **Figure (coming soon):** a horizontal timeline of one simulated day showing four
-> panels in order — shelf ages, spoiled units drop out, customers buy, the new
-> delivery joins the shelf — with a small blueberry icon fading from full color to
-> grey as its freshness falls.
+![Horizontal timeline of one simulated day: age, spoil, sell, deliver panels in order](/figures/five-minutes-day-timeline.png)
 
 ## The idea
 

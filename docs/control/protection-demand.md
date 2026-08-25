@@ -8,7 +8,7 @@ sources:
 
 The ordering rule (see [The ordering rule](/control/ordering-rule)) needs a target: how much total demand should today's order be able to cover? That target is $F^{-1}_{D}(\alpha)$, the $\alpha$-quantile of demand summed over the **protection window** — the days between now and the next time the store can place another order and have it arrive. This page is about computing that quantile once the delivery calendar makes the window's length, and the demand within it, vary from one order day to the next.
 
-> **Figure (coming soon):** a bar chart of the protection window length (in days) for each order day of the week under the default Monday/Wednesday/Friday delivery calendar, showing why Thursday's order has to cover more days than Tuesday's or Sunday's.
+![Protection window length in days for each order day under Mon/Wed/Fri delivery](/figures/protection-window-calendar.png)
 
 ## The idea
 

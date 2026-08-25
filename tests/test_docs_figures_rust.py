@@ -60,9 +60,7 @@ def test_draw_gamma_decrement_samples_warm_mean_exceeds_cold() -> None:
 
 def test_arrival_marginal_cdf_prior_endpoints_sane() -> None:
     grid = np.linspace(0.0, 1.0, 81)
-    cdf = rust_core.arrival_marginal_cdf_py(
-        str(ARRIVAL_JSON), "prior", grid.tolist()
-    )
+    cdf = rust_core.arrival_marginal_cdf_py(str(ARRIVAL_JSON), "prior", grid.tolist())
     assert len(cdf) == len(grid)
     assert 0.0 <= cdf[0] <= 1.0
     assert cdf[-1] >= 0.99

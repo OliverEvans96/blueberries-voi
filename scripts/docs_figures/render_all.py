@@ -6,11 +6,12 @@ import importlib
 import sys
 from pathlib import Path
 
+from _paths import OUT
 from PIL import Image, ImageDraw, ImageFont
 
 DOCS_FIGURES = Path(__file__).resolve().parent
-REPO_ROOT = DOCS_FIGURES.parents[1]
-FIGURES_DIR = REPO_ROOT / "docs" / "public" / "figures"
+REPO_ROOT = DOCS_FIGURES.parents[2]
+FIGURES_DIR = OUT
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))

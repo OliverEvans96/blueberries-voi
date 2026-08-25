@@ -23,11 +23,7 @@ value in the code. This page lists them, what they mean in plain language, and w
 repository each one is set, so a reader can check a claim in a figure or report against the
 source of truth.
 
-> **Figure (coming soon):** a labeled diagram of one delivered lot's journey — pack date to
-> store receipt — showing where $d$ (transit duration), $\bar T$ (mean transit temperature),
-> $\bar\phi$ (duration-averaged Q10 factor), $\psi$ (within-pallet position multiplier) and
-> $\Lambda$ (cumulative thermal exposure) each apply, with $\eta_\text{ref}$ marked as the
-> reference life those exposures are measured against.
+![One delivered lot's journey from pack date to store receipt, labeling d, T̄, φ̄, ψ, Λ, and η_ref](/figures/lot-journey-parameters.png)
 
 ![Assumed arrival-model families plotted against the six-shipment Abdella sample: duration-averaged temperature factor phi_bar vs. refrigerated-leg duration, no curve fitted](/figures/arrival-calibration-overlay.png)
 

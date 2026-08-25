@@ -8,7 +8,7 @@ sources:
 
 The [previous page](/control/newsvendor) derived a clean formula for the best order quantity: order up to the $\frac{c_u}{c_u+c_o}$ quantile of demand. This project's ordering rule still orders up to *some* quantile of demand — but that quantile, called $\alpha$, is not computed from that formula. It's a **tuned service-level target** (0.9 by default) chosen by running simulated episodes and seeing which value produces the most profit. This page explains why.
 
-> **Figure (coming soon):** a line chart of simulated episode profit against a grid of candidate $\alpha$ values (0.5 through 0.95) for one policy arm, with the peak marked — showing $\alpha$ chosen by search rather than by formula.
+![Simulated episode profit vs candidate α with peak marked from grid search](/figures/alpha-profit-search.png)
 
 ## The idea
 
