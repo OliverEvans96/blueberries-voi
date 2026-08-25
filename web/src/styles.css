@@ -3,6 +3,7 @@
 @import "./styles/dayInspector.css";
 @import "./styles/storeTabs.css";
 @import "./styles/cockpitGrid.css";
+@import "./styles/cockpitMobileTabs.css";
 @import "./styles/eventsPane.css";
 @import "./styles/tuningDrawer.css";
 @import "./styles/titleBar.css";

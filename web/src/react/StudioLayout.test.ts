@@ -85,6 +85,20 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(container.querySelector(".tuning-dock")).toBeNull();
   });
 
+  it("renders mobile cockpit tabs defaulting to Run", () => {
+    const { container } = render(createElement(StudioLayout));
+    const tabs = container.querySelector(
+      "[data-testid='cockpit-mobile-tabs']",
+    );
+    expect(tabs).not.toBeNull();
+    expect(tabs!.querySelectorAll(".cockpit-mobile-tab")).toHaveLength(3);
+    const grid = container.querySelector(".cockpit-grid[data-layout='v7']");
+    expect(grid).toHaveAttribute("data-mobile-tab", "run");
+    expect(
+      tabs!.querySelector("#cockpit-mobile-tab-run")?.getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+
   it("renders pre-WASM shell placeholders in imperative mount hosts", () => {
     const { container } = render(createElement(StudioLayout));
     expect(

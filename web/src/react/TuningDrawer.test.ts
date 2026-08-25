@@ -75,6 +75,13 @@ describe("TuningDrawer (T-158 AC-drawer)", () => {
     expect(getDialog()).toBeNull();
   });
 
+  it("closes when Done button is clicked", () => {
+    renderDrawer();
+    fireEvent.click(getTrigger()!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Done" })[0]!);
+    expect(getDialog()).toBeNull();
+  });
+
   it("renders five cluster tabs without observation", () => {
     renderDrawer();
     fireEvent.click(getTrigger()!);

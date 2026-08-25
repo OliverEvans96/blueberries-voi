@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ChartLoadingShell } from "./ChartLoadingShell";
 import { D3ChartHost } from "./D3ChartHost";
 import { EventsPane } from "./EventsPane";
@@ -16,6 +16,15 @@ import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 import { WelcomeModal } from "./WelcomeModal";
 
 const noop = (): void => undefined;
+
+type MobileCockpitTab = "results" | "run" | "observe";
+
+const MOBILE_COCKPIT_TABS: { id: MobileCockpitTab; label: string; panelId: string }[] =
+  [
+    { id: "results", label: "Results", panelId: "cockpit-metrics-pane" },
+    { id: "run", label: "Run", panelId: "cockpit-center-pane" },
+    { id: "observe", label: "Observe", panelId: "cockpit-sidebar-pane" },
+  ];
 
 const D3_CHART_IDS = [
   "chart-sales",
@@ -40,6 +49,14 @@ const D3_CHART_IDS = [
 /** Static studio shell — Cockpit Grid layout v7 (T-158). */
 export function StudioLayout() {
   const [welcomeOpen, setWelcomeOpen] = useState(true);
+  const [mobileTab, setMobileTab] = useState<MobileCockpitTab>("run");
+
+  const onMobileTabChange = useCallback((tab: MobileCockpitTab) => {
+    setMobileTab(tab);
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+  }, []);
 
   return (
     <div className="bv-studio">
@@ -82,15 +99,40 @@ export function StudioLayout() {
           </div>
         </header>
 
+        <nav
+          className="cockpit-mobile-tabs"
+          role="tablist"
+          aria-label="Cockpit views"
+          data-testid="cockpit-mobile-tabs"
+        >
+          {MOBILE_COCKPIT_TABS.map(({ id, label, panelId }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`cockpit-mobile-tab-${id}`}
+              className="cockpit-mobile-tab"
+              aria-selected={mobileTab === id ? "true" : "false"}
+              aria-controls={panelId}
+              tabIndex={mobileTab === id ? 0 : -1}
+              onClick={() => onMobileTabChange(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
         <div
           className="cockpit-grid"
           data-testid="cockpit-grid"
           data-layout="v7"
+          data-mobile-tab={mobileTab}
           id="linked-charts"
         >
           <section
             className="cockpit-pane cockpit-pane--metrics panel"
             data-testid="cockpit-metrics"
+            id="cockpit-metrics-pane"
             aria-label="Metrics"
           >
             <div className="panel-head">
@@ -176,6 +218,7 @@ export function StudioLayout() {
           <div
             className="cockpit-column cockpit-column--center"
             data-testid="cockpit-center"
+            id="cockpit-center-pane"
           >
             <section
               className="cockpit-pane cockpit-pane--run panel"
@@ -316,6 +359,7 @@ export function StudioLayout() {
           <div
             className="cockpit-pane cockpit-pane--sidebar"
             data-testid="cockpit-sidebar"
+            id="cockpit-sidebar-pane"
           >
             <div id="obs-controls-pane-host" data-testid="obs-controls-host">
               <ObsControlsPane
