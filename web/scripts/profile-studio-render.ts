@@ -4,34 +4,33 @@
  * Run from web/: `npm run profile:render`
  */
 // @vitest-environment jsdom
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "../src/App";
 import {
   clearRenderProfile,
   getRenderProfileReport,
-  initStudio,
   setRenderProfiling,
   type RenderProfileRow,
 } from "../src/react/studioLogic";
 import { sumRenderProfilePrefixes } from "../src/react/renderProfile";
-import { StudioLayout } from "../src/react/StudioLayout";
 
 const ADVANCE_STEPS = 5;
 const BOOTSTRAP_TIMEOUT_MS = 10_000;
 
-async function waitForEngineReady(app: HTMLElement): Promise<void> {
-  const start = performance.now();
-  while (performance.now() - start < BOOTSTRAP_TIMEOUT_MS) {
-    const status = app.querySelector("#engine-status")?.getAttribute("data-status");
-    const advanceBtn = app.querySelector("#btn-advance");
-    if (status === "ready" && advanceBtn) return;
-    if (status === "error") {
-      throw new Error("studio bootstrap failed (engine-status=error)");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("timed out waiting for engine ready + operator bar");
+async function waitForEngineReady(root: HTMLElement): Promise<void> {
+  await waitFor(
+    () => {
+      const status = root.querySelector("#engine-status")?.getAttribute("data-status");
+      if (status === "error") {
+        throw new Error("studio bootstrap failed (engine-status=error)");
+      }
+      expect(status).toBe("ready");
+      expect(root.querySelector("#btn-advance")).not.toBeNull();
+    },
+    { timeout: BOOTSTRAP_TIMEOUT_MS },
+  );
 }
 
 function formatRow(row: RenderProfileRow): string {
@@ -49,16 +48,16 @@ function printReport(report: RenderProfileRow[]): void {
     console.log(formatRow(row));
   }
 
-  const tradeoff = sumRenderProfilePrefixes(report, [
-    "renderTradeoff",
-    "fetchTradeoffForecast",
+  const outcomes = sumRenderProfilePrefixes(report, [
+    "renderMetricsPane",
+    "renderRunStripCharts",
+    "renderStore.salesDemand",
   ]);
   const belief = sumRenderProfilePrefixes(report, [
     "renderStore.belief",
     "renderStore.renderMarginal",
     "renderCockpitBelief",
     "renderStore.beliefFreshnessTime",
-    "renderStore.salesDemand",
   ]);
   const events = sumRenderProfilePrefixes(report, ["fetchEvents", "renderEventsPane"]);
   const metrics = sumRenderProfilePrefixes(report, ["renderMetricsPane"]);
@@ -69,14 +68,14 @@ function printReport(report: RenderProfileRow[]): void {
     "renderReferenceDrawer",
     "sectionControlsApi.update",
   ]);
-  const fetchTotal = sumRenderProfilePrefixes(report, ["fetchTradeoffForecast", "fetchEvents"]);
+  const fetchTotal = sumRenderProfilePrefixes(report, ["fetchEvents"]);
   const paintTotal = { totalMs: grandTotal - fetchTotal.totalMs, pct: 0 };
   paintTotal.pct =
     grandTotal > 0 ? (paintTotal.totalMs / grandTotal) * 100 : 0;
 
   console.log("\n=== Category rollup ===");
   console.log(
-    `Tradeoff (fetch + paint): ${tradeoff.totalMs.toFixed(1)} ms (${tradeoff.pct.toFixed(1)}%)`,
+    `Outcomes strip (metrics + flow): ${outcomes.totalMs.toFixed(1)} ms (${outcomes.pct.toFixed(1)}%)`,
   );
   console.log(`Belief charts:          ${belief.totalMs.toFixed(1)} ms (${belief.pct.toFixed(1)}%)`);
   console.log(`Events (fetch + pane):  ${events.totalMs.toFixed(1)} ms (${events.pct.toFixed(1)}%)`);
@@ -84,7 +83,7 @@ function printReport(report: RenderProfileRow[]): void {
   console.log(`React chrome panes:     ${reactChrome.totalMs.toFixed(1)} ms (${reactChrome.pct.toFixed(1)}%)`);
   console.log("\n=== Fetch vs sync paint (approx) ===");
   console.log(
-    `Async fetch (tradeoff + events RPC): ${fetchTotal.totalMs.toFixed(1)} ms (${fetchTotal.pct.toFixed(1)}%)`,
+    `Async fetch (events RPC): ${fetchTotal.totalMs.toFixed(1)} ms (${fetchTotal.pct.toFixed(1)}%)`,
   );
   console.log(
     `Sync paint / React / D3:             ${paintTotal.totalMs.toFixed(1)} ms (${paintTotal.pct.toFixed(1)}%)`,
@@ -109,8 +108,9 @@ describe("studio render profile harness", () => {
     const app = document.createElement("div");
     app.id = "app";
     document.body.appendChild(app);
-    render(createElement(StudioLayout), { container: app });
-    initStudio(app);
+    await act(async () => {
+      render(createElement(App), { container: app });
+    });
 
     await waitForEngineReady(app);
     clearRenderProfile();
@@ -129,19 +129,19 @@ describe("studio render profile harness", () => {
 
     printReport(report);
 
-    const tradeoff = sumRenderProfilePrefixes(report, [
-      "renderTradeoff",
-      "fetchTradeoffForecast",
+    const outcomes = sumRenderProfilePrefixes(report, [
+      "renderMetricsPane",
+      "renderRunStripCharts",
+      "renderStore.salesDemand",
     ]);
     const belief = sumRenderProfilePrefixes(report, [
       "renderStore.belief",
       "renderStore.renderMarginal",
       "renderCockpitBelief",
       "renderStore.beliefFreshnessTime",
-      "renderStore.salesDemand",
     ]);
 
-    expect(tradeoff.totalMs).toBeGreaterThan(0);
+    expect(outcomes.totalMs).toBeGreaterThan(0);
     expect(belief.totalMs).toBeGreaterThan(0);
     },
     15_000,

@@ -6,8 +6,9 @@ import { padDaysToMinRange, pickDayTicks } from "./axisTicks";
 export type MarginalKind = "sales" | "spoilage" | "stockout";
 
 function rootG(
-  container: HTMLElement,
+  container: HTMLElement | null,
 ): d3.Selection<SVGGElement, unknown, null, undefined> | null {
+  if (!container) return null;
   const g = container.querySelector("svg g.chart-root");
   return g ? d3.select(g as SVGGElement) : null;
 }

@@ -307,25 +307,51 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   const els = {
-    linked: q<HTMLElement>("#linked-charts")!,
-    sales: q<HTMLElement>("#chart-sales")!,
-    stockout: q<HTMLElement>("#chart-stockout")!,
-    history: q<HTMLElement>("#chart-history")!,
-    belief: q<HTMLElement>("#chart-belief")!,
-    beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
-    beliefLg: q<HTMLElement>("#chart-belief-lg")!,
-    hoverNote: q<HTMLElement>("#hover-note")!,
+    get linked(): HTMLElement {
+      return q<HTMLElement>("#linked-charts")!;
+    },
+    get sales(): HTMLElement {
+      return q<HTMLElement>("#chart-sales")!;
+    },
+    get stockout(): HTMLElement {
+      return q<HTMLElement>("#chart-stockout")!;
+    },
+    get history(): HTMLElement {
+      return q<HTMLElement>("#chart-history")!;
+    },
+    get belief(): HTMLElement {
+      return q<HTMLElement>("#chart-belief")!;
+    },
+    get beliefAgeMarginal(): HTMLElement {
+      return q<HTMLElement>("#chart-belief-age-marginal")!;
+    },
+    get beliefLg(): HTMLElement {
+      return q<HTMLElement>("#chart-belief-lg")!;
+    },
+    get hoverNote(): HTMLElement {
+      return q<HTMLElement>("#hover-note")!;
+    },
     get sectionControls(): HTMLElement {
       return q<HTMLElement>("#section-controls")!;
     },
-    demand: q<HTMLElement>("#chart-demand")!,
+    get demand(): HTMLElement {
+      return q<HTMLElement>("#chart-demand")!;
+    },
     get demandForecast(): HTMLElement {
       return q<HTMLElement>("#chart-demand-forecast-host")!;
     },
-    salesDemand: q<HTMLElement>("#chart-sales-demand")!,
-    ageComp: q<HTMLElement>("#chart-age-comp")!,
-    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    spoil: q<HTMLElement>("#chart-spoil")!,
+    get salesDemand(): HTMLElement {
+      return q<HTMLElement>("#chart-sales-demand")!;
+    },
+    get ageComp(): HTMLElement {
+      return q<HTMLElement>("#chart-age-comp")!;
+    },
+    get controllerOrders(): HTMLElement {
+      return q<HTMLElement>("#chart-controller-orders")!;
+    },
+    get spoil(): HTMLElement {
+      return q<HTMLElement>("#chart-spoil")!;
+    },
     get ageCompFocus(): HTMLElement {
       return q<HTMLElement>("#chart-age-comp-focus")!;
     },
@@ -350,7 +376,9 @@ export function initStudio(app: HTMLElement): () => void {
     get pickingVar(): HTMLElement {
       return q<HTMLElement>("#picking-var-chart")!;
     },
-    pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
+    get pnlEconomics(): HTMLElement {
+      return q<HTMLElement>("#chart-pnl-economics")!;
+    },
     get focusTitle(): HTMLElement {
       return q<HTMLElement>("#focus-title")!;
     },
