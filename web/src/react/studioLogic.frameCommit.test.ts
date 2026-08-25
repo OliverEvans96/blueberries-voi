@@ -49,6 +49,35 @@ describe("commitFrame generation guard (atomic UI frames)", () => {
   });
 });
 
+describe("syncTruthCaptions belief chart labels", () => {
+  const logicSrc = stripComments(readFileSync(LOGIC_TS, "utf8"));
+
+  it("updates caption labels without clobbering InfoTip children", () => {
+    expect(logicSrc).toMatch(
+      /function syncTruthCaptions\(\)[\s\S]*?\[data-truth-caption-label\]/,
+    );
+    expect(logicSrc).not.toMatch(
+      /function syncTruthCaptions\(\)[\s\S]*?\bel\.textContent\s*=/,
+    );
+  });
+
+  it("age-comp caption shows Truth or Belief from showTruth", () => {
+    expect(logicSrc).toMatch(
+      /kind === "age-comp"[\s\S]*Historical Freshness Summary \(Truth\)/,
+    );
+    expect(logicSrc).toMatch(
+      /kind === "age-comp"[\s\S]*Historical Freshness Summary \(Belief\)/,
+    );
+    expect(logicSrc).not.toMatch(/Omniscience on/);
+  });
+
+  it("lots caption keeps Omniscience trajectory hint when truth is off", () => {
+    expect(logicSrc).toMatch(
+      /kind === "lots"[\s\S]*Historical Freshness Distribution \(turn on Omniscience to see unit trajectories\)/,
+    );
+  });
+});
+
 describe("autopilot loop awaits async applyDelta", () => {
   const autopilotSrc = stripComments(readFileSync(AUTOPILOT_LOOP_TS, "utf8"));
 

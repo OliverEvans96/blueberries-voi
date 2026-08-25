@@ -334,7 +334,7 @@ function logisticsPlotBlocks(): string {
         </div>
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
           <div class="chart-caption impact-caption">
-            On-hand by freshness band${infoTipHtml(
+            Historical Freshness Summary${infoTipHtml(
               "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
             )}
           </div>
@@ -364,7 +364,7 @@ function autopilotPlotBlocks(): string {
         </div>
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
           <div class="chart-caption impact-caption">
-            On-hand by freshness band${infoTipHtml(
+            Historical Freshness Summary${infoTipHtml(
               "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
             )}
           </div>
