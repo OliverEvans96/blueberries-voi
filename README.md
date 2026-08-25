@@ -18,19 +18,28 @@ cache seed, also install [Git LFS](https://git-lfs.com/) and run
 file (not a pointer).
 
 ```bash
-uv sync --all-extras
+uv sync
 ```
 
-Optional extras if you are not installing everything:
+`uv sync` installs every optional extra by default (via the `all` meta-extra and
+the `dev` dependency group). To install only the slim core:
+
+```bash
+uv sync --no-default-groups
+```
+
+Individual extras remain available for `pip install blueberries-voi[…]` consumers:
 
 | Extra | Use |
 |-------|-----|
+| `all` | every extra below (default for `uv sync`) |
 | `dev` | pytest, ruff, mypy, coverage, xdist, testmon, plus desktop data/viz deps |
-| `notebooks` | Jupyter + ipykernel |
+| `notebooks` | Jupyter + ipykernel + Ax BO (PyTorch) |
 | `data` | pyarrow (Abdella Parquet / Gate 0) |
 | `viz` | matplotlib (static figures) |
 | `freshnet` | Hugging Face `datasets` ingest/fit only |
 | `rust` | maturin (PyO3 extension builds) |
+| `modal` | Modal batch map for notebook heavy jobs |
 
 ## Interactive studio
 
@@ -162,7 +171,6 @@ See `AGENTS.md` for the role gate ladder, conflict policy, and LFS notes.
 ## Notebooks
 
 ```bash
-uv sync --extra notebooks
 uv run jupyter lab
 ```
 

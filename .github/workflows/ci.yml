@@ -173,6 +173,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -219,6 +221,7 @@ jobs:
           tests/test_docs_terminology.py
           tests/test_docs_code_refs.py
           tests/test_docs_adr_status.py
+          tests/test_docs_figures.py
           -m docs
 
       - name: Rustdoc guards

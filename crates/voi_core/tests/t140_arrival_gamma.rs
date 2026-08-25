@@ -89,6 +89,20 @@ fn pack_date_from_calendar_duration_not_rounded_tau() {
     );
 }
 
+/// AC-4 (T-155): shard mode for Modal batch map.
+#[test]
+fn gsin_upc_diag_supports_shard_cli() {
+    let diag_src = read_example("gsin_upc_diag.rs");
+    assert!(
+        diag_src.contains("\"--shard\""),
+        "gsin_upc_diag must support --shard <regime_idx> <seed_idx>"
+    );
+    assert!(
+        diag_src.contains("fn run_shard"),
+        "gsin_upc_diag must implement run_shard"
+    );
+}
+
 /// AC-4: thermal fleet has non-degenerate phi_bar.
 #[test]
 fn shipments_thermal_phi_bar_non_degenerate() {

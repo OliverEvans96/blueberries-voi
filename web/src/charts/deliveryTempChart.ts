@@ -2,7 +2,15 @@
  * Delivery temperature history from engine wire trace (times_d / temps_c).
  */
 import * as d3 from "d3";
+import { CHART_PAPER } from "./beliefFreshnessPalette";
 import type { MaskedObsWire } from "../obsMask";
+
+/** Cold→warm segment colors (blue → orange → red), OKLab-friendly like belief heatmap. */
+export const DELIVERY_TEMP_COLOR_STOPS = [
+  "#2563eb",
+  "#f97316",
+  "#dc2626",
+] as const;
 
 export type DeliveryTempPoint = { t: number; temp: number };
 
@@ -90,10 +98,27 @@ function ensureSvg(host: HTMLElement): SVGSVGElement {
   return svg;
 }
 
-function tempColorScale(yMin: number, yMax: number): (temp: number) => string {
+export function tempColorScale(
+  yMin: number,
+  yMax: number,
+): (temp: number) => string {
   return d3
-    .scaleSequential(d3.interpolateRdYlBu)
-    .domain([yMax, yMin]) as (temp: number) => string;
+    .scaleSequential(d3.interpolateRgbBasis([...DELIVERY_TEMP_COLOR_STOPS]))
+    .domain([yMin, yMax]) as (temp: number) => string;
+}
+
+function appendPlotBackground(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  innerW: number,
+  innerH: number,
+): void {
+  parent
+    .append("rect")
+    .attr("class", "delivery-temp-bg")
+    .attr("width", innerW)
+    .attr("height", innerH)
+    .attr("fill", CHART_PAPER)
+    .attr("opacity", 0.45);
 }
 
 function appendTempBaseline(
@@ -195,6 +220,7 @@ export function renderDeliveryTempHistorySvg(
     .append("g")
     .attr("class", "delivery-temp-plot")
     .attr("transform", `translate(${pad},${pad})`);
+  appendPlotBackground(plot, innerW, innerH);
   appendTempBaseline(plot, 0, innerW, 2, y);
   appendTempAxes(plot, innerW, innerH);
   appendTempColoredSegments(
@@ -219,7 +245,7 @@ export function renderDeliveryTempHistory(
 export function renderDeliveryTempMultiLot(
   host: HTMLElement,
   traces: DeliveryLotTempTrace[],
-  height = 36,
+  height = 48,
 ): void {
   const width = host.clientWidth || 280;
   const legendW = traces.length > 1 ? 56 : 0;
@@ -257,6 +283,7 @@ export function renderDeliveryTempMultiLot(
   const x = d3.scaleLinear().domain([tMin, 0]).range([0, innerW]);
   const y = d3.scaleLinear().domain([yMin, yMax]).range([innerH, 0]);
 
+  appendPlotBackground(plot, innerW, innerH);
   appendTempBaseline(plot, 0, innerW, 2, y);
   appendTempAxes(plot, innerW, innerH);
 

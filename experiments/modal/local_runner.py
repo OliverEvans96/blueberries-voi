@@ -5,7 +5,11 @@ from __future__ import annotations
 import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from blueberries_voi.filter.types import ObsChannels
+
 
 from blueberries_voi.experiments.batch_progress import log_grid_progress, log_line
 from blueberries_voi.experiments.filter_accuracy import (
@@ -17,6 +21,17 @@ from blueberries_voi.experiments.filter_accuracy import (
 from blueberries_voi.experiments.gsin_upc import (
     gsin_job_grid,
     merge_gsin_diag_rows,
+)
+from blueberries_voi.experiments.rollout_bakeoff import (
+    merge_rollout_eval_rows,
+    rollout_eval_job_grid,
+    run_rollout_eval,
+)
+from blueberries_voi.experiments.voi_profit import (
+    merge_voi_profit_rows,
+    run_seed_channel_profit,
+    run_seed_oracle_profit,
+    voi_profit_job_grid,
 )
 
 
@@ -38,9 +53,10 @@ def run_nb13_local(
     *,
     seeds: tuple[int, ...] = DEFAULT_SEEDS,
     n_days: int = DEFAULT_N_DAYS,
+    channels: list[ObsChannels] | None = None,
     max_workers: int | None = None,
 ) -> list[dict[str, Any]]:
-    grid = nb13_job_grid(seeds=seeds)
+    grid = nb13_job_grid(seeds=seeds, channels=channels)
     tasks = [(seed, ch.__dict__, n_days, i) for i, (seed, ch) in enumerate(grid)]
     total = len(tasks)
     log_line(f"nb13 local run: {total} jobs, days={n_days}, workers={max_workers}")
@@ -69,15 +85,102 @@ def _gsin_worker(args: tuple[int, int]) -> dict[str, Any]:
 def run_gsin_local(
     out_path: Path,
     *,
+    grid: list[tuple[int, int]] | None = None,
     max_workers: int | None = None,
 ) -> list[dict[str, Any]]:
-    grid = gsin_job_grid()
+    cells = gsin_job_grid() if grid is None else grid
     shards: list[dict[str, Any]] = []
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(_gsin_worker, cell) for cell in grid]
+        futures = [pool.submit(_gsin_worker, cell) for cell in cells]
         for fut in as_completed(futures):
             shards.append(fut.result())
     rows = merge_gsin_diag_rows(shards)
+    out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    return rows
+
+
+def _voi_profit_worker(
+    args: tuple[int, dict[str, object], dict[str, Any]],
+) -> dict[str, Any]:
+    seed, channel, budgets = args
+    return run_seed_channel_profit(seed, channel, **budgets)
+
+
+def _voi_oracle_worker(args: tuple[int, dict[str, Any]]) -> dict[str, Any]:
+    seed, budgets = args
+    return run_seed_oracle_profit(seed, **budgets)
+
+
+def run_voi_profit_local(
+    out_path: Path,
+    *,
+    seeds: tuple[int, ...],
+    channels: list[ObsChannels],
+    include_oracle: bool = False,
+    budgets: dict[str, Any] | None = None,
+    max_workers: int | None = None,
+    progress: bool = True,
+) -> list[dict[str, Any]]:
+    budget_kw = dict(budgets or {})
+    budget_kw.pop("max_workers", None)
+    budget_kw.pop("include_oracle", None)
+    budget_kw.pop("seeds", None)
+    budget_kw.pop("channels", None)
+    grid = voi_profit_job_grid(seeds, channels)
+    channel_tasks = [(seed, ch.__dict__, budget_kw) for seed, ch in grid]
+    oracle_tasks = [(seed, budget_kw) for seed in seeds] if include_oracle else []
+    total = len(channel_tasks) + len(oracle_tasks)
+    log_line(f"voi_profit local run: {total} jobs, workers={max_workers}")
+    shards: list[dict[str, Any]] = []
+    completed = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_voi_profit_worker, task) for task in channel_tasks]
+        futures.extend(pool.submit(_voi_oracle_worker, task) for task in oracle_tasks)
+        for fut in as_completed(futures):
+            shards.append(fut.result())
+            completed += 1
+            if progress:
+                log_grid_progress(completed, total)
+    rows = merge_voi_profit_rows(shards)
+    out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    return rows
+
+
+def _rollout_eval_worker(
+    args: tuple[int, str, float, float, dict[str, Any]],
+) -> dict[str, Any]:
+    seed, arm_id, alpha, rho, budgets = args
+    return run_rollout_eval(seed, arm_id, alpha, rho, **budgets)
+
+
+def run_rollout_eval_local(
+    out_path: Path,
+    *,
+    seeds: tuple[int, ...],
+    arms: tuple[str, ...],
+    alphas: tuple[float, ...],
+    rho: float,
+    budgets: dict[str, Any] | None = None,
+    max_workers: int | None = None,
+    progress: bool = True,
+) -> list[dict[str, Any]]:
+    budget_kw = dict(budgets or {})
+    for key in ("max_workers", "seeds", "arms", "alphas", "rho"):
+        budget_kw.pop(key, None)
+    grid = rollout_eval_job_grid(seeds, arms, alphas, rho)
+    tasks = [(seed, arm, alpha, rho, budget_kw) for seed, arm, alpha, rho in grid]
+    total = len(tasks)
+    log_line(f"rollout_eval local run: {total} jobs, workers={max_workers}")
+    shards: list[dict[str, Any]] = []
+    completed = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_rollout_eval_worker, task) for task in tasks]
+        for fut in as_completed(futures):
+            shards.append(fut.result())
+            completed += 1
+            if progress:
+                log_grid_progress(completed, total)
+    rows = merge_rollout_eval_rows(shards)
     out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
     return rows
 
