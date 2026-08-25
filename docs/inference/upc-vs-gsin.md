@@ -115,7 +115,7 @@ measures.
 
 This page describes the *scoring* difference between the two channels — it says nothing
 about how often either channel is realistic for a given store to actually run (that's
-covered by the [observation ladder](/ladder/rungs) pages). The refinement argument also
+covered by the [observation ladder](/ladder/observation-scenarios) pages). The refinement argument also
 assumes the observed per-lot counts are internally consistent (they sum to the observed
 pooled total); the code does not separately reconcile a GSIN feed against an
 independently reported UPC feed if a real deployment somehow supplied both and they

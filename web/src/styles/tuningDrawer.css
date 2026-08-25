@@ -1,4 +1,4 @@
-/* T-158: tuning drawer — right overlay + 2-column interleaved body */
+/* T-158: tuning drawer — right overlay + single-column interleaved body */
 
 .tuning-drawer-trigger {
   appearance: none;
@@ -39,7 +39,7 @@
   bottom: 0;
   left: auto;
   margin: 0;
-  width: min(40rem, 100vw);
+  width: min(27rem, 100vw);
   max-width: 100vw;
   max-height: 100vh;
   height: 100vh;
@@ -81,8 +81,8 @@
 
 .tuning-drawer-body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
   align-items: start;
   padding: 1rem;
   overflow-y: auto;
@@ -94,8 +94,8 @@
   min-width: 0;
 }
 
-.tuning-drawer-slot--full {
-  grid-column: 1 / -1;
+.tuning-drawer-controls .focus-plot {
+  margin-top: 0.5rem;
 }
 
 .tuning-drawer-controls {
@@ -122,10 +122,6 @@
   margin: 0;
   font-size: 0.85rem;
   line-height: 1.4;
-}
-
-.tuning-drawer-plots {
-  display: contents;
 }
 
 .tuning-drawer-body .demand-chart-slot,
@@ -175,10 +171,4 @@
   gap: 0.75rem 1rem;
   align-items: flex-start;
   min-width: 0;
-}
-
-@media (max-width: 600px) {
-  .tuning-drawer-body {
-    grid-template-columns: 1fr;
-  }
 }

@@ -1,4 +1,9 @@
-import { useId } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  getInfoTipPortalRoot,
+  positionInfoTipBubble,
+} from "../infoTipPortal";
 import "../styles/infoTip.css";
 
 export type InfoTipProps = {
@@ -11,7 +16,7 @@ export type InfoTipProps = {
 };
 
 /**
- * Small hover/focus info glyph with a CSS-only tooltip bubble (T-161).
+ * Small hover/focus info glyph with a portaled tooltip bubble (T-161).
  * Mirrors the markup `infoTipHtml` renders for the vanilla tuning-dock
  * controls, so both share `styles/infoTip.css`.
  *
@@ -28,6 +33,9 @@ export type InfoTipProps = {
  */
 export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
   const bubbleId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
   const className = [
     "info-tip",
     alignEnd && "info-tip--align-end",
@@ -35,19 +43,67 @@ export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
   ]
     .filter(Boolean)
     .join(" ");
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const bubble = bubbleRef.current;
+    if (trigger && bubble && open) {
+      positionInfoTipBubble(trigger, bubble, { alignEnd, openUp });
+    }
+  }, [open, alignEnd, openUp]);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onReflow = () => updatePosition();
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    return () => {
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+    };
+  }, [open, updatePosition]);
+
+  const portalRoot = getInfoTipPortalRoot();
+  const bubble =
+    open && portalRoot
+      ? createPortal(
+          <span
+            id={bubbleId}
+            ref={bubbleRef}
+            className={[
+              "info-tip-bubble",
+              "info-tip-bubble--portaled",
+              "info-tip-bubble--visible",
+              alignEnd && "info-tip--align-end",
+              openUp && "info-tip--up",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            role="tooltip"
+          >
+            {children}
+          </span>,
+          portalRoot,
+        )
+      : null;
+
   return (
     <span className={className}>
       <button
         type="button"
+        ref={triggerRef}
         className="info-tip-trigger"
         aria-label="More information"
         aria-describedby={bubbleId}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
       >
         i
       </button>
-      <span id={bubbleId} className="info-tip-bubble" role="tooltip">
-        {children}
-      </span>
+      {bubble}
     </span>
   );
 }

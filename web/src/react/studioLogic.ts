@@ -117,13 +117,7 @@ import {
   toggleDeliveryDay,
 } from "../calendar/weekCalendar";
 import { loadShowTruth, saveShowTruth } from "../showTruth";
-import type { EventDayWire, TradeoffForecastResult } from "../engine/types";
-import type { QForecastEntry } from "../charts/tradeoffForecast";
-import {
-  nearestForecast,
-  renderTradeoffCurve,
-  renderTradeoffHistogram,
-} from "../charts/tradeoffForecast";
+import type { EventDayWire } from "../engine/types";
 import { DayInspector } from "./DayInspector";
 import { EventsPane } from "./EventsPane";
 import { ObsControlsPane } from "./ObsControlsPane";
@@ -165,9 +159,6 @@ export {
   type AdvancePipelineReport,
   type RenderProfileRow,
 };
-
-/** Display-only tradeoff bands; does not affect act/step_n (ADR 0130). */
-const TRADEOFF_FORECAST_N_PATHS = 20;
 
 /** Set by initStudio — profile one full Advance (await remote panes). */
 let studioAdvanceOnce: (() => Promise<void>) | null = null;
@@ -286,9 +277,6 @@ export function initStudio(app: HTMLElement): () => void {
     ...DEFAULT_CONTROLLER_CONTROLS,
   };
   let bootstrapped = false;
-  let tradeoffForecasts: QForecastEntry[] = [];
-  type TradeoffTab = "curve" | "histogram";
-  let tradeoffTab: TradeoffTab = "curve";
   let eventDays: EventDayWire[] = [];
   let eventsLoading = false;
   let eventsRefreshing = false;
@@ -319,25 +307,51 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   const els = {
-    linked: q<HTMLElement>("#linked-charts")!,
-    sales: q<HTMLElement>("#chart-sales")!,
-    stockout: q<HTMLElement>("#chart-stockout")!,
-    history: q<HTMLElement>("#chart-history")!,
-    belief: q<HTMLElement>("#chart-belief")!,
-    beliefAgeMarginal: q<HTMLElement>("#chart-belief-age-marginal")!,
-    beliefLg: q<HTMLElement>("#chart-belief-lg")!,
-    hoverNote: q<HTMLElement>("#hover-note")!,
+    get linked(): HTMLElement {
+      return q<HTMLElement>("#linked-charts")!;
+    },
+    get sales(): HTMLElement {
+      return q<HTMLElement>("#chart-sales")!;
+    },
+    get stockout(): HTMLElement {
+      return q<HTMLElement>("#chart-stockout")!;
+    },
+    get history(): HTMLElement {
+      return q<HTMLElement>("#chart-history")!;
+    },
+    get belief(): HTMLElement {
+      return q<HTMLElement>("#chart-belief")!;
+    },
+    get beliefAgeMarginal(): HTMLElement {
+      return q<HTMLElement>("#chart-belief-age-marginal")!;
+    },
+    get beliefLg(): HTMLElement {
+      return q<HTMLElement>("#chart-belief-lg")!;
+    },
+    get hoverNote(): HTMLElement {
+      return q<HTMLElement>("#hover-note")!;
+    },
     get sectionControls(): HTMLElement {
       return q<HTMLElement>("#section-controls")!;
     },
-    demand: q<HTMLElement>("#chart-demand")!,
+    get demand(): HTMLElement {
+      return q<HTMLElement>("#chart-demand")!;
+    },
     get demandForecast(): HTMLElement {
       return q<HTMLElement>("#chart-demand-forecast-host")!;
     },
-    salesDemand: q<HTMLElement>("#chart-sales-demand")!,
-    ageComp: q<HTMLElement>("#chart-age-comp")!,
-    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
-    spoil: q<HTMLElement>("#chart-spoil")!,
+    get salesDemand(): HTMLElement {
+      return q<HTMLElement>("#chart-sales-demand")!;
+    },
+    get ageComp(): HTMLElement {
+      return q<HTMLElement>("#chart-age-comp")!;
+    },
+    get controllerOrders(): HTMLElement {
+      return q<HTMLElement>("#chart-controller-orders")!;
+    },
+    get spoil(): HTMLElement {
+      return q<HTMLElement>("#chart-spoil")!;
+    },
     get ageCompFocus(): HTMLElement {
       return q<HTMLElement>("#chart-age-comp-focus")!;
     },
@@ -362,9 +376,9 @@ export function initStudio(app: HTMLElement): () => void {
     get pickingVar(): HTMLElement {
       return q<HTMLElement>("#picking-var-chart")!;
     },
-    tradeoffCurve: q<HTMLElement>("#tradeoff-curve-host")!,
-    tradeoffHistogram: q<HTMLElement>("#tradeoff-histogram-host")!,
-    pnlEconomics: q<HTMLElement>("#chart-pnl-economics")!,
+    get pnlEconomics(): HTMLElement {
+      return q<HTMLElement>("#chart-pnl-economics")!;
+    },
     get focusTitle(): HTMLElement {
       return q<HTMLElement>("#focus-title")!;
     },
@@ -495,20 +509,6 @@ export function initStudio(app: HTMLElement): () => void {
 
   renderLoadingDialog();
 
-  async function fetchTradeoffForecast(gen: number): Promise<void> {
-    if (typeof adapter.tradeoffForecast !== "function") return;
-    try {
-      const result = (await adapter.tradeoffForecast({
-        n_paths: TRADEOFF_FORECAST_N_PATHS,
-      })) as TradeoffForecastResult;
-      if (gen !== frameGen) return;
-      tradeoffForecasts = result.candidates ?? [];
-    } catch {
-      if (gen !== frameGen) return;
-      tradeoffForecasts = [];
-    }
-  }
-
   async function fetchEvents(gen: number): Promise<void> {
     if (typeof adapter.events !== "function" || !schedule) return;
     const sinceDay = Math.max(1, vm.episode_day - 5);
@@ -536,10 +536,7 @@ export function initStudio(app: HTMLElement): () => void {
 
   async function commitFrame(): Promise<void> {
     const gen = ++frameGen;
-    await Promise.all([
-      profileAsync("fetchTradeoffForecast", () => fetchTradeoffForecast(gen)),
-      profileAsync("fetchEvents", () => fetchEvents(gen)),
-    ]);
+    await profileAsync("fetchEvents", () => fetchEvents(gen));
     if (gen !== frameGen) return;
     renderAll();
   }
@@ -583,63 +580,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
   const dayInspectorHost = q<HTMLElement>("#day-inspector-host");
   const dayInspectorRoot = dayInspectorHost ? createRoot(dayInspectorHost) : null;
-
-  function renderTradeoffBeliefColumn(): void {
-    profileSync(`renderTradeoff.${tradeoffTab}`, () => {
-      if (!els.tradeoffCurve || !els.tradeoffHistogram) return;
-      if (tradeoffTab === "curve") {
-        renderTradeoffCurve(els.tradeoffCurve, tradeoffForecasts, orderQty, 0.7);
-        return;
-      }
-      renderTradeoffHistogram(
-        els.tradeoffHistogram,
-        nearestForecast(tradeoffForecasts, orderQty),
-        orderQty,
-        0.7,
-      );
-    });
-  }
-
-  function syncTradeoffTabs(): void {
-    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
-      (tab) => {
-        const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
-        const selected = id === tradeoffTab;
-        tab.setAttribute("aria-selected", selected ? "true" : "false");
-        tab.tabIndex = selected ? 0 : -1;
-      },
-    );
-    if (els.tradeoffCurve) {
-      const showCurve = tradeoffTab === "curve";
-      els.tradeoffCurve.hidden = !showCurve;
-      els.tradeoffCurve.style.display = showCurve ? "" : "none";
-    }
-    if (els.tradeoffHistogram) {
-      const showHist = tradeoffTab === "histogram";
-      els.tradeoffHistogram.hidden = !showHist;
-      els.tradeoffHistogram.style.display = showHist ? "" : "none";
-    }
-  }
-
-  function setTradeoffTab(id: TradeoffTab): void {
-    if (tradeoffTab === id) return;
-    tradeoffTab = id;
-    syncTradeoffTabs();
-    renderTradeoffBeliefColumn();
-  }
-
-  function wireTradeoffTabs(): void {
-    qa<HTMLButtonElement>(".belief-tradeoff-tabs [data-tradeoff-tab]").forEach(
-      (tab) => {
-        if (tab.dataset.bound === "1") return;
-        tab.dataset.bound = "1";
-        tab.addEventListener("click", () => {
-          const id = tab.dataset.tradeoffTab as TradeoffTab | undefined;
-          if (id) setTradeoffTab(id);
-        });
-      },
-    );
-  }
 
   function renderLogisticsCalendar(): void {
     if (!plotVisible("plot-logistics-calendar")) return;
@@ -873,8 +813,30 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function plotVisible(plotId: string): boolean {
-    const node = q<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`);
-    return !!node && !node.hidden;
+    for (const node of qa<HTMLElement>(`.focus-plot[data-plot="${plotId}"]`)) {
+      const block = node.closest(".controls-block") as HTMLElement | null;
+      if (block && !block.hidden) return true;
+    }
+    return false;
+  }
+
+  function mountChartIntoHost(chartEl: HTMLElement, hostId: string): void {
+    const host = q<HTMLElement>(`#${hostId}`);
+    if (host && chartEl.parentElement !== host) {
+      host.appendChild(chartEl);
+    }
+  }
+
+  function mountTuningChartHosts(sectionId: SectionId): void {
+    if (sectionId === "demand") {
+      mountChartIntoHost(els.demand, "chart-demand-host");
+    }
+    if (sectionId === "logistics") {
+      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
+    }
+    if (sectionId === "autopilot") {
+      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host-autopilot");
+    }
   }
 
   function ageCompositionInputs(): {
@@ -1000,7 +962,6 @@ export function initStudio(app: HTMLElement): () => void {
       );
       renderCockpitBelief();
       renderRunStripCharts();
-      renderTradeoffBeliefColumn();
       profileSync("renderStore.applyHoverStyles", () => applyHoverStyles(hoveredDay));
     });
   }
@@ -1108,21 +1069,11 @@ export function initStudio(app: HTMLElement): () => void {
     els.focusBlurb.textContent = meta.blurb;
     sectionControlsApi?.showSection(id);
 
-    qa<HTMLElement>(".focus-plot").forEach((plot) => {
-      const pid = plot.dataset.plot ?? "";
-      plot.hidden = !meta.plotIds.includes(pid);
-    });
+    mountTuningChartHosts(id);
 
     els.focusPane.classList.remove("focus-flash");
     void els.focusPane.offsetWidth;
     els.focusPane.classList.add("focus-flash");
-
-    if (id === "demand") {
-      const slot = q<HTMLElement>("#chart-demand-host");
-      if (slot && els.demand.parentElement !== slot) {
-        slot.appendChild(els.demand);
-      }
-    }
 
     renderActiveFocusPlots();
     syncTruthCaptions();
@@ -1141,7 +1092,6 @@ export function initStudio(app: HTMLElement): () => void {
       profileSync("syncTruthCaptions", () => syncTruthCaptions());
       renderStore();
       renderActiveFocusPlots();
-      profileSync("renderTradeoffBeliefColumn", () => renderTradeoffBeliefColumn());
       renderDayInspector();
       renderMetricsPane();
       renderEventsPane();
@@ -1318,7 +1268,6 @@ export function initStudio(app: HTMLElement): () => void {
           }
           sectionControlsApi.update(controlsState());
           paintPortalDrawers();
-          renderTradeoffBeliefColumn();
           renderOperatorBar();
           renderActiveFocusPlots();
           // Autopilot pauses when staged config is dirty (AC).
@@ -1502,9 +1451,6 @@ export function initStudio(app: HTMLElement): () => void {
         });
       });
   }
-
-  wireTradeoffTabs();
-  syncTradeoffTabs();
 
   async function bootstrap(): Promise<void> {
     if (bootstrapped) return;

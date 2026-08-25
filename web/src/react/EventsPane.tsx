@@ -84,10 +84,10 @@ function arrivalLotRows(
 
 const EVENTS_COLUMN_TIPS: Record<string, string> = {
   Delivered:
-    "Units that arrived on the shelf that day. Broken out by lot underneath the total when lot IDs are observed, since that lot detail depends on the current observation channels.",
-  Sold: "Units actually sold that day, drawn from whatever was left after spoilage. This can fall short of that day's demand once the shelf runs out of unspoiled units to sell.",
+    "Units that arrived on the shelf that day. Broken out by lot when lot IDs are observed.",
+  Sold: "Units actually sold that day, after spoilage. Can fall short of demand once the shelf runs out.",
   Spoiled:
-    "Units whose freshness reached zero that day and were pulled off the shelf as waste before being counted here, never reaching a customer.",
+    "Units whose freshness reached zero that day and were pulled off the shelf as waste.",
 };
 
 function EventsTable({
@@ -156,9 +156,7 @@ function DeliveryTempChart({
         <h4 className="events-temp-heading">Temperature history</h4>
         <InfoTip>
           The logged temperature trace from the delivery truck for that day's
-          arriving lot(s) — only available at the highest observation rung,
-          where the supplier reports a full temperature-history trace rather
-          than just a pack date or nothing at all.
+          arriving lot(s) — only available at the highest observation rung.
         </InfoTip>
       </span>
       <div
@@ -263,12 +261,9 @@ export function EventsPane({
         <span className="heading-with-tip">
           <h2>Events</h2>
           <InfoTip>
-            A rolling log of the last several completed days' deliveries,
-            sales, and spoilage, in the fixed order each day actually
-            resolves them: aging, then spoilage, then sales, then delivery.
-            Each day's numbers are masked down to whatever the current
-            observation channels actually reveal, so a column can show
-            "Not observed" even when something happened in the ground truth.
+            A rolling log of the last several days' deliveries, sales, and
+            spoilage. Numbers are masked to what's currently observed, so a
+            column can show "Not observed" even when it happened.
           </InfoTip>
         </span>
         <span className="panel-note">
@@ -334,7 +329,17 @@ export function EventsPane({
               {index > 0 ? <hr className="events-day-divider" /> : null}
               <header className="events-day-header">
                 <h3 className="events-day-heading">
-                  {schedule ? `${weekdayLabel(day, schedule)} ` : ""}Day {day}
+                  {schedule ? (
+                    <>
+                      <span className="events-day-weekday">
+                        {weekdayLabel(day, schedule)}
+                      </span>
+                      {" "}
+                      <span className="events-day-index">(day {day})</span>
+                    </>
+                  ) : (
+                    <span className="events-day-index">(day {day})</span>
+                  )}
                 </h3>
                 <div className="events-day-markers">
                   {deliveryDay ? (

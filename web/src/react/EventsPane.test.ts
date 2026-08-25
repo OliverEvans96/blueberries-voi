@@ -186,7 +186,7 @@ describe("EventsPane (T-148 v6)", () => {
       }),
     );
     // epoch 2024-01-01 (Mon) + day 1 → Tue
-    expect(screen.getByRole("heading", { level: 3, name: "Tue Day 1" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Tue (day 1)" })).toBeInTheDocument();
     expect(screen.queryByText(/January|Jan /i)).toBeNull();
   });
 
@@ -211,7 +211,7 @@ describe("EventsPane (T-148 v6)", () => {
         refreshing: true,
       }),
     );
-    expect(screen.getByText("Tue Day 1")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Tue (day 1)" })).toBeInTheDocument();
     expect(screen.getByText(/updating/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Loading events/i)).toBeNull();
   });

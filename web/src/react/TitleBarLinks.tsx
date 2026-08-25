@@ -3,6 +3,7 @@ import {
   STUDIO_DOCS_URL,
   STUDIO_GITHUB_URL,
 } from "../studioLinks";
+import { useStudioEmbed } from "./StudioEmbedContext";
 
 const EXTERNAL_LINK_PROPS = {
   target: "_blank",
@@ -11,10 +12,12 @@ const EXTERNAL_LINK_PROPS = {
 
 /** Blog post link beside the studio title. */
 export function TitleBarBlogLink() {
+  const { blogPostUrl } = useStudioEmbed();
+  const href = blogPostUrl ?? STUDIO_BLOG_POST_URL;
   return (
     <a
       className="title-bar-blog-link"
-      href={STUDIO_BLOG_POST_URL}
+      href={href}
       {...EXTERNAL_LINK_PROPS}
     >
       Read the blog post

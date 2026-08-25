@@ -68,7 +68,7 @@ describe("controllerOrders series helper (T-099)", () => {
     );
     expect(container.querySelectorAll(".order-bar").length).toBeGreaterThan(0);
     expect(container.querySelector("path.order-line")).toBeNull();
-    expect(container.querySelector(".axis-y--orders")).not.toBeNull();
+    expect(container.querySelector(".axis-y")).not.toBeNull();
     expect(container.querySelector("svg.chart-svg")).not.toBeNull();
   });
 

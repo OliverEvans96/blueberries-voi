@@ -25,8 +25,8 @@ describe("commitFrame generation guard (atomic UI frames)", () => {
     expect(logicSrc).toMatch(/async function commitFrame/);
     expect(logicSrc).toMatch(/const gen = \+\+frameGen/);
     expect(logicSrc).toMatch(/gen !== frameGen/);
-    expect(logicSrc).toMatch(/fetchTradeoffForecast\(gen\)/);
     expect(logicSrc).toMatch(/fetchEvents\(gen\)/);
+    expect(logicSrc).not.toMatch(/fetchTradeoffForecast/);
   });
 
   it("simulation paths coalesce into commitFrame (no refreshRemotePanes)", () => {
@@ -42,10 +42,7 @@ describe("commitFrame generation guard (atomic UI frames)", () => {
     expect(fetchEventsBody).not.toMatch(/renderEventsPane/);
   });
 
-  it("remote fetch helpers bail before mutating state when generation is stale", () => {
-    expect(logicSrc).toMatch(
-      /async function fetchTradeoffForecast\(gen: number\)[\s\S]*?if \(gen !== frameGen\) return;[\s\S]*?tradeoffForecasts/,
-    );
+  it("fetchEvents bails before mutating state when generation is stale", () => {
     expect(logicSrc).toMatch(
       /async function fetchEvents\(gen: number\)[\s\S]*?if \(gen !== frameGen\) return;[\s\S]*?eventDays/,
     );

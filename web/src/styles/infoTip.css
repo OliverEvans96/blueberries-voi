@@ -1,6 +1,6 @@
-/* Shared hover/focus info-circle tooltip (T-161). CSS-only — no JS
-   positioning — so the same markup works from React (InfoTip.tsx) and from
-   the vanilla template-string DOM builder in controls.ts (infoTip.ts). */
+/* Shared hover/focus info-circle tooltip (T-161). Bubbles portal to
+   `.bv-studio-portal-root` with fixed positioning from infoTipPortal.ts so
+   they escape overflow containers (events pane, cockpit scroll areas). */
 
 /* Wraps a heading/label element together with its InfoTip so the two lay
    out side by side, WITHOUT nesting the InfoTip inside the heading itself —
@@ -58,10 +58,6 @@
 }
 
 .info-tip-bubble {
-  position: absolute;
-  z-index: 80;
-  top: calc(100% + 7px);
-  left: 0;
   width: max-content;
   max-width: 260px;
   padding: 0.5em 0.65em;
@@ -78,40 +74,17 @@
   letter-spacing: normal;
   white-space: normal;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-  visibility: hidden;
-  opacity: 0;
-  transform: translateY(-3px);
   pointer-events: none;
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease,
-    visibility 120ms ease;
 }
 
-.info-tip-trigger:hover + .info-tip-bubble,
-.info-tip-trigger:focus-visible + .info-tip-bubble {
-  visibility: visible;
+/* Portaled bubbles — position set inline from trigger getBoundingClientRect. */
+.info-tip-bubble--portaled {
+  position: fixed;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.info-tip-bubble--portaled.info-tip-bubble--visible {
   opacity: 1;
-  transform: translateY(0);
-}
-
-/* Right-align the bubble when the trigger sits near a panel's right edge
-   (narrow sidebar columns, tab rows) so it doesn't overflow off-screen. */
-.info-tip--align-end .info-tip-bubble {
-  left: auto;
-  right: 0;
-}
-
-/* Open upward when the trigger sits at the bottom of a panel/scroll area. */
-.info-tip--up .info-tip-bubble {
-  top: auto;
-  bottom: calc(100% + 7px);
-  transform: translateY(3px);
-}
-
-.info-tip--up .info-tip-trigger:hover + .info-tip-bubble,
-.info-tip--up .info-tip-trigger:focus-visible + .info-tip-bubble {
-  visibility: visible;
-  opacity: 1;
-  transform: translateY(0);
 }

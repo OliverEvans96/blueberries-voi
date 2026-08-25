@@ -84,7 +84,15 @@
 .events-day-heading {
   margin: 0;
   font-size: 1.08rem;
+  font-weight: 400;
+}
+
+.events-day-weekday {
   font-weight: 700;
+}
+
+.events-day-index {
+  font-weight: 400;
 }
 
 .events-columns {
