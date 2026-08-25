@@ -1,5 +1,7 @@
 import { defineConfig } from "vitepress";
 
+import { markdownFigures } from "./markdown-figures";
+
 export default defineConfig({
   title: "Blueberries VOI",
   description:
@@ -8,6 +10,9 @@ export default defineConfig({
   cleanUrls: true,
   markdown: {
     math: true,
+    config: (md) => {
+      markdownFigures(md);
+    },
   },
   themeConfig: {
     siteTitle: false,

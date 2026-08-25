@@ -13,6 +13,8 @@ pytestmark = pytest.mark.docs
 FIGURES_PUBLIC = DOCS_ROOT / "public" / "figures"
 FIGURE_REF_RE = re.compile(r"!\[[^\]]*\]\(/figures/([^)]+)\)")
 COMING_SOON_RE = re.compile(r"Figure \(coming soon\)", re.IGNORECASE)
+LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def test_no_figure_coming_soon_placeholders() -> None:
@@ -25,6 +27,20 @@ def test_no_figure_coming_soon_placeholders() -> None:
                     f"{path.relative_to(DOCS_ROOT)}:{line_no}: {line.strip()}"
                 )
     assert not offenders, "Figure (coming soon) placeholders remain:\n" + "\n".join(
+        offenders
+    )
+
+
+def test_figure_png_files_are_real_images_not_lfs_pointers() -> None:
+    offenders: list[str] = []
+    for path in sorted(FIGURES_PUBLIC.glob("*.png")):
+        head = path.read_bytes()[:64]
+        rel = path.relative_to(DOCS_ROOT)
+        if head.startswith(LFS_POINTER_PREFIX):
+            offenders.append(f"{rel}: Git LFS pointer (run git lfs pull)")
+        elif not head.startswith(PNG_SIGNATURE):
+            offenders.append(f"{rel}: missing PNG signature")
+    assert not offenders, "Doc figure PNGs must be real images:\n" + "\n".join(
         offenders
     )
 
