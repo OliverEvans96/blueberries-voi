@@ -429,26 +429,40 @@ export function TuningDrawer({
                   </div>
                   <div
                     className="focus-plot tuning-drawer-slot"
-                    data-plot="plot-orders-spoilage"
+                    data-plot="plot-controller-orders"
                     hidden
                   >
                     <div className="chart-caption impact-caption">
-                      Orders &amp; spoilage
+                      Order quantity
                       <InfoTip>
-                        Tracks each day's order quantity alongside units
-                        spoiled, so you can see how ordering decisions play
-                        out as waste a few days later. Spoilage happens unit
-                        by unit — each alive unit loses freshness
-                        independently every day and is marked waste the
-                        instant its own freshness hits zero, so units from
-                        the same delivery can spoil across a span of days
-                        rather than all at once.
+                        Preview of each day's order quantity from the active
+                        controller policy — the same series shown in the
+                        Outcomes column, enlarged for tuning autopilot
+                        parameters.
                       </InfoTip>
                     </div>
                     <D3ChartHost
-                      id="chart-orders-spoilage-focus"
+                      id="chart-controller-orders-focus"
                       className="chart"
-                      ariaLabel="Order quantity and spoilage preview"
+                      ariaLabel="Order quantity preview"
+                    />
+                  </div>
+                  <div
+                    className="focus-plot tuning-drawer-slot"
+                    data-plot="plot-spoil"
+                    hidden
+                  >
+                    <div className="chart-caption impact-caption">
+                      Spoilage
+                      <InfoTip>
+                        Preview of daily units spoiled — unavailable at the
+                        lowest observation rung where waste is not observed.
+                      </InfoTip>
+                    </div>
+                    <D3ChartHost
+                      id="chart-spoil-focus"
+                      className="chart"
+                      ariaLabel="Spoilage preview"
                     />
                   </div>
                   <div

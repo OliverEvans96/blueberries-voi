@@ -50,51 +50,51 @@ describe("controllerOrders series helper (T-099)", () => {
     expect(typeof mod.renderControllerOrders).toBe("function");
   });
 
-  it("exports renderOrdersSpoilageGroupedBars for combined order + spoilage chart", async () => {
+  it("renderControllerOrders draws per-day order bars", async () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
       configurable: true,
     });
-    const { renderOrdersSpoilageGroupedBars } = await import("./controllerOrders");
-    renderOrdersSpoilageGroupedBars(
+    const { renderControllerOrders } = await import("./controllerOrders");
+    renderControllerOrders(
       container,
       [
-        { day: 1, order_qty: 16, waste_total: 2 },
-        { day: 2, order_qty: 0, waste_total: 5 },
-        { day: 3, order_qty: 24, waste_total: 1 },
+        { day: 1, order_qty: 16 },
+        { day: 2, order_qty: 0 },
+        { day: 3, order_qty: 24 },
       ],
       130,
     );
     expect(container.querySelectorAll(".order-bar").length).toBeGreaterThan(0);
-    expect(container.querySelectorAll(".waste-bar").length).toBeGreaterThan(0);
+    expect(container.querySelector("path.order-line")).toBeNull();
     expect(container.querySelector(".axis-y--orders")).not.toBeNull();
-    expect(container.querySelector(".axis-y--waste")).not.toBeNull();
     expect(container.querySelector("svg.chart-svg")).not.toBeNull();
   });
 
-  it("setOrdersSpoilageGroupedBarsHover toggles hover rule for hovered day", async () => {
+  it("setControllerOrdersHover toggles hover rule for hovered day", async () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
       configurable: true,
     });
     document.body.appendChild(container);
-    const { renderOrdersSpoilageGroupedBars, setOrdersSpoilageGroupedBarsHover } =
-      await import("./controllerOrders");
-    renderOrdersSpoilageGroupedBars(
+    const { renderControllerOrders, setControllerOrdersHover } = await import(
+      "./controllerOrders"
+    );
+    renderControllerOrders(
       container,
       [
-        { day: 1, order_qty: 16, waste_total: 2 },
-        { day: 2, order_qty: 0, waste_total: 5 },
+        { day: 1, order_qty: 16 },
+        { day: 2, order_qty: 0 },
       ],
       100,
     );
-    setOrdersSpoilageGroupedBarsHover(container, 2);
+    setControllerOrdersHover(container, 2);
     const rule = container.querySelector(".hover-rule");
     expect(rule?.getAttribute("opacity")).toBe("1");
     expect(Number(rule?.getAttribute("x1"))).toBeGreaterThan(0);
-    setOrdersSpoilageGroupedBarsHover(container, null);
+    setControllerOrdersHover(container, null);
     expect(rule?.getAttribute("opacity")).toBe("0");
     container.remove();
   });
@@ -147,18 +147,14 @@ describe("controllerOrders series helper (T-099)", () => {
     container.remove();
   });
 
-  it("pads grouped orders+spoilage x-axis to at least MIN_CHART_DAY_SPAN days", async () => {
+  it("pads controller orders x-axis to at least MIN_CHART_DAY_SPAN days", async () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
       configurable: true,
     });
-    const { renderOrdersSpoilageGroupedBars } = await import("./controllerOrders");
-    renderOrdersSpoilageGroupedBars(
-      container,
-      [{ day: 0, order_qty: 16, waste_total: 2 }],
-      130,
-    );
+    const { renderControllerOrders } = await import("./controllerOrders");
+    renderControllerOrders(container, [{ day: 0, order_qty: 16 }], 130);
     const ticks = [...container.querySelectorAll(".axis-x .tick text")].map(
       (t) => Number(t.textContent),
     );
@@ -168,14 +164,14 @@ describe("controllerOrders series helper (T-099)", () => {
     );
   });
 
-  it("renders empty grouped orders+spoilage frame when history is empty", async () => {
+  it("renders empty controller orders frame when history is empty", async () => {
     const container = document.createElement("div");
     Object.defineProperty(container, "clientWidth", {
       value: 320,
       configurable: true,
     });
-    const { renderOrdersSpoilageGroupedBars } = await import("./controllerOrders");
-    renderOrdersSpoilageGroupedBars(container, [], 130);
+    const { renderControllerOrders } = await import("./controllerOrders");
+    renderControllerOrders(container, [], 130);
     expect(container.querySelector("svg.chart-svg")).not.toBeNull();
     expect(container.querySelectorAll(".axis-x .tick").length).toBeGreaterThanOrEqual(
       MIN_CHART_DAY_SPAN,

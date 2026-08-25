@@ -27,7 +27,8 @@ describe("Store chart-stack missed sales (T-116)", () => {
   it("cockpit layout preserves chart-stockout host for hover wiring (T-128 hidden)", () => {
     expect(layoutSrc).toMatch(/id="chart-stockout"/);
     expect(layoutSrc).toMatch(/id="chart-history"/);
-    expect(layoutSrc).toMatch(/id="chart-orders-spoilage"/);
+    expect(layoutSrc).toMatch(/id="chart-controller-orders"/);
+    expect(layoutSrc).toMatch(/id="chart-spoil"/);
     expect(layoutSrc).toMatch(/visually-hidden/);
     expect(layoutSrc).toMatch(/ariaLabel="Missed sales by day"/);
   });
@@ -76,18 +77,18 @@ describe("Store chart-stack missed sales (T-116)", () => {
     )?.[0];
     expect(fn, "expected applyHoverStyles").toBeDefined();
     expect(fn).toMatch(/setMarginalHover\(\s*els\.sales/);
-    expect(fn).toMatch(/setOrdersSpoilageGroupedBarsHover\(\s*els\.ordersSpoilage/);
+    expect(fn).toMatch(/setControllerOrdersHover\(\s*els\.controllerOrders/);
+    expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
     expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
     expect(fn).toMatch(/setFreshnessCompositionHover\(\s*els\.ageComp/);
     expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
   });
 
-  it("renderRunStripCharts renders grouped orders+spoilage in metrics column", () => {
-    expect(logicSrc).toMatch(/renderOrdersSpoilageGroupedBars/);
-    expect(logicSrc).toMatch(/renderOrdersSpoilageInto\(\s*[\s\S]*els\.ordersSpoilage/);
-    expect(logicSrc).not.toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
-    expect(logicSrc).not.toMatch(/renderWasteBars\(\s*els\.spoil/);
+  it("renderRunStripCharts renders separate orders and spoilage in metrics column", () => {
+    expect(logicSrc).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
+    expect(logicSrc).toMatch(/renderWasteBars\(\s*els\.spoil/);
+    expect(logicSrc).not.toMatch(/renderOrdersSpoilageGroupedBars/);
   });
 
   it("pnl totals host renders missed sales and waste in second line", () => {

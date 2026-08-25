@@ -180,7 +180,7 @@ describe("attachLinkedHover (T-126 AC-dayinspector)", () => {
   });
 
   it("passes chart host id as hover source", () => {
-    const { root, svg } = makeChartRoot("chart-orders-spoilage");
+    const { root, svg } = makeChartRoot("chart-spoil");
     const onDay = vi.fn<
       (day: HoverDay, point: HoverPoint, source: HoverSource) => void
     >();

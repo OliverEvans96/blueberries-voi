@@ -63,6 +63,6 @@ describe("marginals narrow plot (T-139)", () => {
     const el = narrowHost(80);
     renderWasteBars(el, [sampleDay(0), sampleDay(1), sampleDay(2)]);
     assertNonNegativeWidths(el);
-    expect(el.querySelector("path.waste-line")).not.toBeNull();
+    expect(el.querySelector(".bar--spoilage")).not.toBeNull();
   });
 });

@@ -16,7 +16,8 @@ const MIN_CHART_DAY_SPAN = 5;
 
 const CHART_HOSTS = [
   "#chart-pnl-economics",
-  "#chart-orders-spoilage",
+  "#chart-controller-orders",
+  "#chart-spoil",
   "#chart-sales-demand",
   "#chart-history",
   "#chart-age-comp",

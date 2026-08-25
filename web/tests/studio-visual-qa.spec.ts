@@ -96,7 +96,8 @@ test.describe("T-158 layout v7 — visual QA", () => {
     const metrics = page.locator(".cockpit-pane--metrics");
     await expect(metrics.locator("#chart-pnl-economics")).toBeVisible();
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
-    await expect(metrics.locator("#chart-orders-spoilage")).toBeVisible();
+    await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
+    await expect(metrics.locator("#chart-spoil")).toBeVisible();
     await expect(metrics.locator("#chart-age-comp")).toHaveCount(0);
     await expect(metrics.locator(".pnl-totals-line")).toHaveCount(2);
     await expect(metrics.locator(".pnl-value--missed")).toBeVisible();
