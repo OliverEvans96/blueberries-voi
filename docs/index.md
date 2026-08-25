@@ -14,6 +14,17 @@ shelf, and comparing the profit each way of knowing produces. That's a
 value-of-information (VOI) study, and this site walks through how it's built and
 what it currently finds.
 
+::: info Rust API
+The shared compute kernel is documented with **rustdoc** — API reference generated
+from inline `///` comments on the Rust source, covering public functions, types,
+and fields across `voi_core`, `voi_py`, and `voi_wasm`.
+
+**[Open rustdoc →](/api/rust/index.html)**
+
+For how rustdoc fits this narrative site, see
+[Rust API (voi_core)](/reference/rust-api).
+:::
+
 ![Filter accuracy improves as the store's observation channel gets richer, from books-only (P0) down to a full temperature trace (F3)](/figures/accuracy-ladder-mae-f.png)
 
 ## The idea
