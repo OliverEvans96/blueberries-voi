@@ -676,7 +676,7 @@ export function renderDemandForecast(
   g.append("path")
     .datum(rows)
     .attr("class", "forecast-band")
-    .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))")
+    .attr("fill", "var(--chart-band)")
     .attr("stroke", "none")
     .attr("d", bandArea);
 
@@ -690,7 +690,7 @@ export function renderDemandForecast(
     .datum(rows)
     .attr("class", "forecast-mean")
     .attr("fill", "none")
-    .attr("stroke", "var(--chart-accent, #2563eb)")
+    .attr("stroke", "var(--chart-accent)")
     .attr("stroke-width", 2)
     .attr("stroke-dasharray", "5,3")
     .attr("d", meanLine);
@@ -706,7 +706,7 @@ export function renderDemandForecast(
       .datum(realized)
       .attr("class", "forecast-realized")
       .attr("fill", "none")
-      .attr("stroke", "var(--chart-ink, #0f172a)")
+      .attr("stroke", "var(--chart-ink)")
       .attr("stroke-width", 2)
       .attr("d", realizedLine);
 
@@ -725,7 +725,7 @@ export function renderDemandForecast(
     .attr("x2", x(episodeDay))
     .attr("y1", 0)
     .attr("y2", innerH)
-    .attr("stroke", "var(--chart-muted, #94a3b8)")
+    .attr("stroke", "var(--chart-muted)")
     .attr("stroke-width", 1)
     .attr("stroke-dasharray", "2,2")
     .attr("pointer-events", "none");

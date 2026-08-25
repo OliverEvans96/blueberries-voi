@@ -128,7 +128,7 @@ describe("freshnessHistogramDataFromFlat", () => {
 });
 
 describe("renderFreshnessHistogram", () => {
-  it("renders ~8 belief bars with yellow fill and semi-bold caps", () => {
+  it("renders ~8 belief bars with green fill and semi-bold caps", () => {
     const el = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
     renderFreshnessHistogram(el, data, false, 260);
@@ -138,7 +138,7 @@ describe("renderFreshnessHistogram", () => {
     const bars = el.querySelectorAll(".freshness-belief-bar");
     expect(bars.length).toBeGreaterThan(0);
     expect(bars.length).toBeLessThanOrEqual(DISPLAY_BIN_COUNT);
-    expect(bars[0]?.getAttribute("fill")).toBe("#e6b800");
+    expect(bars[0]?.getAttribute("fill")).toBe("#2f5d4a");
     expect(bars[0]?.getAttribute("fill-opacity")).toBe("0.25");
     expect(el.querySelectorAll(".freshness-belief-cap").length).toBe(bars.length);
     expect(el.querySelectorAll(".freshness-truth-bar").length).toBe(0);
@@ -155,7 +155,7 @@ describe("renderFreshnessHistogram", () => {
     expect(elOff.querySelectorAll(".freshness-truth-bar").length).toBe(0);
     expect(elOn.querySelectorAll(".freshness-truth-bar").length).toBeGreaterThan(0);
     expect(elOn.querySelectorAll(".freshness-belief-bar").length).toBeGreaterThan(0);
-    expect(elOn.querySelector(".freshness-truth-bar")?.getAttribute("fill")).toBe("#2563eb");
+    expect(elOn.querySelector(".freshness-truth-bar")?.getAttribute("fill")).toBe("#f97316");
   });
 
   it("legend shows Belief and Truth only (no per-lot labels)", () => {

@@ -224,8 +224,8 @@
 }
 
 .tuning-cluster-tabs [role="tab"][aria-selected="true"] {
-  border-color: var(--accent, #2563eb);
-  background: color-mix(in srgb, var(--accent, #2563eb) 12%, var(--paper, #fff));
+  border-color: var(--belief);
+  background: color-mix(in srgb, var(--belief) 12%, var(--paper, #fff));
   font-weight: 600;
 }
 
