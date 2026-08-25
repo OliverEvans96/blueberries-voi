@@ -9,6 +9,7 @@ import pytest
 from blueberries_voi.controller.session_loop import (
     ControllerContext,
     ControllerStepLog,
+    DemandSummary,
     EpisodeTotals,
     context_from_snapshot,
     default_session_config,
@@ -56,6 +57,10 @@ def test_pipeline_wire_to_pending_skips_zero_qty() -> None:
     assert pipeline_wire_to_pending(wire) == {3: 16, 7: 8}
 
 
+def _empty_demand() -> DemandSummary:
+    return DemandSummary(scale_mu=0.0, dow_means=())
+
+
 def test_context_from_snapshot_builds_schedule_and_gates() -> None:
     snap = {
         "seq": 2,
@@ -69,12 +74,15 @@ def test_context_from_snapshot_builds_schedule_and_gates() -> None:
             "epoch": "2024-01-01",
         },
         "live_lots": [{"lot_id": 0, "n": 16, "mean_f": 0.9}],
+        "demand_summary": {"scale_mu": 12.0, "dow_means": [10.0] * 7},
     }
     ctx = context_from_snapshot(snap)
     assert ctx.seq == 2
     assert ctx.episode_day == 1
     assert ctx.pending_orders == {4: 8}
     assert ctx.on_hand == 16
+    assert ctx.demand.scale_mu == 12.0
+    assert len(ctx.demand.dow_means) == 7
     assert isinstance(ctx.belief, ShelfBelief)
     assert ctx.schedule.order_weekdays == DEFAULT_ORDER_SCHEDULE.order_weekdays
     assert ctx.can_order == ctx.schedule.can_order(1)
@@ -106,7 +114,22 @@ def test_default_session_config_smoke_shipments() -> None:
     assert cfg["n_particles"] == 200
     assert cfg["lead_time"] == 1
     assert cfg["belief_source"] == "filter"
+    assert cfg["n_rollout_paths"] == 0
     assert cfg["delivery_weekdays"] == [0, 2, 4]
+
+
+def test_default_session_config_obs_channels_maps_preset() -> None:
+    from blueberries_voi.filter.types import ObsChannels
+
+    cfg = default_session_config(
+        obs_channels=ObsChannels(
+            code_type="upc",
+            scan_waste=True,
+            delivery_history="none",
+        )
+    )
+    assert cfg["obs_scenario"] == "P1"
+    assert cfg["obs_channels"]["code_type"] == "upc"
 
 
 def test_starter_helpers() -> None:
@@ -126,6 +149,7 @@ def test_naive_base_stock_zero_on_non_order_day() -> None:
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=False,
         on_hand=10,
+        demand=_empty_demand(),
     )
     ctrl = NaiveBaseStockController(target_units=48, case_size=8)
     assert ctrl.order(ctx) == 0
@@ -141,6 +165,7 @@ def test_tabular_q_learning_no_order_when_gated() -> None:
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=False,
         on_hand=5,
+        demand=_empty_demand(),
     )
     ctrl = TabularQLearningController([0, 8, 16], epsilon=0.0, seed=1)
     assert ctrl.order(ctx) == 0
@@ -156,6 +181,7 @@ def test_tabular_q_learning_observe_updates_q() -> None:
         schedule=DEFAULT_ORDER_SCHEDULE,
         can_order=True,
         on_hand=20,
+        demand=_empty_demand(),
     )
     ctrl = TabularQLearningController([8, 16], epsilon=0.0, seed=0)
     qty = ctrl.order(ctx)

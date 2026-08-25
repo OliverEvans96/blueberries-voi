@@ -12,6 +12,10 @@ from typing import Any, Protocol, runtime_checkable
 
 from blueberries_voi.controller.rung0 import CorrectedAgeBlindPolicy  # noqa: TC001
 from blueberries_voi.filter.belief import ShelfBelief, unflatten_shelf_belief
+from blueberries_voi.filter.types import (
+    preset_for_channels,
+    validate_channels,
+)
 from blueberries_voi.sim.bakeoff_damped_sw import DampedSurvivalWeightedPolicy
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
@@ -22,6 +26,8 @@ from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
 def default_session_config(**overrides: Any) -> dict[str, Any]:
     """Build an ``EngineSession.init`` config dict with smoke-cool defaults."""
+    overrides = dict(overrides)
+    obs_channels = overrides.pop("obs_channels", None)
     cfg: dict[str, Any] = {
         "shipments": smoke_cool_shipments(),
         "lead_time": int(DEFAULT_ORDER_SCHEDULE.lead_time_days),
@@ -33,18 +39,39 @@ def default_session_config(**overrides: Any) -> dict[str, Any]:
         "obs_scenario": "P1",
         "n_particles": int(DEMO_BUDGETS["n_particles"]),
         "H": int(DEMO_BUDGETS["H"]),
-        "n_rollout_paths": int(DEMO_BUDGETS["n_rollout_paths"]),
+        "n_rollout_paths": 0,
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
         "L": 10,
         "K": 4,
     }
+    if obs_channels is not None:
+        ch = validate_channels(obs_channels)
+        cfg["obs_channels"] = {
+            "code_type": ch.code_type,
+            "scan_waste": ch.scan_waste,
+            "delivery_history": ch.delivery_history,
+        }
+        preset = preset_for_channels(ch)
+        if preset is not None:
+            cfg["obs_scenario"] = preset
     cfg.update(overrides)
     return cfg
 
 
 @dataclass(frozen=True)
+class DemandSummary:
+    """Committed demand profile summary from the session snapshot."""
+
+    scale_mu: float
+    dow_means: tuple[float, ...]
+
+
+@dataclass(frozen=True)
 class ControllerContext:
-    """Controller-facing view of one ``EngineSession`` snapshot."""
+    """Controller-facing view of one ``EngineSession`` snapshot.
+
+    Belief is always the filter posterior on the wire (never simulator truth).
+    """
 
     episode_day: int
     seq: int
@@ -53,6 +80,7 @@ class ControllerContext:
     schedule: OrderSchedule
     can_order: bool
     on_hand: int
+    demand: DemandSummary
 
 
 def pipeline_wire_to_pending(pipeline: Sequence[Mapping[str, Any]]) -> dict[int, int]:
@@ -72,6 +100,17 @@ def _schedule_from_wire(wire: Mapping[str, Any]) -> OrderSchedule:
         return DEFAULT_ORDER_SCHEDULE
     lead = int(wire.get("lead_time_days", DEFAULT_ORDER_SCHEDULE.lead_time_days))
     return OrderSchedule.with_delivery(delivery, lead_time_days=lead)
+
+
+def _demand_from_snapshot(snap: Mapping[str, Any]) -> DemandSummary:
+    wire = snap.get("demand_summary")
+    if isinstance(wire, Mapping):
+        scale = float(wire.get("scale_mu", 0.0))
+        raw_means = wire.get("dow_means", [])
+        if isinstance(raw_means, Sequence) and not isinstance(raw_means, (str, bytes)):
+            means = tuple(float(x) for x in raw_means)
+            return DemandSummary(scale_mu=scale, dow_means=means)
+    return DemandSummary(scale_mu=0.0, dow_means=())
 
 
 def _on_hand_from_snapshot(snap: Mapping[str, Any], belief: ShelfBelief) -> int:
@@ -110,6 +149,7 @@ def context_from_snapshot(snap: Mapping[str, Any]) -> ControllerContext:
         schedule=schedule,
         can_order=schedule.can_order(episode_day),
         on_hand=on_hand,
+        demand=_demand_from_snapshot(snap),
     )
 
 
@@ -322,6 +362,7 @@ __all__ = [
     "ControllerContext",
     "ControllerProtocol",
     "ControllerStepLog",
+    "DemandSummary",
     "EpisodeTotals",
     "LearningController",
     "PolicyController",
