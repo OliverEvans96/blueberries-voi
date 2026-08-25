@@ -54,15 +54,18 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    expect(host).toHaveTextContent("(1) The model");
-    expect(host).toHaveTextContent("(2) The filter");
-    expect(host).toHaveTextContent("(3) The controller");
+    expect(host).toHaveTextContent("The model");
+    expect(host).toHaveTextContent("The filter");
+    expect(host).toHaveTextContent("The controller");
     expect(host).toHaveTextContent("A hidden shelf of blueberries");
     expect(host).toHaveTextContent(/Like a real manager/i);
     expect(host).toHaveTextContent(/Autopilot/i);
+    expect(host).toHaveTextContent(
+      /Turn a knob, press Place Order, and watch these three pieces play out together/i,
+    );
   });
 
-  it("uses inline step numbers without hanging body indent", () => {
+  it("shows green step circles inline with labels, body full-width below", () => {
     const host = makeHost();
 
     render(
@@ -73,8 +76,10 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    expect(host.querySelector(".welcome-modal-step-index")).toBeNull();
-    expect(host.querySelector(".welcome-modal-step-heading")).not.toBeNull();
+    const indices = host.querySelectorAll(".welcome-modal-step-index");
+    expect(indices).toHaveLength(3);
+    expect(indices[0]?.textContent).toBe("1");
+    expect(host.querySelector(".welcome-modal-step-copy")).toBeNull();
   });
 
   it("calls onDismiss when the close button is clicked", () => {
@@ -93,7 +98,7 @@ describe("WelcomeModal", () => {
     expect(onDismiss).toHaveBeenCalled();
   });
 
-  it("calls onDismiss when the Place Order button is clicked", () => {
+  it("calls onDismiss when the Start exploring button is clicked", () => {
     const host = makeHost();
     const onDismiss = vi.fn();
 
@@ -105,7 +110,7 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start exploring" }));
     expect(onDismiss).toHaveBeenCalled();
   });
 
@@ -128,6 +133,6 @@ describe("WelcomeModal", () => {
       createElement(WelcomeModal, { open: true, onDismiss: () => undefined }),
     );
 
-    expect(screen.getByText("Place Order")).toBeInTheDocument();
+    expect(screen.getByText("Start exploring")).toBeInTheDocument();
   });
 });
