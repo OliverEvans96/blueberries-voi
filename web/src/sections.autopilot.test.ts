@@ -130,7 +130,7 @@ describe("Autopilot chart wiring (T-099)", () => {
 
   it("react/studioLogic.ts mounts separate orders and spoilage charts (T-153)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
-    const tuningDrawer = readFileSync(TUNING_DRAWER_TS, "utf8");
+    const controls = readFileSync(CONTROLS_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
     expect(logic).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
     expect(logic).toMatch(/renderWasteBars\(\s*els\.spoil/);
@@ -138,10 +138,10 @@ describe("Autopilot chart wiring (T-099)", () => {
     expect(layout).toMatch(/id="chart-controller-orders"/);
     expect(layout).toMatch(/id="chart-spoil"/);
     expect(layout).not.toMatch(/id="chart-orders-spoilage"/);
-    expect(tuningDrawer).toMatch(/id="chart-controller-orders-focus"/);
-    expect(tuningDrawer).toMatch(/id="chart-spoil-focus"/);
-    expect(tuningDrawer).toMatch(/data-plot="plot-controller-orders"/);
-    expect(tuningDrawer).toMatch(/data-plot="plot-spoil"/);
-    expect(tuningDrawer).not.toMatch(/id="chart-orders-spoilage-focus"/);
+    expect(controls).toMatch(/id="chart-controller-orders-focus"/);
+    expect(controls).toMatch(/id="chart-spoil-focus"/);
+    expect(controls).toMatch(/data-plot="plot-controller-orders"/);
+    expect(controls).toMatch(/data-plot="plot-spoil"/);
+    expect(controls).not.toMatch(/id="chart-orders-spoilage-focus"/);
   });
 });

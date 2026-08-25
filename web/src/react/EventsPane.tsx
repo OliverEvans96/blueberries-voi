@@ -334,7 +334,17 @@ export function EventsPane({
               {index > 0 ? <hr className="events-day-divider" /> : null}
               <header className="events-day-header">
                 <h3 className="events-day-heading">
-                  {schedule ? `${weekdayLabel(day, schedule)} ` : ""}Day {day}
+                  {schedule ? (
+                    <>
+                      <span className="events-day-weekday">
+                        {weekdayLabel(day, schedule)}
+                      </span>
+                      {" "}
+                      <span className="events-day-index">(day {day})</span>
+                    </>
+                  ) : (
+                    <span className="events-day-index">(day {day})</span>
+                  )}
                 </h3>
                 <div className="events-day-markers">
                   {deliveryDay ? (
