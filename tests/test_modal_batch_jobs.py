@@ -22,6 +22,18 @@ from blueberries_voi.experiments.gsin_upc import (
     gsin_job_grid,
     merge_gsin_diag_rows,
 )
+from blueberries_voi.experiments.rollout_bakeoff import (
+    DEFAULT_ROLLOUT_SEEDS,
+    best_alpha_per_arm,
+    rollout_eval_job_grid,
+)
+from blueberries_voi.experiments.voi_profit import (
+    DEFAULT_PROFIT_SEEDS,
+    merge_voi_profit_rows,
+    run_seed_channel_profit,
+    voi_profit_job_grid,
+)
+from blueberries_voi.filter.types import channels_for_preset
 
 _RUST = pytest.mark.skipif(
     _maybe_core is None,
@@ -180,9 +192,130 @@ def test_modal_app_grid_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_run_seed_channel_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
     ch = channel_from_factorial("upc_only", "none", "quantity_only")
-    out = run_seed_channel(42, ch, n_days=3)
+    out = run_seed_channel(seed=42, channel=ch, n_days=3)
     assert out["seed"] == 42
     assert out["preset"] == "P0"
     assert out["n_days"] == 3
     assert "mae_f" in out
     json.dumps(out)
+
+
+def test_voi_profit_job_grid_size() -> None:
+    channels = [channels_for_preset(s) for s in ("P0", "P1", "F2")]
+    grid = voi_profit_job_grid(DEFAULT_PROFIT_SEEDS, channels)
+    assert len(grid) == len(DEFAULT_PROFIT_SEEDS) * len(channels)
+
+
+def test_merge_voi_profit_rows_dedup() -> None:
+    shards = [
+        {
+            "seed": 42,
+            "key": "code=upc|waste=0|hist=none",
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "preset": "P0",
+        },
+        {
+            "seed": 42,
+            "key": "code=upc|waste=0|hist=none",
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "preset": "P0",
+        },
+        {
+            "seed": 7,
+            "key": "code=gsin|waste=1|hist=none",
+            "profit": 12.0,
+            "waste": 2,
+            "stockout": 1,
+            "preset": "F1",
+        },
+    ]
+    rows = merge_voi_profit_rows(shards)
+    assert len(rows) == 2
+    keys = {(r["seed"], r["key"]) for r in rows}
+    assert keys == {
+        (42, "code=upc|waste=0|hist=none"),
+        (7, "code=gsin|waste=1|hist=none"),
+    }
+
+
+def test_rollout_eval_job_grid_size() -> None:
+    alphas = (0.8, 0.9)
+    grid = rollout_eval_job_grid(
+        DEFAULT_ROLLOUT_SEEDS[:2], ("sw", "rollout"), alphas, 0.8
+    )
+    assert len(grid) == 2 * 2 * 2
+
+
+def test_best_alpha_per_arm_picks_highest_mean() -> None:
+    rows = [
+        {"arm_id": "sw", "alpha": 0.8, "seed": 1, "profit": 10.0},
+        {"arm_id": "sw", "alpha": 0.8, "seed": 2, "profit": 12.0},
+        {"arm_id": "sw", "alpha": 0.9, "seed": 1, "profit": 9.0},
+        {"arm_id": "sw", "alpha": 0.9, "seed": 2, "profit": 11.0},
+    ]
+    assert best_alpha_per_arm(rows, "sw") == pytest.approx(0.8)
+
+
+def test_gsin_cells_subset_grid() -> None:
+    cells = [(2, 0), (3, 1)]
+    assert len(cells) == 2
+    assert all(0 <= r < N_REGIMES and 0 <= s < N_SEEDS for r, s in cells)
+
+
+@_RUST
+@pytest.mark.slow
+def test_gsin_shard_cli_smoke() -> None:
+    from blueberries_voi.experiments.gsin_upc import run_regime_seed
+
+    shard = run_regime_seed(0, 0)
+    assert shard["seed_index"] == 0
+    assert len(shard["channels"]) == 6
+
+
+@_RUST
+def test_run_seed_channel_profit_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    from blueberries_voi.filter.types import channels_cache_key
+
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    ch = channels_for_preset("P0")
+    out = run_seed_channel_profit(42, ch, n_burn=1, n_score=2)
+    assert out["seed"] == 42
+    assert out["key"] == channels_cache_key(ch)
+    assert "profit" in out
+    assert "waste" in out
+    assert "stockout" in out
+    json.dumps(out)
+
+
+def test_modal_app_wheel_path_relative_to_repo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("modal")
+    import importlib
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+
+    import experiments.modal.app as app_mod
+
+    wheel_dir = repo / "dist" / "wheel"
+    if not wheel_dir.is_dir():
+        pytest.skip("dist/wheel not built")
+
+    notebooks_cwd = repo / "notebooks"
+    notebooks_cwd.mkdir(exist_ok=True)
+    monkeypatch.chdir(notebooks_cwd)
+    monkeypatch.setenv("BLUEBERRIES_VOI_WHEEL", "dist/wheel")
+    importlib.reload(app_mod)
+
+    assert app_mod.WHEEL_PATH.is_file()
+    assert app_mod.WHEEL_PATH.parent == wheel_dir.resolve()
+    assert app_mod._TUNED_ALPHA.is_file()
+    assert app_mod._REMOTE_TUNED_ALPHA == "/experiments/tuned_alpha.json"

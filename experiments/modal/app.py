@@ -30,7 +30,17 @@ else:
 
 _PKG_SRC = _REPO / "src" / "blueberries_voi"
 _DATA_DIR = _REPO / "data"
-_WHEEL = Path(os.environ.get("BLUEBERRIES_VOI_WHEEL", _REPO / "dist" / "wheel"))
+
+
+def _repo_relative_path(env_key: str, default: Path) -> Path:
+    raw = os.environ.get(env_key)
+    path = Path(raw) if raw else default
+    if not path.is_absolute():
+        path = (_REPO / path).resolve()
+    return path
+
+
+_WHEEL = _repo_relative_path("BLUEBERRIES_VOI_WHEEL", _REPO / "dist" / "wheel")
 if _WHEEL.is_dir():
     _wheel_files = sorted(_WHEEL.glob("blueberries_voi_core-*.whl"))
     if not _wheel_files:
@@ -43,12 +53,12 @@ if _WHEEL.is_dir():
 else:
     WHEEL_PATH = _WHEEL
 
-_GSIN_BIN = Path(
-    os.environ.get(
-        "GSIN_UPC_DIAG_BIN",
-        _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
-    )
+_GSIN_BIN = _repo_relative_path(
+    "GSIN_UPC_DIAG_BIN",
+    _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
 )
+_TUNED_ALPHA = _REPO / "experiments" / "tuned_alpha.json"
+_REMOTE_TUNED_ALPHA = "/experiments/tuned_alpha.json"
 
 _WHEEL_REMOTE = f"/tmp/{WHEEL_PATH.name}"
 
@@ -65,11 +75,23 @@ if modal.is_local():
         image = image.add_local_file(
             str(_GSIN_BIN), "/usr/local/bin/gsin_upc_diag", copy=True
         )
-    image = image.run_commands(f"pip install {_WHEEL_REMOTE}").env(
+    if _TUNED_ALPHA.is_file():
+        image = image.add_local_file(str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True)
+    image = image.run_commands(
+        f"pip install {_WHEEL_REMOTE}",
+        (
+            'python -c "import importlib.util, shutil; from pathlib import Path; '
+            "spec = importlib.util.find_spec('blueberries_voi._core'); "
+            "assert spec is not None and spec.origin; "
+            "dest = Path('/pkg/blueberries_voi') / Path(spec.origin).name; "
+            'shutil.copy2(spec.origin, dest)"'
+        ),
+    ).env(
         {
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
         }
     )
 else:
@@ -78,13 +100,14 @@ else:
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
         }
     )
 
 app = modal.App("blueberries-voi-batch", image=image)
 
 
-@app.function(timeout=600, cpu=2.0)
+@app.function(timeout=600, cpu=1.0)
 def nb13_shard(
     seed: int,
     channel: dict[str, object],
@@ -102,11 +125,45 @@ def nb13_shard(
     return result
 
 
-@app.function(timeout=300, cpu=2.0)
+@app.function(timeout=600, cpu=1.0)
 def gsin_shard(regime_index: int, seed_index: int) -> dict[str, Any]:
     from blueberries_voi.experiments.gsin_upc import run_regime_seed
 
     return run_regime_seed(regime_index, seed_index)
+
+
+@app.function(timeout=600, cpu=1.0)
+def voi_profit_shard(
+    seed: int,
+    channel_dict: dict[str, object],
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.voi_profit import run_seed_channel_profit
+
+    return run_seed_channel_profit(seed, channel_dict, **budgets_dict)
+
+
+@app.function(timeout=600, cpu=1.0)
+def voi_oracle_profit_shard(
+    seed: int,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.voi_profit import run_seed_oracle_profit
+
+    return run_seed_oracle_profit(seed, **budgets_dict)
+
+
+@app.function(timeout=900, cpu=1.0)
+def rollout_eval_shard(
+    seed: int,
+    arm_id: str,
+    alpha: float,
+    rho: float,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.rollout_bakeoff import run_rollout_eval
+
+    return run_rollout_eval(seed, arm_id, alpha, rho, **budgets_dict)
 
 
 @app.local_entrypoint()

@@ -54,6 +54,16 @@ freshnet = [
 modal = [
     "modal>=0.73.0",
 ]
+# Meta-extra: install every published optional dependency (used by [dependency-groups] dev).
+all = [
+    "blueberries-voi[data,viz,dev,notebooks,rust,freshnet,modal]",
+]
+
+[dependency-groups]
+# Synced by default on `uv sync` / `uv run` — pulls in blueberries-voi[all].
+dev = [
+    "blueberries-voi[all]",
+]
 
 [project.scripts]
 blueberries-voi = "blueberries_voi.__main__:main"

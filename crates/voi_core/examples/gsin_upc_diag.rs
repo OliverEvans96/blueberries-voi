@@ -10,6 +10,9 @@
 //! what these numbers are meant to price.
 //!
 //! Run: `cargo run -p voi_core --release --example gsin_upc_diag [out.json]`
+//!
+//! Shard mode (Modal / batch map): emit one truth episode + six mask replays:
+//! `cargo run -p voi_core --release --example gsin_upc_diag --shard <regime_idx> <seed_idx>`
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
@@ -429,6 +432,108 @@ fn json_series(s: &Series) -> String {
     )
 }
 
+type ShipmentFn = fn() -> Vec<ShipmentTrace>;
+
+struct RegimeSpec {
+    title: &'static str,
+    shipments: ShipmentFn,
+    order_every: u32,
+    order_qty: u32,
+}
+
+const REGIMES: [RegimeSpec; 4] = [
+    RegimeSpec {
+        title: "Homogeneous fleet, overlapping lots",
+        shipments: shipments_homogeneous,
+        order_every: 3,
+        order_qty: 44,
+    },
+    RegimeSpec {
+        title: "Heterogeneous fleet, overlapping lots",
+        shipments: shipments_heterogeneous,
+        order_every: 3,
+        order_qty: 44,
+    },
+    RegimeSpec {
+        title: "Heterogeneous fleet, deep shelf",
+        shipments: shipments_heterogeneous,
+        order_every: 3,
+        order_qty: 72,
+    },
+    RegimeSpec {
+        title: "Thermal fleet, overlapping lots",
+        shipments: shipments_thermal,
+        order_every: 3,
+        order_qty: 44,
+    },
+];
+
+fn order_for_day(day: u32, order_every: u32, order_qty: u32) -> u32 {
+    if day % order_every == 0 {
+        order_qty
+    } else {
+        0
+    }
+}
+
+fn default_params() -> ModelParams {
+    let mut params = ModelParams::default();
+    params.demand_mu = 12.0;
+    params
+}
+
+fn metrics_json(m: &Metrics) -> String {
+    format!(
+        r#"{{"n":{n},"lot_n":{lot_n},"count_mae":{count_mae:.12},"count_bias":{count_bias:.12},"store_meanf_mae":{store_meanf_mae:.12},"lot_meanf_mae":{lot_meanf_mae:.12},"lot_count_mae":{lot_count_mae:.12},"tv_sum":{tv_sum:.12},"ess_sum":{ess_sum:.12},"eff_inv_mae":{eff_inv_mae:.12},"ms":{ms:.12}}}"#,
+        n = m.n,
+        lot_n = m.lot_n,
+        count_mae = m.count_mae,
+        count_bias = m.count_bias,
+        store_meanf_mae = m.store_meanf_mae,
+        lot_meanf_mae = m.lot_meanf_mae,
+        lot_count_mae = m.lot_count_mae,
+        tv_sum = m.tv_sum,
+        ess_sum = m.ess_sum,
+        eff_inv_mae = m.eff_inv_mae,
+        ms = m.ms,
+    )
+}
+
+fn channel_entry_json(scenario: &str, m: &Metrics) -> String {
+    format!(
+        r#"{{"channel":"{scenario}","metrics":{metrics},"series":{series}}}"#,
+        metrics = metrics_json(m),
+        series = json_series(&m.series),
+    )
+}
+
+fn run_shard(regime_index: usize, seed_index: usize) -> String {
+    let spec = REGIMES
+        .get(regime_index)
+        .unwrap_or_else(|| panic!("regime_index must be in [0, {}), got {regime_index}", REGIMES.len()));
+    if seed_index >= N_SEEDS as usize {
+        panic!("seed_index must be in [0, {N_SEEDS}), got {seed_index}");
+    }
+    let params = default_params();
+    let shipments = (spec.shipments)();
+    let seed = 90_000 + seed_index as u64 * 7;
+    let days = run_truth(seed, &params, &shipments, &|d| {
+        order_for_day(d, spec.order_every, spec.order_qty)
+    });
+    let channels = SCENARIOS
+        .iter()
+        .map(|scenario| {
+            let m = run_channel(scenario, &days, &params, &shipments, seed + 1);
+            channel_entry_json(scenario, &m)
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        r#"{{"regime":"{title}","seed_index":{seed_index},"channels":[{channels}]}}"#,
+        title = spec.title,
+    )
+}
+
 fn report(
     title: &str,
     shipments: &[ShipmentTrace],
@@ -494,42 +599,39 @@ fn report(
 }
 
 fn main() {
-    let mut params = ModelParams::default();
-    params.demand_mu = 12.0;
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--shard") {
+        args.remove(0);
+        let regime_index: usize = args
+            .first()
+            .unwrap_or_else(|| panic!("--shard requires <regime_idx> <seed_idx>"))
+            .parse()
+            .expect("regime_idx must be a non-negative integer");
+        let seed_index: usize = args
+            .get(1)
+            .unwrap_or_else(|| panic!("--shard requires <regime_idx> <seed_idx>"))
+            .parse()
+            .expect("seed_idx must be a non-negative integer");
+        print!("{}", run_shard(regime_index, seed_index));
+        return;
+    }
+
+    let params = default_params();
     // Order cadence sized so several lots coexist on the shelf — the regime where lot
     // attribution is a live question. mu = 12/day, so 44 units every 3 days ~ 1.2x demand.
     let mut rows = Vec::new();
-    rows.extend(report(
-        "Homogeneous fleet, overlapping lots",
-        &shipments_homogeneous(),
-        params.clone(),
-        3,
-        44,
-    ));
-    rows.extend(report(
-        "Heterogeneous fleet, overlapping lots",
-        &shipments_heterogeneous(),
-        params.clone(),
-        3,
-        44,
-    ));
-    rows.extend(report(
-        "Heterogeneous fleet, deep shelf",
-        &shipments_heterogeneous(),
-        params.clone(),
-        3,
-        72,
-    ));
-    rows.extend(report(
-        "Thermal fleet, overlapping lots",
-        &shipments_thermal(),
-        params.clone(),
-        3,
-        44,
-    ));
-    if let Some(path) = std::env::args().nth(1) {
+    for spec in &REGIMES {
+        rows.extend(report(
+            spec.title,
+            &(spec.shipments)(),
+            params.clone(),
+            spec.order_every,
+            spec.order_qty,
+        ));
+    }
+    if let Some(path) = args.first() {
         let json = format!("[\n  {}\n]\n", rows.join(",\n  "));
-        std::fs::write(&path, json).expect("write diagnostic json");
+        std::fs::write(path, json).expect("write diagnostic json");
         println!("\nwrote {path}");
     }
 }
