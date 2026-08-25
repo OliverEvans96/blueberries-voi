@@ -87,14 +87,34 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     const { container } = render(createElement(StudioLayout));
     const actions = container.querySelector(".title-bar-actions");
     expect(actions).not.toBeNull();
+    const docs = actions!.querySelector("a.title-bar-action--docs");
+    const github = actions!.querySelector("a.title-bar-action--github");
     const trigger = actions!.querySelector("#tuning-drawer-trigger");
     const status = actions!.querySelector("#engine-status");
+    expect(docs).not.toBeNull();
+    expect(github).not.toBeNull();
     expect(trigger).not.toBeNull();
     expect(status).not.toBeNull();
+    expect(
+      github!.compareDocumentPosition(trigger!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       trigger!.compareDocumentPosition(status!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("title bar shows blog link beside the heading", () => {
+    const { container } = render(createElement(StudioLayout));
+    const heading = container.querySelector(".title-bar-heading");
+    expect(heading).not.toBeNull();
+    expect(heading!.querySelector("h1")?.textContent).toBe(
+      "Blueberry inventory studio",
+    );
+    const blog = heading!.querySelector("a.title-bar-blog-link");
+    expect(blog).not.toBeNull();
+    expect(blog?.textContent).toBe("Read the blog post");
   });
 
   it("metrics column stacks P&L, revenue chart, sales demand, orders, and spoilage", () => {
