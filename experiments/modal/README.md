@@ -41,7 +41,9 @@ SMOKE = True  # shrink grids for plumbing
 
 rows = run_batch("voi_profit", BATCH_MODE, smoke=SMOKE, seeds=(42,), channels=[...])
 gsin_df = run_batch("gsin", BATCH_MODE, smoke=SMOKE)
-rollout_rows = run_batch("rollout_eval", BATCH_MODE, smoke=SMOKE, seeds=(42,), arms=("sw",))
+rollout_rows = run_batch(
+    "rollout_eval", BATCH_MODE, smoke=SMOKE, seeds=(42,), arms=("sw",)
+)
 ```
 
 ## Modal CLI (optional)
