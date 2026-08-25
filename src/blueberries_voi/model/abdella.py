@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pyarrow.parquet as pq
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 from blueberries_voi.model.constitutive import q10_age_increment
 
@@ -60,7 +63,7 @@ def _parse_time(value: str) -> datetime:
     raise ValueError(msg)
 
 
-def _lot_mean_temps(table: pq.Table) -> np.ndarray:
+def _lot_mean_temps(table: pa.Table) -> np.ndarray:
     mats: list[np.ndarray] = []
     for col in SENSOR_COLUMNS:
         if col not in table.column_names:
@@ -83,6 +86,8 @@ def load_abdella_shipments(root: Path | None = None) -> list[ShipmentTrace]:
 
     Does not invent synthetic temperature paths as a fallback.
     """
+    import pyarrow.parquet as pq
+
     base = default_abdella_root() if root is None else Path(root)
     if not base.is_dir():
         msg = (

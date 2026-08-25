@@ -7,7 +7,6 @@ import numpy as np
 from blueberries_voi.model import Cohort, ModelParams
 from blueberries_voi.model.abdella import (
     ShipmentTrace,
-    load_abdella_shipments,
     shipment_arrival_age,
 )
 from blueberries_voi.rng import (
@@ -28,6 +27,7 @@ from blueberries_voi.sim.day_tick import (
 )
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.rust_bridge import day_step
+from blueberries_voi.sim.shipments import default_shipments
 from blueberries_voi.sim.types_log import DayLog, EpisodeLog
 
 __all__ = [
@@ -92,7 +92,7 @@ def run_episode(
     """
     p = params or ModelParams()
     sched = DEFAULT_ORDER_SCHEDULE if schedule is None else schedule
-    ships = shipments if shipments is not None else load_abdella_shipments()
+    ships = shipments if shipments is not None else default_shipments()
     cohorts: list[Cohort] = []
     next_lot_id = 1
     # Pipeline: order placed on day t arrives as delivery on day t+lead_time.

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "mu_T": 2.7,
-  "sigma_T": 0.4,
+  "mu_T": 2.781762,
+  "sigma_T": 0.527213,
   "temp_floor_c": 0.0,
   "sigma_pos": 0.08,
   "q10": 3.0,
@@ -11,35 +11,99 @@
   "reference_life_days": 14.0,
   "quadrature": {
     "nodes": [
-      0.01985507, 0.10166676, 0.2372339, 0.40828268,
-      0.59171732, 0.7627661, 0.89833324, 0.98014493
+      0.01985507,
+      0.10166676,
+      0.2372339,
+      0.40828268,
+      0.59171732,
+      0.7627661,
+      0.89833324,
+      0.98014493
     ],
     "weights": [
-      0.05061427, 0.11119051, 0.15685332, 0.18134189,
-      0.18134189, 0.15685332, 0.11119051, 0.05061427
+      0.05061427,
+      0.11119051,
+      0.15685332,
+      0.18134189,
+      0.18134189,
+      0.15685332,
+      0.11119051,
+      0.05061427
     ]
   },
   "corridors": {
     "short_haul": {
-      "d_min": 1.5,
+      "d_min": 1.802778,
       "delay_shape": 2.0,
-      "delay_scale": 0.25
+      "delay_scale": 0.05
     },
     "long_haul": {
-      "d_min": 3.5,
-      "delay_shape": 4.0,
-      "delay_scale": 0.5
+      "d_min": 4.033333,
+      "delay_shape": 1.628384,
+      "delay_scale": 0.81369
     },
     "abdella_all": {
-      "d_min": 1.9,
-      "delay_shape": 3.0,
-      "delay_scale": 1.0
+      "d_min": 1.852778,
+      "delay_shape": 3.008681,
+      "delay_scale": 0.973726
     }
   },
   "provenance": {
-    "source": "Hand-authored assumed families (ADR 0144 / T-150). Not MLE-fitted.",
+    "source": "Offline fit from vendored Abdella parquet (ADR 0148); parametric families fixed, moments matched on n=6.",
     "window": "Refrigerated leg only: from first lot-mean T < 10 C through published Table 2 duration.",
     "n_shipments": 6,
-    "notes": "sigma_pos calibrated excluding suspect S4 position probes. Arrival freshness is an upper bound (field heat excluded). short_haul and long_haul are illustrative studio corridors only."
+    "fit_utc": "2026-08-25T20:16:00Z",
+    "fit_script": "scripts/fit_abdella_arrival.py",
+    "shipment_summaries": [
+      {
+        "shipment": "S1",
+        "d_days": 4.604166666666667,
+        "phi_bar": 1.3176609256785523
+      },
+      {
+        "shipment": "S2",
+        "d_days": 1.9027777777777777,
+        "phi_bar": 1.2869296192893636
+      },
+      {
+        "shipment": "S3",
+        "d_days": 6.243055555555556,
+        "phi_bar": 1.3554904022297418
+      },
+      {
+        "shipment": "S4",
+        "d_days": 5.347222222222222,
+        "phi_bar": 1.4327414406559205
+      },
+      {
+        "shipment": "S5",
+        "d_days": 6.513888888888888,
+        "phi_bar": 1.2858135672073316
+      },
+      {
+        "shipment": "S6",
+        "d_days": 4.083333333333333,
+        "phi_bar": 1.4775493528397179
+      }
+    ],
+    "fitted_fields": [
+      "corridors.*.(d_min,delay_shape,delay_scale)",
+      "mu_T",
+      "sigma_T",
+      "sigma_pos"
+    ],
+    "adjustment_fields": [
+      "gamma_shape",
+      "gamma_scale",
+      "reference_life_days",
+      "q10",
+      "T_ref",
+      "temp_floor_c"
+    ],
+    "adjustment_notes": {
+      "gamma": "keep gamma_shape=2.0, gamma_scale=0.03571428571428571 (MOD eta_ref=14.0 continuity; not identified from n=6)",
+      "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)"
+    },
+    "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6."
   }
 }
