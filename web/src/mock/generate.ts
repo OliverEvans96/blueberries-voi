@@ -36,7 +36,6 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   case_size: 8,
   lead_time: 1,
   delivery_weekdays: [0, 2, 4],
-  base_stock: 48,
   seed: 42,
   obs_scenario: "P1",
   obs_channels: DEFAULT_OBS_CHANNELS,
@@ -120,6 +119,12 @@ function clamp(n: number, lo: number, hi: number): number {
 /** Q10 store-aging factor (matches voi_core store_temp_factor). */
 export function storeTempFactor(cfg: SimConfig): number {
   return Math.max(1.01, cfg.q10) ** ((cfg.t_store_c - cfg.t_ref_c) / 10);
+}
+
+/** Mock order-up-to level from mean demand and lead time (UI heuristic only). */
+export function mockProtectionTarget(cfg: SimConfig): number {
+  const coverDays = Math.max(1, Math.round(cfg.lead_time)) + 1;
+  return snapCases(cfg.demand_mu * coverDays, cfg.case_size);
 }
 
 export function snapCases(qty: number, caseSize: number): number {
@@ -460,7 +465,7 @@ function runDay(
   let order_qty = snapCases(Math.max(0, orderQty), cfg.case_size);
   if (autopilot) {
     const inv = totalInventory(stateLots);
-    const target = snapCases(cfg.base_stock, cfg.case_size);
+    const target = mockProtectionTarget(cfg);
     order_qty = snapCases(
       clamp(target - inv, 0, target * 2),
       cfg.case_size,

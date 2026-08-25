@@ -208,7 +208,6 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
-  { id: "base_stock", label: "base-stock target", min: 8, max: 160, step: 8, format: (v) => String(Math.round(v)), group: "logistics" },
   {
     id: "spread_scale",
     label: "spread_scale (FIL-11)",
@@ -466,7 +465,6 @@ function mountSectionControlsDom(
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
-        <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
         <div class="field alpha-rho-field">
           <span class="field-label">α / ρ${infoTipHtml(
             "α is the target service-level quantile the order-up-to level is set to (default 0.9). ρ is the damping factor (default 0.8) that limits how much of the gap to that target is closed each day. Drag the pad: left-right moves α, up-down moves ρ."
