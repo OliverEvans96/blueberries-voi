@@ -75,14 +75,14 @@ describe("Autopilot section registration (T-127 shell)", () => {
     expect(loadSection()).toBe("autopilot");
   });
 
-  it("autopilot plotIds include grouped orders+spoilage and age composition", () => {
+  it("autopilot plotIds include separate orders, spoilage, and age composition", () => {
     const autopilot = STUDIO_SECTIONS.find((s) => s.id === "autopilot");
     expect(autopilot).toBeDefined();
     const ids = autopilot!.plotIds;
-    expect(ids).toContain("plot-orders-spoilage");
+    expect(ids).toContain("plot-controller-orders");
+    expect(ids).toContain("plot-spoil");
     expect(ids).toContain("plot-age-comp");
-    expect(ids).not.toContain("plot-controller-orders");
-    expect(ids).not.toContain("plot-spoil");
+    expect(ids).not.toContain("plot-orders-spoilage");
   });
 });
 
@@ -128,18 +128,20 @@ describe("Autopilot chart wiring (T-099)", () => {
     ).toBe(true);
   });
 
-  it("react/studioLogic.ts mounts grouped orders+spoilage charts (T-153)", () => {
+  it("react/studioLogic.ts mounts separate orders and spoilage charts (T-153)", () => {
     const layout = readFileSync(LAYOUT_TS, "utf8");
     const tuningDrawer = readFileSync(TUNING_DRAWER_TS, "utf8");
     const logic = readFileSync(LOGIC_TS, "utf8");
-    expect(logic).toMatch(/renderOrdersSpoilageGroupedBars/);
-    expect(logic).toMatch(/ordersSpoilageFocus/);
-    expect(layout).toMatch(/id="chart-orders-spoilage"/);
-    expect(layout).not.toMatch(/id="chart-controller-orders"/);
-    expect(layout).not.toMatch(/id="chart-spoil"/);
-    expect(tuningDrawer).toMatch(/id="chart-orders-spoilage-focus"/);
-    expect(tuningDrawer).toMatch(/data-plot="plot-orders-spoilage"/);
-    expect(tuningDrawer).not.toMatch(/id="chart-controller-orders-focus"/);
-    expect(tuningDrawer).not.toMatch(/id="chart-spoil-focus"/);
+    expect(logic).toMatch(/renderControllerOrders\(\s*els\.controllerOrders/);
+    expect(logic).toMatch(/renderWasteBars\(\s*els\.spoil/);
+    expect(logic).toMatch(/spoilFocus/);
+    expect(layout).toMatch(/id="chart-controller-orders"/);
+    expect(layout).toMatch(/id="chart-spoil"/);
+    expect(layout).not.toMatch(/id="chart-orders-spoilage"/);
+    expect(tuningDrawer).toMatch(/id="chart-controller-orders-focus"/);
+    expect(tuningDrawer).toMatch(/id="chart-spoil-focus"/);
+    expect(tuningDrawer).toMatch(/data-plot="plot-controller-orders"/);
+    expect(tuningDrawer).toMatch(/data-plot="plot-spoil"/);
+    expect(tuningDrawer).not.toMatch(/id="chart-orders-spoilage-focus"/);
   });
 });

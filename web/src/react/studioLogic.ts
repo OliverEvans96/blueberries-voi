@@ -52,7 +52,10 @@ import {
 import {
   marginalYMax,
   renderMarginal,
+  renderWasteBars,
   setMarginalHover,
+  setWasteBarsHover,
+  wasteBarYMax,
 } from "../charts/marginals";
 import {
   buildDemandForecastRows,
@@ -72,8 +75,8 @@ import {
   setFreshnessCompositionHover,
 } from "../charts/inventoryTarget";
 import {
-  renderOrdersSpoilageGroupedBars,
-  setOrdersSpoilageGroupedBarsHover,
+  renderControllerOrders,
+  setControllerOrdersHover,
 } from "../charts/controllerOrders";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
@@ -333,12 +336,16 @@ export function initStudio(app: HTMLElement): () => void {
     },
     salesDemand: q<HTMLElement>("#chart-sales-demand")!,
     ageComp: q<HTMLElement>("#chart-age-comp")!,
-    ordersSpoilage: q<HTMLElement>("#chart-orders-spoilage")!,
+    controllerOrders: q<HTMLElement>("#chart-controller-orders")!,
+    spoil: q<HTMLElement>("#chart-spoil")!,
     get ageCompFocus(): HTMLElement {
       return q<HTMLElement>("#chart-age-comp-focus")!;
     },
-    get ordersSpoilageFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-orders-spoilage-focus")!;
+    get controllerOrdersFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-controller-orders-focus")!;
+    },
+    get spoilFocus(): HTMLElement {
+      return q<HTMLElement>("#chart-spoil-focus")!;
     },
     get arrivalPrior(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-prior")!;
@@ -395,8 +402,7 @@ export function initStudio(app: HTMLElement): () => void {
   const referenceDrawerHost = q<HTMLElement>("#reference-drawer-host");
   const tuningDrawerHost = q<HTMLElement>("#tuning-drawer-host");
   const eventsPaneRoot = eventsPaneHost ? createRoot(eventsPaneHost) : null;
-  let ordersSpoilageUnavailableRef: { root: Root | null } = { root: null };
-  let ordersSpoilageFocusUnavailableRef: { root: Root | null } = { root: null };
+  let spoilageUnavailableRoot: Root | null = null;
   const obsControlsRoot = obsControlsHost ? createRoot(obsControlsHost) : null;
   const referenceDrawerRoot = referenceDrawerHost
     ? createRoot(referenceDrawerHost)
@@ -753,8 +759,10 @@ export function initStudio(app: HTMLElement): () => void {
       beliefFreshnessHoverFocus(source),
     );
     setSalesDemandHover(els.salesDemand, day);
-    setOrdersSpoilageGroupedBarsHover(els.ordersSpoilage, day);
-    setOrdersSpoilageGroupedBarsHover(els.ordersSpoilageFocus, day);
+    setControllerOrdersHover(els.controllerOrders, day);
+    setControllerOrdersHover(els.controllerOrdersFocus, day);
+    setWasteBarsHover(els.spoil, day);
+    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setFreshnessCompositionHover(els.ageComp, day);
     setFreshnessCompositionHover(els.ageCompFocus, day);
@@ -951,36 +959,48 @@ export function initStudio(app: HTMLElement): () => void {
     );
   }
 
-  function renderOrdersSpoilageInto(
-    host: HTMLElement,
-    height: number,
-    unavailableRef: { root: Root | null },
-  ): void {
-    const spoilSlot = resolveStoreSpoilageSlot({
-      scenario: vm.config.obs_scenario,
-      channels: vm.config.obs_channels,
-      showTruth,
-    });
-    if (spoilSlot.kind === "unavailable") {
-      if (!unavailableRef.root) {
-        unavailableRef.root = createRoot(host);
-      }
-      flushSync(() => {
-        unavailableRef.root!.render(
-          createElement(ChartUnavailable, {
-            plotId: "store-spoilage",
-            caption: "Daily waste is not observed at this knowledge rung.",
-          }),
+  function renderRunStripCharts(): void {
+    profileSync("renderRunStripCharts", () => {
+      profileSync("renderRunStripCharts.controllerOrders", () =>
+        renderControllerOrders(
+          els.controllerOrders,
+          vm.history,
+          METRICS_STRIP_HEIGHT,
+        ),
+      );
+      profileSync("renderRunStripCharts.spoil", () => {
+        const spoilSlot = resolveStoreSpoilageSlot({
+          scenario: vm.config.obs_scenario,
+          channels: vm.config.obs_channels,
+          showTruth,
+        });
+        if (spoilSlot.kind === "unavailable") {
+          if (!spoilageUnavailableRoot) {
+            spoilageUnavailableRoot = createRoot(els.spoil);
+          }
+          flushSync(() => {
+            spoilageUnavailableRoot!.render(
+              createElement(ChartUnavailable, {
+                plotId: "store-spoilage",
+                caption: "Daily waste is not observed at this knowledge rung.",
+              }),
+            );
+          });
+          return;
+        }
+        if (spoilageUnavailableRoot) {
+          flushSync(() => {
+            spoilageUnavailableRoot!.render(null);
+          });
+        }
+        renderWasteBars(
+          els.spoil,
+          vm.history,
+          METRICS_STRIP_HEIGHT,
+          wasteBarYMax(vm.history),
         );
       });
-      return;
-    }
-    if (unavailableRef.root) {
-      flushSync(() => {
-        unavailableRef.root!.render(null);
-      });
-    }
-    renderOrdersSpoilageGroupedBars(host, vm.history, height);
+    });
   }
 
   function renderCockpitBelief(): void {
@@ -999,18 +1019,6 @@ export function initStudio(app: HTMLElement): () => void {
         BELIEF_HISTOGRAM_HEIGHT,
       );
       els.beliefAgeMarginal.replaceChildren();
-    });
-  }
-
-  function renderRunStripCharts(): void {
-    profileSync("renderRunStripCharts", () => {
-      profileSync("renderRunStripCharts.ordersSpoilage", () =>
-        renderOrdersSpoilageInto(
-          els.ordersSpoilage,
-          METRICS_STRIP_HEIGHT,
-          ordersSpoilageUnavailableRef,
-        ),
-      );
     });
   }
 
@@ -1113,12 +1121,22 @@ export function initStudio(app: HTMLElement): () => void {
           renderGammaFreshnessPath(els.gammaPath, vm.config, 170),
         );
       }
-      if (plotVisible("plot-orders-spoilage")) {
-        profileSync("renderActiveFocusPlots.ordersSpoilageFocus", () =>
-          renderOrdersSpoilageInto(
-            els.ordersSpoilageFocus,
+      if (plotVisible("plot-controller-orders")) {
+        profileSync("renderActiveFocusPlots.controllerOrdersFocus", () =>
+          renderControllerOrders(
+            els.controllerOrdersFocus,
+            vm.history,
             FOCUS_CHART_HEIGHT,
-            ordersSpoilageFocusUnavailableRef,
+          ),
+        );
+      }
+      if (plotVisible("plot-spoil")) {
+        profileSync("renderActiveFocusPlots.spoilFocus", () =>
+          renderWasteBars(
+            els.spoilFocus,
+            vm.history,
+            FOCUS_CHART_HEIGHT,
+            wasteBarYMax(vm.history),
           ),
         );
       }

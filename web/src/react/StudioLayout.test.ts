@@ -32,9 +32,11 @@ const REQUIRED_CHART_IDS = [
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-orders-spoilage",
+  "chart-controller-orders",
+  "chart-spoil",
   "chart-age-comp-focus",
-  "chart-orders-spoilage-focus",
+  "chart-controller-orders-focus",
+  "chart-spoil-focus",
 ] as const;
 
 /** Tuning-drawer chart ids validated in TuningDrawer.test.ts */
@@ -95,13 +97,14 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
-  it("metrics column stacks P&L, revenue chart, sales demand, and orders+spoilage", () => {
+  it("metrics column stacks P&L, revenue chart, sales demand, orders, and spoilage", () => {
     const { container } = render(createElement(StudioLayout));
     const metrics = container.querySelector(".cockpit-pane--metrics");
     expect(metrics).not.toBeNull();
     expect(metrics!.querySelector("#chart-pnl-economics")).not.toBeNull();
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-orders-spoilage")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
     expect(metrics!.querySelector("#chart-age-comp")).toBeNull();
     expect(metrics!.querySelector("#chart-inventory")).toBeNull();
     expect(metrics!.querySelector(".impact-row")).toBeNull();
@@ -119,7 +122,13 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(
       metrics!
         .querySelector("#chart-sales-demand")!
-        .compareDocumentPosition(metrics!.querySelector("#chart-orders-spoilage")!) &
+        .compareDocumentPosition(metrics!.querySelector("#chart-controller-orders")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      metrics!
+        .querySelector("#chart-controller-orders")!
+        .compareDocumentPosition(metrics!.querySelector("#chart-spoil")!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -192,7 +201,8 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       "chart-age-comp",
       "chart-belief-age-marginal",
       "chart-belief-lg",
-      "chart-orders-spoilage",
+      "chart-controller-orders",
+      "chart-spoil",
     ] as const;
     for (const id of cockpitIds) {
       const nodes = container.querySelectorAll(`#${id}`);
@@ -201,8 +211,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(container.querySelector("#chart-demand-host")).toBeNull();
     expect(container.querySelector("#chart-demand-forecast-host")).toBeNull();
     expect(container.querySelector("#chart-inventory")).toBeNull();
-    expect(container.querySelector("#chart-controller-orders")).toBeNull();
-    expect(container.querySelector("#chart-spoil")).toBeNull();
+    expect(container.querySelector("#chart-orders-spoilage")).toBeNull();
   });
 
   it("renders OperatorBar controls exactly once", () => {

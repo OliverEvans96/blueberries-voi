@@ -203,7 +203,7 @@ export function wasteBarYMax(history: Day[]): number {
 }
 
 /**
- * Waste (spoilage) line over days — same x-band convention as `renderSalesDemand`
+ * Waste (spoilage) bars over days — same x-band convention as `renderSalesDemand`
  * for hover-linking in the Primary chart stack.
  */
 export function renderWasteBars(
@@ -242,7 +242,6 @@ export function renderWasteBars(
   const days = padDaysToMinRange(history.map((d) => d.day));
   const step =
     days.length > 0 ? Math.max(0, innerW / days.length) : Math.max(0, innerW);
-  const x = (day: number): number => salesDemandX(days, innerW, day);
   const maxV = yMax != null ? Math.max(1, yMax) : wasteBarYMax(history);
   const y = d3.scaleLinear().domain([0, maxV]).nice().range([innerH, 0]);
 
@@ -260,32 +259,43 @@ export function renderWasteBars(
     .attr("height", innerH);
 
   g.append("g")
-    .attr("class", "axis axis-y")
+    .attr("class", "axis axis-y axis-y--waste")
     .call(d3.axisLeft(y).ticks(2).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove());
+    .call((sel) => sel.select(".domain").remove())
+    .call((sel) =>
+      sel.selectAll(".tick text").attr("fill", "var(--spoil-strong)"),
+    )
+    .call((sel) =>
+      sel.selectAll(".tick line").attr("stroke", "var(--spoil-strong)"),
+    );
 
+  const xAxis = d3
+    .scaleBand<number>()
+    .domain(days)
+    .range([0, innerW])
+    .padding(0.22);
   g.append("g")
     .attr("class", "axis axis-x")
     .attr("transform", `translate(0,${innerH})`)
     .call(
       d3
-        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+        .axisBottom(xAxis)
         .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
-  const lineWaste = d3
-    .line<Day>()
-    .x((d) => x(d.day))
-    .y((d) => y(d.waste_total))
-    .curve(d3.curveMonotoneX);
-
-  g.append("path")
-    .datum(history)
-    .attr("class", "waste-line")
-    .attr("fill", "none")
-    .attr("d", lineWaste);
+  g.selectAll<SVGRectElement, Day>(".bar")
+    .data(history, (d) => String((d as Day).day))
+    .join("rect")
+    .attr("class", "bar bar--spoilage")
+    .attr("data-day", (d) => d.day)
+    .attr("pointer-events", "none")
+    .attr("x", (d) => xAxis(d.day) ?? 0)
+    .attr("width", Math.max(0, xAxis.bandwidth()))
+    .attr("y", (d) => y(d.waste_total))
+    .attr("height", (d) => Math.max(0, innerH - y(d.waste_total)))
+    .attr("rx", 2);
 
   g.append("line")
     .attr("class", "hover-rule")

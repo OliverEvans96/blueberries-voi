@@ -14,9 +14,11 @@ const D3_CHART_IDS = [
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-orders-spoilage",
+  "chart-controller-orders",
+  "chart-spoil",
   "chart-age-comp-focus",
-  "chart-orders-spoilage-focus",
+  "chart-controller-orders-focus",
+  "chart-spoil-focus",
 ] as const;
 
 /** Static studio shell — Cockpit Grid layout v7 (T-158). */
@@ -116,20 +118,33 @@ export function StudioLayout() {
                 ariaLabel="Sales versus demand with stockout gap"
               />
               <div className="chart-caption impact-caption">
-                Orders &amp; spoilage
+                Order quantity
                 <InfoTip>
-                  Order quantity placed each day compared against units
-                  spoiled that day. Spoilage happens unit by unit as each
-                  one's own freshness runs out, so watching orders against
-                  spoilage shows whether the controller is buying enough to
-                  avoid stockouts without stacking up more inventory than the
-                  shelf can sell through before it ages out.
+                  Units the controller ordered each simulated day — the
+                  policy's refill decision given on-hand stock, demand
+                  expectations, and spoilage risk. Spikes usually line up
+                  with delivery days or stockout recovery.
                 </InfoTip>
               </div>
               <D3ChartHost
-                id="chart-orders-spoilage"
+                id="chart-controller-orders"
                 className="chart"
-                ariaLabel="Order quantity and spoilage over days"
+                ariaLabel="Order quantity over days"
+              />
+              <div className="chart-caption impact-caption">
+                Spoilage
+                <InfoTip>
+                  Units spoiled each day as individual freshness runs out.
+                  Spoilage happens unit by unit, so deliveries can waste
+                  across several days rather than all at once — watching
+                  this alongside orders shows whether buying is outpacing
+                  what the shelf can sell through in time.
+                </InfoTip>
+              </div>
+              <D3ChartHost
+                id="chart-spoil"
+                className="chart"
+                ariaLabel="Daily spoilage over days"
               />
             </div>
           </section>

@@ -108,195 +108,6 @@ export function setOrdersWasteHover(
   rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
 }
 
-/** Style-only hover for grouped orders + spoilage bars chart. */
-export function setOrdersSpoilageGroupedBarsHover(
-  container: HTMLElement,
-  hoveredDay: HoverDay,
-): void {
-  const g = rootG(container);
-  if (!g) return;
-
-  g.classed("is-hovering", hoveredDay != null);
-  g.selectAll<SVGRectElement, OrdersWastePoint>(".day-hit").classed(
-    "day-hit--active",
-    (d) => hoveredDay === d.day,
-  );
-
-  const rule = g.select<SVGLineElement>(".hover-rule");
-  if (hoveredDay == null) {
-    rule.attr("opacity", 0);
-    return;
-  }
-  const days = g
-    .selectAll<SVGRectElement, OrdersWastePoint>(".day-hit")
-    .data();
-  const innerW = Number(g.attr("data-inner-w") ?? 0);
-  if (!innerW || !days.length) {
-    rule.attr("opacity", 0);
-    return;
-  }
-  const dayNums = days.map((d) => d.day);
-  const x = salesDemandX(dayNums, innerW, hoveredDay);
-  rule.attr("x1", x).attr("x2", x).attr("opacity", 1);
-}
-
-/** Per-day grouped bars for order qty (left axis) and spoilage (right axis). */
-export function renderOrdersSpoilageGroupedBars(
-  container: HTMLElement,
-  history: ReadonlyArray<{
-    day: number;
-    order_qty: number;
-    waste_total: number;
-  }>,
-  height = 130,
-): void {
-  const width = container.clientWidth || 320;
-  const margin = {
-    top: 18,
-    right: 44,
-    bottom: 28,
-    left: 40,
-  };
-  const innerW = width - margin.left - margin.right;
-  const innerH = height - margin.top - margin.bottom;
-
-  container.replaceChildren();
-  if (innerW <= 0) return;
-
-  const series = ordersWasteSeries(history);
-
-  const svg = d3
-    .select(container)
-    .append("svg")
-    .attr("class", "chart-svg")
-    .attr("viewBox", `0 0 ${width} ${height}`)
-    .attr("width", "100%")
-    .attr("height", height)
-    .attr("aria-label", "Order quantity and spoilage over days");
-
-  const g = svg
-    .append("g")
-    .attr("class", "chart-root")
-    .attr("data-inner-w", String(innerW))
-    .attr("data-margin-right", String(margin.right))
-    .attr("transform", `translate(${margin.left},${margin.top})`);
-
-  const days = padDaysToMinRange(series.map((d) => d.day));
-  const step = Math.max(0, innerW / days.length);
-  const xBand = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.22);
-
-  g.append("g")
-    .attr("class", "day-hits")
-    .attr("pointer-events", "none")
-    .selectAll("rect")
-    .data(series, (d) => String((d as OrdersWastePoint).day))
-    .join("rect")
-    .attr("class", "day-hit")
-    .attr("data-day", (d) => d.day)
-    .attr("x", (_, i) => i * step)
-    .attr("y", 0)
-    .attr("width", step)
-    .attr("height", innerH);
-
-  const orderMax = d3.max(series, (d) => d.order_qty) ?? 0;
-  const wasteMax = d3.max(series, (d) => d.waste_total) ?? 0;
-  const yOrders = d3
-    .scaleLinear()
-    .domain([0, Math.max(orderMax, 1) * 1.1])
-    .nice()
-    .range([innerH, 0]);
-  const yWaste = d3
-    .scaleLinear()
-    .domain([0, Math.max(wasteMax, 1) * 1.1])
-    .nice()
-    .range([innerH, 0]);
-
-  g.append("g")
-    .attr("class", "axis axis-y axis-y--orders")
-    .call(d3.axisLeft(yOrders).ticks(3).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove())
-    .call((sel) => sel.selectAll(".tick text").attr("fill", "var(--accent)"))
-    .call((sel) => sel.selectAll(".tick line").attr("stroke", "var(--accent)"));
-
-  g.append("g")
-    .attr("class", "axis axis-y axis-y--waste")
-    .attr("transform", `translate(${innerW},0)`)
-    .call(d3.axisRight(yWaste).ticks(3).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove())
-    .call((sel) =>
-      sel.selectAll(".tick text").attr("fill", "var(--spoil-strong)"),
-    )
-    .call((sel) =>
-      sel.selectAll(".tick line").attr("stroke", "var(--spoil-strong)"),
-    );
-
-  g.append("g")
-    .attr("class", "axis axis-x")
-    .attr("transform", `translate(0,${innerH})`)
-    .call(
-      d3
-        .axisBottom(xBand)
-        .tickValues(pickDayTicks(days, innerW))
-        .tickSizeOuter(0),
-    )
-    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
-
-  const barGap = 1;
-  const barWidth = Math.max(0, xBand.bandwidth() / 2 - barGap);
-
-  g.selectAll<SVGRectElement, OrdersWastePoint>(".order-bar")
-    .data(series, (d) => String((d as OrdersWastePoint).day))
-    .join("rect")
-    .attr("class", "order-bar")
-    .attr("data-day", (d) => d.day)
-    .attr("x", (d) => (xBand(d.day) ?? 0))
-    .attr("width", barWidth)
-    .attr("y", (d) => yOrders(d.order_qty))
-    .attr("height", (d) => Math.max(0, innerH - yOrders(d.order_qty)));
-
-  g.selectAll<SVGRectElement, OrdersWastePoint>(".waste-bar")
-    .data(series, (d) => String((d as OrdersWastePoint).day))
-    .join("rect")
-    .attr("class", "waste-bar")
-    .attr("data-day", (d) => d.day)
-    .attr("x", (d) => (xBand(d.day) ?? 0) + barWidth + barGap)
-    .attr("width", barWidth)
-    .attr("y", (d) => yWaste(d.waste_total))
-    .attr("height", (d) => Math.max(0, innerH - yWaste(d.waste_total)));
-
-  g.append("line")
-    .attr("class", "hover-rule")
-    .attr("y1", 0)
-    .attr("y2", innerH)
-    .attr("opacity", 0)
-    .attr("pointer-events", "none");
-
-  const legend = svg
-    .append("g")
-    .attr("class", "legend")
-    .attr("transform", `translate(${margin.left + 4}, 6)`);
-  (
-    [
-      ["order-bar", "Orders"],
-      ["waste-bar", "Spoilage"],
-    ] as const
-  ).forEach(([cls, label], i) => {
-    const item = legend.append("g").attr("transform", `translate(${i * 78},0)`);
-    item
-      .append("rect")
-      .attr("class", cls)
-      .attr("width", 10)
-      .attr("height", 10)
-      .attr("rx", 2);
-    item
-      .append("text")
-      .attr("class", "legend-label")
-      .attr("x", 14)
-      .attr("y", 9)
-      .text(label);
-  });
-}
-
 /** Order quantity + spoilage over episode days — dual line chart. */
 export function renderOrdersWaste(
   container: HTMLElement,
@@ -432,7 +243,7 @@ export function renderOrdersWaste(
   });
 }
 
-/** Order quantity over episode days — line chart (T-148). */
+/** Order quantity over episode days — per-day bar chart. */
 export function renderControllerOrders(
   container: HTMLElement,
   history: ReadonlyArray<{ day: number; order_qty: number }>,
@@ -470,10 +281,7 @@ export function renderControllerOrders(
 
   const days = padDaysToMinRange(series.map((d) => d.day));
   const step = Math.max(0, innerW / days.length);
-  const x = (day: number): number => salesDemandX(days, innerW, day);
-
-  const yMax = Math.max(d3.max(series, (d) => d.order_qty) ?? 0, 1);
-  const y = d3.scaleLinear().domain([0, yMax * 1.08]).nice().range([innerH, 0]);
+  const xBand = d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0.22);
 
   g.append("g")
     .attr("class", "day-hits")
@@ -488,33 +296,40 @@ export function renderControllerOrders(
     .attr("width", step)
     .attr("height", innerH);
 
+  const orderMax = d3.max(series, (d) => d.order_qty) ?? 0;
+  const yOrders = d3
+    .scaleLinear()
+    .domain([0, Math.max(orderMax, 1) * 1.1])
+    .nice()
+    .range([innerH, 0]);
+
   g.append("g")
-    .attr("class", "axis axis-y")
-    .call(d3.axisLeft(y).ticks(4).tickSizeOuter(0))
-    .call((sel) => sel.select(".domain").remove());
+    .attr("class", "axis axis-y axis-y--orders")
+    .call(d3.axisLeft(yOrders).ticks(4).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove())
+    .call((sel) => sel.selectAll(".tick text").attr("fill", "var(--accent)"))
+    .call((sel) => sel.selectAll(".tick line").attr("stroke", "var(--accent)"));
 
   g.append("g")
     .attr("class", "axis axis-x")
     .attr("transform", `translate(0,${innerH})`)
     .call(
       d3
-        .axisBottom(d3.scaleBand<number>().domain(days).range([0, innerW]).padding(0))
+        .axisBottom(xBand)
         .tickValues(pickDayTicks(days, innerW))
         .tickSizeOuter(0),
     )
     .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
 
-  const lineOrders = d3
-    .line<ControllerOrderPoint>()
-    .x((d) => x(d.day))
-    .y((d) => y(d.order_qty))
-    .curve(d3.curveMonotoneX);
-
-  g.append("path")
-    .datum(series)
-    .attr("class", "order-line")
-    .attr("fill", "none")
-    .attr("d", lineOrders);
+  g.selectAll<SVGRectElement, ControllerOrderPoint>(".order-bar")
+    .data(series, (d) => String((d as ControllerOrderPoint).day))
+    .join("rect")
+    .attr("class", "order-bar")
+    .attr("data-day", (d) => d.day)
+    .attr("x", (d) => xBand(d.day) ?? 0)
+    .attr("width", Math.max(0, xBand.bandwidth()))
+    .attr("y", (d) => yOrders(d.order_qty))
+    .attr("height", (d) => Math.max(0, innerH - yOrders(d.order_qty)));
 
   g.append("line")
     .attr("class", "hover-rule")
@@ -522,23 +337,4 @@ export function renderControllerOrders(
     .attr("y2", innerH)
     .attr("opacity", 0)
     .attr("pointer-events", "none");
-
-  const legend = svg
-    .append("g")
-    .attr("class", "legend")
-    .attr("transform", `translate(${margin.left + 4}, 10)`);
-  const item = legend.append("g");
-  item
-    .append("line")
-    .attr("class", "order-line")
-    .attr("x1", 0)
-    .attr("x2", 14)
-    .attr("y1", 0)
-    .attr("y2", 0);
-  item
-    .append("text")
-    .attr("class", "legend-label")
-    .attr("x", 18)
-    .attr("y", 3)
-    .text("Orders");
 }
