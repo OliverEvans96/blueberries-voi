@@ -13,6 +13,7 @@ import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
 import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
+import { InfoTip } from "./InfoTip";
 
 export type EventsPaneProps = {
   vm: {
@@ -81,6 +82,14 @@ function arrivalLotRows(
   }));
 }
 
+const EVENTS_COLUMN_TIPS: Record<string, string> = {
+  Delivered:
+    "Units that arrived on the shelf that day. Broken out by lot underneath the total when lot IDs are observed, since that lot detail depends on the current observation channels.",
+  Sold: "Units actually sold that day, drawn from whatever was left after spoilage. This can fall short of that day's demand once the shelf runs out of unspoiled units to sell.",
+  Spoiled:
+    "Units whose freshness reached zero that day and were pulled off the shelf as waste before being counted here, never reaching a customer.",
+};
+
 function EventsTable({
   title,
   total,
@@ -92,9 +101,13 @@ function EventsTable({
   lotRows: LotRow[];
   notObserved?: boolean;
 }) {
+  const tip = EVENTS_COLUMN_TIPS[title];
   return (
     <div className="events-col" data-testid={`events-col-${title.toLowerCase()}`}>
-      <h4 className="events-col-title">{title}</h4>
+      <span className="heading-with-tip">
+        <h4 className="events-col-title">{title}</h4>
+        {tip ? <InfoTip>{tip}</InfoTip> : null}
+      </span>
       <table className="events-table">
         <tbody>
           {notObserved ? (
@@ -139,7 +152,15 @@ function DeliveryTempChart({
 
   return (
     <section className="events-temp-history" aria-label="Temperature history">
-      <h4 className="events-temp-heading">Temperature history</h4>
+      <span className="heading-with-tip">
+        <h4 className="events-temp-heading">Temperature history</h4>
+        <InfoTip>
+          The logged temperature trace from the delivery truck for that day's
+          arriving lot(s) — only available at the highest observation rung,
+          where the supplier reports a full temperature-history trace rather
+          than just a pack date or nothing at all.
+        </InfoTip>
+      </span>
       <div
         className="events-temp-summaries"
         data-testid="events-temp-summaries"
@@ -239,7 +260,17 @@ export function EventsPane({
       data-refreshing={refreshing ? "true" : undefined}
     >
       <div className="panel-head">
-        <h2>Events</h2>
+        <span className="heading-with-tip">
+          <h2>Events</h2>
+          <InfoTip>
+            A rolling log of the last several completed days' deliveries,
+            sales, and spoilage, in the fixed order each day actually
+            resolves them: aging, then spoilage, then sales, then delivery.
+            Each day's numbers are masked down to whatever the current
+            observation channels actually reveal, so a column can show
+            "Not observed" even when something happened in the ground truth.
+          </InfoTip>
+        </span>
         <span className="panel-note">
           Last 5 days
           {showInitialLoading ? (
