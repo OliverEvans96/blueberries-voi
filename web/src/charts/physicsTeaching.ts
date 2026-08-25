@@ -160,7 +160,7 @@ export function renderArrheniusTemp(
     .datum(curve)
     .attr("class", "impact-line")
     .attr("fill", "none")
-    .attr("stroke", "var(--accent, #3d6b5a)")
+    .attr("stroke", "var(--belief)")
     .attr("stroke-width", 1.8)
     .attr("d", line);
 
@@ -174,7 +174,7 @@ export function renderArrheniusTemp(
     .attr("cx", x(config.t_store_c))
     .attr("cy", y(storeRate))
     .attr("r", 5)
-    .attr("fill", "var(--accent, #3d6b5a)");
+    .attr("fill", "var(--belief)");
 
   g.append("text")
     .attr("class", "axis-label")
@@ -242,7 +242,7 @@ export function renderGammaFreshnessPath(
   g.append("path")
     .datum(envelope)
     .attr("class", "gamma-std-band")
-    .attr("fill", "var(--accent, #3d6b5a)")
+    .attr("fill", "var(--belief)")
     .attr("fill-opacity", 0.18)
     .attr("d", band);
 
@@ -256,7 +256,7 @@ export function renderGammaFreshnessPath(
     .datum(envelope)
     .attr("class", "impact-line")
     .attr("fill", "none")
-    .attr("stroke", "var(--accent, #3d6b5a)")
+    .attr("stroke", "var(--belief)")
     .attr("stroke-width", 1.8)
     .attr("d", meanLine);
 

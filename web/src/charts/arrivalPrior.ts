@@ -65,7 +65,7 @@ export function renderArrivalPrior(
 
     g.append("path")
       .datum(prior)
-      .attr("fill", "var(--accent, #3d6b5a)")
+      .attr("fill", "var(--belief)")
       .attr("fill-opacity", 0.22)
       .attr("d", area);
 
@@ -79,7 +79,7 @@ export function renderArrivalPrior(
       .datum(prior)
       .attr("class", "impact-line")
       .attr("fill", "none")
-      .attr("stroke", "var(--accent, #3d6b5a)")
+      .attr("stroke", "var(--belief)")
       .attr("stroke-width", 1.6)
       .attr("d", line);
   }
@@ -188,7 +188,7 @@ export function renderArrivalShift(
       .datum(shifted)
       .attr("class", "impact-line")
       .attr("fill", "none")
-      .attr("stroke", "var(--accent, #3d6b5a)")
+      .attr("stroke", "var(--belief)")
       .attr("stroke-width", 1.8)
       .attr("d", line);
   }

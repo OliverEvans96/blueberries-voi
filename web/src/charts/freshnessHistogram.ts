@@ -2,6 +2,7 @@ import * as d3 from "d3";
 import { centersToEdges } from "../engine/projector";
 import type { FlatBelief } from "../engine/types";
 import type { Lot, Unit } from "../types";
+import { BELIEF_BAR_COLOR, TRUTH_BAR_COLOR } from "./beliefFreshnessPalette";
 
 export const DISPLAY_BIN_COUNT = 8;
 
@@ -16,9 +17,10 @@ export type FreshnessHistogramData = {
   truth_units: Unit[];
 };
 
-const BELIEF_COLOR = "#e6b800";
-const TRUTH_COLOR = "#2563eb";
-const FILL_OPACITY = 0.25;
+const BELIEF_COLOR = BELIEF_BAR_COLOR;
+const TRUTH_COLOR = TRUTH_BAR_COLOR;
+const BELIEF_FILL_OPACITY = 0.25;
+const TRUTH_FILL_OPACITY = 0.35;
 const TOP_STROKE_WIDTH = 2.5;
 
 type HistBin = {
@@ -220,6 +222,7 @@ export function renderFreshnessHistogram(
     fillClass: string,
     capClass: string,
     color: string,
+    fillOpacity: number,
   ): void => {
     const group = g.append("g").attr("class", fillClass.replace("-bar", "-bars"));
     group
@@ -232,7 +235,7 @@ export function renderFreshnessHistogram(
       .attr("y", (d) => y(d.mass))
       .attr("height", (d) => Math.max(0, y(0) - y(d.mass)))
       .attr("fill", color)
-      .attr("fill-opacity", FILL_OPACITY)
+      .attr("fill-opacity", fillOpacity)
       .append("title")
       .text(
         (d) =>
@@ -253,10 +256,10 @@ export function renderFreshnessHistogram(
       .attr("stroke-linecap", "square");
   };
 
+  drawBars(toHistBin(belief), "freshness-belief-bar", "freshness-belief-cap", BELIEF_COLOR, BELIEF_FILL_OPACITY);
   if (truth) {
-    drawBars(toHistBin(truth), "freshness-truth-bar", "freshness-truth-cap", TRUTH_COLOR);
+    drawBars(toHistBin(truth), "freshness-truth-bar", "freshness-truth-cap", TRUTH_COLOR, TRUTH_FILL_OPACITY);
   }
-  drawBars(toHistBin(belief), "freshness-belief-bar", "freshness-belief-cap", BELIEF_COLOR);
 
   g.append("g")
     .attr("class", "axis axis-y")
@@ -306,7 +309,10 @@ export function renderFreshnessHistogram(
       .attr("height", 10)
       .attr("rx", 2)
       .attr("fill", item.color)
-      .attr("fill-opacity", FILL_OPACITY)
+      .attr(
+        "fill-opacity",
+        item.label === "Truth" ? TRUTH_FILL_OPACITY : BELIEF_FILL_OPACITY,
+      )
       .attr("stroke", item.color)
       .attr("stroke-width", TOP_STROKE_WIDTH);
     itemG

@@ -147,7 +147,7 @@ export function renderTradeoffCurve(
     .datum(data)
     .attr("class", "tradeoff-band-missed")
     .attr("data-band", "missed")
-    .attr("fill", "var(--sales, #48a)")
+    .attr("fill", "var(--forecast)")
     .attr("opacity", 0.2)
     .attr("d", areaMissed);
   const lineWasteMean = d3
@@ -171,7 +171,7 @@ export function renderTradeoffCurve(
     .attr("class", "tradeoff-mean-missed")
     .attr("data-series", "missed_mean")
     .attr("fill", "none")
-    .attr("stroke", "var(--sales, #48a)")
+    .attr("stroke", "var(--forecast)")
     .attr("stroke-width", 2)
     .attr("d", lineMissedMean);
   g.append("line")
@@ -227,7 +227,7 @@ export function renderTradeoffCurve(
     fillOpacity: number;
   }> = [
     { label: "Waste", color: "var(--missed, #c44)", fillOpacity: 0.25 },
-    { label: "Missed sales", color: "var(--sales, #48a)", fillOpacity: 0.2 },
+    { label: "Missed sales", color: "var(--forecast)", fillOpacity: 0.2 },
   ];
 
   legendItems.forEach((item, i) => {

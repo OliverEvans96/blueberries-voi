@@ -128,9 +128,9 @@
   font-size: 0.78rem;
   line-height: 1.35;
   color: var(--ink);
-  background: rgba(230, 184, 0, 0.08);
+  background: color-mix(in srgb, var(--belief-soft) 20%, transparent);
   border-radius: 4px;
-  border-left: 3px solid #e6b800;
+  border-left: 3px solid var(--belief);
 }
 
 .belief-mae-table caption {

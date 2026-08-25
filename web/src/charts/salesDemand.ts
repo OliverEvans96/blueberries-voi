@@ -196,7 +196,7 @@ export function renderSalesDemand(
       .datum(forecastRows)
       .attr("class", "sd-forecast-mean")
       .attr("fill", "none")
-      .attr("stroke", "var(--chart-accent, #2563eb)")
+      .attr("stroke", "var(--chart-accent)")
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "5,3")
       .attr("d", meanLine);
@@ -280,7 +280,7 @@ export function renderSalesDemand(
         .attr("y", -4)
         .attr("width", 14)
         .attr("height", 8)
-        .attr("fill", "var(--chart-band, rgba(59, 130, 246, 0.18))");
+        .attr("fill", "var(--chart-band)");
       group
         .append("line")
         .attr("class", "sd-forecast-mean")
@@ -289,7 +289,7 @@ export function renderSalesDemand(
         .attr("y1", 0)
         .attr("y2", 0)
         .attr("fill", "none")
-        .attr("stroke", "var(--chart-accent, #2563eb)")
+        .attr("stroke", "var(--chart-accent)")
         .attr("stroke-width", 2)
         .attr("stroke-dasharray", "5,3");
     }
