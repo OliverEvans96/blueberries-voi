@@ -66,8 +66,8 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "autopilot",
     label: "Autopilot",
     blurb:
-      "Policy and rollout budgets for Autopilot — orders alongside on-hand vs target.",
-    plotIds: ["plot-controller-orders", "plot-spoil", "plot-age-comp"],
+      "Tune damped_sw α and ρ — live decomposition of protection target, gap, and case order.",
+    plotIds: ["plot-damped-sw-demo"],
     controlSection: "autopilot",
   },
 ];
