@@ -13,7 +13,7 @@ from _style import apply_doc_style, save_fig
 if TYPE_CHECKING:
     from pathlib import Path
 
-OUTPUT = "closed-loop-profit-seed-vs-rung.png"
+OUTPUT = "profit-by-rung-boxplot.png"
 RUNGS = ("P0", "P1", "F1", "F2a", "F2")
 SEEDS = tuple(range(1, 9))
 
