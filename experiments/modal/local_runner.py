@@ -12,6 +12,11 @@ if TYPE_CHECKING:
 
 
 from blueberries_voi.experiments.batch_progress import log_grid_progress, log_line
+from blueberries_voi.experiments.channel_joint import (
+    channel_joint_job_grid,
+    merge_channel_joint_rows,
+    run_seed_channel_joint,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_N_DAYS,
     DEFAULT_SEEDS,
@@ -142,6 +147,53 @@ def run_voi_profit_local(
             if progress:
                 log_grid_progress(completed, total)
     rows = merge_voi_profit_rows(shards)
+    out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    return rows
+
+
+def _channel_joint_worker(
+    args: tuple[int, dict[str, object], dict[str, Any]],
+) -> dict[str, Any]:
+    seed, channel, budgets = args
+    from blueberries_voi.experiments.batch_progress import (
+        log_channel_joint_done,
+        log_channel_joint_start,
+    )
+
+    t0 = log_channel_joint_start(seed, channel)
+    result = run_seed_channel_joint(seed, channel, **budgets)
+    result["_elapsed_s"] = log_channel_joint_done(seed, channel, t0)
+    return result
+
+
+def run_channel_joint_local(
+    out_path: Path,
+    *,
+    seeds: tuple[int, ...],
+    channels: list[ObsChannels],
+    budgets: dict[str, Any] | None = None,
+    max_workers: int | None = None,
+    progress: bool = True,
+) -> list[dict[str, Any]]:
+    budget_kw = dict(budgets or {})
+    for key in ("max_workers", "seeds", "channels", "progress"):
+        budget_kw.pop(key, None)
+    grid = channel_joint_job_grid(seeds, channels)
+    tasks = [(seed, ch.__dict__, budget_kw) for seed, ch in grid]
+    total = len(tasks)
+    log_line(f"channel_joint local run: {total} jobs, workers={max_workers}")
+    shards: list[dict[str, Any]] = []
+    completed = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_channel_joint_worker, task) for task in tasks]
+        for fut in as_completed(futures):
+            shard = fut.result()
+            shard.pop("_elapsed_s", None)
+            shards.append(shard)
+            completed += 1
+            if progress:
+                log_grid_progress(completed, total, label="channel_joint")
+    rows = merge_channel_joint_rows(shards)
     out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
     return rows
 

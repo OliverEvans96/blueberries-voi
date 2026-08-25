@@ -1,0 +1,11 @@
+{
+  "shards": 72,
+  "seeds": [42, 7, 99, 101, 2024, 31415],
+  "n_score": 30,
+  "n_burn": 2,
+  "probe_elapsed_s": 1.996,
+  "run_wall_s": 87.29,
+  "est_cpu_hr": 0.04,
+  "batch_mode": "modal",
+  "accuracy_metric": "mean_f"
+}
