@@ -76,6 +76,13 @@
   }
 }
 
+/* Vanilla `infoTipHtml` keeps the bubble in the DOM for aria-describedby, but
+   it must not show or affect layout until portaled on hover/focus. React
+   InfoTip only mounts a bubble while open, so it never sits inline here. */
+.info-tip > .info-tip-bubble {
+  display: none;
+}
+
 .info-tip-bubble {
   width: max-content;
   max-width: 260px;
@@ -98,6 +105,7 @@
 
 /* Portaled bubbles — position set inline from trigger getBoundingClientRect. */
 .info-tip-bubble--portaled {
+  display: block;
   position: fixed;
   z-index: 1000;
   opacity: 0;

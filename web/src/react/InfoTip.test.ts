@@ -4,12 +4,20 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initInfoTipPortal } from "../infoTipPortal";
 import { infoTipHtml } from "../infoTip";
 import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 import { StudioLayout } from "./StudioLayout";
+
+const INFO_TIP_CSS = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../styles/infoTip.css"),
+  "utf8",
+);
 
 function mountPortalRoot(): HTMLElement {
   const root = document.createElement("div");
@@ -117,6 +125,12 @@ describe("InfoTip portal", () => {
 
     expect(actions!.querySelector("#tuning-drawer-trigger")).not.toBeNull();
     expect(actions!.querySelector("#engine-status")).not.toBeNull();
+  });
+
+  it("infoTip.css hides inline vanilla bubbles until portaled", () => {
+    expect(INFO_TIP_CSS).toMatch(
+      /\.info-tip > \.info-tip-bubble\s*\{[^}]*display:\s*none/,
+    );
   });
 
   it("initInfoTipPortal portals vanilla infoTipHtml triggers on hover", () => {
