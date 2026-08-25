@@ -1,0 +1,32 @@
+.nav-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  margin-right: 0.75rem;
+  text-decoration: none;
+  color: var(--vp-c-text-1);
+  line-height: 1.2;
+}
+
+.nav-brand:hover {
+  color: var(--vp-c-text-1);
+}
+
+.nav-brand-title {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.nav-brand-chip {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  border: 1px solid var(--vp-c-brand-3);
+}
