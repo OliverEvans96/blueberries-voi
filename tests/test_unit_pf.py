@@ -65,6 +65,8 @@ def _cargo_unit_pf_ac(*test_names: str) -> subprocess.CompletedProcess[str]:
     cmd = [
         "cargo",
         "test",
+        "--release",
+        "--locked",
         "-p",
         "voi_core",
         "--test",
@@ -411,6 +413,8 @@ def test_obs_mask_for_router_table_tests_pass() -> None:
         [
             "cargo",
             "test",
+            "--release",
+            "--locked",
             "-p",
             "voi_core",
             "mask_for",

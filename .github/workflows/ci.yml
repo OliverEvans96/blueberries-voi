@@ -114,6 +114,9 @@ jobs:
         with:
           name: ci-rust-wasm-build
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -128,8 +131,7 @@ jobs:
         run: |
           uv venv --python 3.11
           uv sync --all-extras --python 3.11 --frozen
-          WHEEL="$(ls dist/wheels/blueberries_voi_core-*.whl)"
-          unzip -oj "$WHEEL" 'blueberries_voi/_core.abi3.so' -d src/blueberries_voi
+          uv pip install dist/wheels/blueberries_voi_core-*.whl
 
       - name: Ruff (lint)
         run: uv run --python 3.11 ruff check .

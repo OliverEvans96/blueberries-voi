@@ -121,7 +121,17 @@ def test_day_step_f_native_conservation_rust_tests_pass() -> None:
     import subprocess
 
     proc = subprocess.run(
-        ["cargo", "test", "-p", "voi_core", "day_step_f_native", "--", "--nocapture"],
+        [
+            "cargo",
+            "test",
+            "--release",
+            "--locked",
+            "-p",
+            "voi_core",
+            "day_step_f_native",
+            "--",
+            "--nocapture",
+        ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
