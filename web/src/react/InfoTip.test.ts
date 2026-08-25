@@ -70,6 +70,19 @@ describe("InfoTip portal", () => {
     expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
   });
 
+  it("closes an open tip when tapping the bubble on touch devices", () => {
+    stubHover(false);
+    const portalRoot = mountPortalRoot();
+    render(createElement(InfoTip, null, "Bubble tap closes"));
+
+    fireEvent.click(screen.getByRole("button", { name: /more information/i }));
+    const bubble = portalRoot.querySelector(".info-tip-bubble--portaled");
+    expect(bubble).not.toBeNull();
+
+    fireEvent.pointerDown(bubble!);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
+  });
+
   it("a click does not close a hover-opened tip on a device with real hover", () => {
     stubHover(true);
     const portalRoot = mountPortalRoot();
@@ -133,6 +146,12 @@ describe("InfoTip portal", () => {
     );
   });
 
+  it("infoTip.css enables pointer events on portaled bubbles", () => {
+    expect(INFO_TIP_CSS).toMatch(
+      /\.info-tip-bubble--portaled\s*\{[^}]*pointer-events:\s*auto/,
+    );
+  });
+
   it("initInfoTipPortal portals vanilla infoTipHtml triggers on hover", () => {
     const portalRoot = mountPortalRoot();
     const host = document.createElement("div");
@@ -169,6 +188,26 @@ describe("InfoTip portal", () => {
     expect(bubble).toHaveTextContent("Touch vanilla tooltip");
 
     fireEvent.click(trigger);
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
+
+    cleanup();
+  });
+
+  it("closes a vanilla tip when tapping its bubble on touch devices", () => {
+    stubHover(false);
+    const portalRoot = mountPortalRoot();
+    const host = document.createElement("div");
+    host.innerHTML = infoTipHtml("Bubble dismiss vanilla");
+    document.body.appendChild(host);
+
+    const cleanup = initInfoTipPortal(document);
+    const trigger = host.querySelector(".info-tip-trigger") as HTMLElement;
+
+    fireEvent.click(trigger);
+    const bubble = portalRoot.querySelector(".info-tip-bubble--portaled");
+    expect(bubble).not.toBeNull();
+
+    fireEvent.pointerDown(bubble!);
     expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
 
     cleanup();

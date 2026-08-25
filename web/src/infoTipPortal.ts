@@ -8,9 +8,27 @@ export type InfoTipPositionOpts = {
 };
 
 const GAP_PX = 7;
+const VIEWPORT_PAD_PX = 8;
+const MAX_BUBBLE_WIDTH_PX = 260;
 
 export function getInfoTipPortalRoot(): HTMLElement | null {
   return document.querySelector(".bv-studio-portal-root");
+}
+
+function clampWithinViewport(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+): { left: number; top: number } {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxLeft = Math.max(VIEWPORT_PAD_PX, viewportWidth - width - VIEWPORT_PAD_PX);
+  const maxTop = Math.max(VIEWPORT_PAD_PX, viewportHeight - height - VIEWPORT_PAD_PX);
+  return {
+    left: Math.min(Math.max(VIEWPORT_PAD_PX, left), maxLeft),
+    top: Math.min(Math.max(VIEWPORT_PAD_PX, top), maxTop),
+  };
 }
 
 /** Position a bubble with `position: fixed` from a trigger's viewport rect. */
@@ -22,7 +40,11 @@ export function positionInfoTipBubble(
   const triggerRect = trigger.getBoundingClientRect();
   bubble.style.position = "fixed";
   bubble.style.zIndex = "1000";
-  bubble.style.maxWidth = "260px";
+  const availableWidth = Math.max(
+    0,
+    window.innerWidth - VIEWPORT_PAD_PX * 2,
+  );
+  bubble.style.maxWidth = `${Math.min(MAX_BUBBLE_WIDTH_PX, availableWidth)}px`;
 
   const prevVisibility = bubble.style.visibility;
   bubble.style.visibility = "hidden";
@@ -42,8 +64,10 @@ export function positionInfoTipBubble(
     left = triggerRect.left;
   }
 
-  bubble.style.top = `${Math.round(top)}px`;
-  bubble.style.left = `${Math.round(left)}px`;
+  const clamped = clampWithinViewport(left, top, bubbleRect.width, bubbleRect.height);
+
+  bubble.style.top = `${Math.round(clamped.top)}px`;
+  bubble.style.left = `${Math.round(clamped.left)}px`;
   bubble.style.visibility = prevVisibility;
 }
 
@@ -182,7 +206,7 @@ function onDocumentPointerDown(event: Event): void {
   if (!activeVanilla) return;
   const target = (event as PointerEvent).target;
   const node = target instanceof Node ? target : null;
-  if (node && (activeVanilla.trigger.contains(node) || activeVanilla.bubble.contains(node))) {
+  if (node && activeVanilla.trigger.contains(node)) {
     return;
   }
   closeVanillaTip();
