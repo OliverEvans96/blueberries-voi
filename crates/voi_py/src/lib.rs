@@ -52,7 +52,7 @@ fn demand_profile_from_source(source: &str) -> PyResult<DemandProfile> {
 /// profile given as a JSON string or path, without first constructing a [`PyDemandProfile`].
 #[pyfunction]
 #[pyo3(signature = (day, json))]
-fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
+pub fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
     Ok(demand_profile_from_source(json)?.mu(day))
 }
 
@@ -60,7 +60,7 @@ fn demand_profile_mu_from_json_py(day: u32, json: &str) -> PyResult<f64> {
 /// (`demand_profile_mu_py`) for callers that already depend on that symbol.
 #[pyfunction]
 #[pyo3(name = "demand_profile_mu_py", signature = (day, json))]
-fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
+pub fn demand_profile_mu_py(day: u32, json: &str) -> PyResult<f64> {
     demand_profile_mu_from_json_py(day, json)
 }
 
@@ -85,7 +85,7 @@ fn read_json_source(source: &str) -> PyResult<String> {
 /// validated arrival model without depending on the full internal `ArrivalModel` shape.
 #[pyfunction]
 #[pyo3(name = "arrival_model_from_json_py", signature = (source))]
-fn arrival_model_from_json_py(source: &str) -> PyResult<String> {
+pub fn arrival_model_from_json_py(source: &str) -> PyResult<String> {
     let json = read_json_source(source)?;
     let model = arrival_artifact_from_json(&json)
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
@@ -111,7 +111,7 @@ fn arrival_model_from_json_py(source: &str) -> PyResult<String> {
 /// `demand_mu`/`demand_vm` with a calendar `demand_profile`.
 #[pyfunction]
 #[pyo3(signature = (alpha, demand_mu, demand_vm, protection_days, start_day, demand_profile=None))]
-fn protection_demand_quantile_py(
+pub fn protection_demand_quantile_py(
     alpha: f64,
     demand_mu: f64,
     demand_vm: f64,
@@ -140,7 +140,7 @@ fn protection_demand_quantile_py(
 /// checks and the engine draw the identical number under common random numbers.
 #[pyfunction]
 #[pyo3(signature = (root_seed, run_id, day, demand_mu, demand_vm, demand_profile=None, stream=":demand"))]
-fn draw_demand_at_day_py(
+pub fn draw_demand_at_day_py(
     root_seed: u64,
     run_id: &str,
     day: u32,
@@ -166,7 +166,7 @@ fn draw_demand_at_day_py(
 /// that `(root_seed, run_id, day, stream)` coordinate.
 #[pyfunction]
 #[pyo3(signature = (root_seed, run_id, day, stream))]
-fn spawn_rng_next_u64_py(root_seed: u64, run_id: &str, day: u32, stream: &str) -> PyResult<u64> {
+pub fn spawn_rng_next_u64_py(root_seed: u64, run_id: &str, day: u32, stream: &str) -> PyResult<u64> {
     use rand::RngCore;
     let mut rng = SpawnRng::spawn_rng(root_seed, run_id, day, stream);
     Ok(rng.next_u64())
@@ -176,7 +176,7 @@ fn spawn_rng_next_u64_py(root_seed: u64, run_id: &str, day: u32, stream: &str) -
 /// `sales_tot` units could be sold without replacement across cohorts of the given
 /// `counts` and `weights`, each paired with its probability.
 #[pyfunction]
-fn sequential_wor_py(counts: Vec<u32>, sales_tot: i32, weights: Vec<f64>) -> Vec<(Vec<u32>, f64)> {
+pub fn sequential_wor_py(counts: Vec<u32>, sales_tot: i32, weights: Vec<f64>) -> Vec<(Vec<u32>, f64)> {
     sequential_wor_composition_probs(&counts, sales_tot, &weights)
 }
 
@@ -185,7 +185,7 @@ fn sequential_wor_py(counts: Vec<u32>, sales_tot: i32, weights: Vec<f64>) -> Vec
 /// common random numbers and returns each scenario's name paired with its scored profit.
 #[pyfunction]
 #[pyo3(signature = (beta, root_seed, n_burn, n_score, filter_n, h, n_rollout_paths, lead_time, times, temps, demand_profile_json=None))]
-fn run_voi_crn_cell_py(
+pub fn run_voi_crn_cell_py(
     beta: f64,
     root_seed: u64,
     n_burn: u32,
@@ -255,7 +255,7 @@ fn run_voi_crn_cell_py(
     case_size=8,
     demand_profile=None,
 ))]
-fn evaluate_alpha_tune_episode_py(
+pub fn evaluate_alpha_tune_episode_py(
     arm_id: &str,
     alpha: f64,
     root_seed: u64,
@@ -328,7 +328,7 @@ fn evaluate_alpha_tune_episode_py(
     case_size=8,
     demand_profile=None,
 ))]
-fn evaluate_alpha_tune_outcomes_py(
+pub fn evaluate_alpha_tune_outcomes_py(
     arm_id: &str,
     alpha: f64,
     root_seed: u64,
@@ -442,7 +442,7 @@ fn evaluate_alpha_tune_outcomes_inner(
 /// -- a simple baseline episode runner, mostly useful for smoke tests and sanity checks
 /// rather than production scoring.
 #[pyfunction]
-fn run_episode_py(
+pub fn run_episode_py(
     n_burn: u32,
     n_score: u32,
     constant_order: u32,
@@ -489,7 +489,7 @@ fn run_episode_py(
     temps=None,
 ))]
 #[allow(clippy::too_many_arguments)]
-fn rollout_order_py(
+pub fn rollout_order_py(
     lot_counts: Vec<f64>,
     f_marginals: Vec<f64>,
     f_grid: Vec<f64>,
@@ -568,7 +568,7 @@ fn rollout_order_py(
 /// by `margin` per unit -- lets Python evaluate the same end-of-horizon salvage term the
 /// rollout scorer uses.
 #[pyfunction]
-fn terminal_salvage_unit_state_py(
+pub fn terminal_salvage_unit_state_py(
     freshness: Vec<f64>,
     margin: f64,
     beta: f64,
@@ -583,7 +583,7 @@ fn terminal_salvage_unit_state_py(
 /// Weibull survival weight at effective age `tau`, for Python callers checking the same
 /// long-run salvage weighting the rollout scorer applies.
 #[pyfunction]
-fn w_long_py(tau: f64, beta: f64, eta_ref: f64) -> f64 {
+pub fn w_long_py(tau: f64, beta: f64, eta_ref: f64) -> f64 {
     let mut params = voi_core::ModelParams::default();
     params.beta = beta;
     params.eta_ref = eta_ref;
