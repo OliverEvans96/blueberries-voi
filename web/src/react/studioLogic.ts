@@ -69,6 +69,7 @@ import {
 import {
   fCompositionSeries,
   fCompositionSeriesFromBelief,
+  effectiveInventoryFromFlatBelief,
   inventorySeries,
   inventorySeriesFromBelief,
   renderFreshnessComposition,
@@ -78,6 +79,7 @@ import {
   renderControllerOrders,
   setControllerOrdersHover,
 } from "../charts/controllerOrders";
+import { renderDampedSwDemo } from "../charts/dampedSwDemo";
 import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
@@ -370,6 +372,9 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get spoilFocus(): HTMLElement {
       return q<HTMLElement>("#chart-spoil-focus")!;
+    },
+    get dampedSwDemo(): HTMLElement {
+      return q<HTMLElement>("#chart-damped-sw-demo")!;
     },
     get arrivalPrior(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-prior")!;
@@ -861,9 +866,39 @@ export function initStudio(app: HTMLElement): () => void {
     if (sectionId === "logistics") {
       mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
     }
-    if (sectionId === "autopilot") {
-      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host-autopilot");
+  }
+
+  function liveEffectiveInventory(): number | null {
+    if (showTruth) {
+      const inv = inventorySeries(vm.history, vm.config);
+      const last = inv[inv.length - 1];
+      return last ? last.effective : null;
     }
+    const belief = vm.belief_history.at(-1);
+    if (belief?.flatBelief) {
+      return effectiveInventoryFromFlatBelief(belief.flatBelief);
+    }
+    const inv = inventorySeriesFromBelief(vm.belief_history, vm.config);
+    const last = inv[inv.length - 1];
+    return last ? last.effective : null;
+  }
+
+  function renderDampedSwDemoFocus(): void {
+    const previewSchedule =
+      vm.config.delivery_weekdays?.length > 0
+        ? scheduleFromConfig(vm.config)
+        : schedule;
+    renderDampedSwDemo(els.dampedSwDemo, {
+      alpha: controllerState.alpha,
+      rho: controllerState.rho,
+      policy: controllerState.policy,
+      caseSize: vm.config.case_size,
+      demandVm: vm.config.demand_vm,
+      demandSummary: vm.demand_summary,
+      schedule: previewSchedule,
+      episodeDay: vm.episode_day,
+      effectiveInventory: liveEffectiveInventory(),
+    });
   }
 
   function ageCompositionInputs(): {
@@ -1055,23 +1090,9 @@ export function initStudio(app: HTMLElement): () => void {
           renderGammaFreshnessPath(els.gammaPath, vm.config, 170),
         );
       }
-      if (plotVisible("plot-controller-orders")) {
-        profileSync("renderActiveFocusPlots.controllerOrdersFocus", () =>
-          renderControllerOrders(
-            els.controllerOrdersFocus,
-            vm.history,
-            FOCUS_CHART_HEIGHT,
-          ),
-        );
-      }
-      if (plotVisible("plot-spoil")) {
-        profileSync("renderActiveFocusPlots.spoilFocus", () =>
-          renderWasteBars(
-            els.spoilFocus,
-            vm.history,
-            FOCUS_CHART_HEIGHT,
-            wasteBarYMax(vm.history),
-          ),
+      if (plotVisible("plot-damped-sw-demo")) {
+        profileSync("renderActiveFocusPlots.dampedSwDemo", () =>
+          renderDampedSwDemoFocus(),
         );
       }
     });
@@ -1309,6 +1330,7 @@ export function initStudio(app: HTMLElement): () => void {
         onControllerChange(partial: Partial<ControllerControlsState>) {
           controllerState = { ...controllerState, ...partial };
           sectionControlsApi.updateController(controllerState);
+          renderActiveFocusPlots();
         },
       },
       (caseSize) => {

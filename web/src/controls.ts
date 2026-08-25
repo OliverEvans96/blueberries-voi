@@ -346,29 +346,13 @@ function logisticsPlotBlocks(): string {
 
 function autopilotPlotBlocks(): string {
   return `
-        <div class="focus-plot tuning-drawer-slot" data-plot="plot-controller-orders">
+        <div class="focus-plot tuning-drawer-slot tuning-drawer-slot--full" data-plot="plot-damped-sw-demo">
           <div class="chart-caption impact-caption">
-            Order quantity${infoTipHtml(
-              "Preview of each day's order quantity from the active controller policy, enlarged for tuning autopilot parameters.",
+            damped_sw decomposition${infoTipHtml(
+              "Live preview of protection-window demand, effective inventory Ĩ, target quantile F⁻¹(α), gap, and case-rounded order q = caseRound(ρ·gap). Updates as you move α and ρ.",
             )}
           </div>
-          <div id="chart-controller-orders-focus" class="chart" role="img" aria-label="Order quantity preview"></div>
-        </div>
-        <div class="focus-plot tuning-drawer-slot" data-plot="plot-spoil">
-          <div class="chart-caption impact-caption">
-            Spoilage${infoTipHtml(
-              "Preview of daily units spoiled. Unavailable when waste isn't observed.",
-            )}
-          </div>
-          <div id="chart-spoil-focus" class="chart" role="img" aria-label="Spoilage preview"></div>
-        </div>
-        <div class="focus-plot tuning-drawer-slot" data-plot="plot-age-comp">
-          <div class="chart-caption impact-caption">
-            Historical Freshness Summary${infoTipHtml(
-              "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
-            )}
-          </div>
-          <div id="chart-age-comp-focus-host-autopilot" class="chart-host"></div>
+          <div id="chart-damped-sw-demo" class="chart damped-sw-demo-slot" role="img" aria-label="Damped survival-weighted controller demo"></div>
         </div>`;
 }
 
@@ -454,63 +438,34 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="autopilot" hidden>
         <p class="hint">
-          Policy and rollout budgets feed Autopilot / act — physics still needs Reset.
+          damped_sw α / ρ feed Autopilot / act — physics still needs Reset.
         </p>
         <div class="field">
           <span class="field-label">Policy${infoTipHtml(
-            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. rollout simulates several candidate order sizes forward and picks the best. constant always orders the same amount, as a baseline."
+            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. constant always orders the same amount, as a baseline."
           )}</span>
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
-            <button type="button" class="obs-chip policy-chip" data-policy="rollout" title="One-step rollout">rollout</button>
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
         <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
-        <div class="field alpha-rho-field">
-          <span class="field-label">α / ρ${infoTipHtml(
-            "α is the target service-level quantile the order-up-to level is set to (default 0.9). ρ is the damping factor (default 0.8) that limits how much of the gap to that target is closed each day. Drag the pad: left-right moves α, up-down moves ρ."
-          )}</span>
-          <div class="alpha-rho-row">
-            <svg
-              id="alpha-rho-pad"
-              class="alpha-rho-pad"
-              width="120"
-              height="120"
-              viewBox="0 0 120 120"
-              role="slider"
-              aria-label="Alpha and rho tuning pad"
-              tabindex="0"
-            >
-              <rect class="alpha-rho-pad-bg" x="8" y="8" width="104" height="104" rx="4" />
-              <line class="alpha-rho-crosshair alpha-rho-crosshair--h" x1="8" y1="60" x2="112" y2="60" />
-              <line class="alpha-rho-crosshair alpha-rho-crosshair--v" x1="60" y1="8" x2="60" y2="112" />
-              <circle id="alpha-rho-handle" class="alpha-rho-handle" r="6" cx="60" cy="60" />
-            </svg>
-            <div class="alpha-rho-readout">
-              <div>α <span id="val-alpha"></span></div>
-              <div>ρ <span id="val-rho"></span></div>
-            </div>
-          </div>
-        </div>
-        <label class="field">
-          <span class="field-label">H (horizon)${infoTipHtml(
-            "How many days ahead the rollout policy simulates when evaluating a candidate order quantity. Longer horizons cost more compute per decision."
-          )} <span id="val-H"></span></span>
-          <input type="number" id="H" min="1" max="56" step="1" />
+        <!-- rollout chip + budgets hidden in UI; ControllerControlsState defaults still pass through act. -->
+        <label class="field" id="alpha-field">
+          <span class="field-label">α (service level)${infoTipHtml(
+            "Target service-level quantile for protection demand F⁻¹(α). Higher α raises the order-up-to target."
+          )} <span id="val-alpha"></span></span>
+          <input type="range" id="alpha" min="0.5" max="0.99" step="0.01" />
         </label>
-        <label class="field">
-          <span class="field-label">n_rollout_paths${infoTipHtml(
-            "How many simulated future paths the rollout policy averages over when scoring each candidate order. More paths reduce noise but cost more compute."
-          )} <span id="val-n_rollout_paths"></span></span>
-          <input type="number" id="n_rollout_paths" min="1" max="64" step="1" />
+        <label class="field" id="rho-field">
+          <span class="field-label">ρ (damping)${infoTipHtml(
+            "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster."
+          )} <span id="val-rho"></span></span>
+          <input type="range" id="rho" min="0.1" max="1" step="0.01" />
         </label>
-        <label class="field">
-          <span class="field-label">candidate_case_radius${infoTipHtml(
-            "How many case-multiples above and below the base order quantity rollout searches — a radius of 1 checks one case up and one case down."
-          )} <span id="val-candidate_case_radius"></span></span>
-          <input type="number" id="candidate_case_radius" min="0" max="8" step="1" />
-        </label>
+        <p class="meta-readonly alpha-rho-disabled-hint" id="alpha-rho-disabled-hint" hidden>
+          Constant policy — α / ρ apply to damped_sw only.
+        </p>
         <label class="field">
           <span class="field-label">n_particles${infoTipHtml(
             "How many particles the filter uses to track freshness belief. More particles give a smoother belief at the cost of more compute."
@@ -530,29 +485,16 @@ function mountSectionControlsDom(
 
   let controllerState: ControllerControlsState = { ...initialController };
 
-  const ALPHA_MIN = 0.5;
-  const ALPHA_MAX = 0.99;
-  const RHO_MIN = 0.1;
-  const RHO_MAX = 1;
-  const PAD_PAD = 8;
-  const PAD_SIZE = 120;
-
-  function alphaRhoToPad(alpha: number, rho: number): { cx: number; cy: number } {
-    const inner = PAD_SIZE - PAD_PAD * 2;
-    const cx =
-      PAD_PAD + ((alpha - ALPHA_MIN) / (ALPHA_MAX - ALPHA_MIN)) * inner;
-    const cy =
-      PAD_PAD + (1 - (rho - RHO_MIN) / (RHO_MAX - RHO_MIN)) * inner;
-    return { cx, cy };
-  }
-
-  function padToAlphaRho(cx: number, cy: number): { alpha: number; rho: number } {
-    const inner = PAD_SIZE - PAD_PAD * 2;
-    const ax = Math.min(1, Math.max(0, (cx - PAD_PAD) / inner));
-    const ry = Math.min(1, Math.max(0, (cy - PAD_PAD) / inner));
-    const alpha = ALPHA_MIN + ax * (ALPHA_MAX - ALPHA_MIN);
-    const rho = RHO_MIN + (1 - ry) * (RHO_MAX - RHO_MIN);
-    return { alpha, rho };
+  function syncAlphaRhoAvailability(policy: ControllerPolicy): void {
+    const disabled = policy === "constant";
+    for (const id of ["alpha", "rho"] as const) {
+      const input = root.querySelector(`#${id}`) as HTMLInputElement | null;
+      const field = root.querySelector(`#${id}-field`) as HTMLElement | null;
+      if (input) input.disabled = disabled;
+      if (field) field.style.opacity = disabled ? "0.45" : "";
+    }
+    const hint = root.querySelector("#alpha-rho-disabled-hint") as HTMLElement | null;
+    if (hint) hint.hidden = !disabled;
   }
 
   function syncControlAvailability(channels: SimConfig["obs_channels"]): void {
@@ -620,23 +562,16 @@ function mountSectionControlsDom(
     root.querySelectorAll<HTMLButtonElement>(".policy-chip").forEach((btn) => {
       btn.classList.toggle("is-active", btn.dataset.policy === s.policy);
     });
-    const handle = root.querySelector("#alpha-rho-handle") as SVGCircleElement | null;
+    syncAlphaRhoAvailability(s.policy);
+    const alphaEl = root.querySelector("#alpha") as HTMLInputElement | null;
+    const rhoEl = root.querySelector("#rho") as HTMLInputElement | null;
     const alphaLabel = root.querySelector("#val-alpha") as HTMLElement | null;
     const rhoLabel = root.querySelector("#val-rho") as HTMLElement | null;
-    const pos = alphaRhoToPad(s.alpha, s.rho);
-    if (handle) {
-      handle.setAttribute("cx", String(pos.cx));
-      handle.setAttribute("cy", String(pos.cy));
-    }
+    if (alphaEl) alphaEl.value = String(s.alpha);
+    if (rhoEl) rhoEl.value = String(s.rho);
     if (alphaLabel) alphaLabel.textContent = s.alpha.toFixed(2);
     if (rhoLabel) rhoLabel.textContent = s.rho.toFixed(2);
-    for (const id of [
-      "H",
-      "n_rollout_paths",
-      "candidate_case_radius",
-      "n_particles",
-      "intervalMs",
-    ] as const) {
+    for (const id of ["n_particles", "intervalMs"] as const) {
       const el = root.querySelector(`#${id}`) as HTMLInputElement;
       el.value = String(s[id]);
       const valLabel = root.querySelector(`#val-${id}`) as HTMLElement | null;
@@ -693,45 +628,20 @@ function mountSectionControlsDom(
     });
   });
 
-  const alphaRhoPad = root.querySelector("#alpha-rho-pad") as SVGSVGElement;
-  let padDragging = false;
-
-  function applyPadPoint(clientX: number, clientY: number): void {
-    const rect = alphaRhoPad.getBoundingClientRect();
-    const scaleX = PAD_SIZE / rect.width;
-    const scaleY = PAD_SIZE / rect.height;
-    const cx = (clientX - rect.left) * scaleX;
-    const cy = (clientY - rect.top) * scaleY;
-    const { alpha, rho } = padToAlphaRho(cx, cy);
-    controllerState = { ...controllerState, alpha, rho };
-    syncController(controllerState);
-    cb.onControllerChange?.({ alpha, rho });
+  for (const id of ["alpha", "rho"] as const) {
+    const el = root.querySelector(`#${id}`) as HTMLInputElement;
+    el.addEventListener("input", () => {
+      const value = Number(el.value);
+      const label = root.querySelector(`#val-${id}`) as HTMLElement | null;
+      if (label) {
+        label.textContent = value.toFixed(2);
+      }
+      controllerState = { ...controllerState, [id]: value };
+      cb.onControllerChange?.({ [id]: value });
+    });
   }
 
-  alphaRhoPad.addEventListener("pointerdown", (ev) => {
-    padDragging = true;
-    alphaRhoPad.setPointerCapture(ev.pointerId);
-    applyPadPoint(ev.clientX, ev.clientY);
-  });
-  alphaRhoPad.addEventListener("pointermove", (ev) => {
-    if (!padDragging) return;
-    applyPadPoint(ev.clientX, ev.clientY);
-  });
-  alphaRhoPad.addEventListener("pointerup", (ev) => {
-    padDragging = false;
-    alphaRhoPad.releasePointerCapture(ev.pointerId);
-  });
-  alphaRhoPad.addEventListener("pointerleave", () => {
-    padDragging = false;
-  });
-
-  for (const id of [
-    "H",
-    "n_rollout_paths",
-    "candidate_case_radius",
-    "n_particles",
-    "intervalMs",
-  ] as const) {
+  for (const id of ["n_particles", "intervalMs"] as const) {
     const el = root.querySelector(`#${id}`) as HTMLInputElement;
     el.addEventListener("change", () => {
       const value = Number(el.value);

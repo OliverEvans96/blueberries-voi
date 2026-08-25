@@ -116,11 +116,19 @@ describe("T-127 tuning-dock content", () => {
     expect(src).toMatch(/No separate gamma shape knob post f-native migration/i);
   });
 
-  it("autopilot block uses alpha-rho drag pad instead of separate sliders", () => {
+  it("autopilot block uses alpha and rho range sliders instead of drag pad", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
-    expect(src).toMatch(/id=["']alpha-rho-pad["']/);
-    expect(src).not.toMatch(/id=["']alpha["'][\s\S]*type="range"/);
-    expect(src).not.toMatch(/id=["']rho["'][\s\S]*type="range"/);
+    expect(src).toMatch(/type="range"[\s\S]*id=["']alpha["']/);
+    expect(src).toMatch(/type="range"[\s\S]*id=["']rho["']/);
+    expect(src).not.toMatch(/id=["']alpha-rho-pad["']/);
+  });
+
+  it("autopilot block hides rollout chip and rollout budget fields in UI", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/data-policy=["']rollout["']/);
+    expect(src).not.toMatch(/id=["']H["']/);
+    expect(src).not.toMatch(/id=["']n_rollout_paths["']/);
+    expect(src).not.toMatch(/id=["']candidate_case_radius["']/);
   });
 
   it("DEFAULT_CONTROLLER_CONTROLS defaults policy to damped_sw", () => {

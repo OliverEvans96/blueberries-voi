@@ -1420,38 +1420,9 @@ input[type="number"] {
   font-size: 0.9rem;
 }
 
-.alpha-rho-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.alpha-rho-pad-bg {
-  fill: color-mix(in srgb, var(--paper-edge, #d1d5db) 35%, var(--paper, #fff));
-  stroke: var(--paper-edge, #d1d5db);
-}
-
-.alpha-rho-crosshair {
-  stroke: var(--forecast);
-  stroke-width: 1;
-  stroke-dasharray: 4 3;
-  opacity: 0.75;
-  pointer-events: none;
-}
-
-.alpha-rho-handle {
-  fill: #f59e0b;
-  stroke: var(--forecast);
-  stroke-width: 2;
-  cursor: grab;
-}
-
-.alpha-rho-readout {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.alpha-rho-disabled-hint {
   font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 /* T-140 week calendar — delivery / order weekday widget (T-148 Sunday-first) */
