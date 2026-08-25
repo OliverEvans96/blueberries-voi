@@ -54,15 +54,15 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    expect(host).toHaveTextContent("(1) The model");
-    expect(host).toHaveTextContent("(2) The filter");
-    expect(host).toHaveTextContent("(3) The controller");
+    expect(host).toHaveTextContent("The model");
+    expect(host).toHaveTextContent("The filter");
+    expect(host).toHaveTextContent("The controller");
     expect(host).toHaveTextContent("A hidden shelf of blueberries");
     expect(host).toHaveTextContent(/produce manager/i);
     expect(host).toHaveTextContent(/Autopilot mode/i);
   });
 
-  it("uses inline step numbers without hanging body indent", () => {
+  it("shows green step circles inline with labels, body full-width below", () => {
     const host = makeHost();
 
     render(
@@ -73,8 +73,10 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    expect(host.querySelector(".welcome-modal-step-index")).toBeNull();
-    expect(host.querySelector(".welcome-modal-step-heading")).not.toBeNull();
+    const indices = host.querySelectorAll(".welcome-modal-step-index");
+    expect(indices).toHaveLength(3);
+    expect(indices[0]?.textContent).toBe("1");
+    expect(host.querySelector(".welcome-modal-step-copy")).toBeNull();
   });
 
   it("calls onDismiss when the close button is clicked", () => {
