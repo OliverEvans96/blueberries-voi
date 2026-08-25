@@ -95,7 +95,7 @@ describe("WelcomeModal", () => {
     expect(onDismiss).toHaveBeenCalled();
   });
 
-  it("calls onDismiss when the Place Order button is clicked", () => {
+  it("calls onDismiss when the Start exploring button is clicked", () => {
     const host = makeHost();
     const onDismiss = vi.fn();
 
@@ -107,7 +107,7 @@ describe("WelcomeModal", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Place Order" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start exploring" }));
     expect(onDismiss).toHaveBeenCalled();
   });
 
@@ -130,6 +130,6 @@ describe("WelcomeModal", () => {
       createElement(WelcomeModal, { open: true, onDismiss: () => undefined }),
     );
 
-    expect(screen.getByText("Place Order")).toBeInTheDocument();
+    expect(screen.getByText("Start exploring")).toBeInTheDocument();
   });
 });

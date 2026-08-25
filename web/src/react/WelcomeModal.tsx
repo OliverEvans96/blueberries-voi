@@ -135,8 +135,8 @@ export function WelcomeModal({
           </div>
 
           <p className="welcome-modal-footer-note">
-            Turn a knob, press Place Order, and watch these three pieces play
-            out together. The{" "}
+            Turn a knob, press Advance, and watch these three pieces play out
+            together. The{" "}
             <a href={STUDIO_DOCS_URL} target="_blank" rel="noopener noreferrer">
               docs
             </a>{" "}
@@ -148,7 +148,7 @@ export function WelcomeModal({
             className="welcome-modal-cta"
             onClick={onDismiss}
           >
-            Place Order
+            Start exploring
           </button>
         </dialog>,
         host,
