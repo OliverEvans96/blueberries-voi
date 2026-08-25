@@ -50,7 +50,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
   {
     id: "logistics",
     label: "Logistics",
-    blurb: "Case size and base-stock set how you refill the cooler each day.",
+    blurb: "Case size and lead time set how you refill the cooler each day.",
     plotIds: ["plot-logistics-calendar", "plot-age-comp"],
     controlSection: "logistics",
   },

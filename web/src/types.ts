@@ -90,7 +90,6 @@ export type SimConfig = {
   lead_time: number;
   /** monday0 delivery weekdays (default MWF); order days derived from lead time. */
   delivery_weekdays: number[];
-  base_stock: number;
   seed: number;
   obs_scenario: ObsScenarioKey;
   obs_channels: ObsChannels;

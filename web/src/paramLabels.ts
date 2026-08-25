@@ -79,12 +79,6 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
       "Units packed per case. Orders are rounded to the nearest whole case before being sent.",
     tier: "Reset",
   },
-  base_stock: {
-    label: "Base-stock target",
-    tooltip:
-      "Reference on-hand target line shown on the inventory chart. Not used by the live ordering policy — damped_sw and rollout compute their own target each day.",
-    tier: "Reset",
-  },
   lead_time: {
     label: "Lead time (days)",
     tooltip:
