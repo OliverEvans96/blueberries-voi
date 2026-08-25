@@ -73,7 +73,9 @@ def _capture_screenshot(port: int, raw_path: Path) -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1920, "height": 1080})
-        page.goto(f"http://localhost:{port}/", wait_until="domcontentloaded", timeout=60000)
+        page.goto(
+            f"http://localhost:{port}/", wait_until="domcontentloaded", timeout=60000
+        )
         page.wait_for_selector(".cockpit-grid", state="visible", timeout=30000)
         page.wait_for_function(
             "() => document.querySelector('#engine-status')?.getAttribute('data-status') !== 'loading'",
