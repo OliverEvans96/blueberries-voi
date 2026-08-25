@@ -191,13 +191,15 @@ describe("renderSalesDemand forecast overlay", () => {
     expect(bandD.length).toBeGreaterThan(0);
   });
 
-  it("legend includes forecast entries when forecast is present", () => {
+  it("legend includes a single forecast entry when forecast is present", () => {
     const el = host();
     const forecast = buildDemandForecastRows(0, FORECAST_SUMMARY, 2);
     renderSalesDemand(el, [sampleDay(0, 5, 10)], 130, forecast);
     const labels = [...el.querySelectorAll(".legend-label")].map((t) => t.textContent);
-    expect(labels).toContain("Forecast");
-    expect(labels).toContain("p10–p90");
+    expect(labels).toEqual(["Demand", "Sales", "Forecast"]);
+    const forecastGroup = el.querySelector(".legend .sd-forecast-band");
+    expect(forecastGroup).not.toBeNull();
+    expect(el.querySelector(".legend .sd-forecast-mean")).not.toBeNull();
   });
 
   it("anchors forecast and today marker on last history day when episode cursor is ahead", () => {

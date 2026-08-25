@@ -50,7 +50,9 @@ describe("Store chart-stack missed sales (T-116)", () => {
   });
 
   it("els.stockout binds #chart-stockout", () => {
-    expect(logicSrc).toMatch(/stockout:\s*q<HTMLElement>\("#chart-stockout"\)/);
+    expect(logicSrc).toMatch(
+      /get stockout\(\):\s*HTMLElement[\s\S]*?q<HTMLElement>\("#chart-stockout"\)/,
+    );
   });
 
   it("beliefFreshnessHoverFocus maps spoilage hover source to spoiled focus", () => {

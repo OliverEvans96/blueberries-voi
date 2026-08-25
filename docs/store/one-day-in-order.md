@@ -46,6 +46,6 @@ Independent per-unit gamma aging (see [spoilage and waste](/store/spoilage-waste
 
 ## Caveats
 
-- The step order is fixed for every rung and every policy in the model; there is no scenario where, say, delivery happens before sales.
+- The step order is fixed for every observation scenario and every policy in the model; there is no case where, say, delivery happens before sales.
 - Everything within a step happens at day granularity — the model doesn't resolve *when during the day* aging, a sale, or a delivery occurred, only their fixed relative order.
 - Demand for the day is drawn as a single aggregate number (see the demand-calendar page), not as individual customers arriving at distinct times that could interleave with a same-day delivery — same-day delivery exclusion is enforced structurally (step ordering), not by modeling time-of-day.

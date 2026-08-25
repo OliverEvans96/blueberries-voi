@@ -11,8 +11,8 @@ Every belief the filter holds is built from three independent choices about what
 store *instruments*: what code gets scanned at the register, whether waste gets scanned
 at all, and what the supplier tells you about a shipment's journey. Nothing else feeds
 the model — there is no fourth channel and no way to observe freshness directly.
-Understanding this grid helps in reading the rest of this section, since the named
-"rungs" (P0, P1, F1, ...) are just labels for points on it.
+Understanding this grid helps in reading the rest of this section, since the seven named
+[observation scenarios](./observation-scenarios.md) are just labels for points on it.
 
 ![Three channel axes with named presets highlighted on the 12-combination grid](/figures/obs-channel-grid-presets.png)
 
@@ -32,9 +32,9 @@ Think of a grocer choosing hardware and process. There are three independent swi
 
 Each switch is independent of the other two — a store could run lot-resolved codes at
 POS with a temperature-logged pallet but *no* waste scanning at all, and the model
-handles that combination the same way it handles any named rung. That independence is
-the point of the design: it shows what each *kind* of instrument buys you, rather than
-bundling everything into a handful of fixed packages.
+handles that combination the same way it handles any named observation scenario. That
+independence is the point of the design: it shows what each *kind* of instrument buys
+you, rather than bundling everything into a handful of fixed packages.
 
 ## The math
 
@@ -60,9 +60,9 @@ identify lots at the register.
 
 The three switches are kept orthogonal because POS resolution, waste resolution, and
 delivery metadata are independent teaching axes. Collapsing them into a handful of fixed
-presets would hide that independence from the reader. Keeping the named rungs as the
-only selectable unit was rejected as the sole interface because it would not show which
-*component* of instrumentation is driving an information gain.
+presets would hide that independence from the reader. Keeping the named observation
+scenarios as the only selectable unit was rejected as the sole interface because it would
+not show which *component* of instrumentation is driving an information gain.
 
 Waste granularity is derived from the POS code-type switch rather than tracked as its
 own free choice, which keeps the model simpler at the cost of one representational gap,
@@ -70,7 +70,8 @@ described below.
 
 **Caveat:** because waste granularity is coupled to code type, the model cannot
 represent a store that reads plain UPCs at checkout but gets per-lot waste detail from a
-separate lot-labeled workflow. See [Rungs](./rungs.md) for exactly where this shows up.
+separate lot-labeled workflow. See [Observation scenarios](./observation-scenarios.md)
+for exactly where this shows up.
 
 ## In the code
 
@@ -91,6 +92,7 @@ The channel grid says nothing about *how good* an instrument is once installed �
 temperature logger that samples once a day and one that samples every hour both set
 `delivery_history = temperature_history`; the model does not currently distinguish
 sampling density within a channel. It also says nothing about cost: buying a channel is
-a business decision covered narratively on the [Rungs](./rungs.md) page, not something
-the grid itself prices. And as noted above, the grid cannot represent "lot-resolved
-waste without lot-resolved POS."
+a business decision covered narratively on the
+[Observation scenarios](./observation-scenarios.md) page, not something the grid itself
+prices. And as noted above, the grid cannot represent "lot-resolved waste without
+lot-resolved POS."

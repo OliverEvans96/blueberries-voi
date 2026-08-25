@@ -74,7 +74,8 @@ aging loss typically is, how "prefer fresher" is weighted, and how a delivery's
 starting freshness is chosen are each covered on their own pages with the numbers
 attached. It also doesn't cover what the store gets to see: a unit spoiling or
 selling doesn't mean anyone running the store observed it happen. What's
-observable depends on the knowledge rung, covered under "What the store can see."
+observable depends on the observation scenario, covered under "What the store can
+see."
 
 Every day, repeated, is the whole simulation; the rest of this site explains each
 piece precisely.

@@ -8,7 +8,7 @@ sources:
 
 Every simulated day distills down to one number: the profit that day's decisions produced. It's not just "money in minus money out" — it's built from three terms (margin earned, waste written off, and a penalty for turning a customer away empty-handed), and which terms are included is itself a modeling choice that shapes which ordering policies end up looking good in the experiment.
 
-![Daily profit waterfall: margin, waste, stockout for a P0 day vs an F2 day](/figures/profit-waterfall-daily.png)
+![Daily profit waterfall: margin, waste, stockout for a books-only day vs a lot ID + pack date day](/figures/profit-waterfall-daily.png)
 
 ## The idea
 

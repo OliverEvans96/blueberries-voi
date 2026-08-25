@@ -45,7 +45,7 @@ with.
 
 | Term | Meaning |
 | --- | --- |
-| **rung** | One named point on the observation ladder (`P0`, `P1`, `F1`, `F1s`, `F2a`, `F2`, `F3`): a preset combination of what's observed. |
+| **observation scenario** | One named point on the observation ladder: a preset combination of what's observed (e.g. "books only," "shrink gun," "lot ID at POS"). |
 | **corridor** | A named arrival lane / transit-parameter set (e.g. `abdella_all`, `short_haul`, `long_haul`). |
 | **lot** | One delivery's cohort of units, tracked together from arrival through sale, spoilage, or retirement. |
 | **unit** | One saleable item (one clamshell/punnet) with its own freshness value. |

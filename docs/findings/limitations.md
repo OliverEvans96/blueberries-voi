@@ -59,8 +59,8 @@ section *is* the list rather than a coda to it.
    below-10°C reading through the published end-of-chain measurement. Harvest-to-precool
    field heat — the most thermally damaging part of most cold chains — is out of scope by
    choice. Arrival freshness reported anywhere on this site is therefore an **upper
-   bound**: real arrival freshness is likely somewhat lower than what any rung, including
-   a full temperature trace, would infer. See
+   bound**: real arrival freshness is likely somewhat lower than what any observation
+   scenario, including a full temperature trace, would infer. See
    [Cold-chain arrival model](/store/cold-chain-arrival).
 
 2. **Arrival families are assumed, not fitted, on n=6 shipments.** The duration and

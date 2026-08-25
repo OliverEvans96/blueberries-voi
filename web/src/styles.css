@@ -1352,14 +1352,6 @@ input[type="number"] {
   fill: var(--spoil-strong);
 }
 
-.axis-y--orders .tick text {
-  fill: var(--accent);
-}
-
-.axis-y--waste .tick text {
-  fill: var(--spoil-strong);
-}
-
 .order-dot {
   fill: var(--accent);
 }

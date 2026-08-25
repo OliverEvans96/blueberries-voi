@@ -192,7 +192,7 @@ describe("T-127 sigma slider is linear in 1/σ (precision), not σ", () => {
     expect(onConfigChange).toHaveBeenCalledWith({ sigma: 0.5 });
     const label = host.querySelector("#val-sigma") as HTMLElement;
     expect(label.textContent).toBe("1/σ = 2.00");
-    expect(host.querySelector("#picking-var-chart")).toBeNull();
+    expect(host.querySelector("#picking-var-chart")).not.toBeNull();
 
     document.body.removeChild(host);
   });
@@ -224,5 +224,18 @@ describe("T-127 tuning-dock content — demand controls", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).not.toMatch(/demand-preview-list/);
     expect(src).not.toMatch(/Next few days \(projected μ\)/);
+  });
+
+  it("embeds tuning chart host slots after demand sliders", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/chart-demand-host/);
+    expect(src).toMatch(/chart-demand-forecast-host/);
+    expect(src).toMatch(/picking-var-chart/);
+  });
+
+  it("tier badges show tier text only without info-tip triggers", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).toMatch(/tier-badge tier-badge--/);
+    expect(src).not.toMatch(/tier-badge[\s\S]{0,120}info-tip-trigger/);
   });
 });
