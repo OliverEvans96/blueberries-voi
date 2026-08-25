@@ -8,6 +8,8 @@ sources:
 
 The interactive studio is a single-page store simulator. It runs the same Rust engine as the notebooks and CLI, compiled to WebAssembly, driven day by day (or on Autopilot) from your browser. It lets you watch freshness, orders, and profit move together in real time: turn a knob, press Advance, and see the store react.
 
+![Studio cockpit grid annotated: metrics column, belief column, sidebar, tuning dock](/figures/studio-cockpit-annotated.png)
+
 ## The idea
 
 The studio is laid out in four zones on one screen. A **metrics column** across the top shows cumulative profit and loss, on-hand inventory by freshness band, and the day's order/spoilage/sales flow. Next to it, a **belief column** shows what the particle filter currently believes about freshness across the store — a freshness-over-time heatmap plus a panel showing the controller's inventory-vs-service tradeoff — with the day's run controls (order quantity, Advance, Autopilot, Reset) underneath. A narrow **sidebar** holds the observation-channel toggles (what the filter is allowed to see each day) and a rolling log of the last few days' deliveries, sales, and spoilage. Below all three, a full-width **tuning dock** holds every simulation knob, grouped into topic tabs (Demand, Arrival, Physics under "Sim params"; Logistics; Autopilot), with a small preview chart for whichever tab is open.

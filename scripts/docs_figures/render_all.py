@@ -42,6 +42,7 @@ MODULES = [
     "findings.limitations_map",
     "reference.lot_journey",
     "using_it.run_surfaces",
+    "using_it.studio_cockpit",
 ]
 
 CONTACT_SHEET_SKIP = frozenset({"_qa_contact_sheet.png"})
