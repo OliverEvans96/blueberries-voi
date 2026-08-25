@@ -1,0 +1,160 @@
+.welcome-modal::backdrop {
+  background: rgba(28, 36, 32, 0.45);
+}
+
+.welcome-modal {
+  position: relative;
+  margin: auto;
+  padding: 32px 36px 28px;
+  border: 1px solid var(--paper-edge, #cfc5b0);
+  border-radius: 14px;
+  background: var(--paper, #f7f2e8);
+  color: var(--ink, #1c2420);
+  box-shadow: 0 24px 60px rgba(28, 24, 12, 0.28);
+  max-width: min(94vw, 620px);
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+}
+
+.welcome-modal:not([open]) {
+  display: none;
+}
+
+.welcome-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft, #4a554e);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.welcome-modal-close:hover,
+.welcome-modal-close:focus-visible {
+  background: color-mix(in srgb, var(--accent, #1a3d32) 12%, transparent);
+  color: var(--accent, #1a3d32);
+}
+
+.welcome-modal-title {
+  margin: 0 32px 10px 0;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--accent, #1a3d32);
+}
+
+.welcome-modal-lede {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.welcome-modal-role {
+  margin: 0 0 20px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink-soft, #4a554e);
+}
+
+.welcome-modal-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 0 0 20px;
+}
+
+.welcome-modal-step {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--paper-edge, #cfc5b0);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper, #f7f2e8) 70%, #fff);
+}
+
+.welcome-modal-step-index {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent, #1a3d32);
+  color: var(--paper, #f7f2e8);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.welcome-modal-step-copy {
+  min-width: 0;
+}
+
+.welcome-modal-step-label {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--focus, #b8860b);
+}
+
+.welcome-modal-step-title {
+  margin: 2px 0 4px;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink, #1c2420);
+}
+
+.welcome-modal-step-body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink-soft, #4a554e);
+}
+
+.welcome-modal-footer-note {
+  margin: 0 0 20px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft, #4a554e);
+}
+
+.welcome-modal-footer-note a {
+  color: var(--accent, #1a3d32);
+}
+
+.welcome-modal-cta {
+  display: block;
+  margin: 0 0 0 auto;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #1a3d32);
+  color: var(--paper, #f7f2e8);
+  font-family: var(--font-body, "IBM Plex Sans", "Segoe UI", sans-serif);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.welcome-modal-cta:hover,
+.welcome-modal-cta:focus-visible {
+  background: color-mix(in srgb, var(--accent, #1a3d32) 85%, #000);
+}
+
+@media (max-width: 560px) {
+  .welcome-modal {
+    padding: 26px 20px 22px;
+  }
+
+  .welcome-modal-steps {
+    grid-template-columns: 1fr;
+  }
+}
