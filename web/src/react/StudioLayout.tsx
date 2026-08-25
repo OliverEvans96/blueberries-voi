@@ -1,4 +1,5 @@
 import { D3ChartHost } from "./D3ChartHost";
+import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
 import { TitleBarBlogLink, TitleBarExternalActions } from "./TitleBarLinks";
 
@@ -34,34 +35,34 @@ export function StudioLayout() {
           </div>
           <div className="title-bar-actions">
             <TitleBarExternalActions />
-            <button
-              type="button"
-              id="tuning-drawer-trigger"
-              className="tuning-drawer-trigger"
-              aria-label="Simulation parameters"
-              aria-expanded="false"
-              aria-controls="tuning-drawer"
-            />
-            <InfoTip alignEnd>
-              Opens the full simulation-parameters tuning dock, with every
-              knob for demand, arrival, physics, logistics, and autopilot
-              grouped into topic tabs.
-            </InfoTip>
-            <span
-              id="engine-status"
-              className="engine-status"
-              data-status="loading"
-              role="status"
-              aria-live="polite"
+            <HostHoverTip
+              alignEnd
+              tip="Opens the full simulation-parameters tuning dock, with every knob for demand, arrival, physics, logistics, and autopilot grouped into topic tabs."
             >
-              <span className="engine-status-dot" aria-hidden="true" />
-              <span className="engine-status-label">Loading</span>
-            </span>
-            <InfoTip alignEnd>
-              Shows whether the Rust simulation engine, compiled to
-              WebAssembly and running entirely in your browser, has finished
-              loading and is ready to advance days.
-            </InfoTip>
+              <button
+                type="button"
+                id="tuning-drawer-trigger"
+                className="tuning-drawer-trigger"
+                aria-label="Simulation parameters"
+                aria-expanded="false"
+                aria-controls="tuning-drawer"
+              />
+            </HostHoverTip>
+            <HostHoverTip
+              alignEnd
+              tip="Shows whether the Rust simulation engine, compiled to WebAssembly and running entirely in your browser, has finished loading and is ready to advance days."
+            >
+              <span
+                id="engine-status"
+                className="engine-status"
+                data-status="loading"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="engine-status-dot" aria-hidden="true" />
+                <span className="engine-status-label">Loading</span>
+              </span>
+            </HostHoverTip>
           </div>
         </header>
 
@@ -154,30 +155,41 @@ export function StudioLayout() {
             </div>
           </section>
 
-          <section
-            className="cockpit-pane cockpit-pane--belief panel"
-            data-testid="cockpit-belief"
-            aria-label="Belief"
+          <div
+            className="cockpit-column cockpit-column--center"
+            data-testid="cockpit-center"
           >
-            <div className="panel-head">
-              <span className="heading-with-tip">
-                <h2>Belief</h2>
-                <InfoTip>
-                  This column shows what the particle filter currently
-                  believes about freshness across the shelf's lots: a crowd of
-                  hundreds of complete hypothetical shelf states, weighted by
-                  how well each matches the sales, waste, and lot data
-                  observed so far. It reflects belief, not the hidden
-                  ground-truth freshness state the simulation is actually
-                  running underneath.
-                </InfoTip>
-              </span>
-              <span className="panel-note" id="hover-note">
-                Filter belief over time — hover a day to link charts.
-              </span>
-            </div>
-            <div id="operator-bar-host" />
-            <div className="chart-caption" data-truth-caption="lots">
+            <section
+              className="cockpit-pane cockpit-pane--run panel"
+              data-testid="cockpit-run"
+              aria-label="Run"
+            >
+              <div id="operator-bar-host" />
+            </section>
+
+            <section
+              className="cockpit-pane cockpit-pane--belief panel"
+              data-testid="cockpit-belief"
+              aria-label="Belief"
+            >
+              <div className="panel-head">
+                <span className="heading-with-tip">
+                  <h2>Belief</h2>
+                  <InfoTip>
+                    This column shows what the particle filter currently
+                    believes about freshness across the shelf's lots: a crowd of
+                    hundreds of complete hypothetical shelf states, weighted by
+                    how well each matches the sales, waste, and lot data
+                    observed so far. It reflects belief, not the hidden
+                    ground-truth freshness state the simulation is actually
+                    running underneath.
+                  </InfoTip>
+                </span>
+                <span className="panel-note" id="hover-note">
+                  Filter belief over time — hover a day to link charts.
+                </span>
+              </div>
+              <div className="chart-caption" data-truth-caption="lots">
               Freshness × time
               <InfoTip>
                 A heatmap of the particle filter's believed freshness
@@ -242,63 +254,8 @@ export function StudioLayout() {
               aria-label="Belief age marginal"
               hidden
             />
-            <div className="chart-caption impact-caption">
-              Controller tradeoff
-              <InfoTip>
-                Shows the tradeoff the ordering controller navigates between
-                carrying too much inventory (spoilage risk) and too little
-                (stockout risk). The controller orders up to a target
-                quantile of expected demand, tuned by simulating outcomes
-                rather than taken from the classic newsvendor formula,
-                because leftover fruit here doesn't vanish at day's end — it
-                stays on the shelf and keeps aging into tomorrow.
-              </InfoTip>
-            </div>
-            <div
-              className="belief-tradeoff-panel"
-              data-testid="belief-tradeoff-panel"
-            >
-              <div
-                className="tuning-cluster-tabs belief-tradeoff-tabs"
-                role="tablist"
-                aria-label="Tradeoff view"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  data-tradeoff-tab="curve"
-                  aria-selected="true"
-                  aria-controls="tradeoff-curve-host"
-                >
-                  Curve
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  data-tradeoff-tab="histogram"
-                  aria-selected="false"
-                  aria-controls="tradeoff-histogram-host"
-                >
-                  Histogram
-                </button>
-              </div>
-              <div
-                id="tradeoff-curve-host"
-                className="tradeoff-chart-host tradeoff-curve chart"
-                data-testid="tradeoff-curve"
-                role="img"
-                aria-label="Tradeoff curve"
-              />
-              <div
-                id="tradeoff-histogram-host"
-                className="tradeoff-chart-host tradeoff-histogram chart"
-                data-testid="tradeoff-histogram"
-                role="img"
-                aria-label="Tradeoff joint histogram"
-                hidden
-              />
-            </div>
-          </section>
+            </section>
+          </div>
 
           <div
             className="cockpit-pane cockpit-pane--sidebar"

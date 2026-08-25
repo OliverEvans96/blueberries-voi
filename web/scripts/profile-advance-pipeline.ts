@@ -8,35 +8,34 @@
  *   await window.__studioProfileAdvance(5)
  */
 // @vitest-environment jsdom
-import { fireEvent, render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { App } from "../src/App";
 import {
   getAdvancePipelineReport,
-  initStudio,
   setAdvanceProfiling,
   setRenderProfiling,
   setRpcProfiling,
   studioProfileAdvanceSteps,
   type AdvancePipelineReport,
 } from "../src/react/studioLogic";
-import { StudioLayout } from "../src/react/StudioLayout";
 
 const ADVANCE_STEPS = 5;
 const BOOTSTRAP_TIMEOUT_MS = 10_000;
 
-async function waitForEngineReady(app: HTMLElement): Promise<void> {
-  const start = performance.now();
-  while (performance.now() - start < BOOTSTRAP_TIMEOUT_MS) {
-    const status = app.querySelector("#engine-status")?.getAttribute("data-status");
-    const advanceBtn = app.querySelector("#btn-advance");
-    if (status === "ready" && advanceBtn) return;
-    if (status === "error") {
-      throw new Error("studio bootstrap failed (engine-status=error)");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("timed out waiting for engine ready + operator bar");
+async function waitForEngineReady(root: HTMLElement): Promise<void> {
+  await waitFor(
+    () => {
+      const status = root.querySelector("#engine-status")?.getAttribute("data-status");
+      if (status === "error") {
+        throw new Error("studio bootstrap failed (engine-status=error)");
+      }
+      expect(status).toBe("ready");
+      expect(root.querySelector("#btn-advance")).not.toBeNull();
+    },
+    { timeout: BOOTSTRAP_TIMEOUT_MS },
+  );
 }
 
 function formatPipelineRow(row: { name: string; meanMs: number; totalMs: number; pct: number; count: number }): string {
@@ -114,8 +113,9 @@ describe("studio advance pipeline profile harness", () => {
       const app = document.createElement("div");
       app.id = "app";
       document.body.appendChild(app);
-      render(createElement(StudioLayout), { container: app });
-      initStudio(app);
+      await act(async () => {
+        render(createElement(App), { container: app });
+      });
 
       await waitForEngineReady(app);
 

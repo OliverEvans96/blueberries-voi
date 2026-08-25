@@ -51,7 +51,9 @@ describe("T-142 studio mount scoping", () => {
 
   it("App.tsx passes containerRef to StudioProvider (T-160)", () => {
     expect(appSrc).toMatch(/useRef<HTMLDivElement>/);
-    expect(appSrc).toMatch(/<StudioProvider containerRef=\{containerRef\}>/);
+    expect(appSrc).toMatch(
+      /<StudioProvider containerRef=\{containerRef\}[^>]*>/,
+    );
   });
 
   it("TuningDrawer portals into scoped host under .bv-studio", () => {
