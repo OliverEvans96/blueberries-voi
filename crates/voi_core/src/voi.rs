@@ -380,7 +380,7 @@ fn run_scenario_episode(
                 shipment_trace: None,
                 temp_traces_by_lot: Vec::new(),
                 pack_date_days,
-                pack_date_days_by_lot: Vec::new(),
+                pack_dates_by_lot: Vec::new(),
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);

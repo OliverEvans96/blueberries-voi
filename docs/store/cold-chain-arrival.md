@@ -132,7 +132,7 @@ One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$
 | Exact spoiled-on-arrival atom | $P(f=0\mid\Lambda)=\gamma_q(k\Lambda,1/\theta)$ | `crates/voi_core/src/arrival.rs:426` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
 | Regularized incomplete gamma functions | $\gamma_p, \gamma_q$ | `crates/voi_core/src/physics.rs:125` ([`gamma_p`](/api/rust/voi_core/physics/fn.gamma_p.html)), `:140` (`gamma_q`) |
 | Position multiplier draw (per unit) | $\psi$ | `crates/voi_core/src/arrival.rs:442` (`draw_psi_pos`) |
-| Truncated-normal transit temperature draw | $\bar T$ | `crates/voi_core/src/arrival.rs:431` (`sample_truncated_normal`) |
+| Bottom-up transit temperature trace | — | `crates/voi_core/src/shipments.rs:98` (`truth_transit_trace`) |
 | Calibrated artifact (live numbers, corridors) | all of the above | `data/abdella/arrival_model.json` |
 | Reporting-only calibration overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 

@@ -432,7 +432,7 @@ impl EngineSession {
         let (
             delivery_lot_f,
             pack_date_days,
-            pack_date_days_by_lot,
+            pack_dates_by_lot,
             shipment_trace,
             temp_traces_by_lot,
             arrival_lot_ids,
@@ -538,7 +538,7 @@ impl EngineSession {
             shipment_trace,
             temp_traces_by_lot,
             pack_date_days,
-            pack_date_days_by_lot,
+            pack_dates_by_lot,
         };
         let day_idx = self.day;
         if self.uses_filter() {
@@ -1077,8 +1077,8 @@ impl EngineSession {
                         serde_json::Value::Null
                     },
                     "pack_date_days": obs.pack_date_days,
-                    "pack_date_days_by_lot": if log.arrivals > 0 {
-                        serde_json::json!(log.pack_date_days_by_lot)
+                    "pack_dates_by_lot": if log.arrivals > 0 {
+                        serde_json::json!(log.pack_dates_by_lot)
                     } else {
                         serde_json::Value::Null
                     },

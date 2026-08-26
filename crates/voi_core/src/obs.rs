@@ -82,7 +82,7 @@ pub struct RichDay {
     /// Pack date of today's arrival, in days, if known (legacy single-lot / first lot).
     pub pack_date_days: Option<i32>,
     /// Per-lot pack dates when delivery history resolves per sub-lot (ADR 0149).
-    pub pack_date_days_by_lot: Vec<i32>,
+    pub pack_dates_by_lot: Vec<i32>,
 }
 
 /// Masked observation consumed by `filter_step` (absent = `None`, never invented 0).
@@ -106,7 +106,7 @@ pub struct FilterObs {
     /// Pack date of today's arrival in days, if `pack_date` is in the mask.
     pub pack_date_days: Option<i32>,
     /// Per-lot pack dates for filter birth / F2 wire (not mask-gated).
-    pub pack_date_days_by_lot: Option<Vec<i32>>,
+    pub pack_dates_by_lot: Option<Vec<i32>>,
     /// Elapsed times (days) for the temperature trace, if `temperature_history` is in the mask.
     pub temp_times_d: Option<Vec<f64>>,
     /// Temperatures (°C) paired with `temp_times_d`, if `temperature_history` is in the mask.
@@ -127,7 +127,7 @@ impl Default for FilterObs {
             arrival_lot_ids: None,
             arrivals_by: None,
             pack_date_days: None,
-            pack_date_days_by_lot: None,
+            pack_dates_by_lot: None,
             temp_times_d: None,
             temp_temps_c: None,
             temp_traces_by_lot: None,
@@ -332,8 +332,8 @@ impl ObsMask {
         } else {
             None
         };
-        let pack_by_lot = if rich.arrivals > 0 && !rich.pack_date_days_by_lot.is_empty() {
-            Some(rich.pack_date_days_by_lot.clone())
+        let pack_by_lot = if rich.arrivals > 0 && !rich.pack_dates_by_lot.is_empty() {
+            Some(rich.pack_dates_by_lot.clone())
         } else {
             None
         };
@@ -380,7 +380,7 @@ impl ObsMask {
             } else {
                 None
             },
-            pack_date_days_by_lot: pack_by_lot,
+            pack_dates_by_lot: pack_by_lot,
             temp_times_d,
             temp_temps_c,
             temp_traces_by_lot: per_lot_traces,

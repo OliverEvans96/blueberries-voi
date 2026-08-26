@@ -450,7 +450,7 @@ fn resolve_arrival_f_law_per_lot() {
     .expect("read unit_pf.rs");
     assert!(
         body.contains("resolve_arrival_f_law_per_lot")
-            || (body.contains("for ") && body.contains("pack_date_days_by_lot")),
+            || (body.contains("for ") && body.contains("pack_dates_by_lot")),
         "unit_pf must resolve arrival law per lot, not once per delivery"
     );
 
@@ -466,7 +466,7 @@ fn resolve_arrival_f_law_per_lot() {
     }
     let events = sess_f2.events_value(0);
     let day_ev = first_delivery_day(&events);
-    let pack_dates = day_ev["pack_date_days_by_lot"]
+    let pack_dates = day_ev["pack_dates_by_lot"]
         .as_array()
         .expect("F2 events must expose per-lot pack dates");
     assert_eq!(pack_dates.len(), LOTS_PER_DELIVERY);
@@ -498,7 +498,7 @@ fn filter_obs_carries_per_lot_pack_dates_and_traces() {
     let events = sess.events_value(0);
     let day_ev = first_delivery_day(&events);
 
-    let pack_dates = day_ev["pack_date_days_by_lot"]
+    let pack_dates = day_ev["pack_dates_by_lot"]
         .as_array()
         .expect("events wire must carry per-lot pack dates on F3 delivery days");
     assert_eq!(pack_dates.len(), LOTS_PER_DELIVERY);
