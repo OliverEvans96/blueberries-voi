@@ -9,24 +9,37 @@ Generated: 2026-08-25T20:16:00Z
 - Fit script: `scripts/fit_abdella_arrival.py`
 - Shipments in fit: **6**
 
-## Fitted parameters
+## Fitted parameters (duration only)
 
 | Field | Value | Method |
 | --- | --- | --- |
-| `mu_T` | 2.781762 | mean T from shipment phi_bar via Q10 |
-| `sigma_T` | 0.527213 | sd T across six shipments |
-| `sigma_pos` | 0.08 | keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos) |
 | `abdella_all.d_min` | 1.852778 | delayed-gamma moments on six d |
 | `abdella_all.delay_shape` | 3.008681 | delayed-gamma moments |
 | `abdella_all.delay_scale` | 0.973726 | delayed-gamma moments |
 
-## Adjustment knobs (not refit by default)
+Truncated-normal temperature fit is **retired** (v2 generative uses trip modes + hourly OU).
+
+## Assumed thermal and break knobs (not fitted)
+
+| Field | Value | Decision |
+| --- | --- | --- |
+| `thermal_modes` | cool/nominal/warm | Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.25, p_n=0.5, p_w=0.25; offsets -1.0/0.0/1.5 C). Tuned under rho=0 for phi_bar SD, not fit from six traces. |
+| `sigma_hour` | 0.35 | Hourly OU amplitude (0.35 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces. |
+| `T_break` | 12.0 | rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement. |
+| `rho` | 0.08 | assumed break rate (see breaks note) |
+| `tau_bar` | 0.5 | assumed mean break duration (see breaks note) |
+| `legs` | three named stages | Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); not separately MLE-fit from n=6. |
+
+Mode probabilities committed: cool p=0.25, nominal p=0.5, warm p=0.25.
+
+## Other adjustment knobs (not refit by default)
 
 | Knob | Committed | Decision |
 | --- | --- | --- |
+| `sigma_pos` | 0.08 | keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos) |
 | `gamma_shape` | 2.0 | keep gamma_shape=2.0, gamma_scale=0.03571428571428571 (MOD eta_ref=14.0 continuity; not identified from n=6) |
 | `gamma_scale` | 0.03571428571428571 | tied to MOD shelf-life invariant |
-| `reference_life_days` | 14.0 | literature eta_ref continuity |
+| `reference_life_days` | 14.0 | literature eta_ref |
 | `q10` | 3.0 | ModelParams / ADR 0008 default |
 | `T_ref` | 0.0 | ADR 0041 convention |
 
