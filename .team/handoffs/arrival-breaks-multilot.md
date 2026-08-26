@@ -1,8 +1,12 @@
 # Handoff — multi-lot deliveries + cold-chain break events
 
 **Date:** 2026-08-26 · **Owner:** Oliver (repo owner, approved the plan directly)
-**Approved plan:** `/home/oliver/.claude/plans/i-d-like-to-make-humming-reddy.md` — read this
-first, it is the authority. This document only records state and open questions.
+**Approved plan:** [`.team/plans/arrival-breaks-multilot.md`](../plans/arrival-breaks-multilot.md)
+— read this first, it is the authority on design intent. Copied into the repo verbatim from
+the planning session so it does not depend on that session's scratch directory. Note its
+header: the plan contains two known defects, corrected in this document.
+
+This document records state, corrections, and open questions.
 
 The previous agent was acting as **manager only** at Oliver's explicit instruction:
 *"delegate the actual implementation only to sonnet subagents — you are just the manager —
