@@ -4,34 +4,34 @@
     {
       "name": "precool_staging",
       "weight": 0.15,
-      "setpoint_c": 0.5
+      "setpoint_c": 0.35
     },
     {
       "name": "line_haul",
       "weight": 0.6,
-      "setpoint_c": 2.0
+      "setpoint_c": 2.58
     },
     {
       "name": "dock_receiving",
       "weight": 0.25,
-      "setpoint_c": 5.0
+      "setpoint_c": 4.32
     }
   ],
   "thermal_modes": {
     "cool": {
-      "offset_c": -1.0,
-      "p": 0.25
+      "offset_c": -0.12,
+      "p": 0.10
     },
     "nominal": {
       "offset_c": 0.0,
-      "p": 0.5
+      "p": 0.80
     },
     "warm": {
-      "offset_c": 1.5,
-      "p": 0.25
+      "offset_c": 0.22,
+      "p": 0.10
     }
   },
-  "sigma_hour": 0.35,
+  "sigma_hour": 0.028,
   "T_break": 12.0,
   "rho": 0.08,
   "tau_bar": 0.5,
@@ -138,9 +138,9 @@
     "adjustment_notes": {
       "gamma": "keep gamma_shape=2.0, gamma_scale=0.03571428571428571 (MOD eta_ref=14.0 continuity; not identified from n=6)",
       "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)",
-      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); not separately MLE-fit from n=6.",
-      "thermal_modes": "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.25, p_n=0.50, p_w=0.25; offsets -1/0/+1.5 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.",
-      "sigma_hour": "Hourly OU amplitude (0.35 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.",
+      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); compressed setpoints (0.35/2.58/4.32 C) reduce Dirichlet stage-share spread driving phi_bar SD.",
+      "thermal_modes": "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.10, p_n=0.80, p_w=0.10; offsets -0.12/0/+0.22 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.",
+      "sigma_hour": "Hourly OU amplitude (0.028 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.",
       "breaks": "rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement."
     },
     "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6. Schema 2 replaces the truncated-normal mean transit temperature (mu_T/sigma_T/temp_floor_c) with a deterministic legged baseline plus compound-Poisson break events; the temperature trace is now the generative primitive and Lambda is integrated out of it."

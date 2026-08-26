@@ -97,6 +97,12 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
       "How spread out delivered units' freshness is around the lot's average. 1.0 is the natural mix; below tightens it, above widens it.",
     tier: "Reset",
   },
+  arrival_product: {
+    label: "Arrival corridor",
+    tooltip:
+      "Unified Abdella-matched transit law (abdella_all). Trip duration and temperature are drawn from the six-shipment calibration; illustrative short_haul / long_haul lanes are not exposed in the studio.",
+    tier: "Reset",
+  },
   transit_temp_bias_c: {
     label: "Transit temperature bias",
     tooltip:

@@ -437,13 +437,11 @@ function mountSectionControlsDom(
         </p>
         <div class="field">
           ${fieldLabelHtml(
-            "Arrival product (MOD-21)",
-            "The transit lane a delivery travels — its trip duration sets how much freshness a lot has already lost before reaching the shelf. Shorter lanes (e.g. short_haul) deliver fresher stock than longer ones (e.g. long_haul).",
+            "Arrival corridor (MOD-21)",
+            "Unified Abdella-matched transit law: trip duration and temperature path are drawn from the six-shipment calibration (abdella_all). Illustrative short_haul / long_haul lanes are no longer exposed in the studio.",
           )}
-          <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival product">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Bootstrap all six Abdella shipments">All six</button>
-            <button type="button" class="obs-chip arrival-chip" data-arrival="long_haul" title="CA→East long-haul only">Long-haul</button>
-            <button type="button" class="obs-chip arrival-chip" data-arrival="short_haul" title="FL short-haul only (tight)">Short-haul</button>
+          <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Abdella six-shipment unified corridor">Abdella all</button>
           </div>
         </div>
         ${CONFIG_SLIDERS.filter((s) => s.group === "arrival").map(sliderHtml).join("")}
