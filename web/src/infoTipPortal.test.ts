@@ -3,7 +3,7 @@
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { positionInfoTipBubble } from "./infoTipPortal";
+import { positionInfoTipBubble, resolveInfoTipPortalTarget } from "./infoTipPortal";
 
 function mockRect(
   element: Element,
@@ -21,6 +21,44 @@ function mockRect(
     toJSON: () => ({}),
   });
 }
+
+describe("resolveInfoTipPortalTarget", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("returns the nearest open dialog ancestor when present", () => {
+    const portalRoot = document.createElement("div");
+    portalRoot.className = "bv-studio-portal-root";
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    const trigger = document.createElement("button");
+    dialog.appendChild(trigger);
+    document.body.append(portalRoot, dialog);
+
+    expect(resolveInfoTipPortalTarget(trigger)).toBe(dialog);
+  });
+
+  it("falls back to .bv-studio-portal-root when no open dialog", () => {
+    const portalRoot = document.createElement("div");
+    portalRoot.className = "bv-studio-portal-root";
+    const trigger = document.createElement("button");
+    document.body.append(portalRoot, trigger);
+
+    expect(resolveInfoTipPortalTarget(trigger)).toBe(portalRoot);
+  });
+
+  it("falls back when the dialog is not open", () => {
+    const portalRoot = document.createElement("div");
+    portalRoot.className = "bv-studio-portal-root";
+    const dialog = document.createElement("dialog");
+    const trigger = document.createElement("button");
+    dialog.appendChild(trigger);
+    document.body.append(portalRoot, dialog);
+
+    expect(resolveInfoTipPortalTarget(trigger)).toBe(portalRoot);
+  });
+});
 
 describe("positionInfoTipBubble", () => {
   afterEach(() => {

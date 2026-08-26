@@ -110,6 +110,48 @@ describe("InfoTip portal", () => {
     expect(bubble).toHaveStyle({ zIndex: String(INFO_TIP_BUBBLE_Z_INDEX) });
   });
 
+  it("portals into an open dialog when the trigger is inside one", () => {
+    mountPortalRoot();
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    document.body.appendChild(dialog);
+
+    render(createElement(InfoTip, null, "Inside dialog tooltip"), {
+      container: dialog,
+    });
+
+    const trigger = screen.getByRole("button", { name: /more information/i });
+    fireEvent.mouseEnter(trigger);
+
+    expect(dialog.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+    expect(
+      document.querySelector(".bv-studio-portal-root .info-tip-bubble--portaled"),
+    ).toBeNull();
+  });
+
+  it("HostHoverTip portals into an open dialog when the host is inside one", () => {
+    mountPortalRoot();
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    document.body.appendChild(dialog);
+
+    render(
+      createElement(
+        HostHoverTip,
+        { tip: "Drawer host hover help" },
+        createElement("button", { type: "button" }, "Settings"),
+      ),
+      { container: dialog },
+    );
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: /settings/i }));
+
+    expect(dialog.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+    expect(
+      document.querySelector(".bv-studio-portal-root .info-tip-bubble--portaled"),
+    ).toBeNull();
+  });
+
   it("HostHoverTip shows a portaled bubble on host hover without an i glyph", () => {
     const portalRoot = mountPortalRoot();
     render(
@@ -173,6 +215,25 @@ describe("InfoTip portal", () => {
     const bubble = portalRoot.querySelector(".info-tip-bubble--portaled");
     expect(bubble).not.toBeNull();
     expect(bubble).toHaveTextContent("Vanilla portal tooltip");
+
+    cleanup();
+  });
+
+  it("initInfoTipPortal portals into an open dialog when the trigger is inside one", () => {
+    const portalRoot = mountPortalRoot();
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    const host = document.createElement("div");
+    host.innerHTML = infoTipHtml("Vanilla drawer tooltip");
+    dialog.appendChild(host);
+    document.body.appendChild(dialog);
+
+    const cleanup = initInfoTipPortal(document);
+    const trigger = host.querySelector(".info-tip-trigger") as HTMLElement;
+    fireEvent.pointerOver(trigger, { relatedTarget: null });
+
+    expect(dialog.querySelector(".info-tip-bubble--portaled")).not.toBeNull();
+    expect(portalRoot.querySelector(".info-tip-bubble--portaled")).toBeNull();
 
     cleanup();
   });

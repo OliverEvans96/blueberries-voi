@@ -12,8 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  getInfoTipPortalRoot,
   positionInfoTipBubble,
+  resolveInfoTipPortalTarget,
 } from "../infoTipPortal";
 import "../styles/infoTip.css";
 
@@ -94,7 +94,7 @@ export function HostHoverTip({
       } as Record<string, unknown>)
     : children;
 
-  const portalRoot = getInfoTipPortalRoot();
+  const portalRoot = open ? resolveInfoTipPortalTarget(hostRef.current) : null;
   const bubble =
     open && portalRoot
       ? createPortal(

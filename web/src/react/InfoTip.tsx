@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  getInfoTipPortalRoot,
   positionInfoTipBubble,
+  resolveInfoTipPortalTarget,
 } from "../infoTipPortal";
 import "../styles/infoTip.css";
 
@@ -88,7 +88,7 @@ export function InfoTip({ children, alignEnd, openUp }: InfoTipProps) {
     return () => document.removeEventListener("pointerdown", onOutside);
   }, [open]);
 
-  const portalRoot = getInfoTipPortalRoot();
+  const portalRoot = open ? resolveInfoTipPortalTarget(triggerRef.current) : null;
   const bubble =
     open && portalRoot
       ? createPortal(
