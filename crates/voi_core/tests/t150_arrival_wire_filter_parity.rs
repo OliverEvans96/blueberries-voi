@@ -251,3 +251,131 @@ fn t150_wire_filter_parity_guard() {
         MEAN_TOL,
     );
 }
+
+/// T-163 S3.1 / S3.8 — F3 events wire must export three per-lot temperature traces
+/// (multi-lot delivery) instead of a single pooled `temp_times_d` / `temp_temps_c` pair.
+mod t163_events_wire {
+    use serde_json::Value;
+    use voi_core::handle_rpc;
+
+    const LOTS_PER_DELIVERY: usize = 3;
+
+    fn rpc(method: &str, params: &str) -> Value {
+        let req = format!(r#"{{"id":"1","method":"{method}","params":{params}}}"#);
+        let out = handle_rpc(&req);
+        let v: Value = serde_json::from_str(&out).unwrap_or_else(|_| panic!("bad json: {out}"));
+        assert_eq!(v["ok"], true, "rpc {method} failed: {out}");
+        v["result"].clone()
+    }
+
+    #[test]
+    fn t163_f3_events_wire_exports_three_per_lot_traces() {
+        rpc(
+            "init",
+            r#"{"seed":163,"config":{"arrival_product":"abdella_all","obs_scenario":"F3"}}"#,
+        );
+        rpc(
+            "step_n",
+            r#"{"orders":[48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48]}"#,
+        );
+        let events = rpc("events", r#"{"since_day":0}"#);
+        let days = events["days"]
+            .as_array()
+            .expect("events.days array must exist");
+        let delivery_days: Vec<&Value> = days
+            .iter()
+            .filter(|d| d["arrivals"].as_u64().unwrap_or(0) > 0)
+            .collect();
+        assert!(
+            !delivery_days.is_empty(),
+            "RED [S3.1]: expected at least one delivery day in events wire"
+        );
+        for day in delivery_days {
+            let traces = day["temp_traces_by_lot"]
+                .as_array()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "RED [S3.1]: F3 events must expose temp_traces_by_lot on delivery day {:?}",
+                        day["day"]
+                    )
+                });
+            assert_eq!(
+                traces.len(),
+                LOTS_PER_DELIVERY,
+                "RED [S3.1]: expected {LOTS_PER_DELIVERY} per-lot traces on day {:?}, got {}",
+                day["day"],
+                traces.len()
+            );
+            for (i, trace) in traces.iter().enumerate() {
+                let times = trace["times_d"]
+                    .as_array()
+                    .unwrap_or_else(|| panic!("trace[{i}] missing times_d"));
+                let temps = trace["temps_c"]
+                    .as_array()
+                    .unwrap_or_else(|| panic!("trace[{i}] missing temps_c"));
+                assert!(
+                    times.len() >= 3 && times.len() == temps.len(),
+                    "RED [S3.1]: trace[{i}] on day {:?} must be a multi-point spline",
+                    day["day"]
+                );
+                let values: Vec<f64> = temps.iter().filter_map(|t| t.as_f64()).collect();
+                let min_t = values.iter().cloned().fold(f64::INFINITY, f64::min);
+                let max_t = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                assert!(
+                    (max_t - min_t).abs() > 0.05,
+                    "RED [S3.8]: per-lot trace[{i}] must vary (v2 OU/breaks), got {:?}",
+                    values
+                );
+            }
+            let lot_ids = day["arrival_lot_ids"]
+                .as_array()
+                .expect("F3 GSIN must expose arrival_lot_ids");
+            assert_eq!(
+                lot_ids.len(),
+                LOTS_PER_DELIVERY,
+                "RED [S3.1]: arrival_lot_ids length must match lots per delivery"
+            );
+        }
+    }
+
+    #[test]
+    fn t163_f2_events_wire_exports_per_lot_pack_dates() {
+        rpc(
+            "init",
+            r#"{"seed":163,"config":{"arrival_product":"abdella_all","obs_scenario":"F2"}}"#,
+        );
+        rpc(
+            "step_n",
+            r#"{"orders":[48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48]}"#,
+        );
+        let events = rpc("events", r#"{"since_day":0}"#);
+        let days = events["days"].as_array().expect("events.days");
+        let delivery_days: Vec<&Value> = days
+            .iter()
+            .filter(|d| d["arrivals"].as_u64().unwrap_or(0) > 0)
+            .collect();
+        assert!(!delivery_days.is_empty(), "RED [S3.1]: need delivery days");
+        for day in delivery_days {
+            let pack_dates = day["pack_dates_by_lot"].as_array().unwrap_or_else(|| {
+                panic!(
+                    "RED [S3.1]: F2 events must expose pack_dates_by_lot (per-lot), not scalar pack_date_days only — day {:?}",
+                    day["day"]
+                )
+            });
+            assert_eq!(
+                pack_dates.len(),
+                LOTS_PER_DELIVERY,
+                "RED [S3.1]: pack_dates_by_lot must have {LOTS_PER_DELIVERY} entries on day {:?}",
+                day["day"]
+            );
+            let lot_ids = day["arrival_lot_ids"]
+                .as_array()
+                .expect("F2 GSIN exposes arrival_lot_ids");
+            assert_eq!(
+                lot_ids.len(),
+                LOTS_PER_DELIVERY,
+                "arrival_lot_ids must align with pack_dates_by_lot"
+            );
+        }
+    }
+}
