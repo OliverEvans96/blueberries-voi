@@ -782,8 +782,9 @@ impl ArrivalModel {
         taus
     }
 
-    /// Bottom-up stage gamma construction: `d = Σ_k (w_k·d_min + e_k)` with
-    /// `e_k ~ Gamma(w_k·a, b)`, yielding the pooled `d_min + Gamma(a, b)` law.
+    /// Bottom-up Abdella stage_gamma construction: `d = Σ_k (w_k·d_min + e_k)` with
+    /// independent per-leg `stage_gamma` draws `e_k ~ Gamma(w_k·a, b)`, yielding the
+    /// pooled `d_min + Gamma(a, b)` law.
     pub fn draw_bottom_up_duration<R: Rng + ?Sized>(
         &self,
         corridor: &ArrivalCorridor,
