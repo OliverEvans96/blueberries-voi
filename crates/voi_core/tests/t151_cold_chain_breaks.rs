@@ -34,20 +34,6 @@ fn artifact_drops_truncated_normal_fields() {
     }
 }
 
-/// φ_set is the duration-weighted Q10 factor of the deterministic legs, so a break-free
-/// trip has exposure exactly `d · φ_set` — no stochastic thermal wobble at all.
-#[test]
-fn break_free_trip_has_deterministic_exposure() {
-    let m = model();
-    let d = 5.0;
-    let lambda = m.lambda_from_breaks(d, &[]);
-    let expected = d * m.phi_set();
-    assert!(
-        (lambda - expected).abs() < 1e-9,
-        "break-free Λ={lambda} must equal d·φ_set={expected}"
-    );
-}
-
 /// The additive form `Λ = d·φ_set + Σ ε_j` is exact, not an approximation: the trip clock
 /// runs during a break, so the baseline is credited only for `d − Στ`.
 #[test]
@@ -140,25 +126,6 @@ fn trace_shows_break_pulses_within_duration() {
     assert!(
         saw_pulse,
         "over 60 draws at d=6 with rho>0 at least one break pulse should appear"
-    );
-}
-
-/// With `rho = 0` the model degenerates to a purely deterministic thermal path, so every
-/// trip of the same duration has identical exposure. This is the regime the six real
-/// Abdella shipments actually sample.
-#[test]
-fn zero_break_rate_makes_exposure_a_function_of_duration_only() {
-    let mut m = model();
-    m.set_break_rate(0.0);
-    let mut rng = Pcg64::seed_from_u64(151_003);
-    let d = 4.25;
-    let a = truth_transit_trace(d, &m, 0.0, &mut rng);
-    let b = truth_transit_trace(d, &m, 0.0, &mut rng);
-    let la = resolve_arrival_exposure(Some(&a.temps_c), Some(&a.times_d), m.q10, m.t_ref).unwrap();
-    let lb = resolve_arrival_exposure(Some(&b.temps_c), Some(&b.times_d), m.q10, m.t_ref).unwrap();
-    assert!(
-        (la - lb).abs() < 1e-6,
-        "rho=0 must give identical exposure: {la} vs {lb}"
     );
 }
 

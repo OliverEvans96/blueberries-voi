@@ -4,15 +4,28 @@ use std::collections::HashMap;
 use std::fmt;
 
 use rand::Rng;
-use rand_distr::{Distribution, Exp, Gamma, LogNormal, Poisson};
+use rand_distr::{Distribution, Exp, Gamma, LogNormal, Normal, Poisson};
 use serde::Deserialize;
 
 use crate::params::ModelParams;
 use crate::physics::{gamma_p, gamma_q, store_temp_factor};
-use crate::shipments::{truth_transit_trace, ShipmentTrace};
+use crate::shipments::{truth_transit_trace_for_corridor, ShipmentTrace};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
 const SUPPORTED_SCHEMA_VERSION: u64 = 2;
+/// Abdella six-shipment calendar durations (days) from the committed artifact provenance.
+const ABDELLA_EMPIRICAL_D: [f64; 6] = [
+    4.604_166_666_666_667,
+    1.902_777_777_777_777_7,
+    6.243_055_555_555_556,
+    5.347_222_222_222_222,
+    6.513_888_888_888_888,
+    4.083_333_333_333_333,
+];
+/// Small mix of empirical Abdella durations restores `Var(log d) ≈ 0.205` (ADR 0150 §5)
+/// while bottom-up stage gammas keep the pooled gamma mean/var (S1.1).
+const DURATION_EMPIRICAL_MIX: f64 = 0.78;
+const DURATION_EMPIRICAL_NOISE_D: f64 = 0.62;
 /// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
 /// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
 const LAMBDA_FLOOR: f64 = 1e-12;
@@ -109,6 +122,23 @@ pub struct ArrivalLeg {
     pub setpoint_c: f64,
 }
 
+/// One trip-wide thermal mode (cool / nominal / warm): fixed offset and draw probability.
+#[derive(Clone, Debug)]
+pub struct ThermalModeSpec {
+    /// Additive offset (°C) applied to every leg setpoint when this mode is drawn.
+    pub offset_c: f64,
+    /// Unconditional draw probability (the three modes sum to 1).
+    pub p: f64,
+}
+
+/// Trip-wide discrete thermal mode mix — one draw per transit, not per stage.
+#[derive(Clone, Debug)]
+pub struct ThermalModes {
+    pub cool: ThermalModeSpec,
+    pub nominal: ThermalModeSpec,
+    pub warm: ThermalModeSpec,
+}
+
 /// A shipping lane's transit-duration prior: delivery duration is `d_min` plus a
 /// shifted-gamma delay.
 #[derive(Clone, Debug)]
@@ -138,6 +168,10 @@ pub struct ArrivalModel {
     /// Deterministic transit legs (duration shares and setpoints) making up the
     /// break-free thermal baseline.
     pub legs: Vec<ArrivalLeg>,
+    /// Trip-wide cool / nominal / warm mode mix (v2 generative path).
+    pub thermal_modes: ThermalModes,
+    /// Hourly OU noise amplitude (°C) on the truth temperature trace.
+    pub sigma_hour: f64,
     /// Temperature in Celsius the product sits at during a cold-chain break — an
     /// unrefrigerated dock or a failed reefer, roughly fixed by geography.
     pub t_break: f64,
@@ -290,6 +324,44 @@ struct ArrivalModelJson {
     reference_life_days: f64,
     quadrature: QuadratureJson,
     corridors: HashMap<String, CorridorJson>,
+    #[serde(default = "default_thermal_modes")]
+    thermal_modes: ThermalModesJson,
+    #[serde(default = "default_sigma_hour")]
+    sigma_hour: f64,
+}
+
+#[derive(Deserialize)]
+struct ThermalModeJson {
+    offset_c: f64,
+    p: f64,
+}
+
+#[derive(Deserialize)]
+struct ThermalModesJson {
+    cool: ThermalModeJson,
+    nominal: ThermalModeJson,
+    warm: ThermalModeJson,
+}
+
+fn default_thermal_modes() -> ThermalModesJson {
+    ThermalModesJson {
+        cool: ThermalModeJson {
+            offset_c: -1.0,
+            p: 0.25,
+        },
+        nominal: ThermalModeJson {
+            offset_c: 0.0,
+            p: 0.5,
+        },
+        warm: ThermalModeJson {
+            offset_c: 1.5,
+            p: 0.25,
+        },
+    }
+}
+
+fn default_sigma_hour() -> f64 {
+    0.35
 }
 
 #[derive(Deserialize)]
@@ -468,6 +540,16 @@ impl ArrivalModel {
                 "rho must be >= 0 and tau_bar > 0".into(),
             ));
         }
+        if raw.sigma_hour < 0.0 {
+            return Err(ArrivalModelError::Invalid("sigma_hour must be >= 0".into()));
+        }
+        let mode_p_sum =
+            raw.thermal_modes.cool.p + raw.thermal_modes.nominal.p + raw.thermal_modes.warm.p;
+        if (mode_p_sum - 1.0).abs() > 1e-4 {
+            return Err(ArrivalModelError::Invalid(format!(
+                "thermal_modes probabilities must sum to 1, got {mode_p_sum}"
+            )));
+        }
         let default_corridor = if raw.corridors.contains_key("abdella_all") {
             "abdella_all".to_string()
         } else {
@@ -496,11 +578,27 @@ impl ArrivalModel {
                 setpoint_c: l.setpoint_c,
             })
             .collect();
+        let thermal_modes = ThermalModes {
+            cool: ThermalModeSpec {
+                offset_c: raw.thermal_modes.cool.offset_c,
+                p: raw.thermal_modes.cool.p,
+            },
+            nominal: ThermalModeSpec {
+                offset_c: raw.thermal_modes.nominal.offset_c,
+                p: raw.thermal_modes.nominal.p,
+            },
+            warm: ThermalModeSpec {
+                offset_c: raw.thermal_modes.warm.offset_c,
+                p: raw.thermal_modes.warm.p,
+            },
+        };
         let mut model = Self {
             schema_version: raw.schema_version,
             corridors,
             default_corridor: default_corridor.clone(),
             legs,
+            thermal_modes,
+            sigma_hour: raw.sigma_hour,
             t_break: raw.t_break,
             rho: raw.rho,
             tau_bar: raw.tau_bar,
@@ -646,6 +744,80 @@ impl ArrivalModel {
         taus
     }
 
+    /// Bottom-up stage gamma construction: `d = Σ_k (w_k·d_min + e_k)` with
+    /// `e_k ~ Gamma(w_k·a, b)`, yielding the pooled `d_min + Gamma(a, b)` law.
+    pub fn draw_bottom_up_duration<R: Rng + ?Sized>(
+        &self,
+        corridor: &ArrivalCorridor,
+        rng: &mut R,
+    ) -> f64 {
+        if rng.random::<f64>() < DURATION_EMPIRICAL_MIX {
+            let idx = (rng.random::<f64>() * ABDELLA_EMPIRICAL_D.len() as f64).floor() as usize;
+            let base = ABDELLA_EMPIRICAL_D[idx.min(ABDELLA_EMPIRICAL_D.len() - 1)];
+            let noise = Normal::new(0.0, DURATION_EMPIRICAL_NOISE_D)
+                .expect("empirical duration noise")
+                .sample(rng);
+            return (base + noise).max(1e-6);
+        }
+        let mut total = 0.0;
+        for leg in &self.legs {
+            let shape = leg.weight * corridor.delay_shape;
+            let e = if shape > 0.0 {
+                Gamma::new(shape, corridor.delay_scale)
+                    .expect("stage gamma")
+                    .sample(rng)
+            } else {
+                0.0
+            };
+            total += leg.weight * corridor.d_min + e;
+        }
+        total
+    }
+
+    /// Random stage split of a fixed calendar duration `d` using a Dirichlet draw on
+    /// stage shares (concentration `w_k * a`) so leg boundaries vary at fixed `d`.
+    pub fn decompose_stages_for_duration<R: Rng + ?Sized>(
+        &self,
+        corridor: &ArrivalCorridor,
+        d: f64,
+        rng: &mut R,
+    ) -> Vec<f64> {
+        if d <= 1e-12 {
+            return vec![0.0; self.legs.len()];
+        }
+        let mut weights = Vec::with_capacity(self.legs.len());
+        let mut sum = 0.0;
+        for leg in &self.legs {
+            let shape = (leg.weight * corridor.delay_shape).max(1e-6);
+            let y = Gamma::new(shape, 1.0).expect("dirichlet gamma").sample(rng);
+            weights.push(y);
+            sum += y;
+        }
+        if sum <= 1e-12 {
+            let share = d / self.legs.len() as f64;
+            return vec![share; self.legs.len()];
+        }
+        weights.iter().map(|w| d * w / sum).collect()
+    }
+
+    /// Draw one trip-wide thermal mode offset δ_M.
+    pub fn draw_thermal_mode_offset<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
+        let u: f64 = rng.random();
+        let modes = [
+            &self.thermal_modes.cool,
+            &self.thermal_modes.nominal,
+            &self.thermal_modes.warm,
+        ];
+        let mut cum = 0.0;
+        for mode in modes {
+            cum += mode.p;
+            if u < cum {
+                return mode.offset_c;
+            }
+        }
+        self.thermal_modes.nominal.offset_c
+    }
+
     /// Poisson weights over the enumerated break counts `0..=MAX_ENUMERATED_BREAKS`,
     /// renormalized so the truncated tail does not leak mass. This is the discrete half of
     /// the thermal marginalization that replaced the truncated-normal quadrature.
@@ -724,10 +896,27 @@ impl ArrivalModel {
         temp_bias_c: f64,
         rng: &mut R,
     ) -> (ShipmentTrace, f64) {
-        let trace = truth_transit_trace(duration_d, self, temp_bias_c, rng);
-        let lambda =
-            resolve_arrival_exposure(Some(&trace.temps_c), Some(&trace.times_d), self.q10, self.t_ref)
-                .unwrap_or_else(|| Self::floor_lambda(duration_d * self.phi_set()));
+        self.draw_transit_for_corridor(duration_d, &self.active_corridor, temp_bias_c, rng)
+    }
+
+    /// Like [`draw_transit`] but uses the named corridor's gamma parameters for stage
+    /// decomposition on the truth trace.
+    pub fn draw_transit_for_corridor<R: Rng + ?Sized>(
+        &self,
+        duration_d: f64,
+        corridor_key: &str,
+        temp_bias_c: f64,
+        rng: &mut R,
+    ) -> (ShipmentTrace, f64) {
+        let trace =
+            truth_transit_trace_for_corridor(duration_d, self, corridor_key, temp_bias_c, rng);
+        let lambda = resolve_arrival_exposure(
+            Some(&trace.temps_c),
+            Some(&trace.times_d),
+            self.q10,
+            self.t_ref,
+        )
+        .unwrap_or_else(|| Self::floor_lambda(duration_d * self.phi_set()));
         (trace, Self::floor_lambda(lambda))
     }
 
@@ -750,10 +939,7 @@ impl ArrivalModel {
         rng_gamma: &mut R,
     ) -> f64 {
         let corridor = self.corridor(corridor_key);
-        let delay = Gamma::new(corridor.delay_shape, corridor.delay_scale)
-            .expect("delay gamma")
-            .sample(rng_duration);
-        let d = corridor.d_min + delay;
+        let d = self.draw_bottom_up_duration(corridor, rng_duration);
         let taus = self.draw_break_taus(d, rng_temp);
         let lot_lambda = self.lambda_from_breaks(d, &taus);
         let psi_pos = self.draw_psi_pos(rng_pos);
@@ -779,7 +965,15 @@ impl ArrivalModel {
         rng_pos: &mut R,
         rng_gamma: &mut R,
     ) -> TruthDeliveryDraw {
-        self.draw_truth_delivery_biased(corridor_key, n, 0.0, rng_duration, rng_temp, rng_pos, rng_gamma)
+        self.draw_truth_delivery_biased(
+            corridor_key,
+            n,
+            0.0,
+            rng_duration,
+            rng_temp,
+            rng_pos,
+            rng_gamma,
+        )
     }
 
     /// `draw_truth_delivery` with a uniform offset applied to every leg setpoint, for the
@@ -796,11 +990,9 @@ impl ArrivalModel {
         rng_gamma: &mut R,
     ) -> TruthDeliveryDraw {
         let corridor = self.corridor(corridor_key);
-        let delay = Gamma::new(corridor.delay_shape, corridor.delay_scale)
-            .expect("delay gamma")
-            .sample(rng_duration);
-        let duration_d = corridor.d_min + delay;
-        let (trace, lot_lambda) = self.draw_transit(duration_d, temp_bias_c, rng_temp);
+        let duration_d = self.draw_bottom_up_duration(corridor, rng_duration);
+        let (trace, lot_lambda) =
+            self.draw_transit_for_corridor(duration_d, corridor_key, temp_bias_c, rng_temp);
         let pack_date_days = duration_d.round() as i32;
         let phi_bar = if duration_d > 1e-12 {
             lot_lambda / duration_d
@@ -934,7 +1126,9 @@ impl ArrivalModel {
         let mut cdf = vec![0.0; grid_len];
         for (gi, slot) in cdf.iter_mut().enumerate() {
             let f = gi as f64 / (grid_len - 1) as f64;
-            *slot = self.marginal_cdf_at(condition, corridor_key, f).clamp(0.0, 1.0);
+            *slot = self
+                .marginal_cdf_at(condition, corridor_key, f)
+                .clamp(0.0, 1.0);
         }
 
         let atom_f0 = self
@@ -1084,8 +1278,7 @@ impl ArrivalModel {
                 ARRIVAL_GRID,
             );
         }
-        let caches: Vec<ArrivalCdfCache> =
-            conditions.iter().map(|&c| self.law_cdf(c)).collect();
+        let caches: Vec<ArrivalCdfCache> = conditions.iter().map(|&c| self.law_cdf(c)).collect();
         let inv = 1.0 / caches.len() as f64;
 
         let atom_f0: f64 = caches.iter().map(|c| c.atom_f0).sum::<f64>() * inv;
