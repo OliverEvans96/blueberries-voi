@@ -81,23 +81,96 @@ fn break_count_weights(m: &ArrivalModel, d: f64) -> Vec<f64> {
 
 /// Filter `Duration(d)` thermal marginal over lot-level Λ (pre-ψ), mirroring `thermal_nodes`.
 fn filter_lot_lambda_nodes(m: &ArrivalModel, d: f64) -> Vec<(f64, f64)> {
+    fn phi_eff(m: &ArrivalModel, t_c: f64, ou: bool) -> f64 {
+        let phi = voi_core::physics::store_temp_factor(t_c, m.t_ref, m.q10);
+        if !ou || m.sigma_hour <= 0.0 {
+            return phi;
+        }
+        let a = m.q10.ln() / 10.0;
+        phi * (0.5 * a * a * m.sigma_hour * m.sigma_hour).exp()
+    }
+
     let d = d.max(0.0);
-    let base = d * m.phi_set();
+    let corridor = m.corridor(&m.default_corridor);
     let counts = break_count_weights(m, d);
-    let m_break = m.break_exposure_mean();
-    let cap = d * m.break_exposure_rate();
-    let mut out = Vec::with_capacity(1 + MAX_ENUMERATED_BREAKS * m.quad_nodes.len());
-    for (n, &w_n) in counts.iter().enumerate() {
-        if w_n <= 0.0 {
+    let modes = [
+        (&m.thermal_modes.cool, m.thermal_modes.cool.p),
+        (&m.thermal_modes.nominal, m.thermal_modes.nominal.p),
+        (&m.thermal_modes.warm, m.thermal_modes.warm.p),
+    ];
+    let mut out = Vec::new();
+    for (mode, p_m) in modes {
+        if p_m <= 0.0 {
             continue;
         }
-        if n == 0 || m_break <= 0.0 {
-            out.push((ArrivalModel::floor_lambda(base), w_n));
-            continue;
+        let phi_base_m: f64 = m
+            .legs
+            .iter()
+            .enumerate()
+            .map(|(k, leg)| leg.weight * phi_eff(m, leg.setpoint_c + mode.offset_c, k > 0))
+            .sum();
+        let break_rate =
+            (voi_core::physics::store_temp_factor(m.t_break, m.t_ref, m.q10) - phi_base_m).max(0.0);
+        let m_break = m.tau_bar * break_rate;
+        let cap = d * break_rate;
+
+        let rates: Vec<f64> = m
+            .legs
+            .iter()
+            .enumerate()
+            .map(|(k, leg)| phi_eff(m, leg.setpoint_c + mode.offset_c, k > 0))
+            .collect();
+        let alphas: Vec<f64> = m
+            .legs
+            .iter()
+            .map(|leg| (leg.weight * corridor.delay_shape).max(1e-6))
+            .collect();
+        let alpha0: f64 = alphas.iter().sum();
+        let mean_rate: f64 = alphas
+            .iter()
+            .zip(rates.iter())
+            .map(|(&a, &r)| a / alpha0 * r)
+            .sum();
+        let mut var_rate = 0.0;
+        for i in 0..alphas.len() {
+            let vi = alphas[i] * (alpha0 - alphas[i]) / (alpha0 * alpha0 * (alpha0 + 1.0));
+            var_rate += rates[i] * rates[i] * vi;
+            for j in (i + 1)..alphas.len() {
+                let cij = -alphas[i] * alphas[j] / (alpha0 * alpha0 * (alpha0 + 1.0));
+                var_rate += 2.0 * rates[i] * rates[j] * cij;
+            }
         }
-        for (&u, &w_q) in m.quad_nodes.iter().zip(m.quad_weights.iter()) {
-            let extra = gamma_dist_quantile(n as f64, m_break, u).min(cap);
-            out.push((ArrivalModel::floor_lambda(base + extra), w_n * w_q));
+        let mean = ArrivalModel::floor_lambda(d * mean_rate);
+        let var = (d * d * var_rate).max(0.0);
+        let mut baseline_nodes = Vec::with_capacity(m.quad_nodes.len());
+        if var <= 1e-12 {
+            baseline_nodes.push((mean, 1.0));
+        } else {
+            let shape = (mean * mean / var).max(1e-6);
+            let scale = var / mean;
+            for (&u, &w) in m.quad_nodes.iter().zip(m.quad_weights.iter()) {
+                baseline_nodes.push((
+                    ArrivalModel::floor_lambda(gamma_dist_quantile(shape, scale, u)),
+                    w,
+                ));
+            }
+        }
+
+        for (n, &w_n) in counts.iter().enumerate() {
+            if w_n <= 0.0 {
+                continue;
+            }
+            for (base_lam, w_base) in &baseline_nodes {
+                let w_outer = p_m * w_n * w_base;
+                if n == 0 || m_break <= 0.0 {
+                    out.push((*base_lam, w_outer));
+                    continue;
+                }
+                for (&u, &w_q) in m.quad_nodes.iter().zip(m.quad_weights.iter()) {
+                    let extra = gamma_dist_quantile(n as f64, m_break, u).min(cap);
+                    out.push((ArrivalModel::floor_lambda(*base_lam + extra), w_outer * w_q));
+                }
+            }
         }
     }
     out
@@ -121,13 +194,9 @@ fn mc_lot_lambda_given_d(m: &ArrivalModel, d: f64, n: usize, seed: u64) -> (f64,
     let mut lambdas = Vec::with_capacity(n);
     for _ in 0..n {
         let trace = truth_transit_trace(d, m, 0.0, &mut rng);
-        let lambda = resolve_arrival_exposure(
-            Some(&trace.temps_c),
-            Some(&trace.times_d),
-            m.q10,
-            m.t_ref,
-        )
-        .unwrap_or_else(|| ArrivalModel::floor_lambda(d * m.phi_set()));
+        let lambda =
+            resolve_arrival_exposure(Some(&trace.temps_c), Some(&trace.times_d), m.q10, m.t_ref)
+                .unwrap_or_else(|| ArrivalModel::floor_lambda(d * m.phi_set()));
         lambdas.push(lambda);
     }
     mean_var(&lambdas)
@@ -141,13 +210,9 @@ fn mc_f_given_d(m: &ArrivalModel, d: f64, n: usize, seed: u64) -> (f64, f64) {
     let mut fs = Vec::with_capacity(n);
     for _ in 0..n {
         let trace = truth_transit_trace(d, m, 0.0, &mut rng_trace);
-        let lot_lambda = resolve_arrival_exposure(
-            Some(&trace.temps_c),
-            Some(&trace.times_d),
-            m.q10,
-            m.t_ref,
-        )
-        .unwrap_or_else(|| ArrivalModel::floor_lambda(d * m.phi_set()));
+        let lot_lambda =
+            resolve_arrival_exposure(Some(&trace.temps_c), Some(&trace.times_d), m.q10, m.t_ref)
+                .unwrap_or_else(|| ArrivalModel::floor_lambda(d * m.phi_set()));
         let psi = lognormal.sample(&mut rng_pos).max(1e-6);
         let lambda = ArrivalModel::floor_lambda(lot_lambda * psi);
         let loss = Gamma::new(m.gamma_shape * lambda, m.gamma_scale)
@@ -180,8 +245,9 @@ fn check_coherence_at_rho(rho: f64) {
 
     for &d in &[3.5_f64, 5.0, 7.25] {
         let d_days = d.round() as i32;
+        let d_cal = f64::from(d_days);
         let seed = coherence_seed(d, rho, 0);
-        let (mc_mean_lam, mc_var_lam) = mc_lot_lambda_given_d(&m, d, MC_SAMPLES, seed);
+        let (mc_mean_lam, mc_var_lam) = mc_lot_lambda_given_d(&m, d_cal, MC_SAMPLES, seed);
 
         if rho.abs() < f64::EPSILON {
             assert!(
@@ -191,11 +257,11 @@ fn check_coherence_at_rho(rho: f64) {
             );
         }
 
-        let (filt_mean_lam, filt_var_lam) = filter_lot_lambda_moments(&m, d);
+        let (filt_mean_lam, filt_var_lam) = filter_lot_lambda_moments(&m, d_cal);
         assert_relative(mc_mean_lam, filt_mean_lam, MEAN_RTOL, "E[Λ|d]");
         assert_relative(mc_var_lam, filt_var_lam, VAR_RTOL, "Var(Λ|d)");
 
-        let (mc_mean_f, mc_var_f) = mc_f_given_d(&m, d, MC_SAMPLES, seed.wrapping_add(10));
+        let (mc_mean_f, mc_var_f) = mc_f_given_d(&m, d_cal, MC_SAMPLES, seed.wrapping_add(10));
         let filt_mean_f = m.filter_law_mean_f(ArrivalCondition::Duration(d_days));
         let filt_var_f = m.variance_f_given_d(d_days);
         assert_relative(mc_mean_f, filt_mean_f, MEAN_RTOL, "E[f|d]");
