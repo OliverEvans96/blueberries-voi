@@ -255,6 +255,16 @@ struct PriorCdfBuildKey {
     rho: f64,
     tau_bar: f64,
     t_break: f64,
+    /// v2 filter projection: hourly OU Jensen fold and trip-mode mix.
+    sigma_hour: f64,
+    mode_cool_p: f64,
+    mode_cool_offset: f64,
+    mode_nominal_p: f64,
+    mode_nominal_offset: f64,
+    mode_warm_p: f64,
+    mode_warm_offset: f64,
+    /// Leg setpoint fingerprint — baseline nodes move when artifact legs change.
+    leg_phi_set: f64,
 }
 
 impl PriorCdfBuildKey {
@@ -269,6 +279,14 @@ impl PriorCdfBuildKey {
             rho: model.rho,
             tau_bar: model.tau_bar,
             t_break: model.t_break,
+            sigma_hour: model.sigma_hour,
+            mode_cool_p: model.thermal_modes.cool.p,
+            mode_cool_offset: model.thermal_modes.cool.offset_c,
+            mode_nominal_p: model.thermal_modes.nominal.p,
+            mode_nominal_offset: model.thermal_modes.nominal.offset_c,
+            mode_warm_p: model.thermal_modes.warm.p,
+            mode_warm_offset: model.thermal_modes.warm.offset_c,
+            leg_phi_set: model.phi_set(),
         }
     }
 
@@ -283,6 +301,14 @@ impl PriorCdfBuildKey {
             rho: model.rho,
             tau_bar: model.tau_bar,
             t_break: model.t_break,
+            sigma_hour: model.sigma_hour,
+            mode_cool_p: model.thermal_modes.cool.p,
+            mode_cool_offset: model.thermal_modes.cool.offset_c,
+            mode_nominal_p: model.thermal_modes.nominal.p,
+            mode_nominal_offset: model.thermal_modes.nominal.offset_c,
+            mode_warm_p: model.thermal_modes.warm.p,
+            mode_warm_offset: model.thermal_modes.warm.offset_c,
+            leg_phi_set: model.phi_set(),
         }
     }
 }
@@ -578,6 +604,10 @@ impl ArrivalModel {
                 setpoint_c: l.setpoint_c,
             })
             .collect();
+        let leg_phi_set: f64 = legs
+            .iter()
+            .map(|leg| leg.weight * store_temp_factor(leg.setpoint_c, raw.t_ref, raw.q10))
+            .sum();
         let thermal_modes = ThermalModes {
             cool: ThermalModeSpec {
                 offset_c: raw.thermal_modes.cool.offset_c,
@@ -626,6 +656,14 @@ impl ArrivalModel {
                 rho: raw.rho,
                 tau_bar: raw.tau_bar,
                 t_break: raw.t_break,
+                sigma_hour: raw.sigma_hour,
+                mode_cool_p: raw.thermal_modes.cool.p,
+                mode_cool_offset: raw.thermal_modes.cool.offset_c,
+                mode_nominal_p: raw.thermal_modes.nominal.p,
+                mode_nominal_offset: raw.thermal_modes.nominal.offset_c,
+                mode_warm_p: raw.thermal_modes.warm.p,
+                mode_warm_offset: raw.thermal_modes.warm.offset_c,
+                leg_phi_set,
             },
         };
         model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
@@ -1031,32 +1069,126 @@ impl ArrivalModel {
         self.t_ref + 10.0 * phi_bar.ln() / self.q10.ln()
     }
 
-    /// Lot-level exposures and weights for a trip of known length `d`, marginalizing the
-    /// cold-chain break channel.
+    /// Q10 factor at mean temperature `t_c`, Jensen-folded over hourly OU noise when
+    /// `ou` is true (line haul / dock stages). Precool stays flat in the generative path.
+    fn phi_eff(&self, t_c: f64, ou: bool) -> f64 {
+        let phi = store_temp_factor(t_c, self.t_ref, self.q10);
+        if !ou || self.sigma_hour <= 0.0 {
+            return phi;
+        }
+        let a = self.q10.ln() / 10.0;
+        phi * (0.5 * a * a * self.sigma_hour * self.sigma_hour).exp()
+    }
+
+    /// Break-free baseline Λ mean and variance for one trip mode at fixed `d`.
+    /// Stage shares follow the Dirichlet implied by independent
+    /// `Gamma(w_k·a, 1)` draws (same as `decompose_stages_for_duration`); rates use
+    /// `phi_eff` on each leg setpoint plus the mode offset.
+    fn baseline_lambda_moments_for_mode(
+        &self,
+        d: f64,
+        corridor: &ArrivalCorridor,
+        mode_offset_c: f64,
+    ) -> (f64, f64) {
+        let n_legs = self.legs.len();
+        let mut alphas = Vec::with_capacity(n_legs);
+        let mut rates = Vec::with_capacity(n_legs);
+        for (k, leg) in self.legs.iter().enumerate() {
+            alphas.push((leg.weight * corridor.delay_shape).max(1e-6));
+            rates.push(self.phi_eff(leg.setpoint_c + mode_offset_c, k > 0));
+        }
+        let alpha0: f64 = alphas.iter().sum();
+        let mean_rate: f64 = alphas
+            .iter()
+            .zip(rates.iter())
+            .map(|(&a, &r)| a / alpha0 * r)
+            .sum();
+        let mut var_rate = 0.0;
+        for i in 0..n_legs {
+            let vi = alphas[i] * (alpha0 - alphas[i]) / (alpha0 * alpha0 * (alpha0 + 1.0));
+            var_rate += rates[i] * rates[i] * vi;
+            for j in (i + 1)..n_legs {
+                let cij = -alphas[i] * alphas[j] / (alpha0 * alpha0 * (alpha0 + 1.0));
+                var_rate += 2.0 * rates[i] * rates[j] * cij;
+            }
+        }
+        (
+            Self::floor_lambda(d * mean_rate),
+            (d * d * var_rate).max(0.0),
+        )
+    }
+
+    /// Break-free baseline Λ nodes for one trip mode at fixed calendar duration `d`.
+    /// Moment-matches the Dirichlet stage split to a single gamma, then quadratures
+    /// with the shared 8-node rule (v2 plan §2.3 default).
+    fn baseline_lambda_nodes_for_mode(
+        &self,
+        d: f64,
+        corridor: &ArrivalCorridor,
+        mode_offset_c: f64,
+    ) -> Vec<(f64, f64)> {
+        let (mean, var) = self.baseline_lambda_moments_for_mode(d, corridor, mode_offset_c);
+        if var <= 1e-12 {
+            return vec![(mean, 1.0)];
+        }
+        let shape = (mean * mean / var).max(1e-6);
+        let scale = var / mean;
+        self.quad_nodes
+            .iter()
+            .zip(self.quad_weights.iter())
+            .map(|(&u, &w)| (Self::floor_lambda(gamma_dist_quantile(shape, scale, u)), w))
+            .collect()
+    }
+
+    /// Lot-level exposures and weights for a trip of known length `d`, marginalizing trip
+    /// thermal modes, random stage shares, hourly OU (via `phi_eff`), and cold-chain breaks.
     ///
-    /// This replaces the old 8-node Gauss quadrature over a truncated-normal transit
-    /// temperature with an *exact* enumeration: break count `N` is Poisson, and given `N`
-    /// the total break exposure is `Gamma(N, m)` in closed form, so the only approximation
-    /// left is the 8-node quadrature on that gamma. `N = 0` contributes a single
-    /// deterministic node, giving `1 + 4 * 8 = 33` nodes in total.
+    /// v2 projection (plan §2.3–§2.5): for each mode `M`, baseline nodes from the
+    /// Dirichlet stage split are crossed with the Poisson–gamma break enumeration; modes
+    /// are mixed by their draw probabilities. Cached at F2/F3 build time — not per particle.
     fn thermal_nodes(&self, d: f64) -> Vec<(f64, f64)> {
         let d = d.max(0.0);
-        let base = d * self.phi_set();
+        let corridor = self.corridor(&self.active_corridor);
         let counts = self.break_count_weights(d);
-        let m = self.break_exposure_mean();
-        let cap = d * self.break_exposure_rate();
-        let mut out = Vec::with_capacity(1 + MAX_ENUMERATED_BREAKS * self.quad_nodes.len());
-        for (n, &w_n) in counts.iter().enumerate() {
-            if w_n <= 0.0 {
+        let modes: [(&ThermalModeSpec, f64); 3] = [
+            (&self.thermal_modes.cool, self.thermal_modes.cool.p),
+            (&self.thermal_modes.nominal, self.thermal_modes.nominal.p),
+            (&self.thermal_modes.warm, self.thermal_modes.warm.p),
+        ];
+        let n_break_quads = self.quad_nodes.len();
+        let mut out = Vec::with_capacity(
+            3 * (self.quad_nodes.len()
+                + MAX_ENUMERATED_BREAKS * n_break_quads * self.quad_nodes.len()),
+        );
+        for (mode, p_m) in modes {
+            if p_m <= 0.0 {
                 continue;
             }
-            if n == 0 || m <= 0.0 {
-                out.push((Self::floor_lambda(base), w_n));
-                continue;
-            }
-            for (&u, &w_q) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                let extra = gamma_dist_quantile(n as f64, m, u).min(cap);
-                out.push((Self::floor_lambda(base + extra), w_n * w_q));
+            let phi_base_m: f64 = self
+                .legs
+                .iter()
+                .enumerate()
+                .map(|(k, leg)| leg.weight * self.phi_eff(leg.setpoint_c + mode.offset_c, k > 0))
+                .sum();
+            let break_rate = (self.phi_break() - phi_base_m).max(0.0);
+            let m_break = self.tau_bar * break_rate;
+            let cap = d * break_rate;
+            let baseline_nodes = self.baseline_lambda_nodes_for_mode(d, corridor, mode.offset_c);
+            for (n, &w_n) in counts.iter().enumerate() {
+                if w_n <= 0.0 {
+                    continue;
+                }
+                for (base_lam, w_base) in &baseline_nodes {
+                    let w_outer = p_m * w_n * w_base;
+                    if n == 0 || m_break <= 0.0 {
+                        out.push((*base_lam, w_outer));
+                        continue;
+                    }
+                    for (&u, &w_q) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                        let extra = gamma_dist_quantile(n as f64, m_break, u).min(cap);
+                        out.push((Self::floor_lambda(*base_lam + extra), w_outer * w_q));
+                    }
+                }
             }
         }
         out
