@@ -1,6 +1,9 @@
 ---
 title: Does belief actually sharpen?
 sources:
+  adr:
+    - "0149"
+    - "0150"
   code:
     - crates/voi_core/src/session.rs
     - crates/voi_core/src/policy.rs
@@ -33,6 +36,20 @@ Two questions this answers: does adding information ever make the belief *worse*
 shouldn't, but a modeling bug could produce that), and where on the ladder does most of
 the improvement happen — spread evenly, or concentrated in one step?
 
+**What changed (ADR 0149 / 0150).** Two modelling gaps that made middle rungs look flat
+are fixed:
+
+- **Temperature (F3):** the old trace was decorative — it matched a scalar φ̄ already
+  drawn from a truncated normal, leaving ~1.6% of `Var(log Λ)` for F3 to resolve after a
+  pack date. Break events inside a generative path (`truth_transit_trace` →
+  `resolve_arrival_exposure`) give F3 real thermal residual to mop up; expect the **F2 → F3
+  step to grow** relative to the old ladder.
+- **Lot identity (GSIN):** with one lot per delivery, lot ID was redundant with shelf age
+  on a M/W/F schedule (pack-date 0.034 → lot ID + pack-date 0.032). **Fixed `L = 3` lots
+  per delivery** (ADR 0149) puts three same-calendar-age cohorts at **different
+  freshness** on the shelf, so lot-resolved channels should **separate more** from
+  pack-date-only once multi-lot wiring lands.
+
 ## The math
 
 For observation scenario $r$, seed $s$, and day $t$, let $\hat f_{r,s,t}$ be the filter's
@@ -47,22 +64,32 @@ with $T = 30$ days and $S = \{42, 7, 99\}$ three seeds, all replayed against the
 day-by-day sequence of deliveries and orders under the damped survival-weighted policy
 (no rollout — $n_{\text{rollout\_paths}} = 0$).
 
-Measured values (mean $|\hat f - f|$ on shelf freshness, averaged over the three seeds):
+Measured values (mean $|\hat f - f|$ on shelf freshness, averaged over the three seeds;
+**from the last notebook run before the breaks + multi-lot docs pass — re-run
+`notebooks/13_filter_accuracy_knowledge_ladder.ipynb` to refresh after integrate merges**):
 
 | Observation scenario | What it observes about the delivery | MAE |
 | --- | --- | --- |
 | **Books only** | nothing | 0.109 |
 | **Shrink gun** | nothing (waste totals only, no delivery signal) | 0.114 |
 | **Pack date on the ASN** | calendar duration $d$ | 0.034 |
-| **Lot ID + pack date** | calendar duration $d$ | 0.032 |
-| **Lot ID + pack date + temperature history** | cumulative exposure $\Lambda$ | 0.017 |
+| **Lot ID + pack date** | calendar duration $d$ (+ lot-resolved birth under GSIN) | 0.032 |
+| **Lot ID + pack date + temperature history** | cumulative exposure $\Lambda$ from path | 0.017 |
 
 The step from the books-only scenario to a pack-date scenario is roughly a **3× reduction** in error
-($0.109 / 0.032 \approx 3.4\times$). The further step from pack date to a full temperature
-trace is smaller — it removes roughly half of the error still left after pack date
-($0.032 \to 0.017$) — and is not a second pack-date-sized jump. That smaller gain comes
-from de-rounding the pack date (a date is a whole calendar day; the true duration isn't)
-and from residual heat-path detail a date alone can't reveal.
+($0.109 / 0.032 \approx 3.4\times$). That ratio is still the headline pack-date win.
+
+Under the old model the further step from pack date to a full temperature trace was a small
+mop-up (~1.6% of exposure variance left after duration). With generative breaks, **F3
+should close a larger gap** — de-rounding the pack date still matters, but so does resolving
+break damage the date cannot see. The table numbers above pre-date a full notebook re-run on
+the integrate tip; treat the **ordering** (richer scenarios beat poorer ones; pack date beats
+books-only by ~3×) as stable and the **third decimal** as provisional until the notebook
+is re-executed.
+
+With **three lots per delivery**, the lot-ID + pack-date row should **pull away further**
+from pack-date-only once Stage 2 wiring is live — the old 0.034 → 0.032 gap reflected lot
+identity buying almost nothing over age alone.
 
 ## Why it's modelled this way
 
@@ -77,33 +104,34 @@ the full temperature-history scenario has the least error, then the pack-date sc
 then the books-only scenario has the most — and fails if the ladder ever goes flat. A purely algebraic guard — one that only checks arithmetic relationships
 between input parameters — would pass regardless of whether the simulated ladder actually
 tracks correctly, so it wouldn't catch a real modeling defect. Testing against ground
-truth avoids that gap.
+truth avoids that gap. **`ac2_11a` remains the binding correctness gate** on the integrate
+branch (`F3 < F2 < P0` strictly, `MAE(P0) ≥ 3·MAE(F2)`, `MAE(F3)` near the Bayes floor).
 
 **Alternative considered:** using the residual-spread gap between scenarios (e.g.
 requiring the full temperature-history scenario's belief spread to be tighter than the
-pack-date scenario's, at a tight tolerance) as the guard instead. The gap in residual
-spread between those two scenarios is small by construction — temperature contributes
-only about 1.6% of the variance a pack date leaves unresolved (see
-[Why a pack date does so much](./why-pack-date)) — so a tight spread-based tolerance
-would mostly measure noise, not a real defect. Tracking MAE against ground truth
-separates the scenarios more cleanly.
+pack-date scenario's, at a tight tolerance) as the guard instead. Under the **old**
+truncated-normal model the gap in residual spread between F2 and F3 was small by
+construction — temperature contributed only about 1.6% of the variance a pack date left
+unresolved (see [Why a pack date does so much](./why-pack-date)). Under **break events**,
+F3's residual is larger by design, so a tight spread-based tolerance would mostly measure
+noise, not a defect. Tracking MAE against ground truth separates the scenarios more cleanly.
 
 **Honest caveat.** This is one 30-day trajectory family (fixed demand and delivery
 schedule) replayed across three seeds — not a sweep over demand regimes, corridor mixes,
 or store sizes. The Rust regression test that encodes this ordering uses a single seed
 and a larger lot size (64+ units per delivery) because the ordering doesn't reliably
 resolve at small lot counts — at 8 units per delivery the noise floor swamps the signal
-between the books-only and pack-date scenarios. The numbers above are the cross-seed
-average from the notebook that generated them; treat the third decimal digit as noise,
-not signal.
+between the books-only and pack-date scenarios. The notebook table above is the cross-seed
+average from the last run that generated it; treat the third decimal digit as noise until
+the notebook is re-run on the integrate tip.
 
 ## In the code
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Observation-scenario selector on a running session | `EngineSession::set_obs_scenario(&str)` | `crates/voi_core/src/session.rs:815` |
-| Damped survival-weighted order from belief | `damped_sw_order_f_belief(...)` | `crates/voi_core/src/policy.rs:201` |
-| Empirical ladder-ordering regression (Rust, single trajectory) | `ac2_11a_empirical_ladder_tracking_mae` | `crates/voi_core/tests/t150_phase2_arrival_model.rs:824` (assertions around line 831: `F3 < F2 < P0` strictly, `MAE(P0) ≥ 3·MAE(F2)`) |
+| Observation-scenario selector on a running session | `EngineSession::set_obs_scenario(&str)` | `crates/voi_core/src/session.rs:988` |
+| Damped survival-weighted order from belief | `damped_sw_order_f_belief(...)` | `crates/voi_core/src/policy.rs:246` |
+| Empirical ladder-ordering regression (Rust, single trajectory) | `ac2_11a_empirical_ladder_tracking_mae` | `crates/voi_core/tests/t150_phase2_arrival_model.rs:760` (assertions at lines 826–837: `F3 < F2 < P0` strictly, `MAE(P0) ≥ 3·MAE(F2)`) |
 | 30-day / 3-seed cross-scenario replay (source of the table above) | `N_DAYS = 30`, `SEEDS = (42, 7, 99)` | `notebooks/13_filter_accuracy_knowledge_ladder.ipynb` |
 | Per-seed, per-scenario MAE rows (raw data behind the averages above) | `mae_f` column | `experiments/data/nb13_channel_rows.json` |
 
@@ -125,6 +153,9 @@ not signal.
   POS code-type or waste-granularity switches. See
   [The seven named observation scenarios](/ladder/observation-scenarios) for why those two
   scenarios are themselves identical in the current code.
+- **MAE table numbers are stale until the notebook re-runs** on the integrate tip with
+  breaks + `L = 3`; the qualitative ladder story and `ac2_11a` ordering guard are the
+  stable claims.
 - This page measures belief accuracy only. It says nothing about whether a sharper belief
   translates into better ordering decisions or more profit — that question is separate,
   and the current answer is less encouraging; see
