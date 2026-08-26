@@ -755,9 +755,35 @@ fn mae(predicted: &[f64], truth: &[f64]) -> f64 {
         / predicted.len() as f64
 }
 
+/// T-163 S1.8: ladder gate runs on transit generative v2 (modes + OU + bottom-up stages).
+fn require_transit_generative_v2() {
+    let json: serde_json::Value =
+        serde_json::from_str(voi_core::arrival::embedded_arrival_model()).expect("artifact json");
+    for key in ["sigma_hour", "thermal_modes"] {
+        assert!(
+            json.get(key).is_some(),
+            "RED: ladder gate requires v2 artifact field {key}"
+        );
+    }
+    let shipments = read_src("shipments.rs");
+    assert!(
+        shipments.contains("sigma_hour")
+            || shipments.contains("thermal_mode")
+            || shipments.contains("trip_mode"),
+        "RED: truth path must implement v2 thermal modes / hourly OU before ladder MAE gate"
+    );
+    let arrival = read_src("arrival.rs");
+    assert!(
+        arrival.contains("draw_stage") || arrival.contains("stage_gamma"),
+        "RED: duration draw must use bottom-up Abdella stage gammas before ladder MAE gate"
+    );
+}
+
 /// AC2.11a (r3): mask-replay ladder tracking on one trajectory, ≥64 units per delivery.
 #[test]
 fn ac2_11a_empirical_ladder_tracking_mae() {
+    require_transit_generative_v2();
+
     const ORDER_QTY: u32 = 64;
     const N_DAYS: u32 = 80; // 20 deliveries every 4 days (lead_time=1 → arrivals on odd days)
     let seed = 150_211;
@@ -840,6 +866,8 @@ fn ac2_11a_empirical_ladder_tracking_mae() {
 /// AC2.11a: F3 cached law matches the generative Λ-marginal mean (session-free).
 #[test]
 fn ac2_11a_f3_law_matches_generative_mean() {
+    require_transit_generative_v2();
+
     let mut model = ArrivalModel::embedded();
     model.sync_params(&ModelParams::default());
     for lambda in [3.0, 5.0, 7.0, 9.0, 11.0] {
