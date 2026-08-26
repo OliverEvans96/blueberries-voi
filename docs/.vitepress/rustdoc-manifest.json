@@ -2,6 +2,14 @@
   "generated_by": "scripts/rustdoc_inventory.py",
   "entries": [
     {
+      "symbol": "arrival_artifact_from_json",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.arrival_artifact_from_json.html",
+      "linkable": true,
+      "link_target": "voi_core/arrival/fn.arrival_artifact_from_json.html"
+    },
+    {
       "symbol": "cdf_f_given_lambda",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
@@ -16,6 +24,14 @@
       "rustdoc_path": "voi_core/arrival/fn.draw_psi_pos.html",
       "linkable": false,
       "link_target": null
+    },
+    {
+      "symbol": "draw_transit",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.draw_transit",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_transit"
     },
     {
       "symbol": "draw_truth_delivery",
@@ -34,6 +50,30 @@
       "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f"
     },
     {
+      "symbol": "gamma_dist_quantile",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.gamma_dist_quantile.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "lambda_from_breaks",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks"
+    },
+    {
+      "symbol": "mixture_law",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.mixture_law",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.mixture_law"
+    },
+    {
       "symbol": "p_f_gt_at",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
@@ -50,12 +90,12 @@
       "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero"
     },
     {
-      "symbol": "phi_bar_from_t_bar",
+      "symbol": "phi_set",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
-      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.phi_set",
       "linkable": true,
-      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar"
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.phi_set"
     },
     {
       "symbol": "resolve_arrival_exposure",
@@ -66,10 +106,58 @@
       "link_target": "voi_core/arrival/fn.resolve_arrival_exposure.html"
     },
     {
-      "symbol": "sample_truncated_normal",
+      "symbol": "rho",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
-      "rustdoc_path": "voi_core/arrival/fn.sample_truncated_normal.html",
+      "rustdoc_path": "voi_core/arrival/fn.rho.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "sample_filter_birth_units",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units"
+    },
+    {
+      "symbol": "sample_filter_birth_units_mixture",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture"
+    },
+    {
+      "symbol": "sigma_pos",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.sigma_pos.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "t_break",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.t_break.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "tau_bar",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.tau_bar.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
+      "symbol": "thermal_nodes",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/fn.thermal_nodes.html",
       "linkable": false,
       "link_target": null
     },
@@ -210,14 +298,6 @@
       "link_target": "voi_core/physics/fn.gamma_decrement_for_store.html"
     },
     {
-      "symbol": "gamma_p",
-      "module": "physics",
-      "source_file": "crates/voi_core/src/physics.rs",
-      "rustdoc_path": "voi_core/physics/fn.gamma_p.html",
-      "linkable": true,
-      "link_target": "voi_core/physics/fn.gamma_p.html"
-    },
-    {
       "symbol": "picking_weights_f",
       "module": "physics",
       "source_file": "crates/voi_core/src/physics.rs",
@@ -312,6 +392,14 @@
       "rustdoc_path": "voi_core/schedule/struct.OrderSchedule.html#method.protection_days",
       "linkable": true,
       "link_target": "voi_core/schedule/struct.OrderSchedule.html#method.protection_days"
+    },
+    {
+      "symbol": "truth_transit_trace",
+      "module": "shipments",
+      "source_file": "crates/voi_core/src/shipments.rs",
+      "rustdoc_path": "voi_core/shipments/fn.truth_transit_trace.html",
+      "linkable": true,
+      "link_target": "voi_core/shipments/fn.truth_transit_trace.html"
     },
     {
       "symbol": "negative_binomial_gamma_poisson",

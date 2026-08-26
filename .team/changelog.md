@@ -3,6 +3,7 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-26
+- **Docs follow-up (stacked on PR #65): user-facing pages now describe the break-event arrival model, three-lots-per-delivery design, and retired truncated-normal transit temperature — cold-chain, ladder, inference, findings, and parameters tables updated with valid code citations** (arrival-breaks/docs).
 - **Decision recorded (not yet implemented): every delivery will be modelled as exactly three real lots split from one order, instead of one blended cohort — a lot-tracked store will be able to tell the three apart on the shelf and a books-only store will see them correctly blurred together, which finally gives "how many lots did that delivery have?" a real, measurable answer** (ADR 0149, supersedes ADR 0038).
 - **Decision recorded (not yet implemented): the temperature-history channel currently teaches the model almost nothing, because the simulated temperature trace is faked to match a number that was already decided — it will be replaced with a model of real refrigeration failures (a truck door left open, a warm dock, a missed connection) so that reading the temperature log becomes worth roughly twelve times as much as it is today, by design** (ADR 0150, supersedes part of ADR 0144 and part of ADR 0148).
 

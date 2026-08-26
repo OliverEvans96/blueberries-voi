@@ -132,8 +132,8 @@ contagion process than by a continuous subordinator. Shape-scaling is the more d
 the two continuous conventions available, not a claim of physical exactness. The arrival-model
 break parameters ($\rho$, $\bar\tau$, $T_{\mathrm{break}}$) and leg setpoints are
 **assumed or anchored, not MLE-fitted** — only corridor durations are moment-matched to six
-shipments; the retired truncated-normal transit temperature (`mu_T`, `sigma_T`) is no longer
-used.
+shipments (ADR 0148); ADR 0148's truncated-normal transit-temperature fit is **superseded by
+ADR 0150** (legs + break events). The retired `mu_T` / `sigma_T` fields are no longer used.
 
 ## In the code
 

@@ -31,7 +31,7 @@ So the model has one "corridor" story (duration and temperature path) shared acr
 
 ### Three lots per delivery (target model)
 
-Under [ADR 0149](/team/adr/0149-mod-16-three-fixed-lots-per-delivery), each delivery carries **L = 3** fixed lots. Total case quantity is **split** across the three lots, not multiplied — per-day filter runtime stays flat. Each lot draws its own upstream journey (own duration, own break realization); one DC→store leg is shared:
+Under ADR 0149, each delivery carries **L = 3** fixed lots. Total case quantity is **split** across the three lots, not multiplied — per-day filter runtime stays flat. Each lot draws its own upstream journey (own duration, own break realization); one DC→store leg is shared:
 
 $$
 \Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}
@@ -41,7 +41,7 @@ Under **GSIN**, the filter holds three segments, each born from its own arrival 
 
 ### Planned v2 upgrade (design direction)
 
-The [transit generative v2 plan](/team/plans/arrival-transit-generative-v2) is the next thermal authority. It keeps compound-Poisson breaks and path-first Λ, and adds:
+The transit generative v2 plan is the next thermal authority. It keeps compound-Poisson breaks and path-first Λ, and adds:
 
 - **Bottom-up stage durations** — draw each leg's time first so total `d` matches the Abdella pooled law exactly, instead of fixed duration shares on a single `d` draw.
 - **Trip thermal modes** — one per-trip draw among cool / nominal / warm offsets applied to all leg setpoints.
@@ -72,7 +72,7 @@ The baseline path walks three named legs in order, each holding a fixed setpoint
 | `line_haul` | 0.60 | 2.0 °C |
 | `dock_receiving` | 0.25 | 5.0 °C |
 
-On top of that baseline, **break events** are drawn ([ADR 0150](/team/adr/0150)):
+On top of that baseline, **break events** are drawn (ADR 0150):
 
 $$
 N \sim \mathrm{Poisson}(\rho \cdot d), \qquad
@@ -140,7 +140,7 @@ Note $k \cdot \theta \cdot \eta_{\text{ref}} = 1$ — the calibration invariant 
 | `long_haul` | 4.033 | 1.628 | 0.814 |
 | `abdella_all` | 1.853 | 3.009 | 0.974 |
 
-`abdella_all` is moment-matched to the six Abdella shipments ([ADR 0148](/team/adr/0148)); `short_haul` and `long_haul` are illustrative only.
+`abdella_all` is moment-matched to the six Abdella shipments (ADR 0148); `short_haul` and `long_haul` are illustrative only.
 
 $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**, not fit — all six real shipments are clean chains with no observed breaks.
 
@@ -172,7 +172,7 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:710` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
 | Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:408` (`gamma_dist_quantile`) |
 | Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:738` (`draw_psi_pos`) |
-| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; loaded into `crates/voi_core/src/arrival.rs:129` ([`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:322` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
 | Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 
 ## Caveats
