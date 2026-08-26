@@ -198,6 +198,30 @@ def channels_for_preset(scenario: ScenarioId | str) -> ObsChannels:
     return validate_channels(_PRESET_CHANNELS[scenario])
 
 
+_PRESET_IDS: tuple[ScenarioId, ...] = (
+    "P0",
+    "P1",
+    "F1",
+    "F1s",
+    "F2a",
+    "F2",
+    "F3",
+)
+
+
+def preset_for_channels(channels: ObsChannels) -> ScenarioId | None:
+    """Return the named ladder preset matching ``channels``, or ``None`` if custom."""
+    for sid in _PRESET_IDS:
+        preset = channels_for_preset(sid)
+        if (
+            preset.code_type == channels.code_type
+            and preset.scan_waste == channels.scan_waste
+            and preset.delivery_history == channels.delivery_history
+        ):
+            return sid
+    return None
+
+
 def channels_cache_key(channels: ObsChannels) -> str:
     waste = "1" if channels.scan_waste else "0"
     return f"code={channels.code_type}|waste={waste}|hist={channels.delivery_history}"
@@ -384,6 +408,7 @@ __all__ = [
     "joint_state_count",
     "mask_for",
     "mask_from_channels",
+    "preset_for_channels",
     "rich_obs_from_day_log",
     "validate_channels",
 ]

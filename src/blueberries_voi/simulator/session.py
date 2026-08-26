@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from blueberries_voi.filter.types import (
     ObsChannels,
     mask_for,
+    preset_for_channels,
     validate_channels,
 )
 from blueberries_voi.model.demand_profile import DemandProfile, load_demand_profile
@@ -264,18 +265,10 @@ class EngineSession:
             "scan_waste": ch.scan_waste,
             "delivery_history": ch.delivery_history,
         }
-        from blueberries_voi.filter.types import channels_for_preset
-
-        for sid in ("P0", "P1", "F1", "F1s", "F2a", "F2", "F3"):
-            preset = channels_for_preset(sid)
-            if (
-                preset.code_type == ch.code_type
-                and preset.scan_waste == ch.scan_waste
-                and preset.delivery_history == ch.delivery_history
-            ):
-                self._obs_scenario = sid
-                self._config["obs_scenario"] = sid
-                break
+        preset = preset_for_channels(ch)
+        if preset is not None:
+            self._obs_scenario = preset
+            self._config["obs_scenario"] = preset
         fn = getattr(self._require_rust(), "set_obs_channels", None)
         if not callable(fn):
             msg = "PyEngineSession.set_obs_channels is required after T-128"
@@ -283,6 +276,12 @@ class EngineSession:
         return self._coerce_snapshot(
             fn(ch.code_type, ch.scan_waste, ch.delivery_history)
         )
+
+    def snapshot(self) -> Snapshot:
+        """Current session state without advancing (Rust ``snapshot_value``)."""
+        self._require_init()
+        raw = self._require_rust().snapshot_value()
+        return self._coerce_snapshot(raw)
 
     def host_crossings(self) -> int:
         """Host/FFI crossings (Rust backend)."""
@@ -375,9 +374,25 @@ class EngineSession:
             msg = f"belief_source must be 'filter' or 'truth'; got {raw_belief!r}"
             raise ValueError(msg)
         self._belief_source = raw_belief
-        raw_scenario = config.get("obs_scenario", "P1")
-        mask_for(raw_scenario)
-        self._obs_scenario = raw_scenario
+        raw_channels = config.get("obs_channels")
+        if raw_channels is not None:
+            ch = validate_channels(raw_channels)
+            self._config["obs_channels"] = {
+                "code_type": ch.code_type,
+                "scan_waste": ch.scan_waste,
+                "delivery_history": ch.delivery_history,
+            }
+            preset = preset_for_channels(ch)
+            if preset is not None:
+                self._obs_scenario = preset
+            else:
+                raw_scenario = config.get("obs_scenario", "P1")
+                mask_for(raw_scenario)
+                self._obs_scenario = raw_scenario
+        else:
+            raw_scenario = config.get("obs_scenario", "P1")
+            mask_for(raw_scenario)
+            self._obs_scenario = raw_scenario
         self._L = int(config.get("L", self._L))
         self._K = int(config.get("K", self._K))
         self._n_particles = int(config.get("n_particles", self._n_particles))
