@@ -30,6 +30,8 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 - Wasm particle belief (2026-08-14): provisional **[0126](./0126-wasm-rich-filterobs-particle-belief.md)** (T-117) — RichObs-shaped FilterObs + Snapshot.belief from ParticleBank.
 - Arrival freshness remodel (2026-08-22): provisional **[0144](./0144-f-native-hierarchical-arrival-model.md)** (T-150) — f-native hierarchical arrival law from assumed families; **shape-scaling** as the single gamma convention; single reference life `k·θ·η_ref = 1` (`gamma_scale` 0.08 → 1/28); refrigerated leg only (arrival `f` is an upper bound); no channel observes freshness; "effective age" retired in UI + live code only. **Supersedes [0138](./0138-arrival-f-birth-wiring.md) and [0141](./0141-unified-gamma-arrival-model.md)**; records [0017](./0017-scn-f2-sunrise-full-age-at-receipt.md)'s age-at-receipt rung as dead in code (superseded in substance by [0126](./0126-wasm-rich-filterobs-particle-belief.md)).
 - Modal batch map (2026-08-23): provisional **[0145](./0145-modal-batch-map-optional-ops.md)** (T-155; used by T-150 notebook 13 closeout) — optional Modal / local ProcessPool drivers for nb13 and `gsin_upc_diag`. Does **not** replace 0144.
+- MOD-16 revisit — three fixed lots per delivery (2026-08-26): **[0149](./0149-mod-16-three-fixed-lots-per-delivery.md)** — `L = 3` fixed and known (not latent, not random); delivery quantity split not multiplied; GSIN holds three segments, UPC holds one mixture-of-laws cohort; no new mask fields. **Supersedes [0038](./0038-mod-16-lots-per-delivery-below-the-scanning-rung.md)** (option A); Oliver reopened 0038 to authorize this.
+- Cold-chain break events (2026-08-26): **[0150](./0150-arrival-thermal-break-events.md)** — Poisson-count / Exponential-duration break episodes on a deterministic legged baseline replace the truncated-normal mean transit temperature; temperature trace becomes the generative primitive for `Λ` via existing `resolve_arrival_exposure`; calibration guard re-expressed at the `ρ → 0` limit. **Supersedes [0144](./0144-f-native-hierarchical-arrival-model.md)'s §3 transit-temperature clause and [0148](./0148-abdella-derived-arrival-fit.md)'s truncated-normal fit step**; rest of both ADRs unaffected.
 - ⚑ marks decisions made against the card recommendation
 - Arrival-only count filter (2026-08-13): **[0105](./0105-arrival-only-age-counts-only-exact-wor.md)** (arrival-only age; counts-only PF; exact sequential-WOR weights; multinomial optional); **[0106](./0106-shelfbelief-arrival-prior-age-exports.md)** (ShelfBelief ages = arrival-prior exports). Supersedes production use of 0046–0047, 0051, 0087, 0090–0091, 0103; 0092/0100 age semantics; 0104 MF-sweep clause.
 
@@ -74,7 +76,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0035](./0035-mod-13-bounding-the-number-of-live-cohorts.md) | `MOD-13` | Bounding the number of live cohorts ⚑ | ACCEPTED |
 | [0036](./0036-mod-14-are-arrival-counts-observed-exactly.md) | `MOD-14` | Are arrival counts observed exactly ⚑ | ACCEPTED |
 | [0037](./0037-mod-15-shrink-reporting-compliance.md) | `MOD-15` | Shrink reporting compliance ⚑ | ACCEPTED |
-| [0038](./0038-mod-16-lots-per-delivery-below-the-scanning-rung.md) | `MOD-16` | Lots per delivery below the scanning rung ⚑ | ACCEPTED |
+| [0038](./0038-mod-16-lots-per-delivery-below-the-scanning-rung.md) | `MOD-16` | Lots per delivery below the scanning rung ⚑ | SUPERSEDED BY 0149 |
 | [0039](./0039-mod-17-what-the-books-only-rung-actually-observes.md) | `MOD-17` | What the books-only rung actually observes ⚑ | ACCEPTED |
 | [0040](./0040-mod-18-transit-model-parameterisation.md) | `MOD-18` | Transit model parameterisation | ACCEPTED |
 | [0041](./0041-mod-19-t-ref-convention.md) | `MOD-19` | T_ref convention | ACCEPTED |
@@ -170,5 +172,7 @@ Imported from Afresh blog-post decision board export (`ADR-EXPORT.md`), 2026-08-
 | [0138](./0138-arrival-f-birth-wiring.md) | FIL / MOD-11 | Pre-sampled arrival-f birth wiring (session/VOI/F2) | SUPERSEDED BY 0144 |
 | [0141](./0141-unified-gamma-arrival-model.md) | FIL / MOD-11 | Unified gamma-in-warped-time arrival (Stage C) | SUPERSEDED BY 0144 |
 | [0143](./0143-independent-per-unit-gamma-aging.md) | FIL | Independent per-unit gamma aging + PB spoilage | ACCEPTED |
-| [0144](./0144-f-native-hierarchical-arrival-model.md) | MOD-11 / MOD-18 / MOD-19 / FIL | f-native hierarchical arrival model; shape-scaled gamma; `k·θ·η_ref = 1` | PROPOSED |
+| [0144](./0144-f-native-hierarchical-arrival-model.md) | MOD-11 / MOD-18 / MOD-19 / FIL | f-native hierarchical arrival model; shape-scaled gamma; `k·θ·η_ref = 1` | PROPOSED — §3 SUPERSEDED BY 0150 |
 | [0145](./0145-modal-batch-map-optional-ops.md) | *(ops)* / T-155 | Modal batch map for nb13 / gsin_upc_diag (optional extra) | PROPOSED |
+| [0149](./0149-mod-16-three-fixed-lots-per-delivery.md) | `MOD-16` | Three fixed lots per delivery; split not multiplied; GSIN segments / UPC mixture | ACCEPTED |
+| [0150](./0150-arrival-thermal-break-events.md) | MOD-11 / MOD-18 / MOD-19 / FIL | Cold-chain break events replace truncated-normal transit temperature | ACCEPTED |

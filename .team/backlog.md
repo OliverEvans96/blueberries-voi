@@ -46,12 +46,17 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
 
 - **Observation schemes → independent toggles (replace fixed ladder):** **Done (T-128)** — studio Decision rail exposes POS / Waste / Deliveries channel toggles plus named presets (P0–F2); `set_obs_channels` RPC with lazy catch-up cache keyed by canonical channels (ADR 0133).
 
-- **Migrate arrival cohorts → proper lots (MOD-16 revisit):** Today deliveries map 1:1 to arrival
-  cohorts (ADR [0038](./adr/0038-mod-16-lots-per-delivery-below-the-scanning-rung.md) option A). Move
-  to real lots: **number of lots per delivery is a random variable** driven by order quantity (honest
-  range ~1–3, only a handful at a time). Implies simulator mixing + filter/VOI support assumptions;
-  likely supersedes MOD-16 A and touches MOD-01, FIL-03/04, SCN-F1 VOI channel. Needs ADR before
-  implementation.
+- **Migrate arrival cohorts → proper lots (MOD-16 revisit): ADR done, implementation pending.**
+  Oliver reopened ADR 0038 (option A, 1:1 delivery↔cohort) and decided **not** the random-lot-count
+  framing this note originally anticipated. ADR [0149](./adr/0149-mod-16-three-fixed-lots-per-delivery.md)
+  fixes lot count at a known constant `L = 3` (split, not multiplied, so runtime stays flat), forks
+  GSIN (three segments) vs UPC (one mixture-of-laws cohort), and supersedes 0038. A companion ADR
+  [0150](./adr/0150-arrival-thermal-break-events.md) replaces the truncated-normal transit
+  temperature with cold-chain break events, superseding part of ADR 0144 and part of ADR 0148, so
+  each of the three lots in 0149's DC model can draw its own break-event journey. Touches MOD-01,
+  MOD-11/18/19, FIL, SCN-F1 VOI channel per those ADRs' Decision sections. Needs implementation
+  (Rust kernel, wire/TS/Python mirrors, calibration artifact regen, notebook re-run) — not done in
+  this pass, which was documentation-only.
 
 ## T-127 studio cockpit follow-ups (non-blocking)
 

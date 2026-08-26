@@ -1,9 +1,10 @@
 # 0148. Abdella derived arrival product (fit like FreshNet)
 
-STATUS: ACCEPTED
+STATUS: ACCEPTED — item 1's transit-temperature-moments fit and item 2's `temp_floor_c` knob SUPERSEDED BY 0150; rest of this ADR unaffected
 DATE: 2026-08-25
 GROUP: MOD
-RELATED: [0115](./0115-freshnet-derived-demand-product.md), [0144](./0144-f-native-hierarchical-arrival-model.md)
+RELATED: [0115](./0115-freshnet-derived-demand-product.md), [0144](./0144-f-native-hierarchical-arrival-model.md),
+[0150](./0150-arrival-thermal-break-events.md)
 
 ## Context
 
