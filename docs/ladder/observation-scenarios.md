@@ -1,7 +1,10 @@
 ---
 title: The seven named observation scenarios
 sources:
-  code: [crates/voi_core/src/obs.rs, web/src/obsMask.ts]
+  code:
+    - crates/voi_core/src/obs.rs
+    - web/src/obsMask.ts
+  adr: ["0149", "0150", "0133"]
 ---
 
 # The seven named observation scenarios
@@ -20,10 +23,33 @@ Reading down the table below, each scenario adds one piece of real-world instrum
 The baseline scenario assumes nothing beyond what every grocery store already has (a
 point-of-sale system and a receiving log). Every scenario after that corresponds to a
 purchase or a process change: a handheld scanner, a barcode format that carries lot
-identity, a line on a supplier's paperwork, a logger that rides in the truck. None of
+identity, pack dates on a supplier's paperwork, loggers that ride in the truck. None of
 these devices measures freshness — they only change what shows up in the daily
 observation log, and the filter has to do all the work of turning that log into a belief
 about freshness.
+
+After ADR 0149 and ADR 0150, what each step buys is sharper than under the old
+single-cohort arrival story:
+
+| Scenario | What it buys with $L = 3$ lots and break-event transit |
+| --- | --- |
+| **Books only** (P0) | Pooled sales and arrival counts only. Truth always births three shelf segments; the filter still models one merged cohort — a fixed, knowable cardinality misspecification. |
+| **Shrink gun** (P1) | Storewide waste totals. Still no delivery journey or lot identity; waste helps score spoilage but cannot split three coexisting segments. |
+| **Lot ID at POS** (F1) | Per-lot sales, waste, and arrival lot ids. Opens sequential attribution, composition (how $Q$ split across three lots), and lot-count information GSIN can express but UPC cannot. |
+| **Pack date on the ASN** (F2a) | Pins transit duration for the delivery, but under UPC the three per-lot pack dates on the ASN are mixed into one birth law — duration information without per-lot segmentation. |
+| **Lot ID + pack date** (F2) | Same pack-date paperwork, but GSIN holds three segments each born from its own duration draw — separates lots that share a truck yet took different upstream journeys. |
+| **Lot ID + pack date + temperature history** (F3) | Full per-lot exposure traces under ADR 0150's break-event model. Mops up thermal exposure variance the pack date leaves behind — a much larger step than when the trace was decorative. |
+
+The **F2a → F2** gap is the cleanest place to see ADR 0149's structural fork: identical
+supplier paperwork, different register resolution. Under the pre-0149 ladder that step
+was nearly flat (measured MAE 0.034 vs 0.032) because lot identity was redundant with
+shelf tenure; with three fixed lots it is expected to widen.
+
+The **F2 → F3** step is also larger post-0150. Cold-chain break events replace the old
+transit-temperature sub-model, so a temperature trace pins cumulative exposure $\Lambda$
+with meaningful between-shipment spread rather than bisecting a nearly fixed mean
+temperature. Duration still dominates, but the residual exposure variance a trace can
+remove is no longer negligible.
 
 ## The math
 
@@ -57,16 +83,19 @@ that "Lot ID at POS" does not.
 
 | Observation scenario | Channels (code_type, scan_waste, delivery_history) | Business translation | File:line |
 | --- | --- | --- | --- |
-| **Books only** | upc, off, none | Nothing beyond ordinary POS and receiving — no new purchase. | `crates/voi_core/src/obs.rs:137` |
-| **Shrink gun** | upc, on, none | Buy a handheld scanner for daily storewide waste counts; no barcode change. | `crates/voi_core/src/obs.rs:142` |
-| **Lot ID at POS** | gsin, on, none | Switch checkout to lot-resolved (GSIN) codes; waste counts come back per lot as a side effect. | `crates/voi_core/src/obs.rs:147` |
-| **Lot ID on the shrink gun** | gsin, on, none *(identical to "Lot ID at POS" — see caveat above)* | Intended design: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:147` |
-| **Pack date on the ASN** | upc, on, pack_date | Get the supplier to print/transmit a pack date on the ASN; no barcode change at the register. | `crates/voi_core/src/obs.rs:152` |
-| **Lot ID + pack date** | gsin, on, pack_date | Both of the above: lot-resolved POS codes and a supplier pack date. | `crates/voi_core/src/obs.rs:157` |
-| **Lot ID + pack date + temperature history** | gsin, on, temperature_history | All of the previous scenario, plus a temperature logger that travels with the pallet and is read at receipt. | `crates/voi_core/src/obs.rs:162` |
+| **Books only** | upc, off, none | Nothing beyond ordinary POS and receiving — no new purchase. | `crates/voi_core/src/obs.rs:179` |
+| **Shrink gun** | upc, on, none | Buy a handheld scanner for daily storewide waste counts; no barcode change. | `crates/voi_core/src/obs.rs:184` |
+| **Lot ID at POS** | gsin, on, none | Switch checkout to lot-resolved (GSIN) codes; waste counts come back per lot as a side effect. | `crates/voi_core/src/obs.rs:189` |
+| **Lot ID on the shrink gun** | gsin, on, none *(identical to "Lot ID at POS" — see caveat above)* | Intended design: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:189` |
+| **Pack date on the ASN** | upc, on, pack_date | Get the supplier to print/transmit pack dates on the ASN; register still reads pooled UPC — three dates mix into one birth law. | `crates/voi_core/src/obs.rs:194` |
+| **Lot ID + pack date** | gsin, on, pack_date | Lot-resolved POS plus per-lot duration conditioning on three shelf segments. | `crates/voi_core/src/obs.rs:199` |
+| **Lot ID + pack date + temperature history** | gsin, on, temperature_history | F2 plus per-lot temperature traces that pin exposure under break-event transit. | `crates/voi_core/src/obs.rs:204` |
 | Preset table (TS mirror) | `PRESET_CHANNELS` | Studio UI reads the same seven presets. | `web/src/obsMask.ts:68` |
-| Round-trip test (all 7 presets) | `preset_round_trip_matches_mask_for` | | `crates/voi_core/src/obs.rs:414` |
-| "Lot ID on the shrink gun" ≡ "Lot ID at POS" assertion | `mask_for_f1s_matches_f1` | | `crates/voi_core/src/obs.rs:484` |
+| Round-trip test (all 7 presets) | `preset_round_trip_matches_mask_for` | | `crates/voi_core/src/obs.rs:466` |
+| "Lot ID on the shrink gun" ≡ "Lot ID at POS" assertion | `mask_for_f1s_matches_f1` | | `crates/voi_core/src/obs.rs:536` |
+| F2a mask (UPC + pack date, no lot maps) | `mask_for_f2a_is_p1_plus_pack_date` | | `crates/voi_core/src/obs.rs:541` |
+| F2 mask (GSIN maps + pack date) | `mask_for_f2_has_maps_and_pack_date` | | `crates/voi_core/src/obs.rs:549` |
+| F3 passes trace through mask | `apply_f3_passes_shipment_trace` | | `crates/voi_core/src/obs.rs:592` |
 
 ## Caveats
 
@@ -80,3 +109,9 @@ above, "Lot ID on the shrink gun" is presently a relabeling of "Lot ID at POS," 
 independent instrument — readers comparing results between the two anywhere in this
 project should expect no difference, and that is expected behavior of the current code,
 not a bug in the comparison.
+
+Measured MAE numbers on this ladder drift when the arrival generative story changes —
+re-run `notebooks/13_filter_accuracy_knowledge_ladder.ipynb` after multi-lot and break
+wiring land. The ordering guard
+`crates/voi_core/tests/t150_phase2_arrival_model.rs::ac2_11a_empirical_ladder_tracking_mae`
+is the regression anchor: MAE must strictly increase from F3 down to P0.

@@ -2,7 +2,10 @@
 title: Observation channels
 sources:
   code:
-    [crates/voi_core/src/obs.rs, web/src/obsMask.ts, src/blueberries_voi/filter/types.py]
+    - crates/voi_core/src/obs.rs
+    - web/src/obsMask.ts
+    - src/blueberries_voi/filter/types.py
+  adr: ["0149", "0150", "0133"]
 ---
 
 # What a store can actually see
@@ -22,19 +25,29 @@ Think of a grocer choosing hardware and process. There are three independent swi
 
 1. **What code does the register read?** A plain UPC barcode (identical for every unit
    of a product, so the register cannot tell one delivery from another), or a
-   lot-resolved code — a GSIN-style code that also encodes *which delivery* a unit came
-   from.
+   lot-resolved code — a GSIN-style code that also encodes *which delivery segment* a
+   unit came from.
 2. **Does anyone scan waste?** Off (spoiled units are simply removed and never counted),
    or on (a handheld scanner scans culled units, producing daily counts).
 3. **What does the supplier tell you about the shipment's journey?** Nothing beyond
-   quantity, a pack date stamped on the delivery paperwork (the ASN), or a full
-   temperature-history trace from a logger that rode with the pallet.
+   quantity, pack dates stamped on the delivery paperwork (the ASN), or full
+   temperature-history traces from loggers that rode with the pallet.
 
 Each switch is independent of the other two — a store could run lot-resolved codes at
 POS with a temperature-logged pallet but *no* waste scanning at all, and the model
 handles that combination the same way it handles any named observation scenario. That
 independence is the point of the design: it shows what each *kind* of instrument buys
 you, rather than bundling everything into a handful of fixed packages.
+
+Under ADR 0149 every delivery carries **three fixed lots** (`L = 3`): total case quantity
+is **split** across those lots, not multiplied. That changes what GSIN buys. With a
+single shelf cohort, lot identity on a M/W/F schedule was nearly redundant with how long
+each cohort had been on the shelf — age alone nearly pinned sales allocation, so GSIN
+added almost nothing beyond a pack date. With three coexisting segments from the same
+truck, lot identity now separates **composition** (how many units sit in each segment),
+**sequential attribution** (which segment sales drained), and **lot count** (whether the
+shelf still holds three distinguishable cohorts). GSIN is meaningful again because those
+channels are not recoverable from pooled totals alone.
 
 ## The math
 
@@ -56,6 +69,13 @@ codes ($c = \text{gsin}$), and only as a **storewide total** if it does not ($c 
 not offer a combination where you get per-lot waste detail without also being able to
 identify lots at the register.
 
+When $h$ is `pack_date` or `temperature_history`, the truth path records journey
+metadata for each of the three arriving lots (each lot's own upstream draw plus one
+shared DC→store leg). `FilterObs` exposes whatever the mask allows — `pack_date_days`,
+`temp_times_d` / `temp_temps_c`, and `arrival_lot_ids` aligned to those lots — not a
+freshness value. On the studio wire, per-lot traces also appear as
+`temp_traces_by_lot` when temperature history is enabled.
+
 ## Why it's modelled this way
 
 The three switches are kept orthogonal because POS resolution, waste resolution, and
@@ -68,6 +88,22 @@ Waste granularity is derived from the POS code-type switch rather than tracked a
 own free choice, which keeps the model simpler at the cost of one representational gap,
 described below.
 
+**Structural fork (ADR 0149).** `code_type` and `delivery_history` interact in truth
+and birth, but not via a fourth mask field. A GSIN store holds three shelf segments; each
+segment's birth law is conditioned on that lot's own journey (`Duration(d_ℓ)` or
+`Exposure(Λ_ℓ)` under ADR 0150). A UPC store still receives all three lots on the ASN —
+three pack dates, three logger traces — but cannot attribute them, so the filter births
+one merged cohort of $Q$ units from the mixture law
+$\text{Law}_{\text{UPC}} = (1/L)\sum_\ell \text{Law}(\text{record}_\ell)$. **Mix the
+laws, don't average the dates:** averaging pack dates first would discard between-lot
+spread and understate UPC uncertainty.
+
+An earlier draft proposed a coupled `delivery_history_by_lot` mask field so a GSIN store
+could see per-lot journey data while a UPC store saw only pooled journey data. That
+field is **rejected** — the `code_type` / `delivery_history` fork already determines
+whether journey data lands in segments or is mixed into one law, so a third field would
+duplicate information the fork already encodes.
+
 **Caveat:** because waste granularity is coupled to code type, the model cannot
 represent a store that reads plain UPCs at checkout but gets per-lot waste detail from a
 separate lot-labeled workflow. See [Observation scenarios](./observation-scenarios.md)
@@ -77,13 +113,14 @@ for exactly where this shows up.
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Channel triple (the three switches) | `ObsChannels { code_type, scan_waste, delivery_history }` | `crates/voi_core/src/obs.rs:23` |
-| POS code-type switch | `CodeType::{Upc, Gsin}` | `crates/voi_core/src/obs.rs:31` |
-| Delivery-history switch | `DeliveryHistory::{None, PackDate, TemperatureHistory}` | `crates/voi_core/src/obs.rs:38` |
-| Channels → observation mask | `mask_from_channels(ch: ObsChannels) -> ObsMask` | `crates/voi_core/src/obs.rs:209` |
-| All 12 combinations exercised | `mask_from_channels_all_twelve_combos` (test) | `crates/voi_core/src/obs.rs:382` |
-| Waste granularity coupled to code type | `if ch.code_type == CodeType::Gsin { m.waste_by_lot = true }` | `crates/voi_core/src/obs.rs:224` |
-| TypeScript port (studio UI) | `ObsChannels`, `maskFromChannels` | `web/src/obsMask.ts:20`, `web/src/obsMask.ts:131` |
+| Channel triple (the three switches) | `ObsChannels { code_type, scan_waste, delivery_history }` | `crates/voi_core/src/obs.rs:32` |
+| POS code-type switch | `CodeType::{Upc, Gsin}` | `crates/voi_core/src/obs.rs:46` |
+| Delivery-history switch | `DeliveryHistory::{None, PackDate, TemperatureHistory}` | `crates/voi_core/src/obs.rs:56` |
+| Masked observation (journey fields gated by mask) | `FilterObs` (`pack_date_days`, `temp_times_d`, `temp_temps_c`, `arrival_lot_ids`) | `crates/voi_core/src/obs.rs:84` |
+| Channels → observation mask | `mask_from_channels(ch: ObsChannels) -> ObsMask` | `crates/voi_core/src/obs.rs:261` |
+| All 12 combinations exercised | `mask_from_channels_all_twelve_combos` (test) | `crates/voi_core/src/obs.rs:434` |
+| Waste granularity coupled to code type | `if ch.code_type == CodeType::Gsin { m.waste_by_lot = true }` | `crates/voi_core/src/obs.rs:274` |
+| TypeScript port (studio UI) | `ObsChannels`, `maskFromChannels`, `temp_traces_by_lot` on wire | `web/src/obsMask.ts:20`, `web/src/obsMask.ts:131`, `web/src/obsMask.ts:45` |
 | Python port (research path) | `ObsChannels` dataclass | `src/blueberries_voi/filter/types.py:160` |
 
 ## Caveats
