@@ -866,26 +866,40 @@ fn ac2_11a_n_scaling_diagnostic() {
     }
 }
 
-/// AC2.19 (a): P0/P1 quadrature must integrate d and T_bar as a product, not one shared index.
+/// AC2.19 (a): the P0/P1 marginalization must be a genuine nested integration over
+/// duration and the break channel, not one shared loop index.
+///
+/// This replaces an earlier assertion that `d` and `phi_bar` quadrature nodes were
+/// *uncorrelated*. Under the cold-chain break model that premise is deliberately false:
+/// break count is `Poisson(rho * d)`, so a longer trip really does carry more thermal
+/// risk, and the two axes are coupled on purpose. What must still hold is that the prior
+/// genuinely mixes over durations rather than collapsing onto one — so the prior law is
+/// strictly wider than any single pinned-duration law.
 #[test]
-fn ac2_19_quadrature_d_and_tbar_independent_product() {
-    let model = ArrivalModel::embedded();
-    let corridor = model.corridor("abdella_all");
-    let (nodes, _) = artifact_quadrature();
-    let mut d_vals = Vec::new();
-    let mut phi_vals = Vec::new();
-    for u_d in &nodes {
-        let d = model.quadrature_duration_days(corridor, *u_d);
-        for u_t in &nodes {
-            let t_bar = model.quadrature_t_bar_c(*u_t);
-            d_vals.push(d);
-            phi_vals.push(model.phi_bar_from_t_bar(t_bar));
-        }
+fn ac2_19_prior_mixes_over_duration_not_one_shared_index() {
+    let mut model = ArrivalModel::embedded();
+    let prior_var = model.marginal_variance_f();
+    for d in [2, 4, 5, 6, 8] {
+        let f2_var = model.variance_f_given_d(d);
+        assert!(
+            prior_var > f2_var,
+            "prior must be wider than the pinned-duration law at d={d}: \
+             prior var {prior_var:.6} vs F2 var {f2_var:.6}"
+        );
     }
-    let corr = pearson_corr(&d_vals, &phi_vals).abs();
+}
+
+/// AC2.19 (a2): pinning the pack date must actually move the law — different durations
+/// give materially different arrival-freshness beliefs.
+#[test]
+fn ac2_19_pack_date_laws_separate_across_durations() {
+    let mut model = ArrivalModel::embedded();
+    let mean_short = model.filter_law_mean_f(ArrivalCondition::Duration(2));
+    let mean_long = model.filter_law_mean_f(ArrivalCondition::Duration(8));
     assert!(
-        corr < 0.5,
-        "RED: d and phi_bar quadrature nodes must not be rank-correlated (product rule); |r|={corr:.4}"
+        mean_short > mean_long + 0.05,
+        "a 2-day trip must arrive meaningfully fresher than an 8-day trip: \
+         {mean_short:.4} vs {mean_long:.4}"
     );
 }
 

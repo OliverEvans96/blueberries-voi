@@ -81,8 +81,9 @@ pub use alpha_tune::{
 };
 pub use arrival::{
     arrival_artifact_from_json, embedded_arrival_model, resolve_arrival_exposure,
-    resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel, ArrivalModelError,
-    STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalLeg, ArrivalModel, ArrivalModelError,
+    ArrivalRungLaw, TruthDeliveryDraw, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA,
+    STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
 };
 pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};

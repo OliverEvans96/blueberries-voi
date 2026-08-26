@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
     ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
-    STREAM_ARRIVAL_TEMP, STREAM_ARRIVAL_TRACE,
+    STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -23,7 +23,7 @@ use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
-use crate::shipments::{mod21_demo_shipments, truth_transit_trace, ShipmentTrace};
+use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
 use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
@@ -439,42 +439,26 @@ impl EngineSession {
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
             let mut rng_gamma =
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
-            let draw = self.arrival_model.draw_truth_delivery(
+            // `transit_temp_bias_c` now offsets every leg setpoint inside the generative
+            // draw, so the trace, Λ, and the per-unit freshness all reflect the bias
+            // consistently — no post-hoc rescaling of `unit_f` by a φ ratio.
+            let draw = self.arrival_model.draw_truth_delivery_biased(
                 &self.arrival_product,
                 n_units,
+                self.transit_temp_bias_c,
                 &mut rng_dur,
                 &mut rng_temp,
                 &mut rng_pos,
                 &mut rng_gamma,
             );
-            let biased_t_bar = draw.t_bar + self.transit_temp_bias_c;
-            let biased_phi = self.arrival_model.phi_bar_from_t_bar(biased_t_bar);
-            let phi_ratio = (biased_phi / draw.phi_bar.max(1e-12)).clamp(0.25, 4.0);
-            let mut unit_f: Vec<f64> = draw
-                .unit_f
-                .iter()
-                .map(|&f| {
-                    let rem = (1.0 - f).max(0.0);
-                    (1.0 - rem * phi_ratio).clamp(0.0, 1.0)
-                })
-                .collect();
+            let mut unit_f: Vec<f64> = draw.unit_f.clone();
             if (self.spread_scale - 1.0).abs() > 1e-12 && !unit_f.is_empty() {
                 let mean = unit_f.iter().sum::<f64>() / unit_f.len() as f64;
                 for f in &mut unit_f {
                     *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
                 }
             }
-            let mut rng_trace =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_TRACE);
-            let trace = truth_transit_trace(
-                draw.duration_d,
-                biased_phi,
-                biased_t_bar,
-                self.arrival_model.temp_floor_c,
-                self.params.q10,
-                self.params.t_ref_c,
-                &mut rng_trace,
-            );
+            let trace = draw.trace.clone();
             let lot_id = self.next_lot;
             self.lot_ids.push(lot_id);
             self.next_lot += 1;

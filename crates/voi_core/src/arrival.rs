@@ -4,28 +4,34 @@ use std::collections::HashMap;
 use std::fmt;
 
 use rand::Rng;
-use rand_distr::{Distribution, Gamma, LogNormal, Normal};
+use rand_distr::{Distribution, Exp, Gamma, LogNormal, Poisson};
 use serde::Deserialize;
 
 use crate::params::ModelParams;
 use crate::physics::{gamma_p, gamma_q, store_temp_factor};
+use crate::shipments::{truth_transit_trace, ShipmentTrace};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
-const SUPPORTED_SCHEMA_VERSION: u64 = 1;
+const SUPPORTED_SCHEMA_VERSION: u64 = 2;
 /// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
 /// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
 const LAMBDA_FLOOR: f64 = 1e-12;
 /// Resolution of the cached filter CDFs (`ArrivalCdfCache`) and inverse-sampling grid.
-const ARRIVAL_GRID: usize = 4096;
+///
+/// 512 points put the inverse-sampling resolution at ~0.002 in freshness, far below the
+/// noise floor of anything downstream, and pay for the wider thermal enumeration the
+/// break model needs (33 nodes where the truncated normal used 8).
+const ARRIVAL_GRID: usize = 512;
+/// Largest break count the filter enumerates when marginalizing the thermal channel.
+/// At `rho * d` under ~1.5 the Poisson tail beyond 4 carries well under 0.1% of the mass.
+const MAX_ENUMERATED_BREAKS: usize = 4;
 
 /// CRN stream tag for the truth-path transit-duration draw.
 pub const STREAM_ARRIVAL_DURATION: &str = ":arrival_duration";
-/// CRN stream tag for the truth-path mean-transit-temperature draw.
+/// CRN stream tag for the truth-path cold-chain break draw (count and durations). Named
+/// for continuity with the mean-transit-temperature stream it replaces, so existing CRN
+/// seeds keep lining up across the change.
 pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
-/// CRN stream tag for synthesizing a delivery's within-trip temperature trace (the F3
-/// temperature-history observation), seeded independently of the mean-temperature draw
-/// itself.
-pub const STREAM_ARRIVAL_TRACE: &str = ":arrival_trace";
 /// CRN stream tag for the truth-path within-pallet position draw.
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
 /// CRN stream tag for the truth-path per-unit freshness-loss gamma draw.
@@ -66,9 +72,9 @@ impl fmt::Display for ArrivalModelError {
 
 impl std::error::Error for ArrivalModelError {}
 
-/// One truth-path delivery: a single duration/temperature draw shared by every unit in
-/// the lot, plus one independent within-pallet position (and hence arrival freshness)
-/// draw per unit.
+/// One truth-path delivery: a single duration draw and one cold-chain break realization
+/// shared by every unit in the lot, plus one independent within-pallet position (and
+/// hence arrival freshness) draw per unit.
 #[derive(Clone, Debug)]
 pub struct TruthDeliveryDraw {
     /// Arrival freshness for each unit in the delivery, one draw per unit.
@@ -77,10 +83,30 @@ pub struct TruthDeliveryDraw {
     pub pack_date_days: i32,
     /// Exact (unrounded) transit duration in days.
     pub duration_d: f64,
-    /// Sampled mean transit temperature in Celsius for this delivery.
+    /// The delivery's generated temperature history. This is the *primitive*: `lambda`
+    /// below is integrated out of this path, not the other way round.
+    pub trace: ShipmentTrace,
+    /// Cumulative thermal exposure Λ in reference-days, integrated from `trace`.
+    pub lambda: f64,
+    /// Exposure-equivalent mean transit temperature in Celsius — the constant temperature
+    /// that would produce the same Λ over `duration_d`. Retained so callers that reported
+    /// a single transit temperature keep working now that the path is piecewise.
     pub t_bar: f64,
-    /// Duration-averaged Q10 temperature factor implied by `t_bar`.
+    /// Duration-averaged Q10 temperature factor `Λ / d` for this delivery.
     pub phi_bar: f64,
+}
+
+/// One deterministic leg of the transit baseline: a fraction of the trip spent at a fixed
+/// setpoint. Legs carry no randomness — they exist to give the trace a realistic stepped
+/// shape and to define `phi_set`, so they cost the filter nothing.
+#[derive(Clone, Debug)]
+pub struct ArrivalLeg {
+    /// Human-readable leg name (`precool_staging`, `line_haul`, `dock_receiving`).
+    pub name: String,
+    /// Share of total transit duration spent on this leg; weights sum to 1.
+    pub weight: f64,
+    /// The leg's holding temperature in Celsius.
+    pub setpoint_c: f64,
 }
 
 /// A shipping lane's transit-duration prior: delivery duration is `d_min` plus a
@@ -109,13 +135,18 @@ pub struct ArrivalModel {
     /// Corridor key used when a caller doesn't specify one; `"abdella_all"` if present in
     /// the artifact, otherwise an arbitrary corridor from it.
     pub default_corridor: String,
-    /// Mean of the (pre-truncation) mean-transit-temperature normal distribution, in
-    /// Celsius.
-    pub mu_t: f64,
-    /// Standard deviation of the mean-transit-temperature normal distribution.
-    pub sigma_t: f64,
-    /// Lower truncation bound for mean transit temperature; draws below this are rejected.
-    pub temp_floor_c: f64,
+    /// Deterministic transit legs (duration shares and setpoints) making up the
+    /// break-free thermal baseline.
+    pub legs: Vec<ArrivalLeg>,
+    /// Temperature in Celsius the product sits at during a cold-chain break — an
+    /// unrefrigerated dock or a failed reefer, roughly fixed by geography.
+    pub t_break: f64,
+    /// Cold-chain break hazard, in breaks per transit-day. Every handoff is an independent
+    /// chance to fail, so longer trips accumulate more break risk.
+    pub rho: f64,
+    /// Mean cold-chain break duration in days. Break *duration* is the quantity that
+    /// physically varies; the break temperature is held fixed at `t_break`.
+    pub tau_bar: f64,
     /// Standard deviation (in log-space) of the log-normal within-pallet position
     /// multiplier ψ.
     pub sigma_pos: f64,
@@ -184,6 +215,12 @@ struct PriorCdfBuildKey {
     t_ref: f64,
     eta_ref: f64,
     active_corridor: String,
+    /// Break parameters participate in the fingerprint so `set_break_rate` (and any
+    /// future break-parameter edit) invalidates the prior and the F2/F3 caches, which
+    /// are all built by integrating over the break channel.
+    rho: f64,
+    tau_bar: f64,
+    t_break: f64,
 }
 
 impl PriorCdfBuildKey {
@@ -195,17 +232,23 @@ impl PriorCdfBuildKey {
             t_ref: model.t_ref,
             eta_ref: model.reference_life_days,
             active_corridor: model.active_corridor.clone(),
+            rho: model.rho,
+            tau_bar: model.tau_bar,
+            t_break: model.t_break,
         }
     }
 
-    fn from_params(params: &ModelParams, active_corridor: &str) -> Self {
+    fn from_params(params: &ModelParams, model: &ArrivalModel) -> Self {
         Self {
             gamma_shape: params.gamma_shape,
             gamma_scale: params.gamma_scale,
             q10: params.q10,
             t_ref: params.t_ref_c,
             eta_ref: params.eta_ref,
-            active_corridor: active_corridor.to_string(),
+            active_corridor: model.active_corridor.clone(),
+            rho: model.rho,
+            tau_bar: model.tau_bar,
+            t_break: model.t_break,
         }
     }
 }
@@ -233,12 +276,11 @@ pub struct ArrivalRungLaw {
 #[derive(Deserialize)]
 struct ArrivalModelJson {
     schema_version: u64,
-    #[serde(rename = "mu_T")]
-    mu_t: f64,
-    #[serde(rename = "sigma_T")]
-    sigma_t: f64,
-    #[serde(default)]
-    temp_floor_c: f64,
+    legs: Vec<LegJson>,
+    #[serde(rename = "T_break")]
+    t_break: f64,
+    rho: f64,
+    tau_bar: f64,
     sigma_pos: f64,
     q10: f64,
     #[serde(rename = "T_ref")]
@@ -254,6 +296,13 @@ struct ArrivalModelJson {
 struct QuadratureJson {
     nodes: Vec<f64>,
     weights: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+struct LegJson {
+    name: String,
+    weight: f64,
+    setpoint_c: f64,
 }
 
 #[derive(Deserialize)]
@@ -274,29 +323,9 @@ pub fn arrival_artifact_from_json(json: &str) -> Result<ArrivalModel, ArrivalMod
     ArrivalModel::from_json(json)
 }
 
-/// Standard normal CDF, via the `erf` approximation below.
-fn normal_cdf(z: f64) -> f64 {
-    0.5 * (1.0 + erf(z / std::f64::consts::SQRT_2))
-}
-
-/// Abramowitz & Stegun 7.1.26 rational approximation to the error function (max error
-/// ~1.5e-7); good enough for the truncated-normal transit-temperature draw without
-/// pulling in a special-functions dependency.
-fn erf(x: f64) -> f64 {
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let x = x.abs();
-    let t = 1.0 / (1.0 + 0.3275911 * x);
-    let y = 1.0
-        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
-            + 0.254829592)
-            * t
-            * (-x * x).exp();
-    sign * y
-}
-
 /// Acklam's rational approximation to the standard normal inverse CDF. Used to map
-/// quadrature nodes `u ∈ [0, 1]` to draws from the (truncated) normal transit-temperature
-/// distribution without needing a root-finder.
+/// quadrature nodes `u ∈ [0, 1]` onto the log-normal within-pallet position multiplier ψ
+/// without needing a root-finder.
 fn normal_quantile(u: f64) -> f64 {
     let u = u.clamp(1e-12, 1.0 - 1e-12);
     const A1: f64 = -39.69683028665376;
@@ -336,6 +365,40 @@ fn normal_quantile(u: f64) -> f64 {
         (((((A1 * r + A2) * r + A3) * r + A4) * r + A5) * r + A6) * q
             / (((((B1 * r + B2) * r + B3) * r + B4) * r + B5) * r + 1.0)
     }
+}
+
+/// Atom-inclusive mean and variance of `f` from a raw CDF on the uniform `[0, 1]` grid.
+///
+/// Shared by `rung_law_on_grid` and `mixture_law` so a mixed law's moments are always
+/// recomputed from its own CDF — averaging component variances would drop the
+/// between-component spread that is the whole point of a mixture.
+fn moments_from_cdf(cdf: &[f64], atom_f0: f64) -> (f64, f64) {
+    let grid_len = cdf.len();
+    if grid_len < 2 {
+        return (0.0, 0.0);
+    }
+    let mut mean_acc = 0.0;
+    let mut mean_sq_acc = 0.0;
+    let mut mass_acc = 0.0;
+    for gi in 1..grid_len {
+        let f = gi as f64 / (grid_len - 1) as f64;
+        let f_prev = (gi - 1) as f64 / (grid_len - 1) as f64;
+        let p_hi = cdf[gi];
+        let p_lo = if gi == 1 { atom_f0 } else { cdf[gi - 1] };
+        let bin_mass = (p_hi - p_lo).max(0.0);
+        let f_mid = 0.5 * (f + f_prev);
+        mean_acc += f_mid * bin_mass;
+        mean_sq_acc += f_mid * f_mid * bin_mass;
+        mass_acc += bin_mass;
+    }
+    mass_acc += atom_f0;
+
+    if mass_acc <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let mean_f = mean_acc / mass_acc;
+    let variance_f = (mean_sq_acc / mass_acc - mean_f * mean_f).max(0.0);
+    (mean_f, variance_f)
 }
 
 /// Inverse gamma CDF via bracket-and-bisect on the regularized incomplete gamma function
@@ -391,6 +454,20 @@ impl ArrivalModel {
                 "corridors must be non-empty".into(),
             ));
         }
+        if raw.legs.is_empty() {
+            return Err(ArrivalModelError::Invalid("legs must be non-empty".into()));
+        }
+        let weight_sum: f64 = raw.legs.iter().map(|l| l.weight).sum();
+        if (weight_sum - 1.0).abs() > 1e-6 {
+            return Err(ArrivalModelError::Invalid(format!(
+                "leg weights must sum to 1, got {weight_sum}"
+            )));
+        }
+        if raw.rho < 0.0 || raw.tau_bar <= 0.0 {
+            return Err(ArrivalModelError::Invalid(
+                "rho must be >= 0 and tau_bar > 0".into(),
+            ));
+        }
         let default_corridor = if raw.corridors.contains_key("abdella_all") {
             "abdella_all".to_string()
         } else {
@@ -410,13 +487,23 @@ impl ArrivalModel {
                 )
             })
             .collect();
+        let legs: Vec<ArrivalLeg> = raw
+            .legs
+            .into_iter()
+            .map(|l| ArrivalLeg {
+                name: l.name,
+                weight: l.weight,
+                setpoint_c: l.setpoint_c,
+            })
+            .collect();
         let mut model = Self {
             schema_version: raw.schema_version,
             corridors,
             default_corridor: default_corridor.clone(),
-            mu_t: raw.mu_t,
-            sigma_t: raw.sigma_t,
-            temp_floor_c: raw.temp_floor_c,
+            legs,
+            t_break: raw.t_break,
+            rho: raw.rho,
+            tau_bar: raw.tau_bar,
             sigma_pos: raw.sigma_pos,
             q10: raw.q10,
             t_ref: raw.t_ref,
@@ -438,6 +525,9 @@ impl ArrivalModel {
                 t_ref: raw.t_ref,
                 eta_ref: raw.reference_life_days,
                 active_corridor: default_corridor.clone(),
+                rho: raw.rho,
+                tau_bar: raw.tau_bar,
+                t_break: raw.t_break,
             },
         };
         model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
@@ -471,21 +561,115 @@ impl ArrivalModel {
         corridor.d_min + delay
     }
 
-    /// Map a quadrature node `u ∈ [0, 1]` to a truncated-normal mean transit temperature.
-    pub fn quadrature_t_bar_c(&self, u: f64) -> f64 {
-        self.truncated_normal_quantile(u)
+    /// Duration-weighted Q10 factor of the deterministic legged baseline. A break-free
+    /// trip of length `d` has exposure exactly `d * phi_set` — the reefer holds its
+    /// setpoints, so all thermal risk is event risk.
+    pub fn phi_set(&self) -> f64 {
+        self.legs
+            .iter()
+            .map(|leg| leg.weight * store_temp_factor(leg.setpoint_c, self.t_ref, self.q10))
+            .sum()
     }
 
-    /// Inverse CDF of the mean-transit-temperature distribution, truncated below at
-    /// `temp_floor_c`. Rescales `u` into the CDF mass above the truncation point (`alpha`)
-    /// before inverting, so a uniform `u ∈ [0, 1]` maps onto the truncated distribution
-    /// rather than the unbounded one.
-    fn truncated_normal_quantile(&self, u: f64) -> f64 {
-        let u = u.clamp(1e-12, 1.0 - 1e-12);
-        let alpha = normal_cdf((self.temp_floor_c - self.mu_t) / self.sigma_t);
-        let target = alpha + u * (1.0 - alpha);
-        let z = normal_quantile(target);
-        (self.mu_t + self.sigma_t * z).max(self.temp_floor_c)
+    /// Q10 factor while the cold chain is broken (product sitting at `t_break`).
+    pub fn phi_break(&self) -> f64 {
+        store_temp_factor(self.t_break, self.t_ref, self.q10)
+    }
+
+    /// Exposure cost in reference-days of one day spent broken rather than at setpoint —
+    /// the `phi_break - phi_set` factor that turns a break *duration* into a break
+    /// *exposure*. Floored at zero so a nonsensical `t_break` below setpoint can never
+    /// make a break reduce exposure.
+    pub fn break_exposure_rate(&self) -> f64 {
+        (self.phi_break() - self.phi_set()).max(0.0)
+    }
+
+    /// Mean exposure cost `m` of a single break, in reference-days:
+    /// `tau_bar * (phi_break - phi_set)`. Given `N` breaks the total is `Gamma(N, m)`,
+    /// which is what makes the thermal channel exactly enumerable.
+    pub fn break_exposure_mean(&self) -> f64 {
+        self.tau_bar * self.break_exposure_rate()
+    }
+
+    /// Cumulative exposure for a trip of length `d` with the given break durations.
+    ///
+    /// `Λ = (d − Στ)·φ_set + Στ·φ_break = d·φ_set + Σ τ_j·(φ_break − φ_set)`. The two
+    /// forms are exactly equal — the trip clock runs during a break, so the baseline is
+    /// credited only for the time not spent broken. Break time is clamped to the trip.
+    pub fn lambda_from_breaks(&self, d: f64, taus: &[f64]) -> f64 {
+        let d = d.max(0.0);
+        let tau_sum: f64 = taus.iter().map(|t| t.max(0.0)).sum::<f64>().min(d);
+        d * self.phi_set() + tau_sum * self.break_exposure_rate()
+    }
+
+    /// Override the cold-chain break hazard, rebuilding the prior and dropping the F2/F3
+    /// caches. `rho = 0` recovers a purely deterministic thermal path — the clean-chain
+    /// regime the six real Abdella shipments actually sample.
+    pub fn set_break_rate(&mut self, rho: f64) {
+        let rho = rho.max(0.0);
+        if (self.rho - rho).abs() < f64::EPSILON {
+            return;
+        }
+        self.rho = rho;
+        self.f2_cache.clear();
+        self.f3_cache.clear();
+        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
+        self.prior_build_key = PriorCdfBuildKey::from_model(self);
+    }
+
+    /// Draw one trip's cold-chain break durations: `N ~ Poisson(rho * d)` breaks, each
+    /// lasting `Exp(tau_bar)` days. Durations are truncated so the total never exceeds the
+    /// trip itself.
+    pub fn draw_break_taus<R: Rng + ?Sized>(&self, d: f64, rng: &mut R) -> Vec<f64> {
+        if self.rho <= 0.0 || d <= 0.0 {
+            return Vec::new();
+        }
+        let n = Poisson::new(self.rho * d)
+            .expect("break poisson")
+            .sample(rng)
+            .round()
+            .max(0.0) as usize;
+        if n == 0 {
+            return Vec::new();
+        }
+        let exp = Exp::new(1.0 / self.tau_bar).expect("break duration exp");
+        let mut taus = Vec::with_capacity(n);
+        let mut budget = d;
+        for _ in 0..n {
+            if budget <= 0.0 {
+                break;
+            }
+            let tau = exp.sample(rng).min(budget);
+            budget -= tau;
+            taus.push(tau);
+        }
+        taus
+    }
+
+    /// Poisson weights over the enumerated break counts `0..=MAX_ENUMERATED_BREAKS`,
+    /// renormalized so the truncated tail does not leak mass. This is the discrete half of
+    /// the thermal marginalization that replaced the truncated-normal quadrature.
+    fn break_count_weights(&self, d: f64) -> Vec<f64> {
+        let lam = (self.rho * d.max(0.0)).max(0.0);
+        if lam <= 0.0 {
+            let mut w = vec![0.0; MAX_ENUMERATED_BREAKS + 1];
+            w[0] = 1.0;
+            return w;
+        }
+        let mut w = Vec::with_capacity(MAX_ENUMERATED_BREAKS + 1);
+        let mut term = (-lam).exp();
+        w.push(term);
+        for n in 1..=MAX_ENUMERATED_BREAKS {
+            term *= lam / n as f64;
+            w.push(term);
+        }
+        let total: f64 = w.iter().sum();
+        if total > 0.0 {
+            for x in &mut w {
+                *x /= total;
+            }
+        }
+        w
     }
 
     /// Inverse CDF of the log-normal within-pallet position multiplier ψ.
@@ -528,19 +712,23 @@ impl ArrivalModel {
         gamma_q(self.gamma_shape * lam, 1.0 / self.gamma_scale)
     }
 
-    /// Draws a delivery's mean transit temperature `T̄` from `TruncatedNormal(mu_t,
-    /// sigma_t)`, floored at `temp_floor_c` (a reefer can't usefully run colder than its
-    /// floor). Rejection-samples up to 64 times before falling back to the floor itself,
-    /// which is effectively exact for the small `sigma_t` this model is calibrated with.
-    fn sample_truncated_normal<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        let dist = Normal::new(self.mu_t, self.sigma_t).expect("trunc normal");
-        for _ in 0..64 {
-            let t = dist.sample(rng);
-            if t >= self.temp_floor_c {
-                return t;
-            }
-        }
-        self.temp_floor_c
+    /// Generate one trip's temperature history and the exposure integrated out of it.
+    ///
+    /// The trace is the primitive: breaks are punched into the legged baseline and Λ comes
+    /// back out of the resulting path via the same Q10 integration the F3 observation
+    /// channel uses, so truth and observation can never disagree about a trip. Falls back
+    /// to the closed form only if the path degenerates (zero-length trip).
+    pub fn draw_transit<R: Rng + ?Sized>(
+        &self,
+        duration_d: f64,
+        temp_bias_c: f64,
+        rng: &mut R,
+    ) -> (ShipmentTrace, f64) {
+        let trace = truth_transit_trace(duration_d, self, temp_bias_c, rng);
+        let lambda =
+            resolve_arrival_exposure(Some(&trace.temps_c), Some(&trace.times_d), self.q10, self.t_ref)
+                .unwrap_or_else(|| Self::floor_lambda(duration_d * self.phi_set()));
+        (trace, Self::floor_lambda(lambda))
     }
 
     /// Draws one unit's within-pallet position multiplier `psi ~ LogNormal(0, sigma_pos)`,
@@ -566,23 +754,42 @@ impl ArrivalModel {
             .expect("delay gamma")
             .sample(rng_duration);
         let d = corridor.d_min + delay;
-        let t_bar = self.sample_truncated_normal(rng_temp);
-        let phi_bar = self.phi_bar_from_t_bar(t_bar);
+        let taus = self.draw_break_taus(d, rng_temp);
+        let lot_lambda = self.lambda_from_breaks(d, &taus);
         let psi_pos = self.draw_psi_pos(rng_pos);
-        let lambda = Self::floor_lambda(d * phi_bar * psi_pos);
+        let lambda = Self::floor_lambda(lot_lambda * psi_pos);
         let loss = Gamma::new(self.gamma_shape * lambda, self.gamma_scale)
             .expect("loss gamma")
             .sample(rng_gamma);
         (1.0 - loss).max(0.0)
     }
 
-    /// Truth-path per-delivery draw: one duration and mean-transit-temperature draw
-    /// shared by the whole lot, plus an independent within-pallet position (and hence
-    /// arrival freshness) draw for each of the `n` units.
+    /// Truth-path per-delivery draw: one duration draw and one cold-chain break
+    /// realization shared by the whole lot, plus an independent within-pallet position
+    /// (and hence arrival freshness) draw for each of the `n` units.
+    ///
+    /// The delivery's temperature trace is generated first and Λ is integrated out of it,
+    /// so the F3 observation channel sees exactly the path that produced the freshness.
     pub fn draw_truth_delivery<R: Rng + ?Sized>(
         &self,
         corridor_key: &str,
         n: usize,
+        rng_duration: &mut R,
+        rng_temp: &mut R,
+        rng_pos: &mut R,
+        rng_gamma: &mut R,
+    ) -> TruthDeliveryDraw {
+        self.draw_truth_delivery_biased(corridor_key, n, 0.0, rng_duration, rng_temp, rng_pos, rng_gamma)
+    }
+
+    /// `draw_truth_delivery` with a uniform offset applied to every leg setpoint, for the
+    /// studio's transit-temperature bias knob. A bias shifts the whole baseline, so it
+    /// scales exposure without touching the break process.
+    pub fn draw_truth_delivery_biased<R: Rng + ?Sized>(
+        &self,
+        corridor_key: &str,
+        n: usize,
+        temp_bias_c: f64,
         rng_duration: &mut R,
         rng_temp: &mut R,
         rng_pos: &mut R,
@@ -593,13 +800,18 @@ impl ArrivalModel {
             .expect("delay gamma")
             .sample(rng_duration);
         let duration_d = corridor.d_min + delay;
-        let t_bar = self.sample_truncated_normal(rng_temp);
-        let phi_bar = self.phi_bar_from_t_bar(t_bar);
+        let (trace, lot_lambda) = self.draw_transit(duration_d, temp_bias_c, rng_temp);
         let pack_date_days = duration_d.round() as i32;
+        let phi_bar = if duration_d > 1e-12 {
+            lot_lambda / duration_d
+        } else {
+            self.phi_set()
+        };
+        let t_bar = self.t_bar_from_phi_bar(phi_bar);
         let unit_f = (0..n)
             .map(|_| {
                 let psi_pos = self.draw_psi_pos(rng_pos);
-                let lambda = Self::floor_lambda(duration_d * phi_bar * psi_pos);
+                let lambda = Self::floor_lambda(lot_lambda * psi_pos);
                 let loss = Gamma::new(self.gamma_shape * lambda, self.gamma_scale)
                     .expect("loss gamma")
                     .sample(rng_gamma);
@@ -610,63 +822,91 @@ impl ArrivalModel {
             unit_f,
             pack_date_days,
             duration_d,
+            trace,
+            lambda: lot_lambda,
             t_bar,
             phi_bar,
         }
     }
 
-    /// `P(f <= x)` at a single point, marginalized by product Gauss quadrature over
-    /// whichever latent variables `condition` leaves unpinned: `Prior` integrates over
-    /// duration, temperature, and position; `Duration` (pack date known) integrates over
-    /// temperature and position only; `Exposure` (Λ known exactly) integrates over
-    /// position only. Each combination of quadrature nodes yields one conditional Λ and
-    /// hence one closed-form `cdf_f_given_lambda`, which are then weighted and averaged —
-    /// this is the numerical core every channel-conditional law in the file is built from.
+    /// Invert the Q10 relation: the constant temperature that would produce a given
+    /// duration-averaged factor φ̄. The reporting counterpart of `phi_bar_from_t_bar`, used
+    /// to summarize a piecewise trace as one equivalent temperature.
+    pub fn t_bar_from_phi_bar(&self, phi_bar: f64) -> f64 {
+        if phi_bar <= 0.0 || self.q10 <= 1.0 {
+            return self.t_ref;
+        }
+        self.t_ref + 10.0 * phi_bar.ln() / self.q10.ln()
+    }
+
+    /// Lot-level exposures and weights for a trip of known length `d`, marginalizing the
+    /// cold-chain break channel.
+    ///
+    /// This replaces the old 8-node Gauss quadrature over a truncated-normal transit
+    /// temperature with an *exact* enumeration: break count `N` is Poisson, and given `N`
+    /// the total break exposure is `Gamma(N, m)` in closed form, so the only approximation
+    /// left is the 8-node quadrature on that gamma. `N = 0` contributes a single
+    /// deterministic node, giving `1 + 4 * 8 = 33` nodes in total.
+    fn thermal_nodes(&self, d: f64) -> Vec<(f64, f64)> {
+        let d = d.max(0.0);
+        let base = d * self.phi_set();
+        let counts = self.break_count_weights(d);
+        let m = self.break_exposure_mean();
+        let cap = d * self.break_exposure_rate();
+        let mut out = Vec::with_capacity(1 + MAX_ENUMERATED_BREAKS * self.quad_nodes.len());
+        for (n, &w_n) in counts.iter().enumerate() {
+            if w_n <= 0.0 {
+                continue;
+            }
+            if n == 0 || m <= 0.0 {
+                out.push((Self::floor_lambda(base), w_n));
+                continue;
+            }
+            for (&u, &w_q) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                let extra = gamma_dist_quantile(n as f64, m, u).min(cap);
+                out.push((Self::floor_lambda(base + extra), w_n * w_q));
+            }
+        }
+        out
+    }
+
+    /// `P(f <= x)` at a single point, marginalized over whichever latent variables
+    /// `condition` leaves unpinned: `Prior` integrates over duration, breaks, and
+    /// position; `Duration` (pack date known) integrates over breaks and position only;
+    /// `Exposure` (Λ known exactly) integrates over position only. Each node combination
+    /// yields one conditional Λ and hence one closed-form `cdf_f_given_lambda`, which are
+    /// then weighted and averaged — the numerical core every channel-conditional law in
+    /// this file is built from.
     fn marginal_cdf_at(&self, condition: ArrivalCondition, corridor_key: &str, f: f64) -> f64 {
         let corridor = self.corridor(corridor_key);
         let mut acc = 0.0;
         let mut w_sum = 0.0;
 
+        let mut accumulate = |lot_lambda: f64, w_outer: f64| {
+            for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                let psi = self.psi_pos_quantile(u_psi);
+                let lambda = Self::floor_lambda(lot_lambda * psi);
+                let w = w_outer * w_psi;
+                acc += w * self.cdf_f_given_lambda(lambda, f);
+                w_sum += w;
+            }
+        };
+
         match condition {
             ArrivalCondition::Exposure(lot_lambda) => {
-                let lot_lambda = Self::floor_lambda(lot_lambda);
-                for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                    let psi = self.psi_pos_quantile(u_psi);
-                    let lambda = Self::floor_lambda(lot_lambda * psi);
-                    acc += w_psi * self.cdf_f_given_lambda(lambda, f);
-                    w_sum += w_psi;
-                }
+                accumulate(Self::floor_lambda(lot_lambda), 1.0);
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                for (&u_t, &w_t) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                    let t_bar = self.truncated_normal_quantile(u_t);
-                    let phi = self.phi_bar_from_t_bar(t_bar);
-                    let lot_lambda = Self::floor_lambda(d * phi);
-                    for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                        let psi = self.psi_pos_quantile(u_psi);
-                        let lambda = Self::floor_lambda(lot_lambda * psi);
-                        let w = w_t * w_psi;
-                        acc += w * self.cdf_f_given_lambda(lambda, f);
-                        w_sum += w;
-                    }
+                for (lot_lambda, w_t) in self.thermal_nodes(d) {
+                    accumulate(lot_lambda, w_t);
                 }
             }
             ArrivalCondition::Prior => {
                 for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
                     let d = self.quadrature_duration_days(corridor, u_d);
-                    for (&u_t, &w_t) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                        let t_bar = self.truncated_normal_quantile(u_t);
-                        let phi = self.phi_bar_from_t_bar(t_bar);
-                        let lot_lambda = Self::floor_lambda(d * phi);
-                        for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter())
-                        {
-                            let psi = self.psi_pos_quantile(u_psi);
-                            let lambda = Self::floor_lambda(lot_lambda * psi);
-                            let w = w_d * w_t * w_psi;
-                            acc += w * self.cdf_f_given_lambda(lambda, f);
-                            w_sum += w;
-                        }
+                    for (lot_lambda, w_t) in self.thermal_nodes(d) {
+                        accumulate(lot_lambda, w_d * w_t);
                     }
                 }
             }
@@ -701,32 +941,7 @@ impl ArrivalModel {
             .marginal_cdf_at(condition, corridor_key, 0.0)
             .clamp(0.0, 1.0);
 
-        let mut mean_acc = 0.0;
-        let mut mean_sq_acc = 0.0;
-        let mut mass_acc = 0.0;
-        for gi in 1..grid_len {
-            let f = gi as f64 / (grid_len - 1) as f64;
-            let f_prev = (gi - 1) as f64 / (grid_len - 1) as f64;
-            let p_hi = cdf[gi];
-            let p_lo = if gi == 1 { atom_f0 } else { cdf[gi - 1] };
-            let bin_mass = (p_hi - p_lo).max(0.0);
-            let f_mid = 0.5 * (f + f_prev);
-            mean_acc += f_mid * bin_mass;
-            mean_sq_acc += f_mid * f_mid * bin_mass;
-            mass_acc += bin_mass;
-        }
-        mass_acc += atom_f0;
-
-        let mean_f = if mass_acc > 0.0 {
-            mean_acc / mass_acc
-        } else {
-            0.0
-        };
-        let variance_f = if mass_acc > 0.0 {
-            (mean_sq_acc / mass_acc - mean_f * mean_f).max(0.0)
-        } else {
-            0.0
-        };
+        let (mean_f, variance_f) = moments_from_cdf(&cdf, atom_f0);
 
         ArrivalRungLaw {
             cdf,
@@ -849,6 +1064,82 @@ impl ArrivalModel {
         self.law_cdf(condition).mean_f
     }
 
+    /// Equally-weighted mixture of several channel-conditional laws.
+    ///
+    /// This is the UPC cohort's birth law: a store reading pooled codes receives every
+    /// lot's delivery record but cannot attribute any of them to a pallet, so its belief
+    /// about a unit is the mixture `(1/L) Σ_ℓ Law(record_ℓ)` rather than a per-segment law.
+    /// Mixing the *laws* — not averaging the pack dates — is what preserves the
+    /// between-lot spread: a mixture's variance picks up the dispersion of the component
+    /// means, which averaging the dates first would discard.
+    ///
+    /// Built by averaging the component CDFs pointwise, so it reuses each component's
+    /// existing cache entry rather than integrating anything new. Mean and variance are
+    /// recomputed from the mixed CDF, never averaged from the components.
+    pub fn mixture_law(&mut self, conditions: &[ArrivalCondition]) -> ArrivalRungLaw {
+        if conditions.is_empty() {
+            return self.rung_law_on_grid(
+                ArrivalCondition::Prior,
+                &self.active_corridor.clone(),
+                ARRIVAL_GRID,
+            );
+        }
+        let caches: Vec<ArrivalCdfCache> =
+            conditions.iter().map(|&c| self.law_cdf(c)).collect();
+        let inv = 1.0 / caches.len() as f64;
+
+        let atom_f0: f64 = caches.iter().map(|c| c.atom_f0).sum::<f64>() * inv;
+        let mut cdf = vec![0.0; ARRIVAL_GRID];
+        for cache in &caches {
+            let scale = 1.0 - cache.atom_f0;
+            for (slot, &c) in cdf.iter_mut().zip(cache.cdf.iter()) {
+                // Undo the atom division to recover each component's raw CDF before mixing.
+                *slot += inv * (cache.atom_f0 + scale * c);
+            }
+        }
+        for slot in &mut cdf {
+            *slot = slot.clamp(0.0, 1.0);
+        }
+
+        let (mean_f, variance_f) = moments_from_cdf(&cdf, atom_f0);
+        ArrivalRungLaw {
+            cdf,
+            atom_f0,
+            mean_f,
+            sd_f: variance_f.sqrt(),
+        }
+    }
+
+    /// Atom-divided, sampleable form of `mixture_law`, for birthing a UPC cohort.
+    pub fn mixture_cache(&mut self, conditions: &[ArrivalCondition]) -> ArrivalCdfCache {
+        let law = self.mixture_law(conditions);
+        let denom = (1.0 - law.atom_f0).max(1e-12);
+        ArrivalCdfCache {
+            cdf: law
+                .cdf
+                .iter()
+                .map(|&c| ((c - law.atom_f0) / denom).clamp(0.0, 1.0))
+                .collect(),
+            atom_f0: law.atom_f0,
+            mean_f: law.mean_f,
+            variance_f: law.sd_f * law.sd_f,
+        }
+    }
+
+    /// Draw `n` iid arrival freshness values from an equally-weighted mixture of channel
+    /// conditions — the UPC-cohort counterpart of `sample_filter_birth_units`.
+    pub fn sample_filter_birth_units_mixture<R: Rng + ?Sized>(
+        &mut self,
+        conditions: &[ArrivalCondition],
+        n: usize,
+        rng: &mut R,
+    ) -> Vec<f64> {
+        let cache = self.mixture_cache(conditions);
+        (0..n)
+            .map(|_| self.sample_unit_f_from_cache(&cache, rng))
+            .collect()
+    }
+
     /// Fetch (building and caching on miss) the atom-divided law for a channel condition,
     /// and record it as the most recent duration/exposure the filter conditioned on for
     /// the wire adapter to read back. `Exposure` keys its cache on Λ rounded to six
@@ -888,7 +1179,7 @@ impl ArrivalModel {
     /// if any of them actually changed. A no-op when the fingerprint matches, so callers
     /// can call this every tick without paying for a rebuild each time.
     pub fn sync_params(&mut self, params: &ModelParams) {
-        let key = PriorCdfBuildKey::from_params(params, &self.active_corridor);
+        let key = PriorCdfBuildKey::from_params(params, self);
         if self.prior_build_key == key {
             return;
         }

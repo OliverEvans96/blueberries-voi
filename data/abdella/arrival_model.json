@@ -1,8 +1,25 @@
 {
-  "schema_version": 1,
-  "mu_T": 2.781762,
-  "sigma_T": 0.527213,
-  "temp_floor_c": 0.0,
+  "schema_version": 2,
+  "legs": [
+    {
+      "name": "precool_staging",
+      "weight": 0.15,
+      "setpoint_c": 0.5
+    },
+    {
+      "name": "line_haul",
+      "weight": 0.6,
+      "setpoint_c": 2.0
+    },
+    {
+      "name": "dock_receiving",
+      "weight": 0.25,
+      "setpoint_c": 5.0
+    }
+  ],
+  "T_break": 12.0,
+  "rho": 0.08,
+  "tau_bar": 0.5,
   "sigma_pos": 0.08,
   "q10": 3.0,
   "T_ref": 0.0,
@@ -49,7 +66,7 @@
     }
   },
   "provenance": {
-    "source": "Offline fit from vendored Abdella parquet (ADR 0148); parametric families fixed, moments matched on n=6.",
+    "source": "Offline fit from vendored Abdella parquet (ADR 0148); corridor duration families fixed, moments matched on n=6. Thermal model replaced by cold-chain break events (schema 2).",
     "window": "Refrigerated leg only: from first lot-mean T < 10 C through published Table 2 duration.",
     "n_shipments": 6,
     "fit_utc": "2026-08-25T20:16:00Z",
@@ -87,23 +104,26 @@
       }
     ],
     "fitted_fields": [
-      "corridors.*.(d_min,delay_shape,delay_scale)",
-      "mu_T",
-      "sigma_T",
-      "sigma_pos"
+      "corridors.*.(d_min,delay_shape,delay_scale)"
     ],
     "adjustment_fields": [
+      "legs",
+      "T_break",
+      "rho",
+      "tau_bar",
       "gamma_shape",
       "gamma_scale",
       "reference_life_days",
       "q10",
       "T_ref",
-      "temp_floor_c"
+      "sigma_pos"
     ],
     "adjustment_notes": {
       "gamma": "keep gamma_shape=2.0, gamma_scale=0.03571428571428571 (MOD eta_ref=14.0 continuity; not identified from n=6)",
-      "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)"
+      "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)",
+      "legs": "Deterministic setpoints, duration-weighted. Chosen so phi_set = 1.3389 reproduces the fitted phi_bar centre of the six shipments (mean 1.359), i.e. the break-free limit matches the observed clean-chain regime.",
+      "breaks": "rho (breaks per transit-day) and tau_bar (mean break duration, days) at T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(Lambda) at ~82%, versus 100% at rho=0. Treat these three numbers as a documented modelling regime, not a measurement."
     },
-    "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6."
+    "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6. Schema 2 replaces the truncated-normal mean transit temperature (mu_T/sigma_T/temp_floor_c) with a deterministic legged baseline plus compound-Poisson break events; the temperature trace is now the generative primitive and Lambda is integrated out of it."
   }
 }
