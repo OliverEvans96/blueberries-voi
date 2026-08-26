@@ -26,6 +26,10 @@ const ABDELLA_EMPIRICAL_D: [f64; 6] = [
 /// while bottom-up stage gammas keep the pooled gamma mean/var (S1.1).
 const DURATION_EMPIRICAL_MIX: f64 = 0.78;
 const DURATION_EMPIRICAL_NOISE_D: f64 = 0.62;
+/// Fixed sub-lots per delivery (ADR 0149 / T-163 Stage 2).
+pub const LOTS_PER_DELIVERY: usize = 3;
+/// Share of calendar transit spent on the shared DC→store leg (remainder is upstream per lot).
+const SHARED_LEG_FRAC: f64 = 0.28;
 /// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
 /// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
 const LAMBDA_FLOOR: f64 = 1e-12;
@@ -84,6 +88,31 @@ impl fmt::Display for ArrivalModelError {
 }
 
 impl std::error::Error for ArrivalModelError {}
+
+/// One sub-lot within a multi-lot delivery (ADR 0149).
+#[derive(Clone, Debug)]
+pub struct TruthLotDraw {
+    /// Per-unit arrival freshness for this sub-lot.
+    pub unit_f: Vec<f64>,
+    /// Rounded total transit (upstream + shared), as on a pack-date label.
+    pub pack_date_days: i32,
+    /// Calendar transit duration for this lot's full spliced path.
+    pub duration_d: f64,
+    /// Spliced upstream + shared temperature history.
+    pub trace: ShipmentTrace,
+    /// Cumulative exposure Λ integrated from `trace`.
+    pub lambda: f64,
+}
+
+/// Multi-lot truth delivery: L upstream draws plus one shared DC→store leg.
+#[derive(Clone, Debug)]
+pub struct TruthMultilotDraw {
+    pub lots: Vec<TruthLotDraw>,
+    /// Units per sub-lot; sums to total delivery quantity.
+    pub arrivals_by: Vec<u32>,
+    /// Shared DC→store trace appended to every lot (identical tail).
+    pub shared_trace: ShipmentTrace,
+}
 
 /// One truth-path delivery: a single duration draw and one cold-chain break realization
 /// shared by every unit in the lot, plus one independent within-pallet position (and
@@ -1060,6 +1089,74 @@ impl ArrivalModel {
         }
     }
 
+    /// Split `n` units across [`LOTS_PER_DELIVERY`] sub-lots with independent upstream
+    /// journeys and one shared DC→store leg spliced onto each trace (ADR 0149).
+    pub fn draw_truth_multilot_delivery_biased<R: Rng + ?Sized>(
+        &self,
+        corridor_key: &str,
+        n: usize,
+        temp_bias_c: f64,
+        rng_duration: &mut R,
+        rng_temp: &mut R,
+        rng_pos: &mut R,
+        rng_gamma: &mut R,
+    ) -> TruthMultilotDraw {
+        let corridor = self.corridor(corridor_key);
+        let arrivals_by = split_delivery_qty(n, LOTS_PER_DELIVERY);
+        let shared_d = (self.draw_bottom_up_duration(corridor, rng_duration) * SHARED_LEG_FRAC).max(0.5);
+        let (shared_template, _) =
+            self.draw_transit_for_corridor(shared_d, corridor_key, temp_bias_c, rng_temp);
+        let mut upstream_ds = Vec::with_capacity(LOTS_PER_DELIVERY);
+        for _ in 0..LOTS_PER_DELIVERY {
+            upstream_ds.push(self.draw_bottom_up_duration(corridor, rng_duration).max(0.5));
+        }
+        let t_end = upstream_ds.iter().copied().fold(0.0f64, f64::max) + shared_d;
+        let junction_d = t_end - shared_d;
+        let shared_trace = offset_trace_from(&shared_template, junction_d);
+
+        let mut lots = Vec::with_capacity(LOTS_PER_DELIVERY);
+        for (&units, &upstream_d) in arrivals_by.iter().zip(upstream_ds.iter()) {
+            let (upstream_trace, _) = self.draw_transit_for_corridor(
+                upstream_d,
+                corridor_key,
+                temp_bias_c,
+                rng_temp,
+            );
+            let trace = splice_upstream_before_shared(&upstream_trace, upstream_d, junction_d, &shared_template);
+            let total_d = t_end - (junction_d - upstream_d);
+            let lot_lambda = resolve_arrival_exposure(
+                Some(&trace.temps_c),
+                Some(&trace.times_d),
+                self.q10,
+                self.t_ref,
+            )
+            .unwrap_or_else(|| Self::floor_lambda(total_d * self.phi_set()));
+            let pack_date_days = total_d.round() as i32;
+            let unit_f = (0..units as usize)
+                .map(|_| {
+                    let psi_pos = self.draw_psi_pos(rng_pos);
+                    let lambda = Self::floor_lambda(lot_lambda * psi_pos);
+                    let loss = Gamma::new(self.gamma_shape * lambda, self.gamma_scale)
+                        .expect("loss gamma")
+                        .sample(rng_gamma);
+                    (1.0 - loss).max(0.0)
+                })
+                .collect();
+            lots.push(TruthLotDraw {
+                unit_f,
+                pack_date_days,
+                duration_d: total_d,
+                trace,
+                lambda: lot_lambda,
+            });
+        }
+        TruthMultilotDraw {
+            lots,
+            arrivals_by,
+            shared_trace,
+        }
+    }
+
     /// Invert the Q10 relation: the constant temperature that would produce a given
     /// duration-averaged factor φ̄. The reporting counterpart of `phi_bar_from_t_bar`, used
     /// to summarize a piecewise trace as one equivalent temperature.
@@ -1530,6 +1627,89 @@ impl ArrivalCdfCache {
             variance_f: 0.0,
         }
     }
+}
+
+/// Split a delivery quantity across `n_lots` positive integers that sum to `total`.
+pub fn split_delivery_qty(total: usize, n_lots: usize) -> Vec<u32> {
+    let n = n_lots.max(1);
+    let base = total / n;
+    let rem = total % n;
+    (0..n)
+        .map(|i| (base + if i < rem { 1 } else { 0 }) as u32)
+        .collect()
+}
+
+/// Append `shared` onto the end of `upstream`, shifting shared times by the upstream span.
+pub fn splice_shipment_traces(upstream: &ShipmentTrace, shared: &ShipmentTrace) -> ShipmentTrace {
+    let junction = upstream.times_d.last().copied().unwrap_or(0.0);
+    splice_shipment_traces_at(upstream, junction, shared)
+}
+
+/// Splice `shared` so its sample times begin at `junction_d` (identical DC→store tail).
+pub fn splice_shipment_traces_at(
+    upstream: &ShipmentTrace,
+    junction_d: f64,
+    shared: &ShipmentTrace,
+) -> ShipmentTrace {
+    let mut times = upstream.times_d.clone();
+    let mut temps = upstream.temps_c.clone();
+    if times.is_empty() {
+        times.push(0.0);
+        temps.push(shared.temps_c.first().copied().unwrap_or(0.0));
+    }
+    let skip = if shared.times_d.first().copied().unwrap_or(0.0) <= 1e-12 {
+        1
+    } else {
+        0
+    };
+    for (i, &t) in shared.times_d.iter().enumerate().skip(skip) {
+        times.push(junction_d + t);
+        temps.push(shared.temps_c[i]);
+    }
+    if times.len() < 2 {
+        times.push(junction_d.max(1e-6));
+        temps.push(temps.last().copied().unwrap_or(0.0));
+    }
+    ShipmentTrace { times_d: times, temps_c: temps }
+}
+
+fn offset_trace_from(shared: &ShipmentTrace, start_d: f64) -> ShipmentTrace {
+    ShipmentTrace {
+        times_d: shared.times_d.iter().map(|&t| start_d + t).collect(),
+        temps_c: shared.temps_c.clone(),
+    }
+}
+
+/// Map an upstream profile on `[0, upstream_d]` onto `[junction-upstream_d, junction]` and
+/// append the shared DC→store leg on `[junction, t_end]`.
+fn splice_upstream_before_shared(
+    upstream: &ShipmentTrace,
+    upstream_d: f64,
+    junction_d: f64,
+    shared: &ShipmentTrace,
+) -> ShipmentTrace {
+    let start = (junction_d - upstream_d).max(0.0);
+    let up_span = upstream.times_d.last().copied().unwrap_or(upstream_d).max(1e-9);
+    let mut times = Vec::new();
+    let mut temps = Vec::new();
+    for (&t, &temp) in upstream.times_d.iter().zip(upstream.temps_c.iter()) {
+        times.push(start + (t / up_span) * upstream_d);
+        temps.push(temp);
+    }
+    if times.last().copied().unwrap_or(0.0) < junction_d - 1e-9 {
+        times.push(junction_d);
+        temps.push(*temps.last().unwrap_or(&0.0));
+    }
+    let skip = if shared.times_d.first().copied().unwrap_or(0.0) <= 1e-12 {
+        1
+    } else {
+        0
+    };
+    for (i, &t) in shared.times_d.iter().enumerate().skip(skip) {
+        times.push(junction_d + t);
+        temps.push(shared.temps_c[i]);
+    }
+    ShipmentTrace { times_d: times, temps_c: temps }
 }
 
 /// Exact cumulative exposure Λ from an observed temperature trace (reference-days).

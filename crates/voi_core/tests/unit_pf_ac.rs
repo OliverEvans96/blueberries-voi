@@ -137,6 +137,7 @@ fn p1_mask_obs_sales_by_stays_none() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs = mask_for("P1").expect("P1").apply(&rich);
     assert_eq!(obs.sales_tot, Some(5));
@@ -156,6 +157,7 @@ fn f1_mask_exposes_sales_by_for_router() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs = mask_for("F1").expect("F1").apply(&rich);
     assert_eq!(obs.sales_by.as_deref(), Some(&[3u32, 2][..]));
@@ -691,6 +693,7 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             arrival_lot_ids: vec![],
             shipment_trace: None,
             pack_date_days: None,
+            ..Default::default()
         });
     }
     let final_truth = units_f.clone();
@@ -886,6 +889,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs_f1 = mask_for("F1").unwrap().apply(&rich);
     let _obs_p1 = mask_for("P1").unwrap().apply(&rich);
@@ -1257,4 +1261,82 @@ fn filter_birth_matches_arrival_qty_not_upl() {
         n * 8,
         "each particle should birth 8 units, got {born}"
     );
+}
+
+/// ADR 0149: under GSIN a delivery splits into L = 3 independently scorable segments.
+#[test]
+fn gsin_multilot_delivery_segments_match_l() {
+    require_unit_pf();
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::FilterObs;
+    use voi_core::unit_pf::{filter_step_unit, UnitParticleBank};
+    use voi_core::ModelParams;
+
+    const L: usize = 3;
+    let arrivals = 39u32;
+    let n = 8usize;
+    let mut bank = UnitParticleBank::empty(n);
+    let obs = FilterObs {
+        sales_tot: Some(0),
+        waste_tot: Some(0),
+        arrivals,
+        arrival_lot_ids: Some((50..50 + L as i64).collect()),
+        ..Default::default()
+    };
+    let params = ModelParams::default();
+    let mut rng = Pcg64::seed_from_u64(163_101);
+    filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
+    assert_eq!(
+        bank.lot_ids.len(),
+        L,
+        "GSIN must add {L} shelf segments per delivery, got {:?}",
+        bank.lot_ids
+    );
+    let widths: Vec<usize> = bank
+        .lot_offsets
+        .windows(2)
+        .map(|w| w[1] - w[0])
+        .collect();
+    assert_eq!(widths.iter().sum::<usize>(), arrivals as usize);
+    assert!(widths.iter().all(|&w| w > 0), "split must be positive: {widths:?}");
+}
+
+/// ADR 0149: under UPC the same delivery births one merged cohort of Q units.
+#[test]
+fn upc_multilot_delivery_merges_to_one_segment() {
+    require_unit_pf();
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    use voi_core::obs::FilterObs;
+    use voi_core::unit_pf::{filter_step_unit, UnitParticleBank};
+    use voi_core::ModelParams;
+
+    let body = read_src("unit_pf.rs");
+    assert!(
+        body.contains("sample_filter_birth_units_mixture"),
+        "UPC birth must sample from the per-lot mixture law, not a single condition"
+    );
+
+    let arrivals = 39u32;
+    let n = 8usize;
+    let mut bank = UnitParticleBank::empty(n);
+    let obs = FilterObs {
+        sales_tot: Some(0),
+        waste_tot: Some(0),
+        arrivals,
+        arrival_lot_ids: Some(vec![60, 61, 62]),
+        ..Default::default()
+    };
+    let params = ModelParams::default();
+    let mut rng = Pcg64::seed_from_u64(163_102);
+    filter_step_unit(&mut bank, &obs, &params, &demo_shipments(), &mut rng);
+    assert_eq!(
+        bank.lot_ids.len(),
+        1,
+        "UPC must merge L lots into one cohort segment, got {:?}",
+        bank.lot_ids
+    );
+    let width = bank.lot_offsets.last().copied().unwrap_or(0);
+    assert_eq!(width, arrivals as usize);
 }

@@ -98,6 +98,7 @@ fn simulate_protection_path(
             } else {
                 None
             },
+            delivery_lot_f: None,
             units_per_lot: Some(params.units_per_lot),
         };
         let out = unit_day_step(

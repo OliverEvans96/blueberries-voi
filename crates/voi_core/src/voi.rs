@@ -342,6 +342,7 @@ fn run_scenario_episode(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let out = unit_day_step_with_birth(
@@ -375,8 +376,11 @@ fn run_scenario_episode(
                 waste_by: out.waste_by.clone(),
                 lot_ids: pre_lot_ids,
                 arrival_lot_ids,
+                arrivals_by: Vec::new(),
                 shipment_trace: None,
+                temp_traces_by_lot: Vec::new(),
                 pack_date_days,
+                pack_date_days_by_lot: Vec::new(),
             };
             let obs = mask_for(scenario).expect("valid VOI filter scenario").apply(&rich);
             let mut frng = rng(root_seed, filter_tag(scenario), day, STREAM_FILTER);
@@ -396,6 +400,7 @@ fn run_scenario_episode(
                 rng_birth_filter.as_mut(),
                 &mut gamma_table,
                 Some(&mut arrival_model),
+                None,
             );
         }
     }

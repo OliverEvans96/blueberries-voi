@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
-    ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
-    STREAM_ARRIVAL_TEMP,
+    ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA,
+    STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -429,7 +429,15 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let (delivery_unit_f, pack_date_days, shipment_trace, arrival_lot_ids) = if arrival > 0 {
+        let (
+            delivery_lot_f,
+            pack_date_days,
+            pack_date_days_by_lot,
+            shipment_trace,
+            temp_traces_by_lot,
+            arrival_lot_ids,
+            arrivals_by,
+        ) = if arrival > 0 {
             let n_units = arrival as usize;
             let mut rng_dur =
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_DURATION);
@@ -439,10 +447,7 @@ impl EngineSession {
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
             let mut rng_gamma =
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
-            // `transit_temp_bias_c` now offsets every leg setpoint inside the generative
-            // draw, so the trace, Λ, and the per-unit freshness all reflect the bias
-            // consistently — no post-hoc rescaling of `unit_f` by a φ ratio.
-            let draw = self.arrival_model.draw_truth_delivery_biased(
+            let draw = self.arrival_model.draw_truth_multilot_delivery_biased(
                 &self.arrival_product,
                 n_units,
                 self.transit_temp_bias_c,
@@ -451,25 +456,38 @@ impl EngineSession {
                 &mut rng_pos,
                 &mut rng_gamma,
             );
-            let mut unit_f: Vec<f64> = draw.unit_f.clone();
-            if (self.spread_scale - 1.0).abs() > 1e-12 && !unit_f.is_empty() {
-                let mean = unit_f.iter().sum::<f64>() / unit_f.len() as f64;
-                for f in &mut unit_f {
-                    *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
+            let mut lot_ids = Vec::with_capacity(LOTS_PER_DELIVERY);
+            let mut lot_segments = Vec::with_capacity(LOTS_PER_DELIVERY);
+            let mut pack_dates = Vec::with_capacity(LOTS_PER_DELIVERY);
+            let mut trace_pairs = Vec::with_capacity(LOTS_PER_DELIVERY);
+            for lot in &draw.lots {
+                let mut unit_f = lot.unit_f.clone();
+                if (self.spread_scale - 1.0).abs() > 1e-12 && !unit_f.is_empty() {
+                    let mean = unit_f.iter().sum::<f64>() / unit_f.len() as f64;
+                    for f in &mut unit_f {
+                        *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
+                    }
                 }
+                let lot_id = self.next_lot;
+                self.next_lot += 1;
+                self.lot_ids.push(lot_id);
+                lot_ids.push(lot_id);
+                lot_segments.push(unit_f);
+                pack_dates.push(lot.pack_date_days);
+                trace_pairs.push((lot_id, lot.trace.clone()));
             }
-            let trace = draw.trace.clone();
-            let lot_id = self.next_lot;
-            self.lot_ids.push(lot_id);
-            self.next_lot += 1;
+            let first_trace = trace_pairs.first().map(|(_, t)| t.clone());
             (
-                Some(unit_f),
-                Some(draw.pack_date_days),
-                Some(trace),
-                vec![lot_id],
+                Some(lot_segments),
+                first_trace.as_ref().map(|_| draw.lots[0].pack_date_days),
+                pack_dates,
+                first_trace,
+                trace_pairs,
+                lot_ids,
+                draw.arrivals_by,
             )
         } else {
-            (None, None, None, Vec::new())
+            (None, None, Vec::new(), None, Vec::new(), Vec::new(), Vec::new())
         };
         let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
@@ -492,7 +510,8 @@ impl EngineSession {
             gamma_decrement: None,
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_unit_f,
+            delivery_unit_f: None,
+            delivery_lot_f: delivery_lot_f.clone(),
             units_per_lot: Some(self.params.units_per_lot),
         };
         let out = unit_day_step_with_birth(
@@ -515,8 +534,11 @@ impl EngineSession {
             waste_by: out.waste_by.clone(),
             lot_ids: pre_lot_ids,
             arrival_lot_ids,
+            arrivals_by,
             shipment_trace,
+            temp_traces_by_lot,
             pack_date_days,
+            pack_date_days_by_lot,
         };
         let day_idx = self.day;
         if self.uses_filter() {
@@ -539,6 +561,7 @@ impl EngineSession {
                 rng_birth_filter.as_mut(),
                 &mut self.gamma_table,
                 Some(&mut self.arrival_model),
+                Some(self.obs_channels.code_type),
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
@@ -949,6 +972,7 @@ impl EngineSession {
                     rng_birth_filter.as_mut(),
                     &mut self.gamma_table,
                     Some(&mut self.arrival_model),
+                    Some(channels.code_type),
                 );
                 let belief = self.belief_from_bank(&bank);
                 let i = day_idx as usize;
@@ -1027,6 +1051,17 @@ impl EngineSession {
             .enumerate()
             .map(|(i, log)| {
                 let obs = mask.apply(log);
+                let temp_traces_by_lot: Vec<serde_json::Value> = log
+                    .temp_traces_by_lot
+                    .iter()
+                    .map(|(lot_id, tr)| {
+                        serde_json::json!({
+                            "lot_id": lot_id,
+                            "times_d": tr.times_d,
+                            "temps_c": tr.temps_c,
+                        })
+                    })
+                    .collect();
                 serde_json::json!({
                     "day": start as u32 + i as u32,
                     "arrivals": obs.arrivals,
@@ -1036,9 +1071,20 @@ impl EngineSession {
                     "waste_by": obs.waste_by,
                     "lot_ids": obs.lot_ids_live,
                     "arrival_lot_ids": obs.arrival_lot_ids,
+                    "arrivals_by": if log.arrivals > 0 {
+                        serde_json::json!(log.arrivals_by)
+                    } else {
+                        serde_json::Value::Null
+                    },
                     "pack_date_days": obs.pack_date_days,
+                    "pack_date_days_by_lot": if log.arrivals > 0 {
+                        serde_json::json!(log.pack_date_days_by_lot)
+                    } else {
+                        serde_json::Value::Null
+                    },
                     "temp_times_d": obs.temp_times_d,
                     "temp_temps_c": obs.temp_temps_c,
+                    "temp_traces_by_lot": temp_traces_by_lot,
                 })
             })
             .collect();

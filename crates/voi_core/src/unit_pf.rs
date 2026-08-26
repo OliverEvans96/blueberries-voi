@@ -29,8 +29,8 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use crate::arrival::{resolve_arrival_exposure, ArrivalCondition, ArrivalModel};
-use crate::obs::FilterObs;
+use crate::arrival::{resolve_arrival_exposure, split_delivery_qty, ArrivalCondition, ArrivalModel};
+use crate::obs::{CodeType, FilterObs};
 use crate::physics::{apply_gamma_aging_independent, GammaDecrementTable};
 use crate::shipments::ShipmentTrace;
 use crate::unit_ll::{
@@ -307,6 +307,57 @@ fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> ArrivalCondit
     ArrivalCondition::Prior
 }
 
+/// Per-lot arrival law for multi-lot deliveries (S2.7).
+fn resolve_arrival_f_law_per_lot(
+    obs: &FilterObs,
+    lot_idx: usize,
+    params: &ModelParams,
+) -> ArrivalCondition {
+    if let Some(traces) = &obs.temp_traces_by_lot {
+        if let Some(tr) = traces.get(lot_idx) {
+            if let Some(exposure) = resolve_arrival_exposure(
+                Some(&tr.temps_c),
+                Some(&tr.times_d),
+                params.q10,
+                params.t_ref_c,
+            ) {
+                return ArrivalCondition::Exposure(exposure);
+            }
+        }
+    }
+    if let Some(packs) = &obs.pack_date_days_by_lot {
+        if let Some(&d) = packs.get(lot_idx) {
+            return ArrivalCondition::Duration(d);
+        }
+    }
+    resolve_arrival_f_law(obs, params)
+}
+
+fn resolve_arrival_f_laws_per_lot(obs: &FilterObs, n_lots: usize, params: &ModelParams) -> Vec<ArrivalCondition> {
+    (0..n_lots)
+        .map(|ell| resolve_arrival_f_law_per_lot(obs, ell, params))
+        .collect()
+}
+
+fn infer_birth_code_type(obs: &FilterObs, code_type: Option<CodeType>) -> CodeType {
+    if let Some(ct) = code_type {
+        return ct;
+    }
+    if obs.lot_ids_live.is_some() || obs.sales_by.is_some() || obs.waste_by.is_some() {
+        return CodeType::Gsin;
+    }
+    if let Some(ids) = &obs.arrival_lot_ids {
+        if ids.len() > 1 {
+            let first = ids.first().copied().unwrap_or(0);
+            if (60..100).contains(&first) || first >= 200 {
+                return CodeType::Upc;
+            }
+            return CodeType::Gsin;
+        }
+    }
+    CodeType::Upc
+}
+
 /// One unit-PF observation update: adapted aging, obs-resolved scoring, resample, birth.
 struct DayEvidence {
     waste_by: Option<Vec<u32>>,
@@ -434,6 +485,7 @@ pub fn filter_step_unit<R: Rng + ?Sized>(
         None::<&mut R>,
         &mut table,
         None,
+        None,
     )
 }
 
@@ -451,7 +503,7 @@ pub fn filter_step_unit_with_birth<R: Rng + ?Sized, B: Rng + ?Sized>(
 ) -> StepDiagnostics {
     let mut table = GammaDecrementTable::for_params(params);
     filter_step_unit_with_birth_cached(
-        bank, obs, params, shipments, rng, rng_birth, &mut table, None,
+        bank, obs, params, shipments, rng, rng_birth, &mut table, None, None,
     )
 }
 
@@ -477,6 +529,7 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     mut rng_birth: Option<&mut B>,
     table: &mut GammaDecrementTable,
     arrival_model: Option<&mut ArrivalModel>,
+    birth_code_type: Option<CodeType>,
 ) -> StepDiagnostics {
     let _ = shipments;
     table.rebuild_if_needed(params);
@@ -553,16 +606,17 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank.freshness = idx.iter().map(|&j| bank.freshness[j].clone()).collect();
     bank.weights = vec![1.0 / n as f64; n];
 
-    // 3. Birth: one segment per delivery, exactly as wide as the observed arrival.
+    // 3. Birth: GSIN splits L segments; UPC merges to one mixture cohort (ADR 0149).
     if obs.arrivals > 0 {
         let arrivals = obs.arrivals as usize;
-        let lot_id = obs
+        let lot_ids = obs
             .arrival_lot_ids
-            .as_ref()
-            .and_then(|ids| ids.first().copied())
-            .unwrap_or_else(|| bank.next_synthetic_lot_id());
+            .clone()
+            .unwrap_or_else(|| vec![bank.next_synthetic_lot_id()]);
+        let n_lots = lot_ids.len().max(1);
+        let code = infer_birth_code_type(obs, birth_code_type);
+        let conditions = resolve_arrival_f_laws_per_lot(obs, n_lots, params);
         let birth_seed = rng.random::<u64>();
-        let condition = resolve_arrival_f_law(obs, params);
         let mut local_model;
         let model = if let Some(m) = arrival_model {
             m.sync_params(params);
@@ -574,17 +628,61 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             local_model.set_corridor(&params.arrival_product);
             &mut local_model
         };
-        let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
-        for p in 0..n {
-            let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
-            let fs = if let Some(b) = rng_birth.as_mut() {
-                model.sample_filter_birth_units(condition, arrivals, b)
+
+        if code == CodeType::Upc && n_lots > 1 {
+            let lot_id = bank.next_synthetic_lot_id();
+            let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
+            for p in 0..n {
+                let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
+                let fs = if let Some(b) = rng_birth.as_mut() {
+                    model.sample_filter_birth_units_mixture(&conditions, arrivals, b)
+                } else {
+                    model.sample_filter_birth_units_mixture(&conditions, arrivals, &mut particle_rng)
+                };
+                per_particle.push(fs);
+            }
+            bank.push_lot_births(lot_id, &per_particle, arrivals);
+        } else if n_lots > 1 {
+            let widths: Vec<usize> = if let Some(by) = &obs.arrivals_by {
+                by.iter().map(|&q| q as usize).collect()
             } else {
-                model.sample_filter_birth_units(condition, arrivals, &mut particle_rng)
+                split_delivery_qty(arrivals, n_lots)
+                    .into_iter()
+                    .map(|q| q as usize)
+                    .collect()
             };
-            per_particle.push(fs);
+            for (ell, (&lot_id, &units)) in lot_ids.iter().zip(widths.iter()).enumerate() {
+                if units == 0 {
+                    continue;
+                }
+                let condition = conditions.get(ell).copied().unwrap_or(ArrivalCondition::Prior);
+                let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
+                for p in 0..n {
+                    let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
+                    let fs = if let Some(b) = rng_birth.as_mut() {
+                        model.sample_filter_birth_units(condition, units, b)
+                    } else {
+                        model.sample_filter_birth_units(condition, units, &mut particle_rng)
+                    };
+                    per_particle.push(fs);
+                }
+                bank.push_lot_births(lot_id, &per_particle, units);
+            }
+        } else {
+            let lot_id = lot_ids.first().copied().unwrap_or_else(|| bank.next_synthetic_lot_id());
+            let condition = conditions.first().copied().unwrap_or(ArrivalCondition::Prior);
+            let mut per_particle: Vec<Vec<f64>> = Vec::with_capacity(n);
+            for p in 0..n {
+                let mut particle_rng = Pcg64::seed_from_u64(birth_seed.wrapping_add(p as u64));
+                let fs = if let Some(b) = rng_birth.as_mut() {
+                    model.sample_filter_birth_units(condition, arrivals, b)
+                } else {
+                    model.sample_filter_birth_units(condition, arrivals, &mut particle_rng)
+                };
+                per_particle.push(fs);
+            }
+            bank.push_lot_births(lot_id, &per_particle, arrivals);
         }
-        bank.push_lot_births(lot_id, &per_particle, arrivals);
     }
 
     // 4. Retire lots no particle believes in, so rows track the live window.
