@@ -2,18 +2,31 @@
 As-approved implementation plan, copied verbatim from the planning session
 (2026-08-26) so it survives outside that session's scratch directory.
 
-READ THIS ALONGSIDE .team/handoffs/arrival-breaks-multilot.md, which records
-what was actually built and TWO CORRECTIONS TO THIS PLAN:
+*** THERMAL / DURATION MODEL SUPERSEDED FOR IMPLEMENTATION ***
 
-  1. The calibration guard in "Calibration guard" below is UNACHIEVABLE as
-     written. With a fully deterministic legged baseline, rho -> 0 gives
-     Var(log Lambda) = Var(log d) exactly, so the duration share is 100%,
-     not 98.4%. See the handoff for the recommended replacement.
-  2. ADR 0148 is also affected (it fits the truncated-normal moments in
-     scripts/fit_abdella_arrival.py). This plan names only 0144.
+As of 2026-08-26 (PR #65 follow-up), §1 "Cold-chain breaks…" baseline
+(deterministic fixed leg shares/setpoints only) is NO LONGER the authority for
+Stage 1 implementation. Implement against:
 
-Superseded ADR numbers were assigned after this plan was written:
-0149 (lots per delivery) and 0150 (break events).
+  .team/plans/arrival-transit-generative-v2.md
+
+That document keeps compound-Poisson breaks + generative traces + filter
+caching, and adds: bottom-up Abdella-matched stage durations, trip thermal
+modes, required hourly OU on charts, unified duration (no haul toggle), and
+an explicit closed-form filter projection + Abdella calibration recipe.
+
+This file remains authority for §2 multi-lot / §3 UPC-vs-GSIN / remaining
+non-thermal sections, unless a later plan says otherwise.
+
+READ ALSO .team/handoffs/arrival-breaks-multilot.md (build state + corrections).
+
+Historical corrections that led here:
+  1. The calibration guard "98.4% duration share at rho->0" is UNACHIEVABLE
+     under a fully deterministic legged baseline (100% share). v2 restores
+     mild clean-chain φ̄ scatter via modes/OU and guards Var(log d) + φ̄ moments.
+  2. ADR 0148 truncated-normal temp fit is retired; duration moment match stays.
+  3. ADR numbers: 0149 (lots), 0150 (breaks) — amend 0150 baseline when
+     implementing v2.
 -->
 
 # Multi-lot deliveries + cold-chain break events

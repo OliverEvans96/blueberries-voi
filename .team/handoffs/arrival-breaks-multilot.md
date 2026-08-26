@@ -1,12 +1,19 @@
 # Handoff — multi-lot deliveries + cold-chain break events
 
 **Date:** 2026-08-26 · **Owner:** Oliver (repo owner, approved the plan directly)
-**Approved plan:** [`.team/plans/arrival-breaks-multilot.md`](../plans/arrival-breaks-multilot.md)
-— read this first, it is the authority on design intent. Copied into the repo verbatim from
-the planning session so it does not depend on that session's scratch directory. Note its
-header: the plan contains two known defects, corrected in this document.
 
-This document records state, corrections, and open questions.
+## Plans (read in this order)
+
+1. **Transit thermal/duration (Stage 1) — CURRENT AUTHORITY:**
+   [`.team/plans/arrival-transit-generative-v2.md`](../plans/arrival-transit-generative-v2.md)  
+   Bottom-up Abdella-matched stage times, trip cool/nominal/warm mode, required hourly
+   OU on charts, 0150-style breaks, closed-form filter projection, calibration recipe.
+   **Do not accept Stage 1 as done against deterministic fixed legs alone.**
+2. **Multi-lot + original breaks plan (Stage 2+; §1 thermal superseded):**
+   [`.team/plans/arrival-breaks-multilot.md`](../plans/arrival-breaks-multilot.md)  
+   Still authority for three lots / UPC mixture / shared DC leg. Header notes §1 supersession.
+
+This handoff records branch state, corrections, and open questions.
 
 The previous agent was acting as **manager only** at Oliver's explicit instruction:
 *"delegate the actual implementation only to sonnet subagents — you are just the manager —
@@ -32,34 +39,29 @@ reasons rather than genuine findings:
 
 ## Branch / worktree state
 
-Nothing is committed anywhere. Nothing is pushed. No PR exists yet.
+PR **#65** is open on `team/arrival-breaks/integrate` (this checkout).
 
-| Worktree | Branch | Stage | Status |
-|---|---|---|---|
-| `.worktrees/arrival-breaks-core` | `team/arrival-breaks/core` | 1 — thermal model | **In flight**, agent may have been cut off mid-run |
-| `.worktrees/arrival-breaks-adr` | `team/arrival-breaks/adr` | ADRs | **Done, reviewed** |
-| *(not yet created)* | `team/arrival-breaks/wiring` | 2 — multi-lot | Not started |
-| *(not yet created)* | `team/arrival-breaks/mirrors` | 3 — mirrors/guards | Not started |
+| Worktree / branch | Stage | Status |
+|---|---|---|
+| `team/arrival-breaks/integrate` (PR tip) | merge of adr + core | Open WIP |
+| `.worktrees/arrival-breaks-core` | Stage 1 thermal (old brief) | Partial deterministic-legs+breaks — **must be revised to v2 plan before accepting** |
+| `.worktrees/arrival-breaks-adr` | ADRs 0149/0150 | Done; **0150 baseline wording needs amend when implementing v2** |
+| Stage 2 wiring / Stage 3 mirrors | multi-lot + version bump | Not started |
 
-Main tree is on `main`, clean.
+### Stage 1 — REVISE TO TRANSIT GENERATIVE v2 (do not ship deterministic-legs-only)
 
-### Stage 1 — IN FLIGHT, verify before continuing
+Partial implementation exists for ADR 0150 deterministic legs + breaks (`arrival.rs`,
+`shipments.rs`, `arrival_model.json`, `t151_cold_chain_breaks.rs`). That is a useful
+scaffold but **not** the accepted generative story anymore.
 
-Its agent was still running when the session ended. Last observed state:
+**Next agent (implementation):** follow
+[`.team/plans/arrival-transit-generative-v2.md`](../plans/arrival-transit-generative-v2.md)
+end-to-end (§6 sequence). Reuse break math and tests where they still apply; replace
+fixed leg shares with bottom-up Abdella-matched stage gammas; add trip modes + hourly OU;
+extend filter `thermal_nodes`; update fit script / guards; demote haul chips.
 
-```
- M crates/voi_core/src/arrival.rs      (+595 / heavily reworked)
- M crates/voi_core/src/session.rs      (+30, mechanical compile fixes only)
- M crates/voi_core/src/shipments.rs    (+151)
- M data/abdella/arrival_model.json     (+44)
- ?? crates/voi_core/tests/t151_cold_chain_breaks.rs   (new)
-```
-
-**First action for the next agent:** run `cargo test -p voi_core -p voi_wasm` in that
-worktree. If it is green and the work is coherent, keep it and move to Stage 2. If it is
-half-finished, either re-task a Sonnet subagent to finish it against the same brief, or
-`git checkout -- .` and restart Stage 1. Do not assume it is complete — no completion
-report was ever received.
+Verify with `cargo test -p voi_core -p voi_wasm` (and focused arrival tests listed in v2)
+before starting Stage 2.
 
 ### ADR stage — done and verified
 
@@ -81,33 +83,19 @@ Two findings from that stage worth carrying forward:
 
 ---
 
-## OPEN ISSUE — the calibration guard as written is unachievable
+## OPEN ISSUE — calibration guard (RESOLVED by transit generative v2)
 
-Oliver asked about transit-duration variance, and working through it exposed a real defect
-in the approved plan. **Resolve this before Stage 1 is accepted.**
+The original plan’s *“at ρ→0 reproduce 98.4% duration share”* guard is unachievable under a
+**fully deterministic** legged baseline (share → 100%). That was the defect.
 
-The duration law itself is **unchanged**: `d = d_min + Gamma(delay_shape, delay_scale)`,
-`abdella_all` = (1.853, 3.009, 0.974), giving `d ≈ 4.78 ± 1.69` days and
-`Var(log d) ≈ 0.205` — matching the six shipments. Breaks do not touch it.
+**Resolution (Oliver, 2026-08-26 design pass → `arrival-transit-generative-v2.md`):**
 
-The plan says to re-express the calibration guard as *"at `rho -> 0` the model reproduces
-the six shipments' 98.4% duration share."* **It cannot.** With a fully deterministic legged
-baseline, `rho -> 0` gives `Lambda = d * phi_set` with `phi_set` constant, so
-`Var(log Lambda) = Var(log d)` exactly and the duration share is **100%, not 98.4%**. The
-missing 1.6% in the real data comes from genuine trip-to-trip variation in `phi_bar`, which
-the new model deliberately removed.
-
-Three ways out, in preference order:
-
-1. **Re-express the guard as a direct duration check** — at `rho -> 0`, the model's
-   `Var(log d)` matches the observed `0.205`. Still data-anchored, no share arithmetic,
-   no new parameters. *Recommended.*
-2. Restore a small per-leg setpoint jitter sized to reproduce the observed 1.6%. Exactly
-   reinstates the guard and is arguably more honest about real reefers — but Oliver was
-   offered this ("keep legs stochastic too") and did **not** pick it, and it reintroduces a
-   continuous thermal nuisance to quadrature over. Do not adopt without asking.
-3. State the guard as a bracket: observed 98.4% sits between the `rho = 0` limit (100%) and
-   the default-`rho` value (~80%). Weakest; asserts little.
+- Keep `Var(log d) ≈ 0.205` as a hard duration check (Abdella match via bottom-up stage gammas).
+- Restore **mild clean-chain φ̄ scatter** with trip thermal modes + hourly OU, tuned so that
+  at `ρ=0` mean/SD of `φ̄` match the six shipments (simple moment metrics — not MLE).
+- Default-`ρ` duration-vs-break variance share remains a **design/scenario** number (~80%),
+  not something estimated from six clean traces.
+- Breaks stay inside total calendar `d` (see undecided note below — still locked as inside).
 
 ### Related, un-decided: do breaks extend the trip or sit inside it?
 
