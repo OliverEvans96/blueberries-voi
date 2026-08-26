@@ -1,5 +1,5 @@
 # 0038. MOD-16: Lots per delivery below the scanning rung
-STATUS: ACCEPTED
+STATUS: SUPERSEDED BY 0149
 DATE: 2026-08-12
 BOARD-ID: MOD-16
 GROUP: MOD
@@ -7,6 +7,9 @@ PROVENANCE: contested
 TIER: 1
 MILESTONE: M2 — controller and multi-scenario
 AGAINST-RECOMMENDATION: true
+SUPERSEDED BY: [0149](./0149-mod-16-three-fixed-lots-per-delivery.md) — Oliver reopened this
+card (2026-08-26); option A is replaced by a fixed, known `L = 3` (a structural variant of this
+card's option C), not by the option B this card also rejected.
 
 ## Context
 
@@ -64,6 +67,7 @@ We will adopt **A — Exactly one lot per delivery, always**. Chosen against the
 The simulator never mixes. Lot becomes cohort in all but name.
 
 Deliberate override of the card recommendation (⚑). Do not reopen without asking Oliver.
+**Oliver reopened this on 2026-08-26; see [0149](./0149-mod-16-three-fixed-lots-per-delivery.md).**
 
 **Depends on:** `MOD-01`, `SCN-F1`
 
