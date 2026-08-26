@@ -3,147 +3,184 @@ title: Cold-Chain Arrival Model
 sources:
   code:
     - crates/voi_core/src/arrival.rs
+    - crates/voi_core/src/shipments.rs
     - crates/voi_core/src/physics.rs
     - data/abdella/arrival_model.json
     - scripts/arrival_calibration_note.py
     - data/abdella/calibration_note.md
+  adr: ["0149", "0150", "0148"]
 ---
 
 # Cold-chain arrival model
 
-Every delivery starts its life in the store already partway degraded, because it spent a day or several inside a truck before it ever reached a shelf. This page describes how the simulator turns "a shipment travelled through a refrigerated corridor" into a probability distribution over each unit's freshness `f` the moment it arrives. It matters because every observation scenario in the knowledge ladder — from books only through the full temperature-history scenario — is a different amount of information about the *same* underlying trip, not a different model — get the generative story right here and the whole ladder's information gains become meaningful.
+Every delivery starts its life in the store already partway degraded, because it spent a day or several inside a truck before it ever reached a shelf. This page describes how the simulator turns "a shipment travelled through a refrigerated corridor" into a probability distribution over each unit's freshness `f` the moment it arrives. It matters because every observation scenario in the knowledge ladder — from books only through the full temperature-history scenario — is a different amount of information about the *same* underlying trip, not a different model. Get the generative story right here and the whole ladder's information gains become meaningful.
 
 ![Six Abdella cold-chain shipments (duration vs. mean temperature factor) plotted against the corridor families the arrival model assumes](/figures/cold-chain-arrival-calibration-overlay.png)
 
 ## The idea
 
-Think of one delivery as a truck making one trip. Two things about the trip are shared by every berry on the truck: how many days the trip took, and (bundled into one number) how warm the truck ran on average. Those two shared quantities combine into a single number called **cumulative thermal exposure**, `Lambda` (Λ) — think of it as "how many equivalent days of reference-temperature aging did this trip cost," measured in reference-days. A short, cold trip might cost 2 reference-days; a long, warm one might cost 9.
+Think of one delivery as a truck making one trip. Three things about the trip are shared by every berry on the truck:
 
-But not every berry on the truck experiences the trip identically — pallets aren't perfectly isothermal, and a unit near a warm corner ages a little faster than one in the coldest pocket. That per-unit wobble is captured by a **position multiplier** `psi` (ψ), drawn separately for every single unit. Multiplying the trip's shared exposure by a unit's personal `psi` gives that unit's own exposure, which then feeds into the *same* random-degradation law used for in-store aging (a gamma-distributed loss). The result is a **freshness** `f` for that one unit — not an age, a state variable running from 1 (pristine) down to 0 (spoiled/dead).
+1. **How long the trip took** — calendar transit duration `d`, drawn once per delivery from a shifted-gamma corridor law.
+2. **What happened thermally along the way** — a piecewise temperature path built from deterministic cold-chain legs plus random **break events** (unrefrigerated dock time, missed connections, and similar handoffs). Cumulative thermal exposure **Λ** (lambda) is integrated out of that path, not drawn as a scalar first.
+3. **Where on the pallet each berry rode** — a within-pallet position multiplier **ψ** (psi), drawn independently for every unit.
 
-So the model has one "corridor" story (duration and average temperature) shared across the whole delivery, and one "which pallet spot did this berry ride in" story that's private to each unit. No observation the store ever makes — not even a full temperature log — reveals that private per-unit story, which is why units from the very same lot can genuinely differ in freshness even under perfect knowledge of the trip's temperature history.
+Multiplying the trip's shared exposure by a unit's personal **ψ** gives that unit's own exposure, which then feeds into the *same* random-degradation law used for in-store aging (a gamma-distributed loss). The result is a **freshness** `f` for that one unit — not a calendar clock, a state variable running from 1 (pristine) down to 0 (spoiled/dead).
+
+So the model has one "corridor" story (duration and temperature path) shared across the whole delivery, and one "which pallet spot did this berry ride in" story that's private to each unit. No observation the store ever makes — not even a full temperature log — reveals that private per-unit story, which is why units from the very same lot can genuinely differ in freshness even under perfect knowledge of the trip's temperature history.
+
+### Three lots per delivery (target model)
+
+Under [ADR 0149](/team/adr/0149-mod-16-three-fixed-lots-per-delivery), each delivery carries **L = 3** fixed lots. Total case quantity is **split** across the three lots, not multiplied — per-day filter runtime stays flat. Each lot draws its own upstream journey (own duration, own break realization); one DC→store leg is shared:
+
+$$
+\Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}
+$$
+
+Under **GSIN**, the filter holds three segments, each born from its own arrival law (`Duration(d_\ell)` or `Exposure(Λ_\ell)`). Under **UPC**, one cohort is born from the mixture `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)` — mix the laws, don't average the dates. On the current integrate branch the session may still mint one lot id per delivery; the three-lot DC model above is the target wiring described in ADR 0149 and the multi-lot plan.
+
+### Planned v2 upgrade (design direction)
+
+The [transit generative v2 plan](/team/plans/arrival-transit-generative-v2) is the next thermal authority. It keeps compound-Poisson breaks and path-first Λ, and adds:
+
+- **Bottom-up stage durations** — draw each leg's time first so total `d` matches the Abdella pooled law exactly, instead of fixed duration shares on a single `d` draw.
+- **Trip thermal modes** — one per-trip draw among cool / nominal / warm offsets applied to all leg setpoints.
+- **Hourly OU noise** on the path so temperature charts look like real loggers even when `ρ = 0`.
+- **Unified duration family** — demote `short_haul` / `long_haul` studio chips; default everything through `abdella_all`.
+
+Those v2 features are not on the integrate branch yet; the sections below describe what the code does today, with v2 called out where the design will change.
 
 ## The math
 
-For one delivery drawn from a **corridor** (an arrival lane, e.g. `short_haul`, `long_haul`, or the fitted `abdella_all`), the truth-path generative model draws, per unit:
+For one delivery drawn from a **corridor** (an arrival lane — `abdella_all` is the Abdella-matched fit; `short_haul` and `long_haul` are illustrative studio corridors), the truth-path generative model proceeds as follows.
+
+### Duration
 
 $$
 d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})
 $$
 
-$d$ is the calendar transit duration in days; $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor. Transit duration is drawn once per delivery (all units on the same truck share the same trip length).
+$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor.
+
+### Cold-chain path and breaks
+
+The baseline path walks three named legs in order, each holding a fixed setpoint for its share of $d$:
+
+| Leg | Share $w_k$ | Setpoint $\mu_k$ |
+| --- | --- | --- |
+| `precool_staging` | 0.15 | 0.5 °C |
+| `line_haul` | 0.60 | 2.0 °C |
+| `dock_receiving` | 0.25 | 5.0 °C |
+
+On top of that baseline, **break events** are drawn ([ADR 0150](/team/adr/0150)):
 
 $$
-\bar T \sim \mathrm{TruncatedNormal}(\mu_T, \sigma_T,\ \text{floor} = T_{\text{floor}})
+N \sim \mathrm{Poisson}(\rho \cdot d), \qquad
+\tau_j \sim \mathrm{Exp}(\bar\tau) \text{ at fixed } T_{\mathrm{break}}
 $$
 
-$\bar T$ is the delivery's mean transit temperature in °C, also drawn once per delivery, truncated below at a physical floor (the reefer can't usefully run colder than its floor).
+Break start times are uniform on $[0, d]$; each break punches a rectangular pulse to $T_{\mathrm{break}}$ for duration $\tau_j$, clamped so total break time never exceeds $d$. The trip clock runs during breaks, so exposure is exact:
 
 $$
-\bar\varphi = q_{10}^{(\bar T - T_{\mathrm{ref}})/10}
+\Lambda_{\mathrm{lot}} = d \cdot \varphi_{\mathrm{set}} + \sum_j \tau_j \cdot (\varphi_{\mathrm{break}} - \varphi_{\mathrm{set}})
 $$
 
-`phi_bar` ($\bar\varphi$) is the duration-averaged Q10 temperature factor — how much faster (or slower) than the reference temperature $T_{\mathrm{ref}}$ this trip's average temperature drives degradation. $q_{10}$ is the Q10 coefficient (rate multiplier per 10°C of warming).
+where $\varphi_{\mathrm{set}}$ is the duration-weighted Q10 factor of the leg baseline and $\varphi_{\mathrm{break}} = \phi(T_{\mathrm{break}})$. Given $N$, the break contribution is $\mathrm{Gamma}(N, m)$ with $m = \bar\tau \cdot (\varphi_{\mathrm{break}} - \varphi_{\mathrm{set}})$.
+
+The temperature trace is built first in `shipments.rs::truth_transit_trace`; Λ is integrated back out via `resolve_arrival_exposure` — the trace is the generative primitive, not a decorative fit to a pre-drawn scalar.
+
+**Retired:** the truncated-normal mean transit temperature (`mu_T`, `sigma_T`, `sample_truncated_normal`) and the bisection loop that used to force a trace to match a scalar $\bar\varphi$ already drawn. That path made temperature history nearly uninformative once pack date was known.
+
+### Per-unit position and freshness
 
 $$
 \psi \sim \mathrm{LogNormal}(0, \sigma_{\text{pos}})
 $$
 
-$\psi$ is the within-pallet position multiplier, drawn **independently for every unit** (unlike $d$ and $\bar T$, which are shared across the delivery).
+$\psi$ is drawn **independently for every unit**.
 
 $$
-\Lambda = d \cdot \bar\varphi \cdot \psi
+\Lambda = \Lambda_{\mathrm{lot}} \cdot \psi
 $$
-
-$\Lambda$ (cumulative thermal exposure, in reference-days) is this unit's personal exposure: the shared trip exposure ($d \cdot \bar\varphi$) scaled by its own position multiplier.
 
 $$
 D \sim \mathrm{Gamma}(k \cdot \Lambda,\ \theta), \qquad f = \max(0,\ 1 - D)
 $$
 
-$D$ is the per-unit degradation loss, drawn from the *same* shape-scaled gamma law used for day-by-day in-store aging (shape scaled by exposure, not scale) — a trip is just more warped time for the same underlying process. $k$ (gamma_shape) and $\theta$ (gamma_scale) are the two gamma-law parameters; $f$, arrival freshness, is what's left after subtracting the draw, floored at zero.
-
-Because it's the same gamma law, the closed forms used for in-store aging apply directly to arrival freshness conditional on exposure $\Lambda$:
+$D$ is the per-unit degradation loss from the same shape-scaled gamma law used in-store. Conditional on $\Lambda$:
 
 $$
-P(f > x \mid \Lambda) = \gamma_p(k\Lambda,\ (1-x)/\theta)
-$$
-
-$$
+P(f > x \mid \Lambda) = \gamma_p(k\Lambda,\ (1-x)/\theta), \qquad
 P(f = 0 \mid \Lambda) = \gamma_q(k\Lambda,\ 1/\theta)
 $$
 
-where $\gamma_p$ and $\gamma_q$ are the regularized lower and upper incomplete gamma functions (the same CDF machinery reused, not reimplemented, for arrival). The second line is the exact atom of mass at $f=0$ — the probability a unit arrives already spoiled — available in closed form with no simulation needed.
+### Live calibrated numbers (schema 2)
 
-**Live calibrated numbers** (from `data/abdella/arrival_model.json`, schema version 1):
+From `data/abdella/arrival_model.json`:
 
 | Parameter | Symbol | Value |
 | --- | --- | --- |
-| Mean transit temperature | $\mu_T$ | 2.7 °C |
-| Transit temperature spread | $\sigma_T$ | 0.4 °C |
-| Temperature floor | $T_{\text{floor}}$ | 0.0 °C |
+| Break temperature | $T_{\mathrm{break}}$ | 12.0 °C |
+| Break hazard | $\rho$ | 0.08 /day |
+| Mean break duration | $\bar\tau$ (`tau_bar`) | 0.5 days |
 | Position spread | $\sigma_{\text{pos}}$ | 0.08 |
 | Q10 coefficient | $q_{10}$ | 3.0 |
 | Reference temperature | $T_{\mathrm{ref}}$ | 0.0 °C |
-| Gamma shape | $k$ (gamma_shape) | 2.0 |
-| Gamma scale | $\theta$ (gamma_scale) | 1/28 ≈ 0.035714 |
+| Gamma shape | $k$ | 2.0 |
+| Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
 | Reference life | $\eta_{\text{ref}}$ | 14.0 reference-days |
 
-Note that $k \cdot \theta \cdot \eta_{\text{ref}} = 2.0 \times \tfrac{1}{28} \times 14 = 1$ — this is the single calibration invariant that ties the gamma law's mean loss rate to a 14-reference-day shelf life, shared between transit and in-store aging.
+Note $k \cdot \theta \cdot \eta_{\text{ref}} = 1$ — the calibration invariant tying mean loss rate to a 14-reference-day shelf life.
 
-**Corridors** (`d_min`, delay_shape, delay_scale — the shifted-gamma duration law):
+**Corridors** (shifted-gamma duration law):
 
 | Corridor | $d_{\min}$ (days) | delay_shape | delay_scale |
 | --- | --- | --- | --- |
-| `short_haul` | 1.5 | 2.0 | 0.25 |
-| `long_haul` | 3.5 | 4.0 | 0.5 |
-| `abdella_all` | 1.9 | 3.0 | 1.0 |
+| `short_haul` | 1.803 | 2.0 | 0.05 |
+| `long_haul` | 4.033 | 1.628 | 0.814 |
+| `abdella_all` | 1.853 | 3.009 | 0.974 |
 
-`short_haul` and `long_haul` are illustrative studio corridors; `abdella_all` is the one roughly calibrated against the six real Abdella shipments.
+`abdella_all` is moment-matched to the six Abdella shipments ([ADR 0148](/team/adr/0148)); `short_haul` and `long_haul` are illustrative only.
+
+$\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**, not fit — all six real shipments are clean chains with no observed breaks.
 
 ## Why it's modelled this way
 
-**Shape-scaling, not scale-scaling.** The daily in-store aging law and the arrival law both scale the gamma distribution's *shape* parameter by exposure ($\mathrm{Gamma}(k\Lambda, \theta)$), rather than its *scale*. Arrhenius kinetics describe a rate constant, meaning heat produces *more* degradation events of the same size, not the same number of *bigger* events. Shape-scaling is also what makes $\Lambda$ a genuine sufficient statistic for the whole trip — two journeys with equal $\Lambda$ but different temperature paths have the same freshness distribution under shape-scaling, but would differ under scale-scaling, which would mean a temperature log couldn't be summarized by one number at all. It also makes transit (one continuous exposure) and shelf life (a daily loop) the same process observed at different granularities. The honest caveat: the gamma process is itself an idealization — real spoilage is partly discrete (a bruise, mould spreading to a neighboring berry), which a compound-Poisson or contagion model would capture better than a continuous gamma subordinator. Shape-scaling is the more defensible of the two gamma conventions available, not a claim of physical exactness.
+**Shape-scaling, not scale-scaling.** The daily in-store aging law and the arrival law both scale the gamma distribution's *shape* parameter by exposure ($\mathrm{Gamma}(k\Lambda, \theta)$), rather than its *scale*. Arrhenius kinetics describe a rate constant, meaning heat produces *more* degradation events of the same size, not the same number of *bigger* events. Shape-scaling is also what makes $\Lambda$ a genuine sufficient statistic for the whole trip — two journeys with equal $\Lambda$ but different temperature paths have the same freshness distribution under shape-scaling, but would differ under scale-scaling, which would mean a temperature log couldn't be summarized by one number at all.
 
-**Assumed families, not a fit.** With only six real refrigerated shipments in hand, the parameters in `arrival_model.json` were **hand-authored** — round, interpretable numbers chosen to roughly bracket the six observed (duration, `phi_bar`) points — not fit by maximum likelihood. An MLE fit on six points would produce numbers that *look* validated by data when they aren't; the calibration note is explicit that "the data does not validate these families" and the calibration script performs no fitting step, only an overlay plot. The six shipments actually observed (`data/abdella/calibration_note.md`):
+**Break events instead of a wider temperature draw.** A truncated-normal "the truck ran a bit warm" knob inflates spread without a physical story and, at the fitted spread, left only ~1.6% of exposure variance for temperature once duration was known (`Var(log d) = 0.205` vs `Var(log \bar\varphi) = 0.00335` on the six shipments). Compound-Poisson breaks at a fixed break temperature raise the temperature channel's share of variance to a design target near 20% at default $\rho$, so F3 has something real to learn.
 
-| shipment | duration $d$ (days) | $\bar\varphi$ |
-| --- | --- | --- |
-| S1 | 4.604 | 1.318 |
-| S2 | 1.903 | 1.287 |
-| S3 | 6.243 | 1.355 |
-| S4 | 5.347 | 1.433 |
-| S5 | 6.514 | 1.286 |
-| S6 | 4.083 | 1.478 |
+**Path first.** Integrating Λ from the trace makes the temperature-history observation channel observe the same object the simulator randomizes. The retired bisection trace was a rendering of scalars after the fact.
 
-One shipment's position probes (S4) were excluded from the $\sigma_{\text{pos}}$ calibration as suspect — S4's recorded position-probe temperature factor implied a sustained temperature well above anything the lot-mean trace supported, so it was flagged and left out rather than silently averaged in.
-
-**Alternatives considered:** scale-scaling everywhere misreads Q10 as event severity rather than event frequency, and breaks $\Lambda$-sufficiency. Separate gamma rates for transit vs. shelf would let the two conventions drift apart from each other over time. Fitting the six shipments by MLE would over-read six data points as validation. And a lower reference life would leave most corridors delivering fruit that's mostly dead on arrival, leaving no observation scenario anything to learn.
+**Assumed vs fitted.** With only six refrigerated shipments, corridor durations are moment-matched; leg setpoints are chosen so the break-free limit matches the observed $\bar\varphi$ centre; break rate and duration are documented assumptions. An MLE fit on six points would over-read the data.
 
 ## In the code
 
 | Concept | Symbol | Location |
 | --- | --- | --- |
-| Truth-path per-unit generative draw | $d, \bar T, \bar\varphi, \psi, \Lambda, D, f$ | `crates/voi_core/src/arrival.rs:448` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
-| Whole-delivery truth draw (shared $d$, $\bar T$; per-unit $\psi$/loss) | — | `crates/voi_core/src/arrival.rs:471` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
-| Q10 temperature factor | $\bar\varphi = q_{10}^{(\bar T-T_{\mathrm{ref}})/10}$ | `crates/voi_core/src/arrival.rs:366` ([`phi_bar_from_t_bar`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_bar_from_t_bar)), calling `crates/voi_core/src/physics.rs:31` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
-| Tail probability given exposure | $P(f>x\mid\Lambda)=\gamma_p(k\Lambda,(1-x)/\theta)$ | `crates/voi_core/src/arrival.rs:400` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
-| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:411` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
-| Exact spoiled-on-arrival atom | $P(f=0\mid\Lambda)=\gamma_q(k\Lambda,1/\theta)$ | `crates/voi_core/src/arrival.rs:426` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
-| Regularized incomplete gamma functions | $\gamma_p, \gamma_q$ | `crates/voi_core/src/physics.rs:125` ([`gamma_p`](/api/rust/voi_core/physics/fn.gamma_p.html)), `:140` (`gamma_q`) |
-| Position multiplier draw (per unit) | $\psi$ | `crates/voi_core/src/arrival.rs:442` (`draw_psi_pos`) |
-| Truncated-normal transit temperature draw | $\bar T$ | `crates/voi_core/src/arrival.rs:431` (`sample_truncated_normal`) |
-| Calibrated artifact (live numbers, corridors) | all of the above | `data/abdella/arrival_model.json` |
-| Reporting-only calibration overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
+| Truth-path temperature trace (legs + breaks) | path → Λ | `crates/voi_core/src/shipments.rs:97` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
+| Exposure from observed path | Λ | `crates/voi_core/src/arrival.rs:1210` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
+| Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:721` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
+| Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:773` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
+| Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:744` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
+| Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:567` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
+| Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:599` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
+| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:850` ([`thermal_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.thermal_nodes)) |
+| Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
+| Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:683` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
+| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:695` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
+| Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:710` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
+| Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:408` (`gamma_dist_quantile`) |
+| Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:738` (`draw_psi_pos`) |
+| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; loaded into `crates/voi_core/src/arrival.rs:129` ([`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 
 ## Caveats
 
-**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment of the whole chain — is excluded entirely. Real arrival freshness is therefore lower, likely meaningfully lower, than what this model reports. Extending the model to cover field heat would need its own segment, its own data treatment, and a harvest-date observation scenario; it's a deliberate scope choice for now, not an oversight.
+**Refrigerated-leg only — arrival freshness is an upper bound.** The model window runs from the first lot-mean temperature reading below 10 °C through the published end-of-chain point. Harvest-to-precool field heat — typically the most thermally damaging segment — is excluded. Real arrival freshness is therefore lower than what this model reports.
 
-**No observation channel ever reveals a unit's actual freshness.** Even the richest available observation — the full temperature-history trace — pins down the shared exposure $\Lambda$ for the delivery exactly. It never reveals $\psi$ (the per-unit position multiplier) or the per-unit gamma draw $D$. That is a hard floor on how sharp any belief about one specific unit's freshness can ever get, no matter how much is observed about the trip — and it's exactly why units within a single lot genuinely differ in freshness even under perfect trip knowledge.
+**No observation channel reveals a unit's actual freshness.** Even the richest channel — the full temperature-history trace — pins down shared exposure Λ for the delivery (or per-lot Λ under the three-lot target). It never reveals $\psi$ or the per-unit gamma draw $D$.
 
-**Assumed families, offline-fitted with adjustment knobs.** With only six real refrigerated
-shipments, `scripts/fit_abdella_arrival.py` moment-matches corridor duration and transit
-temperature parameters into `arrival_model.json`; `gamma_shape`, `gamma_scale`, `q10`, and
-`sigma_pos` remain documented adjustment knobs (see `fit_report.md`). An MLE fit on six
-points would over-read the data; treat specific numbers as defensible starting points.
+**Break parameters are assumed, not measured.** The six Abdella shipments never broke; $\rho$ and $\bar\tau$ are scenario knobs. At $\rho \to 0$ the model should recover the clean-chain duration dominance seen in the data; at default $\rho$ the duration share of $\mathrm{Var}(\log \Lambda)$ is a design output (~80%), not an Abdella measurement.
+
+**Stage-1 vs v2.** Today's code uses fixed leg *shares* on a single $d$ draw. The v2 plan replaces that with bottom-up stage gammas, trip modes, and hourly path noise while keeping the same break law and filter caching strategy.
