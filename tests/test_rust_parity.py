@@ -1,12 +1,15 @@
 """Golden / skip-if-missing parity vs optional ``blueberries_voi._core`` (Wave E).
 
 Structural ``atol`` checks — not bit-identical RNG (ADR 0127).
+T-163 mirrors: per-lot delivery wire on events / FilterObs (S3.2, S3.7).
 """
 
 from __future__ import annotations
 
 import importlib
 import math
+import re
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -18,10 +21,16 @@ from blueberries_voi.sim.shipments import smoke_cool_shipments
 from blueberries_voi.simulator.session import EngineSession
 from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
 
-if _maybe_core is None:
-    pytest.skip("blueberries_voi._core not built", allow_module_level=True)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_OBS_RS = _REPO_ROOT / "crates" / "voi_core" / "src" / "obs.rs"
+_SESSION_RS = _REPO_ROOT / "crates" / "voi_core" / "src" / "session.rs"
+_FILTER_TYPES_PY = _REPO_ROOT / "src" / "blueberries_voi" / "filter" / "types.py"
 
 rust_core = _maybe_core
+_RUST_RUNTIME = pytest.mark.skipif(
+    _maybe_core is None,
+    reason="blueberries_voi._core not built",
+)
 
 # Structural parity tolerance for stochastic kernels (ADR 0127).
 _STRUCTURAL_ATOL = 1.0
@@ -31,6 +40,8 @@ _FILTER_SEED = 13
 _TRAJECTORY_SEED = 42
 _CRN_ROOT_SEED = 42
 
+_LOTS_PER_DELIVERY = 3
+
 
 @pytest.fixture(autouse=True)
 def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,6 +50,45 @@ def _rust_backend(monkeypatch: pytest.MonkeyPatch) -> None:
 
     importlib.reload(backend_mod)
 
+
+def test_voi_core_filter_obs_has_per_lot_delivery_fields() -> None:
+    """S3.1 — FilterObs must carry per-lot pack dates and temperature traces."""
+    text = _OBS_RS.read_text(encoding="utf-8")
+    assert "pack_dates_by_lot" in text, (
+        "RED [S3.1]: obs.rs FilterObs missing pack_dates_by_lot (per-lot F2)"
+    )
+    assert "temp_traces_by_lot" in text, (
+        "RED [S3.1]: obs.rs FilterObs missing temp_traces_by_lot (per-lot F3)"
+    )
+    rich_day = re.search(r"pub struct RichDay\s*\{([^}]+)\}", text, re.DOTALL)
+    assert rich_day is not None
+    body = rich_day.group(1)
+    assert "temp_traces_by_lot" in body, (
+        "RED [S3.1]: RichDay must store per-lot traces, not only shipment_trace"
+    )
+
+
+def test_voi_core_events_wire_exports_per_lot_delivery_fields() -> None:
+    """S3.1 — session events JSON must include per-lot delivery metadata."""
+    text = _SESSION_RS.read_text(encoding="utf-8")
+    events_block = text.split("pub fn events_value", 1)[-1]
+    assert '"temp_traces_by_lot"' in events_block, (
+        "RED [S3.1]: events_value must emit temp_traces_by_lot on the wire"
+    )
+    assert '"pack_dates_by_lot"' in events_block, (
+        "RED [S3.1]: events_value must emit pack_dates_by_lot on the wire"
+    )
+
+
+def test_python_filter_types_expose_per_lot_delivery_fields() -> None:
+    """S3.2 — Python RichObs / mask path must mirror per-lot delivery wire."""
+    text = _FILTER_TYPES_PY.read_text(encoding="utf-8")
+    assert "pack_dates_by_lot" in text, (
+        "RED [S3.2]: filter/types.py must expose pack_dates_by_lot on the wire mirror"
+    )
+    assert "temp_traces_by_lot" in text, (
+        "RED [S3.2]: filter/types.py must expose temp_traces_by_lot on the wire mirror"
+    )
 
 def test_backend_default_is_rust_when_env_unset(
     monkeypatch: pytest.MonkeyPatch,
@@ -67,6 +117,7 @@ def test_filter_step_one_day_smoke() -> None:
     pytest.skip("T-TAU-RETIRE: rust_core.filter_step_py removed")
 
 
+@_RUST_RUNTIME
 def test_engine_session_ten_day_trajectory_fixed_orders() -> None:
     """Ten-day session with fixed orders: monotonic seq and populated belief wire."""
     times = np.asarray([0.0, 1.0, 2.0], dtype=float)
@@ -127,6 +178,8 @@ def test_engine_session_ten_day_trajectory_fixed_orders() -> None:
 
 def test_voi_crn_smoke_seven_scenarios_structural() -> None:
     """VOI CRN smoke: all seven scenarios return finite, differentiated profits."""
+    if rust_core is None:
+        pytest.skip("blueberries_voi._core not built")
     for root_seed in range(1, 9):
         profits = run_voi_crn_cell(
             beta=2.0,

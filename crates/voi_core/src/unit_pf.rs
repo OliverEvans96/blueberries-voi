@@ -325,7 +325,7 @@ fn resolve_arrival_f_law_per_lot(
             }
         }
     }
-    if let Some(packs) = &obs.pack_date_days_by_lot {
+    if let Some(packs) = &obs.pack_dates_by_lot {
         if let Some(&d) = packs.get(lot_idx) {
             return ArrivalCondition::Duration(d);
         }

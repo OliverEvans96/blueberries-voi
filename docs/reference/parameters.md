@@ -188,9 +188,10 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Mean transit temperature | $\mu_T$ | 2.7 | °C | Mean of the truncated-normal transit temperature law | `data/abdella/arrival_model.json`; field `mu_t` at `crates/voi_core/src/arrival.rs:74` |
-| Transit temperature spread | $\sigma_T$ | 0.4 | °C | SD of the truncated-normal transit temperature law | `data/abdella/arrival_model.json`; field `sigma_t` at `crates/voi_core/src/arrival.rs:75` |
-| Temperature floor | — | 0.0 | °C | Left-truncation floor of the transit temperature law | `data/abdella/arrival_model.json`; field `temp_floor_c` at `crates/voi_core/src/arrival.rs:76` |
+| Transit leg setpoints | — | see artifact | °C | Deterministic stage setpoints in the break-free thermal baseline | `data/abdella/arrival_model.json`; field `legs` at `crates/voi_core/src/arrival.rs:199` |
+| Break temperature | $T_\text{break}$ | see artifact | °C | Temperature during a cold-chain break pulse | `data/abdella/arrival_model.json`; field `t_break` at `crates/voi_core/src/arrival.rs:206` |
+| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1247` (`thermal_nodes`) |
+| Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` (`truth_transit_trace`) |
 | Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; field `sigma_pos` at `crates/voi_core/src/arrival.rs:77` |
 | Default corridor (`abdella_all`) | $d_\text{min}$ / delay shape / delay scale | 1.9 days / 3.0 / 1.0 | days / — / days | Minimum transit duration and gamma delay-tail shape for the composite corridor | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
 

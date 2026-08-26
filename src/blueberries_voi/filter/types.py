@@ -33,6 +33,8 @@ _RICH_FIELD_NAMES: frozenset[str] = frozenset(
         "age_at_receipt",
         "lot_ids_live",
         "arrival_lot_ids",
+        "pack_dates_by_lot",
+        "temp_traces_by_lot",
         "temperature_history",
     }
 )
@@ -237,8 +239,10 @@ def mask_from_channels(channels: ObsChannels) -> ObsMask:
             present.add("waste_by_lot")
     if channels.delivery_history == "pack_date":
         present.add("pack_date")
+        present.add("pack_dates_by_lot")
     elif channels.delivery_history == "temperature_history":
         present.add("temperature_history")
+        present.add("temp_traces_by_lot")
     return ObsMask(present=frozenset(present))
 
 
@@ -259,6 +263,8 @@ class RichObs:
     sales_by_lot: Mapping[int, int] | Unobserved
     waste_by_lot: Mapping[int, int] | Unobserved
     pack_date: date | Unobserved
+    pack_dates_by_lot: tuple[int, ...] | Unobserved
+    temp_traces_by_lot: tuple[object, ...] | Unobserved
     age_at_receipt: float | Unobserved
     lot_ids_live: frozenset[int] | Unobserved
 
@@ -272,6 +278,8 @@ class RichObs:
             sales_by_lot=UNOBSERVED,
             waste_by_lot=UNOBSERVED,
             pack_date=UNOBSERVED,
+            pack_dates_by_lot=UNOBSERVED,
+            temp_traces_by_lot=UNOBSERVED,
             age_at_receipt=UNOBSERVED,
             lot_ids_live=UNOBSERVED,
         )
@@ -299,6 +307,14 @@ class ObsMask:
             sales_by_lot=rich.sales_by_lot if "sales_by_lot" in present else UNOBSERVED,
             waste_by_lot=rich.waste_by_lot if "waste_by_lot" in present else UNOBSERVED,
             pack_date=rich.pack_date if "pack_date" in present else UNOBSERVED,
+            pack_dates_by_lot=(
+                rich.pack_dates_by_lot if "pack_dates_by_lot" in present else UNOBSERVED
+            ),
+            temp_traces_by_lot=(
+                rich.temp_traces_by_lot
+                if "temp_traces_by_lot" in present
+                else UNOBSERVED
+            ),
             age_at_receipt=(
                 rich.age_at_receipt if "age_at_receipt" in present else UNOBSERVED
             ),
@@ -350,6 +366,8 @@ def rich_obs_from_day_log(day: Any, mask: ObsMask) -> RichObs:
         sales_by_lot=sales_by_lot,
         waste_by_lot=waste_by_lot,
         pack_date=_optional_from_day(getattr(day, "pack_date", None)),
+        pack_dates_by_lot=_optional_from_day(getattr(day, "pack_dates_by_lot", None)),
+        temp_traces_by_lot=_optional_from_day(getattr(day, "temp_traces_by_lot", None)),
         age_at_receipt=_optional_from_day(getattr(day, "age_at_receipt", None)),
         lot_ids_live=_lot_ids_from_day(day),
     )
