@@ -28,6 +28,8 @@ pub struct UnitDayStepIn {
     pub deliver_units: Option<u32>,
     /// Per-unit birth freshness from [`crate::arrival::ArrivalModel`] on the truth path.
     pub delivery_unit_f: Option<Vec<f64>>,
+    /// Per-lot birth freshness segments when a delivery splits across L sub-lots.
+    pub delivery_lot_f: Option<Vec<Vec<f64>>>,
     /// Units injected per delivery (default `params.units_per_lot`, typically 15).
     pub units_per_lot: Option<usize>,
 }
@@ -283,27 +285,39 @@ pub fn unit_day_step_with_birth<R: Rng + ?Sized>(
     unit_exits.extend(sold_exits);
 
     if input.deliver {
-        // Per-unit `delivery_unit_f` from `crate::arrival::ArrivalModel` (drawn in session).
-        let units_per_lot = input
-            .units_per_lot
-            .unwrap_or(params.units_per_lot)
-            .max(1);
-        let total_units = input
-            .deliver_units
-            .unwrap_or(units_per_lot as u32)
-            .max(1) as usize;
-        let start = freshness.len();
-        let birth_segment = input.delivery_unit_f.clone().unwrap_or_else(|| {
-            let _model = ArrivalModel::embedded();
-            vec![1.0; total_units]
-        });
-        assert_eq!(
-            birth_segment.len(),
-            total_units,
-            "delivery_unit_f length must match deliver_units"
-        );
-        freshness.extend(birth_segment);
-        lot_offsets.push(start + total_units);
+        if let Some(lot_segments) = &input.delivery_lot_f {
+            for segment in lot_segments {
+                assert!(
+                    !segment.is_empty(),
+                    "delivery_lot_f segments must be non-empty"
+                );
+                let start = freshness.len();
+                freshness.extend(segment.iter().copied());
+                lot_offsets.push(start + segment.len());
+            }
+        } else {
+            // Per-unit `delivery_unit_f` from `crate::arrival::ArrivalModel` (drawn in session).
+            let units_per_lot = input
+                .units_per_lot
+                .unwrap_or(params.units_per_lot)
+                .max(1);
+            let total_units = input
+                .deliver_units
+                .unwrap_or(units_per_lot as u32)
+                .max(1) as usize;
+            let start = freshness.len();
+            let birth_segment = input.delivery_unit_f.clone().unwrap_or_else(|| {
+                let _model = ArrivalModel::embedded();
+                vec![1.0; total_units]
+            });
+            assert_eq!(
+                birth_segment.len(),
+                total_units,
+                "delivery_unit_f length must match deliver_units"
+            );
+            freshness.extend(birth_segment);
+            lot_offsets.push(start + total_units);
+        }
     }
 
     UnitDayStepOut {

@@ -309,6 +309,7 @@ fn run_channel(
             rng_birth_filter.as_mut(),
             &mut gamma_table,
             Some(&mut arrival_model),
+            None,
         );
         if (d as u32) < BURN_IN {
             continue;

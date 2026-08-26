@@ -399,6 +399,7 @@ fn path_value_f_belief(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let out = unit_day_step_with_birth(
@@ -514,6 +515,7 @@ fn path_arrival_units_sum(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let out = unit_day_step_with_birth(

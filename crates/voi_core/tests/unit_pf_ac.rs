@@ -137,6 +137,7 @@ fn p1_mask_obs_sales_by_stays_none() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs = mask_for("P1").expect("P1").apply(&rich);
     assert_eq!(obs.sales_tot, Some(5));
@@ -156,6 +157,7 @@ fn f1_mask_exposes_sales_by_for_router() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs = mask_for("F1").expect("F1").apply(&rich);
     assert_eq!(obs.sales_by.as_deref(), Some(&[3u32, 2][..]));
@@ -691,6 +693,7 @@ fn unit_pf_f1_p1_relative_mean_f_mae() {
             arrival_lot_ids: vec![],
             shipment_trace: None,
             pack_date_days: None,
+            ..Default::default()
         });
     }
     let final_truth = units_f.clone();
@@ -886,6 +889,7 @@ fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
         arrival_lot_ids: vec![],
         shipment_trace: None,
         pack_date_days: None,
+        ..Default::default()
     };
     let obs_f1 = mask_for("F1").unwrap().apply(&rich);
     let _obs_p1 = mask_for("P1").unwrap().apply(&rich);

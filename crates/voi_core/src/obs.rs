@@ -73,10 +73,16 @@ pub struct RichDay {
     pub lot_ids: Vec<i64>,
     /// Ids of lots in today's arriving shipment, if any.
     pub arrival_lot_ids: Vec<i64>,
+    /// Per-lot delivery quantities when a receipt splits across L sub-lots (ADR 0149).
+    pub arrivals_by: Vec<u32>,
     /// Full temperature/time trace for today's arrival, present only when one was recorded.
     pub shipment_trace: Option<ShipmentTrace>,
-    /// Pack date of today's arrival, in days, if known.
+    /// Per-lot spliced traces for today's delivery (len = L when multilot).
+    pub temp_traces_by_lot: Vec<(i64, ShipmentTrace)>,
+    /// Pack date of today's arrival, in days, if known (legacy single-lot / first lot).
     pub pack_date_days: Option<i32>,
+    /// Per-lot pack dates when delivery history resolves per sub-lot (ADR 0149).
+    pub pack_date_days_by_lot: Vec<i32>,
 }
 
 /// Masked observation consumed by `filter_step` (absent = `None`, never invented 0).
@@ -95,12 +101,18 @@ pub struct FilterObs {
     pub lot_ids_live: Option<Vec<i64>>,
     /// Lot ids of today's arrival, if `arrival_lot_ids` is in the mask.
     pub arrival_lot_ids: Option<Vec<i64>>,
+    /// Per-lot delivery quantities on today's receipt (always populated for filter birth).
+    pub arrivals_by: Option<Vec<u32>>,
     /// Pack date of today's arrival in days, if `pack_date` is in the mask.
     pub pack_date_days: Option<i32>,
+    /// Per-lot pack dates for filter birth / F2 wire (not mask-gated).
+    pub pack_date_days_by_lot: Option<Vec<i32>>,
     /// Elapsed times (days) for the temperature trace, if `temperature_history` is in the mask.
     pub temp_times_d: Option<Vec<f64>>,
     /// Temperatures (°C) paired with `temp_times_d`, if `temperature_history` is in the mask.
     pub temp_temps_c: Option<Vec<f64>>,
+    /// Per-lot temperature traces for F3 filter birth (not mask-gated).
+    pub temp_traces_by_lot: Option<Vec<ShipmentTrace>>,
 }
 
 impl Default for FilterObs {
@@ -113,9 +125,12 @@ impl Default for FilterObs {
             waste_by: None,
             lot_ids_live: None,
             arrival_lot_ids: None,
+            arrivals_by: None,
             pack_date_days: None,
+            pack_date_days_by_lot: None,
             temp_times_d: None,
             temp_temps_c: None,
+            temp_traces_by_lot: None,
         }
     }
 }
@@ -296,14 +311,36 @@ impl ObsMask {
     /// Keep present fields from `rich`; absent = `None` (never invent 0).
     pub fn apply(self, rich: &RichDay) -> FilterObs {
         let (temp_times_d, temp_temps_c) = if self.temperature_history {
-            rich.shipment_trace.as_ref().map_or((None, None), |t| {
-                (
-                    Some(t.times_d.clone()),
-                    Some(t.temps_c.clone()),
-                )
-            })
+            if !rich.temp_traces_by_lot.is_empty() {
+                let (_, t) = &rich.temp_traces_by_lot[0];
+                (Some(t.times_d.clone()), Some(t.temps_c.clone()))
+            } else {
+                rich.shipment_trace.as_ref().map_or((None, None), |t| {
+                    (Some(t.times_d.clone()), Some(t.temps_c.clone()))
+                })
+            }
         } else {
             (None, None)
+        };
+        let per_lot_traces = if rich.arrivals > 0 && !rich.temp_traces_by_lot.is_empty() {
+            Some(
+                rich.temp_traces_by_lot
+                    .iter()
+                    .map(|(_, t)| t.clone())
+                    .collect(),
+            )
+        } else {
+            None
+        };
+        let pack_by_lot = if rich.arrivals > 0 && !rich.pack_date_days_by_lot.is_empty() {
+            Some(rich.pack_date_days_by_lot.clone())
+        } else {
+            None
+        };
+        let arrivals_by = if rich.arrivals > 0 && !rich.arrivals_by.is_empty() {
+            Some(rich.arrivals_by.clone())
+        } else {
+            None
         };
         FilterObs {
             sales_tot: if self.sales_total {
@@ -337,13 +374,16 @@ impl ObsMask {
             } else {
                 None
             },
+            arrivals_by,
             pack_date_days: if self.pack_date {
                 rich.pack_date_days
             } else {
                 None
             },
+            pack_date_days_by_lot: pack_by_lot,
             temp_times_d,
             temp_temps_c,
+            temp_traces_by_lot: per_lot_traces,
         }
     }
 }
@@ -575,6 +615,7 @@ mod tests {
             arrival_lot_ids: vec![12],
             shipment_trace: None,
             pack_date_days: Some(3),
+            ..Default::default()
         };
         let obs = mask_for("P0").unwrap().apply(&rich);
         assert_eq!(obs.arrivals, 8);
@@ -603,6 +644,7 @@ mod tests {
                 temps_c: vec![1.0, 1.0, 1.0],
             }),
             pack_date_days: Some(1),
+            ..Default::default()
         };
         let obs = mask_for("F3").unwrap().apply(&rich);
         assert_eq!(obs.temp_times_d.as_deref(), Some(&[0.0, 1.0, 2.0][..]));
@@ -622,6 +664,7 @@ mod tests {
             arrival_lot_ids: vec![3],
             shipment_trace: None,
             pack_date_days: Some(5),
+            ..Default::default()
         };
         let obs = mask_for("F2").unwrap().apply(&rich);
         assert_eq!(obs.waste_tot, Some(1));
