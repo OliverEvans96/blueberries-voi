@@ -17,6 +17,19 @@ export function getInfoTipPortalRoot(): HTMLElement | null {
   return document.querySelector(".bv-studio-portal-root");
 }
 
+/** Portal target: open `dialog` top layer when the trigger lives inside one. */
+export function resolveInfoTipPortalTarget(
+  trigger?: Element | null,
+): HTMLElement | null {
+  if (trigger) {
+    const dialog = trigger.closest("dialog[open]");
+    if (dialog instanceof HTMLElement) {
+      return dialog;
+    }
+  }
+  return getInfoTipPortalRoot();
+}
+
 function clampWithinViewport(
   left: number,
   top: number,
@@ -124,7 +137,7 @@ function openVanillaTip(trigger: HTMLElement): void {
   const bubble = wrapper.querySelector<HTMLElement>(".info-tip-bubble");
   if (!bubble) return;
 
-  const portal = getInfoTipPortalRoot();
+  const portal = resolveInfoTipPortalTarget(trigger);
   if (!portal) return;
 
   const { alignEnd, openUp } = readVanillaOpts(wrapper);

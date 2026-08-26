@@ -236,6 +236,16 @@ function tierBadge(id: string): string {
   return `<span class="tier-badge tier-badge--${tier.toLowerCase()}">${tier}</span>`;
 }
 
+function fieldLabelHtml(
+  label: string,
+  tip: string,
+  opts?: { valueId?: string; tierId?: string },
+): string {
+  const tier = opts?.tierId ? ` ${tierBadge(opts.tierId)}` : "";
+  const value = opts?.valueId ? ` <span id="val-${opts.valueId}"></span>` : "";
+  return `<span class="field-label"><span class="field-label-main">${label}${infoTipHtml(tip)}${tier}</span>${value}</span>`;
+}
+
 function tuningPlotBlocks(): string {
   return `
         <div class="focus-plot tuning-drawer-slot" data-plot="plot-demand">
@@ -360,7 +370,10 @@ function sliderHtml(spec: SliderSpec): string {
   const label = meta?.label ?? spec.label;
   return `
     <label class="field">
-      <span class="field-label"><span class="field-label-main">${label}${infoTipHtml(meta?.tooltip ?? spec.label)} ${tierBadge(spec.id)}</span> <span id="val-${spec.id}"></span></span>
+      ${fieldLabelHtml(label, meta?.tooltip ?? spec.label, {
+        valueId: spec.id,
+        tierId: spec.id,
+      })}
       <input type="range" id="${spec.id}" min="${spec.min}" max="${spec.max}" step="${spec.step}" />
     </label>
   `;
@@ -423,9 +436,10 @@ function mountSectionControlsDom(
           Daily lead time stays 1 (no pipeline Gantt).
         </p>
         <div class="field">
-          <span class="field-label">Arrival product (MOD-21)${infoTipHtml(
-            "The transit lane a delivery travels — its trip duration sets how much freshness a lot has already lost before reaching the shelf. Shorter lanes (e.g. short_haul) deliver fresher stock than longer ones (e.g. long_haul)."
-          )}</span>
+          ${fieldLabelHtml(
+            "Arrival product (MOD-21)",
+            "The transit lane a delivery travels — its trip duration sets how much freshness a lot has already lost before reaching the shelf. Shorter lanes (e.g. short_haul) deliver fresher stock than longer ones (e.g. long_haul).",
+          )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival product">
             <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Bootstrap all six Abdella shipments">All six</button>
             <button type="button" class="obs-chip arrival-chip" data-arrival="long_haul" title="CA→East long-haul only">Long-haul</button>
@@ -440,9 +454,10 @@ function mountSectionControlsDom(
           damped_sw α / ρ feed Autopilot / act — physics still needs Reset.
         </p>
         <div class="field">
-          <span class="field-label">Policy${infoTipHtml(
-            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. constant always orders the same amount, as a baseline."
-          )}</span>
+          ${fieldLabelHtml(
+            "Policy",
+            "How the controller turns demand and inventory into an order each day. damped_sw closes a fraction of the gap to a target service level. constant always orders the same amount, as a baseline.",
+          )}
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
@@ -451,31 +466,38 @@ function mountSectionControlsDom(
         <!-- base_stock policy chip blocked: no backend ActPolicy variant yet (ADR 0117). -->
         <!-- rollout chip + budgets hidden in UI; ControllerControlsState defaults still pass through act. -->
         <label class="field" id="alpha-field">
-          <span class="field-label">α (service level)${infoTipHtml(
-            "Target service-level quantile for protection demand F⁻¹(α). Higher α raises the order-up-to target."
-          )} <span id="val-alpha"></span></span>
+          ${fieldLabelHtml(
+            "α (service level)",
+            "Target service-level quantile for protection demand F⁻¹(α). Higher α raises the order-up-to target.",
+            { valueId: "alpha" },
+          )}
           <input type="range" id="alpha" min="0.5" max="0.99" step="0.01" />
         </label>
-        </label>
         <label class="field" id="rho-field">
-          <span class="field-label">ρ (damping)${infoTipHtml(
-            "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster."
-          )} <span id="val-rho"></span></span>
+          ${fieldLabelHtml(
+            "ρ (damping)",
+            "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster.",
+            { valueId: "rho" },
+          )}
           <input type="range" id="rho" min="0.1" max="1" step="0.01" />
         </label>
         <p class="meta-readonly alpha-rho-disabled-hint" id="alpha-rho-disabled-hint" hidden>
           Constant policy — α / ρ apply to damped_sw only.
         </p>
         <label class="field">
-          <span class="field-label">n_particles${infoTipHtml(
-            "How many particles the filter uses to track freshness belief. More particles give a smoother belief at the cost of more compute."
-          )} <span id="val-n_particles"></span></span>
+          ${fieldLabelHtml(
+            "n_particles",
+            "How many particles the filter uses to track freshness belief. More particles give a smoother belief at the cost of more compute.",
+            { valueId: "n_particles" },
+          )}
           <input type="number" id="n_particles" min="16" max="2000" step="16" />
         </label>
         <label class="field">
-          <span class="field-label">Autopilot interval (ms)${infoTipHtml(
-            "How often Autopilot's timer fires another order-and-advance step. A shorter interval only runs the episode faster — it doesn't change what the controller decides."
-          )} <span id="val-intervalMs"></span></span>
+          ${fieldLabelHtml(
+            "Autopilot interval (ms)",
+            "How often Autopilot's timer fires another order-and-advance step. A shorter interval only runs the episode faster — it doesn't change what the controller decides.",
+            { valueId: "intervalMs" },
+          )}
           <input type="number" id="intervalMs" min="50" max="10000" step="50" />
         </label>
         ${autopilotPlotBlocks()}
