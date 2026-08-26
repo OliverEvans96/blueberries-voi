@@ -498,14 +498,14 @@ fn filter_obs_carries_per_lot_pack_dates_and_traces() {
     let events = sess.events_value(0);
     let day_ev = first_delivery_day(&events);
 
-    let pack_dates = day_ev["pack_dates_by_lot"]
-        .as_array()
-        .expect("events wire must carry per-lot pack dates on F3 delivery days");
-    assert_eq!(pack_dates.len(), LOTS_PER_DELIVERY);
+    assert!(
+        day_ev["pack_dates_by_lot"].is_null(),
+        "F3 must not expose per-lot pack dates (pack_date not in mask)"
+    );
 
     let traces = day_ev["temp_traces_by_lot"]
         .as_array()
-        .expect("events wire must carry per-lot temperature traces");
+        .expect("events wire must carry per-lot temperature traces on F3 delivery days");
     assert_eq!(traces.len(), LOTS_PER_DELIVERY);
     for (ell, tr) in traces.iter().enumerate() {
         let times = tr["times_d"].as_array().expect("times_d");
@@ -520,4 +520,25 @@ fn filter_obs_carries_per_lot_pack_dates_and_traces() {
             "lot {ell}: trace must name its lot_id"
         );
     }
+
+    let mut sess_p0 = EngineSession::new(163_008);
+    sess_p0.init(163_008);
+    sess_p0.set_obs_scenario("P0").expect("P0");
+    let orders = [48u32; 25];
+    for &q in &orders {
+        let delta = sess_p0.step(q);
+        if delta.arrivals > 0 {
+            break;
+        }
+    }
+    let p0_events = sess_p0.events_value(0);
+    let p0_day = first_delivery_day(&p0_events);
+    assert!(
+        p0_day["pack_dates_by_lot"].is_null(),
+        "P0 must not leak per-lot pack dates"
+    );
+    assert!(
+        p0_day["temp_traces_by_lot"].is_null(),
+        "P0 must not leak per-lot temperature traces"
+    );
 }

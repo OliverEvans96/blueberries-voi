@@ -1051,17 +1051,29 @@ impl EngineSession {
             .enumerate()
             .map(|(i, log)| {
                 let obs = mask.apply(log);
-                let temp_traces_by_lot: Vec<serde_json::Value> = log
-                    .temp_traces_by_lot
-                    .iter()
-                    .map(|(lot_id, tr)| {
-                        serde_json::json!({
-                            "lot_id": lot_id,
-                            "times_d": tr.times_d,
-                            "temps_c": tr.temps_c,
-                        })
-                    })
-                    .collect();
+                let temp_traces_by_lot: serde_json::Value = match &obs.temp_traces_by_lot {
+                    Some(traces) => {
+                        let lot_ids: Vec<i64> = log
+                            .temp_traces_by_lot
+                            .iter()
+                            .map(|(lot_id, _)| *lot_id)
+                            .collect();
+                        serde_json::json!(
+                            traces
+                                .iter()
+                                .zip(lot_ids.iter())
+                                .map(|(tr, lot_id)| {
+                                    serde_json::json!({
+                                        "lot_id": lot_id,
+                                        "times_d": tr.times_d,
+                                        "temps_c": tr.temps_c,
+                                    })
+                                })
+                                .collect::<Vec<_>>()
+                        )
+                    }
+                    None => serde_json::Value::Null,
+                };
                 serde_json::json!({
                     "day": start as u32 + i as u32,
                     "arrivals": obs.arrivals,
@@ -1077,11 +1089,11 @@ impl EngineSession {
                         serde_json::Value::Null
                     },
                     "pack_date_days": obs.pack_date_days,
-                    "pack_dates_by_lot": if log.arrivals > 0 {
-                        serde_json::json!(log.pack_dates_by_lot)
-                    } else {
-                        serde_json::Value::Null
-                    },
+                    "pack_dates_by_lot": obs
+                        .pack_dates_by_lot
+                        .as_ref()
+                        .map(|v| serde_json::json!(v))
+                        .unwrap_or(serde_json::Value::Null),
                     "temp_times_d": obs.temp_times_d,
                     "temp_temps_c": obs.temp_temps_c,
                     "temp_traces_by_lot": temp_traces_by_lot,

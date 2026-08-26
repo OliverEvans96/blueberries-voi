@@ -105,13 +105,13 @@ pub struct FilterObs {
     pub arrivals_by: Option<Vec<u32>>,
     /// Pack date of today's arrival in days, if `pack_date` is in the mask.
     pub pack_date_days: Option<i32>,
-    /// Per-lot pack dates for filter birth / F2 wire (not mask-gated).
+    /// Per-lot pack dates when `pack_date` is in the mask (F2 wire / filter birth).
     pub pack_dates_by_lot: Option<Vec<i32>>,
     /// Elapsed times (days) for the temperature trace, if `temperature_history` is in the mask.
     pub temp_times_d: Option<Vec<f64>>,
     /// Temperatures (°C) paired with `temp_times_d`, if `temperature_history` is in the mask.
     pub temp_temps_c: Option<Vec<f64>>,
-    /// Per-lot temperature traces for F3 filter birth (not mask-gated).
+    /// Per-lot temperature traces when `temperature_history` is in the mask (F3 wire / filter birth).
     pub temp_traces_by_lot: Option<Vec<ShipmentTrace>>,
 }
 
@@ -322,7 +322,10 @@ impl ObsMask {
         } else {
             (None, None)
         };
-        let per_lot_traces = if rich.arrivals > 0 && !rich.temp_traces_by_lot.is_empty() {
+        let per_lot_traces = if self.temperature_history
+            && rich.arrivals > 0
+            && !rich.temp_traces_by_lot.is_empty()
+        {
             Some(
                 rich.temp_traces_by_lot
                     .iter()
@@ -332,7 +335,10 @@ impl ObsMask {
         } else {
             None
         };
-        let pack_by_lot = if rich.arrivals > 0 && !rich.pack_dates_by_lot.is_empty() {
+        let pack_by_lot = if self.pack_date
+            && rich.arrivals > 0
+            && !rich.pack_dates_by_lot.is_empty()
+        {
             Some(rich.pack_dates_by_lot.clone())
         } else {
             None
@@ -673,5 +679,50 @@ mod tests {
         assert_eq!(obs.lot_ids_live.as_deref(), Some(&[1i64, 2][..]));
         assert_eq!(obs.arrival_lot_ids.as_deref(), Some(&[3i64][..]));
         assert_eq!(obs.pack_date_days, Some(5));
+    }
+
+    #[test]
+    fn apply_p0_omits_per_lot_delivery_metadata() {
+        let rich = RichDay {
+            sales_total: 4,
+            waste_total: 0,
+            arrivals: 48,
+            sales_by: vec![],
+            waste_by: vec![],
+            lot_ids: vec![],
+            arrival_lot_ids: vec![1, 2, 3],
+            pack_date_days: Some(5),
+            pack_dates_by_lot: vec![3, 5, 4],
+            temp_traces_by_lot: vec![
+                (
+                    1,
+                    ShipmentTrace {
+                        times_d: vec![0.0, 1.0],
+                        temps_c: vec![2.0, 3.0],
+                    },
+                ),
+                (
+                    2,
+                    ShipmentTrace {
+                        times_d: vec![0.0, 1.0],
+                        temps_c: vec![2.0, 3.0],
+                    },
+                ),
+                (
+                    3,
+                    ShipmentTrace {
+                        times_d: vec![0.0, 1.0],
+                        temps_c: vec![2.0, 3.0],
+                    },
+                ),
+            ],
+            ..Default::default()
+        };
+        let obs = mask_for("P0").unwrap().apply(&rich);
+        assert_eq!(obs.pack_date_days, None);
+        assert_eq!(obs.pack_dates_by_lot, None);
+        assert_eq!(obs.temp_times_d, None);
+        assert_eq!(obs.temp_temps_c, None);
+        assert!(obs.temp_traces_by_lot.is_none());
     }
 }
