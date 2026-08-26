@@ -1,6 +1,8 @@
-"""F-native belief wire helpers at the EngineSession boundary (ADR 0131)."""
+"""F-native belief wire helpers at the EngineSession boundary (ADR 0131 / T-163 mirrors)."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +16,9 @@ from blueberries_voi.simulator.belief import (
     pipeline_payload,
     shelf_belief_from_flat,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_BELIEF_FLAT_RS = _REPO_ROOT / "crates" / "voi_core" / "src" / "belief_flat.rs"
 
 
 def test_f_grid_k_centers_in_unit_interval() -> None:
@@ -73,3 +78,22 @@ def test_pipeline_payload_sorted_nonzero() -> None:
         {"arrival_day": 2, "qty": 4},
         {"arrival_day": 3, "qty": 5},
     ]
+
+
+def test_belief_flat_wire_stays_f_native_without_tau_keys() -> None:
+    """S3.1 — belief_flat.rs exports f-grid wire only (no legacy τ keys)."""
+    production = _BELIEF_FLAT_RS.read_text(encoding="utf-8").split("#[cfg(test)]", 1)[0]
+    export_fn = production.split("pub fn belief_flat_from_unit_bank", 1)[1]
+    assert '"f_grid"' in export_fn and '"f_marginals"' in export_fn
+    assert '"tau_grid"' not in export_fn
+    assert '"age_marginals"' not in export_fn
+
+
+def test_belief_flat_does_not_embed_scalar_delivery_trace_fields() -> None:
+    """S3.1 — per-lot delivery metadata belongs on events/FilterObs, not belief_flat."""
+    text = _BELIEF_FLAT_RS.read_text(encoding="utf-8")
+    export_block = text.split("pub fn belief_flat_from_unit_bank", 1)[-1]
+    assert "temp_traces_by_lot" not in export_block, (
+        "belief_flat must not duplicate per-lot delivery traces (events wire owns them)"
+    )
+    assert "pack_dates_by_lot" not in export_block
