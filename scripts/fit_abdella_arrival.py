@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,7 +26,7 @@ _DEFAULT_ARTIFACT = _DEFAULT_DATA / "arrival_model.json"
 _DEFAULT_REPORT = _DEFAULT_DATA / "fit_report.md"
 _DEFAULT_FIG = _DEFAULT_DATA / "arrival_calibration_overlay.png"
 _DEFAULT_NOTE = _DEFAULT_DATA / "calibration_note.md"
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _SHORT_HAUL_ID = "S2"
 _SUSPECT_PROBE_SHIPMENT = "S4"
 
@@ -37,8 +36,26 @@ _DEFAULT_GAMMA_SCALE = 1.0 / 28.0
 _DEFAULT_REFERENCE_LIFE = 14.0
 _DEFAULT_Q10 = 3.0
 _DEFAULT_T_REF = 0.0
-_DEFAULT_TEMP_FLOOR = 0.0
 _DEFAULT_SIGMA_POS = 0.08
+
+# v2 generative assumed knobs (documented in provenance; not MLE-fit from n=6).
+_DEFAULT_LEGS: list[dict[str, Any]] = [
+    {"name": "precool_staging", "weight": 0.15, "setpoint_c": 0.5},
+    {"name": "line_haul", "weight": 0.60, "setpoint_c": 2.0},
+    {"name": "dock_receiving", "weight": 0.25, "setpoint_c": 5.0},
+]
+_DEFAULT_THERMAL_MODES: dict[str, dict[str, float]] = {
+    "cool": {"offset_c": -1.0, "p": 0.25},
+    "nominal": {"offset_c": 0.0, "p": 0.50},
+    "warm": {"offset_c": 1.5, "p": 0.25},
+}
+_DEFAULT_SIGMA_HOUR = 0.35
+_DEFAULT_T_BREAK = 12.0
+_DEFAULT_RHO = 0.08
+_DEFAULT_TAU_BAR = 0.5
+# Design metric at default rho (scenario, not Abdella measurement).
+_DEFAULT_DURATION_VAR_SHARE = 0.82
+_DEFAULT_BREAK_VAR_SHARE = 0.18
 
 _QUADRATURE_NODES = [
     0.01985507,
@@ -93,12 +110,6 @@ def _phi_bar_from_trace(
     return exposure / duration if duration > 0 else float("nan")
 
 
-def _t_from_phi_bar(phi_bar: float, *, q10: float, t_ref: float) -> float:
-    if phi_bar <= 0 or not math.isfinite(phi_bar):
-        return float("nan")
-    return t_ref + 10.0 * math.log(phi_bar) / math.log(q10)
-
-
 def _fit_delayed_gamma(
     durations: list[float],
     *,
@@ -120,30 +131,6 @@ def _fit_delayed_gamma(
     shape = max(shape, 1.0)
     scale = max(scale, 1e-6)
     return d_min, shape, scale
-
-
-def _fit_truncated_normal_t(
-    phi_bars: list[float],
-    *,
-    q10: float,
-    t_ref: float,
-    temp_floor: float,
-) -> tuple[float, float]:
-    import numpy as np
-
-    t_vals = np.asarray(
-        [_t_from_phi_bar(p, q10=q10, t_ref=t_ref) for p in phi_bars],
-        dtype=float,
-    )
-    t_vals = t_vals[np.isfinite(t_vals)]
-    if t_vals.size == 0:
-        return 2.7, 0.4
-    mu = float(np.mean(t_vals))
-    sd = float(np.std(t_vals, ddof=1)) if t_vals.size > 1 else 0.4
-    sd = max(sd, 0.05)
-    if mu < temp_floor:
-        mu = temp_floor + 0.1
-    return mu, sd
 
 
 def _estimate_sigma_pos(data_dir: Path) -> tuple[float, str]:
@@ -177,6 +164,39 @@ def _summarize_shipments(data_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _thermal_assumed_notes() -> dict[str, str]:
+    modes = _DEFAULT_THERMAL_MODES
+    return {
+        "legs": (
+            "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for "
+            "clean-chain phi_bar centre (~1.36); not separately MLE-fit from n=6."
+        ),
+        "thermal_modes": (
+            "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED "
+            f"(p_c={modes['cool']['p']}, p_n={modes['nominal']['p']}, "
+            f"p_w={modes['warm']['p']}; offsets "
+            f"{modes['cool']['offset_c']}/{modes['nominal']['offset_c']}/"
+            f"{modes['warm']['offset_c']} C). Tuned under rho=0 for phi_bar SD, "
+            "not fit from six traces."
+        ),
+        "sigma_hour": (
+            f"Hourly OU amplitude ({_DEFAULT_SIGMA_HOUR} C) is ASSUMED for chart "
+            "realism and rho=0 phi_bar scatter; not fit from six traces."
+        ),
+        "breaks": (
+            "rho (breaks per transit-day), tau_bar (mean break duration, days), "
+            "and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are "
+            "clean chains with no cold-chain break, so a break frequency is not "
+            "estimable from this data at any confidence. "
+            f"rho={_DEFAULT_RHO} / tau_bar={_DEFAULT_TAU_BAR} / "
+            f"T_break={_DEFAULT_T_BREAK} put a typical break at ~1.2 reference-days "
+            "and the duration share of Var(log Lambda) at "
+            f"~{100 * _DEFAULT_DURATION_VAR_SHARE:.0f}%, versus 100% at rho=0. "
+            "Treat these numbers as a documented modelling regime, not a measurement."
+        ),
+    }
+
+
 def _build_artifact(
     rows: list[dict[str, Any]],
     *,
@@ -187,19 +207,11 @@ def _build_artifact(
     reference_life: float,
     q10: float,
     t_ref: float,
-    temp_floor: float,
     gamma_note: str,
 ) -> dict[str, Any]:
     all_d = [r["d_days"] for r in rows]
-    all_phi = [r["phi_bar"] for r in rows]
 
     abdella_d_min, abdella_shape, abdella_scale = _fit_delayed_gamma(all_d)
-    mu_t, sigma_t = _fit_truncated_normal_t(
-        all_phi,
-        q10=q10,
-        t_ref=t_ref,
-        temp_floor=temp_floor,
-    )
 
     short_rows = [r for r in rows if r["shipment"] == _SHORT_HAUL_ID]
     long_rows = [r for r in rows if r["shipment"] != _SHORT_HAUL_ID]
@@ -216,15 +228,19 @@ def _build_artifact(
         [r["d_days"] for r in long_rows] if long_rows else all_d
     )
 
+    thermal_notes = _thermal_assumed_notes()
     fit_utc = (
         datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     )
 
     return {
         "schema_version": _SCHEMA_VERSION,
-        "mu_T": round(mu_t, 6),
-        "sigma_T": round(sigma_t, 6),
-        "temp_floor_c": temp_floor,
+        "legs": _DEFAULT_LEGS,
+        "thermal_modes": _DEFAULT_THERMAL_MODES,
+        "sigma_hour": _DEFAULT_SIGMA_HOUR,
+        "T_break": _DEFAULT_T_BREAK,
+        "rho": _DEFAULT_RHO,
+        "tau_bar": _DEFAULT_TAU_BAR,
         "sigma_pos": round(sigma_pos, 6),
         "q10": q10,
         "T_ref": t_ref,
@@ -254,8 +270,10 @@ def _build_artifact(
         },
         "provenance": {
             "source": (
-                "Offline fit from vendored Abdella parquet (ADR 0148); "
-                "parametric families fixed, moments matched on n=6."
+                "Offline fit from vendored Abdella parquet (ADR 0148); corridor "
+                "duration families moment-matched on n=6. Thermal v2 knobs "
+                "(thermal_modes, sigma_hour, legs, T_break, rho, tau_bar) are "
+                "ASSUMED and documented, not MLE-fit."
             ),
             "window": (
                 "Refrigerated leg only: from first lot-mean T < 10 C through "
@@ -267,26 +285,32 @@ def _build_artifact(
             "shipment_summaries": rows,
             "fitted_fields": [
                 "corridors.*.(d_min,delay_shape,delay_scale)",
-                "mu_T",
-                "sigma_T",
-                "sigma_pos",
             ],
             "adjustment_fields": [
+                "legs",
+                "thermal_modes",
+                "sigma_hour",
+                "T_break",
+                "rho",
+                "tau_bar",
                 "gamma_shape",
                 "gamma_scale",
                 "reference_life_days",
                 "q10",
                 "T_ref",
-                "temp_floor_c",
+                "sigma_pos",
             ],
             "adjustment_notes": {
                 "gamma": gamma_note,
                 "sigma_pos": sigma_pos_note,
+                **thermal_notes,
             },
             "notes": (
                 "Six strawberry logger shipments (not MLE-validated). "
                 "Arrival freshness remains an upper bound (field heat excluded). "
-                "short_haul = S2; long_haul = S1,S3-S6."
+                "short_haul = S2; long_haul = S1,S3-S6. Schema 2 v2 generative: "
+                "truncated-normal mu_T/sigma_T/temp_floor_c retired; duration-only "
+                "fit plus assumed thermal_modes, sigma_hour, and break knobs."
             ),
         },
     }
@@ -308,23 +332,22 @@ def _write_overlay(
     d_min = float(corridor["d_min"])
     shape = float(corridor["delay_shape"])
     scale = float(corridor["delay_scale"])
-    mu_t = float(artifact["mu_T"])
-    sigma_t = float(artifact["sigma_T"])
-    q10 = float(artifact["q10"])
-    t_ref = float(artifact["T_ref"])
-    t_floor = float(artifact.get("temp_floor_c", 0.0))
 
     d_grid = [
         d_min + shape * scale * 0.25,
         d_min + shape * scale,
         d_min + shape * scale * 2.0,
     ]
-    phi_at_mu = math.pow(q10, (mu_t - t_ref) / 10.0)
-    phi_lo = math.pow(q10, (max(mu_t - sigma_t, t_floor) - t_ref) / 10.0)
-    phi_hi = math.pow(q10, (mu_t + sigma_t - t_ref) / 10.0)
+    mean_phi = sum(phi_pts) / len(phi_pts) if phi_pts else 1.36
+    ax.axhline(
+        mean_phi,
+        color="C1",
+        linestyle="--",
+        alpha=0.6,
+        label="six-shipment mean phi_bar",
+    )
     for d in d_grid:
-        ax.plot([d, d], [phi_lo, phi_hi], color="C1", alpha=0.35, linewidth=2)
-    ax.scatter(d_grid, [phi_at_mu] * len(d_grid), color="C1", s=18, alpha=0.6)
+        ax.axvline(d, color="C1", alpha=0.2, linewidth=1)
 
     ax.set_xlabel("refrigerated-leg duration d (days)")
     ax.set_ylabel("mean temperature factor phi_bar")
@@ -352,6 +375,17 @@ def _write_fit_report(
         )
     table_md = "\n".join(table_lines)
     abdella = artifact["corridors"]["abdella_all"]
+    thermal = artifact["thermal_modes"]
+    sigma_hour = artifact["sigma_hour"]
+    prov_notes = prov.get("adjustment_notes", {})
+    thermal_modes_note = _escape_for_md(prov_notes.get("thermal_modes", ""))
+    sigma_hour_note = _escape_for_md(prov_notes.get("sigma_hour", ""))
+    breaks_note = _escape_for_md(prov_notes.get("breaks", ""))
+    legs_note = _escape_for_md(prov_notes.get("legs", ""))
+    mode_probs = (
+        f"cool p={thermal['cool']['p']}, nominal p={thermal['nominal']['p']}, "
+        f"warm p={thermal['warm']['p']}"
+    )
 
     body = f"""# Abdella arrival model fit report (ADR 0148)
 
@@ -364,21 +398,35 @@ Generated: {prov.get("fit_utc", "unknown")}
 - Fit script: `{prov.get("fit_script", "scripts/fit_abdella_arrival.py")}`
 - Shipments in fit: **{prov.get("n_shipments", len(rows))}**
 
-## Fitted parameters
+## Fitted parameters (duration only)
 
 | Field | Value | Method |
 | --- | --- | --- |
-| `mu_T` | {artifact["mu_T"]} | mean T from shipment phi_bar via Q10 |
-| `sigma_T` | {artifact["sigma_T"]} | sd T across six shipments |
-| `sigma_pos` | {artifact["sigma_pos"]} | {sigma_pos_note} |
 | `abdella_all.d_min` | {abdella["d_min"]} | delayed-gamma moments on six d |
 | `abdella_all.delay_shape` | {abdella["delay_shape"]} | delayed-gamma moments |
 | `abdella_all.delay_scale` | {abdella["delay_scale"]} | delayed-gamma moments |
 
-## Adjustment knobs (not refit by default)
+Truncated-normal temperature fit is **retired** (v2 generative: trip modes +
+hourly OU).
+
+## Assumed thermal and break knobs (not fitted)
+
+| Field | Value | Decision |
+| --- | --- | --- |
+| `thermal_modes` | cool/nominal/warm | {thermal_modes_note} |
+| `sigma_hour` | {sigma_hour} | {sigma_hour_note} |
+| `T_break` | {artifact["T_break"]} | {breaks_note} |
+| `rho` | {artifact["rho"]} | assumed break rate (see breaks note) |
+| `tau_bar` | {artifact["tau_bar"]} | assumed mean break duration (see breaks note) |
+| `legs` | three named stages | {legs_note} |
+
+Mode probabilities committed: {mode_probs}.
+
+## Other adjustment knobs (not refit by default)
 
 | Knob | Committed | Decision |
 | --- | --- | --- |
+| `sigma_pos` | {artifact["sigma_pos"]} | {sigma_pos_note} |
 | `gamma_shape` | {artifact["gamma_shape"]} | {gamma_note} |
 | `gamma_scale` | {artifact["gamma_scale"]} | tied to MOD shelf-life invariant |
 | `reference_life_days` | {artifact["reference_life_days"]} | literature eta_ref |
@@ -416,11 +464,16 @@ def _write_calibration_note(
         )
     table_md = "\n".join(table_lines)
     prov = artifact["provenance"]
+    thermal_notes = prov.get("adjustment_notes", {})
     note = f"""# Abdella arrival calibration note
 
 Parameters in `arrival_model.json` are **fitted offline** from six Abdella shipments
 (`scripts/fit_abdella_arrival.py`). The data **does not validate** the assumed families;
 with only six corridors, treat numbers as defensible starting points, not MLE proof.
+
+Duration corridors are moment-matched on six `d_i`. **thermal_modes**, **sigma_hour**,
+**legs**, and break knobs (**T_break**, **rho**, **tau_bar**) are **ASSUMED** scenario
+design — not fit from the six clean-chain traces.
 
 ## Window consistency
 
@@ -428,6 +481,23 @@ Both duration `d` and `phi_bar` are measured over the **same refrigerated leg**:
 from the first lot-mean sample below **10 °C** through the published Table 2 clip.
 Warm harvest spikes and **field heat** are excluded. Arrival freshness is an
 **upper bound** on store-relevant quality.
+
+## Design variance decomposition (Var(log Λ))
+
+At default **rho** = {artifact["rho"]} (scenario design, not Abdella measurement):
+
+- **Duration** share of Var(log Λ): ~{100 * _DEFAULT_DURATION_VAR_SHARE:.0f}%
+- **Break** share of Var(log Λ): ~{100 * _DEFAULT_BREAK_VAR_SHARE:.0f}%
+
+At **rho** = 0, duration accounts for 100% of Var(log Λ) (no break pulses).
+
+## Assumed thermal knobs
+
+{_escape_for_md(thermal_notes.get("thermal_modes", ""))}
+
+{_escape_for_md(thermal_notes.get("sigma_hour", ""))}
+
+{_escape_for_md(thermal_notes.get("breaks", ""))}
 
 ## Position spread (`sigma_pos`)
 
@@ -498,7 +568,6 @@ def main(argv: list[str] | None = None) -> None:
         reference_life=_DEFAULT_REFERENCE_LIFE,
         q10=_DEFAULT_Q10,
         t_ref=_DEFAULT_T_REF,
-        temp_floor=_DEFAULT_TEMP_FLOOR,
         gamma_note=gamma_note,
     )
 
