@@ -4,7 +4,9 @@
 
 use std::time::Instant;
 
-use voi_core::{EngineSession, ShipmentTrace};
+use voi_core::schedule::OrderSchedule;
+use voi_core::{EngineSession, ModelParams, ShipmentTrace};
+use voi_core::policy::protection_demand_quantile;
 
 const N_PARTICLES: usize = 200;
 const H: u32 = 7;
@@ -34,8 +36,18 @@ fn new_configured() -> EngineSession {
     s
 }
 
-fn warm_session(s: &mut EngineSession) {
-    for _ in 0..WARM_DAYS {
+fn warm_session(s: &mut EngineSession, days: usize) {
+    for _ in 0..days {
+        s.step(ORDER_QTY);
+    }
+}
+
+fn warm_to_first_order_day(s: &mut EngineSession) {
+    let schedule = OrderSchedule::default();
+    for _ in 0..14 {
+        if schedule.can_order(s.episode_day()) {
+            break;
+        }
         s.step(ORDER_QTY);
     }
 }
@@ -65,12 +77,12 @@ fn stats_from_samples(mut xs: Vec<f64>) -> Stats {
 }
 
 /// Time only the final operation; session init + warm are outside the timer.
-fn time_one_day<F: FnMut(&mut EngineSession)>(mut op: F) -> Stats {
+fn time_one_day<F: FnMut(&mut EngineSession)>(warm_days: usize, mut op: F) -> Stats {
     let total = REPS + WARMUP_REPS;
     let mut xs = Vec::with_capacity(total);
     for _ in 0..total {
         let mut s = new_configured();
-        warm_session(&mut s);
+        warm_session(&mut s, warm_days);
         let t0 = Instant::now();
         op(&mut s);
         xs.push(t0.elapsed().as_secs_f64() * 1000.0);
@@ -86,6 +98,14 @@ fn print_stats(label: &str, s: &Stats) {
 }
 
 fn main() {
+    let params = ModelParams::default();
+    let prot = protection_demand_quantile(0.9, &params, 2, 7);
+    let flat = params.demand_profile.is_none();
+    println!(
+        "protection_demand_quantile(0.9, prot=2, day=7) = {prot:.3}; demand_profile flat={flat}"
+    );
+    println!();
+
     println!("bench_day_timing DEMO_BUDGETS (native release, f-native unit PF)");
     println!(
         "n_particles={N_PARTICLES} H={H} n_paths={N_PATHS} radius={RADIUS} warm_days={WARM_DAYS} reps={REPS}"
@@ -93,20 +113,33 @@ fn main() {
     println!("Timer excludes init+warm; measures one advance from warm state.");
     println!();
 
-    let step = time_one_day(|s| {
+    let step = time_one_day(WARM_DAYS, |s| {
         s.step(ORDER_QTY);
     });
-    let damped = time_one_day(|s| {
-        s.act(Some("damped_sw"), None, None, None, None, None, None);
+    let damped = time_one_day(WARM_DAYS, |s| {
+        s.act(Some("damped_sw"), None, None, None, None, None, None, None);
     });
-    let rollout = time_one_day(|s| {
-        s.act(Some("rollout"), None, None, None, None, None, None);
+    let rollout = time_one_day(WARM_DAYS, |s| {
+        s.act(Some("rollout"), None, None, None, None, None, None, None);
     });
 
     println!("=== end-to-end (one advance only) ===");
     print_stats("step(order)", &step);
     print_stats("act(damped_sw)", &damped);
     print_stats("act(rollout)", &rollout);
+    println!();
+
+    let sla_mc = time_one_day(WARM_DAYS, |s| {
+        warm_to_first_order_day(s);
+        s.act(Some("sla_mc"), None, None, None, None, None, None, None);
+    });
+    let sla_pb = time_one_day(WARM_DAYS, |s| {
+        warm_to_first_order_day(s);
+        s.act(Some("sla_pb"), None, None, None, None, None, None, None);
+    });
+    println!("=== order-day act (warm to first can_order day) ===");
+    print_stats("act(sla_mc)", &sla_mc);
+    print_stats("act(sla_pb)", &sla_pb);
     println!();
 
     // Primary S1.12 gate: filter-dominated per-day cost @ N=200 (handoff baseline ~5.7 ms/day).

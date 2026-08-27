@@ -100,6 +100,8 @@ export type EngineConfig = Partial<SimConfig> & Record<string, unknown>;
 export type ActPolicyName =
   | "damped_sw"
   | "sw"
+  | "sla_pb"
+  | "sla_mc"
   | "rollout"
   | "ctl"
   | "rollout_order"
@@ -113,6 +115,7 @@ export type ActBudgets = {
   rho?: number;
   H?: number;
   n_rollout_paths?: number;
+  n_sla_paths?: number;
   candidate_case_radius?: number;
   n_particles?: number;
   order_qty?: number;

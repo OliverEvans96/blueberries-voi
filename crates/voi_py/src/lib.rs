@@ -25,11 +25,12 @@ use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
 use voi_core::spawn_rng::SpawnRng;
 use voi_core::{
-    arrival_artifact_from_json, crate_name, parse_alpha_tune_arm, rollout_order,
-    run_alpha_tune_episode, run_closed_loop_episode, run_voi_crn_cell,
-    sequential_wor_composition_probs, terminal_salvage_unit_state, w_long, AlphaTuneCosts,
-    AlphaTuneRolloutBudgets, CrnBudgets, DayDelta, DemandProfile, EngineSession, ModelParams,
-    RolloutContext, RolloutCosts, ShipmentTrace,
+    arrival_artifact_from_json, crate_name, damped_sw_order_f_belief, parse_alpha_tune_arm,
+    rollout_order, run_alpha_tune_episode, run_closed_loop_episode, run_voi_crn_cell,
+    sequential_wor_composition_probs, sla_mc_order_f_belief, sla_pb_order_f_belief,
+    terminal_salvage_unit_state, w_long, AlphaTuneCosts, AlphaTuneRolloutBudgets, CrnBudgets,
+    DayDelta, DemandProfile, EngineSession, ModelParams, RolloutContext, RolloutCosts,
+    ShipmentTrace, SurvivalCurveCache,
 };
 
 /// Loads a `DemandProfile` from `source`, treating it as a filesystem path if a file
@@ -550,6 +551,177 @@ pub fn rollout_order_py(
     .map_err(pyo3::exceptions::PyRuntimeError::new_err)
 }
 
+#[pyfunction]
+#[pyo3(signature = (
+    lot_counts,
+    f_marginals,
+    f_grid,
+    pending_sum,
+    day,
+    alpha,
+    rho,
+    case_size=8,
+    demand_mu=60.0,
+    demand_vm=4.0,
+    f_pipeline_default=1.0,
+    lead_time=1,
+))]
+pub fn damped_sw_order_f_belief_py(
+    lot_counts: Vec<f64>,
+    f_marginals: Vec<f64>,
+    f_grid: Vec<f64>,
+    pending_sum: u32,
+    day: u32,
+    alpha: f64,
+    rho: f64,
+    case_size: u32,
+    demand_mu: f64,
+    demand_vm: f64,
+    f_pipeline_default: f64,
+    lead_time: u32,
+) -> u32 {
+    let mut params = ModelParams::default();
+    params.case_size = case_size;
+    params.demand_mu = demand_mu;
+    params.demand_vm = demand_vm;
+    let schedule = OrderSchedule::from_delivery(&[0, 2, 4], lead_time).unwrap_or_default();
+    damped_sw_order_f_belief(
+        &lot_counts,
+        &f_marginals,
+        &f_grid,
+        pending_sum,
+        day,
+        &params,
+        alpha,
+        rho,
+        Some(&schedule),
+        f_pipeline_default,
+    )
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    lot_counts,
+    f_marginals,
+    f_grid,
+    pending_days,
+    pending_qtys,
+    pending_sum,
+    day,
+    alpha,
+    rho,
+    root_seed,
+    n_paths=32,
+    case_size=8,
+    demand_mu=60.0,
+    demand_vm=4.0,
+    f_pipeline_default=1.0,
+    lead_time=1,
+))]
+pub fn sla_mc_order_f_belief_py(
+    lot_counts: Vec<f64>,
+    f_marginals: Vec<f64>,
+    f_grid: Vec<f64>,
+    pending_days: Vec<u32>,
+    pending_qtys: Vec<u32>,
+    pending_sum: u32,
+    day: u32,
+    alpha: f64,
+    rho: f64,
+    root_seed: u64,
+    n_paths: u32,
+    case_size: u32,
+    demand_mu: f64,
+    demand_vm: f64,
+    f_pipeline_default: f64,
+    lead_time: u32,
+) -> u32 {
+    let mut pending = std::collections::BTreeMap::new();
+    for (d, q) in pending_days.into_iter().zip(pending_qtys) {
+        pending.insert(d, q);
+    }
+    let mut params = ModelParams::default();
+    params.case_size = case_size;
+    params.demand_mu = demand_mu;
+    params.demand_vm = demand_vm;
+    let schedule = OrderSchedule::from_delivery(&[0, 2, 4], lead_time).unwrap_or_default();
+    sla_mc_order_f_belief(
+        &lot_counts,
+        &f_marginals,
+        &f_grid,
+        &pending,
+        pending_sum,
+        day,
+        &params,
+        &schedule,
+        &[ShipmentTrace::smoke_cool()],
+        alpha,
+        rho,
+        root_seed,
+        n_paths,
+        f_pipeline_default,
+    )
+}
+
+#[pyfunction]
+#[pyo3(signature = (
+    lot_counts,
+    f_marginals,
+    f_grid,
+    pending_days,
+    pending_qtys,
+    pending_sum,
+    day,
+    alpha,
+    rho,
+    case_size=8,
+    demand_mu=60.0,
+    demand_vm=4.0,
+    f_pipeline_default=1.0,
+    lead_time=1,
+))]
+pub fn sla_pb_order_f_belief_py(
+    lot_counts: Vec<f64>,
+    f_marginals: Vec<f64>,
+    f_grid: Vec<f64>,
+    pending_days: Vec<u32>,
+    pending_qtys: Vec<u32>,
+    pending_sum: u32,
+    day: u32,
+    alpha: f64,
+    rho: f64,
+    case_size: u32,
+    demand_mu: f64,
+    demand_vm: f64,
+    f_pipeline_default: f64,
+    lead_time: u32,
+) -> u32 {
+    let mut pending = std::collections::BTreeMap::new();
+    for (d, q) in pending_days.into_iter().zip(pending_qtys) {
+        pending.insert(d, q);
+    }
+    let mut params = ModelParams::default();
+    params.case_size = case_size;
+    params.demand_mu = demand_mu;
+    params.demand_vm = demand_vm;
+    let schedule = OrderSchedule::from_delivery(&[0, 2, 4], lead_time).unwrap_or_default();
+    let mut survival = SurvivalCurveCache::for_params(&params, 8);
+    sla_pb_order_f_belief(
+        &lot_counts,
+        &f_marginals,
+        &f_grid,
+        &pending,
+        pending_sum,
+        day,
+        &params,
+        &schedule,
+        alpha,
+        rho,
+        &mut survival,
+        f_pipeline_default,
+    )
+}
+
 /// Computes terminal salvage value for a set of on-hand units at their given `freshness`
 /// levels, under a Weibull survival weighting parameterized by `beta`/`eta_ref` and scaled
 /// by `margin` per unit -- lets Python evaluate the same end-of-horizon salvage term the
@@ -930,6 +1102,7 @@ impl PyEngineSession {
         h=None,
         n_rollout_paths=None,
         candidate_case_radius=None,
+        n_sla_paths=None,
         n_particles=None,
     ))]
     #[allow(non_snake_case)]
@@ -945,6 +1118,7 @@ impl PyEngineSession {
         h: Option<u32>,
         n_rollout_paths: Option<u32>,
         candidate_case_radius: Option<i32>,
+        n_sla_paths: Option<u32>,
         n_particles: Option<usize>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let _ = n_particles;
@@ -956,6 +1130,7 @@ impl PyEngineSession {
             H.or(h),
             n_rollout_paths,
             candidate_case_radius,
+            n_sla_paths,
         );
         wire_day_delta(py, &self.inner, &d)
     }
@@ -965,7 +1140,7 @@ impl PyEngineSession {
     fn act_rollout<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = self
             .inner
-            .act(Some("rollout"), None, None, None, None, None, None);
+            .act(Some("rollout"), None, None, None, None, None, None, None);
         wire_day_delta(py, &self.inner, &d)
     }
 
@@ -1046,6 +1221,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_outcomes_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
+    m.add_function(wrap_pyfunction!(damped_sw_order_f_belief_py, m)?)?;
+    m.add_function(wrap_pyfunction!(sla_pb_order_f_belief_py, m)?)?;
+    m.add_function(wrap_pyfunction!(sla_mc_order_f_belief_py, m)?)?;
     m.add_function(wrap_pyfunction!(terminal_salvage_unit_state_py, m)?)?;
     m.add_function(wrap_pyfunction!(w_long_py, m)?)?;
     m.add_function(wrap_pyfunction!(picking_weights_f_py, m)?)?;

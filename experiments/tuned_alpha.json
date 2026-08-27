@@ -3,6 +3,8 @@
     "constant": 0.5,
     "rung0": 0.95,
     "sw": 0.95,
+    "sla_pb": 0.95,
+    "sla_mc": 0.95,
     "rollout": 0.95,
     "dp": 0.9
   },
@@ -26,7 +28,9 @@
     "tuned_arms": [
       "constant",
       "rung0",
-      "sw"
+      "sw",
+      "sla_pb",
+      "sla_mc"
     ],
     "rollout_alpha_source": "inherited from damped_sw (rollout builds on damped_sw); not independently tuned",
     "arm_wall_seconds": {

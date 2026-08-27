@@ -10,6 +10,7 @@ use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
 use crate::physics::{draw_demand_spawn, f_to_age, weibull_survival};
 use crate::policy::{damped_sw_order_f_belief, effective_inventory_f_belief};
+use crate::protection_sim::unit_state_from_f_belief;
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
 use crate::spawn_rng::SpawnRng;
@@ -165,47 +166,6 @@ fn sample_f_from_lot_marginal(
         }
     }
     f_grid[k.saturating_sub(1)].clamp(1e-12, 1.0)
-}
-
-/// Materializes a per-unit freshness state (and matching `lot_offsets`) from lot-level
-/// belief marginals, so a rollout path can be forward-simulated with the same unit-level
-/// machinery as the real day-step. Each lot gets `units_per_lot` slots regardless of its
-/// actual count: alive units are sampled from the marginal via `sample_f_from_lot_marginal`,
-/// and any remaining slots are padded with freshness `0.0` (already-spoiled/absent) so lot
-/// widths stay uniform. Sampling uses the dedicated `:birth` stream, keyed by day, so it is
-/// CRN-paired across candidate order quantities and paths.
-fn unit_state_from_f_belief(
-    lot_counts: &[f64],
-    f_marginals: &[f64],
-    f_grid: &[f64],
-    units_per_lot: usize,
-    root_seed: u64,
-    run_id: &str,
-    day: u32,
-) -> (Vec<f64>, Vec<usize>) {
-    let l = lot_counts.len();
-    let k = f_grid.len();
-    let u = units_per_lot.max(1);
-    let mut rng_birth = SpawnRng::spawn_rng(root_seed, run_id, day, STREAM_BIRTH);
-    let mut freshness = Vec::new();
-    let mut lot_offsets = vec![0usize];
-    for ell in 0..l {
-        let n = lot_counts[ell].round().max(0.0) as usize;
-        let alive = n.min(u);
-        let dead = u.saturating_sub(alive);
-        for _ in 0..alive {
-            freshness.push(sample_f_from_lot_marginal(
-                f_marginals,
-                ell,
-                k,
-                f_grid,
-                &mut rng_birth,
-            ));
-        }
-        freshness.extend(std::iter::repeat_n(0.0, dead));
-        lot_offsets.push(freshness.len());
-    }
-    (freshness, lot_offsets)
 }
 
 fn enqueue(pending: &mut BTreeMap<u32, u32>, day: u32, lead: u32, qty: u32) {

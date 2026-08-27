@@ -64,6 +64,7 @@ pub mod obs;
 pub mod params;
 pub mod physics;
 pub mod policy;
+pub mod protection_sim;
 pub mod rollout;
 pub mod schedule;
 pub mod session;
@@ -91,11 +92,20 @@ pub use demand_profile::{DemandProfile, DemandProfileError};
 pub use episode::{run_closed_loop_episode, EpisodeResult};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use params::ModelParams;
+pub use policy::{
+    case_round, case_round_ceil, constant_order, damped_sw_order_f_belief,
+    effective_inventory_f_belief, nbinom_ppf, protection_demand_quantile, rung0_order_f_belief,
+};
 pub use physics::{
     age_to_f, allocate_sales, apply_gamma_aging_independent, apply_gamma_decrement,
     death_prob_hazard_product, death_prob_survival_ratio, draw_demand, draw_gamma_decrement,
     draw_gamma_decrement_truncated, f_to_age, gamma_decrement_cdf, gamma_decrement_for_store,
     picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
+};
+pub use protection_sim::{
+    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief, simulate_protection_path,
+    McSlaModel, PbSlaModel, ProtectionPathResult, ProtectionWindow, SlaModel,
+    SurvivalCurveCache,
 };
 pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,
