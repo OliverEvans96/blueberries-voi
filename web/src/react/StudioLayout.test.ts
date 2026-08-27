@@ -113,6 +113,16 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(
       container.querySelector("#events-pane-host [data-loading='true']"),
     ).not.toBeNull();
+    expect(
+      container.querySelector(
+        "#events-pane-host [data-testid='events-loading-placeholder']",
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        "#obs-controls-pane-host [data-booting='true']",
+      ),
+    ).not.toBeNull();
     const shells = container.querySelectorAll("[data-testid='chart-loading-shell']");
     expect(shells.length).toBeGreaterThanOrEqual(7);
   });

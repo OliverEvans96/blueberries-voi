@@ -5,16 +5,19 @@
 import { act, render, waitFor, type RenderResult } from "@testing-library/react";
 import { createElement, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MockAdapter } from "../mock/adapter";
 import { App } from "../App";
 
-describe("studio init mount order (T-158)", () => {
+describe.sequential("studio init mount order (T-158)", () => {
   let rendered: RenderResult | undefined;
+  const originalInit = MockAdapter.prototype.init;
 
   beforeEach(() => {
     vi.stubEnv("VITE_ENGINE_ADAPTER", "mock");
   });
 
   afterEach(async () => {
+    MockAdapter.prototype.init = originalInit;
     await act(async () => {
       rendered?.unmount();
       rendered = undefined;
@@ -23,7 +26,9 @@ describe("studio init mount order (T-158)", () => {
     document.body.innerHTML = "";
   });
 
-  it("App + StrictMode boot leaves #section-controls in DOM", async () => {
+  it(
+    "App + StrictMode boot leaves #section-controls in DOM",
+    async () => {
     const rootEl = document.createElement("div");
     rootEl.id = "app";
     document.body.appendChild(rootEl);
@@ -48,7 +53,62 @@ describe("studio init mount order (T-158)", () => {
       expect(rootEl.querySelector(".operator-bar[aria-busy='true']")).toBeNull();
     });
     expect(rootEl.querySelector('[data-studio-init="1"]')).not.toBeNull();
-  });
+  },
+    15000,
+  );
+
+  it(
+    "keeps sidebar hosts populated while engine init is pending",
+    async () => {
+    const rootEl = document.createElement("div");
+    rootEl.id = "app";
+    document.body.appendChild(rootEl);
+
+    let releaseInit: (() => void) | undefined;
+    const initGate = new Promise<void>((resolve) => {
+      releaseInit = resolve;
+    });
+    MockAdapter.prototype.init = vi.fn(async function (
+      this: MockAdapter,
+      ...args: Parameters<MockAdapter["init"]>
+    ) {
+      await initGate;
+      return originalInit.apply(this, args);
+    });
+
+    rendered = render(createElement(StrictMode, null, createElement(App)), {
+      container: rootEl,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const obsHost = rootEl.querySelector("#obs-controls-pane-host");
+    const eventsHost = rootEl.querySelector("#events-pane-host");
+    expect(obsHost?.childElementCount).toBeGreaterThan(0);
+    expect(eventsHost?.childElementCount).toBeGreaterThan(0);
+    expect(
+      rootEl.querySelector(
+        "#events-pane-host [data-testid='events-loading-placeholder']",
+      ),
+    ).not.toBeNull();
+    expect(
+      rootEl.querySelector("#obs-controls-pane-host [data-booting='true']"),
+    ).not.toBeNull();
+    expect(rootEl.querySelector(".operator-bar[aria-busy='true']")).not.toBeNull();
+
+    releaseInit?.();
+
+    await waitFor(
+      () => {
+        expect(rootEl.querySelector(".operator-bar[aria-busy='true']")).toBeNull();
+      },
+      { timeout: 10000 },
+    );
+  },
+    15000,
+  );
 
   it("App mounts into #studio-slot without #app in document (T-160)", async () => {
     const slotEl = document.createElement("div");

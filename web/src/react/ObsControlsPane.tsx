@@ -27,9 +27,70 @@ export type ObsControlsPaneProps = {
   onSetObsChannels: (channels: ObsChannels) => void;
   onSetObsPreset: (id: import("../types").ScenarioId) => void;
   onShowTruthChange: (show: boolean) => void;
-  /** WASM boot — shell chips disabled until adapter.init settles. */
+  /** WASM boot — static skeleton until adapter.init settles. */
   booting?: boolean;
 };
+
+function ObsControlsBootingSkeleton() {
+  return (
+    <section
+      className="obs-controls-pane panel"
+      data-testid="obs-controls-pane"
+      aria-label="Observation controls"
+      aria-busy="true"
+      data-booting="true"
+    >
+      <div className="panel-head obs-panel-head">
+        <span className="heading-with-tip">
+          <h2>Observation</h2>
+          <InfoTip>
+            What the store's inventory system can actually see each day, not
+            the hidden ground truth the simulator tracks internally. No
+            combination of these switches ever reports freshness directly.
+          </InfoTip>
+        </span>
+        <p className="obs-panel-lead">What the filter can see</p>
+      </div>
+
+      <section className="obs-channels" data-testid="obs-channels">
+        <div className="obs-channel-group" aria-hidden="true">
+          <span className="obs-channel-label">Code type</span>
+          <div className="chip-row">
+            <span className="obs-chip-skeleton" />
+            <span className="obs-chip-skeleton obs-chip-skeleton--wide" />
+          </div>
+        </div>
+
+        <div className="obs-channel-group" aria-hidden="true">
+          <span className="obs-channel-label">Scan waste</span>
+          <div className="chip-row">
+            <span className="obs-chip-skeleton obs-chip-skeleton--narrow" />
+            <span className="obs-chip-skeleton obs-chip-skeleton--narrow" />
+          </div>
+        </div>
+
+        <div className="obs-channel-group" aria-hidden="true">
+          <span className="obs-channel-label">Delivery history</span>
+          <div className="chip-row chip-row--wrap">
+            <span className="obs-chip-skeleton" />
+            <span className="obs-chip-skeleton" />
+            <span className="obs-chip-skeleton obs-chip-skeleton--wide" />
+          </div>
+        </div>
+      </section>
+
+      <div className="obs-controls-truth" aria-hidden="true">
+        <div className="obs-truth-copy">
+          <span className="truth-toggle-label">Omniscience</span>
+          <span className="truth-toggle-hint">
+            Visualize unobserved ground-truth
+          </span>
+        </div>
+        <span className="truth-toggle-skeleton" />
+      </div>
+    </section>
+  );
+}
 
 export function ObsControlsPane({
   showTruth,
@@ -39,8 +100,12 @@ export function ObsControlsPane({
   catchingUp = false,
   booting = false,
 }: ObsControlsPaneProps) {
+  if (booting) {
+    return <ObsControlsBootingSkeleton />;
+  }
+
   const channels = vm.config.obs_channels;
-  const controlsDisabled = catchingUp || booting;
+  const controlsDisabled = catchingUp;
 
   const setChannel = (partial: Partial<ObsChannels>) => {
     onSetObsChannels({ ...channels, ...partial });

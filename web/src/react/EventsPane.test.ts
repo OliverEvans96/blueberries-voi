@@ -460,6 +460,24 @@ describe("EventsPane (Event Log refactor)", () => {
     expect(container.querySelector(".events-temp-history")).not.toBeNull();
   });
 
+  it("shows loading skeleton when loading with no events yet", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: { episode_day: 7, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [],
+        loading: true,
+      }),
+    );
+    expect(screen.getByTestId("events-loading-placeholder")).toBeInTheDocument();
+    expect(container.querySelectorAll(".events-day-card--skeleton").length).toBe(
+      3,
+    );
+    expect(container.querySelectorAll(".events-day-card[data-day]")).toHaveLength(
+      0,
+    );
+  });
+
   it("GSIN F2 shows distinct per-lot pack dates from pack_dates_by_lot", () => {
     const { container } = render(
       createElement(EventsPane, {

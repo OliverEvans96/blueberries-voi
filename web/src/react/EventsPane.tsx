@@ -19,6 +19,7 @@ import {
 import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
+import { EventsLoadingPlaceholder } from "./EventsLoadingPlaceholder";
 import { InfoTip } from "./InfoTip";
 
 export type EventsPaneProps = {
@@ -397,10 +398,14 @@ export function EventsPane({
         </span>
       </div>
       <div className="events-list">
+        {showInitialLoading ? (
+          <EventsLoadingPlaceholder />
+        ) : null}
         {!showInitialLoading && windowDays.length === 0 ? (
           <p className="events-empty-note">No completed days yet.</p>
         ) : null}
-        {windowDays.map((day, index) => {
+        {!showInitialLoading
+          ? windowDays.map((day, index) => {
           const ev = eventByDay.get(day);
           const deliveryDay = schedule ? isDeliveryDay(day, schedule) : false;
           const orderDay = schedule ? isOrderDay(day, schedule) : false;
@@ -507,7 +512,8 @@ export function EventsPane({
               {ev && showTempChart ? <DeliveryTempChart ev={ev} /> : null}
             </article>
           );
-        })}
+        })
+          : null}
       </div>
     </section>
   );

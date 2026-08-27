@@ -107,3 +107,62 @@
     gap: 0.25rem;
   }
 }
+
+.obs-chip-skeleton {
+  display: inline-block;
+  height: 1.65rem;
+  min-width: 3.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, var(--paper));
+  position: relative;
+  overflow: hidden;
+}
+
+.obs-chip-skeleton--narrow {
+  min-width: 2.35rem;
+}
+
+.obs-chip-skeleton--wide {
+  min-width: 5.5rem;
+}
+
+.obs-chip-skeleton::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--muted),
+    var(--muted) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
+
+.truth-toggle-skeleton {
+  display: inline-block;
+  width: 2.75rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, var(--paper));
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.truth-toggle-skeleton::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--muted),
+    var(--muted) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
