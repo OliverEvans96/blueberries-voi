@@ -10,9 +10,16 @@
 //! Run: `cargo run -p voi_core --release --example t163_phase1_realism_diag > out.json`
 
 use rand::SeedableRng;
+use rand_distr::{Distribution, LogNormal};
 use rand_pcg::Pcg64;
 use serde_json::json;
-use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::arrival::{split_delivery_qty, ArrivalCondition, ArrivalModel, LOTS_PER_DELIVERY};
+
+/// Mirrors the private `SHARED_LEG_FRAC` in `crates/voi_core/src/arrival.rs` (line 38),
+/// whose own doc comment says "remainder is upstream per lot" — i.e. the documented
+/// intent is that a lot's own upstream duration is `(1 - SHARED_LEG_FRAC)` of *one*
+/// corridor-typical trip, not a second, independent, full-length draw.
+const SHARED_LEG_FRAC: f64 = 0.28;
 
 const CORRIDOR: &str = "abdella_all";
 const UNITS_PER_LOT: usize = 45;
@@ -373,6 +380,124 @@ fn joint_realistic_recalibration(base: &ArrivalModel) -> serde_json::Value {
     })
 }
 
+/// Direct measurement: does the multilot truth path's mean per-lot calendar duration
+/// match the single-lot path's mean duration (both should equal the moment-matched
+/// `abdella_all` corridor mean, `d_min + delay_shape*delay_scale`, if "remainder is
+/// upstream per lot" is actually implemented)?
+fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
+    let corridor = model.corridor(CORRIDOR);
+    let corridor_mean_d = corridor.d_min + corridor.delay_shape * corridor.delay_scale;
+
+    let n = 3000usize;
+    let mut rng_d = Pcg64::seed_from_u64(700_001);
+    let mut rng_t = Pcg64::seed_from_u64(700_002);
+    let mut rng_p = Pcg64::seed_from_u64(700_003);
+    let mut rng_g = Pcg64::seed_from_u64(700_004);
+
+    let mut single_d = Vec::with_capacity(n);
+    let mut single_lambda = Vec::with_capacity(n);
+    for _ in 0..n {
+        let draw = model.draw_truth_delivery(CORRIDOR, 1, &mut rng_d, &mut rng_t, &mut rng_p, &mut rng_g);
+        single_d.push(draw.duration_d);
+        single_lambda.push(draw.lambda);
+    }
+
+    let mut multi_d = Vec::with_capacity(n * LOTS_PER_DELIVERY);
+    let mut multi_lambda = Vec::with_capacity(n * LOTS_PER_DELIVERY);
+    for _ in 0..n {
+        let draw = model.draw_truth_multilot_delivery_biased(
+            CORRIDOR, UNITS_PER_LOT, 0.0, &mut rng_d, &mut rng_t, &mut rng_p, &mut rng_g,
+        );
+        for lot in &draw.lots {
+            multi_d.push(lot.duration_d);
+            multi_lambda.push(lot.lambda);
+        }
+    }
+
+    let mean = |xs: &[f64]| xs.iter().sum::<f64>() / xs.len() as f64;
+    let single_mean_d = mean(&single_d);
+    let multi_mean_d = mean(&multi_d);
+    json!({
+        "corridor_theoretical_mean_duration_days": corridor_mean_d,
+        "single_lot_mean_duration_days": single_mean_d,
+        "multilot_per_lot_mean_duration_days": multi_mean_d,
+        "multilot_vs_single_lot_duration_ratio": multi_mean_d / single_mean_d,
+        "multilot_vs_corridor_theoretical_ratio": multi_mean_d / corridor_mean_d,
+        "single_lot_mean_lambda": mean(&single_lambda),
+        "multilot_per_lot_mean_lambda": mean(&multi_lambda),
+        "multilot_vs_single_lot_lambda_ratio": mean(&multi_lambda) / mean(&single_lambda),
+    })
+}
+
+/// Reconstruct the multilot truth draw with the shared-leg fraction applied as its own
+/// doc comment describes ("remainder is upstream per lot"): `upstream_d = corridor_draw *
+/// (1 - SHARED_LEG_FRAC)` instead of a full second independent corridor draw, so
+/// `E[total_d] = E[upstream_d] + E[shared_d] = E[corridor_draw]` (no inflation). Uses only
+/// public `ArrivalModel` API (`draw_bottom_up_duration`, `draw_break_taus`,
+/// `lambda_from_breaks`, `phi_set`) plus a plain `LogNormal(0, sigma_pos)` psi draw
+/// (the documented formula) — this does *not* patch `arrival.rs`, it's a diagnostic
+/// side-by-side reconstruction to quantify the effect of the fix without applying it.
+fn corrected_multilot_truth_means(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64> {
+    let corridor = model.corridor(CORRIDOR);
+    let mut rng_d = Pcg64::seed_from_u64(seed);
+    let mut rng_t = Pcg64::seed_from_u64(seed + 1);
+    let mut rng_p = Pcg64::seed_from_u64(seed + 2);
+    let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let psi_dist = LogNormal::new(0.0, model.sigma_pos).expect("lognormal psi");
+
+    (0..n)
+        .map(|_| {
+            let shared_d = model.draw_bottom_up_duration(corridor, &mut rng_d) * SHARED_LEG_FRAC;
+            let arrivals_by = split_delivery_qty(UNITS_PER_LOT, LOTS_PER_DELIVERY);
+            let mut total_units = 0usize;
+            let mut total_f = 0.0;
+            for &units in &arrivals_by {
+                let upstream_d =
+                    model.draw_bottom_up_duration(corridor, &mut rng_d) * (1.0 - SHARED_LEG_FRAC);
+                let total_d = (upstream_d + shared_d).max(0.5);
+                let taus = model.draw_break_taus(total_d, &mut rng_t);
+                let lot_lambda = ArrivalModel::floor_lambda(model.lambda_from_breaks(total_d, &taus));
+                for _ in 0..units {
+                    let psi = psi_dist.sample(&mut rng_p).max(1e-6);
+                    let lambda = ArrivalModel::floor_lambda(lot_lambda * psi);
+                    let loss = rand_distr::Gamma::new(model.gamma_shape * lambda, model.gamma_scale)
+                        .expect("loss gamma")
+                        .sample(&mut rng_g);
+                    total_f += (1.0 - loss).max(0.0);
+                    total_units += 1;
+                }
+            }
+            total_f / total_units as f64
+        })
+        .collect()
+}
+
+fn corrected_shared_leg_sensitivity(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &eta_ref in &[14.0, 20.0, 26.0] {
+        let mut model = base.clone();
+        model.reference_life_days = eta_ref;
+        model.gamma_scale = 1.0 / (model.gamma_shape * eta_ref);
+        let mut samples = corrected_multilot_truth_means(&model, 500, 900_700 + eta_ref as u64);
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let (mean, _p10, p50, _p90) = quantiles(&samples);
+        let pct_below_0_5 = samples.iter().filter(|&&f| f < 0.5).count() as f64 / samples.len() as f64;
+        let pct_60_90 = samples
+            .iter()
+            .filter(|&&f| (0.6..=0.9).contains(&f))
+            .count() as f64
+            / samples.len() as f64;
+        rows.push(json!({
+            "eta_ref_arrival": eta_ref,
+            "corrected_truth_mean": mean,
+            "corrected_truth_p50": p50,
+            "corrected_truth_pct_below_0_5": pct_below_0_5 * 100.0,
+            "corrected_truth_pct_60_90": pct_60_90 * 100.0,
+        }));
+    }
+    json!(rows)
+}
+
 fn main() {
     let t0 = std::time::Instant::now();
     let model = ArrivalModel::embedded();
@@ -421,6 +546,10 @@ fn main() {
     eprintln!("leg_setpoint_sensitivity: {:?}", t0.elapsed());
     let joint_recalibration = joint_realistic_recalibration(&model);
     eprintln!("joint_realistic_recalibration: {:?}", t0.elapsed());
+    let shared_leg_audit = shared_leg_duration_audit(&model);
+    eprintln!("shared_leg_duration_audit: {:?}", t0.elapsed());
+    let corrected_shared_leg = corrected_shared_leg_sensitivity(&model);
+    eprintln!("corrected_shared_leg_sensitivity: {:?}", t0.elapsed());
 
     let out = json!({
         "artifact": artifact_summary,
@@ -433,6 +562,8 @@ fn main() {
         "sensitivity_q10": sensitivity_q10,
         "sensitivity_leg_setpoint": sensitivity_leg_setpoint,
         "joint_recalibration": joint_recalibration,
+        "shared_leg_duration_audit": shared_leg_audit,
+        "corrected_shared_leg_sensitivity": corrected_shared_leg,
     });
 
     println!("{}", serde_json::to_string(&out).unwrap());
