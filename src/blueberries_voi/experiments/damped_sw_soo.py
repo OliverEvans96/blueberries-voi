@@ -74,8 +74,8 @@ def build_soo_jobs(
 ) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     for trial_index, params in trials.items():
-        alpha = float(cast(float | int | str, params["alpha"]))
-        rho = float(cast(float | int | str, params["rho"]))
+        alpha = float(cast("float | int | str", params["alpha"]))
+        rho = float(cast("float | int | str", params["rho"]))
         for seed in seeds:
             jobs.append(
                 soo_job_payload(
