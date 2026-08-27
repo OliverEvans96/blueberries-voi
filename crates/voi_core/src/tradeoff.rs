@@ -1,14 +1,11 @@
 //! Display-only tradeoff forecast (ADR 0130) — bank-resampled paths, CRN across q.
 
-use rand::SeedableRng;
-use rand_pcg::Pcg64;
 use serde_json::json;
 
-use crate::day_step::{unit_day_step, UnitDayStepIn};
-use crate::physics::{draw_demand, gamma_decrement_for_store};
+use crate::protection_sim::{bank_start_state, simulate_protection_path};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
-use crate::unit_pf::{systematic_resample, UnitParticleBank};
+use crate::unit_pf::UnitParticleBank;
 use crate::ModelParams;
 
 /// Case-snapped q sweep for DecisionRail slider parity.
@@ -16,106 +13,6 @@ pub fn full_tradeoff_q_candidates(case_size: u32) -> Vec<u32> {
     let cs = case_size.max(1);
     let max_q = 160.max(cs * 20);
     (0..=max_q).step_by(cs as usize).collect()
-}
-
-/// Per-(path, day, stream) RNG for the tradeoff sweep, deliberately independent of the
-/// candidate order quantity `q`. Every candidate `q` in [`tradeoff_forecast`] therefore
-/// replays the same demand/gamma/allocation draws for a given path and day, so the
-/// waste/missed bands it reports differ only because of `q`, not because of which random
-/// draws each candidate happened to see (CRN across `q`).
-fn path_rng(seed: u64, path: u32, day: u32, stream: u64) -> Pcg64 {
-    Pcg64::seed_from_u64(
-        seed.wrapping_add(u64::from(path).wrapping_mul(1_000_003))
-            .wrapping_add(u64::from(day).wrapping_mul(97))
-            .wrapping_add(stream),
-    )
-}
-
-/// Picks one particle hypothesis for the given path (via systematic resampling on the
-/// bank's log-weights) and returns its freshness row and lot offsets as the path's starting
-/// state. Falls back to a fully-fresh, uniform-lot state when the bank has no freshness data
-/// yet.
-fn bank_start_state(
-    bank: &UnitParticleBank,
-    path: u32,
-    l_dim: usize,
-    units_per_lot: usize,
-) -> (Vec<f64>, Vec<usize>) {
-    let log_w: Vec<f64> = bank
-        .weights
-        .iter()
-        .map(|w| if *w > 0.0 { w.ln() } else { f64::NEG_INFINITY })
-        .collect();
-    let indices = systematic_resample(&log_w);
-    let pidx = indices[path as usize % indices.len().max(1)];
-    let mut freshness = bank.freshness.get(pidx).cloned().unwrap_or_default();
-    let upl = units_per_lot.max(1);
-    let lots = l_dim.max(1);
-    if freshness.is_empty() {
-        freshness = vec![1.0; lots * upl];
-    }
-    let lot_offsets: Vec<usize> = (0..=lots).map(|i| i * upl).collect();
-    (freshness, lot_offsets)
-}
-
-/// Advances one particle's freshness state through `protection_days` of `unit_day_step`,
-/// injecting `order_q` as an arrival on the day `lead_time` falls due, and accumulates the
-/// waste and missed-demand (demand minus sales) totals over the window. This is the
-/// per-path Monte Carlo rollout that [`tradeoff_forecast`] samples for each candidate `q`.
-fn simulate_protection_path(
-    start_freshness: &[f64],
-    start_offsets: &[usize],
-    params: &ModelParams,
-    seed: u64,
-    path: u32,
-    protection_days: u32,
-    order_q: u32,
-    lead_time: u32,
-    current_day: u32,
-) -> (u32, u32) {
-    let mut freshness = start_freshness.to_vec();
-    let mut lot_offsets = start_offsets.to_vec();
-    let shipments = [ShipmentTrace::smoke_cool()];
-    let mut waste_total = 0u32;
-    let mut missed_total = 0u32;
-
-    for d in 0..protection_days {
-        let day = current_day + d;
-        let arrival = if d == lead_time { order_q } else { 0 };
-        let mut rng_gamma = path_rng(seed, path, d, 3);
-        let mut rng_alloc = path_rng(seed, path, d, 2);
-        let mut rng_demand = path_rng(seed, path, d, 1);
-        let demand = draw_demand(&mut rng_demand, params, Some(day));
-        let input = UnitDayStepIn {
-            freshness: freshness.clone(),
-            lot_offsets: lot_offsets.clone(),
-            demand: Some(demand),
-            gamma_decrement: Some(gamma_decrement_for_store(params)),
-            deliver: arrival > 0,
-            deliver_units: if arrival > 0 { Some(arrival) } else { None },
-            delivery_unit_f: if arrival > 0 {
-                Some(vec![1.0; arrival as usize])
-            } else {
-                None
-            },
-            delivery_lot_f: None,
-            units_per_lot: Some(params.units_per_lot),
-        };
-        let out = unit_day_step(
-            &input,
-            params,
-            &shipments,
-            Some(&mut rng_gamma),
-            Some(&mut rng_alloc),
-            None,
-            None,
-        );
-        waste_total = waste_total.saturating_add(out.waste_total);
-        missed_total = missed_total.saturating_add(out.demand.saturating_sub(out.sales_total));
-        freshness = out.freshness;
-        lot_offsets = out.lot_offsets;
-    }
-    (waste_total, missed_total)
 }
 
 /// Nearest-rank percentile `p` (in `[0, 1]`) of `sorted`, which must already be sorted
@@ -149,7 +46,7 @@ fn bin_index(v: f64, bins: &[f64]) -> usize {
 /// display, not the ordering policy itself.
 pub fn tradeoff_forecast(
     bank: &UnitParticleBank,
-    l_dim: usize,
+    _l_dim: usize,
     params: &ModelParams,
     schedule: &OrderSchedule,
     current_day: u32,
@@ -162,8 +59,10 @@ pub fn tradeoff_forecast(
     let lead_time = schedule.lead_time_days;
     let n = n_paths.max(1) as usize;
 
+    let shipments = [ShipmentTrace::smoke_cool()];
+    let run_id = "tradeoff";
     let starts: Vec<(Vec<f64>, Vec<usize>)> = (0..n)
-        .map(|path| bank_start_state(bank, path as u32, l_dim, params.units_per_lot))
+        .map(|path| bank_start_state(bank, path as u32))
         .collect();
 
     let mut out_candidates = Vec::with_capacity(candidates.len());
@@ -171,19 +70,21 @@ pub fn tradeoff_forecast(
         let mut waste_samples = Vec::with_capacity(n);
         let mut missed_samples = Vec::with_capacity(n);
         for (path, (f0, o0)) in starts.iter().enumerate() {
-            let (w, m) = simulate_protection_path(
+            let result = simulate_protection_path(
                 f0,
                 o0,
                 params,
+                &shipments,
                 seed,
+                run_id,
                 path as u32,
                 prot,
                 q,
                 lead_time,
                 current_day,
             );
-            waste_samples.push(w as f64);
-            missed_samples.push(m as f64);
+            waste_samples.push(result.waste_total as f64);
+            missed_samples.push(result.missed_total as f64);
         }
         waste_samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         missed_samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
