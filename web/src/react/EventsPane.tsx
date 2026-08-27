@@ -1,5 +1,5 @@
 /**
- * Events pane — last 5 days with Delivered | Sold | Spoiled columns (T-148 layout v6).
+ * Event Log pane — last 5 days with Sold | Spoiled columns plus delivery/order sections.
  */
 import { useLayoutEffect, useRef } from "react";
 import {
@@ -9,7 +9,13 @@ import {
   tempSummaryFromTrace,
   tracesFromEvent,
 } from "../charts/deliveryTempChart";
-import { maskFor, maskFromChannels, type MaskedObsWire } from "../obsMask";
+import {
+  channelsForPreset,
+  maskFor,
+  maskFromChannels,
+  type CodeType,
+  type MaskedObsWire,
+} from "../obsMask";
 import { weekdayLabel, weekdayMonday0 } from "../calendar/nextOrderAdvance";
 import type { ScheduleWire } from "../engine/types";
 import type { ObsChannels } from "../types";
@@ -23,24 +29,36 @@ export type EventsPaneProps = {
   };
   schedule: ScheduleWire | null;
   events: MaskedObsWire[];
+  /** Day → order_qty from vm.history (always shown on order days, not masked). */
+  orderQtyByDay: ReadonlyMap<number, number> | Readonly<Record<number, number>>;
   /** True only when there is no event data to show yet. */
   loading?: boolean;
   /** Background refresh while keeping stale cards visible. */
   refreshing?: boolean;
 };
 
-// Delegate to the same epoch-anchored weekday helper the studio's own
-// order-day advance logic (`buildStepNOrders` / `nextOrderDayFromSchedule`
-// in calendar/nextOrderAdvance.ts) uses — a local `(day - 1) % 7`
-// reimplementation here previously disagreed with that authoritative
-// convention by exactly one day, so these badges never matched the days
-// real deliveries/orders actually landed on (T-151 bugfix).
 function isDeliveryDay(day: number, schedule: ScheduleWire): boolean {
   return schedule.delivery_weekdays.includes(weekdayMonday0(day, schedule));
 }
 
 function isOrderDay(day: number, schedule: ScheduleWire): boolean {
   return schedule.order_weekdays.includes(weekdayMonday0(day, schedule));
+}
+
+function resolveCodeType(
+  config: EventsPaneProps["vm"]["config"],
+): CodeType {
+  if (config.obs_channels) return config.obs_channels.code_type;
+  return channelsForPreset(config.obs_scenario).code_type;
+}
+
+function orderQtyForDay(
+  orderQtyByDay: EventsPaneProps["orderQtyByDay"],
+  day: number,
+): number | undefined {
+  if (orderQtyByDay instanceof Map) return orderQtyByDay.get(day);
+  const record = orderQtyByDay as Readonly<Record<number, number>>;
+  return record[day];
 }
 
 type LotRow = { label: string; qty: number };
@@ -83,9 +101,28 @@ function arrivalLotRows(
   }));
 }
 
+type PackDateValue = number | number[] | null | undefined;
+
+function formatPackDateCell(
+  value: PackDateValue,
+  observed: boolean,
+): string {
+  if (!observed) return "Not observed";
+  if (value == null) return "—";
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function packDateForLot(
+  value: PackDateValue,
+  lotIndex: number,
+): number | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value[lotIndex] ?? null;
+  return value;
+}
+
 const EVENTS_COLUMN_TIPS: Record<string, string> = {
-  Delivered:
-    "Units that arrived on the shelf that day. Broken out by lot when lot IDs are observed.",
   Sold: "Units actually sold that day, after spoilage. Can fall short of demand once the shelf runs out.",
   Spoiled:
     "Units whose freshness reached zero that day and were pulled off the shelf as waste.",
@@ -134,6 +171,83 @@ function EventsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function DeliverySection({
+  codeType,
+  deliveredTotal,
+  deliveredLots,
+  packDateDays,
+  packDateObserved,
+}: {
+  codeType: CodeType;
+  deliveredTotal: number;
+  deliveredLots: LotRow[];
+  packDateDays: PackDateValue;
+  packDateObserved: boolean;
+}) {
+  const tableClass =
+    codeType === "upc"
+      ? "events-delivery-table events-delivery-table--upc"
+      : "events-delivery-table events-delivery-table--gsin";
+
+  return (
+    <section
+      className="events-delivery-section"
+      data-testid="events-delivery-section"
+      aria-label="Delivery"
+    >
+      <span className="heading-with-tip">
+        <h4 className="events-section-title">Delivery</h4>
+        <InfoTip>
+          Units that arrived on the shelf that day. UPC stores see one pooled
+          delivery row; GSIN stores see each arriving lot separately (ADR 0149).
+        </InfoTip>
+      </span>
+      <table className={tableClass}>
+        <thead>
+          <tr>
+            {codeType === "gsin" ? <th scope="col">Lot</th> : null}
+            <th scope="col">Delivered</th>
+            <th scope="col">Pack date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {codeType === "upc" ? (
+            <tr>
+              <td>{deliveredTotal}</td>
+              <td>{formatPackDateCell(packDateDays, packDateObserved)}</td>
+            </tr>
+          ) : (
+            deliveredLots.map((row, index) => (
+              <tr key={row.label}>
+                <th scope="row">{row.label}</th>
+                <td>{row.qty}</td>
+                <td>
+                  {formatPackDateCell(
+                    packDateForLot(packDateDays, index),
+                    packDateObserved,
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function OrderSection({ orderQty }: { orderQty: number }) {
+  return (
+    <section
+      className="events-order-section"
+      data-testid="events-order-section"
+      aria-label="Order"
+    >
+      <p className="events-order-qty">Ordered: {orderQty}</p>
+    </section>
   );
 }
 
@@ -234,12 +348,14 @@ export function EventsPane({
   vm,
   schedule,
   events,
+  orderQtyByDay,
   loading,
   refreshing,
 }: EventsPaneProps) {
   const obsMask = vm.config.obs_channels
     ? maskFromChannels(vm.config.obs_channels)
     : maskFor(vm.config.obs_scenario);
+  const codeType = resolveCodeType(vm.config);
 
   const windowStart = Math.max(1, vm.episode_day - 5);
   const windowEnd = vm.episode_day - 1;
@@ -254,24 +370,24 @@ export function EventsPane({
   return (
     <section
       className="events-pane panel"
-      aria-label="Events"
+      aria-label="Event Log"
       data-loading={showInitialLoading ? "true" : undefined}
       data-refreshing={refreshing ? "true" : undefined}
     >
       <div className="panel-head">
         <span className="heading-with-tip">
-          <h2>Events</h2>
+          <h2>Event Log</h2>
           <InfoTip>
-            A rolling log of the last several days' deliveries, sales, and
-            spoilage. Numbers are masked to what's currently observed, so a
-            column can show "Not observed" even when it happened.
+            A rolling log of the last several days' sales, spoilage, deliveries,
+            and orders. Sales and spoilage numbers are masked to what's currently
+            observed; order quantities are always shown on order days.
           </InfoTip>
         </span>
         <span className="panel-note">
           Last 5 days
           {showInitialLoading ? (
             <span className="events-refresh-indicator" aria-live="polite">
-              Loading events…
+              Loading event log…
             </span>
           ) : null}
           {!showInitialLoading && refreshing ? (
@@ -293,6 +409,7 @@ export function EventsPane({
           const ev = eventByDay.get(day);
           const deliveryDay = schedule ? isDeliveryDay(day, schedule) : false;
           const orderDay = schedule ? isOrderDay(day, schedule) : false;
+          const orderQty = orderQtyForDay(orderQtyByDay, day);
 
           const deliveredTotal = ev?.arrivals ?? 0;
           const soldTotal = ev?.sales_total;
@@ -305,7 +422,9 @@ export function EventsPane({
             ? lotRows(ev?.waste_by, ev?.lot_ids)
             : [];
           const deliveredLots =
-            obsMask.arrival_lot_ids && ev?.arrival_lot_ids?.length
+            codeType === "gsin" &&
+            obsMask.arrival_lot_ids &&
+            ev?.arrival_lot_ids?.length
               ? arrivalLotRows(
                   deliveredTotal,
                   ev.arrival_lot_ids,
@@ -313,10 +432,12 @@ export function EventsPane({
                 )
               : [];
 
-          // Keyed on an actual delivery with temp data, not the schedule's
-          // cosmetic "delivery day" calendar badge (`deliveryDay`) — those
-          // can desync (e.g. mid-episode schedule edits), which previously
-          // made this chart dead code (T-151 bugfix).
+          const packDateValue: PackDateValue =
+            ev?.pack_dates_by_lot?.length
+              ? ev.pack_dates_by_lot
+              : (ev?.pack_date_days ?? null);
+          const packDateObserved = obsMask.pack_date;
+
           const showTempChart =
             obsMask.temperature_history &&
             deliveredTotal > 0 &&
@@ -339,11 +460,10 @@ export function EventsPane({
                       <span className="events-day-weekday">
                         {weekdayLabel(day, schedule)}
                       </span>
-                      {" "}
-                      <span className="events-day-index">(day {day})</span>
+                      , day {day}
                     </>
                   ) : (
-                    <span className="events-day-index">(day {day})</span>
+                    <>day {day}</>
                   )}
                 </h3>
                 <div className="events-day-markers">
@@ -362,12 +482,6 @@ export function EventsPane({
 
               <div className="events-columns" data-testid="events-columns">
                 <EventsTable
-                  title="Delivered"
-                  total={deliveredTotal}
-                  lotRows={deliveredLots}
-                  notObserved={!ev && deliveredTotal === 0}
-                />
-                <EventsTable
                   title="Sold"
                   total={soldTotal ?? null}
                   lotRows={soldLots}
@@ -381,11 +495,18 @@ export function EventsPane({
                 />
               </div>
 
-              {ev && obsMask.pack_date && ev.pack_date_days != null ? (
-                <p className="events-pack-date">
-                  Packed {ev.pack_date_days}{" "}
-                  {ev.pack_date_days === 1 ? "day" : "days"} before arrival
-                </p>
+              {deliveryDay ? (
+                <DeliverySection
+                  codeType={codeType}
+                  deliveredTotal={deliveredTotal}
+                  deliveredLots={deliveredLots}
+                  packDateDays={packDateValue}
+                  packDateObserved={packDateObserved}
+                />
+              ) : null}
+
+              {orderDay && orderQty != null ? (
+                <OrderSection orderQty={orderQty} />
               ) : null}
 
               {ev && showTempChart ? <DeliveryTempChart ev={ev} /> : null}

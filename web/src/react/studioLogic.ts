@@ -561,6 +561,10 @@ export function initStudio(app: HTMLElement): () => void {
     return eventsLoading || (engineBooting() && eventDays.length === 0);
   }
 
+  function orderQtyByDayMap(): Map<number, number> {
+    return new Map(vm.history.map((d) => [d.day, d.order_qty]));
+  }
+
   function renderEventsPane(): void {
     profileSync("renderEventsPane", () => {
       if (!eventsPaneRoot) return;
@@ -572,6 +576,7 @@ export function initStudio(app: HTMLElement): () => void {
           },
           schedule,
           events: maskedEventDays(),
+          orderQtyByDay: orderQtyByDayMap(),
           loading: eventsPaneLoading(),
           refreshing: eventsRefreshing,
         }),

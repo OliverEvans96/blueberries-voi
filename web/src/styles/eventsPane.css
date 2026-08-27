@@ -97,8 +97,50 @@
 
 .events-columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+.events-section-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 0.2rem;
+  color: var(--muted);
+}
+
+.events-delivery-section,
+.events-order-section {
+  margin-top: 0.5rem;
+}
+
+.events-delivery-table {
+  width: 100%;
+  font-size: 0.78rem;
+  border-collapse: collapse;
+}
+
+.events-delivery-table th,
+.events-delivery-table td {
+  padding: 0.15rem 0.25rem;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.events-delivery-table thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.events-order-qty {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .events-col-title {
@@ -135,12 +177,6 @@
   padding: 0.05rem 0.25rem;
   font-size: 0.72rem;
   font-weight: 400;
-  color: var(--muted);
-}
-
-.events-pack-date {
-  margin: 0.35rem 0 0;
-  font-size: 0.75rem;
   color: var(--muted);
 }
 
