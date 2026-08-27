@@ -481,8 +481,8 @@ pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_h
     let max_q = sla_order_q_cap(cs);
     let max_cases = (max_q / cs).max(1) as i32;
     let mut hi_cases = (q_hi_hint / cs).max(1) as i32;
-    while hi_cases < max_cases && model.p_no_stockout(hi_cases as u32 * cs) < alpha {
-        hi_cases = (hi_cases * 2).min(max_cases);
+    if model.p_no_stockout(hi_cases as u32 * cs) < alpha {
+        hi_cases = max_cases;
     }
     let mut lo = 0i32;
     let mut hi = hi_cases;
@@ -496,14 +496,6 @@ pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_h
         }
     }
     let mut q_min = lo as u32 * cs;
-    while q_min >= cs {
-        let q_try = q_min - cs;
-        if model.p_no_stockout(q_try) >= alpha {
-            q_min = q_try;
-        } else {
-            break;
-        }
-    }
     case_round(rho * q_min as f64, cs)
 }
 
@@ -654,7 +646,9 @@ mod tests {
 
     #[test]
     fn sla_mc_empty_shelf_orders_more_than_full() {
-        let p = ModelParams::default();
+        let mut p = ModelParams::default();
+        p.demand_mu = 4.0;
+        p.units_per_lot = 4;
         let s = OrderSchedule::default();
         let f_grid = vec![0.0, 0.5, 1.0];
         // Four lots at peak freshness so stocked shelf orders below empty-shelf cap.
