@@ -57,6 +57,10 @@ Cargo.lock.bak
 .data/
 data/raw/
 outputs/
+!notebooks/outputs/
+notebooks/outputs/*
+!notebooks/outputs/t163_phase2/
+!notebooks/outputs/t163_phase2/**
 .worktrees/
 
 # Web mockup (Vite)
