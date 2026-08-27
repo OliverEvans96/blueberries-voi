@@ -21,6 +21,7 @@ use crate::obs::{
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
+use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
@@ -168,6 +169,10 @@ pub struct EngineSession {
     /// Additive bias, in Celsius, applied to sampled transit temperature before it
     /// feeds the Q10 exposure factor — used to simulate a systematic warm/cool bias.
     transit_temp_bias_c: f64,
+    /// Precomputed survival curve for PB SLA fast path.
+    survival_cache: SurvivalCurveCache,
+    /// Default MC path count for `sla_mc` act arm.
+    n_sla_paths: u32,
 }
 
 impl Default for EngineSession {
@@ -222,6 +227,8 @@ impl EngineSession {
             arrival_product: "abdella_all".to_string(),
             spread_scale: 1.0,
             transit_temp_bias_c: 0.0,
+            survival_cache: SurvivalCurveCache::for_params(&params, 8),
+            n_sla_paths: 32,
         }
     }
 
@@ -820,6 +827,7 @@ impl EngineSession {
         h: Option<u32>,
         n_rollout_paths: Option<u32>,
         candidate_case_radius: Option<i32>,
+        n_sla_paths: Option<u32>,
     ) -> DayDelta {
         self.require_init();
         let pending_sum: u32 = self.pending.values().copied().sum();
@@ -830,6 +838,7 @@ impl EngineSession {
         let h = h.unwrap_or(self.h);
         let n_paths = n_rollout_paths.unwrap_or(self.n_paths);
         let radius = candidate_case_radius.unwrap_or(self.radius);
+        let sla_paths = n_sla_paths.unwrap_or(self.n_sla_paths);
         let name = policy.unwrap_or("rollout").to_ascii_lowercase();
         let q = match name.as_str() {
             "constant" | "const" | "fixed" => {
@@ -886,7 +895,39 @@ impl EngineSession {
                 )
                 .unwrap_or(base)
             }
-            other => panic!("unknown policy {other:?}; use 'constant', 'damped_sw', or 'rollout'"),
+            "sla_mc" => sla_mc_order_f_belief(
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
+                &self.pending,
+                pending_sum,
+                self.day,
+                &self.params,
+                &self.schedule,
+                &self.shipments,
+                alpha,
+                rho,
+                self.seed,
+                sla_paths,
+                f_pipe,
+            ),
+            "sla_pb" => sla_pb_order_f_belief(
+                &lot_counts,
+                &f_marginals,
+                &f_grid,
+                &self.pending,
+                pending_sum,
+                self.day,
+                &self.params,
+                &self.schedule,
+                alpha,
+                rho,
+                &mut self.survival_cache,
+                f_pipe,
+            ),
+            other => panic!(
+                "unknown policy {other:?}; use 'constant', 'damped_sw', 'rollout', 'sla_pb', or 'sla_mc'"
+            ),
         };
         self.crossings += 1;
         self.advance_one(q)
@@ -894,7 +935,7 @@ impl EngineSession {
 
     /// Shorthand for `act` with the `rollout` policy and its own default tuning.
     pub fn act_rollout(&mut self) -> DayDelta {
-        self.act(Some("rollout"), None, None, None, None, None, None)
+        self.act(Some("rollout"), None, None, None, None, None, None, None)
     }
 
     /// Ends the current episode and starts a new one at `seed` (delegates to `init`).
@@ -1540,6 +1581,11 @@ pub fn handle_rpc(request_json: &str) -> String {
                     .get("candidate_case_radius")
                     .and_then(|v| v.as_i64())
                     .map(|n| n as i32);
+                let n_sla = req
+                    .params
+                    .get("n_sla_paths")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32);
                 let d = sess.act(
                     policy,
                     order_qty,
@@ -1548,6 +1594,7 @@ pub fn handle_rpc(request_json: &str) -> String {
                     h,
                     n_paths,
                     radius,
+                    n_sla,
                 );
                 sess.day_delta_value(&d)
             }
@@ -2325,12 +2372,12 @@ mod tests {
     fn act_alpha_budget_changes_damped_sw_order() {
         let mut low = warm_t121b_session(17);
         let q_low = low
-            .act(Some("damped_sw"), None, Some(0.5), None, None, None, None)
+            .act(Some("damped_sw"), None, Some(0.5), None, None, None, None, None)
             .order_qty;
 
         let mut high = warm_t121b_session(17);
         let q_high = high
-            .act(Some("damped_sw"), None, Some(0.99), None, None, None, None)
+            .act(Some("damped_sw"), None, Some(0.99), None, None, None, None, None)
             .order_qty;
 
         assert!(

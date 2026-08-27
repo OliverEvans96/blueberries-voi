@@ -12,6 +12,9 @@ use crate::physics::draw_demand_spawn;
 use crate::policy::{
     constant_order, damped_sw_order_f_belief, protection_demand_quantile, rung0_order_f_belief,
 };
+use crate::protection_sim::{
+    sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache,
+};
 use crate::rollout::{day_profit, rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
@@ -36,6 +39,10 @@ pub enum AlphaTuneArm {
     Sw,
     /// `Sw` base order refined by a short lookahead rollout over candidate quantities.
     Rollout,
+    /// Window-SLA Poisson-binomial fast path.
+    SlaPb,
+    /// Window-SLA Monte Carlo oracle.
+    SlaMc,
 }
 
 /// Rollout compute budgets for the rollout ladder arm (CTL-02/04).
@@ -148,6 +155,8 @@ fn order_for_arm(
     rung0_target: f64,
     rollout: &AlphaTuneRolloutBudgets,
     lead_time: u32,
+    survival_cache: &mut SurvivalCurveCache,
+    n_sla_paths: u32,
 ) -> u32 {
     let pending_sum: u32 = pending.values().copied().sum();
     match arm {
@@ -227,6 +236,36 @@ fn order_for_arm(
             )
             .unwrap_or(base_q)
         }
+        AlphaTuneArm::SlaPb => sla_pb_order_f_belief(
+            lot_counts,
+            f_marginals,
+            f_grid,
+            pending,
+            pending_sum,
+            day,
+            params,
+            schedule,
+            alpha,
+            rho,
+            survival_cache,
+            1.0,
+        ),
+        AlphaTuneArm::SlaMc => sla_mc_order_f_belief(
+            lot_counts,
+            f_marginals,
+            f_grid,
+            pending,
+            pending_sum,
+            day,
+            params,
+            schedule,
+            shipments,
+            alpha,
+            rho,
+            root_seed,
+            n_sla_paths,
+            1.0,
+        ),
     }
 }
 
@@ -271,6 +310,8 @@ pub fn run_alpha_tune_episode(
     let mut scored_lost_sales = 0u32;
 
     let arrival_model = ArrivalModel::embedded();
+    let mut survival_cache = SurvivalCurveCache::for_params(params, 8);
+    const N_SLA_PATHS: u32 = 16;
     for day in 0..horizon {
         let (lot_counts, f_marginals, f_grid) = truth_f_belief(&freshness, &lot_offsets, ORACLE_K);
         let order = order_for_arm(
@@ -291,6 +332,8 @@ pub fn run_alpha_tune_episode(
             rung0_target,
             rollout,
             lead_time,
+            &mut survival_cache,
+            N_SLA_PATHS,
         );
         enqueue(&mut pending, day, lead_time, order);
         let arrival = pop_arrival(&mut pending, day);
@@ -383,6 +426,8 @@ pub fn parse_alpha_tune_arm(arm_id: &str) -> Result<AlphaTuneArm, String> {
         "rung0" => Ok(AlphaTuneArm::Rung0),
         "sw" => Ok(AlphaTuneArm::Sw),
         "rollout" => Ok(AlphaTuneArm::Rollout),
+        "sla_pb" => Ok(AlphaTuneArm::SlaPb),
+        "sla_mc" => Ok(AlphaTuneArm::SlaMc),
         other => Err(format!("unknown alpha_tune arm {other:?}")),
     }
 }
