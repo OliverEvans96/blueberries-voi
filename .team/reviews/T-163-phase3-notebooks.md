@@ -15,7 +15,7 @@
 | damped_sw SOO (Modal BO) | **done** | `damped_sw_soo.py`, Modal dispatch wired; params flow to nb17/nb19 |
 | nb17 channel ladder | **executed** | Modal batch; figure `figures/nb17/nb17_profit_by_package.png` |
 | nb19 factorial (belief vs profit) | **executed** | 36 rows (12 cells × 3 seeds); updated `figures/channel_joint/*_mae_f.png` |
-| nb19 build-your-own | **in flight** | nbconvert started ~09:29; still running at handoff (~11+ min elapsed) |
+| nb19 build-your-own | **out of scope** | User: BYOC irrelevant; nbconvert killed; not part of this PR |
 
 ---
 
@@ -62,22 +62,20 @@
 3. **Profit vs belief accuracy decoupling:** nb19 scatter suggests optimizing data channels for filter MAE may not monotonically improve damped_sw profit — worth user confirmation on narrative for blog.
 4. **nb17 ceiling vs pack-date:** ceiling not strictly dominating — confirm whether ceiling preset is wired with same controller params as other packages.
 5. **`nb19_run_audit.json` removed:** stale Modal shard audit from prior 6-seed run; notebook now writes `nb19_joint_rows.json` only.
-6. **nb19_build_your_own_controller.ipynb:** execution pending — may produce additional figures under `figures/channel_joint/` or `.data/`; hold PR until complete or explicitly defer.
+6. **nb19_build_your_own_controller.ipynb:** explicitly out of scope for this PR (user decision).
 
 ---
 
 ## Runtime notes
 
 - nb17 + nb19 factorial: Modal batch path (`50ff65c7`); wall time dominated by remote workers (local execute ~minutes for nb19 after Modal return).
-- nb19_build_your_own: nbconvert with 7200s timeout; log at `outputs/nb19_execute.log` (gitignored).
-
 ---
 
 ## PR readiness (3e)
 
-**Deferred.** `nb19_build_your_own_controller.ipynb` still executing; no duplicate PR on `team/T-163/notebook-pipeline`. Open when build notebook finishes and optional second commit lands figures/executed notebook.
+**Ready.** `19_build_your_own_controller.ipynb` out of scope; PR opened to `team/arrival-breaks/integrate`.
 
-Suggested PR checklist when ready:
+PR checklist:
 
 - [ ] nb19_build executed + figures committed
 - [ ] Confirm 3 vs 6 seeds for nb19 with user
