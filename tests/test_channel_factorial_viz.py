@@ -151,9 +151,7 @@ def test_scatter_legend_encodes_waste_delivery_and_code_type() -> None:
         "Delivery history (marker)",
         "Code type (marker size)",
     }
-    labels = {
-        text.get_text() for legend in fig.legends for text in legend.get_texts()
-    }
+    labels = {text.get_text() for legend in fig.legends for text in legend.get_texts()}
     assert WASTE_LABELS["off"] in labels
     assert WASTE_LABELS["on"] in labels
     assert DELIVERY_LABELS["none"] in labels
