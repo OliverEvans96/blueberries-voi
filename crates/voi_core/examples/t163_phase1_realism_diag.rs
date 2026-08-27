@@ -414,9 +414,22 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
         }
     }
 
+    let mut corrected_d = Vec::with_capacity(n * LOTS_PER_DELIVERY);
+    let mut rng_d2 = Pcg64::seed_from_u64(700_005);
+    for _ in 0..n {
+        let shared_d = model.draw_bottom_up_duration(corridor, &mut rng_d2) * SHARED_LEG_FRAC;
+        for _ in 0..LOTS_PER_DELIVERY {
+            let upstream_d =
+                model.draw_bottom_up_duration(corridor, &mut rng_d2) * (1.0 - SHARED_LEG_FRAC);
+            corrected_d.push((upstream_d + shared_d).max(0.5));
+        }
+    }
+
     let mean = |xs: &[f64]| xs.iter().sum::<f64>() / xs.len() as f64;
     let single_mean_d = mean(&single_d);
     let multi_mean_d = mean(&multi_d);
+    // Downsample the raw arrays for the JSON payload (histograms don't need all 3000/9000).
+    let take = |xs: &[f64], k: usize| xs.iter().copied().take(k).collect::<Vec<_>>();
     json!({
         "corridor_theoretical_mean_duration_days": corridor_mean_d,
         "single_lot_mean_duration_days": single_mean_d,
@@ -426,6 +439,10 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
         "single_lot_mean_lambda": mean(&single_lambda),
         "multilot_per_lot_mean_lambda": mean(&multi_lambda),
         "multilot_vs_single_lot_lambda_ratio": mean(&multi_lambda) / mean(&single_lambda),
+        "corrected_multilot_per_lot_mean_duration_days": mean(&corrected_d),
+        "single_lot_duration_samples": take(&single_d, 1500),
+        "multilot_duration_samples": take(&multi_d, 1500),
+        "corrected_multilot_duration_samples": take(&corrected_d, 1500),
     })
 }
 
