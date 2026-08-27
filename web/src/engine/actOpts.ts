@@ -12,6 +12,7 @@ export const ACT_BUDGET_KEYS = [
   "rho",
   "H",
   "n_rollout_paths",
+  "n_sla_paths",
   "candidate_case_radius",
   "n_particles",
   "order_qty",

@@ -267,12 +267,20 @@ export class MockAdapter implements EngineAdapter {
       return this.snapOrder(typeof constantQty === "number" ? constantQty : 0);
     }
 
-    // UI heuristic for damped_sw / rollout (and aliases): alpha-damped gap to demand cover.
     const alpha = opts?.alpha ?? opts?.budgets?.alpha ?? 0.9;
     const inv = onHandInventory(this.state.lots);
     const pending = this.state.pendingOrders.reduce((s, o) => s + o.qty, 0);
     const target = mockProtectionTarget(this.config);
     const gap = Math.max(0, target - inv - pending);
+
+    if (policy === "sla_pb" || policy === "sla_mc") {
+      return this.snapOrder(gap * alpha * 1.05);
+    }
+
+    if (policy === "damped_sw" || policy === "sw" || policy === "rollout" || policy === "ctl") {
+      return this.snapOrder(gap * alpha);
+    }
+
     return this.snapOrder(gap * alpha);
   }
 

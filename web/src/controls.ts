@@ -514,6 +514,8 @@ function mountSectionControlsDom(
           )}
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
+            <button type="button" class="obs-chip policy-chip" data-policy="sla_pb" title="Window SLA Poisson-binomial fast path">sla_pb</button>
+            <button type="button" class="obs-chip policy-chip" data-policy="sla_mc" title="Window SLA Monte Carlo oracle">sla_mc</button>
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
