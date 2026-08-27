@@ -466,13 +466,24 @@ impl SlaModel for PbSlaModel<'_> {
     }
 }
 
+/// Upper q bound aligned with [`crate::tradeoff::full_tradeoff_q_candidates`].
+fn sla_order_q_cap(case_size: u32) -> u32 {
+    let cs = case_size.max(1);
+    160.max(cs * 20)
+}
+
 /// Minimal feasible `q` meeting `alpha`, damped by `rho` and case-rounded.
 pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_hi_hint: u32) -> u32 {
     if !(0.0 < alpha && alpha < 1.0) {
         panic!("alpha must be in (0,1)");
     }
     let cs = case_size.max(1);
-    let hi_cases = (q_hi_hint / cs).max(1) as i32;
+    let max_q = sla_order_q_cap(cs);
+    let max_cases = (max_q / cs).max(1) as i32;
+    let mut hi_cases = (q_hi_hint / cs).max(1) as i32;
+    while hi_cases < max_cases && model.p_no_stockout(hi_cases as u32 * cs) < alpha {
+        hi_cases = (hi_cases * 2).min(max_cases);
+    }
     let mut lo = 0i32;
     let mut hi = hi_cases;
     while lo < hi {
@@ -484,7 +495,15 @@ pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_h
             lo = mid + 1;
         }
     }
-    let q_min = lo as u32 * cs;
+    let mut q_min = lo as u32 * cs;
+    while q_min >= cs {
+        let q_try = q_min - cs;
+        if model.p_no_stockout(q_try) >= alpha {
+            q_min = q_try;
+        } else {
+            break;
+        }
+    }
     case_round(rho * q_min as f64, cs)
 }
 
@@ -638,8 +657,9 @@ mod tests {
         let p = ModelParams::default();
         let s = OrderSchedule::default();
         let f_grid = vec![0.0, 0.5, 1.0];
-        let lot = vec![4.0];
-        let fm_full = vec![0.0, 0.0, 1.0];
+        // Four lots at peak freshness so stocked shelf orders below empty-shelf cap.
+        let lot = vec![4.0, 4.0, 4.0, 4.0];
+        let fm_full: Vec<f64> = (0..4).flat_map(|_| [0.0, 0.0, 1.0]).collect();
         let pending = BTreeMap::new();
         let ships = [ShipmentTrace::smoke_cool()];
         let empty = sla_mc_order_f_belief(
@@ -655,7 +675,7 @@ mod tests {
             0.9,
             0.8,
             42,
-            4,
+            8,
             1.0,
         );
         let full = sla_mc_order_f_belief(
@@ -671,12 +691,12 @@ mod tests {
             0.9,
             0.8,
             42,
-            4,
+            8,
             1.0,
         );
         assert!(
             empty > full,
-            "empty ({empty}) should exceed full-shelf order ({full})"
+            "empty ({empty}) should exceed well-stocked shelf order ({full})"
         );
     }
 

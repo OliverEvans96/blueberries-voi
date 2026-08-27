@@ -8,3 +8,4 @@
 | AC-session | `test_t097_act_damped_sw.py` |
 | AC-ladder | `test_alpha_tune.py`, `test_m2_ladder.py` |
 | AC-studio | `test_studio_release_version.py` |
+| AC-nb20 | `notebooks/20_ordering_policy_bakeoff.ipynb`, `service.py`, `policy_bakeoff_viz.py` |
