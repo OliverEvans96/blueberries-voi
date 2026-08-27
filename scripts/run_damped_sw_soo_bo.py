@@ -24,16 +24,9 @@ from blueberries_voi.experiments.damped_sw_soo import (
     aggregate_soo_shards,
     build_soo_jobs,
     evaluate_soo_jobs,
-    replicate_mean_sem,
 )
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
-from blueberries_voi.sim.alpha_tune import (
-    DEFAULT_DESKTOP_ALPHAS,
-    AlphaTuneEpisodeOutcomes,
-    evaluate_alpha_episode_outcomes,
-    tune_alpha_grid,
-)
 from blueberries_voi.sim.profit import ProfitCosts
 from blueberries_voi.sim.shipments import smoke_cool_shipments
 
@@ -50,19 +43,16 @@ RHO_BOUNDS = (0.5, 1.0)
 
 N_BURN, N_SCORE = 28, 28
 K_BO_SEEDS = 6
-TOTAL_AX_TRIALS = 10
+TOTAL_AX_TRIALS = 24
 EXTRA_AX_TRIALS = 0
 AX_PARALLELISM = 4
-K_VAL_SEEDS = 5
-GRID_ALPHAS = DEFAULT_DESKTOP_ALPHAS
 
 USE_MODAL = True
 MODAL_CONCURRENCY = 32
-RELOAD_AX = False
+RELOAD_AX = True
 
 RNG = np.random.default_rng(20260817)
 BO_SEEDS = [int(RNG.integers(0, 2**31 - 1)) for _ in range(K_BO_SEEDS)]
-VAL_SEEDS = [int(RNG.integers(0, 2**31 - 1)) for _ in range(K_VAL_SEEDS)]
 
 OUTPUT_JSON = REPO_ROOT / "outputs" / "damped_sw_alpha_bo.json"
 AX_JSON = REPO_ROOT / "outputs" / "damped_sw_alpha_bo_ax_client.json"
@@ -120,29 +110,6 @@ def _completed_trial_count(client: Client) -> int:
     return sum(1 for t in client._experiment.trials.values() if t.status.is_completed)
 
 
-def evaluate_arm_outcomes(
-    alpha: float, rho: float, root_seed: int
-) -> AlphaTuneEpisodeOutcomes:
-    return evaluate_alpha_episode_outcomes(
-        "sw",
-        float(alpha),
-        int(root_seed),
-        rho=float(rho),
-        params=MODEL_PARAMS,
-        shipments=shipments,
-        costs=costs,
-        n_burn=N_BURN,
-        n_score=N_SCORE,
-        lead_time=LEAD_TIME,
-    )
-
-
-def validation_mean(alpha: float, rho: float) -> float:
-    return float(
-        np.mean([evaluate_arm_outcomes(alpha, rho, s).profit for s in VAL_SEEDS])
-    )
-
-
 def evaluate_ax_batch(
     trials: dict[int, dict[str, object]],
     seeds: list[int],
@@ -154,30 +121,6 @@ def evaluate_ax_batch(
         modal_concurrency=MODAL_CONCURRENCY,
     )
     return aggregate_soo_shards(shards)
-
-
-def evaluate_with_replicates(
-    alpha: float, rho: float, seeds: list[int]
-) -> dict[str, tuple[float, float]]:
-    jobs = build_soo_jobs(
-        {0: {"alpha": alpha, "rho": rho}},
-        seeds,
-        SOO_BUDGETS,
-    )
-    shards = evaluate_soo_jobs(
-        jobs,
-        use_modal=USE_MODAL,
-        modal_concurrency=MODAL_CONCURRENCY,
-    )
-    by_seed = {int(s["root_seed"]): s for s in shards}
-    profits = [float(by_seed[s]["profit"]) for s in seeds]
-    wastes = [float(by_seed[s]["waste"]) for s in seeds]
-    stockouts = [float(by_seed[s]["stockout"]) for s in seeds]
-    return {
-        "episode_profit": replicate_mean_sem(profits),
-        "total_waste": replicate_mean_sem(wastes),
-        "total_stockout": replicate_mean_sem(stockouts),
-    }
 
 
 def main() -> None:
@@ -257,28 +200,6 @@ def main() -> None:
         f"(trial {best_profit_index})"
     )
 
-    grid_rho = best_rho_profit
-    grid_means: list[float] = []
-    for a in tqdm(GRID_ALPHAS, desc="grid baseline (Modal)"):
-        grid_means.append(
-            evaluate_with_replicates(float(a), grid_rho, BO_SEEDS)["episode_profit"][0]
-        )
-    best_alpha_grid = float(GRID_ALPHAS[int(np.argmax(grid_means))])
-
-    best_alpha_crn = tune_alpha_grid(
-        "sw",
-        alphas=GRID_ALPHAS,
-        root_seed=BO_SEEDS[0],
-        params=MODEL_PARAMS,
-        shipments=shipments,
-        costs=costs,
-        n_burn=N_BURN,
-        n_score=N_SCORE,
-    )
-
-    val_profit = validation_mean(best_alpha_profit, best_rho_profit)
-    val_grid = validation_mean(best_alpha_grid, grid_rho)
-
     payload: dict[str, Any] = {
         "policy": POLICY,
         "full_run": FULL_RUN,
@@ -293,7 +214,6 @@ def main() -> None:
         "n_burn": N_BURN,
         "n_score": N_SCORE,
         "bo_seeds": BO_SEEDS,
-        "val_seeds": VAL_SEEDS,
         "costs": {
             "unit_margin": UNIT_MARGIN,
             "waste_cost": WASTE_COST,
@@ -309,10 +229,6 @@ def main() -> None:
         },
         "best_alpha_profit_soo": best_alpha_profit,
         "best_rho_profit_soo": best_rho_profit,
-        "best_alpha_grid": best_alpha_grid,
-        "best_alpha_tune_alpha_grid_crn": float(best_alpha_crn),
-        "validation_mean_profit_soo": val_profit,
-        "validation_mean_grid": val_grid,
         "trials_profit_soo": trial_log,
     }
     OUTPUT_JSON.parent.mkdir(parents=True, exist_ok=True)
