@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-27
+- **Arrival freshness at the loading dock now matches what you'd expect from a well-run US grocery cold chain — most deliveries land around 65–85% fresh instead of clustering below half — and the belief filter no longer systematically overestimates freshness when you have no delivery history** (T-163 freshness calibration).
+
 ## 2026-08-26
 - **Per-lot delivery metadata now flows consistently through the Rust kernel, Python filter types, and studio wire — each of the three lots in a delivery carries its own pack date and temperature trace on the events export, and the embeddable studio version bumped to 0.7.2** (T-163 Stage 3).
 - **Docs follow-up (stacked on PR #65): user-facing pages now describe the break-event arrival model, three-lots-per-delivery design, and retired truncated-normal transit temperature — cold-chain, ladder, inference, findings, and parameters tables updated with valid code citations** (arrival-breaks/docs).

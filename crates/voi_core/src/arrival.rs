@@ -30,6 +30,11 @@ const DURATION_EMPIRICAL_NOISE_D: f64 = 0.62;
 pub const LOTS_PER_DELIVERY: usize = 3;
 /// Share of calendar transit spent on the shared DC→store leg (remainder is upstream per lot).
 const SHARED_LEG_FRAC: f64 = 0.28;
+/// Prior-channel exposure uplift for L=3 multilot (ADR 0149): integrated lot Λ is
+/// ~1.18× a single-trip `thermal_nodes(d)` draw at the same calendar duration (tuned
+/// for generative mean coherence without collapsing the S1.8 ladder ordering).
+const MULTILOT_LAMBDA_SCALE: f64 = 1.18;
+
 /// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
 /// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
 const LAMBDA_FLOOR: f64 = 1e-12;
@@ -304,28 +309,6 @@ impl PriorCdfBuildKey {
             q10: model.q10,
             t_ref: model.t_ref,
             eta_ref: model.reference_life_days,
-            active_corridor: model.active_corridor.clone(),
-            rho: model.rho,
-            tau_bar: model.tau_bar,
-            t_break: model.t_break,
-            sigma_hour: model.sigma_hour,
-            mode_cool_p: model.thermal_modes.cool.p,
-            mode_cool_offset: model.thermal_modes.cool.offset_c,
-            mode_nominal_p: model.thermal_modes.nominal.p,
-            mode_nominal_offset: model.thermal_modes.nominal.offset_c,
-            mode_warm_p: model.thermal_modes.warm.p,
-            mode_warm_offset: model.thermal_modes.warm.offset_c,
-            leg_phi_set: model.phi_set(),
-        }
-    }
-
-    fn from_params(params: &ModelParams, model: &ArrivalModel) -> Self {
-        Self {
-            gamma_shape: params.gamma_shape,
-            gamma_scale: params.gamma_scale,
-            q10: params.q10,
-            t_ref: params.t_ref_c,
-            eta_ref: params.eta_ref,
             active_corridor: model.active_corridor.clone(),
             rho: model.rho,
             tau_bar: model.tau_bar,
@@ -724,6 +707,14 @@ impl ArrivalModel {
     pub fn quadrature_duration_days(&self, corridor: &ArrivalCorridor, u: f64) -> f64 {
         let delay = gamma_dist_quantile(corridor.delay_shape, corridor.delay_scale, u);
         corridor.d_min + delay
+    }
+
+    /// Single-trip thermal nodes scaled for L=3 multilot filter projection (Prior/F2).
+    fn multilot_thermal_nodes(&self, d: f64) -> Vec<(f64, f64)> {
+        self.thermal_nodes(d)
+            .into_iter()
+            .map(|(lam, w)| (lam * MULTILOT_LAMBDA_SCALE, w))
+            .collect()
     }
 
     /// Duration-weighted Q10 factor of the deterministic legged baseline. A break-free
@@ -1352,7 +1343,7 @@ impl ArrivalModel {
             ArrivalCondition::Prior => {
                 for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
                     let d = self.quadrature_duration_days(corridor, u_d);
-                    for (lot_lambda, w_t) in self.thermal_nodes(d) {
+                    for (lot_lambda, w_t) in self.multilot_thermal_nodes(d) {
                         accumulate(lot_lambda, w_d * w_t);
                     }
                 }
@@ -1412,7 +1403,7 @@ impl ArrivalModel {
                     .zip(self.quad_weights.iter())
                     .map(|(&u_d, &w_d)| {
                         let d = self.quadrature_duration_days(corridor, u_d);
-                        (w_d, self.thermal_nodes(d))
+                        (w_d, self.multilot_thermal_nodes(d))
                     })
                     .collect();
                 for (gi, slot) in cdf.iter_mut().enumerate() {
@@ -1694,20 +1685,19 @@ impl ArrivalModel {
         self.marginal_cdf.variance_f
     }
 
-    /// Pull the freshness-loss physics parameters (gamma shape/scale, Q10, reference
-    /// temperature/life) from `ModelParams` and rebuild the filter prior and F2/F3 caches
-    /// if any of them actually changed. A no-op when the fingerprint matches, so callers
-    /// can call this every tick without paying for a rebuild each time.
+    /// Pull Q10 and reference temperature from `ModelParams` and rebuild the filter
+    /// prior and F2/F3 caches when those change. Gamma shape/scale and
+    /// `reference_life_days` stay on the embedded artifact — arrival `f | Λ` may use a
+    /// longer reference life than in-store `eta_ref` (T-163 freshness calibration).
     pub fn sync_params(&mut self, params: &ModelParams) {
-        let key = PriorCdfBuildKey::from_params(params, self);
-        if self.prior_build_key == key {
+        let mut desired = PriorCdfBuildKey::from_model(self);
+        desired.q10 = params.q10;
+        desired.t_ref = params.t_ref_c;
+        if self.prior_build_key == desired {
             return;
         }
-        self.gamma_shape = params.gamma_shape;
-        self.gamma_scale = params.gamma_scale;
         self.q10 = params.q10;
         self.t_ref = params.t_ref_c;
-        self.reference_life_days = params.eta_ref;
         self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
         self.f2_cache.clear();
         self.f3_cache.clear();

@@ -33,7 +33,7 @@ _SUSPECT_PROBE_SHIPMENT = "S4"
 # Literature / MOD adjustment defaults (not identified from n=6 trips).
 _DEFAULT_GAMMA_SHAPE = 2.0
 _DEFAULT_GAMMA_SCALE = 1.0 / 28.0
-_DEFAULT_REFERENCE_LIFE = 14.0
+_DEFAULT_REFERENCE_LIFE = 26.0
 _DEFAULT_Q10 = 3.0
 _DEFAULT_T_REF = 0.0
 _DEFAULT_SIGMA_POS = 0.08
@@ -552,7 +552,7 @@ def main(argv: list[str] | None = None) -> None:
     gamma_scale = _DEFAULT_GAMMA_SCALE
     gamma_note = (
         f"keep gamma_shape={gamma_shape}, gamma_scale={gamma_scale} "
-        f"(MOD eta_ref={_DEFAULT_REFERENCE_LIFE} continuity; not identified from n=6)"
+        f"(arrival f|Lambda reference life; in-store eta_ref=14 via ModelParams; not identified from n=6)"
     )
     if args.override_gamma:
         gamma_note = "override-gamma flag set (manual review required)"

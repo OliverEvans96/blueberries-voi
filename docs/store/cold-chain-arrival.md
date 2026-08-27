@@ -127,10 +127,10 @@ From `data/abdella/arrival_model.json`:
 | Q10 coefficient | $q_{10}$ | 3.0 |
 | Reference temperature | $T_{\mathrm{ref}}$ | 0.0 °C |
 | Gamma shape | $k$ | 2.0 |
-| Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
-| Reference life | $\eta_{\text{ref}}$ | 14.0 reference-days |
+| Gamma scale | $\theta$ | 1/52 ≈ 0.019231 |
+| Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 26.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref}} = 1$ — the calibration invariant tying mean loss rate to a 14-reference-day shelf life.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw. In-store aging still uses $\eta_\text{ref} = 14$ via `ModelParams.set_reference_life()` — the longer arrival reference life reflects that Abdella $\Lambda$ measures refrigerated-leg exposure while retail display units often retain more apparent freshness than a naive $1 - \Lambda/14$ mapping would imply.
 
 **Corridors** (shifted-gamma duration law):
 

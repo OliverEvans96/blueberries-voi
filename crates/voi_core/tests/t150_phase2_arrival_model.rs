@@ -592,6 +592,21 @@ fn lot_unit_f_after_arrival(sess: &EngineSession, day: u32, deliver_units: u32) 
         .as_array()
         .cloned()
         .unwrap_or_default();
+
+    if lots.len() >= voi_core::arrival::LOTS_PER_DELIVERY {
+        let start = lots.len() - voi_core::arrival::LOTS_PER_DELIVERY;
+        let mut unit_f = Vec::with_capacity(deliver_units as usize);
+        for lot in &lots[start..] {
+            let n = lot["n"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("arrival day {day} lot must expose n")) as u32;
+            unit_f.extend(atom_inclusive_unit_f(lot, n));
+        }
+        if unit_f.len() == deliver_units as usize {
+            return unit_f;
+        }
+    }
+
     if let Some(lot) = lots.last() {
         return lot_unit_f_from_snapshot(lot, deliver_units);
     }
