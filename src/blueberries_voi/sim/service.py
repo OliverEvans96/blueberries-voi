@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import Protocol
 
-if TYPE_CHECKING:
-    from blueberries_voi.sim.types_log import ControllerStepLog
+
+class _StepLike(Protocol):
+    demand: int
+    sales_total: int
 
 
 @dataclass(frozen=True)
@@ -18,7 +20,7 @@ class ServiceMetrics:
     scored_days: int
 
 
-def service_metrics_from_steps(steps: list[ControllerStepLog]) -> ServiceMetrics:
+def service_metrics_from_steps(steps: list[_StepLike]) -> ServiceMetrics:
     """Aggregate fill rate and Pr(no stockout) from per-day controller logs."""
     if not steps:
         return ServiceMetrics(fill_rate=0.0, day_no_stockout_rate=0.0, scored_days=0)
