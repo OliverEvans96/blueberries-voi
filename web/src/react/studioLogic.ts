@@ -109,6 +109,7 @@ import {
   type SectionId,
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {

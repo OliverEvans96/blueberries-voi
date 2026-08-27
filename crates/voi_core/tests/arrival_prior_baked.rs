@@ -20,7 +20,7 @@ fn sha256_hex(data: &[u8]) -> String {
 #[test]
 fn arrival_model_json_staleness_guard() {
     let _guard = serial_guard();
-    let json = include_str!("../../../data/abdella/arrival_model.json");
+    let json = embedded_arrival_model();
     let hash = sha256_hex(json.as_bytes());
     let baked_hash = voi_core::arrival::baked_artifact_sha256_for_tests();
     assert_eq!(
