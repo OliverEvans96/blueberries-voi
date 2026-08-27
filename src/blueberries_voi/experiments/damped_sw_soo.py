@@ -194,14 +194,17 @@ def evaluate_soo_jobs(
 
     if use_modal:
         import importlib
-        import os
-        from concurrent.futures import ThreadPoolExecutor, as_completed
 
+        from blueberries_voi.experiments.modal_dispatch import _ensure_repo_on_path
+
+        _ensure_repo_on_path()
         try:
             app_mod = importlib.import_module("experiments.modal.app")
         except ImportError as exc:
             msg = "Modal extra required: uv sync --extra modal"
             raise RuntimeError(msg) from exc
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
         shard_fn = app_mod.damped_sw_soo_shard
         app = app_mod.app
