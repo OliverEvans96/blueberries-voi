@@ -9,13 +9,13 @@ use rand_pcg::Pcg64;
 use voi_core::arrival::{
     resolve_arrival_exposure, resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalModel,
 };
+use voi_core::demand_profile::DemandProfile;
 use voi_core::obs::FilterObs;
 use voi_core::params::ModelParams;
 use voi_core::physics::{
     draw_gamma_decrement, gamma_decrement_cdf, gamma_p, gamma_q, store_temp_factor,
     GammaDecrementTable,
 };
-use voi_core::demand_profile::DemandProfile;
 use voi_core::session::EngineSession;
 use voi_core::shipments::{arrival_exposure_from_path, ShipmentTrace};
 
@@ -34,9 +34,8 @@ fn read_src(name: &str) -> String {
 
 fn walk_rs_files(root: &std::path::Path) -> Vec<PathBuf> {
     fn walk(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
-        let entries = fs::read_dir(dir).unwrap_or_else(|err| {
-            panic!("read_dir {} for T-150 grep guard: {err}", dir.display())
-        });
+        let entries = fs::read_dir(dir)
+            .unwrap_or_else(|err| panic!("read_dir {} for T-150 grep guard: {err}", dir.display()));
         for entry in entries {
             let path = entry.unwrap().path();
             if path.is_dir() {
@@ -229,8 +228,12 @@ fn ac2_6_arrival_artifact_schema() {
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
     for key in [
         "schema_version",
-        "mu_T",
-        "sigma_T",
+        "legs",
+        "thermal_modes",
+        "sigma_hour",
+        "T_break",
+        "rho",
+        "tau_bar",
         "sigma_pos",
         "q10",
         "T_ref",
@@ -241,6 +244,12 @@ fn ac2_6_arrival_artifact_schema() {
         "provenance",
     ] {
         assert!(json.get(key).is_some(), "RED: artifact missing key {key}");
+    }
+    for gone in ["mu_T", "sigma_T", "temp_floor_c"] {
+        assert!(
+            json.get(gone).is_none(),
+            "RED: v2 artifact must not carry retired key {gone}"
+        );
     }
     assert!(json.get("corridors").is_some() || json.get("arrival_product").is_some());
 
@@ -559,13 +568,14 @@ fn attach_mask_replay_observations(
         let day_f3 = event_day(&events_f3, d.day);
         let times = json_f64s(&day_f3, "temp_times_d");
         let temps = json_f64s(&day_f3, "temp_temps_c");
-        d.exposure_lambda = resolve_arrival_exposure(
-            Some(&temps),
-            Some(&times),
-            params.q10,
-            params.t_ref_c,
-        )
-        .unwrap_or_else(|| panic!("F3 mask must expose a valid temperature trace on day {}", d.day));
+        d.exposure_lambda =
+            resolve_arrival_exposure(Some(&temps), Some(&times), params.q10, params.t_ref_c)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "F3 mask must expose a valid temperature trace on day {}",
+                        d.day
+                    )
+                });
     }
 }
 
@@ -573,18 +583,11 @@ fn low_demand_profile() -> DemandProfile {
     DemandProfile::from_parts(0.01, [1.0; 7], vec![1.0], 2.0).expect("low demand profile")
 }
 
-fn lot_unit_f_from_snapshot(
-    lot: &serde_json::Value,
-    deliver_units: u32,
-) -> Vec<f64> {
+fn lot_unit_f_from_snapshot(lot: &serde_json::Value, deliver_units: u32) -> Vec<f64> {
     atom_inclusive_unit_f(lot, deliver_units)
 }
 
-fn lot_unit_f_after_arrival(
-    sess: &EngineSession,
-    day: u32,
-    deliver_units: u32,
-) -> Vec<f64> {
+fn lot_unit_f_after_arrival(sess: &EngineSession, day: u32, deliver_units: u32) -> Vec<f64> {
     let lots = sess.snapshot_value()["live_lots"]
         .as_array()
         .cloned()
@@ -795,7 +798,9 @@ fn ac2_11a_empirical_ladder_tracking_mae() {
     let seed = 150_211;
 
     // Cheap mask-invariance spot check (two deliveries) before the main fixture.
-    let short_orders: Vec<u32> = (0..4).map(|i| if i % 2 == 0 { ORDER_QTY } else { 0 }).collect();
+    let short_orders: Vec<u32> = (0..4)
+        .map(|i| if i % 2 == 0 { ORDER_QTY } else { 0 })
+        .collect();
     assert_truth_mask_invariant(seed, &short_orders);
 
     let orders: Vec<u32> = (0..N_DAYS)
