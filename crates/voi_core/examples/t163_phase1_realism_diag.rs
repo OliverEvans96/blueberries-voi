@@ -248,6 +248,131 @@ fn duration_scale_sensitivity(base: &ArrivalModel) -> serde_json::Value {
     json!(rows)
 }
 
+/// Sensitivity sweep: hold `eta_ref = 14` (unified) and the full Abdella-fit corridor
+/// duration fixed, vary only `gamma_shape` (k). Because the arrival draw derives
+/// `gamma_scale = 1/(k * eta_ref)`, `mean(D | Lambda) = k*Lambda*theta = Lambda/eta_ref`
+/// is exactly `k`-invariant — this sweep exists to demonstrate that algebraically, not to
+/// find a value that moves the mean/median (it can't). What `k` *does* move is the
+/// variance/atom mass around that fixed mean.
+fn gamma_shape_sensitivity(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &k in &[0.5, 1.0, 2.0, 4.0, 8.0] {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_shape = k;
+        model.gamma_scale = 1.0 / (k * 14.0);
+        let mut samples = truth_multilot_delivery_means(&model, 300, 900_300 + (k * 100.0) as u64);
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let (mean, _p10, p50, _p90) = quantiles(&samples);
+        let pct_below_0_5 =
+            samples.iter().filter(|&&f| f < 0.5).count() as f64 / samples.len() as f64;
+        let prior = model.rung_law_on_grid(ArrivalCondition::Prior, CORRIDOR, GRID_LEN);
+        rows.push(json!({
+            "gamma_shape": k,
+            "truth_mean": mean,
+            "truth_p50": p50,
+            "truth_sd": sd(&samples, mean),
+            "truth_pct_below_0_5": pct_below_0_5 * 100.0,
+            "prior_atom_f0": prior.atom_f0,
+        }));
+    }
+    json!(rows)
+}
+
+/// Sensitivity sweep: hold `eta_ref = 14` and the full corridor duration fixed, vary only
+/// `q10`. NOTE: in production, `ArrivalModel::sync_params` forces `self.q10 =
+/// params.q10`, i.e. the transit and in-store Q10 are already the *same* number by
+/// construction — this sweep is exploring "what if that shared Q10 were lower", which
+/// would change in-store aging's temperature sensitivity too, not just transit.
+fn q10_sensitivity(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &q10 in &[1.0, 1.5, 2.0, 2.5, 3.0] {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        model.q10 = q10;
+        let mut samples = truth_multilot_delivery_means(&model, 300, 900_400 + (q10 * 100.0) as u64);
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let (mean, _p10, p50, _p90) = quantiles(&samples);
+        let pct_below_0_5 =
+            samples.iter().filter(|&&f| f < 0.5).count() as f64 / samples.len() as f64;
+        rows.push(json!({
+            "q10": q10,
+            "truth_mean": mean,
+            "truth_p50": p50,
+            "truth_pct_below_0_5": pct_below_0_5 * 100.0,
+        }));
+    }
+    json!(rows)
+}
+
+/// Sensitivity sweep: hold `eta_ref = 14`, full corridor duration, and `q10 = 3.0`
+/// (current) fixed, shift every leg setpoint colder by a uniform `delta_c`. Leg
+/// setpoints are arrival-only (no coupling to store aging), and the artifact provenance
+/// already documents them as "ASSUMED anchors", not fit from the six shipments — so this
+/// is the one lever here with no offsetting external-data or store-physics cost.
+fn leg_setpoint_sensitivity(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &delta_c in &[0.0, -1.0, -2.0, -3.0, -4.0] {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        for leg in model.legs.iter_mut() {
+            leg.setpoint_c += delta_c;
+        }
+        let mut samples =
+            truth_multilot_delivery_means(&model, 300, 900_500 + (-delta_c * 100.0) as u64);
+        samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let (mean, _p10, p50, _p90) = quantiles(&samples);
+        let pct_below_0_5 =
+            samples.iter().filter(|&&f| f < 0.5).count() as f64 / samples.len() as f64;
+        rows.push(json!({
+            "delta_c": delta_c,
+            "leg_setpoints_c": model.legs.iter().map(|l| l.setpoint_c).collect::<Vec<_>>(),
+            "truth_mean": mean,
+            "truth_p50": p50,
+            "truth_pct_below_0_5": pct_below_0_5 * 100.0,
+        }));
+    }
+    json!(rows)
+}
+
+/// One joint scenario: combine a literature-supported lower `q10` with a modest,
+/// still-plausible-for-reefer-transport leg-setpoint shift, holding `eta_ref = 14`
+/// (unified) and the full Abdella-fit corridor duration (unchanged, so it still matches
+/// the external dataset). Tests whether a *combination* of small, individually-defensible
+/// changes reaches the target band where no single lever alone did (see notebook §3/§7).
+fn joint_realistic_recalibration(base: &ArrivalModel) -> serde_json::Value {
+    let mut model = base.clone();
+    model.reference_life_days = 14.0;
+    model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+    model.q10 = 2.0;
+    for leg in model.legs.iter_mut() {
+        leg.setpoint_c -= 1.0;
+    }
+    let mut samples = truth_multilot_delivery_means(&model, 500, 900_600);
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (mean, p10, p50, p90) = quantiles(&samples);
+    let pct_below_0_5 = samples.iter().filter(|&&f| f < 0.5).count() as f64 / samples.len() as f64;
+    let pct_60_90 = samples
+        .iter()
+        .filter(|&&f| (0.6..=0.9).contains(&f))
+        .count() as f64
+        / samples.len() as f64;
+    json!({
+        "eta_ref": model.reference_life_days,
+        "q10": model.q10,
+        "leg_setpoints_c": model.legs.iter().map(|l| l.setpoint_c).collect::<Vec<_>>(),
+        "corridor_unchanged": true,
+        "truth_mean": mean,
+        "truth_p10": p10,
+        "truth_p50": p50,
+        "truth_p90": p90,
+        "truth_pct_below_0_5": pct_below_0_5 * 100.0,
+        "truth_pct_60_90": pct_60_90 * 100.0,
+    })
+}
+
 fn main() {
     let t0 = std::time::Instant::now();
     let model = ArrivalModel::embedded();
@@ -288,6 +413,14 @@ fn main() {
     eprintln!("eta_ref_sensitivity: {:?}", t0.elapsed());
     let sensitivity_duration_scale = duration_scale_sensitivity(&model);
     eprintln!("duration_scale_sensitivity: {:?}", t0.elapsed());
+    let sensitivity_gamma_shape = gamma_shape_sensitivity(&model);
+    eprintln!("gamma_shape_sensitivity: {:?}", t0.elapsed());
+    let sensitivity_q10 = q10_sensitivity(&model);
+    eprintln!("q10_sensitivity: {:?}", t0.elapsed());
+    let sensitivity_leg_setpoint = leg_setpoint_sensitivity(&model);
+    eprintln!("leg_setpoint_sensitivity: {:?}", t0.elapsed());
+    let joint_recalibration = joint_realistic_recalibration(&model);
+    eprintln!("joint_realistic_recalibration: {:?}", t0.elapsed());
 
     let out = json!({
         "artifact": artifact_summary,
@@ -296,6 +429,10 @@ fn main() {
         "ladder": ladder,
         "sensitivity_eta_ref": sensitivity_eta_ref,
         "sensitivity_duration_scale": sensitivity_duration_scale,
+        "sensitivity_gamma_shape": sensitivity_gamma_shape,
+        "sensitivity_q10": sensitivity_q10,
+        "sensitivity_leg_setpoint": sensitivity_leg_setpoint,
+        "joint_recalibration": joint_recalibration,
     });
 
     println!("{}", serde_json::to_string(&out).unwrap());
