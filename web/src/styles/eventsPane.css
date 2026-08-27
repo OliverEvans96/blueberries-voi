@@ -253,8 +253,76 @@
   fill: var(--muted, #666);
 }
 
+.events-pane[data-loading="true"] .events-list {
+  min-height: 12rem;
+}
+
+.events-day-card--skeleton {
+  min-height: 4.5rem;
+}
+
+.events-skeleton-header {
+  height: 1.1rem;
+  width: 55%;
+  max-width: 10rem;
+  margin-bottom: 0.65rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 14%, var(--paper));
+  position: relative;
+  overflow: hidden;
+}
+
+.events-skeleton-header::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--muted),
+    var(--muted) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
+
+.events-skeleton-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.events-skeleton-col {
+  min-height: 2.75rem;
+  border-radius: 6px;
+  border: 1px dashed color-mix(in srgb, var(--border, #ccc) 55%, transparent);
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+
+.events-skeleton-col::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--muted),
+    var(--muted) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+}
+
 @media (max-width: 1100px) {
   .events-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .events-skeleton-columns {
     grid-template-columns: 1fr;
   }
 }

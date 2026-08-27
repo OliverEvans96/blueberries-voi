@@ -16,6 +16,10 @@ crate-type = ["rlib"]
 name = "bench_day_timing"
 path = "src/bin/bench_day_timing.rs"
 
+[[bin]]
+name = "precompute_arrival_prior"
+path = "src/bin/precompute_arrival_prior.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -27,13 +28,18 @@ DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 30
 DEFAULT_FILTER_N = 24
 DEFAULT_TUNED_ALPHA_PATH = Path("experiments/tuned_alpha.json")
+DEFAULT_CONTROLLER_RHO: float = 0.8
+DEFAULT_DAMPED_SW_BO_PATH = Path("outputs/damped_sw_alpha_bo.json")
 
 __all__ = [
+    "DEFAULT_CONTROLLER_RHO",
+    "DEFAULT_DAMPED_SW_BO_PATH",
     "DEFAULT_FILTER_N",
     "DEFAULT_N_BURN",
     "DEFAULT_N_SCORE",
     "DEFAULT_PROFIT_SEEDS",
     "DEFAULT_TUNED_ALPHA_PATH",
+    "load_damped_sw_bo_params",
     "merge_voi_profit_rows",
     "order_divergence_vs_reference",
     "run_seed_channel_profit",
@@ -64,6 +70,61 @@ def _tuned_sw_alpha(
         msg = f"tuned alpha table missing 'sw' arm: {path}"
         raise ValueError(msg)
     return float(table["sw"])
+
+
+def load_damped_sw_bo_params(
+    bo_json_path: Path | str | None = None,
+    *,
+    alpha_table_path: Path | str | None = None,
+) -> tuple[float, float]:
+    """Return ``(alpha, rho)`` from Ax BO JSON or tuned-alpha fallbacks."""
+    if bo_json_path is not None:
+        path = Path(bo_json_path)
+    else:
+        path = _repo_root() / DEFAULT_DAMPED_SW_BO_PATH
+    if path.is_file():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        alpha_key = "best_alpha_profit_soo"
+        rho_key = "best_rho_profit_soo"
+        if alpha_key not in payload:
+            alpha_key = "best_alpha_profit_moo"
+            rho_key = "best_rho_profit_moo"
+        return float(payload[alpha_key]), float(payload[rho_key])
+    return _tuned_sw_alpha(alpha_table_path), DEFAULT_CONTROLLER_RHO
+
+
+def _resolve_controller_params(
+    *,
+    controller_alpha: float | None,
+    controller_rho: float | None,
+    bo_json_path: Path | str | None,
+    alpha_table_path: Path | str | None,
+) -> tuple[float, float]:
+    if controller_alpha is not None and controller_rho is not None:
+        return float(controller_alpha), float(controller_rho)
+    alpha, rho = load_damped_sw_bo_params(
+        bo_json_path,
+        alpha_table_path=alpha_table_path,
+    )
+    if controller_alpha is not None:
+        alpha = float(controller_alpha)
+    if controller_rho is not None:
+        rho = float(controller_rho)
+    return alpha, rho
+
+
+def _damped_sw_act_kw(
+    alpha: float,
+    rho: float,
+    *,
+    n_rollout_paths: int = 0,
+) -> dict[str, Any]:
+    return {
+        "policy": "damped_sw",
+        "alpha": float(alpha),
+        "rho": float(rho),
+        "n_rollout_paths": int(n_rollout_paths),
+    }
 
 
 def profit_session_config(
@@ -128,6 +189,7 @@ def _run_scored_episode(
     n_rollout_paths: int,
     filter_n: int,
     alpha: float,
+    rho: float,
     setup: Any,
     costs: ProfitCosts,
     session_config: dict[str, Any] | None = None,
@@ -140,11 +202,7 @@ def _run_scored_episode(
     session.init(cfg, seed=seed)
     setup(session)
 
-    act_kw: dict[str, Any] = {
-        "policy": "sw",
-        "alpha": float(alpha),
-        "n_rollout_paths": int(n_rollout_paths),
-    }
+    act_kw = _damped_sw_act_kw(alpha, rho, n_rollout_paths=n_rollout_paths)
     for _ in range(n_burn):
         session.act(**act_kw)
 
@@ -198,11 +256,19 @@ def run_seed_channel_profit(
     filter_n: int = DEFAULT_FILTER_N,
     costs: ProfitCosts | None = None,
     alpha_table_path: Path | str | None = None,
+    controller_alpha: float | None = None,
+    controller_rho: float | None = None,
+    bo_json_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """One closed-loop episode: ``init`` → ``set_obs_channels`` → ``act`` loop."""
     ch = validate_channels(channels)
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
-    alpha = _tuned_sw_alpha(alpha_table_path)
+    alpha, rho = _resolve_controller_params(
+        controller_alpha=controller_alpha,
+        controller_rho=controller_rho,
+        bo_json_path=bo_json_path,
+        alpha_table_path=alpha_table_path,
+    )
 
     def _setup(session: EngineSession) -> None:
         session.set_obs_channels(ch)
@@ -214,6 +280,7 @@ def run_seed_channel_profit(
         n_rollout_paths=n_rollout_paths,
         filter_n=filter_n,
         alpha=alpha,
+        rho=rho,
         setup=_setup,
         costs=use_costs,
     )
@@ -235,13 +302,21 @@ def run_seed_oracle_profit(
     filter_n: int = DEFAULT_FILTER_N,
     costs: ProfitCosts | None = None,
     alpha_table_path: Path | str | None = None,
+    controller_alpha: float | None = None,
+    controller_rho: float | None = None,
+    bo_json_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """B-state ceiling via ``EngineSession`` truth belief.
 
     Uses the same physics and policy stack as channel profit rows.
     """
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
-    alpha = _tuned_sw_alpha(alpha_table_path)
+    alpha, rho = _resolve_controller_params(
+        controller_alpha=controller_alpha,
+        controller_rho=controller_rho,
+        bo_json_path=bo_json_path,
+        alpha_table_path=alpha_table_path,
+    )
     ch = validate_channels(
         {"code_type": "upc", "scan_waste": False, "delivery_history": "none"}
     )
@@ -253,6 +328,7 @@ def run_seed_oracle_profit(
         n_rollout_paths=n_rollout_paths,
         filter_n=filter_n,
         alpha=alpha,
+        rho=rho,
         setup=lambda _session: None,
         costs=use_costs,
         session_config=oracle_session_config(
@@ -303,6 +379,7 @@ def _collect_orders(
     n_rollout_paths: int,
     filter_n: int,
     alpha: float,
+    rho: float = DEFAULT_CONTROLLER_RHO,
 ) -> list[int]:
     session = EngineSession()
     cfg = profit_session_config(
@@ -311,11 +388,7 @@ def _collect_orders(
     )
     session.init(cfg, seed=seed)
     session.set_obs_channels(channels)
-    act_kw: dict[str, Any] = {
-        "policy": "sw",
-        "alpha": float(alpha),
-        "n_rollout_paths": int(n_rollout_paths),
-    }
+    act_kw = _damped_sw_act_kw(alpha, rho, n_rollout_paths=n_rollout_paths)
     orders: list[int] = []
     for _ in range(n_days):
         delta = session.act(**act_kw)
@@ -336,7 +409,10 @@ def order_divergence_vs_reference(
     """Compare closed-loop order paths (cheap in-kernel diagnostic)."""
     ch = validate_channels(channels)
     ref = validate_channels(reference)
-    alpha = _tuned_sw_alpha(alpha_table_path)
+    alpha, rho = load_damped_sw_bo_params(
+        None,
+        alpha_table_path=alpha_table_path,
+    )
     ref_orders = _collect_orders(
         seed,
         ref,
@@ -344,6 +420,7 @@ def order_divergence_vs_reference(
         n_rollout_paths=n_rollout_paths,
         filter_n=filter_n,
         alpha=alpha,
+        rho=rho,
     )
     test_orders = _collect_orders(
         seed,
@@ -352,6 +429,7 @@ def order_divergence_vs_reference(
         n_rollout_paths=n_rollout_paths,
         filter_n=filter_n,
         alpha=alpha,
+        rho=rho,
     )
     diffs = [abs(a - b) for a, b in zip(test_orders, ref_orders, strict=True)]
     n_diff = sum(1 for a, b in zip(test_orders, ref_orders, strict=True) if a != b)

@@ -2,6 +2,12 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+BAKED="$ROOT/crates/voi_core/src/arrival_prior_baked.rs"
+ARTIFACT="$ROOT/data/abdella/arrival_model.json"
+if [[ ! -f "$BAKED" ]] || [[ "$ARTIFACT" -nt "$BAKED" ]]; then
+  echo "Regenerating arrival prior bake (stale or missing)…" >&2
+  ./scripts/regenerate-arrival-prior.sh
+fi
 rustup target add wasm32-unknown-unknown >/dev/null
 if ! command -v wasm-pack >/dev/null 2>&1; then
   echo "wasm-pack not found; installing…" >&2

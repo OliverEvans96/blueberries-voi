@@ -108,6 +108,7 @@ import {
   saveSection,
   type SectionId,
 } from "../sections";
+import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
@@ -223,20 +224,8 @@ export function initStudio(app: HTMLElement): () => void {
   let loadingMessage = "";
   let loadingDialogVisible = false;
   const engineStatus = createEngineStatusTracker("loading");
+  const engineBooting = (): boolean => engineStatus.get() === "loading";
   const engineStatusEl = q<HTMLElement>("#engine-status");
-  if (engineStatusEl) {
-    engineStatus.subscribe((kind) => {
-      applyEngineStatusChip(engineStatusEl, kind, adapterKind);
-      const shell = q<HTMLElement>(".shell.studio");
-      if (shell) {
-        if (kind === "loading") {
-          shell.setAttribute("aria-busy", "true");
-        } else if (!loadingDialogVisible) {
-          shell.removeAttribute("aria-busy");
-        }
-      }
-    });
-  }
   const projector = new ViewModelProjector();
   let vm: ViewModel = projector.getViewModel();
   let showTruth = loadShowTruth();
@@ -569,6 +558,10 @@ export function initStudio(app: HTMLElement): () => void {
     return eventDays.map((day) => applyMask(day as RichObsWire, mask));
   }
 
+  function eventsPaneLoading(): boolean {
+    return eventsLoading || (engineBooting() && eventDays.length === 0);
+  }
+
   function orderQtyByDayMap(): Map<number, number> {
     return new Map(vm.history.map((d) => [d.day, d.order_qty]));
   }
@@ -585,7 +578,7 @@ export function initStudio(app: HTMLElement): () => void {
           schedule,
           events: maskedEventDays(),
           orderQtyByDay: orderQtyByDayMap(),
-          loading: eventsLoading,
+          loading: eventsPaneLoading(),
           refreshing: eventsRefreshing,
         }),
       );
@@ -638,6 +631,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm,
             showTruth,
             catchingUp,
+            booting: engineBooting(),
             onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
             onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
             onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
@@ -655,6 +649,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm,
             catchingUp,
             advancing,
+            booting: engineBooting(),
             autopilotRunning: autopilot?.isRunning() ?? false,
             orderQty,
             onAdvance: () => railHandlers.onAdvance(),
@@ -1210,12 +1205,25 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   async function resetEpisode(): Promise<void> {
+    const mayRebuildPrior =
+      vm.config.q10 !== DEFAULT_SIM_CONFIG.q10 ||
+      vm.config.t_ref_c !== DEFAULT_SIM_CONFIG.t_ref_c;
+    if (mayRebuildPrior) {
+      beginStudioLoading(
+        "Updating beliefs after settings changed… This might take ~30 seconds.",
+      );
+    }
     try {
       if (autopilot.isRunning()) {
         autopilot.pause();
         syncAutopilotChrome();
       }
       const snap = await adapter.reset({ ...vm.config });
+      if (snap.arrival_prior_rebuilt && !mayRebuildPrior) {
+        beginStudioLoading(
+          "Updating beliefs after settings changed… This might take ~30 seconds.",
+        );
+      }
       captureSchedule(snap);
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
@@ -1229,6 +1237,8 @@ export function initStudio(app: HTMLElement): () => void {
         studioErrorEl,
         err,
       );
+    } finally {
+      endStudioLoading();
     }
   }
 
@@ -1514,6 +1524,29 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  function renderBootingChrome(): void {
+    renderOperatorBar();
+    renderObsControlsPane();
+    renderEventsPane();
+  }
+
+  if (engineStatusEl) {
+    engineStatus.subscribe((kind) => {
+      applyEngineStatusChip(engineStatusEl, kind, adapterKind);
+      const shell = q<HTMLElement>(".shell.studio");
+      if (shell) {
+        if (kind === "loading") {
+          shell.setAttribute("aria-busy", "true");
+        } else if (!loadingDialogVisible) {
+          shell.removeAttribute("aria-busy");
+        }
+      }
+      if (kind === "loading" && !bootstrapped) {
+        renderBootingChrome();
+      }
+    });
+  }
+
   scheduleSectionControlsMount();
   flushSync(() => {
     paintPortalDrawers();
@@ -1523,6 +1556,7 @@ export function initStudio(app: HTMLElement): () => void {
     mountSectionControlsOnce();
   }, 0);
   app.addEventListener("keydown", onKeydown);
+  renderBootingChrome();
   void bootstrap();
 
   studioAdvanceOnce = advanceEpisode;

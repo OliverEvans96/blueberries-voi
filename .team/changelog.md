@@ -3,8 +3,8 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-27
-
 - **Window SLA ordering (`sla_pb` / `sla_mc`)** — new protection-window controllers in the Rust kernel, studio policy chips, and alpha-tune ladder arms; reference protection simulator fixes for tradeoff display.
+- **The studio now loads in seconds instead of minutes on first open** — the default arrival belief curve is precomputed at build time, and Reset only shows an “updating beliefs” message when you change cold-chain reference settings (Q10 or reference temperature) that require a full recalculation (~30 seconds).
 - **Arrival freshness at the loading dock now matches what you'd expect from a well-run US grocery cold chain — most deliveries land around 65–85% fresh instead of clustering below half — and the belief filter no longer systematically overestimates freshness when you have no delivery history** (T-163 freshness calibration).
 
 ## 2026-08-26

@@ -172,7 +172,7 @@ def channel_joint_shard(
     return result
 
 
-@app.function(timeout=900, cpu=1.0)
+@app.function(timeout=600, cpu=1.0)
 def rollout_eval_shard(
     seed: int,
     arm_id: str,
@@ -183,6 +183,13 @@ def rollout_eval_shard(
     from blueberries_voi.experiments.rollout_bakeoff import run_rollout_eval
 
     return run_rollout_eval(seed, arm_id, alpha, rho, **budgets_dict)
+
+
+@app.function(timeout=600, cpu=1.0)
+def damped_sw_soo_shard(job: dict[str, Any]) -> dict[str, Any]:
+    from blueberries_voi.experiments.damped_sw_soo import run_soo_shard
+
+    return run_soo_shard(job)
 
 
 @app.local_entrypoint()

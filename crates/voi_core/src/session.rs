@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
-    ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA,
-    STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    shared_embedded_arrival, ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION,
+    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -190,7 +190,7 @@ impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
         let params = ModelParams::default();
-        let arrival_model = ArrivalModel::embedded();
+        let arrival_model = shared_embedded_arrival();
         Self {
             params: params.clone(),
             freshness: vec![],
@@ -237,7 +237,7 @@ impl EngineSession {
     /// re-applies the committed demand profile and re-seeds the particle bank so a
     /// prior episode's state can't leak into the new one.
     pub fn init(&mut self, seed: u64) {
-        *self = Self::new(seed);
+        self.reset_episode_state(seed);
         self.initialized = true;
         self.crossings += 1;
         if self.params.demand_profile.is_none() {
@@ -246,6 +246,26 @@ impl EngineSession {
         if self.uses_filter() {
             self.seed_particle_bank();
         }
+    }
+
+    /// Clears per-episode ground truth, beliefs, and logs while retaining session
+    /// configuration and the cloned arrival model (fast studio reset).
+    fn reset_episode_state(&mut self, seed: u64) {
+        self.arrival_model.clear_prior_rebuild_telemetry();
+        self.seed = seed;
+        self.day = 0;
+        self.seq = 0;
+        self.freshness.clear();
+        self.lot_offsets = vec![0];
+        self.lot_ids.clear();
+        self.pending.clear();
+        self.next_lot = 1;
+        self.richest_log.clear();
+        self.rungs.clear();
+        self.catchup_days_last = 0;
+        let n = self._n_particles.max(1);
+        self.bank = UnitParticleBank::empty(n);
+        self.bank_init = UnitParticleBank::empty(n);
     }
 
     fn uses_filter(&self) -> bool {
@@ -638,6 +658,8 @@ impl EngineSession {
                 self.obs_channels,
                 self.transit_temp_bias_c,
             ),
+            "arrival_prior_rebuilt": self.arrival_model.prior_rebuilt_since_clear(),
+            "arrival_prior_rebuild_ms": self.arrival_model.prior_rebuild_ms_since_clear(),
         })
     }
 
@@ -1356,6 +1378,7 @@ impl EngineSession {
     /// reference life and rebuild `gamma_table` unless the request also carries an explicit
     /// `gamma_scale`, so an explicit scale always wins over the derived one.
     fn apply_rpc_configure(&mut self, params: &serde_json::Value) {
+        self.arrival_model.clear_prior_rebuild_telemetry();
         let lead_time = rpc_u64(params, "lead_time").unwrap_or(1) as u32;
         let enable_filter = rpc_bool(params, "enable_filter").unwrap_or(true);
         let h = rpc_u64(params, "H").unwrap_or(7) as u32;
@@ -1391,6 +1414,7 @@ impl EngineSession {
         if let Some(product) = arrival_product {
             self.arrival_product = product;
             self.params.arrival_product = self.arrival_product.clone();
+            self.arrival_model.set_corridor(&self.arrival_product);
         }
         if let Some(scale) = rpc_f64(params, "spread_scale") {
             self.spread_scale = scale.clamp(0.05, 1.5);
