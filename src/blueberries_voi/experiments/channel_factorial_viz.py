@@ -106,16 +106,20 @@ def facet_heatmap_figure(
 
 
 # Scatter ``s`` is area in points²; legend ``markersize`` is diameter in points.
+CODE_SCATTER_S: dict[str, float] = {"upc": 45.0, "gsin": 110.0}
+CODE_LEGEND_MARKERSIZE: dict[str, float] = {"upc": 6.0, "gsin": 10.0}
+
+
 def profit_vs_accuracy_scatter_figure(
     df: pd.DataFrame,
     *,
     accuracy_column: AccuracyColumn = "mae_f",
-    figsize: tuple[float, float] = (10.5, 5.4),
+    figsize: tuple[float, float] = (8.0, 5.6),
 ) -> Figure:
-    """Scatter profit vs belief accuracy faceted by code type.
+    """Scatter profit vs belief accuracy on one axes.
 
-    Color encodes waste scan (on/off); marker shape encodes delivery history.
-    Each panel shows one code type (UPC vs GSIN).
+    Color encodes waste scan (on/off); marker shape encodes delivery history;
+    marker size encodes code type (UPC smaller, GSIN larger).
     """
     waste_colors = {"off": "#4c72b0", "on": "#dd8452"}
     delivery_markers = {
@@ -123,20 +127,16 @@ def profit_vs_accuracy_scatter_figure(
         "pack_date": "s",
         "temperature_history": "^",
     }
-    fig, axes = plt.subplots(
-        1,
-        len(CODE_OPTS),
-        figsize=figsize,
-        sharex=True,
-        sharey=True,
-        constrained_layout=True,
-    )
+    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
     xlabel = "MAE(mean f)" if accuracy_column == "mae_f" else "MAE(distribution)"
-    for ax, code in zip(axes, CODE_OPTS, strict=True):
-        sub = df[df["code_type"] == code]
+    for code in CODE_OPTS:
         for waste in WASTE_OPTS:
             for delivery in DELIVERY_OPTS:
-                pts = sub[(sub["waste"] == waste) & (sub["delivery"] == delivery)]
+                pts = df[
+                    (df["code_type"] == code)
+                    & (df["waste"] == waste)
+                    & (df["delivery"] == delivery)
+                ]
                 if pts.empty:
                     continue
                 ax.scatter(
@@ -145,13 +145,13 @@ def profit_vs_accuracy_scatter_figure(
                     color=waste_colors[waste],
                     marker=delivery_markers[delivery],
                     alpha=0.85,
-                    s=70,
+                    s=CODE_SCATTER_S[code],
                     edgecolor="0.2",
                     linewidths=0.6,
                 )
-        ax.set_title(CODE_TYPE_LABELS[code], fontsize=11, pad=8)
-        ax.set_xlabel(xlabel)
-    axes[0].set_ylabel("Closed-loop profit")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Closed-loop profit")
+    ax.set_title("Belief accuracy vs profit (nb19)", fontsize=12, pad=10)
 
     legend_kw = {
         "frameon": True,
@@ -187,28 +187,46 @@ def profit_vs_accuracy_scatter_figure(
         )
         for delivery in DELIVERY_OPTS
     ]
+    code_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="0.35",
+            linestyle="None",
+            markeredgecolor="0.2",
+            markersize=CODE_LEGEND_MARKERSIZE[code],
+            label=CODE_TYPE_LABELS[code],
+        )
+        for code in CODE_OPTS
+    ]
     waste_legend = fig.legend(
         handles=waste_handles,
         title="Waste scan (color)",
-        loc="upper left",
-        bbox_to_anchor=(0.02, 1.02),
+        loc="upper center",
+        bbox_to_anchor=(0.18, -0.08),
         ncol=2,
         **legend_kw,
     )
     delivery_legend = fig.legend(
         handles=delivery_handles,
         title="Delivery history (marker)",
-        loc="upper right",
-        bbox_to_anchor=(0.98, 1.02),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.08),
+        ncol=1,
+        **legend_kw,
+    )
+    code_legend = fig.legend(
+        handles=code_handles,
+        title="Code type (marker size)",
+        loc="upper center",
+        bbox_to_anchor=(0.82, -0.08),
         ncol=1,
         **legend_kw,
     )
     fig.add_artist(waste_legend)
-    fig.suptitle(
-        "Belief accuracy vs profit (nb19)\nPanels separate code type",
-        y=1.16,
-        fontsize=12,
-    )
+    fig.add_artist(delivery_legend)
+    fig.add_artist(code_legend)
     return fig
 
 

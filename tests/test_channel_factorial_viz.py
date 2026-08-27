@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 from blueberries_voi.experiments.channel_factorial_viz import (
+    CODE_TYPE_LABELS,
     DELIVERY_LABELS,
     WASTE_LABELS,
     facet_heatmap_figure,
@@ -15,7 +16,6 @@ from blueberries_voi.experiments.channel_factorial_viz import (
     rows_to_dataframe,
     save_nb19_figures,
 )
-from blueberries_voi.experiments.channel_joint import CODE_OPTS
 
 SAMPLE_ROWS = [
     {
@@ -58,18 +58,19 @@ def test_scatter_and_parallel_build() -> None:
     df = rows_to_dataframe(SAMPLE_ROWS)
     fig1 = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_dist")
     fig2 = parallel_coords_figure(df, accuracy_column="mae_f")
-    assert len(fig1.axes) == len(CODE_OPTS)
+    assert len(fig1.axes) == 1
     assert fig2.axes
 
 
-def test_scatter_legend_encodes_waste_and_delivery() -> None:
+def test_scatter_legend_encodes_waste_delivery_and_code_type() -> None:
     df = rows_to_dataframe(SAMPLE_ROWS)
     fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
-    assert len(fig.legends) == 2
+    assert len(fig.legends) == 3
     legend_titles = {legend.get_title().get_text() for legend in fig.legends}
     assert legend_titles == {
         "Waste scan (color)",
         "Delivery history (marker)",
+        "Code type (marker size)",
     }
     labels = {
         text.get_text() for legend in fig.legends for text in legend.get_texts()
@@ -79,14 +80,10 @@ def test_scatter_legend_encodes_waste_and_delivery() -> None:
     assert DELIVERY_LABELS["none"] in labels
     assert DELIVERY_LABELS["pack_date"] in labels
     assert DELIVERY_LABELS["temperature_history"] in labels
-
-
-def test_scatter_panel_titles_encode_code_type() -> None:
-    df = rows_to_dataframe(SAMPLE_ROWS)
-    fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
-    panel_titles = {ax.get_title() for ax in fig.axes}
-    assert panel_titles == {"UPC barcode", "GSIN case code"}
-    assert "Panels separate code type" in fig._suptitle.get_text()
+    assert CODE_TYPE_LABELS["upc"] in labels
+    assert CODE_TYPE_LABELS["gsin"] in labels
+    assert fig._suptitle is None
+    assert fig.axes[0].get_title() == "Belief accuracy vs profit (nb19)"
 
 
 def test_save_nb19_figures_writes_files(tmp_path: Path) -> None:
