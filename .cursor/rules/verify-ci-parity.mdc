@@ -19,7 +19,7 @@ pip install -e ".[dev]"
 ruff check .
 ruff format --check .
 mypy src tests
-pytest -n auto --cov=blueberries_voi --cov-branch \
+pytest -n auto -m "not slow and not docs" --cov=blueberries_voi --cov-branch \
   --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
 

@@ -325,6 +325,7 @@ fn loglik_sales_by_units_uses_multinomial_cross_lot_term() {
 }
 
 #[test]
+#[ignore = "ADR 0130 L=20 scripted filter gate; slow: run via cargo test -- --ignored"]
 fn unit_pf_l20_scripted_mean_f_mae_and_order_match() {
     require_unit_pf();
     require_unit_ll();
@@ -619,6 +620,7 @@ fn mean_f_mae(truth: &[f64], pred: &[f64]) -> f64 {
 }
 
 #[test]
+#[ignore = "P1 filter particle mutation; slow: run via cargo test -- --ignored"]
 fn score_particle_mutates_freshness_after_finite_p1_ll() {
     require_unit_pf();
     use rand::SeedableRng;
@@ -651,6 +653,7 @@ fn score_particle_mutates_freshness_after_finite_p1_ll() {
 }
 
 #[test]
+#[ignore = "F1 vs P1 mean_f MAE; slow: run via cargo test -- --ignored"]
 fn unit_pf_f1_p1_relative_mean_f_mae() {
     require_unit_pf();
     require_unit_ll();
@@ -848,6 +851,7 @@ fn simulate_truth_day_with_split(
 }
 
 #[test]
+#[ignore = "F1 beats P1 heterogeneous lots; slow: run via cargo test -- --ignored"]
 fn unit_pf_f1_strictly_beats_p1_heterogeneous_lots() {
     require_unit_pf();
     require_unit_ll();
@@ -1097,6 +1101,7 @@ fn multinomial_vs_exact_wor_split_small_l() {
 }
 
 #[test]
+#[ignore = "multinomial vs WOR MC realistic L; slow: run via cargo test -- --ignored"]
 fn multinomial_vs_wor_mc_realistic_l() {
     require_unit_ll();
     use rand::Rng;
@@ -1204,6 +1209,7 @@ fn engine_session_init_belief_mass_zero() {
 }
 
 #[test]
+#[ignore = "P0/P1/F1 zero-sales parity; slow: run via cargo test -- --ignored"]
 fn p1_f1_zero_sales_belief_mass_parity() {
     use voi_core::EngineSession;
 
@@ -1231,6 +1237,7 @@ fn p1_f1_zero_sales_belief_mass_parity() {
 }
 
 #[test]
+#[ignore = "filter birth qty parity; slow: run via cargo test -- --ignored"]
 fn filter_birth_matches_arrival_qty_not_upl() {
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
@@ -1265,6 +1272,7 @@ fn filter_birth_matches_arrival_qty_not_upl() {
 
 /// ADR 0149: under GSIN a delivery splits into L = 3 independently scorable segments.
 #[test]
+#[ignore = "GSIN multilot delivery segments; slow: run via cargo test -- --ignored"]
 fn gsin_multilot_delivery_segments_match_l() {
     require_unit_pf();
     use rand::SeedableRng;
@@ -1304,6 +1312,7 @@ fn gsin_multilot_delivery_segments_match_l() {
 
 /// ADR 0149: under UPC the same delivery births one merged cohort of Q units.
 #[test]
+#[ignore = "UPC multilot delivery merge; slow: run via cargo test -- --ignored"]
 fn upc_multilot_delivery_merges_to_one_segment() {
     require_unit_pf();
     use rand::SeedableRng;

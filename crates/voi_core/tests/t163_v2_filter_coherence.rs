@@ -271,6 +271,7 @@ fn check_coherence_at_rho(rho: f64) {
 
 /// S1.7 — Monte Carlo generative `Λ | d` / `f | d` track filter `Duration(d)` (v2 §2.6).
 #[test]
+#[ignore = "T-163 filter coherence MC; slow: run via cargo test -- --ignored"]
 fn generative_duration_law_matches_filter() {
     let default_rho = ArrivalModel::embedded().rho;
     check_coherence_at_rho(0.0);

@@ -495,6 +495,7 @@ mod tests {
         }
 
         #[test]
+#[ignore = "f-native conservation scripted seed; slow: run via cargo test -- --ignored"]
         fn day_step_f_native_conservation_scripted_seed() {
             require_f_native_day_step_api();
             let src = production_day_step_src();

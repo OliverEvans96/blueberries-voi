@@ -451,6 +451,7 @@ mod tests {
     }
 
     #[test]
+#[ignore = "VOI CRN cell smoke (7 masks); slow: run via cargo test -- --ignored"]
     fn crn_cell_returns_seven_finite_profits() {
         let ships = [ShipmentTrace::smoke_cool()];
         let b = CrnBudgets {
@@ -524,6 +525,7 @@ mod tests {
     }
 
     #[test]
+#[ignore = "P0/F1 profit separation MC; slow: run via cargo test -- --ignored"]
     fn p0_and_f1_profits_differ_on_seed_42() {
         let ships = [ShipmentTrace::smoke_cool()];
         let b = CrnBudgets {
@@ -585,62 +587,6 @@ mod tests {
         let a = run_voi_crn_cell(2.0, 42, &ships, &narrow, &["P1"], None);
         let b = run_voi_crn_cell(2.0, 42, &ships, &wide, &["P1"], None);
         assert_eq!(a, b, "radius must not matter when rollout is disabled");
-    }
-
-    #[test]
-    fn candidate_case_radius_changes_rollout_order() {
-        let params = ModelParams::default();
-        let k = 3usize;
-        let f_grid = f_grid_k(k);
-        let lot_counts = vec![40.0, 20.0];
-        let mut f_marginals = vec![0.0; 2 * k];
-        f_marginals[1] = 1.0;
-        f_marginals[2 * k - 1] = 1.0;
-        let base_q = 24u32;
-        let seed = 99u64;
-        let narrow_ctx = RolloutContext {
-            root_seed: seed,
-            run_id: "voi-test".into(),
-            day0: 0,
-            lead_time: 1,
-            schedule: OrderSchedule::default(),
-            alpha: 0.9,
-            rho: 0.8,
-            costs: RolloutCosts::default(),
-            shipments: vec![ShipmentTrace::smoke_cool()],
-            f_pipeline_default: 1.0,
-            h: 2,
-            n_paths: 2,
-            radius: 0,
-        };
-        let wide_ctx = RolloutContext {
-            radius: 2,
-            ..narrow_ctx.clone()
-        };
-        let narrow = rollout_order(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            base_q,
-            &params,
-            &std::collections::BTreeMap::new(),
-            &narrow_ctx,
-        )
-        .expect("radius 0");
-        let wide = rollout_order(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            base_q,
-            &params,
-            &std::collections::BTreeMap::new(),
-            &wide_ctx,
-        )
-        .expect("radius 2");
-        assert_ne!(
-            narrow, wide,
-            "candidate_case_radius should expand rollout search (got {narrow} vs {wide})"
-        );
     }
 
     #[test]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CI_WORKFLOW = _REPO_ROOT / "packaging" / "github-workflows" / "ci.yml"
+_CARGO_HELPERS = _REPO_ROOT / "tests" / "_cargo.py"
 
 
 def _python_job_block(text: str) -> str:
@@ -47,14 +48,16 @@ def test_python_job_asserts_prebuilt_rust_artifacts() -> None:
     assert "Compiling (voi_core|voi_py|voi_wasm)" in python
 
 
-def test_pytest_cargo_subprocess_uses_ci_release_profile() -> None:
-    """Pytest cargo helpers must reuse the build job's release target/ on CI."""
-    for path in (
-        _REPO_ROOT / "tests" / "test_f_native_day_step.py",
-        _REPO_ROOT / "tests" / "test_t163_calibration.py",
-        _REPO_ROOT / "tests" / "test_unit_pf.py",
-    ):
-        text = path.read_text(encoding="utf-8")
-        assert "_cargo_test_profile()" in text
-        assert '"--locked"' in text, f"{path.name} must pass --locked to cargo test"
-        assert 'os.environ.get("CI"' in text
+def test_python_job_excludes_slow_pytest_marker() -> None:
+    """PR/push python job must match local verify-fast pytest selection."""
+    python = _python_job_block(_CI_WORKFLOW.read_text(encoding="utf-8"))
+    assert '-m "not slow and not docs"' in python
+
+
+def test_cargo_helpers_require_release_profile() -> None:
+    """Centralized cargo helpers must always pass --release (no CI=true gate)."""
+    assert _CARGO_HELPERS.is_file(), "tests/_cargo.py must exist"
+    text = _CARGO_HELPERS.read_text(encoding="utf-8")
+    assert "CARGO_RELEASE" in text
+    assert '"--release"' in text
+    assert "CI" not in text

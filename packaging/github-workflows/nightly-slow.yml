@@ -1,0 +1,148 @@
+# Canonical nightly slow-tier workflow source.
+#
+# Agent protocol forbids editing live `.github/workflows/`. A human must copy
+# this file to `.github/workflows/nightly-slow.yml` before GitHub picks it up.
+#
+# Runs Rust #[ignore] tests + Python @slow (bench/CLI only). Not a PR blocker.
+name: Nightly slow tests
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-slow-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: changes
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.compare.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare to last successful nightly
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          last_sha=""
+          if last_run="$(gh api "repos/${{ github.repository }}/actions/workflows/nightly-slow.yml/runs?status=success&per_page=1" --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null)"; then
+            last_sha="$last_run"
+          fi
+          if [ -z "$last_sha" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "No prior successful nightly — running slow suite"
+            exit 0
+          fi
+          count="$(git rev-list --count "${last_sha}..HEAD" 2>/dev/null || echo 1)"
+          if [ "$count" -eq 0 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits on main since last successful nightly ($last_sha)"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "$count new commit(s) since last successful nightly ($last_sha)"
+          fi
+
+  build:
+    name: build
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: voi-kernel
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install maturin (rust extra only)
+        run: |
+          uv venv --python 3.11
+          uv sync --extra rust --python 3.11 --frozen
+
+      - name: Build PyO3 extension wheel
+        run: >-
+          uv run maturin build --release
+          -m crates/voi_py/Cargo.toml
+          -o dist/wheels
+
+      - name: Prebuild release test binaries
+        run: cargo test --release -p voi_core -p voi_py --locked --no-run
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-slow-build
+          path: |
+            target/
+            dist/wheels/
+          if-no-files-found: error
+          retention-days: 7
+
+  slow:
+    name: slow
+    needs: [changes, build]
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nightly-slow-build
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps and PyO3 wheel
+        run: |
+          uv venv --python 3.11
+          uv sync --extra dev --python 3.11 --frozen
+          WHEEL="$(ls dist/wheels/blueberries_voi_core-*.whl)"
+          unzip -oj "$WHEEL" 'blueberries_voi/_core.abi3.so' -d src/blueberries_voi
+
+      - name: Cargo test (ignored / slow tier)
+        run: cargo test --release -p voi_core -p voi_py --locked -- --ignored
+
+      - name: Pytest slow tier (Python-only)
+        run: uv run --python 3.11 pytest -m slow -v

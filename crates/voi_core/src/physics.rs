@@ -693,6 +693,7 @@ mod tests {
     }
 
     #[test]
+#[ignore = "90-day calendar demand RNG mean; slow: run via cargo test -- --ignored"]
     fn session_stream_rng_calendar_mean_seed0() {
         use crate::demand_profile::DemandProfile;
         use crate::spawn_rng::SpawnRng;

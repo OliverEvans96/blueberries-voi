@@ -122,6 +122,7 @@ fn upstream_lambda(total: f64, shared: f64) -> f64 {
 // --- S2.1: three lot ids per delivery -----------------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn delivery_mints_three_lot_ids() {
     let (sess, _day, _arrivals) = step_to_first_delivery(42);
     let events = sess.events_value(0);
@@ -150,6 +151,7 @@ fn delivery_mints_three_lot_ids() {
 // --- S2.2: Λ_ℓ = Λ_upstream,ℓ + Λ_shared ------------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn lot_exposure_is_upstream_plus_shared() {
     let model = ArrivalModel::embedded();
     let (sess, _day, _) = step_to_first_delivery(163_002);
@@ -220,6 +222,7 @@ fn lot_exposure_is_upstream_plus_shared() {
 // --- S2.3: three splined traces with shared tail ------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn per_lot_traces_spliced() {
     let (sess, _day, _) = step_to_first_delivery(163_003);
     let events = sess.events_value(0);
@@ -280,6 +283,7 @@ fn per_lot_traces_spliced() {
 // --- S2.4: quantity split, not multiplied -------------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn delivery_quantity_split_not_multiplied() {
     let (sess, _day, arrivals) = step_to_first_delivery(163_004);
     let events = sess.events_value(0);
@@ -324,6 +328,7 @@ fn delivery_quantity_split_not_multiplied() {
 // --- S2.5: GSIN births three segments ---------------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn gsin_three_segments_per_delivery() {
     use voi_core::shipments::mod21_demo_shipments;
 
@@ -375,6 +380,7 @@ fn gsin_three_segments_per_delivery() {
 // --- S2.6: UPC merged cohort from mixture law ---------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn upc_merged_cohort_uses_mixture_law() {
     use voi_core::shipments::mod21_demo_shipments;
 
@@ -443,6 +449,7 @@ fn upc_merged_cohort_uses_mixture_law() {
 // --- S2.7: resolve_arrival_f_law is per-lot ---------------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn resolve_arrival_f_law_per_lot() {
     let body = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/unit_pf.rs"),
@@ -484,6 +491,7 @@ fn resolve_arrival_f_law_per_lot() {
 // --- S2.8: FilterObs per-lot fields, no new mask ----------------------------
 
 #[test]
+#[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
 fn filter_obs_carries_per_lot_pack_dates_and_traces() {
     let mask_body = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/obs.rs"),

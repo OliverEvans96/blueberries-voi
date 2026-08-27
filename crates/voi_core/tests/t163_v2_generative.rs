@@ -68,6 +68,7 @@ fn line_haul_temp_spread(trace: &voi_core::shipments::ShipmentTrace, d: f64) -> 
 
 /// S1.1 — bottom-up stage draws yield pooled Abdella `d_min + Gamma(a, b)` marginal.
 #[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
 fn abdella_marginal_d_matches_pooled_gamma() {
     let m = model_rho_zero();
     let corridor = m.corridor("abdella_all");
@@ -120,6 +121,7 @@ fn abdella_marginal_d_matches_pooled_gamma() {
 
 /// S1.2 — at ρ=0, `Var(log d)` matches the six-shipment Abdella target (~0.205).
 #[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
 fn var_log_d_matches_abdella() {
     let m = model_rho_zero();
     let mut durations = Vec::with_capacity(MC_SAMPLES);
@@ -140,6 +142,7 @@ fn var_log_d_matches_abdella() {
 
 /// S1.4 — hourly OU wiggle on the path even when ρ=0 (not flat within a stage).
 #[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
 fn rho_zero_trace_has_hourly_ou_variation() {
     let m = model_rho_zero();
     let mut rng = Pcg64::seed_from_u64(163_004);
@@ -161,6 +164,7 @@ fn rho_zero_trace_has_hourly_ou_variation() {
 
 /// S1.14 — breaks are periods *inside* calendar duration `d`, never extensions of the trip.
 #[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
 fn breaks_clamped_inside_calendar_duration() {
     let m = model();
     assert!(m.rho > 0.0, "need default break hazard");
@@ -197,6 +201,7 @@ fn breaks_clamped_inside_calendar_duration() {
 
 /// S1.16 — at ρ=0, trip mode + OU still scatter exposure; not deterministic `d·φ_set`.
 #[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
 fn rho_zero_exposure_varies_across_draws() {
     let m = model_rho_zero();
     let mut rng = Pcg64::seed_from_u64(163_006);

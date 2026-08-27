@@ -47,6 +47,7 @@ fn clean_chain_model() -> ArrivalModel {
 
 /// S1.3: at ρ = 0, simulated φ̄ mean/SD match the six Abdella shipments after v2 tuning.
 #[test]
+#[ignore = "T-163 v2 calibration MC; slow: run via cargo test -- --ignored"]
 fn clean_chain_phi_bar_moments() {
     require_v2_artifact_fields();
 

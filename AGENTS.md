@@ -68,7 +68,24 @@ opt-in for implement loops (see below).
 | **qa** | `uv sync` once → `uv run pytest <new tests> --no-cov` (prove RED; **no** `--testmon`) |
 | **implement** | Prefer `uv run pytest --testmon` (or ticket path without testmon) with `--no-cov` in the red/green loop; `ruff check` / `mypy` on touched paths (or full tree if cheap); fix format with `ruff format .` then confirm with `ruff format --check .`; optional/recommended `./scripts/refresh-testmon.sh` then commit `.testmondata` if changed before handoff; optional one full verify-style gate before handoff |
 | **review** | Diff + AC (+ ADR) only. **No pytest / ruff / mypy** — verify owns CI parity |
-| **verify / CI** | **Identical to live GitHub Actions** (see Toolchain). `ruff check` + **`ruff format --check`** (never mutating `ruff format .` as the gate) + `mypy` + **full** pytest **with** coverage ≥80% and xdist on the **pinned Python 3.11**. **No testmon selection**. Does **not** refresh `.testmondata` in MVP |
+| **verify / CI** | **Identical to live GitHub Actions** (see Toolchain). `ruff check` + **`ruff format --check`** (never mutating `ruff format .` as the gate) + `mypy` + **full** pytest **with** coverage ≥80% and xdist on the **pinned Python 3.11**, marker `-m "not slow and not docs"`. **No testmon selection**. Does **not** refresh `.testmondata` in MVP |
+
+## Rust: release only
+
+- **Never** run `cargo build`, `cargo test`, or `cargo run` on `voi_*` without `--release --locked`.
+- **Never** use `maturin develop` without `--release`; canonical: `uv run maturin develop --release -m crates/voi_py/Cargo.toml`.
+- PyO3 extension (`blueberries_voi._core`) must be built release before pytest that touches Rust FFI.
+- Prebuild locally: `./scripts/prebuild-rust.sh` (`cargo test --release … --no-run` + optional maturin develop).
+- Debug `target/debug/` is not part of the dev workflow; whole `target/` is gitignored.
+- Canonical aliases live in `.cargo/config.toml` (`cargo t -p voi_core` → release test).
+
+## Test ownership (fast vs slow)
+
+- **Kernel behavior** → Rust tests in `crates/voi_core/` (fast default tier + `#[ignore]` slow tier).
+- **Python tests** → package wiring, PyO3 FFI smoke, pure-Python reference math, CLI wrappers only.
+- **Forbidden:** pytest subprocess `cargo test` (enforced by `tests/test_no_cargo_subprocess_duplication.py`).
+- **Fast gate** (local dev + PR/push CI, target <15 min): `./scripts/verify-fast.sh` — release Rust default tier + `pytest -n auto --no-cov` (inherits `-m "not slow"`).
+- **Slow tier** (nightly + opt-in): `./scripts/verify-slow.sh` — `cargo test --release -- --ignored` + `pytest -m slow`.
 
 ## Toolchain (verify / before push)
 
@@ -88,7 +105,7 @@ pip install -e ".[dev]"
 ruff check .
 ruff format --check .
 mypy src tests
-pytest -n auto --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+pytest -n auto -m "not slow and not docs" --cov=blueberries_voi --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
 
 Uv form (same gate argv on the pinned interpreter):
@@ -98,7 +115,7 @@ uv sync --python 3.11
 uv run --python 3.11 ruff check .
 uv run --python 3.11 ruff format --check .
 uv run --python 3.11 mypy src tests
-uv run --python 3.11 pytest -n auto --cov=blueberries_voi --cov-branch \
+uv run --python 3.11 pytest -n auto -m "not slow and not docs" --cov=blueberries_voi --cov-branch \
   --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 ```
 
@@ -110,10 +127,12 @@ greater` in `numpy/__init__.pyi`). That is outside the single-version CI gate.
 Fast day-to-day (no coverage):
 
 ```bash
-uv run pytest                    # full suite, no cov, no testmon
-uv run pytest --testmon          # implement: deselect unaffected tests
+./scripts/verify-fast.sh           # release Rust + pytest fast tier (<15 min target)
+uv run pytest                      # pytest fast tier only (addopts: not slow)
+uv run pytest --testmon            # implement: deselect unaffected tests
 uv run pytest tests/test_foo.py --no-cov   # ticket slice / RED proof
-./scripts/refresh-testmon.sh     # after green tip: rebuild LFS seed (no cov)
+./scripts/verify-slow.sh           # nightly contracts: Rust --ignored + pytest -m slow
+./scripts/refresh-testmon.sh       # after green tip: rebuild LFS seed (no cov)
 ```
 
 ### Testmon cache (`.testmondata`)
