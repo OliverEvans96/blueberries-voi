@@ -80,6 +80,5 @@ def test_removed_rollout_tests_not_in_default_tier() -> None:
     default = _list_tests()
     present = _REMOVED_ROLLOUT & default
     assert not present, (
-        "deprecated rollout tests must be deleted or ignored: "
-        f"{sorted(present)}"
+        f"deprecated rollout tests must be deleted or ignored: {sorted(present)}"
     )

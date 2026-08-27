@@ -9,7 +9,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
-SLOW_MSG = 'slow: run via cargo test -- --ignored'
+SLOW_MSG = "slow: run via cargo test -- --ignored"
 
 # All #[test] in these files become slow unless already #[ignore].
 WHOLE_FILE_SLOW: dict[str, str] = {

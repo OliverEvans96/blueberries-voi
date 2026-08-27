@@ -90,6 +90,7 @@ def test_python_filter_types_expose_per_lot_delivery_fields() -> None:
         "RED [S3.2]: filter/types.py must expose temp_traces_by_lot on the wire mirror"
     )
 
+
 def test_backend_default_is_rust_when_env_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
