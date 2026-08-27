@@ -47,11 +47,15 @@ LADDER_ALPHA_ARMS: tuple[str, ...] = (
     "constant",
     "rung0",
     "sw",
+    "sla_pb",
+    "sla_mc",
     "rollout",
     "dp",
 )
 _PLACEHOLDER_ARMS: frozenset[str] = frozenset({"dp"})
-_AVAILABLE_ARMS: frozenset[str] = frozenset({"constant", "rung0", "sw", "rollout"})
+_AVAILABLE_ARMS: frozenset[str] = frozenset(
+    {"constant", "rung0", "sw", "sla_pb", "sla_mc", "rollout"}
+)
 
 # Rollout budgets: CI-tiny defaults (m2 ladder / CrnBudgets parity).
 DEFAULT_CI_ROLLOUT_H: int = 2

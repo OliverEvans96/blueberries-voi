@@ -38,6 +38,8 @@ _FIVE_POINTS: tuple[str, ...] = (
     "constant",
     "rung0",
     "sw",
+    "sla_pb",
+    "sla_mc",
     "rollout",
     "dp",
 )

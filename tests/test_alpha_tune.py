@@ -29,7 +29,9 @@ _CONTROLLER_DIR = _REPO_ROOT / "src" / "blueberries_voi" / "controller"
 
 # Ladder arms that must have a tuned alpha entry (CTL-05). Rollout / DP may be
 # placeholders until T-030 / T-031 land; the arm ids must still be registered.
-_REQUIRED_ARMS: frozenset[str] = frozenset({"constant", "rung0", "sw", "rollout", "dp"})
+_REQUIRED_ARMS: frozenset[str] = frozenset(
+    {"constant", "rung0", "sw", "sla_pb", "sla_mc", "rollout", "dp"}
+)
 _AVAILABLE_NOW: frozenset[str] = frozenset({"constant", "rung0", "sw"})
 
 # Tiny CI grid (open question: desktop defaults live in artifact header).

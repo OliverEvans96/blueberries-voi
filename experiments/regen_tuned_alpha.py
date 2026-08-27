@@ -35,7 +35,7 @@ PHYSICS_EPOCH = "t150-f-native-arrival"
 ROOT_SEED = 42
 N_BURN = 14
 N_SCORE = 28
-TUNE_ARMS = ("constant", "rung0", "sw")
+TUNE_ARMS = ("constant", "rung0", "sw", "sla_pb", "sla_mc")
 PLACEHOLDER_DP_ALPHA = 0.9
 ROLLOUT_INHERIT_NOTE = (
     "inherited from damped_sw (rollout builds on damped_sw); not independently tuned"
