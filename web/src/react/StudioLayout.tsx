@@ -332,7 +332,7 @@ export function StudioLayout() {
               data-belief-mae-table
               hidden
             >
-              <caption>Belief accuracy (Omniscience)</caption>
+              <caption>Belief accuracy (vs truth)</caption>
               <thead>
                 <tr>
                   <th scope="col" />
