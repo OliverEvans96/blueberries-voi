@@ -162,11 +162,13 @@ testpaths = ["tests"]
 # Implement cache refresh: ./scripts/refresh-testmon.sh (pytest --testmon, no --cov).
 addopts = [
     "-ra",
+    "-m",
+    "not slow",
     "--strict-markers",
     "--strict-config",
 ]
 markers = [
-    "slow: expensive rollout / CRN parity tests (H=28, P=8)",
+    "slow: expensive rollout, cargo subprocess guards, and release benches",
     "docs: VitePress docs guards (content may be WIP)",
 ]
 

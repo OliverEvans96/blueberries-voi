@@ -51,6 +51,7 @@ def test_pytest_cargo_subprocess_uses_ci_release_profile() -> None:
     """Pytest cargo helpers must reuse the build job's release target/ on CI."""
     for path in (
         _REPO_ROOT / "tests" / "test_f_native_day_step.py",
+        _REPO_ROOT / "tests" / "test_t163_calibration.py",
         _REPO_ROOT / "tests" / "test_unit_pf.py",
     ):
         text = path.read_text(encoding="utf-8")

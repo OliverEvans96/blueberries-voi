@@ -411,6 +411,7 @@ def test_bench_c2_a_totals_study_registered_in_cargo_toml() -> None:
     pytest.skip("T-TAU-RETIRE: bench_c2_a_totals_study binary removed")
 
 
+@pytest.mark.slow
 def test_cargo_unit_pf_ac_integration_suite_green() -> None:
     """Full Rust integration suite passes after unit_ll/unit_pf land."""
     proc = _cargo_unit_pf_ac()

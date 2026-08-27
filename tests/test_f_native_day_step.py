@@ -126,6 +126,7 @@ def test_day_step_f_native_delivery_defaults_units_per_lot_15(
     assert f_native_delivery_prior["units_per_lot"] == 15
 
 
+@pytest.mark.slow
 def test_day_step_f_native_conservation_rust_tests_pass() -> None:
     """Rust behavioral tests must pass once f-native day_step lands."""
     proc = subprocess.run(
