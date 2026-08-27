@@ -34,8 +34,8 @@
 |--------|---------|-------|
 | `channel_factorial_heatmap_mae_f.png` | **Pass** | 2×2×3 factorial; colorbar right-aligned with heatmap height (fixed misplaced overlap) |
 | `parallel_coords_mae_f.png` | **Pass** | 36 paths; delivery axis uses 0/1/2 ordinal |
-| `profit_vs_mae_f.png` | **Pass** | Single panel; color = waste scan on/off; shape = delivery history; size = code type (UPC smaller, GSIN larger); three grouped legends below |
-| `profit_vs_mae_dist.png` | **Pass** | Same single-panel encoding as `profit_vs_mae_f.png` with x-axis MAE(distribution) |
+| `profit_vs_mae_f.png` | **Pass** | Faceted by code type (`UPC barcode` / `GSIN case code` panels); split legends for waste scan (color) and delivery history (marker); suptitle notes panel = code type |
+| `profit_vs_mae_dist.png` | **Pass** | Same faceted encoding as `profit_vs_mae_f.png` with x-axis MAE(distribution) |
 
 - No broken/empty plots in committed PNGs.
 - Legacy `*_mae_dist.png` files refreshed alongside `*_mae_f.png` by `render_nb19_figures.py`.
