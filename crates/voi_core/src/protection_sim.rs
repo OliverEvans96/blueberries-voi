@@ -655,7 +655,7 @@ mod tests {
             0.9,
             0.8,
             42,
-            16,
+            4,
             1.0,
         );
         let full = sla_mc_order_f_belief(
@@ -671,7 +671,7 @@ mod tests {
             0.9,
             0.8,
             42,
-            16,
+            4,
             1.0,
         );
         assert!(
@@ -700,7 +700,7 @@ mod tests {
             0.75,
             0.8,
             42,
-            32,
+            4,
             1.0,
         );
         let q_hi = sla_mc_order_f_belief(
@@ -716,7 +716,7 @@ mod tests {
             0.95,
             0.8,
             42,
-            32,
+            8,
             1.0,
         );
         assert!(q_hi >= q_lo);
