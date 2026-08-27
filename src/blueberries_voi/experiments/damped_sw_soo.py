@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from statistics import mean, stdev
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
@@ -74,8 +74,8 @@ def build_soo_jobs(
 ) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     for trial_index, params in trials.items():
-        alpha = float(params["alpha"])
-        rho = float(params["rho"])
+        alpha = float(cast("float | int | str", params["alpha"]))
+        rho = float(cast("float | int | str", params["rho"]))
         for seed in seeds:
             jobs.append(
                 soo_job_payload(

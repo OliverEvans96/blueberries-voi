@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from ax.api.client import Client
@@ -30,6 +30,7 @@ from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
 from blueberries_voi.sim.alpha_tune import (
     DEFAULT_DESKTOP_ALPHAS,
+    AlphaTuneEpisodeOutcomes,
     evaluate_alpha_episode_outcomes,
     tune_alpha_grid,
 )
@@ -119,7 +120,9 @@ def _completed_trial_count(client: Client) -> int:
     return sum(1 for t in client._experiment.trials.values() if t.status.is_completed)
 
 
-def evaluate_arm_outcomes(alpha: float, rho: float, root_seed: int):
+def evaluate_arm_outcomes(
+    alpha: float, rho: float, root_seed: int
+) -> AlphaTuneEpisodeOutcomes:
     return evaluate_alpha_episode_outcomes(
         "sw",
         float(alpha),
@@ -153,7 +156,9 @@ def evaluate_ax_batch(
     return aggregate_soo_shards(shards)
 
 
-def evaluate_with_replicates(alpha: float, rho: float, seeds: list[int]):
+def evaluate_with_replicates(
+    alpha: float, rho: float, seeds: list[int]
+) -> dict[str, tuple[float, float]]:
     jobs = build_soo_jobs(
         {0: {"alpha": alpha, "rho": rho}},
         seeds,
@@ -214,7 +219,10 @@ def main() -> None:
     while completed < trials_to_run:
         batch_n = min(AX_PARALLELISM, trials_to_run - completed)
         trials = client.get_next_trials(max_trials=batch_n)
-        metrics_by_trial = evaluate_ax_batch(trials, BO_SEEDS)
+        metrics_by_trial = evaluate_ax_batch(
+            cast("dict[int, dict[str, object]]", trials),
+            BO_SEEDS,
+        )
         for trial_index, parameters in trials.items():
             metrics = metrics_by_trial[int(trial_index)]
             client.complete_trial(
@@ -232,12 +240,11 @@ def main() -> None:
                     "mean_stockout": metrics["total_stockout"][0],
                 }
             )
+        AX_JSON.parent.mkdir(parents=True, exist_ok=True)
+        client.save_to_json_file(str(AX_JSON))
         completed += len(trials)
         pbar.update(len(trials))
     pbar.close()
-
-    AX_JSON.parent.mkdir(parents=True, exist_ok=True)
-    client.save_to_json_file(str(AX_JSON))
     print(f"Saved Ax client → {AX_JSON}")
 
     best_profit_params, _pred, best_profit_index, _name = (
