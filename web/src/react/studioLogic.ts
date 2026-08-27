@@ -223,20 +223,8 @@ export function initStudio(app: HTMLElement): () => void {
   let loadingMessage = "";
   let loadingDialogVisible = false;
   const engineStatus = createEngineStatusTracker("loading");
+  const engineBooting = (): boolean => engineStatus.get() === "loading";
   const engineStatusEl = q<HTMLElement>("#engine-status");
-  if (engineStatusEl) {
-    engineStatus.subscribe((kind) => {
-      applyEngineStatusChip(engineStatusEl, kind, adapterKind);
-      const shell = q<HTMLElement>(".shell.studio");
-      if (shell) {
-        if (kind === "loading") {
-          shell.setAttribute("aria-busy", "true");
-        } else if (!loadingDialogVisible) {
-          shell.removeAttribute("aria-busy");
-        }
-      }
-    });
-  }
   const projector = new ViewModelProjector();
   let vm: ViewModel = projector.getViewModel();
   let showTruth = loadShowTruth();
@@ -569,6 +557,10 @@ export function initStudio(app: HTMLElement): () => void {
     return eventDays.map((day) => applyMask(day as RichObsWire, mask));
   }
 
+  function eventsPaneLoading(): boolean {
+    return eventsLoading || (engineBooting() && eventDays.length === 0);
+  }
+
   function renderEventsPane(): void {
     profileSync("renderEventsPane", () => {
       if (!eventsPaneRoot) return;
@@ -580,7 +572,7 @@ export function initStudio(app: HTMLElement): () => void {
           },
           schedule,
           events: maskedEventDays(),
-          loading: eventsLoading,
+          loading: eventsPaneLoading(),
           refreshing: eventsRefreshing,
         }),
       );
@@ -633,6 +625,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm,
             showTruth,
             catchingUp,
+            booting: engineBooting(),
             onSetObsChannels: (ch) => railHandlers.onSetObsChannels(ch),
             onSetObsPreset: (id) => railHandlers.onSetObsPreset(id),
             onShowTruthChange: (on) => railHandlers.onShowTruthChange(on),
@@ -650,6 +643,7 @@ export function initStudio(app: HTMLElement): () => void {
             vm,
             catchingUp,
             advancing,
+            booting: engineBooting(),
             autopilotRunning: autopilot?.isRunning() ?? false,
             orderQty,
             onAdvance: () => railHandlers.onAdvance(),
@@ -1509,6 +1503,29 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  function renderBootingChrome(): void {
+    renderOperatorBar();
+    renderObsControlsPane();
+    renderEventsPane();
+  }
+
+  if (engineStatusEl) {
+    engineStatus.subscribe((kind) => {
+      applyEngineStatusChip(engineStatusEl, kind, adapterKind);
+      const shell = q<HTMLElement>(".shell.studio");
+      if (shell) {
+        if (kind === "loading") {
+          shell.setAttribute("aria-busy", "true");
+        } else if (!loadingDialogVisible) {
+          shell.removeAttribute("aria-busy");
+        }
+      }
+      if (kind === "loading" && !bootstrapped) {
+        renderBootingChrome();
+      }
+    });
+  }
+
   scheduleSectionControlsMount();
   flushSync(() => {
     paintPortalDrawers();
@@ -1518,6 +1535,7 @@ export function initStudio(app: HTMLElement): () => void {
     mountSectionControlsOnce();
   }, 0);
   app.addEventListener("keydown", onKeydown);
+  renderBootingChrome();
   void bootstrap();
 
   studioAdvanceOnce = advanceEpisode;

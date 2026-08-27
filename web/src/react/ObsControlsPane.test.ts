@@ -49,12 +49,33 @@ describe("ObsControlsPane (T-148)", () => {
     expect(screen.getByLabelText(/delivery history/i)).toBeInTheDocument();
   });
 
-  it("disables chips and truth toggle while booting", () => {
-    render(
+  it("shows booting skeleton chips without interactive controls", () => {
+    const { container } = render(
       createElement(ObsControlsPane, {
         vm: { config: DEFAULT_SIM_CONFIG },
         showTruth: false,
         booting: true,
+        onSetObsChannels: vi.fn(),
+        onSetObsPreset: vi.fn(),
+        onShowTruthChange: vi.fn(),
+      }),
+    );
+    const pane = screen.getByTestId("obs-controls-pane");
+    expect(pane).toHaveAttribute("aria-busy", "true");
+    expect(pane).toHaveAttribute("data-booting", "true");
+    expect(container.querySelectorAll(".obs-chip-skeleton").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByRole("button", { name: /upc/i })).toBeNull();
+    expect(screen.queryByLabelText(/show true state/i)).toBeNull();
+  });
+
+  it("disables chips and truth toggle while catching up", () => {
+    render(
+      createElement(ObsControlsPane, {
+        vm: { config: DEFAULT_SIM_CONFIG },
+        showTruth: false,
+        catchingUp: true,
         onSetObsChannels: vi.fn(),
         onSetObsPreset: vi.fn(),
         onShowTruthChange: vi.fn(),

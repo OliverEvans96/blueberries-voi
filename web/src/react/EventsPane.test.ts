@@ -409,4 +409,22 @@ describe("EventsPane (T-148 v6)", () => {
     expect(lot401?.textContent).toMatch(/std\s*0\.3°C/);
   });
 
+  it("shows loading skeleton when loading with no events yet", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: { episode_day: 7, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [],
+        loading: true,
+      }),
+    );
+    expect(screen.getByTestId("events-loading-placeholder")).toBeInTheDocument();
+    expect(container.querySelectorAll(".events-day-card--skeleton").length).toBe(
+      3,
+    );
+    expect(container.querySelectorAll(".events-day-card[data-day]")).toHaveLength(
+      0,
+    );
+  });
+
 });
