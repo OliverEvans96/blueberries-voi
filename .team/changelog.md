@@ -3,6 +3,8 @@
 Plain-English notes of what shipped, for non-technical readers.
 
 ## 2026-08-27
+
+- **Window SLA ordering (`sla_pb` / `sla_mc`)** — new protection-window controllers in the Rust kernel, studio policy chips, and alpha-tune ladder arms; reference protection simulator fixes for tradeoff display.
 - **Arrival freshness at the loading dock now matches what you'd expect from a well-run US grocery cold chain — most deliveries land around 65–85% fresh instead of clustering below half — and the belief filter no longer systematically overestimates freshness when you have no delivery history** (T-163 freshness calibration).
 
 ## 2026-08-26
