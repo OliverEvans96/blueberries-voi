@@ -379,6 +379,7 @@ export function StudioLayout() {
                 vm={STUDIO_SHELL_DEFAULT_VM}
                 schedule={STUDIO_SHELL_DEFAULT_SCHEDULE}
                 events={[]}
+                orderQtyByDay={new Map()}
                 loading
               />
             </div>
