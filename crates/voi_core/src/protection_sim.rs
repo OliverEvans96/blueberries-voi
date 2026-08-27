@@ -467,7 +467,7 @@ impl SlaModel for PbSlaModel<'_> {
 }
 
 /// Upper q bound aligned with [`crate::tradeoff::full_tradeoff_q_candidates`].
-fn sla_order_q_cap(case_size: u32) -> u32 {
+pub fn sla_order_q_cap(case_size: u32) -> u32 {
     let cs = case_size.max(1);
     160.max(cs * 20)
 }
@@ -478,9 +478,9 @@ pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_h
         panic!("alpha must be in (0,1)");
     }
     let cs = case_size.max(1);
-    let max_q = sla_order_q_cap(cs);
-    let max_cases = (max_q / cs).max(1) as i32;
-    let mut hi_cases = (q_hi_hint / cs).max(1) as i32;
+    let cap = sla_order_q_cap(cs);
+    let max_cases = (cap / cs).max(1) as i32;
+    let mut hi_cases = (q_hi_hint.min(cap) / cs).max(1) as i32;
     if model.p_no_stockout(hi_cases as u32 * cs) < alpha {
         hi_cases = max_cases;
     }
@@ -495,7 +495,7 @@ pub fn sla_order(model: &dyn SlaModel, alpha: f64, rho: f64, case_size: u32, q_h
             lo = mid + 1;
         }
     }
-    let mut q_min = lo as u32 * cs;
+    let q_min = lo as u32 * cs;
     case_round(rho * q_min as f64, cs)
 }
 
@@ -558,7 +558,10 @@ pub fn sla_mc_order_f_belief(
         Some(schedule),
         f_pipeline_default,
     );
-    let q_hi = sw_hint.saturating_mul(2).max(params.case_size * 20);
+    let q_hi = sw_hint
+        .saturating_mul(2)
+        .max(params.case_size * 20)
+        .min(sla_order_q_cap(params.case_size));
     sla_order(&model, alpha, rho, params.case_size, q_hi)
 }
 
@@ -610,7 +613,10 @@ pub fn sla_pb_order_f_belief(
         Some(schedule),
         f_pipeline_default,
     );
-    let q_hi = sw_hint.saturating_mul(2).max(params.case_size * 20);
+    let q_hi = sw_hint
+        .saturating_mul(2)
+        .max(params.case_size * 20)
+        .min(sla_order_q_cap(params.case_size));
     sla_order(&model, alpha, rho, params.case_size, q_hi)
 }
 
@@ -645,53 +651,74 @@ mod tests {
     }
 
     #[test]
-    fn sla_mc_empty_shelf_orders_more_than_full() {
+    fn sla_pb_stocked_shelf_orders_less_than_empty() {
         let mut p = ModelParams::default();
         p.demand_mu = 4.0;
         p.units_per_lot = 4;
         let s = OrderSchedule::default();
         let f_grid = vec![0.0, 0.5, 1.0];
-        // Four lots at peak freshness so stocked shelf orders below empty-shelf cap.
         let lot = vec![4.0, 4.0, 4.0, 4.0];
         let fm_full: Vec<f64> = (0..4).flat_map(|_| [0.0, 0.0, 1.0]).collect();
         let pending = BTreeMap::new();
-        let ships = [ShipmentTrace::smoke_cool()];
-        let empty = sla_mc_order_f_belief(
+        let mut survival = SurvivalCurveCache::for_params(&p, 8);
+        let empty = sla_pb_order_f_belief(
             &[],
             &[],
             &f_grid,
             &pending,
-            6,
+            0,
             6,
             &p,
             &s,
-            &ships,
             0.9,
             0.8,
-            42,
-            8,
+            &mut survival,
             1.0,
         );
-        let full = sla_mc_order_f_belief(
+        let full = sla_pb_order_f_belief(
             &lot,
             &fm_full,
             &f_grid,
             &pending,
-            6,
+            0,
             6,
             &p,
             &s,
-            &ships,
             0.9,
             0.8,
-            42,
-            8,
+            &mut survival,
             1.0,
         );
         assert!(
             empty > full,
-            "empty ({empty}) should exceed well-stocked shelf order ({full})"
+            "empty ({empty}) should exceed well-stocked PB order ({full})"
         );
+    }
+
+    #[test]
+    fn sla_mc_n_paths_zero_uses_at_least_one() {
+        let mut p = ModelParams::default();
+        p.demand_mu = 3.0;
+        let s = OrderSchedule::default();
+        let f_grid = vec![0.0, 1.0];
+        let pending = BTreeMap::new();
+        let q = sla_mc_order_f_belief(
+            &[],
+            &[],
+            &f_grid,
+            &pending,
+            6,
+            6,
+            &p,
+            &s,
+            &[ShipmentTrace::smoke_cool()],
+            0.9,
+            0.8,
+            42,
+            0,
+            1.0,
+        );
+        assert!(q > 0, "degenerate n_paths=0 should still evaluate one MC path");
     }
 
     #[test]
