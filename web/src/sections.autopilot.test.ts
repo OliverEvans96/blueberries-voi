@@ -133,7 +133,7 @@ describe("Autopilot chart wiring (damped_sw demo)", () => {
     expect(logic).toMatch(/plot-damped-sw-demo/);
     expect(logic).toMatch(/onControllerChange[\s\S]*renderActiveFocusPlots/);
     expect(controls).toMatch(/id="chart-damped-sw-demo"/);
-    expect(controls).toMatch(/data-plot="plot-damped-sw-demo"/);
+    expect(controls).toMatch(/plotId: "plot-damped-sw-demo"/);
     expect(controls).not.toMatch(/id="chart-controller-orders-focus"/);
     expect(controls).not.toMatch(/id="chart-spoil-focus"/);
   });
