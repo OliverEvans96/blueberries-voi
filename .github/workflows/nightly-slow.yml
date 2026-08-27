@@ -144,5 +144,12 @@ jobs:
       - name: Cargo test (ignored / slow tier)
         run: cargo test --release -p voi_core -p voi_py --locked -- --ignored
 
-      - name: Pytest slow tier (Python-only)
-        run: uv run --python 3.11 pytest -m slow -v
+      - name: Pytest slow tier with coverage
+        run: >-
+          uv run --python 3.11 pytest -m slow
+          --cov=blueberries_voi
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=80
+          -v
