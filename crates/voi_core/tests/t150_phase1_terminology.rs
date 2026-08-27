@@ -273,6 +273,7 @@ fn ac1_7_delivery_unit_f_deterministic_on_production_path() {
         deliver: true,
         deliver_units: Some(units as u32),
         delivery_unit_f: Some(delivery_unit_f),
+        delivery_lot_f: None,
         units_per_lot: Some(units),
     };
 

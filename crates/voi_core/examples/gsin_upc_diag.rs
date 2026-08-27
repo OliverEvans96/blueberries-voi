@@ -160,6 +160,7 @@ fn run_truth(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(params.units_per_lot),
         };
         let step = unit_day_step_with_birth(
@@ -198,8 +199,15 @@ fn run_truth(
                 waste_by: step.waste_by.clone(),
                 lot_ids: pre_lot_ids,
                 arrival_lot_ids,
+                arrivals_by: if arrival > 0 {
+                    vec![arrival]
+                } else {
+                    Vec::new()
+                },
                 shipment_trace,
+                temp_traces_by_lot: Vec::new(),
                 pack_date_days,
+                pack_dates_by_lot: Vec::new(),
             },
             on_hand,
             alive_f: freshness.iter().copied().filter(|&f| f > 0.0).collect(),

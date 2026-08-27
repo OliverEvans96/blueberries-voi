@@ -80,30 +80,16 @@ fn read_json_source(source: &str) -> PyResult<String> {
     }
 }
 
-/// Parses an arrival-model config (JSON string or path) into a `voi_core` `ArrivalModel`
-/// and re-serializes just the fields the Python side needs (gamma shape/scale, reference
-/// life, Q10 and temperature/position parameters) as a JSON string -- lets Python read a
-/// validated arrival model without depending on the full internal `ArrivalModel` shape.
+/// Parses an arrival-model config (JSON string or path), validates it against the
+/// committed v2 schema, and returns the source JSON unchanged — lets Python read a
+/// validated arrival artifact without depending on the full internal `ArrivalModel` shape.
 #[pyfunction]
 #[pyo3(name = "arrival_model_from_json_py", signature = (source))]
 pub fn arrival_model_from_json_py(source: &str) -> PyResult<String> {
     let json = read_json_source(source)?;
-    let model = arrival_artifact_from_json(&json)
+    arrival_artifact_from_json(&json)
         .map_err(|err| pyo3::exceptions::PyValueError::new_err(err.to_string()))?;
-    let wire = serde_json::json!({
-        "schema_version": model.schema_version,
-        "gamma_shape": model.gamma_shape,
-        "gamma_scale": model.gamma_scale,
-        "reference_life_days": model.reference_life_days,
-        "mu_T": model.mu_t,
-        "sigma_T": model.sigma_t,
-        "sigma_pos": model.sigma_pos,
-        "q10": model.q10,
-        "T_ref": model.t_ref,
-    });
-    serde_json::to_string(&wire).map_err(|err| {
-        pyo3::exceptions::PyValueError::new_err(format!("failed to serialize arrival wire: {err}"))
-    })
+    Ok(json)
 }
 
 /// Computes the α-quantile of demand over a protection window starting at `start_day`,

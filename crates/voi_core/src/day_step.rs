@@ -516,6 +516,7 @@ mod tests {
             deliver: false,
             deliver_units: None,
             delivery_unit_f: None,
+            delivery_lot_f: None,
             units_per_lot: None,
         };
         let mut rng_gamma = Pcg64::seed_from_u64(1);
@@ -549,6 +550,7 @@ mod tests {
             deliver: false,
             deliver_units: None,
             delivery_unit_f: None,
+            delivery_lot_f: None,
             units_per_lot: None,
         };
         let mut rng = Pcg64::seed_from_u64(42);
@@ -638,6 +640,7 @@ mod tests {
                 deliver: true,
                 deliver_units: Some(upl as u32),
                 delivery_unit_f: Some(unit_f),
+                delivery_lot_f: None,
                 units_per_lot: Some(upl),
             };
             let mut rng_birth = Pcg64::seed_from_u64(138_004);
@@ -676,6 +679,7 @@ mod tests {
             deliver: true,
             deliver_units: None,
             delivery_unit_f: Some(unit_f),
+            delivery_lot_f: None,
             units_per_lot: None,
         };
         let out = unit_day_step::<rand_pcg::Pcg64>(
