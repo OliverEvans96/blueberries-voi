@@ -996,9 +996,8 @@ fn ac2_19_sigma_pos_in_filter_law() {
     let payload: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).expect("parse artifact");
     let embedded = ArrivalModel::embedded();
-    let phi = embedded.phi_bar_from_t_bar(payload["mu_T"].as_f64().unwrap());
     let corridor = embedded.corridor("abdella_all");
-    let lot_lambda = expected_delay(corridor) * phi;
+    let lot_lambda = expected_delay(corridor) * embedded.phi_set();
 
     let mut low = payload.clone();
     low["sigma_pos"] = serde_json::json!(0.02);
@@ -1076,9 +1075,12 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     let abdella_only = json["corridors"]["abdella_all"].clone();
     let single_json = serde_json::json!({
         "schema_version": json["schema_version"],
-        "mu_T": json["mu_T"],
-        "sigma_T": json["sigma_T"],
-        "temp_floor_c": json["temp_floor_c"],
+        "legs": json["legs"],
+        "thermal_modes": json["thermal_modes"],
+        "sigma_hour": json["sigma_hour"],
+        "T_break": json["T_break"],
+        "rho": json["rho"],
+        "tau_bar": json["tau_bar"],
         "sigma_pos": json["sigma_pos"],
         "q10": json["q10"],
         "T_ref": json["T_ref"],

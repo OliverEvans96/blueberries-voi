@@ -2035,6 +2035,7 @@ mod tests {
         assert_eq!(v["result"]["applied_config"]["obs_scenario"], "F1");
     }
 
+    #[ignore = "slow: 90-day step_n loop; run via cargo test -- --ignored"]
     #[test]
     fn step_refuses_at_day_90() {
         let mut s = EngineSession::new(1);
@@ -2073,8 +2074,8 @@ mod tests {
         }
     }
 
+    #[ignore = "90-day calendar demand; slow: run via cargo test -- --ignored"]
     #[test]
-#[ignore = "90-day calendar demand; slow: run via cargo test -- --ignored"]
     fn session_configure_loads_calendar_profile_and_uses_day_in_demand() {
         let mut s = EngineSession::new(0);
         s.init(0);
@@ -2192,8 +2193,8 @@ mod tests {
     }
 
     /// AC: after positive waste, P0 vs P1 Snapshot belief (lot_counts or ages) differ.
+    #[ignore = "P0 vs P1 belief after waste; slow: run via cargo test -- --ignored"]
     #[test]
-#[ignore = "P0 vs P1 belief after waste; slow: run via cargo test -- --ignored"]
     fn p0_vs_p1_belief_differs_after_waste() {
         let mut p0 = EngineSession::new(99);
         p0.init(99);
@@ -2224,8 +2225,8 @@ mod tests {
     }
 
     /// AC: uneven sales_by → F1 posterior differs from P1.
+    #[ignore = "F1 vs P1 belief after uneven sales; slow: run via cargo test -- --ignored"]
     #[test]
-#[ignore = "F1 vs P1 belief after uneven sales; slow: run via cargo test -- --ignored"]
     fn f1_vs_p1_belief_differs_after_uneven_sales() {
         let orders = [
             32u32, 0, 32, 0, 32, 0, 32, 0, 32, 0, 32, 0, 32, 0, 32, 0, 32, 0, 32, 0,
@@ -2280,8 +2281,8 @@ mod tests {
     }
 
     /// T-150 supersedes bc26218: caught-up F2 must differ from never-switching P0.
+    #[ignore = "caught-up F2 vs P0 session; slow: run via cargo test -- --ignored"]
     #[test]
-#[ignore = "caught-up F2 vs P0 session; slow: run via cargo test -- --ignored"]
     fn catch_up_f2_matches_never_switched_and_not_oracle() {
         let orders = [8u32, 0, 8, 0, 8, 0, 8, 0];
         let mut p0_full = EngineSession::new(42);
@@ -2351,8 +2352,8 @@ mod tests {
         assert_eq!(snap["applied_config"]["enable_filter"], false);
     }
 
+    #[ignore = "truth belief source skips filter; slow: run via cargo test -- --ignored"]
     #[test]
-#[ignore = "truth belief source skips filter; slow: run via cargo test -- --ignored"]
     fn truth_belief_source_skips_filter_updates() {
         let mut s = EngineSession::new(7);
         s.init(7);

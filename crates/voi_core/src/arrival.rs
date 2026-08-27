@@ -1919,7 +1919,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_schema_version() {
-        let json = r#"{"schema_version":99,"legs":[{"name":"precool_staging","weight":0.15,"setpoint_c":0.5},{"name":"line_haul","weight":0.6,"setpoint_c":2.0},{"name":"dock_receiving","weight":0.25,"setpoint_c":5.0}],"T_break":12.0,"rho":0.08,"tau_bar":0.5,"sigma_pos":0.1,"q10":3,"T_ref":0,"gamma_shape":2,"gamma_scale":0.03,"reference_life_days":14,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"x":{"d_min":1,"delay_shape":1,"delay_scale":1}}}"#;
+        let json = r#"{"schema_version":99,"legs":[{"name":"precool_staging","weight":0.15,"setpoint_c":0.35},{"name":"line_haul","weight":0.6,"setpoint_c":2.58},{"name":"dock_receiving","weight":0.25,"setpoint_c":4.32}],"thermal_modes":{"cool":{"offset_c":-0.12,"p":0.10},"nominal":{"offset_c":0.0,"p":0.80},"warm":{"offset_c":0.22,"p":0.10}},"sigma_hour":0.028,"T_break":12.0,"rho":0.08,"tau_bar":0.5,"sigma_pos":0.08,"q10":3.0,"T_ref":0.0,"gamma_shape":2.0,"gamma_scale":0.03571428571428571,"reference_life_days":14.0,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"abdella_all":{"d_min":1.85,"delay_shape":3.0,"delay_scale":0.97}}}"#;
         let err = ArrivalModel::from_json(json).unwrap_err();
         assert!(matches!(err, ArrivalModelError::UnknownSchemaVersion(99)));
     }

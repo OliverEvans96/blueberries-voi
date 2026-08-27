@@ -39,6 +39,18 @@ def _phi_bar_from_t_bar(t_bar: float, q10: float, t_ref: float) -> float:
     return float(math.pow(q10, (t_bar - t_ref) / 10.0))
 
 
+def _phi_set_from_legs(payload: dict[str, Any], *, mode_offset_c: float = 0.0) -> float:
+    q10 = float(payload["q10"])
+    t_ref = float(payload["T_ref"])
+    return float(
+        sum(
+            float(leg["weight"])
+            * _phi_bar_from_t_bar(float(leg["setpoint_c"]) + mode_offset_c, q10, t_ref)
+            for leg in payload["legs"]
+        )
+    )
+
+
 def _sample_exposure(
     rng: np.random.Generator,
     payload: dict[str, Any],
@@ -50,20 +62,43 @@ def _sample_exposure(
     d_min = float(corridor["d_min"])
     delay_shape = float(corridor["delay_shape"])
     delay_scale = float(corridor["delay_scale"])
-    mu_t = float(payload["mu_T"])
-    sigma_t = float(payload["sigma_T"])
-    temp_floor = float(payload.get("temp_floor_c", 0.0))
     sigma_pos = float(payload["sigma_pos"])
-    q10 = float(payload["q10"])
-    t_ref = float(payload["T_ref"])
 
     delays = rng.gamma(delay_shape, delay_scale, size=n)
     d = d_min + delays
-    t_bar = rng.normal(mu_t, sigma_t, size=n)
-    t_bar = np.maximum(t_bar, temp_floor)
-    phi_bar = np.power(q10, (t_bar - t_ref) / 10.0)
+
+    if int(payload.get("schema_version", 1)) >= 2:
+        modes = payload["thermal_modes"]
+        mode_names = ("cool", "nominal", "warm")
+        probs = np.asarray(
+            [float(modes[name]["p"]) for name in mode_names],
+            dtype=float,
+        )
+        probs /= probs.sum()
+        offsets = np.asarray(
+            [float(modes[name]["offset_c"]) for name in mode_names],
+            dtype=float,
+        )
+        chosen = rng.choice(len(mode_names), size=n, p=probs)
+        phi_bar = np.asarray(
+            [
+                _phi_set_from_legs(payload, mode_offset_c=float(offsets[i]))
+                for i in chosen
+            ],
+            dtype=float,
+        )
+    else:
+        mu_t = float(payload["mu_T"])
+        sigma_t = float(payload["sigma_T"])
+        temp_floor = float(payload.get("temp_floor_c", 0.0))
+        q10 = float(payload["q10"])
+        t_ref = float(payload["T_ref"])
+        t_bar = rng.normal(mu_t, sigma_t, size=n)
+        t_bar = np.maximum(t_bar, temp_floor)
+        phi_bar = np.power(q10, (t_bar - t_ref) / 10.0)
+
     psi = rng.lognormal(0.0, sigma_pos, size=n)
-    return d * phi_bar * psi
+    return np.asarray(d * phi_bar * psi, dtype=float)
 
 
 def exposure_prior_on_grid(
@@ -92,8 +127,22 @@ def phi_bar_fleet_moments(
     n_samples: int = 10_000,
     seed: int = 11,
 ) -> tuple[float, float]:
-    """Mean and sd of duration-averaged phi_bar from truncated-normal transit temps."""
+    """Mean and sd of duration-averaged phi_bar from the committed artifact."""
     art = payload if payload is not None else load_arrival_model()
+    if int(art.get("schema_version", 1)) >= 2:
+        modes = art["thermal_modes"]
+        phis: list[float] = []
+        weights: list[float] = []
+        for name in ("cool", "nominal", "warm"):
+            mode = modes[name]
+            phis.append(_phi_set_from_legs(art, mode_offset_c=float(mode["offset_c"])))
+            weights.append(float(mode["p"]))
+        mean = float(sum(p * phi for p, phi in zip(weights, phis, strict=True)))
+        var = float(
+            sum(p * (phi - mean) ** 2 for p, phi in zip(weights, phis, strict=True))
+        )
+        return mean, math.sqrt(var)
+
     rng = np.random.default_rng(seed)
     mu_t = float(art["mu_T"])
     sigma_t = float(art["sigma_T"])
