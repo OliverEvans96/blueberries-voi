@@ -13,6 +13,7 @@ from blueberries_voi.experiments.channel_factorial_viz import (
     rows_to_dataframe,
     save_nb19_figures,
 )
+from blueberries_voi.experiments.channel_joint import CODE_OPTS
 
 SAMPLE_ROWS = [
     {
@@ -55,7 +56,20 @@ def test_scatter_and_parallel_build() -> None:
     df = rows_to_dataframe(SAMPLE_ROWS)
     fig1 = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_dist")
     fig2 = parallel_coords_figure(df, accuracy_column="mae_f")
-    assert fig1.axes and fig2.axes
+    assert len(fig1.axes) == len(CODE_OPTS)
+    assert fig2.axes
+
+
+def test_scatter_legend_encodes_waste_and_delivery() -> None:
+    df = rows_to_dataframe(SAMPLE_ROWS)
+    fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
+    legend = fig.legends[0]
+    labels = {text.get_text() for text in legend.get_texts()}
+    assert "waste scan off" in labels
+    assert "waste scan on" in labels
+    assert "none" in labels
+    assert "pack_date" in labels
+    assert "temperature_history" in labels
 
 
 def test_save_nb19_figures_writes_files(tmp_path: Path) -> None:

@@ -32,12 +32,12 @@
 
 | Figure | Verdict | Notes |
 |--------|---------|-------|
-| `channel_factorial_heatmap_mae_f.png` | **Pass** | Clear 2×2×3 factorial; colorbar 0.05–0.12 |
+| `channel_factorial_heatmap_mae_f.png` | **Pass** | 2×2×3 factorial; colorbar right-aligned with heatmap height (fixed misplaced overlap) |
 | `parallel_coords_mae_f.png` | **Pass** | 36 paths; delivery axis uses 0/1/2 ordinal |
-| `profit_vs_mae_f.png` | **Pass** | Delivery types color-coded; no missing points |
+| `profit_vs_mae_f.png` | **Pass** | Faceted by code type (upc/gsin); color = waste scan on/off; marker = delivery history; combined legend |
 
 - No broken/empty plots in committed PNGs.
-- Legacy `*_mae_dist.png` files unchanged (still from prior run); nb19 refresh wrote `*_mae_f.png` only.
+- Legacy `*_mae_dist.png` files refreshed alongside `*_mae_f.png` by `render_nb19_figures.py`.
 
 ### Notebook cell outputs
 

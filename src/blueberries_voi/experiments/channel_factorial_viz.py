@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -49,7 +50,13 @@ def facet_heatmap_figure(
     figsize: tuple[float, float] = (12, 4.5),
 ) -> Figure:
     """Facet heatmaps: one panel per delivery history (code x waste cells)."""
-    fig, axes = plt.subplots(1, len(DELIVERY_OPTS), figsize=figsize, sharey=True)
+    fig, axes = plt.subplots(
+        1,
+        len(DELIVERY_OPTS),
+        figsize=figsize,
+        sharey=True,
+        constrained_layout=True,
+    )
     vmin = float(df[accuracy_column].min())
     vmax = float(df[accuracy_column].max())
     im = None
@@ -72,9 +79,15 @@ def facet_heatmap_figure(
                     ax.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=8)
     label = "MAE(mean f)" if accuracy_column == "mae_f" else "MAE(distribution)"
     if im is not None:
-        fig.colorbar(im, ax=list(axes), label=label, shrink=0.85)
-    fig.suptitle(f"Channel factorial · {label}", y=1.02)
-    fig.tight_layout()
+        fig.colorbar(
+            im,
+            ax=axes,
+            location="right",
+            shrink=0.92,
+            pad=0.02,
+            label=label,
+        )
+    fig.suptitle(f"Channel factorial · {label}")
     return fig
 
 
@@ -82,33 +95,81 @@ def profit_vs_accuracy_scatter_figure(
     df: pd.DataFrame,
     *,
     accuracy_column: AccuracyColumn = "mae_f",
-    figsize: tuple[float, float] = (6.5, 5.0),
+    figsize: tuple[float, float] = (10.0, 4.8),
 ) -> Figure:
-    """Scatter profit vs belief accuracy with delivery hue."""
-    fig, ax = plt.subplots(figsize=figsize)
-    colors = {
-        "none": "#4c72b0",
-        "pack_date": "#55a868",
-        "temperature_history": "#c44e52",
+    """Scatter profit vs belief accuracy faceted by code type.
+
+    Color encodes waste scan (on/off); marker shape encodes delivery history.
+    """
+    waste_colors = {"off": "#4c72b0", "on": "#dd8452"}
+    delivery_markers = {
+        "none": "o",
+        "pack_date": "s",
+        "temperature_history": "^",
     }
-    for delivery in DELIVERY_OPTS:
-        sub = df[df["delivery"] == delivery]
-        if sub.empty:
-            continue
-        ax.scatter(
-            sub[accuracy_column],
-            sub["profit"],
-            label=delivery,
-            alpha=0.85,
-            s=70,
-            color=colors.get(delivery, "#333333"),
-            edgecolor="0.2",
+    fig, axes = plt.subplots(
+        1,
+        len(CODE_OPTS),
+        figsize=figsize,
+        sharex=True,
+        sharey=True,
+        constrained_layout=True,
+    )
+    xlabel = "MAE(mean f)" if accuracy_column == "mae_f" else "MAE(distribution)"
+    for ax, code in zip(axes, CODE_OPTS, strict=True):
+        sub = df[df["code_type"] == code]
+        for waste in WASTE_OPTS:
+            for delivery in DELIVERY_OPTS:
+                pts = sub[(sub["waste"] == waste) & (sub["delivery"] == delivery)]
+                if pts.empty:
+                    continue
+                ax.scatter(
+                    pts[accuracy_column],
+                    pts["profit"],
+                    color=waste_colors[waste],
+                    marker=delivery_markers[delivery],
+                    alpha=0.85,
+                    s=70,
+                    edgecolor="0.2",
+                )
+        ax.set_title(f"code={code}")
+        ax.set_xlabel(xlabel)
+    axes[0].set_ylabel("Closed-loop profit")
+
+    waste_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=waste_colors[waste],
+            markeredgecolor="0.2",
+            markersize=8,
+            label=f"waste scan {waste}",
         )
-    ax.set_xlabel("MAE(mean f)" if accuracy_column == "mae_f" else "MAE(distribution)")
-    ax.set_ylabel("Closed-loop profit")
-    ax.set_title("Belief accuracy vs profit (nb19)")
-    ax.legend(frameon=False, title="delivery")
-    fig.tight_layout()
+        for waste in WASTE_OPTS
+    ]
+    delivery_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker=delivery_markers[delivery],
+            color="0.35",
+            linestyle="None",
+            markersize=8,
+            label=delivery,
+        )
+        for delivery in DELIVERY_OPTS
+    ]
+    fig.legend(
+        handles=waste_handles + delivery_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.08),
+        ncol=5,
+        frameon=False,
+        title="color = waste scan · marker = delivery history · facet = code type",
+    )
+    fig.suptitle("Belief accuracy vs profit (nb19)", y=1.14)
     return fig
 
 
@@ -171,7 +232,7 @@ def save_nb19_figures(
 
     fig = profit_vs_accuracy_scatter_figure(df, accuracy_column=accuracy_column)
     path = out_dir / f"profit_vs_{accuracy_column}.png"
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     written.append(path)
 
