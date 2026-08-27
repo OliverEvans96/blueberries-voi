@@ -1,8 +1,28 @@
 //! Injected shipment traces (no parquet). Python `ShipmentTrace` numeric path.
 
 use rand::Rng;
+use rand_distr::{Distribution, StandardNormal};
 
+use crate::arrival::ArrivalModel;
 use crate::physics::{age_to_f, q10_age_increment};
+
+/// One hour in days — OU correlation time and trace sampling step.
+const TRACE_HOUR_D: f64 = 1.0 / 24.0;
+/// OU correlation time (1 hour) in days.
+const OU_TAU_D: f64 = 1.0 / 24.0;
+
+fn normal_sample<R: Rng + ?Sized>(rng: &mut R) -> f64 {
+    StandardNormal.sample(rng)
+}
+
+fn ou_evolve<R: Rng + ?Sized>(state: &mut f64, dt_d: f64, sigma_hour: f64, rng: &mut R) {
+    if dt_d <= 1e-12 || sigma_hour <= 0.0 {
+        return;
+    }
+    let phi = (-dt_d / OU_TAU_D).exp();
+    let innov = sigma_hour * (1.0 - phi * phi).max(0.0).sqrt();
+    *state = phi * *state + innov * normal_sample(rng);
+}
 
 /// A shipment's recorded temperature history: elapsed-time / temperature sample pairs fed
 /// into Q10 thermal-exposure integration for the arrival model.
@@ -25,12 +45,7 @@ impl ShipmentTrace {
 }
 
 /// Cumulative thermal exposure along a temperature path (reference-days).
-pub fn arrival_exposure_from_path(
-    temps_c: &[f64],
-    times_d: &[f64],
-    q10: f64,
-    t_ref_c: f64,
-) -> f64 {
+pub fn arrival_exposure_from_path(temps_c: &[f64], times_d: &[f64], q10: f64, t_ref_c: f64) -> f64 {
     if temps_c.len() != times_d.len() || times_d.len() < 2 {
         panic!("temps_c and times_d must be same length >= 2");
     }
@@ -74,71 +89,169 @@ pub fn phi_bar_from_trace(trace: &ShipmentTrace, q10: f64, t_ref_c: f64) -> f64 
     shipment_arrival_age(trace, q10, t_ref_c) / d
 }
 
-/// Stochastic piecewise transit profile for truth deliveries and F3 events.
+/// Generate one trip's temperature history: bottom-up stage durations, trip-wide thermal
+/// mode, hourly OU noise, and cold-chain break pulses inside calendar `duration_d`.
 ///
-/// Samples at roughly hourly resolution (`n_knots = ceil(duration_d × 24) + 1`, capped at 500)
-/// so long-haul traces render smoothly in the event-log temperature chart. Builds a visibly
-/// non-flat path whose duration-averaged φ̄ matches `phi_bar_target` (the same scalar the filter
-/// conditions on via `resolve_arrival_exposure`).
+/// This is the *generative primitive* of the arrival model. The path is built first and
+/// the exposure Λ is integrated back out of it (see `ArrivalModel::draw_transit`), rather
+/// than a decorative path being fitted to a scalar φ̄ that was already drawn.
 pub fn truth_transit_trace<R: Rng + ?Sized>(
     duration_d: f64,
-    phi_bar_target: f64,
-    t_anchor: f64,
-    temp_floor_c: f64,
-    q10: f64,
-    t_ref_c: f64,
+    model: &ArrivalModel,
+    temp_bias_c: f64,
     rng: &mut R,
 ) -> ShipmentTrace {
+    truth_transit_trace_for_corridor(
+        duration_d,
+        model,
+        model.default_corridor.as_str(),
+        temp_bias_c,
+        rng,
+    )
+}
+
+/// Like [`truth_transit_trace`] but uses the named corridor's gamma parameters for stage
+/// decomposition.
+pub fn truth_transit_trace_for_corridor<R: Rng + ?Sized>(
+    duration_d: f64,
+    model: &ArrivalModel,
+    corridor_key: &str,
+    temp_bias_c: f64,
+    rng: &mut R,
+) -> ShipmentTrace {
+    let corridor = model.corridor(corridor_key);
+    let stage_d = model.decompose_stages_for_duration(corridor, duration_d, rng);
+    let mode_offset = model.draw_thermal_mode_offset(rng);
+
     if duration_d <= 1e-9 {
+        let t0 = model
+            .legs
+            .first()
+            .map_or(0.0, |l| l.setpoint_c + mode_offset + temp_bias_c);
         return ShipmentTrace {
             times_d: vec![0.0, 0.0],
-            temps_c: vec![t_anchor, t_anchor],
+            temps_c: vec![t0, t0],
         };
     }
-    let n_knots = ((duration_d * 24.0).ceil() as usize + 1).clamp(2, 500);
-    let times: Vec<f64> = (0..n_knots)
-        .map(|i| duration_d * i as f64 / (n_knots - 1) as f64)
-        .collect();
-    let ramp_amp = 2.0;
-    let mut shape: Vec<f64> = (0..n_knots)
-        .map(|i| {
-            let frac = i as f64 / (n_knots - 1) as f64;
-            2.0 * (0.5 - frac)
-        })
-        .collect();
-    for i in 1..n_knots - 1 {
-        shape[i] += (rng.random::<f64>() - 0.5) * 1.0;
+
+    let mut stage_ends = Vec::with_capacity(stage_d.len());
+    let mut acc = 0.0;
+    for &dk in &stage_d {
+        acc += dk;
+        stage_ends.push(acc.min(duration_d));
     }
-    let base_temps: Vec<f64> = shape
-        .iter()
-        .map(|&s| (t_anchor + ramp_amp * s).max(temp_floor_c))
-        .collect();
-    let target_phi = phi_bar_target.max(1e-12);
-    let mut lo = -20.0;
-    let mut hi = 20.0;
-    let mut best_temps = base_temps.clone();
-    for _ in 0..48 {
-        let mid = 0.5 * (lo + hi);
-        let trial_temps: Vec<f64> = base_temps
-            .iter()
-            .map(|t| (t + mid).max(temp_floor_c))
-            .collect();
-        let trial = ShipmentTrace {
-            times_d: times.clone(),
-            temps_c: trial_temps.clone(),
-        };
-        let phi = phi_bar_from_trace(&trial, q10, t_ref_c);
-        if phi < target_phi {
-            lo = mid;
-        } else {
-            hi = mid;
+    if let Some(last) = stage_ends.last_mut() {
+        *last = duration_d;
+    }
+
+    let stage_index_at = |t: f64| -> usize {
+        for (i, &end) in stage_ends.iter().enumerate() {
+            if t < end + 1e-12 {
+                return i;
+            }
         }
-        best_temps = trial_temps;
+        stage_ends.len().saturating_sub(1)
+    };
+
+    let setpoint_at = |t: f64| -> f64 {
+        let i = stage_index_at(t);
+        model.legs[i].setpoint_c + mode_offset + temp_bias_c
+    };
+
+    // Break pulses as [start, end) intervals inside calendar d, merged for exposure.
+    let taus = model.draw_break_taus(duration_d, rng);
+    let mut pulses: Vec<(f64, f64)> = Vec::with_capacity(taus.len());
+    for tau in taus {
+        if tau <= 0.0 {
+            continue;
+        }
+        let start = rng.random::<f64>() * (duration_d - tau).max(0.0);
+        pulses.push((start, (start + tau).min(duration_d)));
     }
-    ShipmentTrace {
-        times_d: times,
-        temps_c: best_temps,
+    pulses.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let mut merged: Vec<(f64, f64)> = Vec::with_capacity(pulses.len());
+    for (start, end) in pulses {
+        match merged.last_mut() {
+            Some(last) if start <= last.1 => last.1 = last.1.max(end),
+            _ => merged.push((start, end)),
+        }
     }
+
+    let in_pulse = |t: f64| merged.iter().any(|&(s, e)| t >= s - 1e-12 && t < e - 1e-12);
+
+    // Hourly grid plus stage and break edges for exact trapezoid integration.
+    let mut sample_times = vec![0.0, duration_d];
+    let mut t = 0.0;
+    while t < duration_d - 1e-12 {
+        t = (t + TRACE_HOUR_D).min(duration_d);
+        sample_times.push(t);
+    }
+    for &end in &stage_ends {
+        if end > 0.0 && end < duration_d {
+            sample_times.push(end);
+        }
+    }
+    for &(start, end) in &merged {
+        sample_times.push(start);
+        sample_times.push(end);
+    }
+    sample_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sample_times.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
+
+    let mut ou_state = 0.0;
+    let mut temps: Vec<f64> = Vec::with_capacity(sample_times.len());
+    let mut prev_stage = stage_index_at(sample_times[0]);
+    for (i, &tt) in sample_times.iter().enumerate() {
+        let stage = stage_index_at(tt);
+        if stage != prev_stage {
+            ou_state = 0.0;
+            prev_stage = stage;
+        }
+        if i > 0 {
+            // Hourly OU on line haul and dock only — precool stays flat so stage-boundary
+            // timing is visible in traces (v2 chart + S1.1 share-variance guard).
+            if stage > 0 && model.sigma_hour > 0.0 {
+                ou_evolve(
+                    &mut ou_state,
+                    sample_times[i] - sample_times[i - 1],
+                    model.sigma_hour,
+                    rng,
+                );
+            }
+        }
+        let baseline = setpoint_at(tt);
+        let temp = if in_pulse(tt) {
+            model.t_break + temp_bias_c
+        } else if stage > 0 {
+            baseline + ou_state
+        } else {
+            baseline
+        };
+        temps.push(temp);
+    }
+
+    let mut times_d = Vec::with_capacity(sample_times.len() * 2);
+    let mut temps_c = Vec::with_capacity(sample_times.len() * 2);
+    for i in 0..sample_times.len().saturating_sub(1) {
+        let lo = sample_times[i];
+        let hi = sample_times[i + 1];
+        if hi - lo <= 1e-12 {
+            continue;
+        }
+        let temp = temps[i];
+        times_d.push(lo);
+        temps_c.push(temp);
+        times_d.push(hi);
+        temps_c.push(temp);
+    }
+    if times_d.len() < 2 {
+        let t0 = setpoint_at(0.0);
+        return ShipmentTrace {
+            times_d: vec![0.0, duration_d],
+            temps_c: vec![t0, t0],
+        };
+    }
+    ShipmentTrace { times_d, temps_c }
 }
 
 /// φ̄ summaries for every trace in a fleet.
@@ -220,35 +333,59 @@ mod tests {
         assert!(phi > 1.0, "1C q10 factor phi_bar={phi}");
     }
 
+    /// The legged baseline must produce a visibly stepped, non-constant path spanning
+    /// exactly the trip duration. (Replaces the pre-break-model assertion that a
+    /// fabricated trace matched a pre-drawn φ̄ by bisection — the trace is now the
+    /// primitive, so there is no target to match.)
     #[test]
-    fn truth_transit_trace_is_non_constant_and_matches_phi_bar() {
+    fn truth_transit_trace_is_stepped_and_spans_duration() {
         use rand::SeedableRng;
+        let mut model = crate::arrival::ArrivalModel::embedded();
+        model.set_break_rate(0.0);
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
         let duration_d = 5.5;
-        let phi_target = 1.35;
-        let trace = truth_transit_trace(
-            duration_d,
-            phi_target,
-            2.0,
-            -2.0,
-            3.0,
-            0.0,
-            &mut rng,
-        );
+        let trace = truth_transit_trace(duration_d, &model, 0.0, &mut rng);
+
         assert_eq!(trace.times_d.len(), trace.temps_c.len());
-        let expected_knots = ((duration_d * 24.0).ceil() as usize + 1).clamp(2, 500);
-        assert_eq!(trace.times_d.len(), expected_knots);
+        assert!(
+            (calendar_transit_days(&trace) - duration_d).abs() < 1e-9,
+            "trace must span exactly the trip duration"
+        );
         let min_t = trace.temps_c.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_t = trace.temps_c.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_t = trace
+            .temps_c
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
         assert!(
             (max_t - min_t).abs() > 0.05,
-            "expected varying temps, got {:?}",
+            "expected a stepped path across legs, got {:?}",
             trace.temps_c
         );
-        let phi = phi_bar_from_trace(&trace, 3.0, 0.0);
+    }
+
+    /// Trapezoidal Q10 integration of the generated path must be self-consistent with
+    /// `resolve_arrival_exposure` — the trace is the primitive under v2.
+    #[test]
+    fn break_free_trace_integrates_consistently() {
+        use crate::arrival::resolve_arrival_exposure;
+        use rand::SeedableRng;
+        let mut model = crate::arrival::ArrivalModel::embedded();
+        model.set_break_rate(0.0);
+        let mut rng = rand::rngs::StdRng::seed_from_u64(11);
+        let duration_d = 4.25;
+        let trace = truth_transit_trace(duration_d, &model, 0.0, &mut rng);
+        let integrated = shipment_arrival_age(&trace, model.q10, model.t_ref);
+        let from_resolve = resolve_arrival_exposure(
+            Some(&trace.temps_c),
+            Some(&trace.times_d),
+            model.q10,
+            model.t_ref,
+        )
+        .expect("trace integrates");
         assert!(
-            (phi - phi_target).abs() < 1e-3,
-            "phi_bar {phi} vs target {phi_target}"
+            (integrated - from_resolve).abs() < 1e-9,
+            "integrated Λ={integrated} vs resolve {from_resolve}"
         );
     }
 }

@@ -1,14 +1,46 @@
 {
-  "schema_version": 1,
-  "mu_T": 2.781762,
-  "sigma_T": 0.527213,
-  "temp_floor_c": 0.0,
+  "schema_version": 2,
+  "legs": [
+    {
+      "name": "precool_staging",
+      "weight": 0.15,
+      "setpoint_c": 0.35
+    },
+    {
+      "name": "line_haul",
+      "weight": 0.6,
+      "setpoint_c": 2.58
+    },
+    {
+      "name": "dock_receiving",
+      "weight": 0.25,
+      "setpoint_c": 4.32
+    }
+  ],
+  "thermal_modes": {
+    "cool": {
+      "offset_c": -0.12,
+      "p": 0.1
+    },
+    "nominal": {
+      "offset_c": 0.0,
+      "p": 0.8
+    },
+    "warm": {
+      "offset_c": 0.22,
+      "p": 0.1
+    }
+  },
+  "sigma_hour": 0.028,
+  "T_break": 12.0,
+  "rho": 0.08,
+  "tau_bar": 0.5,
   "sigma_pos": 0.08,
   "q10": 3.0,
   "T_ref": 0.0,
   "gamma_shape": 2.0,
-  "gamma_scale": 0.03571428571428571,
-  "reference_life_days": 14.0,
+  "gamma_scale": 0.019230769230769232,
+  "reference_life_days": 26.0,
   "quadrature": {
     "nodes": [
       0.01985507,
@@ -49,7 +81,7 @@
     }
   },
   "provenance": {
-    "source": "Offline fit from vendored Abdella parquet (ADR 0148); parametric families fixed, moments matched on n=6.",
+    "source": "Offline fit from vendored Abdella parquet (ADR 0148); corridor duration families fixed, moments matched on n=6. Thermal model replaced by cold-chain break events (schema 2).",
     "window": "Refrigerated leg only: from first lot-mean T < 10 C through published Table 2 duration.",
     "n_shipments": 6,
     "fit_utc": "2026-08-25T20:16:00Z",
@@ -87,23 +119,30 @@
       }
     ],
     "fitted_fields": [
-      "corridors.*.(d_min,delay_shape,delay_scale)",
-      "mu_T",
-      "sigma_T",
-      "sigma_pos"
+      "corridors.*.(d_min,delay_shape,delay_scale)"
     ],
     "adjustment_fields": [
+      "legs",
+      "thermal_modes",
+      "sigma_hour",
+      "T_break",
+      "rho",
+      "tau_bar",
       "gamma_shape",
       "gamma_scale",
       "reference_life_days",
       "q10",
       "T_ref",
-      "temp_floor_c"
+      "sigma_pos"
     ],
     "adjustment_notes": {
-      "gamma": "keep gamma_shape=2.0, gamma_scale=0.03571428571428571 (MOD eta_ref=14.0 continuity; not identified from n=6)",
-      "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)"
+      "gamma": "arrival reference_life_days=26 (gamma_scale=1/52): f|Lambda mapping tuned for US retail cold-chain (~65-85% median arrival f at multilot Λ); in-store eta_ref=14 unchanged via ModelParams.set_reference_life",
+      "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)",
+      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); compressed setpoints (0.35/2.58/4.32 C) reduce Dirichlet stage-share spread driving phi_bar SD.",
+      "thermal_modes": "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.10, p_n=0.80, p_w=0.10; offsets -0.12/0/+0.22 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.",
+      "sigma_hour": "Hourly OU amplitude (0.028 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.",
+      "breaks": "rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement."
     },
-    "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6."
+    "notes": "Six strawberry logger shipments (not MLE-validated). Arrival freshness remains an upper bound (field heat excluded). short_haul = S2; long_haul = S1,S3-S6. Schema 2 replaces the truncated-normal mean transit temperature (mu_T/sigma_T/temp_floor_c) with a deterministic legged baseline plus compound-Poisson break events; the temperature trace is now the generative primitive and Lambda is integrated out of it."
   }
 }

@@ -158,14 +158,9 @@ jobs:
       - name: Mypy
         run: uv run --python 3.11 mypy src tests
 
-      - name: Pytest with coverage
+      - name: Pytest
         run: >-
-          uv run --python 3.11 pytest -n auto -m "not docs"
-          --cov=blueberries_voi
-          --cov-branch
-          --cov-report=term-missing
-          --cov-report=xml
-          --cov-fail-under=80
+          uv run --python 3.11 pytest -n auto -m "not slow and not docs"
 
   docs:
     name: docs

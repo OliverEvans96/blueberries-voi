@@ -1,0 +1,168 @@
+ticket: T-163
+parent_tip: team/arrival-breaks/integrate
+optimize: balanced
+max_parallel: 5
+description: >
+  PR #65 finish — Stage 1 transit generative v2 (bottom-up Abdella stages, trip modes,
+  hourly OU, 0150 breaks, filter projection), Stage 2 multi-lot L=3 birth wiring,
+  Stage 3 Python/TS/wire mirrors + version bump + docs code-ref re-pins.
+
+tasks:
+  - id: architect
+    role: architect
+    files:
+      - .team/specs/T-163.md
+      - .team/adr/0150-arrival-thermal-break-events.md
+      - .team/adr/0148-abdella-derived-arrival-fit.md
+      - .team/adr/INDEX.md
+      - .team/plans/T-163-concurrency.yaml
+      - .team/qa/T-163-tests.md
+    deps: []
+
+  - id: qa-v2-artifact
+    role: qa
+    shard: v2-artifact
+    files:
+      - crates/voi_core/tests/t163_v2_artifact.rs
+      - tests/test_t163_arrival_fit.py
+      - .team/qa/T-163-v2-artifact-tests.md
+    deps: [architect]
+
+  - id: qa-v2-generative
+    role: qa
+    shard: v2-generative
+    files:
+      - crates/voi_core/tests/t163_v2_generative.rs
+      - crates/voi_core/tests/t151_cold_chain_breaks.rs
+      - .team/qa/T-163-v2-generative-tests.md
+    deps: [architect]
+
+  - id: qa-v2-filter
+    role: qa
+    shard: v2-filter
+    files:
+      - crates/voi_core/tests/t163_v2_filter_coherence.rs
+      - .team/qa/T-163-v2-filter-tests.md
+    deps: [architect]
+
+  - id: qa-v2-guards
+    role: qa
+    shard: v2-guards
+    files:
+      - crates/voi_core/tests/t150_phase2_arrival_model.rs
+      - crates/voi_core/tests/t163_v2_calibration.rs
+      - tests/test_t163_calibration.py
+      - .team/qa/T-163-v2-guards-tests.md
+    deps: [architect]
+
+  - id: qa-multilot
+    role: qa
+    shard: multilot
+    files:
+      - crates/voi_core/tests/t163_multilot.rs
+      - crates/voi_core/tests/t_events_temp_trace.rs
+      - crates/voi_core/tests/unit_pf_ac.rs
+      - .team/qa/T-163-multilot-tests.md
+    deps: [architect]
+
+  - id: qa-mirrors
+    role: qa
+    shard: mirrors
+    files:
+      - crates/voi_core/tests/t150_arrival_wire_filter_parity.rs
+      - tests/test_rust_parity.py
+      - tests/test_simulator_belief_wire.py
+      - tests/test_t128_obs_channels.py
+      - tests/test_docs_code_refs.py
+      - tests/test_studio_release_version.py
+      - .team/qa/T-163-mirrors-tests.md
+    deps: [architect]
+
+  - id: impl-artifact-fit
+    role: implement
+    shard: artifact-fit
+    files:
+      - data/abdella/arrival_model.json
+      - scripts/fit_abdella_arrival.py
+      - scripts/arrival_calibration_note.py
+    deps: [qa-v2-artifact]
+
+  - id: impl-generative-path
+    role: implement
+    shard: generative-path
+    files:
+      - crates/voi_core/src/shipments.rs
+      - crates/voi_core/tests/t163_v2_generative.rs
+      - crates/voi_core/tests/t151_cold_chain_breaks.rs
+    deps: [qa-v2-generative, impl-artifact-fit]
+
+  - id: impl-filter-projection
+    role: implement
+    shard: filter-projection
+    files:
+      - crates/voi_core/src/arrival.rs
+      - crates/voi_core/tests/t163_v2_filter_coherence.rs
+    deps: [qa-v2-filter, impl-generative-path]
+
+  - id: impl-session-studio
+    role: implement
+    shard: session-studio
+    files:
+      - crates/voi_core/src/session.rs
+      - web/src/controls.ts
+      - web/src/paramLabels.ts
+      - crates/voi_core/tests/t163_v2_calibration.rs
+      - crates/voi_core/tests/t150_phase2_arrival_model.rs
+    deps: [qa-v2-guards, impl-filter-projection]
+
+  - id: impl-multilot-wiring
+    role: implement
+    shard: multilot-wiring
+    files:
+      - crates/voi_core/src/session.rs
+      - crates/voi_core/src/unit_pf.rs
+      - crates/voi_core/src/obs.rs
+      - crates/voi_core/tests/t163_multilot.rs
+      - crates/voi_core/tests/t_events_temp_trace.rs
+      - crates/voi_core/tests/unit_pf_ac.rs
+      - crates/voi_core/tests/t140_arrival_gamma.rs
+      - crates/voi_core/tests/t141_independent_aging.rs
+    deps: [qa-multilot, impl-session-studio]
+    file_owner:
+      crates/voi_core/src/session.rs: impl-multilot-wiring
+
+  - id: impl-mirrors
+    role: implement
+    shard: mirrors
+    files:
+      - crates/voi_core/src/arrival_wire.rs
+      - crates/voi_core/src/belief_flat.rs
+      - src/blueberries_voi/filter/types.py
+      - web/src/engine/types.ts
+      - web/src/obsMask.ts
+      - crates/voi_core/tests/t150_arrival_wire_filter_parity.rs
+      - tests/test_rust_parity.py
+      - tests/test_simulator_belief_wire.py
+      - tests/test_t128_obs_channels.py
+    deps: [qa-mirrors, impl-multilot-wiring]
+
+  - id: impl-version-citations
+    role: implement
+    shard: version-citations
+    merge_last: true
+    files:
+      - web/package.json
+      - tests/test_studio_release_version.py
+      - tests/test_docs_code_refs.py
+      - .team/changelog.md
+    deps: [impl-mirrors]
+
+  - id: review
+    role: review
+    files: [.team/reviews/T-163.md]
+    deps: [impl-version-citations]
+
+  - id: verify
+    role: verify
+    files: [.team/qa/T-163.md]
+    deps: [impl-version-citations]

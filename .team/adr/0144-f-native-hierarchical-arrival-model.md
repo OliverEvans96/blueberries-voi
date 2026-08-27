@@ -1,6 +1,6 @@
 # 0144. f-native hierarchical arrival model on a shape-scaled gamma with a single reference life
 
-STATUS: PROPOSED
+STATUS: PROPOSED — §3 transit-temperature clause SUPERSEDED BY 0150; rest of this ADR unaffected
 DATE: 2026-08-22
 BOARD-ID: MOD-11 / MOD-18 / MOD-19 / FIL
 GROUP: MOD

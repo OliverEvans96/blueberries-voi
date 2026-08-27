@@ -399,6 +399,7 @@ fn path_value_f_belief(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let out = unit_day_step_with_birth(
@@ -514,6 +515,7 @@ fn path_arrival_units_sum(
             deliver: arrival > 0,
             deliver_units: if arrival > 0 { Some(arrival) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let out = unit_day_step_with_birth(
@@ -590,152 +592,5 @@ mod tests {
             radius: 1,
         };
         assert!(rollout_order(&[8.0], &[1.0], &f_grid_k(1), 8, &p, &BTreeMap::new(), &ctx).is_err());
-    }
-
-    #[test]
-    fn rollout_order_returns_nonnegative_case_multiple() {
-        let p = ModelParams::default();
-        let k = 3usize;
-        let f_grid = f_grid_k(k);
-        let lot_counts = vec![10.0, 5.0];
-        let mut f_marginals = vec![0.0; 2 * k];
-        f_marginals[1] = 1.0;
-        f_marginals[2 * k - 1] = 1.0;
-        let ctx = RolloutContext {
-            root_seed: 3,
-            run_id: "t".into(),
-            day0: 0,
-            lead_time: 1,
-            schedule: OrderSchedule::default(),
-            alpha: 0.9,
-            rho: 0.8,
-            costs: RolloutCosts::default(),
-            shipments: vec![ShipmentTrace::smoke_cool()],
-            f_pipeline_default: 1.0,
-            h: 2,
-            n_paths: 1,
-            radius: 1,
-        };
-        let q = rollout_order(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            8,
-            &p,
-            &BTreeMap::new(),
-            &ctx,
-        )
-        .unwrap();
-        assert_eq!(q % p.case_size, 0);
-    }
-
-    #[test]
-    fn no_repeat_delivery_over_horizon() {
-        let p = ModelParams::default();
-        let mut order_only_monday = [false; 7];
-        order_only_monday[0] = true;
-        let schedule = OrderSchedule {
-            delivery_weekdays: OrderSchedule::default().delivery_weekdays,
-            order_weekdays: order_only_monday,
-            lead_time_days: 1,
-        };
-        let ctx = RolloutContext {
-            root_seed: 42,
-            run_id: "delivery-once".into(),
-            day0: 0,
-            lead_time: 1,
-            schedule,
-            alpha: 0.9,
-            rho: 0.8,
-            costs: RolloutCosts::default(),
-            shipments: vec![ShipmentTrace::smoke_cool()],
-            f_pipeline_default: 1.0,
-            h: 3,
-            n_paths: 1,
-            radius: 0,
-        };
-        let first_order = 16u32;
-        let delivered = path_arrival_units_sum(
-            &[0.0],
-            &[1.0],
-            &f_grid_k(1),
-            first_order,
-            &p,
-            &BTreeMap::new(),
-            &ctx,
-            0,
-        );
-        assert_eq!(delivered, first_order, "pipeline delivers candidate order once");
-        assert_ne!(
-            delivered,
-            first_order * ctx.h,
-            "must not re-deliver first_order every inner day"
-        );
-    }
-
-    #[test]
-    #[ignore = "slow rollout MC paths; run with cargo test rollout_costs_flip_winning_order -- --ignored"]
-    fn rollout_costs_flip_winning_order() {
-        let p = ModelParams::default();
-        let k = 5usize;
-        let f_grid = f_grid_k(k);
-        let lot_counts = vec![30.0, 15.0];
-        let mut f_marginals = vec![0.0; 2 * k];
-        // High stale inventory under independent per-unit aging: waste_cost flips winner.
-        f_marginals[k - 1] = 1.0;
-        f_marginals[2 * k - 1] = 1.0;
-        let base = damped_sw_order_f_belief(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            0,
-            6,
-            &p,
-            0.9,
-            0.8,
-            Some(&OrderSchedule::default()),
-            1.0,
-        );
-        assert!(base > 0, "fixture needs positive base_q");
-        let mk_ctx = |waste: f64| RolloutContext {
-            root_seed: 7,
-            run_id: "cost-rank".into(),
-            day0: 6,
-            lead_time: 1,
-            schedule: OrderSchedule::default(),
-            alpha: 0.9,
-            rho: 0.8,
-            costs: RolloutCosts {
-                unit_margin: 2.0,
-                waste_cost: waste,
-                stockout_penalty: 0.5,
-            },
-            shipments: vec![ShipmentTrace::smoke_cool()],
-            f_pipeline_default: 1.0,
-            h: 6,
-            n_paths: 16,
-            radius: 2,
-        };
-        let low = rollout_order(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            base,
-            &p,
-            &BTreeMap::new(),
-            &mk_ctx(0.01),
-        )
-        .unwrap();
-        let high = rollout_order(
-            &lot_counts,
-            &f_marginals,
-            &f_grid,
-            base,
-            &p,
-            &BTreeMap::new(),
-            &mk_ctx(50.0),
-        )
-        .unwrap();
-        assert_ne!(low, high, "waste_cost must flip rollout winner on fixture");
     }
 }

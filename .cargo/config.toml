@@ -1,0 +1,8 @@
+[alias]
+b = "build --release --locked"
+t = "test --release --locked"
+r = "run --release --locked"
+
+[env]
+# Documented in AGENTS.md; scripts also pass --release explicitly.
+CARGO_TERM_COLOR = "always"

@@ -84,6 +84,7 @@ pub fn run_closed_loop_episode(
             deliver: order > 0,
             deliver_units: if order > 0 { Some(order) } else { None },
             delivery_unit_f,
+            delivery_lot_f: None,
             units_per_lot: Some(upl),
         };
         let mut rng_gamma = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 3));

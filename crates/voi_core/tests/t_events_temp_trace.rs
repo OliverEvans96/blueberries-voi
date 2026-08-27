@@ -3,6 +3,8 @@
 use serde_json::Value;
 use voi_core::handle_rpc;
 
+const LOTS_PER_DELIVERY: usize = 3;
+
 fn rpc(method: &str, params: &str) -> Value {
     let req = format!(r#"{{"id":"1","method":"{method}","params":{params}}}"#);
     let out = handle_rpc(&req);
@@ -34,23 +36,35 @@ fn events_f3_temp_trace_is_non_constant() {
         "expected at least one delivery day in events wire"
     );
     for day in delivery_days {
-        let temps = day["temp_temps_c"]
+        let traces = day["temp_traces_by_lot"]
             .as_array()
-            .expect("F3 mask must expose temp_temps_c on delivery days");
-        assert!(
-            temps.len() >= 3,
-            "expected multi-point trace on day {:?}, got {:?}",
+            .expect("F3 mask must expose temp_traces_by_lot on delivery days");
+        assert_eq!(
+            traces.len(),
+            LOTS_PER_DELIVERY,
+            "expected {LOTS_PER_DELIVERY} per-lot traces on day {:?}, got {:?}",
             day["day"],
-            temps
+            traces.len()
         );
-        let values: Vec<f64> = temps.iter().filter_map(|t| t.as_f64()).collect();
-        let min_t = values.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_t = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        assert!(
-            (max_t - min_t).abs() > 0.05,
-            "constant temp trace {:?} on day {:?}",
-            values,
-            day["day"]
-        );
+        for (ell, tr) in traces.iter().enumerate() {
+            let temps = tr["temps_c"]
+                .as_array()
+                .expect("per-lot trace temps_c");
+            assert!(
+                temps.len() >= 3,
+                "expected multi-point trace for lot {ell} on day {:?}, got {:?}",
+                day["day"],
+                temps
+            );
+            let values: Vec<f64> = temps.iter().filter_map(|t| t.as_f64()).collect();
+            let min_t = values.iter().cloned().fold(f64::INFINITY, f64::min);
+            let max_t = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            assert!(
+                (max_t - min_t).abs() > 0.05,
+                "constant temp trace {:?} for lot {ell} on day {:?}",
+                values,
+                day["day"]
+            );
+        }
     }
 }

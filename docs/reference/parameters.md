@@ -7,12 +7,14 @@ sources:
     - crates/voi_core/src/session.rs
     - crates/voi_core/src/policy.rs
     - crates/voi_core/src/arrival.rs
+    - crates/voi_core/src/shipments.rs
     - crates/voi_core/src/schedule.rs
     - crates/voi_core/src/rollout.rs
     - web/src/controls.ts
     - web/src/mock/generate.ts
     - data/abdella/arrival_model.json
     - data/freshnet/demand_profile.json
+  adr: ["0149", "0150", "0148"]
 ---
 
 # Model parameters
@@ -80,19 +82,32 @@ where $Q_{10}$ (`q10`) is the rate multiplier per 10°C of warming and $T_\text{
 is $\text{Gamma}(k\cdot\phi(T_\text{store}),\,\theta)$ — a *shape*-scaled gamma, not a
 scale-scaled one (see below).
 
-For a delivered lot, cumulative thermal exposure over the transit leg is
+For a delivered lot, cumulative thermal exposure over the transit leg is built from a
+**temperature path**, not a single mean-temperature draw. Calendar duration is
 
 $$
-\Lambda = d \cdot \bar\phi \cdot \psi
+d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})
 $$
 
-where $d$ is the calendar transit duration (days), $\bar\phi = \phi(\bar T)$ is the
-duration-averaged Q10 factor evaluated at the lot's mean transit temperature $\bar T$, and
-$\psi$ is a within-pallet position multiplier drawn log-normally, $\psi = \exp(z\cdot
-\sigma_\text{pos})$ with $z\sim\mathcal N(0,1)$. Arrival freshness for a unit is then a draw
-against $\text{Gamma}(k\cdot\Lambda,\,\theta)$ — the same shape-scaled family as the in-store
-clock, so $\Lambda$ is a genuine sufficient statistic for "how much of the journey's thermal
-exposure has this unit absorbed."
+from the chosen corridor. A deterministic three-leg baseline (precool / line-haul / dock)
+holds fixed setpoints for duration shares of $d$; **cold-chain breaks** add
+$N \sim \mathrm{Poisson}(\rho d)$ episodes of mean duration $\bar\tau$ at fixed
+$T_{\mathrm{break}}$, punched into the path as rectangular pulses. Lot-level exposure is
+
+$$
+\Lambda_{\mathrm{lot}} = d \cdot \varphi_{\mathrm{set}} + \sum_j \tau_j \cdot (\varphi_{\mathrm{break}} - \varphi_{\mathrm{set}})
+$$
+
+integrated equivalently from the trace via `resolve_arrival_exposure`. Per-unit exposure is
+$\Lambda = \Lambda_{\mathrm{lot}} \cdot \psi$ with $\psi = \exp(z \cdot \sigma_\text{pos})$
+and $z \sim \mathcal{N}(0,1)$. Arrival freshness is a draw against
+$\text{Gamma}(k\cdot\Lambda,\,\theta)$ — the same shape-scaled family as the in-store clock.
+
+Under ADR 0149 each delivery targets **three lots** with
+$\Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}$; total units per
+delivery are split across lots, not multiplied. A planned v2 upgrade (see
+[cold-chain arrival](/store/cold-chain-arrival)) will add bottom-up stage durations, trip
+thermal modes, and hourly path noise while keeping this break law.
 
 ## Why it's modeled this way
 
@@ -115,9 +130,10 @@ paths and caps mean shelf life at 6.25 reference-days, well below the literature
 or mould spreading fruit-to-fruit — and is better described by a compound Poisson or
 contagion process than by a continuous subordinator. Shape-scaling is the more defensible of
 the two continuous conventions available, not a claim of physical exactness. The arrival-model
-temperature/position family (`mu_T`, `sigma_T`, `sigma_pos`) is also **hand-authored, not
-MLE-fitted** — the underlying sample is six shipments, too few to fit a distribution to with
-any confidence.
+break parameters ($\rho$, $\bar\tau$, $T_{\mathrm{break}}$) and leg setpoints are
+**assumed or anchored, not MLE-fitted** — only corridor durations are moment-matched to six
+shipments (ADR 0148); ADR 0148's truncated-normal transit-temperature fit is **superseded by
+ADR 0150** (legs + break events). The retired `mu_T` / `sigma_T` fields are no longer used.
 
 ## In the code
 
@@ -184,15 +200,20 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Episode horizon | — | 90 | days | Length of one studio episode | `crates/voi_core/src/session.rs:290`; Studio (TS) `web/src/mock/generate.ts:43` (`window_days`) |
 | Default corridor | — | `abdella_all` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/params.rs:33,53` |
 
-### Arrival-model artifact (`data/abdella/arrival_model.json`)
+### Arrival-model artifact (`data/abdella/arrival_model.json`, schema 2)
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Mean transit temperature | $\mu_T$ | 2.7 | °C | Mean of the truncated-normal transit temperature law | `data/abdella/arrival_model.json`; field `mu_t` at `crates/voi_core/src/arrival.rs:74` |
-| Transit temperature spread | $\sigma_T$ | 0.4 | °C | SD of the truncated-normal transit temperature law | `data/abdella/arrival_model.json`; field `sigma_t` at `crates/voi_core/src/arrival.rs:75` |
-| Temperature floor | — | 0.0 | °C | Left-truncation floor of the transit temperature law | `data/abdella/arrival_model.json`; field `temp_floor_c` at `crates/voi_core/src/arrival.rs:76` |
-| Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; field `sigma_pos` at `crates/voi_core/src/arrival.rs:77` |
-| Default corridor (`abdella_all`) | $d_\text{min}$ / delay shape / delay scale | 1.9 days / 3.0 / 1.0 | days / — / days | Minimum transit duration and gamma delay-tail shape for the composite corridor | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
+| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at 0.35 / 2.58 / 4.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`) | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:199` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:206` (`t_break`) |
+| Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:209` (`rho`) |
+| Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:212` (`tau_bar`) |
+| Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
+| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1247` ([`thermal_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.thermal_nodes)) |
+| Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
+| Default corridor (`abdella_all`) | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
+| Illustrative `short_haul` | $d_\text{min}$ / shape / scale | 1.803 / 2.0 / 0.05 | days | Studio-only corridor (not Abdella-calibrated) | `data/abdella/arrival_model.json` (`corridors.short_haul`) |
+| Illustrative `long_haul` | $d_\text{min}$ / shape / scale | 4.033 / 1.628 / 0.814 | days | Studio-only corridor (not Abdella-calibrated) | `data/abdella/arrival_model.json` (`corridors.long_haul`) |
 
 ## Caveats
 
@@ -204,12 +225,17 @@ that live in TypeScript and are not part of `ModelParams` itself.
   canonical value, derived in Rust from `eta_ref` and `gamma_shape`, is
   $1/28\approx0.035714$. Anything computed through that mock path will not match the live
   engine's shelf-life calibration.
-- `short_haul` and `long_haul` corridors in the arrival-model artifact are explicitly
-  documented as "illustrative studio corridors only" in the artifact's own provenance notes —
-  not calibrated lanes, unlike `abdella_all`.
-- The arrival-model temperature/position family is fit to **six shipments** — not enough data
-  to support a confident distributional claim; treat `mu_T`, `sigma_T`, and `sigma_pos` as
-  assumptions, not measurements.
+- `short_haul` and `long_haul` corridors are illustrative studio lanes only; `abdella_all` is
+  the moment-matched Abdella fit. The v2 plan demotes haul toggles in favour of one unified
+  duration family.
+- Break parameters $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario
+  knobs** — the six Abdella shipments are clean chains with no observed breaks. Corridor
+  durations are fit; leg setpoints are anchored to the break-free $\bar\varphi$ centre;
+  $\sigma_\text{pos}$ remains a documented adjustment knob.
+- The retired truncated-normal transit temperature (`mu_T`, `sigma_T`, `temp_floor_c`) is
+  replaced by legged baselines plus compound-Poisson breaks (ADR 0150).
+- Control damping uses a parameter also named `rho` in `session.rs` — unrelated to break
+  hazard $\rho$ in the arrival artifact.
 - Rollout's internal `RolloutCosts` (margin/waste/stockout = 2.0/1.5/3.0) are a *separate*
   set of numbers from the studio P&L economics (`p_sell`/`c_unit`/`c_waste`/`c_stockout`) —
   changing one does not change the other, and conflating them will misread what the rollout

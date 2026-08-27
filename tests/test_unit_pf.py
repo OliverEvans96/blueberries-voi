@@ -1,13 +1,12 @@
-"""T-C2-A AC-unit-pf: unit_ll likelihoods and unit_pf observation router (RED).
+"""T-C2-A AC-unit-pf: Python wiring guards and pure-Python reference math.
 
-Reference bench: ``crates/voi_core/src/bin/bench_c2_a_totals_study.rs``.
+Kernel behavioral tests live in ``crates/voi_core/tests/unit_pf_ac.rs``
+(fast + slow tiers).
 """
 
 from __future__ import annotations
 
 import math
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,23 +15,6 @@ from blueberries_voi.model import ModelParams, picking_weights
 
 REPO = Path(__file__).resolve().parents[1]
 VOI_CORE = REPO / "crates" / "voi_core"
-BENCH_RS = VOI_CORE / "src" / "bin" / "bench_c2_a_totals_study.rs"
-
-# Scripted study gates (experiments/c2_a_totals_study.md @ L=20).
-L_STUDY = 20
-N_PARTICLES = 200
-UNITS_PER_LOT = 15
-MEAN_F_MAE_MAX = 0.02
-FILTER_DAY_MS_MAX = 500.0
-SCRIPTED_SEED = 50_000 + L_STUDY * 1_000
-
-
-def _cargo_test_profile() -> tuple[str, ...]:
-    """CI prebuilds release test binaries; dev profile would recompile voi_*."""
-    profile: tuple[str, ...] = ("--locked",)
-    if os.environ.get("CI", "").lower() == "true":
-        profile = ("--release", *profile)
-    return profile
 
 
 def _read(path: Path) -> str:
@@ -68,28 +50,6 @@ def _require_unit_pf_wired() -> None:
     for sym in ("UnitParticleBank", "filter_step_unit"):
         if sym not in body and sym not in lib:
             pytest.fail(f"AC-unit-pf: unit_pf must export `{sym}`")
-
-
-def _cargo_unit_pf_ac(*test_names: str) -> subprocess.CompletedProcess[str]:
-    cmd = [
-        "cargo",
-        "test",
-        *_cargo_test_profile(),
-        "-p",
-        "voi_core",
-        "--test",
-        "unit_pf_ac",
-        "--",
-        "--exact",
-        *test_names,
-    ]
-    return subprocess.run(
-        cmd,
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
 
 
 def _unit_tau(f: float, eta: float) -> float:
@@ -136,37 +96,6 @@ def _hand_sequential_kernel_path_logprob(
         log_p += math.log(base_w[picked] / tot)
         alive[picked] = False
     return log_p
-
-
-def _binom_pmf(k: int, n: int, p: float) -> float:
-    if k < 0 or k > n or n < 0:
-        return 0.0
-    p = min(1.0, max(0.0, p))
-    return math.comb(n, k) * (p**k) * ((1.0 - p) ** (n - k))
-
-
-def _hand_p1_totals_loglik(
-    freshness: list[float],
-    sales: int,
-    waste: int,
-    *,
-    seed: int = 0,
-) -> float:
-    """Mirror ``bench_c2_a_totals_study::p1_totals_loglik`` contract."""
-    units = len(freshness)
-    alive = sum(1 for f in freshness if f > 0.0)
-    if alive < sales:
-        return float("-inf")
-    ll_sales = _hand_sequential_kernel_path_logprob(freshness, sales, seed=seed)
-    if not math.isfinite(ll_sales):
-        return float("-inf")
-    dead = sum(1 for f in freshness if f <= 0.0)
-    rem = alive - sales
-    p_die = min(1.0, max(0.0, dead / units))
-    pw = _binom_pmf(waste, rem, p_die)
-    if pw <= 0.0:
-        return float("-inf")
-    return ll_sales + math.log(pw)
 
 
 def _hand_spoil_prob(
@@ -233,9 +162,6 @@ def _hand_pb_loglik_by_lot(
     return ll
 
 
-# --- module wiring (RED: files / lib.rs exports) ---
-
-
 def test_unit_ll_rs_exports_required_functions() -> None:
     _require_unit_ll_wired()
 
@@ -258,19 +184,6 @@ def test_lib_rs_reexports_unit_pf_public_api() -> None:
         "loglik_sales_by_units",
     ):
         assert sym in lib, f"lib.rs must re-export `{sym}` for session/VOI wiring"
-
-
-# --- observation router (mask_for + filter_step_unit source) ---
-
-
-def test_p1_mask_never_populates_sales_by() -> None:
-    proc = _cargo_unit_pf_ac("p1_mask_obs_sales_by_stays_none")
-    assert proc.returncode == 0, proc.stderr
-
-
-def test_f1_mask_exposes_sales_by_for_per_lot_ll() -> None:
-    proc = _cargo_unit_pf_ac("f1_mask_exposes_sales_by_for_router")
-    assert proc.returncode == 0, proc.stderr
 
 
 def test_filter_step_unit_p1_router_uses_poisson_binomial_spoilage() -> None:
@@ -304,33 +217,11 @@ def test_filter_step_unit_uses_systematic_resample() -> None:
     assert "fn resample(" not in body.replace("systematic_resample", "")
 
 
-def test_filter_never_synthesizes_sales_by_from_totals() -> None:
-    proc = _cargo_unit_pf_ac("filter_never_synthesizes_sales_by_from_totals")
-    assert proc.returncode == 0 or "missing crates/voi_core/src/unit_pf.rs" in (
-        proc.stdout + proc.stderr
-    )
-
-
-# --- unit_ll likelihood contract (hand reference + future Rust parity) ---
-
-
 def test_sequential_kernel_path_logprob_feasible_finite() -> None:
     freshness = [0.8, 0.6, 0.4, 0.2]
     want = _hand_sequential_kernel_path_logprob(freshness, sales=2, seed=7)
     assert math.isfinite(want)
     _require_unit_ll_wired()
-    proc = _cargo_unit_pf_ac("sequential_kernel_path_logprob_feasible_finite")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
-def test_superseded_interval_spoil_primitives_are_gone() -> None:
-    proc = _cargo_unit_pf_ac("superseded_interval_spoil_primitives_are_gone")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
-def test_superseded_p1_totals_loglik_stays_removed() -> None:
-    proc = _cargo_unit_pf_ac("superseded_binomial_waste_primitives_are_gone")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
 def test_pb_log_pmf_hand_reference_normalizes() -> None:
@@ -339,24 +230,6 @@ def test_pb_log_pmf_hand_reference_normalizes() -> None:
     log_mass = [_hand_pb_log_pmf(probs, k) for k in range(len(probs) + 1)]
     assert abs(math.log(sum(math.exp(x) for x in log_mass))) < 1e-9
     _require_unit_ll_wired()
-    proc = subprocess.run(
-        [
-            "cargo",
-            "test",
-            *_cargo_test_profile(),
-            "-p",
-            "voi_core",
-            "t141_poisson_binomial",
-            "--",
-            "--nocapture",
-            "pb_log_pmf_normalizes_on_small_n",
-        ],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
 def test_pb_loglik_by_lot_hand_reference_matches_brute_force() -> None:
@@ -366,24 +239,6 @@ def test_pb_loglik_by_lot_hand_reference_matches_brute_force() -> None:
     want = _hand_pb_loglik_by_lot(freshness, offsets, waste_by)
     assert math.isfinite(want)
     _require_unit_ll_wired()
-    proc = subprocess.run(
-        [
-            "cargo",
-            "test",
-            *_cargo_test_profile(),
-            "-p",
-            "voi_core",
-            "t141_poisson_binomial",
-            "--",
-            "--nocapture",
-            "pb_loglik_by_lot_matches_brute_force",
-        ],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
 def test_loglik_sales_by_units_requires_sales_by_path() -> None:
@@ -393,46 +248,9 @@ def test_loglik_sales_by_units_requires_sales_by_path() -> None:
     assert "sequential_kernel_path_logprob" in body
 
 
-# --- scripted accuracy / timing gates (bench_c2_a_totals_study) ---
-
-
-def test_scripted_l20_mean_f_mae_under_threshold() -> None:
-    _require_unit_pf_wired()
-    _require_unit_ll_wired()
-    proc = _cargo_unit_pf_ac("unit_pf_l20_scripted_mean_f_mae_and_order_match")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
 def test_bench_c2_a_totals_study_uses_production_unit_ll() -> None:
     pytest.skip("T-TAU-RETIRE: bench_c2_a_totals_study binary removed")
 
 
 def test_bench_c2_a_totals_study_registered_in_cargo_toml() -> None:
     pytest.skip("T-TAU-RETIRE: bench_c2_a_totals_study binary removed")
-
-
-def test_cargo_unit_pf_ac_integration_suite_green() -> None:
-    """Full Rust integration suite passes after unit_ll/unit_pf land."""
-    proc = _cargo_unit_pf_ac()
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-
-def test_obs_mask_for_router_table_tests_pass() -> None:
-    """Existing obs.rs mask_for tests are the normative router input contract."""
-    proc = subprocess.run(
-        [
-            "cargo",
-            "test",
-            *_cargo_test_profile(),
-            "-p",
-            "voi_core",
-            "mask_for",
-            "--",
-            "--exact",
-        ],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stderr

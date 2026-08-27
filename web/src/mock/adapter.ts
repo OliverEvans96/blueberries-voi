@@ -422,6 +422,7 @@ export class MockAdapter implements EngineAdapter {
           lot_ids: masked.lot_ids ?? null,
           arrival_lot_ids: masked.arrival_lot_ids ?? null,
           pack_date_days: masked.pack_date_days ?? null,
+          pack_dates_by_lot: masked.pack_dates_by_lot ?? null,
           temp_times_d: masked.temp_times_d ?? null,
           temp_temps_c: masked.temp_temps_c ?? null,
           temp_traces_by_lot: masked.temp_traces_by_lot ?? null,
@@ -446,6 +447,14 @@ export class MockAdapter implements EngineAdapter {
 
     const arrivalMeta = this.arrivalMetaForDay(day);
     const temp = this.tempTraceForDay(day, arrivalMeta.lotIds);
+    const packDateDays =
+      day.arrivals > 0
+        ? Math.max(1, Math.round((1 - (day.f_at_receipt ?? 0.85)) * 14))
+        : null;
+    const packDatesByLot =
+      packDateDays !== null && arrivalMeta.lotIds.length > 0
+        ? arrivalMeta.lotIds.map((_, i) => Math.max(1, packDateDays - i))
+        : null;
 
     return {
       day: day.day,
@@ -457,10 +466,8 @@ export class MockAdapter implements EngineAdapter {
       lot_ids: lotIds,
       arrival_lot_ids: arrivalMeta.lotIds,
       arrivals_by: arrivalMeta.qtys,
-      pack_date_days:
-        day.arrivals > 0
-          ? Math.max(1, Math.round((1 - (day.f_at_receipt ?? 0.85)) * 14))
-          : null,
+      pack_date_days: packDateDays,
+      pack_dates_by_lot: packDatesByLot,
       temp_times_d: temp.times,
       temp_temps_c: temp.temps,
       temp_traces_by_lot: temp.byLot,

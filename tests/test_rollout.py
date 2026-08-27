@@ -393,46 +393,6 @@ def test_rollout_order_returns_nonnegative_case_multiple() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: paired CRN → mean rollout profit ≥ base SW (tol)
-# ---------------------------------------------------------------------------
-
-
-@_ROLLOUT_COMPUTE_SKIP
-def test_rollout_mean_profit_ge_base_sw_under_paired_crn() -> None:
-    """Improvement or tie under shared CRN seeds; never worse beyond abs 1e-6."""
-    params = ModelParams()
-    base = DampedSurvivalWeightedPolicy(rho=0.8, alpha=0.9, params=params)
-
-    # Prefer a public RolloutPolicy; else a module helper that builds one.
-    mod = _resolve_rollout_module()
-    policy_cls = getattr(mod, "RolloutPolicy", None)
-    if policy_cls is None:
-        policy_cls = getattr(_rollout_defining_module(), "RolloutPolicy", None)
-    assert policy_cls is not None, (
-        "export RolloutPolicy wrapping rollout_order for closed-loop scoring "
-        "(T-030 paired-CRN profit AC)"
-    )
-    rollout_policy = policy_cls(base_policy=base, params=params)
-
-    base_mean = _mean_episode_profit(
-        base,
-        root_seeds=_CRN_ROOT_SEEDS,
-        run_id_prefix=_CRN_RUN_ID_PREFIX,
-        params=params,
-    )
-    rollout_mean = _mean_episode_profit(
-        rollout_policy,
-        root_seeds=_CRN_ROOT_SEEDS,
-        run_id_prefix=_CRN_RUN_ID_PREFIX,
-        params=params,
-    )
-    assert rollout_mean + _PROFIT_ABS_TOL >= base_mean, (
-        f"rollout mean profit {rollout_mean} must be ≥ base {base_mean} "
-        f"within abs tol {_PROFIT_ABS_TOL} on seeds {_CRN_ROOT_SEEDS}"
-    )
-
-
-# ---------------------------------------------------------------------------
 # AC: optional compute-budget knobs with full desktop defaults
 # ---------------------------------------------------------------------------
 

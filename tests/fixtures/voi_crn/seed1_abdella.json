@@ -1,6 +1,6 @@
 {
   "physics_epoch": "t150-f-native-arrival",
-  "generated_from_commit": "63dafca",
+  "generated_from_commit": "pending",
   "alpha_note": "damped_sw only (n_rollout_paths=0); default alpha=0.9; tuned_alpha.json optional (see regen_tuned_alpha.py)",
   "budgets": {
     "beta": 2.0,
@@ -14,12 +14,12 @@
     "shipments": "default_shipments"
   },
   "profits": {
-    "P0": 86.0,
-    "P1": 86.0,
-    "F1": 106.5,
-    "F1s": 106.5,
-    "F2a": 123.0,
-    "F2": 123.0,
-    "B-state": 123.0
+    "P0": 270.5,
+    "P1": 270.5,
+    "F1": 270.5,
+    "F1s": 270.5,
+    "F2a": 262.0,
+    "F2": 262.0,
+    "B-state": 230.5
   }
 }

@@ -41,6 +41,21 @@ SYMBOL_RE = re.compile(
 SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|$")
 
 # Build artifacts: docs may cite the dev copy under web/src/wasm/.
+_RETIRED_ARRIVAL_SYMBOLS = frozenset(
+    {"mu_t", "sigma_t", "temp_floor_c", "sample_truncated_normal"}
+)
+_V2_ARRIVAL_SYMBOLS = frozenset(
+    {"thermal_nodes", "truth_transit_trace", "t_break", "legs"}
+)
+_ARRIVAL_SOURCE_PATHS = (
+    "crates/voi_core/src/arrival.rs",
+    "crates/voi_core/src/shipments.rs",
+)
+_ARRIVAL_DOC_PATHS = (
+    "docs/reference/parameters.md",
+    "docs/store/cold-chain-arrival.md",
+)
+
 PATH_ALIASES: dict[str, str] = {
     "web/src/wasm": "packaging/wasm/pkg",
     "web/src/wasm/": "packaging/wasm/pkg/",
@@ -168,6 +183,45 @@ def test_in_the_code_tables_resolve() -> None:
     assert not all_failures, (
         "T-150 docs code-reference guard: one or more 'In the code' table rows "
         "cite a path or symbol that doesn't resolve:\n" + "\n".join(all_failures)
+    )
+
+
+def test_arrival_code_refs_do_not_cite_retired_truncated_normal_fields() -> None:
+    """S3.6 — docs must not pin retired v1 arrival symbols on arrival.rs citations."""
+    failures: list[str] = []
+    for rel in _ARRIVAL_DOC_PATHS:
+        md_path = REPO_ROOT / rel
+        text = md_path.read_text(encoding="utf-8")
+        for line_no, row in _table_data_rows(text):
+            if "crates/voi_core/src/arrival.rs" not in row:
+                continue
+            for span in _all_backtick_spans(row):
+                if span in _RETIRED_ARRIVAL_SYMBOLS:
+                    failures.append(
+                        f"{md_path}:{line_no}: retired symbol `{span}` still cited "
+                        f"against arrival.rs\n    row: {row}"
+                    )
+    assert not failures, (
+        "T-163 S3.6: re-pin arrival docs to v2 generative symbols:\n"
+        + "\n".join(failures)
+    )
+
+
+def test_arrival_parameters_table_cites_v2_generative_symbols() -> None:
+    """S3.6 — parameters table must cite v2 generative fields after re-pin."""
+    params_md = (REPO_ROOT / "docs/reference/parameters.md").read_text(encoding="utf-8")
+    source_text = "\n".join(
+        (REPO_ROOT / rel).read_text(encoding="utf-8") for rel in _ARRIVAL_SOURCE_PATHS
+    )
+    missing_doc = sorted(sym for sym in _V2_ARRIVAL_SYMBOLS if sym not in params_md)
+    missing_code = sorted(sym for sym in _V2_ARRIVAL_SYMBOLS if sym not in source_text)
+    assert not missing_code, (
+        "arrival/shipments sources must define v2 symbols for docs to cite: "
+        f"{missing_code}"
+    )
+    assert not missing_doc, (
+        "RED [S3.6]: docs/reference/parameters.md must cite v2 arrival symbols "
+        f"(missing {missing_doc}); retire mu_t/sigma_t rows"
     )
 
 

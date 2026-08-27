@@ -40,6 +40,7 @@ export type RichObsWire = {
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
   pack_date_days?: number | null;
+  pack_dates_by_lot?: number[] | null;
   temp_times_d?: number[] | null;
   temp_temps_c?: number[] | null;
   temp_traces_by_lot?: TempTraceByLot[] | null;
@@ -169,6 +170,7 @@ export function applyMask(rich: RichObsWire, mask: ObsMask): MaskedObsWire {
     arrival_lot_ids: mask.arrival_lot_ids ? (rich.arrival_lot_ids ?? null) : null,
     arrivals_by: mask.arrival_lot_ids ? (rich.arrivals_by ?? null) : null,
     pack_date_days: mask.pack_date ? (rich.pack_date_days ?? null) : null,
+    pack_dates_by_lot: mask.pack_date ? (rich.pack_dates_by_lot ?? null) : null,
     temp_times_d: mask.temperature_history ? (rich.temp_times_d ?? null) : null,
     temp_temps_c: mask.temperature_history ? (rich.temp_temps_c ?? null) : null,
     temp_traces_by_lot: mask.temperature_history

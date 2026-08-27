@@ -4,12 +4,33 @@ Parameters in `arrival_model.json` are **fitted offline** from six Abdella shipm
 (`scripts/fit_abdella_arrival.py`). The data **does not validate** the assumed families;
 with only six corridors, treat numbers as defensible starting points, not MLE proof.
 
+Duration corridors are moment-matched on six `d_i`. **thermal_modes**, **sigma_hour**,
+**legs**, and break knobs (**T_break**, **rho**, **tau_bar**) are **ASSUMED** scenario
+design — not fit from the six clean-chain traces.
+
 ## Window consistency
 
 Both duration `d` and `phi_bar` are measured over the **same refrigerated leg**:
 from the first lot-mean sample below **10 °C** through the published Table 2 clip.
 Warm harvest spikes and **field heat** are excluded. Arrival freshness is an
 **upper bound** on store-relevant quality.
+
+## Design variance decomposition (Var(log Λ))
+
+At default **rho** = 0.08 (scenario design, not Abdella measurement):
+
+- **Duration** share of Var(log Λ): ~82%
+- **Break** share of Var(log Λ): ~18%
+
+At **rho** = 0, duration accounts for 100% of Var(log Λ) (no break pulses).
+
+## Assumed thermal knobs
+
+Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.10, p_n=0.80, p_w=0.10; offsets -0.12/0/+0.22 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.
+
+Hourly OU amplitude (0.028 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.
+
+rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement.
 
 ## Position spread (`sigma_pos`)
 

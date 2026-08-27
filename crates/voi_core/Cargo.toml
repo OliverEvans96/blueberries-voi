@@ -12,6 +12,10 @@ html_root_url = "https://oliverevans.dev/docs/blueberries/api/rust/"
 [lib]
 crate-type = ["rlib"]
 
+[[bin]]
+name = "bench_day_timing"
+path = "src/bin/bench_day_timing.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

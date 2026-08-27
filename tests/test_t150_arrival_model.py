@@ -35,8 +35,12 @@ except ImportError:
 _REQUIRED_ARTIFACT_KEYS = frozenset(
     {
         "schema_version",
-        "mu_T",
-        "sigma_T",
+        "legs",
+        "thermal_modes",
+        "sigma_hour",
+        "T_break",
+        "rho",
+        "tau_bar",
         "sigma_pos",
         "q10",
         "T_ref",
@@ -47,6 +51,7 @@ _REQUIRED_ARTIFACT_KEYS = frozenset(
         "provenance",
     }
 )
+_RETIRED_ARTIFACT_KEYS = frozenset({"mu_T", "sigma_T", "temp_floor_c"})
 
 
 def _grep_list(pattern: str, root_rel: str) -> list[str]:
@@ -78,14 +83,33 @@ def _read(path: Path) -> str:
 
 
 def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
-    """AC2.18: artifact moments and duration share match parquet observations."""
+    """AC2.18: artifact duration moments match parquet observations."""
     shipments = load_abdella_shipments(_REPO_ROOT / "data" / "abdella")
     payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
     corridor = payload["corridors"]["abdella_all"]
-    q10 = float(payload["q10"])
-    t_ref = float(payload["T_ref"])
 
     d_i = np.asarray([s.duration_d for s in shipments], dtype=float)
+
+    e_d_art = float(corridor["d_min"]) + float(corridor["delay_shape"]) * float(
+        corridor["delay_scale"]
+    )
+    sd_d_art = float(corridor["delay_scale"]) * math.sqrt(
+        float(corridor["delay_shape"])
+    )
+    assert abs(e_d_art - float(np.mean(d_i))) <= 0.5, (
+        f"RED: E[d] artifact {e_d_art:.3f} vs observed {float(np.mean(d_i)):.3f}"
+    )
+    sd_ratio = sd_d_art / float(np.std(d_i, ddof=1))
+    assert 0.5 <= sd_ratio <= 2.0, (
+        f"RED: sd(d) ratio {sd_ratio:.2f} must be in [0.5, 2.0]"
+    )
+
+    if int(payload.get("schema_version", 1)) >= 2:
+        # Truncated-normal mu_T/sigma_T anchoring retired (ADR 0150 / T-163).
+        return
+
+    q10 = float(payload["q10"])
+    t_ref = float(payload["T_ref"])
     lambda_i = np.asarray(
         [
             arrival_age_from_path(s.temps_c, s.times_d, q10=q10, t_ref_c=t_ref)
@@ -108,20 +132,6 @@ def test_ac2_18_arrival_artifact_anchored_to_abdella_shipments() -> None:
     assert 0.5 <= sigma_ratio <= 2.0, (
         f"RED: sigma_T ratio {sigma_ratio:.2f} must be in [0.5, 2.0] "
         f"(artifact={sigma_t_art}, observed sd(T_i)={sigma_t_obs:.3f})"
-    )
-
-    e_d_art = float(corridor["d_min"]) + float(corridor["delay_shape"]) * float(
-        corridor["delay_scale"]
-    )
-    sd_d_art = float(corridor["delay_scale"]) * math.sqrt(
-        float(corridor["delay_shape"])
-    )
-    assert abs(e_d_art - float(np.mean(d_i))) <= 0.5, (
-        f"RED: E[d] artifact {e_d_art:.3f} vs observed {float(np.mean(d_i)):.3f}"
-    )
-    sd_ratio = sd_d_art / float(np.std(d_i, ddof=1))
-    assert 0.5 <= sd_ratio <= 2.0, (
-        f"RED: sd(d) ratio {sd_ratio:.2f} must be in [0.5, 2.0]"
     )
 
     rng = np.random.default_rng(150_218)
@@ -156,6 +166,10 @@ def test_ac2_6_arrival_artifact_committed_schema() -> None:
     payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
     missing = _REQUIRED_ARTIFACT_KEYS - set(payload)
     assert not missing, f"RED: artifact missing keys {sorted(missing)}"
+    retired = _RETIRED_ARTIFACT_KEYS & set(payload)
+    assert not retired, (
+        f"RED: v2 artifact must not carry retired keys {sorted(retired)}"
+    )
     assert payload.get("corridors") or payload.get("arrival_product"), (
         "RED: artifact must key corridors by arrival_product"
     )
