@@ -101,14 +101,11 @@ If your change affects the published embed bundle, **bump `version` in
 | New feature, non-breaking API | **minor** (`0.x.0`) |
 | Breaking embed API | **major** |
 
-CI requires a strictly higher semver when any **publishable path** changes vs
-`main`:
+Bump semver when any **publishable path** changes vs `main`:
 
 - `web/src/`, `web/vite.lib.config.ts`, `web/scripts/`
 - `crates/voi_core/`, `crates/voi_wasm/`
 - `scripts/build-wasm.sh`
-
-Guard: `tests/test_studio_release_version.py`.
 
 ### What happens automatically on merge
 

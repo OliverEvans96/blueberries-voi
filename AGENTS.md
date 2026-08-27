@@ -192,14 +192,11 @@ PR** whenever you change code that alters the published `dist-lib` output.
 | New feature, non-breaking embed API | **minor** |
 | Breaking embed API | **major** |
 
-**Publishable paths** — CI fails if any of these change vs merge-base without a
-strictly higher semver:
+**Publishable paths** — bump semver when any of these change:
 
 - `web/src/`, `web/vite.lib.config.ts`, `web/scripts/`
 - `crates/voi_core/`, `crates/voi_wasm/`
 - `scripts/build-wasm.sh`
-
-Guard: `tests/test_studio_release_version.py` (Python CI job).
 
 **Workflow edits:** change `packaging/github-workflows/release-studio.yml` only;
 never edit live `.github/workflows/`. Ask a human to sync after merge.
