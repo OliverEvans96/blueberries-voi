@@ -1902,15 +1902,18 @@ mod tests {
 
     /// Guard against T-163 break-model regression where `thermal_nodes(d)` was recomputed
     /// on every CDF grid point (~600s+ release init); cached enumeration must stay bounded.
+    /// Release-mode budget ~60s (observed ~28s); debug builds skip timing (much slower).
     #[test]
     fn embedded_prior_build_under_regression_budget() {
         let t0 = std::time::Instant::now();
         let model = ArrivalModel::embedded();
         let elapsed = t0.elapsed();
-        assert!(
-            elapsed.as_secs() <= 120,
-            "embedded prior build took {elapsed:?} (uncached path exceeded 600s)"
-        );
+        if !cfg!(debug_assertions) {
+            assert!(
+                elapsed.as_secs() <= 60,
+                "embedded prior build took {elapsed:?} (release budget 60s; uncached path exceeded ~600s)"
+            );
+        }
         assert!(model.marginal_variance_f() >= 0.0);
     }
 
