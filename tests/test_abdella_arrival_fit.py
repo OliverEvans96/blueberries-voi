@@ -21,7 +21,7 @@ _NOTE = _REPO_ROOT / "data" / "abdella" / "calibration_note.md"
 def test_abdella_arrival_artifact_exists() -> None:
     assert _ARTIFACT.is_file()
     payload = json.loads(_ARTIFACT.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert "abdella_all" in payload["corridors"]
     prov = payload.get("provenance", {})
     assert prov.get("fit_script") == "scripts/fit_abdella_arrival.py"
