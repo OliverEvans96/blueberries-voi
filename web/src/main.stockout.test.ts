@@ -83,7 +83,7 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(fn).toMatch(/setWasteBarsHover\(\s*els\.spoil/);
     expect(fn).toMatch(/setPnLHover\(\s*els\.pnlEconomics/);
     expect(fn).toMatch(/setFreshnessCompositionHover\(\s*els\.ageComp/);
-    expect(fn).toMatch(/setDemandHover\(\s*els\.demand/);
+    expect(fn).toMatch(/setDemandForecastHover\(\s*els\.demandForecast/);
     expect(fn).toMatch(/setMarginalHover\(\s*els\.stockout\s*,\s*day\s*\)/);
   });
 

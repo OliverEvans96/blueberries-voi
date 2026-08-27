@@ -84,7 +84,7 @@ def _publishable_paths_changed(base_ref: str) -> bool:
 
 
 def test_studio_package_version_is_0_7_2() -> None:
-    """T-163 S3.4/S3.5 — studio embed semver bump for voi_core publishable changes."""
+    """Release semver pinned for studio embed package."""
     payload = json.loads(_PACKAGE_JSON.read_text(encoding="utf-8"))
     assert payload["version"] == "0.7.2"
 

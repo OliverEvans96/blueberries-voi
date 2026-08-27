@@ -65,6 +65,21 @@ describe("T-113 chips call set_obs_scenario (not config_dirty for obs_scenario a
   });
 });
 
+describe("applyObsSelection finally refreshes operator bar", () => {
+  it("finally block calls renderOperatorBar after catch-up ends", () => {
+    const main = readFileSync(MAIN_TS, "utf8");
+    const start = main.indexOf("async function applyObsSelection");
+    expect(start).toBeGreaterThan(-1);
+    const body = main.slice(start, start + 2200);
+    const finallyIdx = body.indexOf("} finally {");
+    expect(finallyIdx).toBeGreaterThan(-1);
+    const finallyBlock = body.slice(finallyIdx);
+    expect(finallyBlock).toMatch(/catchingUp\s*=\s*false/);
+    const afterCatchUp = finallyBlock.slice(finallyBlock.indexOf("catchingUp = false"));
+    expect(afterCatchUp).toMatch(/renderOperatorBar\s*\(\s*\)/);
+  });
+});
+
 describe("T-113 catch-up progress and chips disabled", () => {
   it("UI disables obs chips and shows catch-up progress while running", () => {
     const blob = readFileSync(CONTROLS_TS, "utf8") + readFileSync(MAIN_TS, "utf8");

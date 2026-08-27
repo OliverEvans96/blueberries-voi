@@ -60,11 +60,9 @@ import {
 import {
   buildDemandForecastRows,
   salesDemandForecastAnchor,
-  renderDailyDemand,
   renderDemandForecast,
   renderPickingVariability,
   setDemandForecastHover,
-  setDemandHover,
 } from "../charts/demandDist";
 import {
   fCompositionSeries,
@@ -345,9 +343,6 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get sectionControls(): HTMLElement {
       return q<HTMLElement>("#section-controls")!;
-    },
-    get demand(): HTMLElement {
-      return q<HTMLElement>("#chart-demand")!;
     },
     get demandForecast(): HTMLElement {
       return q<HTMLElement>("#chart-demand-forecast-host")!;
@@ -719,7 +714,6 @@ export function initStudio(app: HTMLElement): () => void {
     setPnLHover(els.pnlEconomics, day);
     setFreshnessCompositionHover(els.ageComp, day);
     setFreshnessCompositionHover(els.ageCompFocus, day);
-    setDemandHover(els.demand, day);
     setDemandForecastHover(els.demandForecast, day);
   }
 
@@ -860,9 +854,6 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   function mountTuningChartHosts(sectionId: SectionId): void {
-    if (sectionId === "demand") {
-      mountChartIntoHost(els.demand, "chart-demand-host");
-    }
     if (sectionId === "logistics") {
       mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
     }
@@ -1038,11 +1029,6 @@ export function initStudio(app: HTMLElement): () => void {
           renderAgeCompositionChart(els.ageCompFocus, FOCUS_CHART_HEIGHT),
         );
       }
-      if (plotVisible("plot-demand")) {
-        profileSync("renderActiveFocusPlots.demand", () =>
-          renderDailyDemand(els.demand, vm.history, 160),
-        );
-      }
       if (plotVisible("plot-demand-forecast")) {
         profileSync("renderActiveFocusPlots.demandForecast", () =>
           renderDemandForecast(
@@ -1160,7 +1146,6 @@ export function initStudio(app: HTMLElement): () => void {
     if (!slider || slider.dataset.previewBound === "1") return;
     slider.dataset.previewBound = "1";
     bindDemandSliderPreview({
-      chartHost: els.demand,
       forecastHost: els.demandForecast,
       slider,
       vmSlider: q<HTMLInputElement>("#demand_vm") ?? undefined,
@@ -1419,6 +1404,7 @@ export function initStudio(app: HTMLElement): () => void {
     catchingUp = true;
     sectionControlsApi.update(controlsState());
     renderObsControlsPane();
+    renderOperatorBar();
     beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
@@ -1435,6 +1421,7 @@ export function initStudio(app: HTMLElement): () => void {
       );
     } finally {
       catchingUp = false;
+      renderOperatorBar();
       endStudioLoading();
       sectionControlsApi.update(controlsState());
       renderObsControlsPane();

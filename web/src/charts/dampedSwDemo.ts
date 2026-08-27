@@ -59,14 +59,12 @@ function convolvePmfs(
     .sort((x, y) => x.k - y.k);
 }
 
-/** Homogeneous NB sum closed form: NB(n·r_day, p) quantile. */
-export function homogeneousProtectionQuantile(
-  alpha: number,
+function homogeneousProtectionPmf(
   mu: number,
   demandVm: number,
   protectionDays: number,
-): number {
-  if (protectionDays <= 0) return 0;
+): { k: number; p: number }[] {
+  if (protectionDays <= 0) return [{ k: 0, p: 1 }];
   const safeMu = Math.max(0.1, mu);
   const safeVm = Math.max(1.05, demandVm);
   const rDay = safeMu / (safeVm - 1);
@@ -88,7 +86,42 @@ export function homogeneousProtectionQuantile(
   if (sum > 0) {
     for (const row of out) row.p /= sum;
   }
-  return quantileFromPmf(out, alpha);
+  return out;
+}
+
+/** Homogeneous NB sum closed form: NB(n·r_day, p) quantile. */
+export function homogeneousProtectionQuantile(
+  alpha: number,
+  mu: number,
+  demandVm: number,
+  protectionDays: number,
+): number {
+  if (protectionDays <= 0) return 0;
+  return quantileFromPmf(
+    homogeneousProtectionPmf(mu, demandVm, protectionDays),
+    alpha,
+  );
+}
+
+/** PMF of total demand over the protection window (NB convolution). */
+export function protectionDemandPmf(
+  demandVm: number,
+  protectionDays: number,
+  mus: readonly number[],
+): { k: number; p: number }[] {
+  if (protectionDays <= 0 || mus.length === 0) return [{ k: 0, p: 1 }];
+  const prot = Math.min(protectionDays, mus.length);
+  const windowMus = mus.slice(0, prot);
+  const muMin = Math.min(...windowMus);
+  const muMax = Math.max(...windowMus);
+  if (muMax - muMin <= 1e-9) {
+    return homogeneousProtectionPmf(muMin, demandVm, prot);
+  }
+  let combined = [{ k: 0, p: 1 }];
+  for (const mu of windowMus) {
+    combined = convolvePmfs(combined, nbPmf(mu, demandVm));
+  }
+  return combined;
 }
 
 /**
@@ -102,18 +135,10 @@ export function protectionDemandQuantile(
   mus: readonly number[],
 ): number {
   if (protectionDays <= 0 || mus.length === 0) return 0;
-  const prot = Math.min(protectionDays, mus.length);
-  const windowMus = mus.slice(0, prot);
-  const muMin = Math.min(...windowMus);
-  const muMax = Math.max(...windowMus);
-  if (muMax - muMin <= 1e-9) {
-    return homogeneousProtectionQuantile(alpha, muMin, demandVm, prot);
-  }
-  let combined = [{ k: 0, p: 1 }];
-  for (const mu of windowMus) {
-    combined = convolvePmfs(combined, nbPmf(mu, demandVm));
-  }
-  return quantileFromPmf(combined, alpha);
+  return quantileFromPmf(
+    protectionDemandPmf(demandVm, protectionDays, mus),
+    alpha,
+  );
 }
 
 /**
@@ -209,11 +234,12 @@ export type DampedSwDemoOpts = {
 export function renderDampedSwDemo(
   container: HTMLElement,
   opts: DampedSwDemoOpts,
-  height = 320,
+  height = 240,
 ): void {
   const width = container.clientWidth > 60 ? container.clientWidth : 360;
-  const margin = { top: 12, right: 12, bottom: 8, left: 8 };
+  const margin = { top: 20, right: 12, bottom: 36, left: 40 };
   const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
 
   container.replaceChildren();
   if (innerW <= 0) return;
@@ -237,7 +263,7 @@ export function renderDampedSwDemo(
     .attr("height", height)
     .attr(
       "aria-label",
-      "Damped survival-weighted controller decomposition demo",
+      "Protection-interval demand histogram with target quantile and order markers",
     );
 
   const root = svg
@@ -249,7 +275,7 @@ export function renderDampedSwDemo(
       .append("text")
       .attr("class", "damped-sw-demo-hint")
       .attr("x", innerW / 2)
-      .attr("y", height / 2 - margin.top)
+      .attr("y", innerH / 2)
       .attr("text-anchor", "middle")
       .text("Constant policy — α / ρ apply to damped_sw only");
     return;
@@ -257,240 +283,111 @@ export function renderDampedSwDemo(
 
   if (!decomp) return;
 
-  const panelH = (height - margin.top - margin.bottom) / 4;
-  let yOff = 0;
+  const summary = opts.demandSummary ?? FALLBACK_SUMMARY;
+  const mus = windowMus(summary, opts.episodeDay, decomp.protectionDays);
+  const pmf = protectionDemandPmf(opts.demandVm, decomp.protectionDays, mus);
 
-  // Panel 1: protection-window demand strip (fixed horizon)
-  const stripG = root.append("g").attr("transform", `translate(0,${yOff})`);
-  stripG
-    .append("text")
-    .attr("class", "axis-label")
-    .attr("x", 0)
-    .attr("y", 10)
-    .text(`Protection window demand (${decomp.protectionDays} days)`);
+  const targetColor = "#f59e0b";
+  const orderColor = "#2563eb";
 
-  const stripInnerH = panelH - 22;
-  const xBand = d3
-    .scaleBand<string>()
-    .domain(decomp.windowRows.map((r) => r.weekday))
-    .range([0, innerW])
-    .padding(0.18);
-  const yStrip = d3
-    .scaleLinear()
-    .domain([
-      0,
-      (d3.max(decomp.windowRows, (r) => r.mean) ?? 1) * 1.15,
-    ])
-    .nice()
-    .range([stripInnerH, 16]);
+  const xMax = Math.max(
+    d3.max(pmf, (d) => d.k) ?? 1,
+    decomp.targetQuantile,
+    decomp.orderQty,
+    1,
+  ) * 1.06;
+  const yMax = (d3.max(pmf, (d) => d.p) ?? 0.1) * 1.12;
 
-  stripG
-    .selectAll(".prot-demand-bar")
-    .data(decomp.windowRows)
+  const x = d3.scaleLinear().domain([0, xMax]).nice().range([0, innerW]);
+  const y = d3.scaleLinear().domain([0, yMax]).nice().range([innerH, 0]);
+
+  const barW = Math.max(1, innerW / Math.max(pmf.length, 1) - 0.5);
+
+  root
+    .selectAll(".prot-demand-hist-bar")
+    .data(pmf.filter((d) => d.p > 1e-12))
     .join("rect")
-    .attr("class", "prot-demand-bar")
-    .attr("x", (d) => xBand(d.weekday) ?? 0)
-    .attr("y", (d) => yStrip(d.mean))
-    .attr("width", xBand.bandwidth())
-    .attr("height", (d) => Math.max(0, stripInnerH - yStrip(d.mean) + 16))
+    .attr("class", "prot-demand-hist-bar")
+    .attr("x", (d) => x(d.k) - barW / 2)
+    .attr("y", (d) => y(d.p))
+    .attr("width", barW)
+    .attr("height", (d) => Math.max(0, y(0) - y(d.p)))
     .attr("fill", "var(--chart-band, #dbeafe)");
 
-  stripG
-    .selectAll(".prot-demand-label")
-    .data(decomp.windowRows)
-    .join("text")
-    .attr("class", "prot-demand-label")
-    .attr("x", (d) => (xBand(d.weekday) ?? 0) + xBand.bandwidth() / 2)
-    .attr("y", stripInnerH + 14)
+  const markerY1 = 0;
+  const markerY2 = innerH;
+
+  root
+    .append("line")
+    .attr("class", "damped-sw-marker damped-sw-marker--target")
+    .attr("x1", x(decomp.targetQuantile))
+    .attr("x2", x(decomp.targetQuantile))
+    .attr("y1", markerY1)
+    .attr("y2", markerY2)
+    .attr("stroke", targetColor)
+    .attr("stroke-width", 2);
+
+  root
+    .append("line")
+    .attr("class", "damped-sw-marker damped-sw-marker--order")
+    .attr("x1", x(decomp.orderQty))
+    .attr("x2", x(decomp.orderQty))
+    .attr("y1", markerY1)
+    .attr("y2", markerY2)
+    .attr("stroke", orderColor)
+    .attr("stroke-width", 2);
+
+  root
+    .append("g")
+    .attr("class", "axis axis-y")
+    .call(d3.axisLeft(y).ticks(4).tickFormat(d3.format(".2f")).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").remove());
+
+  root
+    .append("g")
+    .attr("class", "axis axis-x")
+    .attr("transform", `translate(0,${innerH})`)
+    .call(d3.axisBottom(x).ticks(6).tickSizeOuter(0))
+    .call((sel) => sel.select(".domain").attr("stroke-opacity", 0.35));
+
+  root
+    .append("text")
+    .attr("class", "axis-label")
+    .attr("x", innerW / 2)
+    .attr("y", innerH + 28)
     .attr("text-anchor", "middle")
-    .attr("font-size", "9px")
-    .text((d) => `${d.weekday} μ=${d.mean.toFixed(0)}`);
+    .attr("font-size", "10px")
+    .text(`Protection demand (${decomp.protectionDays} days)`);
 
-  yOff += panelH;
+  const legend = svg
+    .append("g")
+    .attr("class", "legend damped-sw-legend")
+    .attr("transform", `translate(${margin.left + 4}, 4)`);
 
-  // Panel 2: decomposition number line
-  const decompG = root.append("g").attr("transform", `translate(0,${yOff})`);
-  decompG
-    .append("text")
-    .attr("class", "axis-label")
-    .attr("x", 0)
-    .attr("y", 10)
-    .text("Controller decomposition");
+  const legendItems = [
+    { label: `F⁻¹(α) ${decomp.targetQuantile.toFixed(0)}`, color: targetColor },
+    { label: `q ${decomp.orderQty}`, color: orderColor },
+  ];
 
-  const maxVal = Math.max(
-    decomp.targetQuantile,
-    decomp.effectiveInventory + decomp.orderQty,
-    1,
-  );
-  const xNum = d3.scaleLinear().domain([0, maxVal * 1.08]).range([0, innerW]);
-  const baseY = panelH * 0.55;
-
-  const markers: { key: string; value: number; label: string; cls: string }[] =
-    [
-      {
-        key: "i",
-        value: decomp.effectiveInventory,
-        label: `Ĩ ${decomp.effectiveInventory.toFixed(0)}`,
-        cls: "damped-sw-marker--inv",
-      },
-      {
-        key: "d",
-        value: decomp.targetQuantile,
-        label: `F⁻¹(α) ${decomp.targetQuantile.toFixed(0)}`,
-        cls: "damped-sw-marker--target",
-      },
-      {
-        key: "post",
-        value: decomp.effectiveInventory + decomp.orderQty,
-        label: `Ĩ+q ${(decomp.effectiveInventory + decomp.orderQty).toFixed(0)}`,
-        cls: "damped-sw-marker--post",
-      },
-    ];
-
-  decompG
-    .append("line")
-    .attr("x1", 0)
-    .attr("x2", innerW)
-    .attr("y1", baseY)
-    .attr("y2", baseY)
-    .attr("stroke", "var(--paper-edge, #d1d5db)")
-    .attr("stroke-width", 1);
-
-  decompG
-    .selectAll(".damped-sw-marker")
-    .data(markers)
-    .join("g")
-    .attr("class", (d) => `damped-sw-marker ${d.cls}`)
-    .each(function (d) {
-      const g = d3.select(this);
-      const cx = xNum(d.value);
-      g.append("line")
-        .attr("x1", cx)
-        .attr("x2", cx)
-        .attr("y1", baseY - 14)
-        .attr("y2", baseY + 14)
-        .attr("stroke-width", 2);
-      g.append("text")
-        .attr("x", cx)
-        .attr("y", baseY - 18)
-        .attr("text-anchor", "middle")
-        .attr("font-size", "9px")
-        .text(d.label);
-    });
-
-  decompG
-    .append("text")
-    .attr("x", 0)
-    .attr("y", panelH - 4)
-    .attr("font-size", "9px")
-    .text(
-      `gap ${decomp.gap.toFixed(1)} · ρ·gap ${decomp.rawOrder.toFixed(1)} · q ${decomp.orderQty}`,
-    );
-
-  yOff += panelH;
-
-  // Panel 3: coverage tendency gauge
-  const gaugeG = root.append("g").attr("transform", `translate(0,${yOff})`);
-  const bias = coverageBiasScore(opts.alpha, opts.rho);
-  const gaugeW = innerW;
-  const gaugeY = 14;
-
-  gaugeG
-    .append("text")
-    .attr("class", "axis-label")
-    .attr("x", 0)
-    .attr("y", 10)
-    .text("Coverage tendency");
-
-  const grad = gaugeG
-    .append("defs")
-    .append("linearGradient")
-    .attr("id", "damped-sw-bias-grad")
-    .attr("x1", "0%")
-    .attr("x2", "100%");
-  grad.append("stop").attr("offset", "0%").attr("stop-color", "#dc2626");
-  grad.append("stop").attr("offset", "100%").attr("stop-color", "#16a34a");
-
-  gaugeG
-    .append("rect")
-    .attr("x", 0)
-    .attr("y", gaugeY)
-    .attr("width", gaugeW)
-    .attr("height", 10)
-    .attr("rx", 5)
-    .attr("fill", "url(#damped-sw-bias-grad)")
-    .attr("opacity", 0.85);
-
-  gaugeG
-    .append("circle")
-    .attr("class", "damped-sw-bias-handle")
-    .attr("cx", bias * gaugeW)
-    .attr("cy", gaugeY + 5)
-    .attr("r", 6)
-    .attr("fill", "#f59e0b")
-    .attr("stroke", "#fff")
-    .attr("stroke-width", 1.5);
-
-  gaugeG
-    .append("text")
-    .attr("x", 0)
-    .attr("y", gaugeY + 26)
-    .attr("font-size", "9px")
-    .text("stockout-leaning");
-
-  gaugeG
-    .append("text")
-    .attr("x", gaugeW)
-    .attr("y", gaugeY + 26)
-    .attr("text-anchor", "end")
-    .attr("font-size", "9px")
-    .text("spoilage-leaning");
-
-  yOff += panelH;
-
-  // Panel 4: post-order position vs target
-  const posG = root.append("g").attr("transform", `translate(0,${yOff})`);
-  posG
-    .append("text")
-    .attr("class", "axis-label")
-    .attr("x", 0)
-    .attr("y", 10)
-    .text("Post-order position vs target");
-
-  const barH = panelH - 28;
-  const yPos = d3
-    .scaleLinear()
-    .domain([0, maxVal * 1.08])
-    .range([barH + 16, 16]);
-
-  posG
-    .append("rect")
-    .attr("class", "damped-sw-post-bar")
-    .attr("x", 0)
-    .attr("y", yPos(decomp.effectiveInventory + decomp.orderQty))
-    .attr("width", innerW * 0.55)
-    .attr("height", Math.max(
-      0,
-      yPos(decomp.effectiveInventory) - yPos(decomp.effectiveInventory + decomp.orderQty),
-    ))
-    .attr("fill", "var(--chart-accent, #2563eb)")
-    .attr("opacity", 0.75);
-
-  posG
-    .append("line")
-    .attr("class", "damped-sw-target-line")
-    .attr("x1", xNum(decomp.targetQuantile))
-    .attr("x2", xNum(decomp.targetQuantile))
-    .attr("y1", 16)
-    .attr("y2", barH + 16)
-    .attr("stroke", "#f59e0b")
-    .attr("stroke-width", 2)
-    .attr("stroke-dasharray", "4,3");
-
-  posG
-    .append("text")
-    .attr("x", xNum(decomp.targetQuantile) + 4)
-    .attr("y", 24)
-    .attr("font-size", "9px")
-    .text("target");
+  legendItems.forEach((item, i) => {
+    const itemG = legend
+      .append("g")
+      .attr("class", "damped-sw-legend-item")
+      .attr("transform", `translate(${i * 88},0)`);
+    itemG
+      .append("line")
+      .attr("x1", 0)
+      .attr("x2", 12)
+      .attr("y1", 6)
+      .attr("y2", 6)
+      .attr("stroke", item.color)
+      .attr("stroke-width", 2);
+    itemG
+      .append("text")
+      .attr("class", "legend-label")
+      .attr("x", 16)
+      .attr("y", 9)
+      .attr("font-size", "10px")
+      .text(item.label);
+  });
 }

@@ -31,7 +31,6 @@ const D3_CHART_IDS = [
   "chart-stockout",
   "chart-history",
   "chart-sales-demand",
-  "chart-demand",
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
@@ -332,7 +331,7 @@ export function StudioLayout() {
               data-belief-mae-table
               hidden
             >
-              <caption>Belief accuracy (Omniscience)</caption>
+              <caption>Belief accuracy (vs truth)</caption>
               <thead>
                 <tr>
                   <th scope="col" />
@@ -401,11 +400,6 @@ export function StudioLayout() {
             id="chart-stockout"
             className="chart"
             ariaLabel="Missed sales by day"
-          />
-          <D3ChartHost
-            id="chart-demand"
-            className="chart"
-            ariaLabel="Day of week demand profile"
           />
         </div>
       </div>

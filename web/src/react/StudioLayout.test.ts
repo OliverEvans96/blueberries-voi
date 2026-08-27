@@ -23,8 +23,6 @@ const REQUIRED_CHART_IDS = [
   "chart-stockout",
   "chart-history",
   "chart-sales-demand",
-  "chart-demand",
-  "chart-demand-forecast-host",
   "chart-age-comp",
   "chart-arrival-prior",
   "chart-arrival-shift",
@@ -271,7 +269,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       expect(nodes.length, `expected exactly one #${id}`).toBe(1);
     }
     expect(container.querySelector("#chart-demand-host")).toBeNull();
-    expect(container.querySelector("#chart-demand-forecast-host")).toBeNull();
+    expect(container.querySelector("#chart-demand")).toBeNull();
     expect(container.querySelector("#chart-inventory")).toBeNull();
     expect(container.querySelector("#chart-orders-spoilage")).toBeNull();
   });
