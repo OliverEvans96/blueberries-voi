@@ -18,8 +18,9 @@ from blueberries_voi.experiments.voi_profit import (
     DEFAULT_N_BURN,
     DEFAULT_PROFIT_SEEDS,
     _channel_row,
+    _damped_sw_act_kw,
     _day_log_from_delta,
-    _tuned_sw_alpha,
+    _resolve_controller_params,
     profit_session_config,
 )
 from blueberries_voi.filter.types import (
@@ -96,11 +97,19 @@ def run_seed_channel_joint(
     filter_n: int = DEFAULT_FILTER_N,
     costs: ProfitCosts | None = None,
     alpha_table_path: Path | str | None = None,
+    controller_alpha: float | None = None,
+    controller_rho: float | None = None,
+    bo_json_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """One closed-loop episode: scored ``act()`` days yield MAE and profit."""
     ch = validate_channels(channels)
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
-    alpha = _tuned_sw_alpha(alpha_table_path)
+    alpha, rho = _resolve_controller_params(
+        controller_alpha=controller_alpha,
+        controller_rho=controller_rho,
+        bo_json_path=bo_json_path,
+        alpha_table_path=alpha_table_path,
+    )
 
     session = EngineSession()
     cfg = profit_session_config(
@@ -111,11 +120,7 @@ def run_seed_channel_joint(
     session.init(cfg, seed=seed)
     session.set_obs_channels(ch)
 
-    act_kw: dict[str, Any] = {
-        "policy": "sw",
-        "alpha": float(alpha),
-        "n_rollout_paths": int(n_rollout_paths),
-    }
+    act_kw = _damped_sw_act_kw(alpha, rho, n_rollout_paths=n_rollout_paths)
 
     for _ in range(n_burn):
         session.act(**act_kw)
