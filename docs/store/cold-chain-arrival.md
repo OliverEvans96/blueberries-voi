@@ -173,6 +173,7 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:535` (`gamma_dist_quantile`) |
 | Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:995` (`draw_psi_pos`) |
 | Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:449` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
+| Default Prior CDF bake (studio fast boot) | — | `crates/voi_core/src/arrival_prior_baked.rs`; loaded when fingerprint matches committed artifact; runtime rebuild on Q10 / $T_{\mathrm{ref}}$ change via [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
 | Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 
 ## Caveats

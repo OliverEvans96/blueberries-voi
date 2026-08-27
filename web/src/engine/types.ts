@@ -62,6 +62,9 @@ export type Snapshot = {
   schedule?: ScheduleWire;
   demand_summary?: DemandSummary;
   arrival_summary?: ArrivalSummary;
+  /** True when sync_params/set_corridor rebuilt the arrival Prior CDF on init/reset. */
+  arrival_prior_rebuilt?: boolean;
+  arrival_prior_rebuild_ms?: number;
 };
 
 /** Hot payload from step / step_n / act. */

@@ -108,7 +108,7 @@ import {
   saveSection,
   type SectionId,
 } from "../sections";
-import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
+import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {
@@ -1205,12 +1205,25 @@ export function initStudio(app: HTMLElement): () => void {
   }
 
   async function resetEpisode(): Promise<void> {
+    const mayRebuildPrior =
+      vm.config.q10 !== DEFAULT_SIM_CONFIG.q10 ||
+      vm.config.t_ref_c !== DEFAULT_SIM_CONFIG.t_ref_c;
+    if (mayRebuildPrior) {
+      beginStudioLoading(
+        "Updating beliefs after settings changed… This might take ~30 seconds.",
+      );
+    }
     try {
       if (autopilot.isRunning()) {
         autopilot.pause();
         syncAutopilotChrome();
       }
       const snap = await adapter.reset({ ...vm.config });
+      if (snap.arrival_prior_rebuilt && !mayRebuildPrior) {
+        beginStudioLoading(
+          "Updating beliefs after settings changed… This might take ~30 seconds.",
+        );
+      }
       captureSchedule(snap);
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
@@ -1224,6 +1237,8 @@ export function initStudio(app: HTMLElement): () => void {
         studioErrorEl,
         err,
       );
+    } finally {
+      endStudioLoading();
     }
   }
 
