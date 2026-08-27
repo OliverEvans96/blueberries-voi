@@ -10,6 +10,7 @@ from blueberries_voi.experiments.channel_factorial_viz import (
     CODE_TYPE_LABELS,
     DELIVERY_LABELS,
     WASTE_LABELS,
+    aggregate_factorial_cells,
     facet_heatmap_figure,
     parallel_coords_figure,
     profit_vs_accuracy_scatter_figure,
@@ -43,9 +44,87 @@ SAMPLE_ROWS = [
 ]
 
 
+MULTI_SEED_ROWS = [
+    {
+        "seed": 7,
+        "code_type": "upc",
+        "waste": "off",
+        "delivery": "none",
+        "mae_f": 0.10,
+        "mae_dist": 0.06,
+        "profit": 10.0,
+    },
+    {
+        "seed": 42,
+        "code_type": "upc",
+        "waste": "off",
+        "delivery": "none",
+        "mae_f": 0.12,
+        "mae_dist": 0.08,
+        "profit": 10.5,
+    },
+    {
+        "seed": 99,
+        "code_type": "upc",
+        "waste": "off",
+        "delivery": "none",
+        "mae_f": 0.14,
+        "mae_dist": 0.10,
+        "profit": 11.0,
+    },
+    {
+        "seed": 7,
+        "code_type": "gsin",
+        "waste": "on",
+        "delivery": "temperature_history",
+        "mae_f": 0.08,
+        "mae_dist": 0.04,
+        "profit": 11.8,
+    },
+    {
+        "seed": 42,
+        "code_type": "gsin",
+        "waste": "on",
+        "delivery": "temperature_history",
+        "mae_f": 0.09,
+        "mae_dist": 0.05,
+        "profit": 12.1,
+    },
+    {
+        "seed": 99,
+        "code_type": "gsin",
+        "waste": "on",
+        "delivery": "temperature_history",
+        "mae_f": 0.10,
+        "mae_dist": 0.06,
+        "profit": 12.4,
+    },
+]
+
+
 def test_rows_to_dataframe_numeric() -> None:
     df = rows_to_dataframe(SAMPLE_ROWS)
     assert float(df["profit"].iloc[0]) == 10.5
+
+
+def test_aggregate_factorial_cells_reduces_multi_seed_rows() -> None:
+    df = rows_to_dataframe(MULTI_SEED_ROWS)
+    agg = aggregate_factorial_cells(df, accuracy_column="mae_f")
+    assert len(agg) == 2
+    assert len(agg) < len(df)
+    upc = agg[agg["code_type"] == "upc"].iloc[0]
+    assert float(upc["mae_mean"]) == 0.12
+    assert float(upc["profit_mean"]) == 10.5
+    assert float(upc["mae_std"]) > 0.0
+    assert float(upc["profit_std"]) > 0.0
+
+
+def test_scatter_aggregates_multi_seed_with_errorbars() -> None:
+    df = rows_to_dataframe(MULTI_SEED_ROWS)
+    fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
+    ax = fig.axes[0]
+    assert len(ax.containers) == 2
+    assert len(ax.containers) < len(df)
 
 
 def test_facet_heatmap_figure_builds() -> None:

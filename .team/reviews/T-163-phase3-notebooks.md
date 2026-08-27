@@ -34,8 +34,8 @@
 |--------|---------|-------|
 | `channel_factorial_heatmap_mae_f.png` | **Pass** | 2×2×3 factorial; colorbar right-aligned with heatmap height (fixed misplaced overlap) |
 | `parallel_coords_mae_f.png` | **Pass** | 36 paths; delivery axis uses 0/1/2 ordinal |
-| `profit_vs_mae_f.png` | **Pass** | Single axes, all 36 points; color = waste scan, marker shape = delivery history, marker size = code type (UPC smaller / GSIN larger); three grouped legends below plot |
-| `profit_vs_mae_dist.png` | **Pass** | Same single-panel encoding as `profit_vs_mae_f.png` with x-axis MAE(distribution) |
+| `profit_vs_mae_f.png` | **Pass** | Single axes, 12 aggregated points (36 rows / 3 seeds); color = waste scan, marker shape = delivery history, marker size = code type; horizontal/vertical error bars = seed std for MAE and profit; three grouped legends below plot |
+| `profit_vs_mae_dist.png` | **Pass** | Same single-panel encoding and seed std error bars as `profit_vs_mae_f.png` with x-axis MAE(distribution) |
 
 - No broken/empty plots in committed PNGs.
 - Legacy `*_mae_dist.png` files refreshed alongside `*_mae_f.png` by `render_nb19_figures.py`.

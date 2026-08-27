@@ -38,6 +38,7 @@ DELIVERY_LABELS: dict[str, str] = {
 
 __all__ = [
     "AccuracyColumn",
+    "aggregate_factorial_cells",
     "facet_heatmap_figure",
     "parallel_coords_figure",
     "profit_vs_accuracy_scatter_figure",
@@ -109,6 +110,27 @@ def facet_heatmap_figure(
 CODE_SCATTER_S: dict[str, float] = {"upc": 45.0, "gsin": 110.0}
 CODE_LEGEND_MARKERSIZE: dict[str, float] = {"upc": 6.0, "gsin": 10.0}
 
+_FACTORIAL_KEYS: tuple[str, str, str] = ("code_type", "waste", "delivery")
+
+
+def aggregate_factorial_cells(
+    df: pd.DataFrame,
+    *,
+    accuracy_column: AccuracyColumn,
+) -> pd.DataFrame:
+    """Per factorial cell: mean and seed std for accuracy and profit."""
+    if df.empty:
+        return df.copy()
+    agg = df.groupby(list(_FACTORIAL_KEYS), as_index=False).agg(
+        mae_mean=(accuracy_column, "mean"),
+        mae_std=(accuracy_column, "std"),
+        profit_mean=("profit", "mean"),
+        profit_std=("profit", "std"),
+    )
+    agg["mae_std"] = agg["mae_std"].fillna(0.0)
+    agg["profit_std"] = agg["profit_std"].fillna(0.0)
+    return agg
+
 
 def profit_vs_accuracy_scatter_figure(
     df: pd.DataFrame,
@@ -119,7 +141,8 @@ def profit_vs_accuracy_scatter_figure(
     """Scatter profit vs belief accuracy on one axes.
 
     Color encodes waste scan (on/off); marker shape encodes delivery history;
-    marker size encodes code type (UPC smaller, GSIN larger).
+    marker size encodes code type (UPC smaller, GSIN larger). Points are means
+    across seeds; horizontal and vertical bars show seed std for MAE and profit.
     """
     waste_colors = {"off": "#4c72b0", "on": "#dd8452"}
     delivery_markers = {
@@ -129,26 +152,29 @@ def profit_vs_accuracy_scatter_figure(
     }
     fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
     xlabel = "MAE(mean f)" if accuracy_column == "mae_f" else "MAE(distribution)"
-    for code in CODE_OPTS:
-        for waste in WASTE_OPTS:
-            for delivery in DELIVERY_OPTS:
-                pts = df[
-                    (df["code_type"] == code)
-                    & (df["waste"] == waste)
-                    & (df["delivery"] == delivery)
-                ]
-                if pts.empty:
-                    continue
-                ax.scatter(
-                    pts[accuracy_column],
-                    pts["profit"],
-                    color=waste_colors[waste],
-                    marker=delivery_markers[delivery],
-                    alpha=0.85,
-                    s=CODE_SCATTER_S[code],
-                    edgecolor="0.2",
-                    linewidths=0.6,
-                )
+    cell_stats = aggregate_factorial_cells(df, accuracy_column=accuracy_column)
+    for row in cell_stats.itertuples(index=False):
+        code = row.code_type
+        waste = row.waste
+        delivery = row.delivery
+        color = waste_colors[waste]
+        ax.errorbar(
+            row.mae_mean,
+            row.profit_mean,
+            xerr=row.mae_std,
+            yerr=row.profit_std,
+            color=color,
+            marker=delivery_markers[delivery],
+            markersize=CODE_LEGEND_MARKERSIZE[code],
+            markerfacecolor=color,
+            markeredgecolor="0.2",
+            markeredgewidth=0.6,
+            capsize=3.5,
+            capthick=0.8,
+            elinewidth=0.8,
+            alpha=0.85,
+            linestyle="None",
+        )
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Closed-loop profit")
     ax.set_title("Belief accuracy vs profit (nb19)", fontsize=12, pad=10)
