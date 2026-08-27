@@ -72,9 +72,10 @@ def main() -> None:
         )
     )
     print(
-        "\nPre-calibration (integrate @ reference_life_days=14, sync_params overwrite): "
-        "arrival f often below 0.5; session truth looked biased vs Prior when only "
-        "one multilot segment was aggregated across the full delivery quantity."
+        "\nPre-calibration (integrate @ reference_life_days=14, "
+        "sync_params overwrite): arrival f often below 0.5; session truth looked "
+        "biased vs Prior when only one multilot segment was aggregated across the "
+        "full delivery quantity."
     )
 
 

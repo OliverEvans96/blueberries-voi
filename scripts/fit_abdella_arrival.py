@@ -552,7 +552,8 @@ def main(argv: list[str] | None = None) -> None:
     gamma_scale = _DEFAULT_GAMMA_SCALE
     gamma_note = (
         f"keep gamma_shape={gamma_shape}, gamma_scale={gamma_scale} "
-        f"(arrival f|Lambda reference life; in-store eta_ref=14 via ModelParams; not identified from n=6)"
+        f"(arrival f|Lambda reference life; in-store eta_ref=14 via ModelParams; "
+        f"not identified from n=6)"
     )
     if args.override_gamma:
         gamma_note = "override-gamma flag set (manual review required)"
