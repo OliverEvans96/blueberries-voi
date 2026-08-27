@@ -7,6 +7,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 from blueberries_voi.experiments.channel_factorial_viz import (
+    DELIVERY_LABELS,
+    WASTE_LABELS,
     facet_heatmap_figure,
     parallel_coords_figure,
     profit_vs_accuracy_scatter_figure,
@@ -63,13 +65,28 @@ def test_scatter_and_parallel_build() -> None:
 def test_scatter_legend_encodes_waste_and_delivery() -> None:
     df = rows_to_dataframe(SAMPLE_ROWS)
     fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
-    legend = fig.legends[0]
-    labels = {text.get_text() for text in legend.get_texts()}
-    assert "waste scan off" in labels
-    assert "waste scan on" in labels
-    assert "none" in labels
-    assert "pack_date" in labels
-    assert "temperature_history" in labels
+    assert len(fig.legends) == 2
+    legend_titles = {legend.get_title().get_text() for legend in fig.legends}
+    assert legend_titles == {
+        "Waste scan (color)",
+        "Delivery history (marker)",
+    }
+    labels = {
+        text.get_text() for legend in fig.legends for text in legend.get_texts()
+    }
+    assert WASTE_LABELS["off"] in labels
+    assert WASTE_LABELS["on"] in labels
+    assert DELIVERY_LABELS["none"] in labels
+    assert DELIVERY_LABELS["pack_date"] in labels
+    assert DELIVERY_LABELS["temperature_history"] in labels
+
+
+def test_scatter_panel_titles_encode_code_type() -> None:
+    df = rows_to_dataframe(SAMPLE_ROWS)
+    fig = profit_vs_accuracy_scatter_figure(df, accuracy_column="mae_f")
+    panel_titles = {ax.get_title() for ax in fig.axes}
+    assert panel_titles == {"UPC barcode", "GSIN case code"}
+    assert "Panels separate code type" in fig._suptitle.get_text()
 
 
 def test_save_nb19_figures_writes_files(tmp_path: Path) -> None:

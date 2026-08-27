@@ -22,6 +22,20 @@ from blueberries_voi.experiments.channel_joint import (
 
 AccuracyColumn = Literal["mae_f", "mae_dist"]
 
+CODE_TYPE_LABELS: dict[str, str] = {
+    "upc": "UPC barcode",
+    "gsin": "GSIN case code",
+}
+WASTE_LABELS: dict[str, str] = {
+    "off": "Waste scan off",
+    "on": "Waste scan on",
+}
+DELIVERY_LABELS: dict[str, str] = {
+    "none": "No delivery history",
+    "pack_date": "Pack date",
+    "temperature_history": "Temperature history",
+}
+
 __all__ = [
     "AccuracyColumn",
     "facet_heatmap_figure",
@@ -91,15 +105,17 @@ def facet_heatmap_figure(
     return fig
 
 
+# Scatter ``s`` is area in points²; legend ``markersize`` is diameter in points.
 def profit_vs_accuracy_scatter_figure(
     df: pd.DataFrame,
     *,
     accuracy_column: AccuracyColumn = "mae_f",
-    figsize: tuple[float, float] = (10.0, 4.8),
+    figsize: tuple[float, float] = (10.5, 5.4),
 ) -> Figure:
     """Scatter profit vs belief accuracy faceted by code type.
 
     Color encodes waste scan (on/off); marker shape encodes delivery history.
+    Each panel shows one code type (UPC vs GSIN).
     """
     waste_colors = {"off": "#4c72b0", "on": "#dd8452"}
     delivery_markers = {
@@ -131,11 +147,21 @@ def profit_vs_accuracy_scatter_figure(
                     alpha=0.85,
                     s=70,
                     edgecolor="0.2",
+                    linewidths=0.6,
                 )
-        ax.set_title(f"code={code}")
+        ax.set_title(CODE_TYPE_LABELS[code], fontsize=11, pad=8)
         ax.set_xlabel(xlabel)
     axes[0].set_ylabel("Closed-loop profit")
 
+    legend_kw = {
+        "frameon": True,
+        "framealpha": 0.95,
+        "fontsize": 9,
+        "title_fontsize": 10,
+        "handlelength": 1.4,
+        "handletextpad": 0.6,
+        "borderpad": 0.5,
+    }
     waste_handles = [
         Line2D(
             [0],
@@ -145,7 +171,7 @@ def profit_vs_accuracy_scatter_figure(
             markerfacecolor=waste_colors[waste],
             markeredgecolor="0.2",
             markersize=8,
-            label=f"waste scan {waste}",
+            label=WASTE_LABELS[waste],
         )
         for waste in WASTE_OPTS
     ]
@@ -157,19 +183,32 @@ def profit_vs_accuracy_scatter_figure(
             color="0.35",
             linestyle="None",
             markersize=8,
-            label=delivery,
+            label=DELIVERY_LABELS[delivery],
         )
         for delivery in DELIVERY_OPTS
     ]
-    fig.legend(
-        handles=waste_handles + delivery_handles,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.08),
-        ncol=5,
-        frameon=False,
-        title="color = waste scan · marker = delivery history · facet = code type",
+    waste_legend = fig.legend(
+        handles=waste_handles,
+        title="Waste scan (color)",
+        loc="upper left",
+        bbox_to_anchor=(0.02, 1.02),
+        ncol=2,
+        **legend_kw,
     )
-    fig.suptitle("Belief accuracy vs profit (nb19)", y=1.14)
+    delivery_legend = fig.legend(
+        handles=delivery_handles,
+        title="Delivery history (marker)",
+        loc="upper right",
+        bbox_to_anchor=(0.98, 1.02),
+        ncol=1,
+        **legend_kw,
+    )
+    fig.add_artist(waste_legend)
+    fig.suptitle(
+        "Belief accuracy vs profit (nb19)\nPanels separate code type",
+        y=1.16,
+        fontsize=12,
+    )
     return fig
 
 
