@@ -750,10 +750,15 @@
 }
 
 .order-row {
+  --order: var(--forecast);
   display: grid;
   grid-template-columns: 1fr 76px;
   gap: 8px;
   align-items: center;
+}
+
+.order-row input[type="range"] {
+  accent-color: var(--order);
 }
 
 .order-row input[type="number"] {
@@ -1118,7 +1123,6 @@ input[type="number"] {
   margin: 0 -16px -16px;
   padding: 12px 16px 16px;
   background: linear-gradient(180deg, rgba(184, 134, 11, 0.1), rgba(184, 134, 11, 0.03));
-  border-top: 2px solid rgba(184, 134, 11, 0.35);
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
@@ -1372,7 +1376,7 @@ input[type="number"] {
 
 .order-line {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--order, var(--forecast));
   stroke-width: 2;
 }
 
@@ -1383,7 +1387,7 @@ input[type="number"] {
 }
 
 .order-bar {
-  fill: var(--accent);
+  fill: var(--order, var(--forecast));
 }
 
 .waste-bar {
@@ -1391,7 +1395,7 @@ input[type="number"] {
 }
 
 .order-dot {
-  fill: var(--accent);
+  fill: var(--order, var(--forecast));
 }
 
 .sales-demand-gap {

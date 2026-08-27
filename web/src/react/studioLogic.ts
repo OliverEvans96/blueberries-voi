@@ -1419,6 +1419,7 @@ export function initStudio(app: HTMLElement): () => void {
     catchingUp = true;
     sectionControlsApi.update(controlsState());
     renderObsControlsPane();
+    renderOperatorBar();
     beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
@@ -1435,6 +1436,7 @@ export function initStudio(app: HTMLElement): () => void {
       );
     } finally {
       catchingUp = false;
+      renderOperatorBar();
       endStudioLoading();
       sectionControlsApi.update(controlsState());
       renderObsControlsPane();
