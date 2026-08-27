@@ -12,15 +12,16 @@ from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
-# T-150 f-native arrival physics; ADR 0148 fitted arrival_model.json (P0 drift).
+# T-150 f-native arrival physics; schema-2 arrival_model.json (v2 generative drift).
+# T-163 freshness calibration (reference_life_days=26, decoupled from eta_ref=14).
 _T150_BASELINE: dict[str, float] = {
-    "P0": 79.5,
-    "P1": 79.5,
-    "F1": 106.5,
-    "F1s": 106.5,
-    "F2a": 123.0,
-    "F2": 123.0,
-    "B-state": 123.0,
+    "P0": 246.0,
+    "P1": 246.0,
+    "F1": 246.0,
+    "F1s": 246.0,
+    "F2a": 246.0,
+    "F2": 246.0,
+    "B-state": 246.0,
 }
 
 
