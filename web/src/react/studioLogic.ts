@@ -569,6 +569,10 @@ export function initStudio(app: HTMLElement): () => void {
     return eventDays.map((day) => applyMask(day as RichObsWire, mask));
   }
 
+  function orderQtyByDayMap(): Map<number, number> {
+    return new Map(vm.history.map((d) => [d.day, d.order_qty]));
+  }
+
   function renderEventsPane(): void {
     profileSync("renderEventsPane", () => {
       if (!eventsPaneRoot) return;
@@ -580,6 +584,7 @@ export function initStudio(app: HTMLElement): () => void {
           },
           schedule,
           events: maskedEventDays(),
+          orderQtyByDay: orderQtyByDayMap(),
           loading: eventsLoading,
           refreshing: eventsRefreshing,
         }),

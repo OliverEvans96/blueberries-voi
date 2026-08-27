@@ -56,5 +56,4 @@ pushes.
 
 **Version policy:** bump `web/package.json` semver whenever publishable studio
 paths change (`web/src/`, `web/vite.lib.config.ts`, `web/scripts/`,
-`crates/voi_core/`, `crates/voi_wasm/`, `scripts/build-wasm.sh`). Guard:
-`tests/test_studio_release_version.py`.
+`crates/voi_core/`, `crates/voi_wasm/`, `scripts/build-wasm.sh`).
