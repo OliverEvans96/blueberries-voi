@@ -427,7 +427,10 @@ export function EventsPane({
                 )
               : [];
 
-          const packDateDays = ev?.pack_date_days as PackDateValue;
+          const packDateValue: PackDateValue =
+            ev?.pack_dates_by_lot?.length
+              ? ev.pack_dates_by_lot
+              : (ev?.pack_date_days ?? null);
           const packDateObserved = obsMask.pack_date;
 
           const showTempChart =
@@ -492,7 +495,7 @@ export function EventsPane({
                   codeType={codeType}
                   deliveredTotal={deliveredTotal}
                   deliveredLots={deliveredLots}
-                  packDateDays={packDateDays}
+                  packDateDays={packDateValue}
                   packDateObserved={packDateObserved}
                 />
               ) : null}

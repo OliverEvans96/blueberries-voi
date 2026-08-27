@@ -21,6 +21,7 @@ type MaskedDayWire = {
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
   pack_date_days?: number | number[] | null;
+  pack_dates_by_lot?: number[] | null;
   temp_times_d?: number[] | null;
   temp_temps_c?: number[] | null;
   temp_traces_by_lot?: Array<{
@@ -457,6 +458,80 @@ describe("EventsPane (Event Log refactor)", () => {
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".events-temp-history")).not.toBeNull();
+  });
+
+  it("GSIN F2 shows distinct per-lot pack dates from pack_dates_by_lot", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            arrival_lot_ids: [201, 202],
+            arrivals_by: [10, 6],
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: 3,
+            pack_dates_by_lot: [3, 5],
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    expect(delivery).not.toBeNull();
+    const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
+    expect(lotRows.length).toBe(2);
+    expect(lotRows[0]?.textContent).toContain("3");
+    expect(lotRows[0]?.textContent).not.toContain("5");
+    expect(lotRows[1]?.textContent).toContain("5");
+    expect(lotRows[1]?.textContent).not.toContain("3, 5");
+  });
+
+  it("GSIN falls back to scalar pack_date_days when pack_dates_by_lot absent", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            arrival_lot_ids: [201, 202],
+            arrivals_by: [10, 6],
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: 4,
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
+    expect(lotRows.length).toBe(2);
+    expect(lotRows[0]?.textContent).toContain("4");
+    expect(lotRows[1]?.textContent).toContain("4");
   });
 
   it("UPC pack date cell joins multiple scalar dates comma-separated", () => {
