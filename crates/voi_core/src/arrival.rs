@@ -2,6 +2,12 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::LazyLock;
+
+use sha2::{Digest, Sha256};
+
+#[path = "arrival_prior_baked.rs"]
+mod arrival_prior_baked;
 
 use rand::Rng;
 use rand_distr::{Distribution, Exp, Gamma, LogNormal, Normal, Poisson};
@@ -258,6 +264,11 @@ pub struct ArrivalModel {
     last_exposure_lambda: Option<f64>,
     /// Fingerprint of the last `marginal_cdf` build (T-150 sync-cache dirty-check).
     prior_build_key: PriorCdfBuildKey,
+    /// Set when `sync_params` or `set_corridor` rebuilds the prior since the last
+    /// `clear_prior_rebuild_telemetry` call (studio reset UX).
+    prior_rebuilt_since_clear: bool,
+    /// Wall time of the most recent prior rebuild in milliseconds.
+    prior_rebuild_ms_since_clear: u64,
 }
 
 /// Filter-side channel-conditional law, cached on the fixed `ARRIVAL_GRID` grid. Unlike
@@ -276,7 +287,7 @@ pub struct ArrivalCdfCache {
 /// When `sync_params` sees a matching key, it skips rebuilding the prior and
 /// clearing F2/F3 caches (T-150 sync-cache).
 #[derive(Clone, Debug, PartialEq)]
-struct PriorCdfBuildKey {
+pub(crate) struct PriorCdfBuildKey {
     gamma_shape: f64,
     gamma_scale: f64,
     q10: f64,
@@ -302,7 +313,7 @@ struct PriorCdfBuildKey {
 }
 
 impl PriorCdfBuildKey {
-    fn from_model(model: &ArrivalModel) -> Self {
+    pub(crate) fn from_model(model: &ArrivalModel) -> Self {
         Self {
             gamma_shape: model.gamma_shape,
             gamma_scale: model.gamma_scale,
@@ -322,6 +333,58 @@ impl PriorCdfBuildKey {
             mode_warm_offset: model.thermal_modes.warm.offset_c,
             leg_phi_set: model.phi_set(),
         }
+    }
+
+    pub(crate) fn gamma_shape(&self) -> f64 {
+        self.gamma_shape
+    }
+    pub(crate) fn gamma_scale(&self) -> f64 {
+        self.gamma_scale
+    }
+    pub(crate) fn q10(&self) -> f64 {
+        self.q10
+    }
+    pub(crate) fn t_ref(&self) -> f64 {
+        self.t_ref
+    }
+    pub(crate) fn eta_ref(&self) -> f64 {
+        self.eta_ref
+    }
+    pub(crate) fn active_corridor(&self) -> &str {
+        &self.active_corridor
+    }
+    pub(crate) fn rho(&self) -> f64 {
+        self.rho
+    }
+    pub(crate) fn tau_bar(&self) -> f64 {
+        self.tau_bar
+    }
+    pub(crate) fn t_break(&self) -> f64 {
+        self.t_break
+    }
+    pub(crate) fn sigma_hour(&self) -> f64 {
+        self.sigma_hour
+    }
+    pub(crate) fn mode_cool_p(&self) -> f64 {
+        self.mode_cool_p
+    }
+    pub(crate) fn mode_cool_offset(&self) -> f64 {
+        self.mode_cool_offset
+    }
+    pub(crate) fn mode_nominal_p(&self) -> f64 {
+        self.mode_nominal_p
+    }
+    pub(crate) fn mode_nominal_offset(&self) -> f64 {
+        self.mode_nominal_offset
+    }
+    pub(crate) fn mode_warm_p(&self) -> f64 {
+        self.mode_warm_p
+    }
+    pub(crate) fn mode_warm_offset(&self) -> f64 {
+        self.mode_warm_offset
+    }
+    pub(crate) fn leg_phi_set(&self) -> f64 {
+        self.leg_phi_set
     }
 }
 
@@ -422,9 +485,54 @@ struct CorridorJson {
     delay_scale: f64,
 }
 
+fn sha256_hex(data: &[u8]) -> String {
+    let hash = Sha256::digest(data);
+    hash.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+pub fn baked_artifact_sha256_for_tests() -> &'static str {
+    arrival_prior_baked::BAKED_PRIOR_ARTIFACT_SHA256
+}
+
+pub(crate) fn arrival_cdf_from_bake(
+    cdf: &[f64],
+    atom_f0: f64,
+    mean_f: f64,
+    variance_f: f64,
+) -> ArrivalCdfCache {
+    ArrivalCdfCache {
+        cdf: cdf.to_vec(),
+        atom_f0,
+        mean_f,
+        variance_f,
+    }
+}
+
+fn try_apply_baked_prior(model: &mut ArrivalModel, json: &str) -> bool {
+    if sha256_hex(json.as_bytes()) != arrival_prior_baked::BAKED_PRIOR_ARTIFACT_SHA256 {
+        return false;
+    }
+    let key = PriorCdfBuildKey::from_model(model);
+    if !arrival_prior_baked::fingerprint_matches(&key) {
+        return false;
+    }
+    model.marginal_cdf = arrival_prior_baked::baked_marginal_cdf();
+    true
+}
+
 /// Single embed accessor for the committed arrival artifact.
 pub fn embedded_arrival_model() -> &'static str {
     EMBEDDED_ARRIVAL_JSON
+}
+
+/// Process-wide embedded arrival model: one Prior CDF bake + `LazyLock` init.
+static EMBEDDED_ARRIVAL: LazyLock<ArrivalModel> = LazyLock::new(|| {
+    ArrivalModel::from_json(EMBEDDED_ARRIVAL_JSON).expect("embedded arrival artifact")
+});
+
+/// Clone of the shared embedded [`ArrivalModel`] (cheap vs rebuilding the Prior CDF).
+pub fn shared_embedded_arrival() -> ArrivalModel {
+    EMBEDDED_ARRIVAL.clone()
 }
 
 /// Parse an arrival model artifact from a JSON string (e.g. an uploaded or overridden
@@ -542,12 +650,22 @@ impl ArrivalModel {
     /// artifact is malformed, which would indicate a build-time packaging bug rather than
     /// anything a caller can recover from.
     pub fn embedded() -> Self {
-        Self::from_json(EMBEDDED_ARRIVAL_JSON).expect("embedded arrival artifact")
+        shared_embedded_arrival()
+    }
+
+    /// Parse and validate JSON, then build the Prior CDF via integration (generator /
+    /// parity tests). Skips the compile-time bake shortcut.
+    pub fn from_json_live(json: &str) -> Result<Self, ArrivalModelError> {
+        Self::finish_from_parsed(Self::parse_json(json)?, json, true)
     }
 
     /// Parse and validate an arrival model artifact, then build the filter prior
     /// (`marginal_cdf`) against `default_corridor` so the model is immediately usable.
     pub fn from_json(json: &str) -> Result<Self, ArrivalModelError> {
+        Self::finish_from_parsed(Self::parse_json(json)?, json, false)
+    }
+
+    fn parse_json(json: &str) -> Result<ArrivalModel, ArrivalModelError> {
         let raw: ArrivalModelJson = serde_json::from_str(json).map_err(ArrivalModelError::Json)?;
         if raw.schema_version != SUPPORTED_SCHEMA_VERSION {
             return Err(ArrivalModelError::UnknownSchemaVersion(raw.schema_version));
@@ -634,7 +752,7 @@ impl ArrivalModel {
                 p: raw.thermal_modes.warm.p,
             },
         };
-        let mut model = Self {
+        Ok(Self {
             schema_version: raw.schema_version,
             corridors,
             default_corridor: default_corridor.clone(),
@@ -677,10 +795,64 @@ impl ArrivalModel {
                 mode_warm_offset: raw.thermal_modes.warm.offset_c,
                 leg_phi_set,
             },
-        };
-        model.marginal_cdf = model.build_law_cdf(ArrivalCondition::Prior);
+            prior_rebuilt_since_clear: false,
+            prior_rebuild_ms_since_clear: 0,
+        })
+    }
+
+    fn finish_from_parsed(
+        mut model: Self,
+        json: &str,
+        force_live_build: bool,
+    ) -> Result<Self, ArrivalModelError> {
+        if force_live_build || !try_apply_baked_prior(&mut model, json) {
+            model.rebuild_marginal_cdf_prior(false);
+        }
         model.prior_build_key = PriorCdfBuildKey::from_model(&model);
         Ok(model)
+    }
+
+    /// Marginal prior cache for the bake generator (live integration path).
+    pub(crate) fn marginal_cdf_for_bake(&self) -> ArrivalCdfCache {
+        self.marginal_cdf.clone()
+    }
+
+    /// Atom-divided Prior CDF grid export for bake parity tests.
+    pub fn export_marginal_prior_wire(&self) -> (Vec<f64>, f64, f64, f64) {
+        let cache = self.marginal_cdf_for_bake();
+        (
+            cache.cdf().to_vec(),
+            cache.atom_f0(),
+            cache.mean_f(),
+            cache.variance_f(),
+        )
+    }
+
+    /// Clear prior-rebuild telemetry before a studio init/reset/configure pass.
+    pub fn clear_prior_rebuild_telemetry(&mut self) {
+        self.prior_rebuilt_since_clear = false;
+        self.prior_rebuild_ms_since_clear = 0;
+    }
+
+    /// Whether `sync_params` or `set_corridor` rebuilt the Prior CDF since the last
+    /// `clear_prior_rebuild_telemetry` call.
+    pub fn prior_rebuilt_since_clear(&self) -> bool {
+        self.prior_rebuilt_since_clear
+    }
+
+    /// Wall time of the most recent prior rebuild in milliseconds.
+    pub fn prior_rebuild_ms_since_clear(&self) -> u64 {
+        self.prior_rebuild_ms_since_clear
+    }
+
+    fn rebuild_marginal_cdf_prior(&mut self, record_telemetry: bool) {
+        let t0 = std::time::Instant::now();
+        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
+        if record_telemetry {
+            self.prior_rebuilt_since_clear = true;
+            self.prior_rebuild_ms_since_clear = t0.elapsed().as_millis() as u64;
+        }
+        self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
 
     /// Look up a corridor by key, falling back to `default_corridor` for an unrecognized
@@ -769,8 +941,7 @@ impl ArrivalModel {
         self.rho = rho;
         self.f2_cache.clear();
         self.f3_cache.clear();
-        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
-        self.prior_build_key = PriorCdfBuildKey::from_model(self);
+        self.rebuild_marginal_cdf_prior(true);
     }
 
     /// Draw one trip's cold-chain break durations: `N ~ Poisson(rho * d)` breaks, each
@@ -1501,8 +1672,7 @@ impl ArrivalModel {
         self.active_corridor = corridor_key.to_string();
         self.f2_cache.clear();
         self.f3_cache.clear();
-        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
-        self.prior_build_key = PriorCdfBuildKey::from_model(self);
+        self.rebuild_marginal_cdf_prior(true);
     }
 
     /// The corridor the filter prior and F2/F3 caches are currently built against.
@@ -1698,10 +1868,9 @@ impl ArrivalModel {
         }
         self.q10 = params.q10;
         self.t_ref = params.t_ref_c;
-        self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
+        self.rebuild_marginal_cdf_prior(true);
         self.f2_cache.clear();
         self.f3_cache.clear();
-        self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
 }
 
@@ -1713,6 +1882,22 @@ impl ArrivalCdfCache {
             mean_f: 0.0,
             variance_f: 0.0,
         }
+    }
+
+    pub(crate) fn cdf(&self) -> &[f64] {
+        &self.cdf
+    }
+
+    pub(crate) fn atom_f0(&self) -> f64 {
+        self.atom_f0
+    }
+
+    pub(crate) fn mean_f(&self) -> f64 {
+        self.mean_f
+    }
+
+    pub(crate) fn variance_f(&self) -> f64 {
+        self.variance_f
     }
 }
 
@@ -1864,6 +2049,184 @@ pub fn resolve_arrival_f_law_phi_bar(
     Some(exposure / duration)
 }
 
+/// Fingerprint fields for the compile-time Prior CDF bake (generator export).
+#[derive(Clone, Debug)]
+pub struct PriorCdfBakeFingerprint {
+    pub gamma_shape: f64,
+    pub gamma_scale: f64,
+    pub q10: f64,
+    pub t_ref: f64,
+    pub eta_ref: f64,
+    pub active_corridor: String,
+    pub rho: f64,
+    pub tau_bar: f64,
+    pub t_break: f64,
+    pub sigma_hour: f64,
+    pub mode_cool_p: f64,
+    pub mode_cool_offset: f64,
+    pub mode_nominal_p: f64,
+    pub mode_nominal_offset: f64,
+    pub mode_warm_p: f64,
+    pub mode_warm_offset: f64,
+    pub leg_phi_set: f64,
+}
+
+/// Live-integrated Prior CDF export for the bake generator.
+#[derive(Clone, Debug)]
+pub struct ArrivalPriorBakeExport {
+    pub artifact_sha256: String,
+    pub fingerprint: PriorCdfBakeFingerprint,
+    pub atom_f0: f64,
+    pub mean_f: f64,
+    pub variance_f: f64,
+    pub cdf: Vec<f64>,
+}
+
+/// Integrate the Prior CDF at runtime and return bake export data for
+/// `write_arrival_prior_baked_rs`.
+pub fn export_baked_prior(json: &str) -> Result<ArrivalPriorBakeExport, ArrivalModelError> {
+    let model = ArrivalModel::from_json_live(json)?;
+    let key = PriorCdfBuildKey::from_model(&model);
+    let cache = model.marginal_cdf_for_bake();
+    Ok(ArrivalPriorBakeExport {
+        artifact_sha256: sha256_hex(json.as_bytes()),
+        fingerprint: PriorCdfBakeFingerprint {
+            gamma_shape: key.gamma_shape(),
+            gamma_scale: key.gamma_scale(),
+            q10: key.q10(),
+            t_ref: key.t_ref(),
+            eta_ref: key.eta_ref(),
+            active_corridor: key.active_corridor().to_string(),
+            rho: key.rho(),
+            tau_bar: key.tau_bar(),
+            t_break: key.t_break(),
+            sigma_hour: key.sigma_hour(),
+            mode_cool_p: key.mode_cool_p(),
+            mode_cool_offset: key.mode_cool_offset(),
+            mode_nominal_p: key.mode_nominal_p(),
+            mode_nominal_offset: key.mode_nominal_offset(),
+            mode_warm_p: key.mode_warm_p(),
+            mode_warm_offset: key.mode_warm_offset(),
+            leg_phi_set: key.leg_phi_set(),
+        },
+        atom_f0: cache.atom_f0(),
+        mean_f: cache.mean_f(),
+        variance_f: cache.variance_f(),
+        cdf: cache.cdf().to_vec(),
+    })
+}
+
+/// Write `arrival_prior_baked.rs` from [`export_baked_prior`] output.
+pub fn write_arrival_prior_baked_rs(
+    export: &ArrivalPriorBakeExport,
+    path: &std::path::Path,
+) -> std::io::Result<()> {
+    use std::fmt::Write as _;
+
+    let fp = &export.fingerprint;
+    let mut out = String::new();
+    writeln!(
+        &mut out,
+        "//! AUTO-GENERATED by `precompute_arrival_prior` — do not edit by hand.\n//! Regenerate: `./scripts/regenerate-arrival-prior.sh`\n"
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "use super::{{ArrivalCdfCache, PriorCdfBuildKey}};\n")
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "pub(crate) const BAKED_PRIOR_ARTIFACT_SHA256: &str = \"{}\";\n",
+        export.artifact_sha256
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const GAMMA_SHAPE: f64 = {:.17};", fp.gamma_shape)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const GAMMA_SCALE: f64 = {:.17};", fp.gamma_scale)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const Q10: f64 = {:.17};", fp.q10)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const T_REF: f64 = {:.17};", fp.t_ref)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const ETA_REF: f64 = {:.17};", fp.eta_ref)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "const ACTIVE_CORRIDOR: &str = \"{}\";",
+        fp.active_corridor
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const RHO: f64 = {:.17};", fp.rho)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const TAU_BAR: f64 = {:.17};", fp.tau_bar)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const T_BREAK: f64 = {:.17};", fp.t_break)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const SIGMA_HOUR: f64 = {:.17};", fp.sigma_hour)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const MODE_COOL_P: f64 = {:.17};", fp.mode_cool_p)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "const MODE_COOL_OFFSET: f64 = {:.17};",
+        fp.mode_cool_offset
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "const MODE_NOMINAL_P: f64 = {:.17};",
+        fp.mode_nominal_p
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "const MODE_NOMINAL_OFFSET: f64 = {:.17};",
+        fp.mode_nominal_offset
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const MODE_WARM_P: f64 = {:.17};", fp.mode_warm_p)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "const MODE_WARM_OFFSET: f64 = {:.17};",
+        fp.mode_warm_offset
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const LEG_PHI_SET: f64 = {:.17};", fp.leg_phi_set)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const ATOM_F0: f64 = {:.17};", export.atom_f0)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const MEAN_F: f64 = {:.17};", export.mean_f)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(&mut out, "const VARIANCE_F: f64 = {:.17};", export.variance_f)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "\nfn approx_eq(a: f64, b: f64) -> bool {{\n    (a - b).abs() < 1e-12\n}}\n\npub(crate) fn fingerprint_matches(key: &PriorCdfBuildKey) -> bool {{\n    approx_eq(key.gamma_shape(), GAMMA_SHAPE)\n        && approx_eq(key.gamma_scale(), GAMMA_SCALE)\n        && approx_eq(key.q10(), Q10)\n        && approx_eq(key.t_ref(), T_REF)\n        && approx_eq(key.eta_ref(), ETA_REF)\n        && key.active_corridor() == ACTIVE_CORRIDOR\n        && approx_eq(key.rho(), RHO)\n        && approx_eq(key.tau_bar(), TAU_BAR)\n        && approx_eq(key.t_break(), T_BREAK)\n        && approx_eq(key.sigma_hour(), SIGMA_HOUR)\n        && approx_eq(key.mode_cool_p(), MODE_COOL_P)\n        && approx_eq(key.mode_cool_offset(), MODE_COOL_OFFSET)\n        && approx_eq(key.mode_nominal_p(), MODE_NOMINAL_P)\n        && approx_eq(key.mode_nominal_offset(), MODE_NOMINAL_OFFSET)\n        && approx_eq(key.mode_warm_p(), MODE_WARM_P)\n        && approx_eq(key.mode_warm_offset(), MODE_WARM_OFFSET)\n        && approx_eq(key.leg_phi_set(), LEG_PHI_SET)\n}}\n"
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    write!(&mut out, "const CDF: [f64; {}] = [\n", export.cdf.len())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    for (i, v) in export.cdf.iter().enumerate() {
+        if i % 4 == 0 {
+            out.push_str("    ");
+        }
+        write!(&mut out, "{v:.17},").map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        if i % 4 == 3 {
+            out.push('\n');
+        }
+    }
+    if export.cdf.len() % 4 != 0 {
+        out.push('\n');
+    }
+    writeln!(&mut out, "];\n")
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writeln!(
+        &mut out,
+        "pub(crate) fn baked_marginal_cdf() -> ArrivalCdfCache {{\n    super::arrival_cdf_from_bake(&CDF, ATOM_F0, MEAN_F, VARIANCE_F)\n}}"
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    std::fs::write(path, out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1890,9 +2253,7 @@ mod tests {
         assert_eq!(embedded.corridors.len(), file.corridors.len());
     }
 
-    /// Guard against T-163 break-model regression where `thermal_nodes(d)` was recomputed
-    /// on every CDF grid point (~600s+ release init); cached enumeration must stay bounded.
-    /// Release-mode budget ~60s (observed ~28s); debug builds skip timing (much slower).
+    /// Release-mode budget ~1s with compile-time bake; debug builds skip timing.
     #[test]
     fn embedded_prior_build_under_regression_budget() {
         let t0 = std::time::Instant::now();
@@ -1900,8 +2261,8 @@ mod tests {
         let elapsed = t0.elapsed();
         if !cfg!(debug_assertions) {
             assert!(
-                elapsed.as_secs() <= 60,
-                "embedded prior build took {elapsed:?} (release budget 60s; uncached path exceeded ~600s)"
+                elapsed.as_secs() < 1,
+                "embedded prior build took {elapsed:?} (release budget 1s with baked prior)"
             );
         }
         assert!(model.marginal_variance_f() >= 0.0);
