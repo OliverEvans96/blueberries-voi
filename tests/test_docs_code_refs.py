@@ -216,7 +216,8 @@ def test_arrival_parameters_table_cites_v2_generative_symbols() -> None:
     missing_doc = sorted(sym for sym in _V2_ARRIVAL_SYMBOLS if sym not in params_md)
     missing_code = sorted(sym for sym in _V2_ARRIVAL_SYMBOLS if sym not in source_text)
     assert not missing_code, (
-        f"arrival/shipments sources must define v2 symbols for docs to cite: {missing_code}"
+        "arrival/shipments sources must define v2 symbols for docs to cite: "
+        f"{missing_code}"
     )
     assert not missing_doc, (
         "RED [S3.6]: docs/reference/parameters.md must cite v2 arrival symbols "

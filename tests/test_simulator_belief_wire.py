@@ -1,4 +1,4 @@
-"""F-native belief wire helpers at the EngineSession boundary (ADR 0131 / T-163 mirrors)."""
+"""F-native belief wire at EngineSession boundary (ADR 0131 / T-163 mirrors)."""
 
 from __future__ import annotations
 

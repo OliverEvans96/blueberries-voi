@@ -1794,7 +1794,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_schema_version() {
-        let json = r#"{"schema_version":99,"mu_T":1,"sigma_T":1,"sigma_pos":0.1,"q10":3,"T_ref":0,"gamma_shape":2,"gamma_scale":0.03,"reference_life_days":14,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"x":{"d_min":1,"delay_shape":1,"delay_scale":1}}}"#;
+        let json = r#"{"schema_version":99,"legs":[{"name":"precool_staging","weight":0.15,"setpoint_c":0.5},{"name":"line_haul","weight":0.6,"setpoint_c":2.0},{"name":"dock_receiving","weight":0.25,"setpoint_c":5.0}],"T_break":12.0,"rho":0.08,"tau_bar":0.5,"sigma_pos":0.1,"q10":3,"T_ref":0,"gamma_shape":2,"gamma_scale":0.03,"reference_life_days":14,"quadrature":{"nodes":[0.5],"weights":[1.0]},"corridors":{"x":{"d_min":1,"delay_shape":1,"delay_scale":1}}}"#;
         let err = ArrivalModel::from_json(json).unwrap_err();
         assert!(matches!(err, ArrivalModelError::UnknownSchemaVersion(99)));
     }

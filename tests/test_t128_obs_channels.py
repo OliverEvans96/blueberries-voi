@@ -1,4 +1,4 @@
-"""T-135: ObsChannels global scan model parity with Rust (T-163 per-lot delivery wire)."""
+"""T-135: ObsChannels scan parity with Rust (T-163 per-lot delivery wire)."""
 
 from __future__ import annotations
 

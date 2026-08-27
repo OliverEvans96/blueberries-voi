@@ -37,26 +37,38 @@ T150_PHASE2_FAST = frozenset(
 )
 
 NAMED_SLOW: dict[str, str] = {
-    "unit_pf_l20_scripted_mean_f_mae_and_order_match": "ADR 0130 L=20 scripted filter gate",
+    "unit_pf_l20_scripted_mean_f_mae_and_order_match": (
+        "ADR 0130 L=20 scripted filter gate"
+    ),
     "unit_pf_f1_p1_relative_mean_f_mae": "F1 vs P1 mean_f MAE",
-    "unit_pf_f1_strictly_beats_p1_heterogeneous_lots": "F1 beats P1 heterogeneous lots",
+    "unit_pf_f1_strictly_beats_p1_heterogeneous_lots": (
+        "F1 beats P1 heterogeneous lots"
+    ),
     "multinomial_vs_wor_mc_realistic_l": "multinomial vs WOR MC realistic L",
-    "score_particle_mutates_freshness_after_finite_p1_ll": "P1 filter particle mutation",
+    "score_particle_mutates_freshness_after_finite_p1_ll": (
+        "P1 filter particle mutation"
+    ),
     "p1_f1_zero_sales_belief_mass_parity": "P0/P1/F1 zero-sales parity",
     "filter_birth_matches_arrival_qty_not_upl": "filter birth qty parity",
     "gsin_multilot_delivery_segments_match_l": "GSIN multilot delivery segments",
     "upc_multilot_delivery_merges_to_one_segment": "UPC multilot delivery merge",
-    "session_configure_loads_calendar_profile_and_uses_day_in_demand": "90-day calendar demand",
+    "session_configure_loads_calendar_profile_and_uses_day_in_demand": (
+        "90-day calendar demand"
+    ),
     "p0_vs_p1_belief_differs_after_waste": "P0 vs P1 belief after waste",
     "f1_vs_p1_belief_differs_after_uneven_sales": "F1 vs P1 belief after uneven sales",
     "truth_belief_source_skips_filter_updates": "truth belief source skips filter",
     "catch_up_f2_matches_never_switched_and_not_oracle": "caught-up F2 vs P0 session",
     "session_stream_rng_calendar_mean_seed0": "90-day calendar demand RNG mean",
-    "day_step_f_native_conservation_scripted_seed": "f-native conservation scripted seed",
+    "day_step_f_native_conservation_scripted_seed": (
+        "f-native conservation scripted seed"
+    ),
     "candidate_case_radius_changes_rollout_order": "rollout radius MC (deprecated)",
     "rollout_smoke_finite_profit": "alpha_tune rollout smoke (deprecated)",
     "rollout_tune_best_in_ci_grid": "alpha_tune rollout grid (deprecated)",
-    "sw_calendar_higher_alpha_increases_mean_profit_full_run": "full calendar SW alpha MC",
+    "sw_calendar_higher_alpha_increases_mean_profit_full_run": (
+        "full calendar SW alpha MC"
+    ),
     "p0_and_f1_profits_differ_on_seed_42": "P0/F1 profit separation MC",
     "crn_cell_returns_seven_finite_profits": "VOI CRN cell smoke (7 masks)",
 }
@@ -105,7 +117,8 @@ def mark_t150_phase2() -> bool:
         if fn in T150_PHASE2_FAST:
             continue
         if fn.startswith("ac2_") or fn in NAMED_SLOW:
-            text = add_ignore_before_fn(text, fn, f"T-150 arrival MC/integration ({fn})")
+            reason = f"T-150 arrival MC/integration ({fn})"
+            text = add_ignore_before_fn(text, fn, reason)
     if text != orig:
         T150_PHASE2_FILE.write_text(text, encoding="utf-8")
         return True
@@ -160,7 +173,8 @@ def delete_rollout_tests_rollout_rs() -> None:
     for fn in to_remove:
         # may have #[ignore] line before #[test]
         pattern = re.compile(
-            rf"\n[ \t]*(?:#\[ignore[^\]]*\]\n)?[ \t]*#\[test\]\n[ \t]*fn {re.escape(fn)}\(\) \{{\n.*?\n[ \t]*\}}\n",
+            rf"\n[ \t]*(?:#\[ignore[^\]]*\]\n)?"
+            rf"[ \t]*#\[test\]\n[ \t]*fn {re.escape(fn)}\(\) \{{\n.*?\n[ \t]*\}}\n",
             re.DOTALL,
         )
         text, n = pattern.subn("\n", text)
