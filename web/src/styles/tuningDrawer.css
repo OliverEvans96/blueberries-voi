@@ -193,6 +193,32 @@
   min-height: 120px;
 }
 
+.tuning-chart-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.tuning-chart-group + .tuning-chart-group {
+  margin-top: 0.75rem;
+}
+
+.tuning-chart-group .chart-caption {
+  margin-bottom: 0.25rem;
+}
+
+.tuning-chart-group-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.tuning-chart-group-sliders .field {
+  margin: 0;
+}
+
 /* Cluster tabs — shared with tuning dock */
 .tuning-cluster-label {
   font-size: 0.65rem;

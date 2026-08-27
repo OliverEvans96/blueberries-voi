@@ -1,13 +1,9 @@
-import {
-  renderDailyDemand,
-  renderDemandForecast,
-} from "../charts/demandDist";
+import { renderDemandForecast } from "../charts/demandDist";
 import type { ViewModelProjector } from "./projector";
 import type { ScheduleWire } from "./types";
 
 export type DemandPreviewBindOpts = {
-  chartHost: HTMLElement;
-  forecastHost?: HTMLElement;
+  forecastHost: HTMLElement;
   slider: HTMLInputElement;
   vmSlider?: HTMLInputElement;
   projector: ViewModelProjector;
@@ -25,9 +21,9 @@ function readDemandVm(vmSlider: HTMLInputElement | undefined, fallback: number):
   return Number.isFinite(v) ? v : fallback;
 }
 
-/** Wire demand_mu / demand_vm sliders to staged DOW preview (no engine Reset). */
+/** Wire demand_mu / demand_vm sliders to staged forecast preview (no engine Reset). */
 export function bindDemandSliderPreview(opts: DemandPreviewBindOpts): void {
-  const { chartHost, forecastHost, slider, vmSlider, projector } = opts;
+  const { forecastHost, slider, vmSlider, projector } = opts;
 
   const renderPreview = () => {
     const vm = projector.getViewModel();
@@ -38,17 +34,14 @@ export function bindDemandSliderPreview(opts: DemandPreviewBindOpts): void {
       demand_vm,
     });
     requestAnimationFrame(() => {
-      renderDailyDemand(chartHost, vm.history, 160);
-      if (forecastHost) {
-        renderDemandForecast(
-          forecastHost,
-          vm.history,
-          summary,
-          vm.episode_day,
-          demand_vm,
-          160,
-        );
-      }
+      renderDemandForecast(
+        forecastHost,
+        vm.history,
+        summary,
+        vm.episode_day,
+        demand_vm,
+        160,
+      );
     });
   };
 

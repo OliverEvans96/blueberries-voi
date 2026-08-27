@@ -149,17 +149,15 @@ describe("T-087 DOW profile from demand_summary", () => {
     expect(stillMuOnly).toBe(false);
   });
 
-  it("react/studioLogic.ts wires demand chart with episode history daily demand", () => {
+  it("react/studioLogic.ts wires demand forecast chart with episode history", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
-    expect(main).toMatch(/renderDailyDemand/);
+    expect(main).toMatch(/renderDemandForecast/);
     expect(main).toMatch(/vm\.history/);
   });
 
-  it("react/studioLogic.ts colocates demand chart when demand section is active", () => {
+  it("react/studioLogic.ts colocates demand forecast chart when demand section is active", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
-    expect(main).toMatch(/mountTuningChartHosts/);
-    expect(main).toMatch(/chart-demand-host/);
-    expect(main).toMatch(/renderDailyDemand/);
+    expect(main).not.toMatch(/chart-demand-host/);
     expect(main).toMatch(/renderDemandForecast/);
     expect(main).toMatch(/plot-demand-forecast/);
   });

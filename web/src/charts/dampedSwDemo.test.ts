@@ -1,14 +1,100 @@
 /**
  * damped_sw demo chart — protection quantile + coverage bias monotonicity.
  */
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from "vitest";
 import {
   caseRound,
   computeDampedSwDecomposition,
   coverageBiasScore,
   homogeneousProtectionQuantile,
+  protectionDemandPmf,
   protectionDemandQuantile,
+  renderDampedSwDemo,
 } from "./dampedSwDemo";
+
+function quantileFromPmf(pmf: { k: number; p: number }[], q: number): number {
+  let cum = 0;
+  for (const row of pmf) {
+    cum += row.p;
+    if (cum >= q) return row.k;
+  }
+  return pmf[pmf.length - 1]?.k ?? 0;
+}
+
+function chartHost(): HTMLElement {
+  const el = document.createElement("div");
+  Object.defineProperty(el, "clientWidth", { configurable: true, value: 420 });
+  document.body.appendChild(el);
+  return el;
+}
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+describe("protectionDemandPmf", () => {
+  it("pmf masses sum to approximately 1", () => {
+    const pmf = protectionDemandPmf(2.5, 3, [30, 30, 30]);
+    const total = pmf.reduce((sum, row) => sum + row.p, 0);
+    expect(total).toBeCloseTo(1, 6);
+  });
+
+  it("quantileFromPmf is consistent with protectionDemandQuantile", () => {
+    const mus = [28, 32, 30];
+    const vm = 2.2;
+    const days = 3;
+    for (const alpha of [0.7, 0.9, 0.95]) {
+      const pmf = protectionDemandPmf(vm, days, mus);
+      expect(quantileFromPmf(pmf, alpha)).toBe(
+        protectionDemandQuantile(alpha, vm, days, mus),
+      );
+    }
+  });
+});
+
+describe("renderDampedSwDemo", () => {
+  it("draws histogram bars, two vertical markers, and legend entries", () => {
+    const host = chartHost();
+    renderDampedSwDemo(host, {
+      alpha: 0.9,
+      rho: 0.8,
+      policy: "damped_sw",
+      caseSize: 8,
+      demandVm: 2.5,
+      demandSummary: { scale_mu: 30, dow_means: [30, 30, 30, 30, 30, 30, 30] },
+      schedule: null,
+      episodeDay: 0,
+      effectiveInventory: 20,
+    });
+
+    const svg = host.querySelector("svg.damped-sw-demo");
+    expect(svg).not.toBeNull();
+    expect(host.querySelectorAll(".prot-demand-hist-bar").length).toBeGreaterThan(0);
+    expect(host.querySelectorAll(".damped-sw-marker").length).toBe(2);
+    expect(host.querySelector(".damped-sw-marker--target")).not.toBeNull();
+    expect(host.querySelector(".damped-sw-marker--order")).not.toBeNull();
+    expect(host.querySelector(".damped-sw-legend")).not.toBeNull();
+    expect(host.querySelectorAll(".legend-label").length).toBe(2);
+  });
+
+  it("shows constant-policy hint instead of histogram", () => {
+    const host = chartHost();
+    renderDampedSwDemo(host, {
+      alpha: 0.9,
+      rho: 0.8,
+      policy: "constant",
+      caseSize: 8,
+      demandVm: 2.5,
+      demandSummary: null,
+      schedule: null,
+      episodeDay: 0,
+      effectiveInventory: 20,
+    });
+    expect(host.querySelector(".damped-sw-demo-hint")).not.toBeNull();
+    expect(host.querySelectorAll(".prot-demand-hist-bar").length).toBe(0);
+  });
+});
 
 describe("protectionDemandQuantile", () => {
   it("is monotone increasing in alpha for homogeneous demand", () => {

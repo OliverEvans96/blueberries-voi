@@ -44,7 +44,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "demand",
     label: "Demand",
     blurb: "Mean and variability set how often you stock out or over-cover.",
-    plotIds: ["plot-demand", "plot-demand-forecast", "plot-picking-variability"],
+    plotIds: ["plot-demand-forecast", "plot-picking-variability"],
     controlSection: "demand",
   },
   {
@@ -66,7 +66,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "autopilot",
     label: "Autopilot",
     blurb:
-      "Tune damped_sw α and ρ — live decomposition of protection target, gap, and case order.",
+      "Tune damped_sw α and ρ — protection-interval demand histogram with service target and case order.",
     plotIds: ["plot-damped-sw-demo"],
     controlSection: "autopilot",
   },

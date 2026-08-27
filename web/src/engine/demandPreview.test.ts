@@ -69,14 +69,14 @@ describe("demandSummaryFromConfig (T-124 AC-demand)", () => {
 });
 
 describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
-  it("re-renders daily demand chart within one animation frame on slider input", async () => {
-    const chartHost = document.createElement("div");
-    chartHost.id = "chart-demand";
-    Object.defineProperty(chartHost, "clientWidth", {
+  it("re-renders demand forecast chart within one animation frame on slider input", async () => {
+    const forecastHost = document.createElement("div");
+    forecastHost.id = "chart-demand-forecast-host";
+    Object.defineProperty(forecastHost, "clientWidth", {
       configurable: true,
       value: 420,
     });
-    document.body.appendChild(chartHost);
+    document.body.appendChild(forecastHost);
 
     const slider = document.createElement("input");
     slider.id = "demand_mu";
@@ -117,7 +117,7 @@ describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
       ],
     });
 
-    bindDemandSliderPreview({ chartHost, slider, projector });
+    bindDemandSliderPreview({ forecastHost, slider, projector });
 
     slider.value = String(DEFAULT_SIM_CONFIG.demand_mu + 15);
     slider.dispatchEvent(new Event("input", { bubbles: true }));
@@ -126,7 +126,6 @@ describe("demand_mu staged preview chart (T-124 AC-demand)", () => {
       requestAnimationFrame(() => resolve());
     });
 
-    expect(chartHost.querySelector(".daily-demand-line")).not.toBeNull();
-    expect(chartHost.querySelector("svg.chart-svg")).not.toBeNull();
+    expect(forecastHost.querySelector("svg.chart-svg")).not.toBeNull();
   });
 });

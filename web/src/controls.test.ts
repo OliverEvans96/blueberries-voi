@@ -234,11 +234,69 @@ describe("T-127 tuning-dock content — demand controls", () => {
     expect(src).not.toMatch(/Next few days \(projected μ\)/);
   });
 
-  it("embeds tuning chart host slots after demand sliders", () => {
+  it("uses chart-first interleaved tuning-chart-group layout without daily demand chart", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
-    expect(src).toMatch(/chart-demand-host/);
+    expect(src).toMatch(/tuning-chart-group/);
+    expect(src).not.toMatch(/chart-demand-host/);
+    expect(src).not.toMatch(/data-plot="plot-demand"/);
     expect(src).toMatch(/chart-demand-forecast-host/);
     expect(src).toMatch(/picking-var-chart/);
+    expect(src).toMatch(/slidersByIds\(\["demand_mu", "demand_vm"\]\)/);
+    expect(src).toMatch(/slidersByIds\(\["sigma"\]\)/);
+    const forecastIdx = src.indexOf("plot-demand-forecast");
+    const pickingIdx = src.indexOf("plot-picking-variability");
+    expect(forecastIdx).toBeGreaterThan(-1);
+    expect(pickingIdx).toBeGreaterThan(forecastIdx);
+  });
+
+  it("demand section places seed above chart groups and play-window-days in footer", () => {
+    const host = document.createElement("div");
+    const api = mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+    );
+    api.showSection("demand");
+    const block = host.querySelector(
+      '.controls-block[data-section="demand"]',
+    ) as HTMLElement;
+    const ids = [...block.querySelectorAll("[id]")].map((el) => el.id);
+    const seedIdx = ids.indexOf("seed");
+    const forecastIdx = ids.indexOf("chart-demand-forecast-host");
+    const sigmaIdx = ids.indexOf("sigma");
+    const windowIdx = ids.indexOf("play-window-days");
+    expect(seedIdx).toBeGreaterThan(-1);
+    expect(forecastIdx).toBeGreaterThan(seedIdx);
+    expect(sigmaIdx).toBeGreaterThan(forecastIdx);
+    expect(windowIdx).toBeGreaterThan(sigmaIdx);
+  });
+
+  it("autopilot section places alpha and rho sliders below damped_sw chart", () => {
+    const host = document.createElement("div");
+    const api = mountSectionControlsDom(
+      host,
+      baseState(),
+      {
+        onEconomicsChange: vi.fn(),
+        onConfigChange: vi.fn(),
+        onControllerChange: vi.fn(),
+      },
+    );
+    api.showSection("autopilot");
+    const block = host.querySelector(
+      '.controls-block[data-section="autopilot"]',
+    ) as HTMLElement;
+    const ids = [...block.querySelectorAll("[id]")].map((el) => el.id);
+    const chartIdx = ids.indexOf("chart-damped-sw-demo");
+    const alphaIdx = ids.indexOf("alpha");
+    const rhoIdx = ids.indexOf("rho");
+    expect(chartIdx).toBeGreaterThan(-1);
+    expect(alphaIdx).toBeGreaterThan(chartIdx);
+    expect(rhoIdx).toBeGreaterThan(alphaIdx);
   });
 
   it("tier badges show tier text only without info-tip triggers", () => {
