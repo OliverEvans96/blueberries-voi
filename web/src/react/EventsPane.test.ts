@@ -1,5 +1,5 @@
 /**
- * T-148: EventsPane — 5-day window, Delivered | Sold | Spoiled columns.
+ * Event Log pane — 5-day window, Sold | Spoiled main table; delivery/order sections.
  */
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
@@ -20,7 +20,8 @@ type MaskedDayWire = {
   arrivals_by?: number[] | null;
   lot_ids?: number[] | null;
   arrival_lot_ids?: number[] | null;
-  pack_date_days?: number | null;
+  pack_date_days?: number | number[] | null;
+  pack_dates_by_lot?: number[] | null;
   temp_times_d?: number[] | null;
   temp_temps_c?: number[] | null;
   temp_traces_by_lot?: Array<{
@@ -55,13 +56,14 @@ const F2_DAY: MaskedDayWire = {
   pack_date_days: 3,
 };
 
-describe("EventsPane (T-148 v6)", () => {
+describe("EventsPane (Event Log refactor)", () => {
   it("shows last five completed days newest-first, excluding today", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: { episode_day: 7, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [],
+        orderQtyByDay: new Map(),
       }),
     );
     const cards = container.querySelectorAll(".events-day-card");
@@ -70,18 +72,32 @@ describe("EventsPane (T-148 v6)", () => {
     expect(cards[4]?.getAttribute("data-day")).toBe("2");
   });
 
-  it("renders three column tables per day", () => {
+  it("uses Event Log pane title and aria-label", () => {
+    render(
+      createElement(EventsPane, {
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Event Log" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Event Log" })).toBeInTheDocument();
+  });
+
+  it("renders Sold and Spoiled columns only in the main table", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY, F2_DAY],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(container.querySelectorAll("[data-testid='events-columns']").length).toBe(2);
-    expect(container.querySelectorAll("[data-testid='events-col-delivered']").length).toBe(2);
     expect(container.querySelectorAll("[data-testid='events-col-sold']").length).toBe(2);
     expect(container.querySelectorAll("[data-testid='events-col-spoiled']").length).toBe(2);
+    expect(container.querySelectorAll("[data-testid='events-col-delivered']").length).toBe(0);
   });
 
   it("P0 hides waste — shows not-observed in spoiled column", () => {
@@ -90,6 +106,7 @@ describe("EventsPane (T-148 v6)", () => {
         vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(screen.getByText(/^not observed$/i)).toBeInTheDocument();
@@ -108,14 +125,48 @@ describe("EventsPane (T-148 v6)", () => {
         },
         schedule: SCHEDULE,
         events: [F2_DAY],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(screen.getAllByText("Lot 101").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Lot 102").length).toBeGreaterThan(0);
-    expect(screen.getByText(/packed 3 days before arrival/i)).toBeInTheDocument();
   });
 
-  it("delivery lot rows sum to delivery total", () => {
+  it("UPC delivery section is one row with Delivered and Pack date columns", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2a",
+            obs_channels: channelsForPreset("F2a"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: 4,
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    expect(delivery).not.toBeNull();
+    expect(delivery!.querySelector(".events-delivery-table--upc")).not.toBeNull();
+    expect(delivery!.textContent).toContain("16");
+    expect(delivery!.textContent).toContain("4");
+    expect(delivery!.querySelectorAll(".events-delivery-table tbody tr").length).toBe(1);
+  });
+
+  it("GSIN delivery section shows per-lot Delivered and Pack date rows", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {
@@ -137,27 +188,100 @@ describe("EventsPane (T-148 v6)", () => {
             waste_total: 0,
           },
         ],
+        orderQtyByDay: new Map(),
       }),
     );
-    const deliveredCol = container.querySelector(
-      "[data-testid='events-col-delivered']",
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
     );
-    const lotQty = Array.from(
-      deliveredCol?.querySelectorAll(".events-table-lot td") ?? [],
-    ).map((el) => Number(el.textContent));
-    expect(lotQty.reduce((s, n) => s + n, 0)).toBe(16);
+    expect(delivery).not.toBeNull();
+    expect(delivery!.querySelector(".events-delivery-table--gsin")).not.toBeNull();
+    const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
+    expect(lotRows.length).toBe(2);
+    expect(delivery!.textContent).toContain("Lot 201");
+    expect(delivery!.textContent).toContain("Lot 202");
+    expect(delivery!.textContent).toContain("10");
+    expect(delivery!.textContent).toContain("6");
   });
 
-  it("shows delivery and order marker chips to the right of the day heading", () => {
-    // Day 2 (epoch 2024-01-01 == Monday + 2 days == Wednesday, weekday 2)
-    // is a genuine schedule delivery day (delivery_weekdays includes 2).
-    // episode_day=3 also brings day 1 (an order day under SCHEDULE) into
-    // the 5-day window, so scope assertions to the day-2 card specifically.
+  it("does not show delivery section on non-delivery days", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [P0_DAY],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    expect(
+      container.querySelector('.events-day-card[data-day="1"] [data-testid="events-delivery-section"]'),
+    ).toBeNull();
+  });
+
+  it("shows order section with qty on schedule order days", () => {
+    render(
+      createElement(EventsPane, {
+        vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [P0_DAY],
+        orderQtyByDay: new Map([[1, 24]]),
+      }),
+    );
+    expect(screen.getByText("Ordered: 24")).toBeInTheDocument();
+  });
+
+  it("does not show order section on non-order days", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [{ ...P0_DAY, day: 2 }],
+        orderQtyByDay: new Map([[2, 16]]),
+      }),
+    );
+    expect(
+      container.querySelector('.events-day-card[data-day="2"] [data-testid="events-order-section"]'),
+    ).toBeNull();
+  });
+
+  it("does not render standalone pack-date paragraph", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 4,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 3,
+            arrivals: 12,
+            sales_total: 4,
+            waste_total: 1,
+            sales_by: [4],
+            waste_by: [1],
+            lot_ids: [101],
+            pack_date_days: 2,
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    expect(container.querySelector(".events-pack-date")).toBeNull();
+    expect(screen.queryByText(/packed .* before arrival/i)).toBeNull();
+  });
+
+  it("shows delivery and order marker chips to the right of the day heading", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
+        schedule: SCHEDULE,
+        events: [{ ...P0_DAY, day: 2 }],
+        orderQtyByDay: new Map(),
       }),
     );
     const day2Card = container.querySelector('.events-day-card[data-day="2"]');
@@ -177,17 +301,17 @@ describe("EventsPane (T-148 v6)", () => {
     ).toBeTruthy();
   });
 
-  it("prefixes day heading with weekday label from schedule epoch", () => {
+  it("formats day heading as bold weekday, comma, lowercase day — no parentheses", () => {
     render(
       createElement(EventsPane, {
         vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY],
+        orderQtyByDay: new Map(),
       }),
     );
-    // epoch 2024-01-01 (Mon) + day 1 → Tue
-    expect(screen.getByRole("heading", { level: 3, name: "Tue (day 1)" })).toBeInTheDocument();
-    expect(screen.queryByText(/January|Jan /i)).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Tue, day 1" })).toBeInTheDocument();
+    expect(screen.queryByText(/\(day 1\)/i)).toBeNull();
   });
 
   it("shows initial loading only when there is no event data", () => {
@@ -196,10 +320,11 @@ describe("EventsPane (T-148 v6)", () => {
         vm: { episode_day: 2, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [],
+        orderQtyByDay: new Map(),
         loading: true,
       }),
     );
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading event log/i)).toBeInTheDocument();
   });
 
   it("keeps stale cards visible while refreshing", () => {
@@ -208,12 +333,13 @@ describe("EventsPane (T-148 v6)", () => {
         vm: { episode_day: 3, config: DEFAULT_SIM_CONFIG },
         schedule: SCHEDULE,
         events: [P0_DAY],
+        orderQtyByDay: new Map(),
         refreshing: true,
       }),
     );
-    expect(screen.getByRole("heading", { level: 3, name: "Tue (day 1)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Tue, day 1" })).toBeInTheDocument();
     expect(screen.getByText(/updating/i)).toBeInTheDocument();
-    expect(screen.queryByText(/^Loading events/i)).toBeNull();
+    expect(screen.queryByText(/^Loading event log/i)).toBeNull();
   });
 
   it("F3 delivery day shows temperature history chart", () => {
@@ -250,6 +376,7 @@ describe("EventsPane (T-148 v6)", () => {
             ],
           },
         ],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
@@ -277,63 +404,6 @@ describe("EventsPane (T-148 v6)", () => {
     expect(lot302?.textContent).toMatch(/std\s*0\.3°C/);
   });
 
-  it("F2a shows pack date but not age at receipt", () => {
-    render(
-      createElement(EventsPane, {
-        vm: {
-          episode_day: 4,
-          config: {
-            ...DEFAULT_SIM_CONFIG,
-            obs_scenario: "F2a",
-            obs_channels: channelsForPreset("F2a"),
-          },
-        },
-        schedule: SCHEDULE,
-        events: [
-          {
-            day: 3,
-            arrivals: 12,
-            sales_total: 8,
-            waste_total: 1,
-            pack_date_days: 4,
-          },
-        ],
-      }),
-    );
-    expect(screen.getByText(/4 days/i)).toBeInTheDocument();
-    expect(screen.queryByText(/age at receipt/i)).toBeNull();
-  });
-
-  it("F2 shows pack date on delivery days only", () => {
-    render(
-      createElement(EventsPane, {
-        vm: {
-          episode_day: 4,
-          config: {
-            ...DEFAULT_SIM_CONFIG,
-            obs_scenario: "F2",
-            obs_channels: channelsForPreset("F2"),
-          },
-        },
-        schedule: SCHEDULE,
-        events: [
-          {
-            day: 3,
-            arrivals: 12,
-            sales_total: 4,
-            waste_total: 1,
-            sales_by: [4],
-            waste_by: [1],
-            lot_ids: [101],
-            pack_date_days: 2,
-          },
-        ],
-      }),
-    );
-    expect(screen.queryByText(/age at receipt/i)).toBeNull();
-    expect(screen.getByText(/packed 2 days before arrival/i)).toBeInTheDocument();
-  });
-
   it("F2 delivery day does not show temp chart when history is pack_date", () => {
     const { container } = render(
       createElement(EventsPane, {
@@ -347,20 +417,14 @@ describe("EventsPane (T-148 v6)", () => {
         },
         schedule: SCHEDULE,
         events: [F2_DAY],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(screen.queryByText(/temperature history/i)).toBeNull();
     expect(container.querySelector(".delivery-temp-chart--multi")).toBeNull();
   });
 
-  it("shows the temperature history chart on any day with real arrivals and temp data, even when the schedule's cosmetic delivery-day badge doesn't cover that day (T-151 bugfix)", () => {
-    // Day 1 under SCHEDULE (epoch 2024-01-01 == Monday, so day 1 ==
-    // Tuesday, weekday 1) is flagged an "order day" (order_weekdays
-    // includes 1), not a "delivery day" (delivery_weekdays=[0,2,4]). A real
-    // delivery with temp data can still land on this day (e.g. after a
-    // mid-episode schedule change, or any day the mock/live engine records
-    // arrivals). The chart must key off "did a delivery with temp data
-    // actually happen", not the cosmetic calendar badge.
+  it("shows the temperature history chart on any day with real arrivals and temp data, even when the schedule delivery-day badge does not cover that day", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {
@@ -389,24 +453,114 @@ describe("EventsPane (T-148 v6)", () => {
             ],
           },
         ],
+        orderQtyByDay: new Map(),
       }),
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".events-temp-history")).not.toBeNull();
-
-    const summaries = container.querySelector(
-      '[data-testid="events-temp-summaries"]',
-    );
-    expect(summaries).not.toBeNull();
-    const lines = summaries!.querySelectorAll(".events-temp-summary-line");
-    expect(lines.length).toBe(1);
-
-    const lot401 = summaries!.querySelector('[data-lot="401"]');
-    expect(lot401?.textContent).toMatch(/Lot 401/);
-    expect(lot401?.textContent).toMatch(/min\s*2\.0°C/);
-    expect(lot401?.textContent).toMatch(/max\s*2\.6°C/);
-    expect(lot401?.textContent).toMatch(/mean\s*2\.3°C/);
-    expect(lot401?.textContent).toMatch(/std\s*0\.3°C/);
   });
 
+  it("GSIN F2 shows distinct per-lot pack dates from pack_dates_by_lot", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            arrival_lot_ids: [201, 202],
+            arrivals_by: [10, 6],
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: 3,
+            pack_dates_by_lot: [3, 5],
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    expect(delivery).not.toBeNull();
+    const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
+    expect(lotRows.length).toBe(2);
+    expect(lotRows[0]?.textContent).toContain("3");
+    expect(lotRows[0]?.textContent).not.toContain("5");
+    expect(lotRows[1]?.textContent).toContain("5");
+    expect(lotRows[1]?.textContent).not.toContain("3, 5");
+  });
+
+  it("GSIN falls back to scalar pack_date_days when pack_dates_by_lot absent", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2",
+            obs_channels: channelsForPreset("F2"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            arrival_lot_ids: [201, 202],
+            arrivals_by: [10, 6],
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: 4,
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
+    expect(lotRows.length).toBe(2);
+    expect(lotRows[0]?.textContent).toContain("4");
+    expect(lotRows[1]?.textContent).toContain("4");
+  });
+
+  it("UPC pack date cell joins multiple scalar dates comma-separated", () => {
+    const { container } = render(
+      createElement(EventsPane, {
+        vm: {
+          episode_day: 3,
+          config: {
+            ...DEFAULT_SIM_CONFIG,
+            obs_scenario: "F2a",
+            obs_channels: channelsForPreset("F2a"),
+          },
+        },
+        schedule: SCHEDULE,
+        events: [
+          {
+            day: 2,
+            arrivals: 16,
+            sales_total: 4,
+            waste_total: 0,
+            pack_date_days: [3, 4, 5],
+          },
+        ],
+        orderQtyByDay: new Map(),
+      }),
+    );
+    const delivery = container.querySelector(
+      '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
+    );
+    expect(delivery?.textContent).toContain("3, 4, 5");
+  });
 });

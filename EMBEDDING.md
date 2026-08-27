@@ -51,8 +51,7 @@ immutable asset shape:
 
 Changes under publishable paths (`web/src/`, `web/vite.lib.config.ts`,
 `web/scripts/`, `crates/voi_core/`, `crates/voi_wasm/`, `scripts/build-wasm.sh`)
-require a **strict semver increase** in `web/package.json`. CI enforces this via
-`tests/test_studio_release_version.py`.
+require a **strict semver increase** in `web/package.json`.
 
 ## Required imports
 

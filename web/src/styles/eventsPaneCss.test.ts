@@ -21,6 +21,12 @@ describe("T-153 events pane CSS ownership", () => {
     expect(eventsCss).toMatch(/\.events-table-total[\s\S]*font-weight:\s*700/);
   });
 
+  it("uses a two-column grid for Sold and Spoiled", () => {
+    expect(eventsCss).toMatch(
+      /\.events-columns[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+    );
+  });
+
   it("does not duplicate events rules in cockpitGrid.css", () => {
     expect(cockpitCss).not.toMatch(/\.events-day-heading/);
     expect(cockpitCss).not.toMatch(/\.events-col-title/);
