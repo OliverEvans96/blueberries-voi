@@ -1103,12 +1103,16 @@ impl ArrivalModel {
     ) -> TruthMultilotDraw {
         let corridor = self.corridor(corridor_key);
         let arrivals_by = split_delivery_qty(n, LOTS_PER_DELIVERY);
-        let shared_d = (self.draw_bottom_up_duration(corridor, rng_duration) * SHARED_LEG_FRAC).max(0.5);
+        let shared_d =
+            (self.draw_bottom_up_duration(corridor, rng_duration) * SHARED_LEG_FRAC).max(0.5);
         let (shared_template, _) =
             self.draw_transit_for_corridor(shared_d, corridor_key, temp_bias_c, rng_temp);
         let mut upstream_ds = Vec::with_capacity(LOTS_PER_DELIVERY);
         for _ in 0..LOTS_PER_DELIVERY {
-            upstream_ds.push(self.draw_bottom_up_duration(corridor, rng_duration).max(0.5));
+            upstream_ds.push(
+                self.draw_bottom_up_duration(corridor, rng_duration)
+                    .max(0.5),
+            );
         }
         let t_end = upstream_ds.iter().copied().fold(0.0f64, f64::max) + shared_d;
         let junction_d = t_end - shared_d;
@@ -1116,13 +1120,14 @@ impl ArrivalModel {
 
         let mut lots = Vec::with_capacity(LOTS_PER_DELIVERY);
         for (&units, &upstream_d) in arrivals_by.iter().zip(upstream_ds.iter()) {
-            let (upstream_trace, _) = self.draw_transit_for_corridor(
+            let (upstream_trace, _) =
+                self.draw_transit_for_corridor(upstream_d, corridor_key, temp_bias_c, rng_temp);
+            let trace = splice_upstream_before_shared(
+                &upstream_trace,
                 upstream_d,
-                corridor_key,
-                temp_bias_c,
-                rng_temp,
+                junction_d,
+                &shared_template,
             );
-            let trace = splice_upstream_before_shared(&upstream_trace, upstream_d, junction_d, &shared_template);
             let total_d = t_end - (junction_d - upstream_d);
             let lot_lambda = resolve_arrival_exposure(
                 Some(&trace.temps_c),
@@ -1292,6 +1297,28 @@ impl ArrivalModel {
         out
     }
 
+    /// `P(f <= x)` at a single point marginalized over precomputed lot-level thermal nodes
+    /// (break / mode / stage enumeration). Used by `rung_law_on_grid` after it caches
+    /// `thermal_nodes(d)` once per duration instead of recomputing on every grid point.
+    fn marginal_cdf_at_thermal(&self, f: f64, thermal: &[(f64, f64)]) -> f64 {
+        let mut acc = 0.0;
+        let mut w_sum = 0.0;
+        for (lot_lambda, w_t) in thermal {
+            for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                let psi = self.psi_pos_quantile(u_psi);
+                let lambda = Self::floor_lambda(*lot_lambda * psi);
+                let w = w_t * w_psi;
+                acc += w * self.cdf_f_given_lambda(lambda, f);
+                w_sum += w;
+            }
+        }
+        if w_sum > 0.0 {
+            acc / w_sum
+        } else {
+            0.0
+        }
+    }
+
     /// `P(f <= x)` at a single point, marginalized over whichever latent variables
     /// `condition` leaves unpinned: `Prior` integrates over duration, breaks, and
     /// position; `Duration` (pack date known) integrates over breaks and position only;
@@ -1320,9 +1347,7 @@ impl ArrivalModel {
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                for (lot_lambda, w_t) in self.thermal_nodes(d) {
-                    accumulate(lot_lambda, w_t);
-                }
+                return self.marginal_cdf_at_thermal(f, &self.thermal_nodes(d));
             }
             ArrivalCondition::Prior => {
                 for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
@@ -1334,6 +1359,29 @@ impl ArrivalModel {
             }
         }
 
+        if w_sum > 0.0 {
+            acc / w_sum
+        } else {
+            0.0
+        }
+    }
+
+    /// Prior-channel CDF at `f` using duration quadrature nodes whose `thermal_nodes(d)`
+    /// were already computed (see `rung_law_on_grid`).
+    fn marginal_cdf_at_prior(&self, f: f64, duration_thermal: &[(f64, Vec<(f64, f64)>)]) -> f64 {
+        let mut acc = 0.0;
+        let mut w_sum = 0.0;
+        for (w_d, nodes) in duration_thermal {
+            for (lot_lambda, w_t) in nodes {
+                for (&u_psi, &w_psi) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                    let psi = self.psi_pos_quantile(u_psi);
+                    let lambda = Self::floor_lambda(*lot_lambda * psi);
+                    let w = w_d * w_t * w_psi;
+                    acc += w * self.cdf_f_given_lambda(lambda, f);
+                    w_sum += w;
+                }
+            }
+        }
         if w_sum > 0.0 {
             acc / w_sum
         } else {
@@ -1354,11 +1402,60 @@ impl ArrivalModel {
     ) -> ArrivalRungLaw {
         let grid_len = grid_len.max(2);
         let mut cdf = vec![0.0; grid_len];
-        for (gi, slot) in cdf.iter_mut().enumerate() {
-            let f = gi as f64 / (grid_len - 1) as f64;
-            *slot = self
-                .marginal_cdf_at(condition, corridor_key, f)
-                .clamp(0.0, 1.0);
+
+        match condition {
+            ArrivalCondition::Prior => {
+                let corridor = self.corridor(corridor_key);
+                let duration_thermal: Vec<(f64, Vec<(f64, f64)>)> = self
+                    .quad_nodes
+                    .iter()
+                    .zip(self.quad_weights.iter())
+                    .map(|(&u_d, &w_d)| {
+                        let d = self.quadrature_duration_days(corridor, u_d);
+                        (w_d, self.thermal_nodes(d))
+                    })
+                    .collect();
+                for (gi, slot) in cdf.iter_mut().enumerate() {
+                    let f = gi as f64 / (grid_len - 1) as f64;
+                    *slot = self
+                        .marginal_cdf_at_prior(f, &duration_thermal)
+                        .clamp(0.0, 1.0);
+                }
+                let atom_f0 = self
+                    .marginal_cdf_at_prior(0.0, &duration_thermal)
+                    .clamp(0.0, 1.0);
+                let (mean_f, variance_f) = moments_from_cdf(&cdf, atom_f0);
+                return ArrivalRungLaw {
+                    cdf,
+                    atom_f0,
+                    mean_f,
+                    sd_f: variance_f.sqrt(),
+                };
+            }
+            ArrivalCondition::Duration(d_days) => {
+                let d = f64::from(d_days).max(0.0);
+                let thermal = self.thermal_nodes(d);
+                for (gi, slot) in cdf.iter_mut().enumerate() {
+                    let f = gi as f64 / (grid_len - 1) as f64;
+                    *slot = self.marginal_cdf_at_thermal(f, &thermal).clamp(0.0, 1.0);
+                }
+                let atom_f0 = self.marginal_cdf_at_thermal(0.0, &thermal).clamp(0.0, 1.0);
+                let (mean_f, variance_f) = moments_from_cdf(&cdf, atom_f0);
+                return ArrivalRungLaw {
+                    cdf,
+                    atom_f0,
+                    mean_f,
+                    sd_f: variance_f.sqrt(),
+                };
+            }
+            _ => {
+                for (gi, slot) in cdf.iter_mut().enumerate() {
+                    let f = gi as f64 / (grid_len - 1) as f64;
+                    *slot = self
+                        .marginal_cdf_at(condition, corridor_key, f)
+                        .clamp(0.0, 1.0);
+                }
+            }
         }
 
         let atom_f0 = self
@@ -1670,7 +1767,10 @@ pub fn splice_shipment_traces_at(
         times.push(junction_d.max(1e-6));
         temps.push(temps.last().copied().unwrap_or(0.0));
     }
-    ShipmentTrace { times_d: times, temps_c: temps }
+    ShipmentTrace {
+        times_d: times,
+        temps_c: temps,
+    }
 }
 
 fn offset_trace_from(shared: &ShipmentTrace, start_d: f64) -> ShipmentTrace {
@@ -1689,7 +1789,12 @@ fn splice_upstream_before_shared(
     shared: &ShipmentTrace,
 ) -> ShipmentTrace {
     let start = (junction_d - upstream_d).max(0.0);
-    let up_span = upstream.times_d.last().copied().unwrap_or(upstream_d).max(1e-9);
+    let up_span = upstream
+        .times_d
+        .last()
+        .copied()
+        .unwrap_or(upstream_d)
+        .max(1e-9);
     let mut times = Vec::new();
     let mut temps = Vec::new();
     for (&t, &temp) in upstream.times_d.iter().zip(upstream.temps_c.iter()) {
@@ -1709,7 +1814,10 @@ fn splice_upstream_before_shared(
         times.push(junction_d + t);
         temps.push(shared.temps_c[i]);
     }
-    ShipmentTrace { times_d: times, temps_c: temps }
+    ShipmentTrace {
+        times_d: times,
+        temps_c: temps,
+    }
 }
 
 /// Exact cumulative exposure Λ from an observed temperature trace (reference-days).
@@ -1790,6 +1898,20 @@ mod tests {
         assert_eq!(embedded.schema_version, file.schema_version);
         assert!((embedded.gamma_scale - file.gamma_scale).abs() < 1e-12);
         assert_eq!(embedded.corridors.len(), file.corridors.len());
+    }
+
+    /// Guard against T-163 break-model regression where `thermal_nodes(d)` was recomputed
+    /// on every CDF grid point (~600s+ release init); cached enumeration must stay bounded.
+    #[test]
+    fn embedded_prior_build_under_regression_budget() {
+        let t0 = std::time::Instant::now();
+        let model = ArrivalModel::embedded();
+        let elapsed = t0.elapsed();
+        assert!(
+            elapsed.as_secs() <= 120,
+            "embedded prior build took {elapsed:?} (uncached path exceeded 600s)"
+        );
+        assert!(model.marginal_variance_f() >= 0.0);
     }
 
     #[test]
