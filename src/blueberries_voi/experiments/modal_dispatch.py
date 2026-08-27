@@ -353,6 +353,9 @@ def _voi_budgets_dict(kwargs: dict[str, Any], *, smoke: bool) -> dict[str, Any]:
         "n_rollout_paths": int(kwargs.get("n_rollout_paths", 0)),
         "filter_n": int(kwargs.get("filter_n", 24)),
         "alpha_table_path": kwargs.get("alpha_table_path"),
+        "controller_alpha": kwargs.get("controller_alpha"),
+        "controller_rho": kwargs.get("controller_rho"),
+        "bo_json_path": kwargs.get("bo_json_path"),
     }
 
 
@@ -370,6 +373,9 @@ def _channel_joint_budgets_dict(
         "n_rollout_paths": int(kwargs.get("n_rollout_paths", 0)),
         "filter_n": int(kwargs.get("filter_n", 24)),
         "alpha_table_path": kwargs.get("alpha_table_path"),
+        "controller_alpha": kwargs.get("controller_alpha"),
+        "controller_rho": kwargs.get("controller_rho"),
+        "bo_json_path": kwargs.get("bo_json_path"),
     }
 
 
