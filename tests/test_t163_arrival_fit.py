@@ -41,9 +41,9 @@ def test_committed_artifact_has_v2_thermal_fields() -> None:
 def test_fit_script_build_artifact_fits_duration_only() -> None:
     """S1.10 — no truncated-normal temperature fit in artifact builder."""
     section = _build_artifact_section()
-    assert (
-        "_fit_truncated_normal_t" not in section
-    ), "fit script must not call truncated-normal temperature fit"
+    assert "_fit_truncated_normal_t" not in section, (
+        "fit script must not call truncated-normal temperature fit"
+    )
     for retired in ('"mu_T"', '"sigma_T"', '"temp_floor_c"'):
         assert retired not in section, f"builder must not emit retired key {retired}"
 
@@ -65,11 +65,11 @@ def test_fit_report_documents_assumed_not_fitted_thermal_knobs() -> None:
 
 
 def test_calibration_note_reports_design_variance_decomposition() -> None:
-    """S1.12 — design share of Var(log Λ) at default ρ (duration vs breaks)."""
+    """S1.12 — design share of Var(log Λ) at default rho (duration vs breaks)."""
     note = _CALIB_NOTE.read_text(encoding="utf-8").lower()
-    assert "var(log" in note or (
-        "variance" in note and "log" in note
-    ), "calibration note must report Var(log Λ) decomposition"
+    assert "var(log" in note or ("variance" in note and "log" in note), (
+        "calibration note must report Var(log Λ) decomposition"
+    )
     assert "duration" in note and "break" in note, (
         "calibration note must split duration vs break variance share"
     )

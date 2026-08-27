@@ -45,14 +45,13 @@ def test_clean_chain_phi_bar_v2_wiring() -> None:
 
     shipments = _SHIPMENTS_RS.read_text(encoding="utf-8")
     assert any(
-        needle in shipments
-        for needle in ("sigma_hour", "thermal_mode", "trip_mode")
+        needle in shipments for needle in ("sigma_hour", "thermal_mode", "trip_mode")
     ), "RED: truth_transit_trace must wire v2 thermal modes / hourly OU"
 
 
 @pytest.mark.slow
 def test_clean_chain_phi_bar_moments_rust_mc() -> None:
-    """S1.3 MC guard — delegates to ``t163_v2_calibration`` (also in ``cargo test`` CI)."""
+    """S1.3 MC guard — delegates to ``t163_v2_calibration`` (Rust CI)."""
     proc = subprocess.run(
         [
             "cargo",
@@ -77,7 +76,9 @@ def test_clean_chain_phi_bar_moments_rust_mc() -> None:
 
 def test_bench_day_timing_registered() -> None:
     """S1.12 fast guard — bench binary exists (runtime measured in slow / verify)."""
-    assert _BENCH_RS.is_file(), "RED: crates/voi_core/src/bin/bench_day_timing.rs must exist"
+    assert _BENCH_RS.is_file(), (
+        "RED: crates/voi_core/src/bin/bench_day_timing.rs must exist"
+    )
     cargo_toml = _CARGO_TOML.read_text(encoding="utf-8")
     assert "bench_day_timing" in cargo_toml, (
         "RED: voi_core Cargo.toml must declare [[bin]] bench_day_timing"
@@ -109,7 +110,11 @@ def test_bench_day_timing_within_baseline() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
     combined = proc.stdout + proc.stderr
-    match = re.search(r"mean\s+ms(?:/day)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", combined, re.I)
+    match = re.search(
+        r"mean\s+ms(?:/day)?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)",
+        combined,
+        re.I,
+    )
     assert match is not None, (
         f"RED: bench_day_timing must print mean ms/day; got:\n{combined}"
     )
@@ -117,5 +122,5 @@ def test_bench_day_timing_within_baseline() -> None:
     upper = BASELINE_MS_PER_DAY * RUNTIME_NOISE_FACTOR
     assert mean_ms <= upper, (
         f"RED: per-day cost {mean_ms:.3f} ms exceeds noise band "
-        f"({BASELINE_MS_PER_DAY} ms baseline × {RUNTIME_NOISE_FACTOR})"
+        f"({BASELINE_MS_PER_DAY} ms baseline x {RUNTIME_NOISE_FACTOR})"
     )
