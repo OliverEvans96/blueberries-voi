@@ -3,7 +3,12 @@
  */
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { renderSlaStockoutChart, refreshSlaStockoutMarker } from "./slaStockoutChart";
+import { ORDER_Q_SLIDER_MIN_MAX } from "../react/studioShellDefaults";
+import {
+  SLA_STOCKOUT_X_MAX,
+  renderSlaStockoutChart,
+  refreshSlaStockoutMarker,
+} from "./slaStockoutChart";
 
 describe("slaStockoutChart", () => {
   it("renders dual-axis chart with demand bars and stockout line", () => {
@@ -38,6 +43,45 @@ describe("slaStockoutChart", () => {
     expect(host.querySelector(".sla-order-q-marker")).not.toBeNull();
     expect(host.querySelector(".axis-y-left")).not.toBeNull();
     expect(host.querySelector(".axis-y-right")).not.toBeNull();
+    expect(host.querySelector(".sla-stockout-legend")).not.toBeNull();
+  });
+
+  it("uses fixed x domain [0, 160] matching the order slider range", () => {
+    expect(SLA_STOCKOUT_X_MAX).toBe(ORDER_Q_SLIDER_MIN_MAX);
+    expect(SLA_STOCKOUT_X_MAX).toBe(160);
+
+    const host = document.createElement("div");
+    Object.defineProperty(host, "clientWidth", { value: 400, configurable: true });
+    renderSlaStockoutChart(host, {
+      curve: {
+        candidates: [
+          { q: 0, p_no_stockout: 0.1, p_stockout: 0.9 },
+          { q: 200, p_no_stockout: 0.99, p_stockout: 0.01 },
+        ],
+      },
+      orderQty: 80,
+      demandVm: 2.5,
+      demandSummary: null,
+      schedule: null,
+      episodeDay: 0,
+    });
+
+    const svg = host.querySelector("svg.sla-stockout-chart")!;
+    expect(svg.getAttribute("data-x-max")).toBe("160");
+
+    const tickTexts = [...svg.querySelectorAll(".axis-x text")].map(
+      (el) => el.textContent,
+    );
+    expect(tickTexts).toContain("0");
+    expect(tickTexts).toContain("160");
+
+    const marker = svg.querySelector(".sla-order-q-marker")!;
+    const x1 = Number(marker.getAttribute("x1"));
+    const x2 = Number(marker.getAttribute("x2"));
+    expect(x1).toBeCloseTo(x2, 5);
+    // q=80 is midpoint of [0, 160] → marker near plot center (margin.left ≈ 40).
+    expect(x1).toBeGreaterThan(130);
+    expect(x1).toBeLessThan(210);
   });
 
   it("refreshSlaStockoutMarker moves marker without rebuilding chart", () => {
@@ -58,9 +102,12 @@ describe("slaStockoutChart", () => {
       episodeDay: 0,
     });
     const svg = host.querySelector("svg.sla-stockout-chart")!;
+    const xBefore = svg.querySelector(".sla-order-q-marker")?.getAttribute("x1");
     refreshSlaStockoutMarker(host, 16, curve);
     expect(svg.querySelector(".sla-order-q-marker")?.getAttribute("data-order-q")).toBe(
       "16",
     );
+    const xAfter = svg.querySelector(".sla-order-q-marker")?.getAttribute("x1");
+    expect(Number(xAfter)).toBeGreaterThan(Number(xBefore));
   });
 });

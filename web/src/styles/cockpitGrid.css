@@ -92,14 +92,11 @@
 }
 
 .metrics-stack .chart {
-  min-height: 120px;
+  min-height: 130px;
 }
 
 #chart-pnl-economics.chart,
-#chart-sales-demand.chart {
-  min-height: 150px;
-}
-
+#chart-sales-demand.chart,
 #chart-controller-orders.chart,
 #chart-spoil.chart,
 #chart-age-comp.chart {
