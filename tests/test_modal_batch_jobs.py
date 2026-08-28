@@ -12,6 +12,13 @@ from blueberries_voi.experiments.channel_joint import (
     channel_joint_job_grid,
     merge_channel_joint_rows,
 )
+from blueberries_voi.experiments.controller_bakeoff import (
+    BAKEOFF_ARMS,
+    DEFAULT_CONTROLLER_SEEDS,
+    arms_for_belief_world,
+    controller_bakeoff_job_grid,
+    merge_controller_bakeoff_rows,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_SEEDS,
     all_channel_combos,
@@ -298,6 +305,70 @@ def test_best_alpha_per_arm_picks_highest_mean() -> None:
         {"arm_id": "sw", "alpha": 0.9, "seed": 2, "profit": 11.0},
     ]
     assert best_alpha_per_arm(rows, "sw") == pytest.approx(0.8)
+
+
+def test_controller_bakeoff_job_grid_size() -> None:
+    grid = controller_bakeoff_job_grid(DEFAULT_CONTROLLER_SEEDS[:2], BAKEOFF_ARMS, 0.8)
+    assert len(grid) == 2 * len(BAKEOFF_ARMS)
+
+
+def test_controller_bakeoff_filtered_arms_exclude_rung0() -> None:
+    filtered = arms_for_belief_world("filtered")
+    assert "rung0" not in filtered
+    assert "rollout" not in filtered
+    assert len(arms_for_belief_world("oracle")) == 5
+
+
+def test_merge_controller_bakeoff_rows_dedup() -> None:
+    shards = [
+        {
+            "seed": 42,
+            "arm_id": "sw",
+            "belief_world": "oracle",
+            "alpha": 0.9,
+            "rho": 0.8,
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "elapsed_s": 0.5,
+        },
+        {
+            "seed": 42,
+            "arm_id": "sw",
+            "belief_world": "oracle",
+            "alpha": 0.9,
+            "rho": 0.8,
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "elapsed_s": 0.5,
+        },
+        {
+            "seed": 7,
+            "arm_id": "sla_mc",
+            "belief_world": "oracle",
+            "alpha": 0.95,
+            "rho": 0.8,
+            "profit": 12.0,
+            "waste": 2,
+            "stockout": 1,
+            "elapsed_s": 1.2,
+        },
+    ]
+    rows = merge_controller_bakeoff_rows(shards)
+    assert len(rows) == 2
+    sw_row = next(r for r in rows if r["arm_id"] == "sw")
+    assert sw_row["elapsed_s"] == pytest.approx(0.5)
+
+
+def test_modal_controller_bakeoff_grid_dry_run() -> None:
+    pytest.importorskip("modal")
+    grid = controller_bakeoff_job_grid((42,), arms_for_belief_world("oracle"), 0.8)
+    args = [
+        (seed, arm, rho, {"n_burn": 2, "n_score": 14, "belief_world": "oracle"})
+        for seed, arm, rho in grid
+    ]
+    assert len(args) == len(BAKEOFF_ARMS)
 
 
 def test_gsin_cells_subset_grid() -> None:

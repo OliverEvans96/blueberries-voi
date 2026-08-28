@@ -186,6 +186,27 @@ def rollout_eval_shard(
 
 
 @app.function(timeout=600, cpu=1.0)
+def controller_bakeoff_shard(
+    seed: int,
+    arm_id: str,
+    rho: float,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.controller_bakeoff import run_controller_eval
+
+    kw = dict(budgets_dict)
+    rho_kw = float(kw.pop("rho", rho))
+    belief_world = str(kw.pop("belief_world", "oracle"))
+    return run_controller_eval(
+        seed,
+        arm_id,
+        rho_kw,
+        belief_world=belief_world,
+        **kw,
+    )
+
+
+@app.function(timeout=600, cpu=1.0)
 def damped_sw_soo_shard(job: dict[str, Any]) -> dict[str, Any]:
     from blueberries_voi.experiments.damped_sw_soo import run_soo_shard
 

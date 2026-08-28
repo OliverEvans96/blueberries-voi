@@ -17,6 +17,10 @@ from blueberries_voi.experiments.channel_joint import (
     merge_channel_joint_rows,
     run_seed_channel_joint,
 )
+from blueberries_voi.experiments.controller_bakeoff import (
+    controller_bakeoff_job_grid,
+    merge_controller_bakeoff_rows,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_N_DAYS,
     DEFAULT_SEEDS,
@@ -233,6 +237,57 @@ def run_rollout_eval_local(
             if progress:
                 log_grid_progress(completed, total)
     rows = merge_rollout_eval_rows(shards)
+    out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    return rows
+
+
+def _controller_bakeoff_worker(
+    args: tuple[int, str, float, dict[str, Any]],
+) -> dict[str, Any]:
+    seed, arm_id, rho, budgets = args
+    from blueberries_voi.experiments.controller_bakeoff import run_controller_eval
+
+    kw = dict(budgets)
+    belief_world = str(kw.pop("belief_world", "oracle"))
+    rho_val = float(kw.pop("rho", rho))
+    return run_controller_eval(
+        seed,
+        arm_id,
+        rho_val,
+        belief_world=belief_world,
+        **kw,
+    )
+
+
+def run_controller_bakeoff_local(
+    out_path: Path,
+    *,
+    seeds: tuple[int, ...],
+    arms: tuple[str, ...],
+    rho: float,
+    budgets: dict[str, Any] | None = None,
+    max_workers: int | None = None,
+    progress: bool = True,
+) -> list[dict[str, Any]]:
+    budget_kw = dict(budgets or {})
+    for key in ("max_workers", "seeds", "arms", "rho", "progress"):
+        budget_kw.pop(key, None)
+    budget_kw.setdefault("belief_world", "oracle")
+    budget_kw.setdefault("rho", float(rho))
+    grid = controller_bakeoff_job_grid(seeds, arms, rho)
+    tasks = [(seed, arm, rho, dict(budget_kw)) for seed, arm, rho in grid]
+    total = len(tasks)
+    log_line(f"controller_bakeoff local run: {total} jobs, workers={max_workers}")
+    shards: list[dict[str, Any]] = []
+    completed = 0
+    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_controller_bakeoff_worker, task) for task in tasks]
+        for fut in as_completed(futures):
+            shards.append(fut.result())
+            completed += 1
+            if progress:
+                log_grid_progress(completed, total, label="controller_bakeoff")
+    rows = merge_controller_bakeoff_rows(shards)
     out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
     return rows
 
