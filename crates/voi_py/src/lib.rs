@@ -264,7 +264,7 @@ pub fn evaluate_alpha_tune_episode_py(
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
 ) -> PyResult<f64> {
-    let (profit, _, _) = evaluate_alpha_tune_outcomes_inner(
+    let (profit, _, _, _, _, _) = evaluate_alpha_tune_outcomes_inner(
         arm_id,
         alpha,
         root_seed,
@@ -289,8 +289,8 @@ pub fn evaluate_alpha_tune_episode_py(
 }
 
 /// Runs one alpha-tuning episode for `arm_id` under `alpha` and returns
-/// `(scored_profit, scored_waste, scored_lost_sales)` -- the full outcome tuple an
-/// alpha-tuning sweep needs, not just the profit scalar `evaluate_alpha_tune_episode_py`
+/// `(scored_profit, scored_waste, scored_lost_sales, scored_demand, scored_sales,
+/// scored_no_stockout_days)` -- the full outcome tuple an alpha-tuning sweep needs, not just the profit scalar `evaluate_alpha_tune_episode_py`
 /// returns. `arm_id` names which policy variant to score (parsed by
 /// [`parse_alpha_tune_arm`]); when `times`/`temps` are both omitted, a single smoke-test
 /// cool shipment trace is used instead.
@@ -336,7 +336,7 @@ pub fn evaluate_alpha_tune_outcomes_py(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
-) -> PyResult<(f64, u32, u32)> {
+) -> PyResult<(f64, u32, u32, u32, u32, u32)> {
     evaluate_alpha_tune_outcomes_inner(
         arm_id,
         alpha,
@@ -387,7 +387,7 @@ fn evaluate_alpha_tune_outcomes_inner(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
-) -> PyResult<(f64, u32, u32)> {
+) -> PyResult<(f64, u32, u32, u32, u32, u32)> {
     let arm =
         parse_alpha_tune_arm(arm_id).map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
     let ships: Vec<ShipmentTrace> = match (times, temps) {
@@ -422,7 +422,14 @@ fn evaluate_alpha_tune_outcomes_inner(
         arm, alpha, rho, root_seed, n_burn, n_score, lead_time, &params, &ships, &costs, &rollout,
     )
     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
-    Ok((ep.scored_profit, ep.scored_waste, ep.scored_lost_sales))
+    Ok((
+        ep.scored_profit,
+        ep.scored_waste,
+        ep.scored_lost_sales,
+        ep.scored_demand,
+        ep.scored_sales,
+        ep.scored_no_stockout_days,
+    ))
 }
 
 /// Runs a fixed-order closed-loop episode (constant order quantity every day, default

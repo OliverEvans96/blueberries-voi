@@ -102,6 +102,12 @@ pub struct AlphaTuneEpisodeResult {
     pub scored_waste: u32,
     /// Summed unmet demand over the scored window only.
     pub scored_lost_sales: u32,
+    /// Summed customer demand over the scored window only.
+    pub scored_demand: u32,
+    /// Summed units sold over the scored window only.
+    pub scored_sales: u32,
+    /// Scored days with no stockout (`sales_total >= demand`).
+    pub scored_no_stockout_days: u32,
 }
 
 fn enqueue(pending: &mut BTreeMap<u32, u32>, day: u32, lead: u32, qty: u32) {
@@ -308,6 +314,9 @@ pub fn run_alpha_tune_episode(
     let mut scored_profit = 0.0;
     let mut scored_waste = 0u32;
     let mut scored_lost_sales = 0u32;
+    let mut scored_demand = 0u32;
+    let mut scored_sales = 0u32;
+    let mut scored_no_stockout_days = 0u32;
 
     let arrival_model = ArrivalModel::embedded();
     let mut survival_cache = SurvivalCurveCache::for_params(params, 8);
@@ -409,6 +418,11 @@ pub fn run_alpha_tune_episode(
             );
             scored_waste += out.waste_total;
             scored_lost_sales += out.demand.saturating_sub(out.sales_total);
+            scored_demand += out.demand;
+            scored_sales += out.sales_total;
+            if out.sales_total >= out.demand {
+                scored_no_stockout_days += 1;
+            }
         }
     }
 
@@ -419,6 +433,9 @@ pub fn run_alpha_tune_episode(
         scored_profit,
         scored_waste,
         scored_lost_sales,
+        scored_demand,
+        scored_sales,
+        scored_no_stockout_days,
     })
 }
 

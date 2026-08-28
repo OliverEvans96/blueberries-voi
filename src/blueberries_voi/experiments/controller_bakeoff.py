@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+from blueberries_voi.experiments.rollout_bakeoff import DEFAULT_ROLLOUT_SEEDS
 from blueberries_voi.experiments.voi_profit import (
     DEFAULT_FILTER_N,
     profit_session_config,
@@ -33,6 +34,7 @@ from blueberries_voi.sim.bakeoff_damped_sw import protection_demand_quantile
 from blueberries_voi.sim.bakeoff_ordering import ConstantOrderPolicy
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
+from blueberries_voi.sim.service import service_metrics_from_steps
 from blueberries_voi.sim.shipments import default_shipments
 from blueberries_voi.sim.types_log import DayLog
 from blueberries_voi.simulator import EngineSession
@@ -41,7 +43,7 @@ BeliefWorld = Literal["oracle", "filtered"]
 
 BAKEOFF_ARMS: tuple[str, ...] = ("constant", "rung0", "sw", "sla_pb", "sla_mc")
 FILTERED_ARMS: tuple[str, ...] = ("constant", "sw", "sla_pb", "sla_mc")
-DEFAULT_CONTROLLER_SEEDS: tuple[int, ...] = (42, 7, 101, 2024)
+DEFAULT_CONTROLLER_SEEDS: tuple[int, ...] = DEFAULT_ROLLOUT_SEEDS[:10]
 DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 14
 DEFAULT_RHO = 0.8
@@ -190,7 +192,7 @@ def _run_oracle_episode(
     *,
     n_burn: int,
     n_score: int,
-) -> tuple[float, int, int]:
+) -> tuple[float, int, int, float, float]:
     outcomes = evaluate_alpha_episode_outcomes(
         arm_id,
         float(alpha),
@@ -204,6 +206,8 @@ def _run_oracle_episode(
         float(outcomes.profit),
         int(outcomes.total_waste),
         int(outcomes.total_lost_sales),
+        float(outcomes.fill_rate),
+        float(outcomes.day_no_stockout_rate),
     )
 
 
@@ -219,7 +223,7 @@ def _run_filtered_episode(
     filter_n: int,
     channels: ObsChannels,
     costs: ProfitCosts,
-) -> tuple[float, int, int]:
+) -> tuple[float, int, int, float, float]:
     session = EngineSession()
     session.init(profit_session_config(filter_n=filter_n), seed=int(seed))
     session.set_obs_channels(channels)
@@ -229,13 +233,22 @@ def _run_filtered_episode(
     profit = 0.0
     waste = 0
     stockout = 0
+    scored_steps: list[DayLog] = []
     for day_idx in range(n_score):
         delta = session.act(**act_kw)
         log = _day_log_from_delta(n_burn + day_idx, delta)
+        scored_steps.append(log)
         profit += day_profit(log, costs)
         waste += log.waste_total
         stockout += max(0, log.demand - log.sales_total)
-    return profit, waste, stockout
+    service = service_metrics_from_steps(scored_steps)
+    return (
+        profit,
+        waste,
+        stockout,
+        float(service.fill_rate),
+        float(service.day_no_stockout_rate),
+    )
 
 
 def run_controller_eval(
@@ -268,7 +281,13 @@ def run_controller_eval(
     t0 = perf_counter()
     if world == "filtered":
         ch = validate_channels(channels or channels_for_preset("P0"))
-        profit, waste, stockout = _run_filtered_episode(
+        (
+            profit,
+            waste,
+            stockout,
+            fill_rate,
+            day_no_stockout_rate,
+        ) = _run_filtered_episode(
             arm_id,
             arm_alpha,
             int(seed),
@@ -281,7 +300,7 @@ def run_controller_eval(
             costs=use_costs,
         )
     else:
-        profit, waste, stockout = _run_oracle_episode(
+        profit, waste, stockout, fill_rate, day_no_stockout_rate = _run_oracle_episode(
             arm_id,
             arm_alpha,
             int(seed),
@@ -299,6 +318,8 @@ def run_controller_eval(
         "profit": float(profit),
         "waste": int(waste),
         "stockout": int(stockout),
+        "fill_rate": float(fill_rate),
+        "day_no_stockout_rate": float(day_no_stockout_rate),
         "n_burn": int(n_burn),
         "n_score": int(score_days),
         "n_sla_paths": int(sla_paths) if arm_id == "sla_mc" else 0,

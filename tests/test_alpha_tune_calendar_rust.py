@@ -102,7 +102,11 @@ def test_rust_kernel_used_with_calendar_profile(
     params = _params_with_profile()
     ships = smoke_cool_shipments()
     sentinel = mod.AlphaTuneEpisodeOutcomes(
-        profit=123.456, total_waste=1, total_lost_sales=2
+        profit=123.456,
+        total_waste=1,
+        total_lost_sales=2,
+        fill_rate=0.99,
+        day_no_stockout_rate=0.9,
     )
 
     def _fake_rust(*_args: object, **_kwargs: object) -> mod.AlphaTuneEpisodeOutcomes:
