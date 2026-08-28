@@ -26,38 +26,31 @@ _DEFAULT_ARTIFACT = _DEFAULT_DATA / "arrival_model.json"
 _DEFAULT_REPORT = _DEFAULT_DATA / "fit_report.md"
 _DEFAULT_FIG = _DEFAULT_DATA / "arrival_calibration_overlay.png"
 _DEFAULT_NOTE = _DEFAULT_DATA / "calibration_note.md"
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _SHORT_HAUL_ID = "S2"
 _SUSPECT_PROBE_SHIPMENT = "S4"
 
 # Literature / MOD adjustment defaults (not identified from n=6 trips).
 _DEFAULT_GAMMA_SHAPE = 2.0
-# T-163 Phase 1 follow-up (2026-08-27): reference_life_days reduced from 26 to 20 after
-# fixing a multilot shared-leg duration construction bug (draw_truth_multilot_delivery_biased
-# was drawing upstream_d as a second independent full-corridor draw instead of scaling it
-# by (1 - SHARED_LEG_FRAC), inflating every multilot lot's duration/exposure ~1.28x). See
-# notebooks/t163_phase1_freshness_realism.ipynb for the investigation. gamma_scale is
-# *derived* from gamma_shape/reference_life (k*theta*eta_ref=1), not a separate literal,
-# so the two can't drift apart the way they had (committed artifact was 1/52, this
-# constant was a stale 1/28, from before reference_life_days was bumped to 26).
-_DEFAULT_REFERENCE_LIFE = 20.0
+# T-163 Phase B-A: unify arrival reference_life_days with in-store eta_ref=14.
+_DEFAULT_REFERENCE_LIFE = 14.0
 _DEFAULT_GAMMA_SCALE = 1.0 / (_DEFAULT_GAMMA_SHAPE * _DEFAULT_REFERENCE_LIFE)
-_DEFAULT_Q10 = 3.0
+_DEFAULT_Q10 = 2.0
 _DEFAULT_T_REF = 0.0
 _DEFAULT_SIGMA_POS = 0.08
 
 # v2 generative assumed knobs (documented in provenance; not MLE-fit from n=6).
 _DEFAULT_LEGS: list[dict[str, Any]] = [
-    {"name": "precool_staging", "weight": 0.15, "setpoint_c": 0.5},
-    {"name": "line_haul", "weight": 0.60, "setpoint_c": 2.0},
-    {"name": "dock_receiving", "weight": 0.25, "setpoint_c": 5.0},
+    {"name": "precool_staging", "weight": 0.15, "setpoint_c": -1.65},
+    {"name": "line_haul", "weight": 0.60, "setpoint_c": 0.58},
+    {"name": "dock_receiving", "weight": 0.25, "setpoint_c": 2.32},
 ]
 _DEFAULT_THERMAL_MODES: dict[str, dict[str, float]] = {
-    "cool": {"offset_c": -1.0, "p": 0.25},
-    "nominal": {"offset_c": 0.0, "p": 0.50},
-    "warm": {"offset_c": 1.5, "p": 0.25},
+    "cool": {"offset_c": -0.12, "p": 0.10},
+    "nominal": {"offset_c": 0.0, "p": 0.80},
+    "warm": {"offset_c": 0.22, "p": 0.10},
 }
-_DEFAULT_SIGMA_HOUR = 0.35
+_DEFAULT_SIGMA_HOUR = 0.028
 _DEFAULT_T_BREAK = 12.0
 _DEFAULT_RHO = 0.08
 _DEFAULT_TAU_BAR = 0.5
@@ -85,6 +78,14 @@ _QUADRATURE_WEIGHTS = [
     0.11119051,
     0.05061427,
 ]
+_DEFAULT_CORRIDOR_MIXTURES: dict[str, Any] = {
+    "abdella_mix": {
+        "components": [
+            {"corridor_key": "short_haul", "weight": 0.8},
+            {"corridor_key": "long_haul", "weight": 0.2},
+        ]
+    }
+}
 
 
 def _require_deps() -> None:
@@ -177,7 +178,9 @@ def _thermal_assumed_notes() -> dict[str, str]:
     return {
         "legs": (
             "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for "
-            "clean-chain phi_bar centre (~1.36); not separately MLE-fit from n=6."
+            "clean-chain phi_bar centre (~1.36); setpoints -1.65/0.58/2.32 C are "
+            "a flat -2.0 C shift from compressed anchors (0.35/2.58/4.32 C) under "
+            "eta_ref=14 / q10=2.0 unification."
         ),
         "thermal_modes": (
             "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED "
@@ -276,6 +279,7 @@ def _build_artifact(
                 "delay_scale": round(abdella_scale, 6),
             },
         },
+        "corridor_mixtures": _DEFAULT_CORRIDOR_MIXTURES,
         "provenance": {
             "source": (
                 "Offline fit from vendored Abdella parquet (ADR 0148); corridor "
@@ -560,7 +564,7 @@ def main(argv: list[str] | None = None) -> None:
     gamma_scale = _DEFAULT_GAMMA_SCALE
     gamma_note = (
         f"keep gamma_shape={gamma_shape}, gamma_scale={gamma_scale} "
-        f"(arrival f|Lambda reference life; in-store eta_ref=14 via ModelParams; "
+        f"(arrival reference_life unified to eta_ref={_DEFAULT_REFERENCE_LIFE}; "
         f"not identified from n=6)"
     )
     if args.override_gamma:

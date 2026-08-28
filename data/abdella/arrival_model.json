@@ -4,17 +4,17 @@
     {
       "name": "precool_staging",
       "weight": 0.15,
-      "setpoint_c": 0.35
+      "setpoint_c": -1.65
     },
     {
       "name": "line_haul",
       "weight": 0.6,
-      "setpoint_c": 2.58
+      "setpoint_c": 0.58
     },
     {
       "name": "dock_receiving",
       "weight": 0.25,
-      "setpoint_c": 4.32
+      "setpoint_c": 2.32
     }
   ],
   "thermal_modes": {
@@ -36,11 +36,11 @@
   "rho": 0.08,
   "tau_bar": 0.5,
   "sigma_pos": 0.08,
-  "q10": 3.0,
+  "q10": 2.0,
   "T_ref": 0.0,
   "gamma_shape": 2.0,
-  "gamma_scale": 0.025,
-  "reference_life_days": 20.0,
+  "gamma_scale": 0.035714285714285714,
+  "reference_life_days": 14.0,
   "quadrature": {
     "nodes": [
       0.01985507,
@@ -150,9 +150,9 @@
       "sigma_pos"
     ],
     "adjustment_notes": {
-      "gamma": "arrival reference_life_days=20 (gamma_scale=1/40), reduced from 26 (T-163 Phase 1 follow-up, 2026-08-27): a multilot shared-leg duration construction bug in draw_truth_multilot_delivery_biased (upstream_d drawn as a second independent full-corridor draw instead of the doc-commented \"remainder\" (1 - SHARED_LEG_FRAC) share) inflated every multilot lot's calendar duration/exposure by ~1.28-1.29x versus the moment-matched corridor; reference_life_days=26 was compensating for that inflation as well as genuine decay-rate uncertainty. With the construction bug fixed, reference_life_days=20 (a real but roughly-halved decoupling from in-store eta_ref=14, vs. the prior ~86% decoupling) reproduces the same live US-retail-realistic band (~65-85% median arrival f) that reference_life_days=26 gave against the buggy generator. Fully eliminating the remaining decoupling (unifying to eta_ref=14) was investigated but requires a corridor-level fix (a genuine short-haul/long-haul duration mixture, not a single-family moment match) that needs new mixture support in both the truth generator and the filter's Prior/Duration quadrature -- out of scope for this pass; see notebooks/t163_phase1_freshness_realism.ipynb for the investigation and search.",
+      "gamma": "arrival reference_life_days=14 (gamma_scale=1/28), unified with in-store eta_ref=14 (T-163 Phase B-A corridor-mixture pass). Leg setpoints shifted flat -2.0 C from compressed anchors (0.35/2.58/4.32 -> -1.65/0.58/2.32 C) to preserve clean-chain phi_bar centre after q10=2.0 and the eta_ref unification.",
       "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)",
-      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); compressed setpoints (0.35/2.58/4.32 C) reduce Dirichlet stage-share spread driving phi_bar SD.",
+      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); setpoints -1.65/0.58/2.32 C are a flat -2.0 C shift from compressed anchors (0.35/2.58/4.32 C) under eta_ref=14 / q10=2.0 unification.",
       "thermal_modes": "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.10, p_n=0.80, p_w=0.10; offsets -0.12/0/+0.22 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.",
       "sigma_hour": "Hourly OU amplitude (0.028 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.",
       "breaks": "rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement."
