@@ -822,17 +822,20 @@ fn final_production_default_summary(n: usize, seed: u64) -> serde_json::Value {
         }
     }
 
-    let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(delivery_means);
+    delivery_means.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(delivery_means.clone());
     let n_f = n as f64;
     json!({
         "corridor": DEFAULT_ARRIVAL_CORRIDOR,
         "n": n,
         "mean": mean,
+        "sd": sd(&delivery_means, mean),
         "p10": p10,
         "p50": p50,
         "p90": p90,
         "pct_below_0_5": pct_below_0_5,
         "pct_60_90": pct_60_90,
+        "samples": delivery_means,
         "regime_split": {
             "short_haul_frac": n_short as f64 / n_f,
             "long_haul_frac": n_long as f64 / n_f,
