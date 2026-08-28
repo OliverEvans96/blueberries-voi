@@ -1711,6 +1711,40 @@ impl ArrivalModel {
         }
     }
 
+    /// Atom-inclusive Prior law on a chart grid by resampling the filter's cached
+    /// `marginal_cdf` (compile-time bake or `build_law_cdf` output). O(grid_len) only —
+    /// no transit quadrature — and numerically the same source the filter samples from
+    /// when `corridor_key == active_corridor`. `arrival_wire.rs` uses this on studio init
+    /// instead of re-integrating `rung_law_on_grid` for every snapshot.
+    pub fn prior_rung_law_from_marginal_cache(&self, grid_len: usize) -> ArrivalRungLaw {
+        let cache = &self.marginal_cdf;
+        let grid_len = grid_len.max(2);
+        let src = cache.cdf();
+        let src_len = src.len().max(2);
+        let atom_f0 = cache.atom_f0;
+        let scale = (1.0 - atom_f0).max(1e-12);
+
+        let mut cdf = vec![0.0; grid_len];
+        for (gi, slot) in cdf.iter_mut().enumerate() {
+            let f = gi as f64 / (grid_len - 1) as f64;
+            let src_pos = f * (src_len - 1) as f64;
+            let lo = src_pos.floor() as usize;
+            let hi = (lo + 1).min(src_len - 1);
+            let t = src_pos - lo as f64;
+            let raw_lo = atom_f0 + scale * src[lo];
+            let raw_hi = atom_f0 + scale * src[hi];
+            *slot = (raw_lo * (1.0 - t) + raw_hi * t).clamp(0.0, 1.0);
+        }
+
+        let (mean_f, variance_f) = moments_from_cdf(&cdf, atom_f0);
+        ArrivalRungLaw {
+            cdf,
+            atom_f0,
+            mean_f,
+            sd_f: variance_f.sqrt(),
+        }
+    }
+
     /// Channel-conditional law on an explicit `[0, 1]` grid against an explicit corridor
     /// (T-150 AC3.3). The only public, on-demand entry point for the raw (atom-inclusive)
     /// CDF; `build_law_cdf` below is the filter's cached, atom-divided wrapper around it,
@@ -2010,22 +2044,12 @@ impl ArrivalModel {
         self.marginal_cdf.variance_f
     }
 
-    /// Pull Q10 and reference temperature from `ModelParams` and rebuild the filter
-    /// prior and F2/F3 caches when those change. Gamma shape/scale and
-    /// `reference_life_days` stay on the embedded artifact — arrival `f | Λ` may use a
-    /// longer reference life than in-store `eta_ref` (T-163 freshness calibration).
+    /// Store [`ModelParams`] q10 / t_ref_c drive in-store `gamma_table` only (T-163).
+    /// Arrival prior integration keeps artifact transit q10/t_ref; copying store
+    /// physics here would miss the compile-time bake fingerprint and rebuild the
+    /// 512-point Prior CDF on every studio init (PR #65 regression family).
     pub fn sync_params(&mut self, params: &ModelParams) {
-        let mut desired = PriorCdfBuildKey::from_model(self);
-        desired.q10 = params.q10;
-        desired.t_ref = params.t_ref_c;
-        if self.prior_build_key == desired {
-            return;
-        }
-        self.q10 = params.q10;
-        self.t_ref = params.t_ref_c;
-        self.rebuild_marginal_cdf_prior(true);
-        self.f2_cache.clear();
-        self.f3_cache.clear();
+        let _ = params;
     }
 }
 

@@ -345,6 +345,8 @@ export class ViewModelProjector {
           ...p,
         })),
       };
+    } else {
+      this.arrivalSummary = null;
     }
     if (snapshot.schedule) {
       this.schedule = {
@@ -478,6 +480,22 @@ export class ViewModelProjector {
 
   markConfigApplied(): ViewModel {
     this.appliedConfig = { ...this.config };
+    this.viewModel = this.buildViewModel();
+    return this.viewModel;
+  }
+
+  mergeArrivalSummary(summary: ArrivalSummary): ViewModel {
+    this.arrivalSummary = {
+      ...summary,
+      curve: summary.curve.map((p) => ({ ...p })),
+      baseline_curve: summary.baseline_curve?.map((p) => ({ ...p })),
+    };
+    this.viewModel = this.buildViewModel();
+    return this.viewModel;
+  }
+
+  clearArrivalSummary(): ViewModel {
+    this.arrivalSummary = null;
     this.viewModel = this.buildViewModel();
     return this.viewModel;
   }

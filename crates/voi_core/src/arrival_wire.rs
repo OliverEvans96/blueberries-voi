@@ -76,7 +76,12 @@ pub fn arrival_summary_wire(
 ) -> serde_json::Value {
     let _ = transit_temp_bias_c;
     let condition = resolve_condition(model, product, channels);
-    let law = model.rung_law_on_grid(condition, product, WIRE_GRID);
+    let law = if matches!(condition, ArrivalCondition::Prior) && product == model.active_corridor()
+    {
+        model.prior_rung_law_from_marginal_cache(WIRE_GRID)
+    } else {
+        model.rung_law_on_grid(condition, product, WIRE_GRID)
+    };
 
     let dx = 1.0 / (WIRE_GRID - 1) as f64;
     let mut pdf = vec![0.0; WIRE_GRID];

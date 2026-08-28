@@ -42,4 +42,6 @@ export interface EngineAdapter {
   }): Promise<TradeoffForecastResult>;
   /** Events RPC envelope: `{ days: EventDayWire[] }`. */
   events?(params: { since_day: number }): Promise<EventsResult>;
+  /** Lazy arrival chart wire (T-163); omitted from init snapshot. */
+  fetchArrivalSummary?(): Promise<import("./types").ArrivalSummary>;
 }

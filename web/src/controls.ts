@@ -308,7 +308,7 @@ function arrivalChartGroups(): string {
           tip: "The expected arrival-freshness distribution for the current corridor, with a rug of actual receipt freshness values from simulated deliveries. The particle filter draws each new lot's freshness from this same distribution.",
           ariaLabel: "Arrival freshness prior distribution",
           chartInnerHtml:
-            '<div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div>',
+            '<div class="chart-arrival-prior-slot"><div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div><div id="chart-arrival-prior-overlay" class="chart-arrival-loading-overlay" hidden aria-live="polite"><span class="engine-status-dot" aria-hidden="true"></span><span class="chart-arrival-loading-label">Loading arrival prior…</span></div></div>',
           slidersHtml: slidersByIds(["spread_scale"]),
         })}
         ${tuningChartGroup({
