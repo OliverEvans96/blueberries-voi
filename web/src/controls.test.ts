@@ -131,8 +131,8 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']candidate_case_radius["']/);
   });
 
-  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to damped_sw", () => {
-    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("damped_sw");
+  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to sla_pb", () => {
+    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("sla_pb");
   });
 
   it("sigma slider min/max are 0 (uniform sentinel) and SIGMA_PRECISION_MAX, not raw sigma bounds", () => {

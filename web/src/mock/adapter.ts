@@ -408,6 +408,20 @@ export class MockAdapter implements EngineAdapter {
     return { candidates };
   }
 
+  async slaStockoutCurve(): Promise<
+    import("../engine/types").SlaStockoutCurveResult
+  > {
+    const onHand = onHandInventory(this.state.lots);
+    const day = this.state.history.length;
+    const scale = 1 + onHand * 0.015 + day * 0.01;
+    const candidates = [0, 8, 16, 24, 32, 40].map((q) => {
+      const pStockout = Math.max(0, Math.min(1, (0.45 - q * 0.008) / scale));
+      const pNo = 1 - pStockout;
+      return { q, p_no_stockout: pNo, p_stockout: pStockout };
+    });
+    return { candidates };
+  }
+
   async events(params: {
     since_day: number;
   }): Promise<import("../engine/types").EventsResult> {

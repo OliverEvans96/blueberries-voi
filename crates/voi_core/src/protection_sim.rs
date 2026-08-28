@@ -13,7 +13,9 @@ use crate::policy::{case_round, damped_sw_order_f_belief};
 use crate::schedule::OrderSchedule;
 use crate::shipments::ShipmentTrace;
 use crate::spawn_rng::SpawnRng;
+use crate::tradeoff::full_tradeoff_q_candidates;
 use crate::unit_pf::{systematic_resample, UnitParticleBank};
+use serde_json::json;
 
 pub const STREAM_SLA_DEMAND: &str = ":sla-demand";
 pub const STREAM_SLA_SPOIL: &str = ":sla-spoil";
@@ -620,6 +622,57 @@ pub fn sla_pb_order_f_belief(
     sla_order(&model, alpha, rho, params.case_size, q_hi)
 }
 
+/// Poisson-binomial window-SLA stockout curve over the full tradeoff q sweep.
+///
+/// Builds a [`PbSlaModel`] from the same belief inputs as [`sla_pb_order_f_belief`],
+/// evaluates `p_no_stockout(q)` at each case-snapped candidate, and returns
+/// `{ candidates: [{ q, p_no_stockout, p_stockout }] }` for the studio belief chart.
+pub fn sla_stockout_curve(
+    lot_counts: &[f64],
+    f_marginals: &[f64],
+    f_grid: &[f64],
+    pending: &BTreeMap<u32, u32>,
+    pending_sum: u32,
+    day: u32,
+    params: &ModelParams,
+    schedule: &OrderSchedule,
+    survival: &mut SurvivalCurveCache,
+    f_pipeline_default: f64,
+) -> serde_json::Value {
+    let n_days = schedule.protection_days(day);
+    let window = ProtectionWindow {
+        start_day: day,
+        n_days,
+        lead_time: schedule.lead_time_days,
+    };
+    survival.rebuild_if_needed(params, n_days as usize + 1);
+    let model = PbSlaModel {
+        lot_counts: lot_counts.to_vec(),
+        f_marginals: f_marginals.to_vec(),
+        f_grid: f_grid.to_vec(),
+        pending: pending.clone(),
+        pending_sum,
+        window,
+        params,
+        schedule,
+        f_pipeline: f_pipeline_default,
+        survival,
+    };
+    let candidates: Vec<serde_json::Value> = full_tradeoff_q_candidates(params.case_size)
+        .into_iter()
+        .map(|q| {
+            let p_no_stockout = model.p_no_stockout(q);
+            let p_stockout = (1.0 - p_no_stockout).clamp(0.0, 1.0);
+            json!({
+                "q": q,
+                "p_no_stockout": p_no_stockout,
+                "p_stockout": p_stockout,
+            })
+        })
+        .collect();
+    json!({ "candidates": candidates })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,6 +701,36 @@ mod tests {
             1.0,
         );
         assert_eq!(q, 0, "Monday (day 0) is not an order day in default schedule");
+    }
+
+    #[test]
+    fn sla_stockout_curve_monotone_in_q() {
+        let mut p = ModelParams::default();
+        p.demand_mu = 4.0;
+        p.units_per_lot = 4;
+        let s = OrderSchedule::default();
+        let f_grid = vec![0.0, 0.5, 1.0];
+        let lot = vec![4.0, 4.0, 4.0, 4.0];
+        let fm_full: Vec<f64> = (0..4).flat_map(|_| [0.0, 0.0, 1.0]).collect();
+        let pending = BTreeMap::new();
+        let mut survival = SurvivalCurveCache::for_params(&p, 8);
+        let curve = sla_stockout_curve(
+            &lot,
+            &fm_full,
+            &f_grid,
+            &pending,
+            0,
+            2,
+            &p,
+            &s,
+            &mut survival,
+            1.0,
+        );
+        let candidates = curve["candidates"].as_array().unwrap();
+        assert!(candidates.len() > 2);
+        let p0 = candidates[0]["p_stockout"].as_f64().unwrap();
+        let p_hi = candidates.last().unwrap()["p_stockout"].as_f64().unwrap();
+        assert!(p_hi <= p0 + 1e-9, "more stock should weakly lower stockout risk");
     }
 
     #[test]

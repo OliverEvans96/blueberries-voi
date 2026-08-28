@@ -93,11 +93,13 @@ describe("Store chart-stack missed sales (T-116)", () => {
     expect(logicSrc).not.toMatch(/renderOrdersSpoilageGroupedBars/);
   });
 
-  it("pnl totals host renders missed sales and waste in second line", () => {
+  it("pnl totals host renders service level and food waste in second line", () => {
     const pnl = stripComments(readFileSync(PNL_TOTALS_TS, "utf8"));
     expect(pnl).toMatch(/computeImpactTotals/);
-    expect(pnl).toMatch(/Missed sales/);
-    expect(pnl).toMatch(/Waste/);
+    expect(pnl).toMatch(/Service level/);
+    expect(pnl).toMatch(/Food waste/);
+    expect(pnl).toMatch(/serviceLevelPct/);
+    expect(pnl).toMatch(/wastePct/);
     expect(layoutSrc).not.toMatch(/impact-missed-host/);
     expect(logicSrc).not.toMatch(/ImpactStat/);
   });

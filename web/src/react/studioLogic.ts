@@ -35,6 +35,7 @@ import {
   BELIEF_FRESHNESS_TIME_HEIGHT,
   BELIEF_HISTOGRAM_HEIGHT,
   METRICS_STRIP_HEIGHT,
+  SLA_STOCKOUT_HEIGHT,
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
@@ -82,6 +83,10 @@ import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
+  refreshSlaStockoutMarker,
+  renderSlaStockoutChart,
+} from "../charts/slaStockoutChart";
+import {
   renderArrivalPrior,
   renderArrivalShift,
 } from "../charts/arrivalPrior";
@@ -110,7 +115,7 @@ import {
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
-import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
+import type { ActOpts, ScheduleWire, SlaStockoutCurveResult, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {
   renderWeekCalendar,
@@ -281,6 +286,7 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsRefreshing = false;
   let lastEventsKey = "";
   let frameGen = 0;
+  let slaStockoutCurve: SlaStockoutCurveResult | null = null;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -326,6 +332,9 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get beliefLg(): HTMLElement {
       return q<HTMLElement>("#chart-belief-lg")!;
+    },
+    get slaStockout(): HTMLElement {
+      return q<HTMLElement>("#chart-sla-stockout")!;
     },
     get hoverNote(): HTMLElement {
       return q<HTMLElement>("#hover-note")!;
@@ -531,9 +540,27 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
+  async function fetchSlaStockoutCurve(gen: number): Promise<void> {
+    if (typeof adapter.slaStockoutCurve !== "function") {
+      slaStockoutCurve = null;
+      return;
+    }
+    try {
+      const result = await adapter.slaStockoutCurve();
+      if (gen !== frameGen) return;
+      slaStockoutCurve = result;
+    } catch {
+      if (gen !== frameGen) return;
+      slaStockoutCurve = null;
+    }
+  }
+
   async function commitFrame(): Promise<void> {
     const gen = ++frameGen;
-    await profileAsync("fetchEvents", () => fetchEvents(gen));
+    await Promise.all([
+      profileAsync("fetchEvents", () => fetchEvents(gen)),
+      profileAsync("fetchSlaStockoutCurve", () => fetchSlaStockoutCurve(gen)),
+    ]);
     if (gen !== frameGen) return;
     renderAll();
   }
@@ -661,6 +688,7 @@ export function initStudio(app: HTMLElement): () => void {
               sectionControlsApi?.update(controlsState());
               paintPortalDrawers();
               renderOperatorBar();
+              refreshSlaStockoutMarker(els.slaStockout, orderQty, slaStockoutCurve);
             },
           }),
         );
@@ -961,14 +989,14 @@ export function initStudio(app: HTMLElement): () => void {
           wasteBarYMax(vm.history),
         );
       });
+      profileSync("renderRunStripCharts.ageComp", () =>
+        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
+      );
     });
   }
 
   function renderCockpitBelief(): void {
     profileSync("renderCockpitBelief", () => {
-      profileSync("renderCockpitBelief.ageComp", () =>
-        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
-      );
       const flat = vm.belief_history.at(-1)?.flatBelief;
       const data = flat
         ? freshnessHistogramDataFromFlat(flat, vm.live_units)
@@ -978,6 +1006,21 @@ export function initStudio(app: HTMLElement): () => void {
         data,
         showTruth,
         BELIEF_HISTOGRAM_HEIGHT,
+      );
+      const previewSchedule =
+        vm.config.delivery_weekdays?.length > 0
+          ? scheduleFromConfig(vm.config)
+          : schedule;
+      profileSync("renderCockpitBelief.slaStockout", () =>
+        renderSlaStockoutChart(els.slaStockout, {
+          curve: slaStockoutCurve,
+          orderQty,
+          demandVm: vm.config.demand_vm,
+          demandSummary: vm.demand_summary,
+          schedule: previewSchedule,
+          episodeDay: vm.episode_day,
+          height: SLA_STOCKOUT_HEIGHT,
+        }),
       );
       els.beliefAgeMarginal.replaceChildren();
     });

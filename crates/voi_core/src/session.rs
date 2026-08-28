@@ -21,7 +21,7 @@ use crate::obs::{
 use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
-use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache};
+use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, sla_stockout_curve, SurvivalCurveCache};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
@@ -1098,6 +1098,25 @@ impl EngineSession {
         )
     }
 
+    /// Window-SLA stockout curve from the current belief for the studio chart.
+    pub fn sla_stockout_curve_value(&mut self) -> serde_json::Value {
+        self.require_init();
+        let pending_sum: u32 = self.pending.values().copied().sum();
+        let (lot_counts, f_marginals, f_grid) = self.f_belief_for_policy();
+        sla_stockout_curve(
+            &lot_counts,
+            &f_marginals,
+            &f_grid,
+            &self.pending,
+            pending_sum,
+            self.day,
+            &self.params,
+            &self.schedule,
+            &mut self.survival_cache,
+            1.0,
+        )
+    }
+
     /// Replays `richest_log` from `since_day` through the currently active observation
     /// mask, returning what that rung would have seen each day — never the raw ground
     /// truth (no channel reveals more than its mask allows).
@@ -1503,7 +1522,7 @@ struct RpcRequest {
 /// `"step"` and `"step_n"` advance the simulation by one or many days under caller-supplied
 /// order quantities; `"act"` lets the policy choose the order itself from optional
 /// overrides; `"set_obs_scenario"` and `"set_obs_channels"` change what the store can see
-/// mid-run; `"tradeoff_forecast"` and `"events"` are read-only queries over the running
+/// mid-run; `"tradeoff_forecast"`, `"sla_stockout_curve"`, and `"events"` are read-only queries over the running
 /// session. Parse failures, unknown methods, and validation errors from the session all
 /// come back as `{"ok": false, "error": {...}}` rather than an `Err`, since this function's
 /// contract is "always produce a response string".
@@ -1674,6 +1693,7 @@ pub fn handle_rpc(request_json: &str) -> String {
                     .map(|n| n as u32);
                 sess.tradeoff_forecast_value(n_paths, protection_days)
             }
+            "sla_stockout_curve" => sess.sla_stockout_curve_value(),
             "events" => {
                 let since_day = match req.params.get("since_day").and_then(|v| v.as_u64()) {
                     Some(n) => n as u32,
@@ -1768,6 +1788,21 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn rpc_sla_stockout_curve_after_init() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let curve = handle_rpc(r#"{"id":"2","method":"sla_stockout_curve","params":{}}"#);
+        let c: serde_json::Value = serde_json::from_str(&curve).unwrap();
+        assert_eq!(c["ok"], true, "{curve}");
+        let candidates = c["result"]["candidates"].as_array().unwrap();
+        assert!(!candidates.is_empty());
+        assert!(candidates[0]["q"].is_number());
+        assert!(candidates[0]["p_no_stockout"].is_number());
+        assert!(candidates[0]["p_stockout"].is_number());
+    }
 
     #[test]
     fn rpc_init_result_has_flat_belief() {

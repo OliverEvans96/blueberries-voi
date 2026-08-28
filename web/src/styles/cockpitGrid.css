@@ -96,17 +96,26 @@
 }
 
 #chart-pnl-economics.chart,
-#chart-sales-demand.chart,
-#chart-orders-spoilage.chart {
+#chart-sales-demand.chart {
   min-height: 150px;
 }
 
-#chart-belief-lg.chart {
+#chart-controller-orders.chart,
+#chart-spoil.chart,
+#chart-age-comp.chart {
   min-height: 130px;
 }
 
-#chart-age-comp.chart {
+#chart-belief-lg.chart {
+  min-height: 150px;
+}
+
+#chart-sla-stockout.chart {
   min-height: 130px;
+}
+
+#chart-history.chart {
+  min-height: 220px;
 }
 
 #chart-belief-age-marginal.chart {

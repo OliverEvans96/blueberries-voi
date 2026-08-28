@@ -105,7 +105,7 @@ export type ControlsState = {
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
-export type ControllerPolicy = "damped_sw" | "rollout" | "constant";
+export type ControllerPolicy = "damped_sw" | "rollout" | "constant" | "sla_pb" | "sla_mc";
 
 export type ControllerControlsState = {
   policy: ControllerPolicy;
@@ -120,7 +120,7 @@ export type ControllerControlsState = {
 
 /** ADR 0099 dialed browser budgets + CTL-01 defaults. */
 export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
-  policy: "damped_sw",
+  policy: "sla_pb",
   alpha: 0.9,
   rho: 0.8,
   H: 7,

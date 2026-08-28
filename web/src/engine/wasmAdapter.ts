@@ -6,7 +6,7 @@
 import type { EngineAdapter } from "./adapter";
 import { toFlatActParams } from "./actOpts";
 import { isRpcProfiling, recordRpc } from "./rpcProfile";
-import type { ActOpts, DayDelta, EngineConfig, EventsResult, Snapshot, TradeoffForecastResult } from "./types";
+import type { ActOpts, DayDelta, EngineConfig, EventsResult, Snapshot, SlaStockoutCurveResult, TradeoffForecastResult } from "./types";
 
 export type WasmAdapterOpts = {
   /** Override bundled worker URL (CDN / legacy hosting). */
@@ -150,6 +150,10 @@ export class WasmAdapter implements EngineAdapter {
     protection_days?: number;
   }): Promise<TradeoffForecastResult> {
     return (await this.call("tradeoff_forecast", params ?? {})) as TradeoffForecastResult;
+  }
+
+  async slaStockoutCurve(): Promise<SlaStockoutCurveResult> {
+    return (await this.call("sla_stockout_curve", {})) as SlaStockoutCurveResult;
   }
 
   async events(params: { since_day: number }): Promise<EventsResult> {

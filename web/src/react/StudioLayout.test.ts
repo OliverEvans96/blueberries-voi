@@ -30,6 +30,7 @@ const REQUIRED_CHART_IDS = [
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
+  "chart-sla-stockout",
   "chart-controller-orders",
   "chart-spoil",
   "chart-age-comp-focus",
@@ -169,7 +170,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
     expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
     expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-age-comp")).toBeNull();
+    expect(metrics!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(metrics!.querySelector("#chart-inventory")).toBeNull();
     expect(metrics!.querySelector(".impact-row")).toBeNull();
     const totals = metrics!.querySelector("#pnl-totals-host");
@@ -195,6 +196,27 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
         .compareDocumentPosition(metrics!.querySelector("#chart-spoil")!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      metrics!
+        .querySelector("#chart-spoil")!
+        .compareDocumentPosition(metrics!.querySelector("#chart-age-comp")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("belief pane orders today's histogram, SLA stockout, then history", () => {
+    const { container } = render(createElement(StudioLayout));
+    const belief = container.querySelector(".cockpit-pane--belief")!;
+    const beliefLg = belief.querySelector("#chart-belief-lg")!;
+    const sla = belief.querySelector("#chart-sla-stockout")!;
+    const history = belief.querySelector("#chart-history")!;
+    expect(belief.querySelector("#chart-age-comp")).toBeNull();
+    expect(
+      beliefLg.compareDocumentPosition(sla) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      sla.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("run pane hosts operator bar; belief pane hosts freshness charts only", () => {
@@ -204,23 +226,20 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(run!.querySelector("#operator-bar-host")).not.toBeNull();
     expect(belief!.querySelector("#operator-bar-host")).toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
-    expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
+    expect(belief!.querySelector("#chart-sla-stockout")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
+    expect(belief!.querySelector("#chart-age-comp")).toBeNull();
     expect(belief!.querySelector("#tradeoff-curve-host")).toBeNull();
     expect(belief!.querySelector("#tradeoff-histogram-host")).toBeNull();
     const runOperator = run!.querySelector("#operator-bar-host");
     const beliefHead = belief!.querySelector(".panel-head");
-    const history = belief!.querySelector("#chart-history");
+    const beliefLg = belief!.querySelector("#chart-belief-lg");
     expect(
       runOperator!.compareDocumentPosition(beliefHead!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      beliefHead!.compareDocumentPosition(history!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      history!.compareDocumentPosition(belief!.querySelector("#chart-age-comp")!) &
+      beliefHead!.compareDocumentPosition(beliefLg!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -232,10 +251,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       belief.querySelector('[data-truth-caption="lots"] [data-truth-caption-label]')
         ?.textContent,
     ).toBe("Historical Freshness Distribution");
-    expect(
-      belief.querySelector('[data-truth-caption="age-comp"] [data-truth-caption-label]')
-        ?.textContent,
-    ).toBe("Historical Freshness Summary");
+    expect(belief.querySelector('[data-truth-caption="age-comp"]')).toBeNull();
     expect(
       belief.querySelector('[data-truth-caption="belief-lg"] [data-truth-caption-label]')
         ?.textContent,
@@ -269,6 +285,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       "chart-history",
       "chart-sales-demand",
       "chart-age-comp",
+      "chart-sla-stockout",
       "chart-belief-age-marginal",
       "chart-belief-lg",
       "chart-controller-orders",

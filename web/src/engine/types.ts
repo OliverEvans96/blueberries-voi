@@ -155,6 +155,19 @@ export type TradeoffForecastWire = {
 
 export type TradeoffForecastResult = TradeoffForecastWire;
 
+/** T-164 sla_pb stockout curve RPC result. */
+export type SlaStockoutCandidate = {
+  q: number;
+  p_no_stockout: number;
+  p_stockout: number;
+};
+
+export type SlaStockoutCurveWire = {
+  candidates: SlaStockoutCandidate[];
+};
+
+export type SlaStockoutCurveResult = SlaStockoutCurveWire;
+
 export type TempTraceByLotWire = {
   lot_id: number;
   times_d: number[];
