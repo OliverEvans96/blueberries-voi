@@ -1850,6 +1850,32 @@ impl ArrivalModel {
         self.law_cdf(ArrivalCondition::Duration(d_days)).variance_f
     }
 
+    /// Sets unified reference shelf life η_ref for transit freshness draws and re-derives
+    /// `gamma_scale` so `gamma_shape · gamma_scale · reference_life_days = 1`. When the
+    /// resulting [`PriorCdfBuildKey`] differs from the cached prior, clears F2/F3 caches
+    /// and rebuilds the marginal Prior CDF (the baked fast path at η=14 is unchanged when
+    /// the fingerprint still matches).
+    pub fn set_reference_life_days(&mut self, eta_ref: f64) {
+        if eta_ref <= 0.0 {
+            return;
+        }
+        let target_scale = 1.0 / (self.gamma_shape * eta_ref);
+        if (self.reference_life_days - eta_ref).abs() < 1e-12
+            && (self.gamma_scale - target_scale).abs() < 1e-12
+        {
+            return;
+        }
+        self.reference_life_days = eta_ref;
+        self.gamma_scale = target_scale;
+        let new_key = PriorCdfBuildKey::from_model(self);
+        if new_key == self.prior_build_key {
+            return;
+        }
+        self.f2_cache.clear();
+        self.f3_cache.clear();
+        self.rebuild_marginal_cdf_prior(true);
+    }
+
     /// Point the filter's prior and F2/F3 caches at a different corridor (T-150 finding
     /// 4: the configured `arrival_product` must reach the filter prior, not just the
     /// truth path). No-op if already active; otherwise invalidates the F2/F3 caches
@@ -2044,12 +2070,16 @@ impl ArrivalModel {
         self.marginal_cdf.variance_f
     }
 
-    /// Store [`ModelParams`] q10 / t_ref_c drive in-store `gamma_table` only (T-163).
-    /// Arrival prior integration keeps artifact transit q10/t_ref; copying store
-    /// physics here would miss the compile-time bake fingerprint and rebuild the
-    /// 512-point Prior CDF on every studio init (PR #65 regression family).
+    /// Mirrors studio [`ModelParams::eta_ref`] onto `reference_life_days` so in-store
+    /// aging and transit freshness share one shelf-life knob (T-163). Store `q10` /
+    /// `t_ref_c` are intentionally **not** copied here — that would miss the compile-time
+    /// baked Prior fingerprint and rebuild the 512-point Prior CDF on every studio init
+    /// (PR #65 regression family). RPC `apply_rpc_configure` also calls
+    /// [`set_reference_life_days`](Self::set_reference_life_days) when `eta_ref` is set.
     pub fn sync_params(&mut self, params: &ModelParams) {
-        let _ = params;
+        if (self.reference_life_days - params.eta_ref).abs() > 1e-12 {
+            self.set_reference_life_days(params.eta_ref);
+        }
     }
 }
 

@@ -34,7 +34,7 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   eta_ref: {
     label: "Reference shelf life (η)",
     tooltip:
-      "Shelf life in days at the reference temperature (default: 14 days at 0°C). Higher values mean fruit spoils more slowly on average.",
+      "Shelf life in days at the reference temperature (default: 14 days at 0°C). Drives both in-store aging and transit arrival freshness. Higher values mean fruit spoils more slowly on average.",
     tier: "Reset",
   },
   q10: {

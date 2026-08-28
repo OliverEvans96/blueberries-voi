@@ -84,25 +84,78 @@ fn arrival_f_distribution_realistic_band() {
     );
 }
 
-/// `sync_params` must not rewrite artifact gamma / reference life when only q10/t_ref change.
+/// `sync_params` couples `ModelParams::eta_ref` onto the arrival artifact.
 #[test]
-fn sync_params_preserves_artifact_arrival_reference_life() {
+fn sync_params_couples_eta_ref_to_arrival_reference_life() {
+    let mut model = ArrivalModel::embedded();
+    let mut params = ModelParams::default();
+    params.eta_ref = 12.0;
+    params.set_reference_life();
+    model.sync_params(&params);
+    assert!(
+        (model.reference_life_days - 12.0).abs() < 1e-9,
+        "sync_params must set arrival reference_life_days from eta_ref; got {}",
+        model.reference_life_days
+    );
+    assert!(
+        (model.gamma_scale - 1.0 / (2.0 * 12.0)).abs() < 1e-12,
+        "gamma_scale must follow k·θ·η=1; got {}",
+        model.gamma_scale
+    );
+}
+
+/// Store q10 alone must not rewrite arrival reference life (baked-prior fast path).
+#[test]
+fn sync_params_store_q10_preserves_arrival_reference_life() {
     let mut model = ArrivalModel::embedded();
     let artifact_life = model.reference_life_days;
-    assert!(
-        (artifact_life - ModelParams::default().eta_ref).abs() < 1e-9,
-        "unified eta_ref must match artifact reference_life_days"
-    );
-    model.sync_params(&ModelParams::default());
+    let mut params = ModelParams::default();
+    params.q10 = 3.5;
+    model.sync_params(&params);
     assert!(
         (model.reference_life_days - artifact_life).abs() < 1e-12,
-        "sync_params must preserve artifact reference_life_days; got {} vs {}",
-        model.reference_life_days,
-        artifact_life
+        "sync_params must not change reference_life_days when only store q10 changes"
+    );
+}
+
+/// RPC configure must keep store `eta_ref` and arrival `reference_life_days` aligned.
+#[test]
+fn rpc_configure_eta_ref_couples_store_and_arrival() {
+    use voi_core::EngineSession;
+
+    let mut sess = EngineSession::new(163_600);
+    sess.apply_configure(serde_json::json!({
+        "eta_ref": 12.0,
+        "seed": 163_600
+    }));
+    sess.init(163_600);
+    let snap = sess.snapshot_value_init();
+    assert!(
+        (snap["applied_config"]["eta_ref"].as_f64().unwrap() - 12.0).abs() < 1e-9,
+        "store eta_ref must be 12"
     );
     assert!(
-        (model.gamma_scale - 1.0 / (2.0 * artifact_life)).abs() < 1e-12,
-        "sync_params must preserve artifact gamma_scale"
+        (sess.arrival_reference_life_days() - 12.0).abs() < 1e-9,
+        "arrival reference_life_days must match eta_ref; got {}",
+        sess.arrival_reference_life_days()
+    );
+}
+
+/// Lower η_ref should yield lower mean transit freshness (same corridor, fixed seed).
+#[test]
+fn truth_arrival_f_mean_decreases_when_eta_ref_decreases() {
+    let model_default = ArrivalModel::embedded();
+    let mut samples_default = truth_arrival_f_samples(&model_default, 200, 163_601);
+    let (mean_default, _, _, _) = empirical_quantiles(&mut samples_default);
+
+    let mut model_short = ArrivalModel::embedded();
+    model_short.set_reference_life_days(10.0);
+    let mut samples_short = truth_arrival_f_samples(&model_short, 200, 163_601);
+    let (mean_short, _, _, _) = empirical_quantiles(&mut samples_short);
+
+    assert!(
+        mean_short < mean_default - 0.02,
+        "shorter eta_ref should lower mean arrival f: default={mean_default:.3} short={mean_short:.3}"
     );
 }
 

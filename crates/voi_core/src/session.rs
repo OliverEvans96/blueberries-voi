@@ -191,7 +191,10 @@ impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
         let params = ModelParams::default();
-        let arrival_model = shared_embedded_arrival();
+        let mut arrival_model = shared_embedded_arrival();
+        if (arrival_model.reference_life_days - params.eta_ref).abs() > 1e-12 {
+            arrival_model.set_reference_life_days(params.eta_ref);
+        }
         Self {
             params: params.clone(),
             freshness: vec![],
@@ -1216,6 +1219,11 @@ impl EngineSession {
     pub fn n_particles(&self) -> usize {
         self._n_particles
     }
+
+    /// Reference shelf life η_ref on the arrival model (transit freshness draws).
+    pub fn arrival_reference_life_days(&self) -> f64 {
+        self.arrival_model.reference_life_days
+    }
 }
 
 const SCHEDULE_EPOCH: &str = "2024-01-01";
@@ -1461,6 +1469,7 @@ impl EngineSession {
                 self.params.set_reference_life();
                 self.gamma_table = GammaDecrementTable::for_params(&self.params);
             }
+            self.arrival_model.set_reference_life_days(eta);
         }
         if let Some(scale) = rpc_f64(params, "gamma_scale") {
             self.params.gamma_scale = scale;
