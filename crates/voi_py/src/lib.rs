@@ -32,6 +32,7 @@ use voi_core::{
     DayDelta, DemandProfile, EngineSession, ModelParams, RolloutContext, RolloutCosts,
     ShipmentTrace, SurvivalCurveCache,
 };
+use voi_core::joint_arrival_calib::evaluate_trial;
 
 /// Loads a `DemandProfile` from `source`, treating it as a filesystem path if a file
 /// exists there and otherwise parsing it directly as a JSON literal -- lets Python callers
@@ -423,6 +424,37 @@ fn evaluate_alpha_tune_outcomes_inner(
     )
     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err))?;
     Ok((ep.scored_profit, ep.scored_waste, ep.scored_lost_sales))
+}
+
+/// Evaluate one T-163 joint arrival calibration candidate at a single RNG seed.
+/// Returns a dict with analytical `ac2_19_margin`, stochastic `session_f` / truth-band
+/// `p50` / `pct_60_90`, and optional `ac2_11a_ratio` when `include_ac2_11a` is true.
+#[pyfunction]
+#[pyo3(signature = (p_short, q10, delta_c, seed, include_ac2_11a=false))]
+pub fn evaluate_joint_calib_trial_py<'py>(
+    py: Python<'py>,
+    p_short: f64,
+    q10: f64,
+    delta_c: f64,
+    seed: u64,
+    include_ac2_11a: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let m = evaluate_trial(p_short, q10, delta_c, seed, include_ac2_11a);
+    let dict = PyDict::new(py);
+    dict.set_item("p_short", m.p_short)?;
+    dict.set_item("q10", m.q10)?;
+    dict.set_item("delta_c", m.delta_c)?;
+    dict.set_item("seed", m.seed)?;
+    dict.set_item("ac2_19_margin", m.ac2_19_margin)?;
+    dict.set_item("p50", m.p50)?;
+    dict.set_item("pct_60_90", m.pct_60_90)?;
+    dict.set_item("session_f", m.session_f)?;
+    dict.set_item("rejected_ac2_19", m.rejected_ac2_19)?;
+    match m.ac2_11a_ratio {
+        Some(r) => dict.set_item("ac2_11a_ratio", r)?,
+        None => dict.set_item("ac2_11a_ratio", py.None())?,
+    }
+    Ok(dict)
 }
 
 /// Runs a fixed-order closed-loop episode (constant order quantity every day, default
@@ -1219,6 +1251,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_outcomes_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_joint_calib_trial_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_function(wrap_pyfunction!(damped_sw_order_f_belief_py, m)?)?;

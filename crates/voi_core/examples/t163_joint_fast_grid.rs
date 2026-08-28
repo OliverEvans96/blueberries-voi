@@ -1,16 +1,15 @@
-//! Fast grid (ac2_19 only): `cargo run -p voi_core --release --example t163_joint_fast_grid`
+//! **Legacy diagnostic** — ac2_19 fast grid screen only.
 //!
-//! Two-pass: d=8 screen on all points, then full ac2_19 ladder on survivors only.
+//! Superseded by Ax BO (`notebooks/14_arrival_calibration_joint_bo.ipynb`).
+//! Run: `cargo run -p voi_core --release --example t163_joint_fast_grid`
 
 #[path = "support/t163_joint_search_common.rs"]
 mod common;
 
 use serde_json::{json, Value};
+use voi_core::joint_arrival_calib::{ac2_19_d8_margin, ac2_19_min_margin, configured_model};
 
-use common::{
-    ac2_19_d8_margin, ac2_19_min_margin, configured_model, fast_grid_points, fast_grid_size,
-    par_map_points, GridPoint,
-};
+use common::{fast_grid_points, fast_grid_size, par_map_points, GridPoint};
 
 fn main() {
     let total = fast_grid_size();
@@ -35,11 +34,9 @@ fn main() {
         .map(|(pt, _)| *pt)
         .collect();
     let survivor_count = survivors.len();
-    eprintln!(
-        "d8_screen: {survivor_count} survivors of {total} (full ac2_19 on survivors only)",
-    );
+    eprintln!("d8_screen: {survivor_count} survivors of {total} (full ac2_19 on survivors only)");
 
-    let mut rows: Vec<Value> = if survivors.is_empty() {
+    let rows: Vec<Value> = if survivors.is_empty() {
         d8_rows
             .into_iter()
             .map(|((p_short, q10, delta_c), margin)| {
@@ -64,16 +61,13 @@ fn main() {
         d8_rows
             .into_iter()
             .map(|((p_short, q10, delta_c), d8_margin)| {
-                let full = full_rows
-                    .iter()
-                    .find(|((ps, q, dc), _)| {
-                        (*ps - p_short).abs() < 1e-12
-                            && (*q - q10).abs() < 1e-12
-                            && (*dc - delta_c).abs() < 1e-12
-                    })
-                    .map(|(_, m)| *m);
+                let full = full_rows.iter().find(|((ps, q, dc), _)| {
+                    (*ps - p_short).abs() < 1e-12
+                        && (*q - q10).abs() < 1e-12
+                        && (*dc - delta_c).abs() < 1e-12
+                });
                 let (margin, full_ladder) = match full {
-                    Some(m) => (m, true),
+                    Some((_, m)) => (*m, true),
                     None => (d8_margin, false),
                 };
                 json!({
@@ -88,6 +82,7 @@ fn main() {
             .collect()
     };
 
+    let mut rows = rows;
     rows.sort_by(|a, b| {
         b["ac2_19_margin"]
             .as_f64()

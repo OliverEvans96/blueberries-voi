@@ -1,9 +1,21 @@
 //! Shared helpers for T-163 joint arrival calibration examples.
+//!
+//! **Production path:** per-trial evaluator `t163_eval_trial` + Ax notebook 14 /
+//! `scripts/run_arrival_calib_bo.py` (subprocess JSON).
+//!
+//! **Legacy / diagnostic grids** (superseded by BO — do not run for calibration):
+//! - `t163_joint_fast_grid` — ac2_19-only two-pass screen
+//! - `t163_joint_constraint_search` — full grid with phase-2 ac2_11a on survivors
+//!
+//! **Legacy / diagnostic only** — exhaustive grid search is superseded by Ax BO in
+//! `notebooks/14_arrival_calibration_joint_bo.ipynb` and `scripts/run_arrival_calib_bo.py`.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 use std::thread;
 
-use voi_core::arrival::ArrivalModel;
+pub use voi_core::joint_arrival_calib::{
+    ac2_19_d8_margin, ac2_19_min_margin, apply_config, configured_model, embedded_base,
+};
 
 /// Narrowed grid around fast-screen winners (~60 configs with parallel eval).
 pub const P_SHORT_GRID: [f64; 5] = [0.68, 0.69, 0.70, 0.71, 0.72];
@@ -13,17 +25,7 @@ pub const DELTA_C_GRID: [f64; 3] = [-1.0, -0.5, 0.0];
 /// ac2_19-only fast screen: fix δc at 0 (passes concentrate there; saves prior rebuilds).
 pub const FAST_DELTA_C_GRID: [f64; 1] = [0.0];
 
-const AC2_19_DAYS_BEFORE_D8: [i32; 4] = [2, 4, 5, 6];
-const AC2_19_D8: i32 = 8;
-
 pub type GridPoint = (f64, f64, f64);
-
-static EMBEDDED_BASE: OnceLock<ArrivalModel> = OnceLock::new();
-
-/// Snapshot the committed embedded model once; grid workers clone from this.
-pub fn embedded_base() -> &'static ArrivalModel {
-    EMBEDDED_BASE.get_or_init(ArrivalModel::embedded)
-}
 
 pub fn grid_points() -> Vec<GridPoint> {
     grid_points_for(&P_SHORT_GRID, &Q10_GRID, &DELTA_C_GRID)
@@ -47,50 +49,6 @@ fn grid_points_for(
         }
     }
     out
-}
-
-/// Build a configured model for one grid point (single embedded snapshot clone).
-pub fn configured_model(p_short: f64, q10: f64, delta_c: f64) -> ArrivalModel {
-    let base = embedded_base();
-    let mut model = base.clone();
-    if let Some(mix) = model.corridor_mixtures.get_mut("abdella_mix") {
-        mix.components[0].weight = p_short;
-        mix.components[1].weight = 1.0 - p_short;
-    }
-    model.q10 = q10;
-    for (leg, base_leg) in model.legs.iter_mut().zip(base.legs.iter()) {
-        leg.setpoint_c = base_leg.setpoint_c + delta_c;
-    }
-    model.reference_life_days = 14.0;
-    model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
-    model.refresh_filter_laws();
-    model
-}
-
-/// Apply mixture weight, q10, leg-setpoint shift, and η_ref — one prior rebuild at the end.
-pub fn apply_config(model: &mut ArrivalModel, p_short: f64, q10: f64, delta_c: f64) {
-    *model = configured_model(p_short, q10, delta_c);
-}
-
-/// AC2-19 d=8 proxy: Prior variance minus F2 variance at the longest ladder day.
-pub fn ac2_19_d8_margin(model: &mut ArrivalModel) -> f64 {
-    let prior_var = model.marginal_variance_f();
-    prior_var - model.variance_f_given_d(AC2_19_D8)
-}
-
-/// AC2-19: min margin of Prior variance over F2 variance across the duration ladder.
-/// Checks d=8 first and skips shorter days when that binding constraint already fails.
-pub fn ac2_19_min_margin(model: &mut ArrivalModel) -> f64 {
-    let prior_var = model.marginal_variance_f();
-    let d8_margin = prior_var - model.variance_f_given_d(AC2_19_D8);
-    if d8_margin <= 0.0 {
-        return d8_margin;
-    }
-    let mut min_margin = d8_margin;
-    for &d in &AC2_19_DAYS_BEFORE_D8 {
-        min_margin = min_margin.min(prior_var - model.variance_f_given_d(d));
-    }
-    min_margin
 }
 
 pub fn grid_size() -> usize {
@@ -130,7 +88,7 @@ where
     F: Fn(GridPoint) -> T + Send + Sync + 'static,
 {
     let total = points.len();
-    let done = Arc::new(Mutex::new(0usize));
+    let done = Arc::new(std::sync::Mutex::new(0usize));
     let f = Arc::new(f);
     let n_workers = thread::available_parallelism()
         .map(|n| n.get())
