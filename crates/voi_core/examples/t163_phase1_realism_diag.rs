@@ -507,10 +507,10 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
     let mut corrected_d = Vec::with_capacity(n * LOTS_PER_DELIVERY);
     let mut rng_d2 = Pcg64::seed_from_u64(700_005);
     for _ in 0..n {
-        let shared_d = model.draw_bottom_up_duration(corridor, &mut rng_d2) * SHARED_LEG_FRAC;
+        let shared_d = model.draw_bottom_up_duration(CORRIDOR, &mut rng_d2) * SHARED_LEG_FRAC;
         for _ in 0..LOTS_PER_DELIVERY {
             let upstream_d =
-                model.draw_bottom_up_duration(corridor, &mut rng_d2) * (1.0 - SHARED_LEG_FRAC);
+                model.draw_bottom_up_duration(CORRIDOR, &mut rng_d2) * (1.0 - SHARED_LEG_FRAC);
             corrected_d.push((upstream_d + shared_d).max(0.5));
         }
     }
@@ -545,7 +545,6 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
 /// (the documented formula) — this does *not* patch `arrival.rs`, it's a diagnostic
 /// side-by-side reconstruction to quantify the effect of the fix without applying it.
 fn corrected_multilot_truth_means(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64> {
-    let corridor = model.corridor(CORRIDOR);
     let mut rng_d = Pcg64::seed_from_u64(seed);
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
@@ -554,13 +553,13 @@ fn corrected_multilot_truth_means(model: &ArrivalModel, n: usize, seed: u64) -> 
 
     (0..n)
         .map(|_| {
-            let shared_d = model.draw_bottom_up_duration(corridor, &mut rng_d) * SHARED_LEG_FRAC;
+            let shared_d = model.draw_bottom_up_duration(CORRIDOR, &mut rng_d) * SHARED_LEG_FRAC;
             let arrivals_by = split_delivery_qty(UNITS_PER_LOT, LOTS_PER_DELIVERY);
             let mut total_units = 0usize;
             let mut total_f = 0.0;
             for &units in &arrivals_by {
                 let upstream_d =
-                    model.draw_bottom_up_duration(corridor, &mut rng_d) * (1.0 - SHARED_LEG_FRAC);
+                    model.draw_bottom_up_duration(CORRIDOR, &mut rng_d) * (1.0 - SHARED_LEG_FRAC);
                 let total_d = (upstream_d + shared_d).max(0.5);
                 let taus = model.draw_break_taus(total_d, &mut rng_t);
                 let lot_lambda = ArrivalModel::floor_lambda(model.lambda_from_breaks(total_d, &taus));
