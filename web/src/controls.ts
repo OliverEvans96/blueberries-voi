@@ -495,7 +495,7 @@ function mountSectionControlsDom(
         <div class="field">
           ${fieldLabelHtml(
             "Arrival corridor (MOD-21)",
-            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (80%) or long_haul (20%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
+            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
           )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
             <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>

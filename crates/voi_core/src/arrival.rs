@@ -14,7 +14,7 @@ use rand_distr::{Distribution, Exp, Gamma, LogNormal, Normal, Poisson};
 use serde::Deserialize;
 
 use crate::params::ModelParams;
-use crate::physics::{gamma_p, gamma_q, store_temp_factor};
+use crate::physics::{gamma_p, gamma_q, ln_gamma, store_temp_factor};
 use crate::shipments::{truth_transit_trace_for_corridor, ShipmentTrace};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
@@ -678,6 +678,20 @@ fn gamma_dist_quantile(shape: f64, scale: f64, u: f64) -> f64 {
     0.5 * (lo + hi)
 }
 
+/// Shifted-gamma delay density at `delay` (shape/scale parameterization matching
+/// [`gamma_dist_quantile`]).
+fn shifted_gamma_pdf(delay: f64, shape: f64, scale: f64) -> f64 {
+    if delay <= 0.0 || shape <= 0.0 || scale <= 0.0 {
+        return 0.0;
+    }
+    ((shape - 1.0) * delay.ln() - delay / scale - shape * scale.ln() - ln_gamma(shape)).exp()
+}
+
+/// `p(d)` for a corridor's shifted-gamma duration law.
+fn corridor_duration_pdf(corridor: &ArrivalCorridor, d: f64) -> f64 {
+    shifted_gamma_pdf(d - corridor.d_min, corridor.delay_shape, corridor.delay_scale)
+}
+
 impl ArrivalModel {
     /// Build the model from the artifact committed into the binary. Panics if that
     /// artifact is malformed, which would indicate a build-time packaging bug rather than
@@ -993,6 +1007,31 @@ impl ArrivalModel {
         } else {
             let corridor = self.corridor(corridor_key);
             corridor.d_min + corridor.delay_shape * corridor.delay_scale
+        }
+    }
+
+    /// Duration × thermal nodes for the Prior channel: each duration quadrature point is
+    /// paired with **leaf** thermal enumeration for the corridor that generated `d`.
+    /// For mixtures this is `Σ_c w_c · quad(d|c) · thermal(d, leaf=c)` — not
+    /// `quad(d) · thermal(d, mixture)` (which would cross-mix thermals at every `d`).
+    fn prior_duration_thermal_nodes(&self, corridor_key: &str) -> Vec<(f64, Vec<(f64, f64)>)> {
+        if let Some(mixture) = self.corridor_mixtures.get(corridor_key) {
+            let mut out = Vec::with_capacity(mixture.components.len() * self.quad_nodes.len());
+            for comp in &mixture.components {
+                let corridor = self.corridor(&comp.corridor_key);
+                for (&u, &w) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
+                    let d = self.quadrature_duration_days(corridor, u);
+                    let w_d = comp.weight * w;
+                    let thermal = self.thermal_nodes_for_key(d, &comp.corridor_key);
+                    out.push((w_d, thermal));
+                }
+            }
+            out
+        } else {
+            self.prior_duration_nodes(corridor_key)
+                .into_iter()
+                .map(|(d, w_d)| (w_d, self.thermal_nodes_for_key(d, corridor_key)))
+                .collect()
         }
     }
 
@@ -1621,6 +1660,37 @@ impl ArrivalModel {
         out
     }
 
+    /// F2/F2a thermal enumeration at pinned duration `d` for a leaf or mixture key.
+    /// For mixtures, components are weighted by `P(regime | d) ∝ w_c · p_c(d)` so a
+    /// duration that is implausible under a leaf (e.g. d=8 under near-deterministic
+    /// short_haul) does not inflate the pack-date law via a flat categorical mix.
+    fn duration_thermal_nodes(&self, d: f64, corridor_key: &str) -> Vec<(f64, f64)> {
+        let Some(mixture) = self.corridor_mixtures.get(corridor_key) else {
+            return self.thermal_nodes_for_key(d, corridor_key);
+        };
+        let d = d.max(0.0);
+        let mut out = Vec::new();
+        let mut regime_mass = 0.0;
+        for comp in &mixture.components {
+            let corridor = self.corridor(&comp.corridor_key);
+            let p_d = corridor_duration_pdf(corridor, d);
+            let w_regime = comp.weight * p_d;
+            if w_regime <= 0.0 {
+                continue;
+            }
+            regime_mass += w_regime;
+            for (lam, w_t) in self.thermal_nodes_for_key(d, &comp.corridor_key) {
+                out.push((lam, w_regime * w_t));
+            }
+        }
+        if regime_mass > 0.0 {
+            for (_, w) in &mut out {
+                *w /= regime_mass;
+            }
+        }
+        out
+    }
+
     /// `P(f <= x)` at a single point marginalized over precomputed lot-level thermal nodes
     /// (break / mode / stage enumeration). Used by `rung_law_on_grid` after it caches
     /// `thermal_nodes(d)` once per duration instead of recomputing on every grid point.
@@ -1670,11 +1740,11 @@ impl ArrivalModel {
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                return self.marginal_cdf_at_thermal(f, &self.thermal_nodes_for_key(d, corridor_key));
+                return self.marginal_cdf_at_thermal(f, &self.duration_thermal_nodes(d, corridor_key));
             }
             ArrivalCondition::Prior => {
-                for (d, w_d) in self.prior_duration_nodes(corridor_key) {
-                    for (lot_lambda, w_t) in self.thermal_nodes_for_key(d, corridor_key) {
+                for (w_d, thermal) in self.prior_duration_thermal_nodes(corridor_key) {
+                    for (lot_lambda, w_t) in thermal {
                         accumulate(lot_lambda, w_d * w_t);
                     }
                 }
@@ -1761,11 +1831,7 @@ impl ArrivalModel {
 
         match condition {
             ArrivalCondition::Prior => {
-                let duration_thermal: Vec<(f64, Vec<(f64, f64)>)> = self
-                    .prior_duration_nodes(corridor_key)
-                    .into_iter()
-                    .map(|(d, w_d)| (w_d, self.thermal_nodes_for_key(d, corridor_key)))
-                    .collect();
+                let duration_thermal = self.prior_duration_thermal_nodes(corridor_key);
                 for (gi, slot) in cdf.iter_mut().enumerate() {
                     let f = gi as f64 / (grid_len - 1) as f64;
                     *slot = self
@@ -1785,7 +1851,7 @@ impl ArrivalModel {
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                let thermal = self.thermal_nodes_for_key(d, corridor_key);
+                let thermal = self.duration_thermal_nodes(d, corridor_key);
                 for (gi, slot) in cdf.iter_mut().enumerate() {
                     let f = gi as f64 / (grid_len - 1) as f64;
                     *slot = self.marginal_cdf_at_thermal(f, &thermal).clamp(0.0, 1.0);

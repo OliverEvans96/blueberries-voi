@@ -52,7 +52,7 @@ Those v2 features are not on the integrate branch yet; the sections below descri
 
 ## The math
 
-For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, an 80/20 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
+For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, a 70/30 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
 
 ### Duration
 
@@ -130,7 +130,7 @@ From `data/abdella/arrival_model.json`:
 | Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
 | Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 14.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Leg setpoints were shifted flat by −2.0 °C from the earlier compressed anchors (0.35/2.58/4.32 → −1.65/0.58/2.32 °C) to preserve the clean-chain $\bar\varphi$ centre under $q_{10} = 2.0$ and the unified reference life. Duration dispersion now comes from **`abdella_mix`**, a categorical mixture drawing 80% `short_haul` (Abdella S2) and 20% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Leg setpoints were shifted flat by −2.0 °C from the earlier compressed anchors (0.35/2.58/4.32 → −1.65/0.58/2.32 °C) to preserve the clean-chain $\bar\varphi$ centre under $q_{10} = 2.0$ and the unified reference life. Duration dispersion now comes from **`abdella_mix`**, a categorical mixture drawing 70% `short_haul` (Abdella S2) and 30% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation. The 70/30 split (not 80/20) is the minimum weighting that keeps the Prior channel strictly wider than every pack-date (F2) law at tested durations — a hard requirement for the knowledge ladder.
 
 **Corridors** (shifted-gamma duration law):
 
@@ -144,7 +144,7 @@ Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** fr
 
 | Mixture | Components | Role |
 | --- | --- | --- |
-| `abdella_mix` | 0.8 × `short_haul` + 0.2 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
+| `abdella_mix` | 0.7 × `short_haul` + 0.3 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
 
 `abdella_all` remains the moment-matched pooled Abdella fit (ADR 0148); `short_haul` and `long_haul` are the per-regime duration families that `abdella_mix` blends.
 

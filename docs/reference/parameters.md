@@ -213,7 +213,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
 | Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
 | Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
-| Default mixture (`abdella_mix`) | 0.8 × `short_haul` + 0.2 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
+| Default mixture (`abdella_mix`) | 0.7 × `short_haul` + 0.3 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
 | Pooled `abdella_all` | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
 | Component `short_haul` | $d_\text{min}$ / shape / scale | 1.803 / 2.0 / 0.05 | days | Abdella S2 duration family | `data/abdella/arrival_model.json` (`corridors.short_haul`) |
 | Component `long_haul` | $d_\text{min}$ / shape / scale | 4.033 / 1.628 / 0.814 | days | Abdella S1, S3–S6 duration family | `data/abdella/arrival_model.json` (`corridors.long_haul`) |
@@ -228,7 +228,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
   canonical value, derived in Rust from `eta_ref` and `gamma_shape`, is
   $1/28\approx0.035714$. Anything computed through that mock path will not match the live
   engine's shelf-life calibration.
-- `abdella_mix` (80% `short_haul` / 20% `long_haul`) is the production default corridor;
+- `abdella_mix` (70% `short_haul` / 30% `long_haul`) is the production default corridor;
   `abdella_all` remains the moment-matched pooled Abdella fit. Studio no longer exposes haul
   chips as first-class arrival lanes.
 - Break parameters $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario
