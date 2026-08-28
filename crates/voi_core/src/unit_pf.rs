@@ -292,12 +292,16 @@ pub fn project_lot_map(
 }
 
 /// Resolve channel-conditional arrival law from filter observation.
-fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> ArrivalCondition {
+///
+/// Temperature traces must be integrated with the **arrival model's** `q10`/`t_ref`
+/// (embedded artifact / trial calibration), not [`ModelParams::q10`]: `sync_params`
+/// intentionally does not mirror store physics onto the arrival artifact (PR #65).
+fn resolve_arrival_f_law(obs: &FilterObs, q10: f64, t_ref: f64) -> ArrivalCondition {
     if let Some(exposure) = resolve_arrival_exposure(
         obs.temp_temps_c.as_deref(),
         obs.temp_times_d.as_deref(),
-        params.q10,
-        params.t_ref_c,
+        q10,
+        t_ref,
     ) {
         return ArrivalCondition::Exposure(exposure);
     }
@@ -311,15 +315,16 @@ fn resolve_arrival_f_law(obs: &FilterObs, params: &ModelParams) -> ArrivalCondit
 fn resolve_arrival_f_law_per_lot(
     obs: &FilterObs,
     lot_idx: usize,
-    params: &ModelParams,
+    q10: f64,
+    t_ref: f64,
 ) -> ArrivalCondition {
     if let Some(traces) = &obs.temp_traces_by_lot {
         if let Some(tr) = traces.get(lot_idx) {
             if let Some(exposure) = resolve_arrival_exposure(
                 Some(&tr.temps_c),
                 Some(&tr.times_d),
-                params.q10,
-                params.t_ref_c,
+                q10,
+                t_ref,
             ) {
                 return ArrivalCondition::Exposure(exposure);
             }
@@ -330,12 +335,17 @@ fn resolve_arrival_f_law_per_lot(
             return ArrivalCondition::Duration(d);
         }
     }
-    resolve_arrival_f_law(obs, params)
+    resolve_arrival_f_law(obs, q10, t_ref)
 }
 
-fn resolve_arrival_f_laws_per_lot(obs: &FilterObs, n_lots: usize, params: &ModelParams) -> Vec<ArrivalCondition> {
+fn resolve_arrival_f_laws_per_lot(
+    obs: &FilterObs,
+    n_lots: usize,
+    q10: f64,
+    t_ref: f64,
+) -> Vec<ArrivalCondition> {
     (0..n_lots)
-        .map(|ell| resolve_arrival_f_law_per_lot(obs, ell, params))
+        .map(|ell| resolve_arrival_f_law_per_lot(obs, ell, q10, t_ref))
         .collect()
 }
 
@@ -615,7 +625,6 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             .unwrap_or_else(|| vec![bank.next_synthetic_lot_id()]);
         let n_lots = lot_ids.len().max(1);
         let code = infer_birth_code_type(obs, birth_code_type);
-        let conditions = resolve_arrival_f_laws_per_lot(obs, n_lots, params);
         let birth_seed = rng.random::<u64>();
         let mut local_model;
         let model = if let Some(m) = arrival_model {
@@ -628,6 +637,8 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             local_model.set_corridor(&params.arrival_product);
             &mut local_model
         };
+        let conditions =
+            resolve_arrival_f_laws_per_lot(obs, n_lots, model.q10, model.t_ref);
 
         if code == CodeType::Upc && n_lots > 1 {
             let lot_id = bank.next_synthetic_lot_id();
@@ -696,11 +707,15 @@ mod tests {
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
 
+    use crate::arrival::{resolve_arrival_exposure, ArrivalModel};
     use crate::obs::FilterObs;
     use crate::params::ModelParams;
+    use crate::physics::GammaDecrementTable;
     use crate::shipments::mod21_demo_shipments;
 
-    use super::{filter_step_unit, project_lot_map, UnitParticleBank};
+    use super::{
+        filter_step_unit, filter_step_unit_with_birth_cached, project_lot_map, UnitParticleBank,
+    };
 
     #[test]
     fn unit_pf_filter_step_p1_updates_weights() {
@@ -792,6 +807,84 @@ mod tests {
     fn project_lot_map_refuses_to_silently_drop_counts() {
         let got = project_lot_map(&[2, 0, 3], Some(&[5, 7, 8]), &[7, 8]);
         assert_eq!(got, None, "sales on a retired lot must not be discarded");
+    }
+
+    #[test]
+    fn resolve_arrival_exposure_q10_changes_lambda() {
+        let times = [0.0, 1.0, 2.0];
+        let temps = [5.0, 5.0, 5.0];
+        let lambda_artifact =
+            resolve_arrival_exposure(Some(&temps), Some(&times), 1.5, 0.0).expect("Λ");
+        let lambda_store =
+            resolve_arrival_exposure(Some(&temps), Some(&times), 2.0, 0.0).expect("Λ");
+        assert!(
+            (lambda_artifact - lambda_store).abs() > 1e-6,
+            "same trace must integrate differently under artifact q10=1.5 vs store q10=2.0"
+        );
+    }
+
+    #[test]
+    fn filter_birth_f3_integrates_trace_with_arrival_model_q10() {
+        let times = vec![0.0, 1.5, 3.0];
+        let temps = vec![4.0, 6.0, 8.0];
+        let mut model = ArrivalModel::embedded();
+        let expected_lambda = resolve_arrival_exposure(
+            Some(&temps),
+            Some(&times),
+            model.q10,
+            model.t_ref,
+        )
+        .expect("controlled trace integrates");
+        let mut params = ModelParams::default();
+        params.q10 = 2.0;
+        model.sync_params(&params);
+        model.set_corridor(&params.arrival_product);
+
+        let mut bank = UnitParticleBank::empty(8);
+        let mut rng = Pcg64::seed_from_u64(99);
+        let mut table = GammaDecrementTable::for_params(&params);
+        let obs = FilterObs {
+            sales_tot: Some(0),
+            waste_tot: Some(0),
+            arrivals: 10,
+            temp_times_d: Some(times.clone()),
+            temp_temps_c: Some(temps.clone()),
+            ..Default::default()
+        };
+        let ships = mod21_demo_shipments("short_haul");
+        filter_step_unit_with_birth_cached(
+            &mut bank,
+            &obs,
+            &params,
+            &ships,
+            &mut rng,
+            None::<&mut Pcg64>,
+            &mut table,
+            Some(&mut model),
+            None,
+        );
+        let used = model
+            .last_exposure_lambda()
+            .expect("F3 birth should record exposure Λ");
+        assert!(
+            (used - expected_lambda).abs() < 1e-9,
+            "filter used Λ={used}, expected artifact q10 integration {expected_lambda}"
+        );
+        let store_lambda = resolve_arrival_exposure(
+            Some(&temps),
+            Some(&times),
+            params.q10,
+            params.t_ref_c,
+        )
+        .expect("store q10 integrates");
+        assert!(
+            (store_lambda - expected_lambda).abs() > 1e-6,
+            "test needs store q10 to disagree with artifact q10"
+        );
+        assert!(
+            (used - store_lambda).abs() > 1e-6,
+            "filter must not integrate F3 traces with ModelParams::q10"
+        );
     }
 
     #[test]

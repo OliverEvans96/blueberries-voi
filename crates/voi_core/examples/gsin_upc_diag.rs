@@ -17,7 +17,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use voi_core::arrival::ArrivalModel;
+use voi_core::arrival::{ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
 use voi_core::obs::{mask_for, RichDay};
 use voi_core::physics::{draw_demand, GammaDecrementTable};
@@ -121,7 +121,7 @@ fn run_truth(
                 let mut rng_g = stream_rng(seed, day, 8);
                 let mut rng_regime = stream_rng(seed, day, 12);
                 let draw = arrival_model.draw_truth_delivery(
-                    "abdella_all",
+                    DEFAULT_ARRIVAL_CORRIDOR,
                     arrival as usize,
                     &mut rng_d,
                     &mut rng_t,
@@ -129,10 +129,7 @@ fn run_truth(
                     &mut rng_g,
                     &mut rng_regime,
                 );
-                let trace = ShipmentTrace {
-                    times_d: vec![0.0, draw.duration_d],
-                    temps_c: vec![draw.t_bar, draw.t_bar],
-                };
+                let trace = draw.trace.clone();
                 let lot_id = next_lot;
                 lot_ids.push(lot_id);
                 next_lot += 1;
