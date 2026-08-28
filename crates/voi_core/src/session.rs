@@ -5,8 +5,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
-    shared_embedded_arrival, ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION,
-    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_REGIME, STREAM_ARRIVAL_TEMP,
+    shared_embedded_arrival, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR, LOTS_PER_DELIVERY,
+    STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_REGIME,
+    STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -224,7 +225,7 @@ impl EngineSession {
             catchup_days_last: 0,
             gamma_table: GammaDecrementTable::for_params(&params),
             arrival_model,
-            arrival_product: "abdella_all".to_string(),
+            arrival_product: DEFAULT_ARRIVAL_CORRIDOR.to_string(),
             spread_scale: 1.0,
             transit_temp_bias_c: 0.0,
             survival_cache: SurvivalCurveCache::for_params(&params, 8),
