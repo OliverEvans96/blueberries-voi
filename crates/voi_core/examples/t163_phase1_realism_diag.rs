@@ -9,7 +9,7 @@
 //!
 //! Run: `cargo run -p voi_core --release --example t163_phase1_realism_diag > out.json`
 
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_distr::{Distribution, LogNormal};
 use rand_pcg::Pcg64;
 use serde_json::json;
@@ -38,8 +38,18 @@ fn sd(values: &[f64], mean: f64) -> f64 {
     (values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n).sqrt()
 }
 
-/// Multilot generative truth: one mean-f sample per delivery (all lots pooled).
+/// Multilot generative truth: one mean-f sample per delivery (all lots pooled), always
+/// drawn through the real (now-fixed) public `draw_truth_multilot_delivery_biased`.
 fn truth_multilot_delivery_means(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64> {
+    truth_multilot_delivery_means_corridor(model, CORRIDOR, n, seed)
+}
+
+fn truth_multilot_delivery_means_corridor(
+    model: &ArrivalModel,
+    corridor_key: &str,
+    n: usize,
+    seed: u64,
+) -> Vec<f64> {
     let mut rng_d = Pcg64::seed_from_u64(seed);
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
@@ -47,7 +57,7 @@ fn truth_multilot_delivery_means(model: &ArrivalModel, n: usize, seed: u64) -> V
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
-                CORRIDOR,
+                corridor_key,
                 UNITS_PER_LOT,
                 0.0,
                 &mut rng_d,
@@ -63,6 +73,63 @@ fn truth_multilot_delivery_means(model: &ArrivalModel, n: usize, seed: u64) -> V
                 / total as f64
         })
         .collect()
+}
+
+/// Same as above, but each *delivery* (all 3 lots + shared leg) independently picks its
+/// corridor regime with probability `p_a` for `corridor_a` (else `corridor_b`) — a quick,
+/// diagnostic-only stand-in for "some deliveries are quick regional hops, some are longer
+/// hauls," using rand's own RNG (not a CRN stream) for the regime coin flip.
+fn truth_multilot_delivery_means_mixed(
+    model: &ArrivalModel,
+    corridor_a: &str,
+    corridor_b: &str,
+    p_a: f64,
+    n: usize,
+    seed: u64,
+) -> Vec<f64> {
+    let mut rng_d = Pcg64::seed_from_u64(seed);
+    let mut rng_t = Pcg64::seed_from_u64(seed + 1);
+    let mut rng_p = Pcg64::seed_from_u64(seed + 2);
+    let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 4);
+    (0..n)
+        .map(|_| {
+            let key = if rng_regime.random::<f64>() < p_a {
+                corridor_a
+            } else {
+                corridor_b
+            };
+            let draw = model.draw_truth_multilot_delivery_biased(
+                key,
+                UNITS_PER_LOT,
+                0.0,
+                &mut rng_d,
+                &mut rng_t,
+                &mut rng_p,
+                &mut rng_g,
+            );
+            let total: usize = draw.lots.iter().map(|lot| lot.unit_f.len()).sum();
+            draw.lots
+                .iter()
+                .flat_map(|lot| lot.unit_f.iter().copied())
+                .sum::<f64>()
+                / total as f64
+        })
+        .collect()
+}
+
+fn summarize(mut samples: Vec<f64>) -> (f64, f64, f64, f64, f64, f64) {
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (mean, p10, p50, p90) = quantiles(&samples);
+    let n = samples.len() as f64;
+    let pct_below_0_5 = samples.iter().filter(|&&f| f < 0.5).count() as f64 / n * 100.0;
+    let pct_60_90 = samples
+        .iter()
+        .filter(|&&f| (0.6..=0.9).contains(&f))
+        .count() as f64
+        / n
+        * 100.0;
+    (mean, p10, p50, p90, pct_below_0_5, pct_60_90)
 }
 
 fn truth_summary(model: &ArrivalModel, n: usize, seed: u64) -> serde_json::Value {
@@ -515,6 +582,200 @@ fn corrected_shared_leg_sensitivity(base: &ArrivalModel) -> serde_json::Value {
     json!(rows)
 }
 
+/// Post-fix search #1: hold `eta_ref = 14` (fully unified, no decoupling at all) and the
+/// `abdella_all` corridor fixed, grid-search `q10` x a uniform leg-setpoint shift, using
+/// the real (now-fixed) `draw_truth_multilot_delivery_biased`.
+fn postfix_decay_grid_search(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &q10 in &[3.0, 2.5, 2.0] {
+        for &delta_c in &[0.0, -1.0, -2.0] {
+            let mut model = base.clone();
+            model.reference_life_days = 14.0;
+            model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+            model.q10 = q10;
+            for leg in model.legs.iter_mut() {
+                leg.setpoint_c += delta_c;
+            }
+            let seed = 910_000 + (q10 * 100.0) as u64 + (-delta_c * 10.0) as u64;
+            let samples = truth_multilot_delivery_means(&model, 400, seed);
+            let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+            rows.push(json!({
+                "q10": q10, "delta_c": delta_c,
+                "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+                "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+            }));
+        }
+    }
+    json!(rows)
+}
+
+/// Post-fix search #2: hold `eta_ref = 14`, `q10 = 3.0` (current), legs unshifted, and
+/// just swap which corridor generates the whole delivery.
+fn postfix_corridor_choice_search(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &key in &["abdella_all", "short_haul", "long_haul"] {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        let samples = truth_multilot_delivery_means_corridor(&model, key, 400, 920_000);
+        let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+        let c = model.corridor(key);
+        rows.push(json!({
+            "corridor": key,
+            "mean_duration_days": c.d_min + c.delay_shape * c.delay_scale,
+            "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+            "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+        }));
+    }
+    json!(rows)
+}
+
+/// Post-fix search #3: hold `eta_ref = 14`, `q10 = 3.0`, legs unshifted; each *delivery*
+/// independently rolls "short regional haul" (`short_haul`, `p_short`) vs. "long haul"
+/// (`long_haul`, `1 - p_short`) — a stand-in for a realistic domestic/long-haul blend.
+fn postfix_corridor_mix_search(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    for &p_short in &[0.3, 0.5, 0.7, 0.85, 1.0] {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        let seed = 930_000 + (p_short * 1000.0) as u64;
+        let samples = truth_multilot_delivery_means_mixed(
+            &model, "short_haul", "long_haul", p_short, 400, seed,
+        );
+        let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+        rows.push(json!({
+            "p_short_haul": p_short,
+            "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+            "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+        }));
+    }
+    json!(rows)
+}
+
+/// Post-fix search #4: combine the most promising decay-rate tweaks from search #1 with
+/// corridor choice, to see whether stacking two individually-insufficient levers clears
+/// the target band. All still at `eta_ref = 14`.
+fn postfix_combo_search(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    let combos: &[(f64, f64, &str)] = &[
+        (2.0, -2.0, "abdella_all"),
+        (2.0, -2.0, "short_haul"),
+        (2.5, -2.0, "short_haul"),
+        (2.0, -1.0, "short_haul"),
+        (2.0, -1.5, "short_haul"),
+        (2.5, -1.0, "short_haul"),
+        (3.0, 0.0, "short_haul"),
+    ];
+    for &(q10, delta_c, key) in combos {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        model.q10 = q10;
+        for leg in model.legs.iter_mut() {
+            leg.setpoint_c += delta_c;
+        }
+        let seed = 950_000 + (q10 * 1000.0) as u64 + (-delta_c * 100.0) as u64;
+        let samples = truth_multilot_delivery_means_corridor(&model, key, 800, seed);
+        let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+        rows.push(json!({
+            "q10": q10, "delta_c": delta_c, "corridor": key,
+            "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+            "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+        }));
+    }
+    json!(rows)
+}
+
+/// Post-fix search #5: `short_haul` alone is a near-deterministic corridor (`delay_scale
+/// = 0.05`, essentially just shipment S2's own duration with almost no spread) — great
+/// for centering but suspicious as a *sole* duration law, since real transit times vary.
+/// Blend it with `long_haul` (which carries the real spread from the other five
+/// shipments) instead of using it alone, at the winning decay-rate settings from search
+/// #4.
+fn postfix_mix_plus_decay_search(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    let combos: &[(f64, f64, f64)] = &[
+        // (p_short_haul, q10, delta_c)
+        (0.7, 2.0, -1.5),
+        (0.8, 2.0, -1.5),
+        (0.7, 2.0, -2.0),
+        (0.8, 2.0, -2.0),
+        (0.6, 2.0, -2.0),
+    ];
+    for &(p_short, q10, delta_c) in combos {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        model.q10 = q10;
+        for leg in model.legs.iter_mut() {
+            leg.setpoint_c += delta_c;
+        }
+        let seed = 960_000 + (p_short * 1000.0) as u64;
+        let samples = truth_multilot_delivery_means_mixed(
+            &model, "short_haul", "long_haul", p_short, 800, seed,
+        );
+        let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+        rows.push(json!({
+            "p_short_haul": p_short, "q10": q10, "delta_c": delta_c,
+            "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+            "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+        }));
+    }
+    json!(rows)
+}
+
+/// Post-fix search #6: precise, larger-N refinement around the best decay-only
+/// (no corridor change) combo from search #1, to decide a final production candidate
+/// with real margin above the `p50 >= 0.65` gate rather than a borderline pass.
+fn postfix_decay_only_refinement(base: &ArrivalModel) -> serde_json::Value {
+    let mut rows = Vec::new();
+    let combos: &[(f64, f64)] = &[
+        (2.0, -2.0),
+        (2.0, -2.25),
+        (2.0, -2.5),
+        (1.9, -2.0),
+        (1.8, -2.0),
+        (1.8, -2.25),
+    ];
+    for &(q10, delta_c) in combos {
+        let mut model = base.clone();
+        model.reference_life_days = 14.0;
+        model.gamma_scale = 1.0 / (model.gamma_shape * 14.0);
+        model.q10 = q10;
+        for leg in model.legs.iter_mut() {
+            leg.setpoint_c += delta_c;
+        }
+        let seed = 970_000 + (q10 * 1000.0) as u64 + (-delta_c * 100.0) as u64;
+        let samples = truth_multilot_delivery_means(&model, 2000, seed);
+        let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+        rows.push(json!({
+            "q10": q10, "delta_c": delta_c,
+            "precool_setpoint_c": model.legs[0].setpoint_c,
+            "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+            "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+        }));
+    }
+    json!(rows)
+}
+
+/// The final chosen candidate calibration: `eta_ref = 14`, `abdella_all` corridor and
+/// `q10 = 3.0` unchanged (no decay-rate or corridor-mix change needed — see notebook
+/// §10 for why the grid/mix searches above turned out not to beat this once the
+/// duration bug alone was fixed), reported at full N for headline numbers.
+fn final_candidate_summary(base: &ArrivalModel, eta_ref: f64, n: usize) -> serde_json::Value {
+    let mut model = base.clone();
+    model.reference_life_days = eta_ref;
+    model.gamma_scale = 1.0 / (model.gamma_shape * eta_ref);
+    let samples = truth_multilot_delivery_means(&model, n, 940_001);
+    let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(samples);
+    json!({
+        "eta_ref": eta_ref, "n": n,
+        "mean": mean, "p10": p10, "p50": p50, "p90": p90,
+        "pct_below_0_5": pct_below_0_5, "pct_60_90": pct_60_90,
+    })
+}
+
 fn main() {
     let t0 = std::time::Instant::now();
     let model = ArrivalModel::embedded();
@@ -567,6 +828,20 @@ fn main() {
     eprintln!("shared_leg_duration_audit: {:?}", t0.elapsed());
     let corrected_shared_leg = corrected_shared_leg_sensitivity(&model);
     eprintln!("corrected_shared_leg_sensitivity: {:?}", t0.elapsed());
+    let postfix_decay_grid = postfix_decay_grid_search(&model);
+    eprintln!("postfix_decay_grid_search: {:?}", t0.elapsed());
+    let postfix_corridor_choice = postfix_corridor_choice_search(&model);
+    eprintln!("postfix_corridor_choice_search: {:?}", t0.elapsed());
+    let postfix_corridor_mix = postfix_corridor_mix_search(&model);
+    eprintln!("postfix_corridor_mix_search: {:?}", t0.elapsed());
+    let postfix_combo = postfix_combo_search(&model);
+    eprintln!("postfix_combo_search: {:?}", t0.elapsed());
+    let postfix_mix_decay = postfix_mix_plus_decay_search(&model);
+    eprintln!("postfix_mix_plus_decay_search: {:?}", t0.elapsed());
+    let postfix_decay_refine = postfix_decay_only_refinement(&model);
+    eprintln!("postfix_decay_only_refinement: {:?}", t0.elapsed());
+    let final_candidate = final_candidate_summary(&model, 14.0, 2000);
+    eprintln!("final_candidate_summary: {:?}", t0.elapsed());
 
     let out = json!({
         "artifact": artifact_summary,
@@ -581,6 +856,13 @@ fn main() {
         "joint_recalibration": joint_recalibration,
         "shared_leg_duration_audit": shared_leg_audit,
         "corrected_shared_leg_sensitivity": corrected_shared_leg,
+        "postfix_decay_grid_search": postfix_decay_grid,
+        "postfix_corridor_choice_search": postfix_corridor_choice,
+        "postfix_corridor_mix_search": postfix_corridor_mix,
+        "postfix_combo_search": postfix_combo,
+        "postfix_mix_plus_decay_search": postfix_mix_decay,
+        "postfix_decay_only_refinement": postfix_decay_refine,
+        "final_candidate": final_candidate,
     });
 
     println!("{}", serde_json::to_string(&out).unwrap());

@@ -127,10 +127,10 @@ From `data/abdella/arrival_model.json`:
 | Q10 coefficient | $q_{10}$ | 3.0 |
 | Reference temperature | $T_{\mathrm{ref}}$ | 0.0 °C |
 | Gamma shape | $k$ | 2.0 |
-| Gamma scale | $\theta$ | 1/52 ≈ 0.019231 |
-| Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 26.0 reference-days |
+| Gamma scale | $\theta$ | 1/40 = 0.025 |
+| Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 20.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw. In-store aging still uses $\eta_\text{ref} = 14$ via `ModelParams.set_reference_life()` — the longer arrival reference life reflects that Abdella $\Lambda$ measures refrigerated-leg exposure while retail display units often retain more apparent freshness than a naive $1 - \Lambda/14$ mapping would imply.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw. In-store aging still uses $\eta_\text{ref} = 14$ via `ModelParams.set_reference_life()`. The remaining gap between 20 and 14 is a real, but now much smaller, decoupling (previously 26): a multilot shared-leg duration construction bug inflated every lot's calendar duration/exposure by ~1.28x versus the moment-matched corridor, and `reference_life_days = 26` was compensating for that inflation as well as genuine decay-rate uncertainty. With the bug fixed, `reference_life_days = 20` reproduces the same US-retail-realistic arrival band the model targeted before. Fully eliminating the remaining gap would need a corridor-level fix (a genuine short-haul/long-haul duration mixture, not a single-family moment match); see `notebooks/t163_phase1_freshness_realism.ipynb` for the investigation.
 
 **Corridors** (shifted-gamma duration law):
 

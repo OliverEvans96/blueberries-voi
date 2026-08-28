@@ -32,8 +32,16 @@ _SUSPECT_PROBE_SHIPMENT = "S4"
 
 # Literature / MOD adjustment defaults (not identified from n=6 trips).
 _DEFAULT_GAMMA_SHAPE = 2.0
-_DEFAULT_GAMMA_SCALE = 1.0 / 28.0
-_DEFAULT_REFERENCE_LIFE = 26.0
+# T-163 Phase 1 follow-up (2026-08-27): reference_life_days reduced from 26 to 20 after
+# fixing a multilot shared-leg duration construction bug (draw_truth_multilot_delivery_biased
+# was drawing upstream_d as a second independent full-corridor draw instead of scaling it
+# by (1 - SHARED_LEG_FRAC), inflating every multilot lot's duration/exposure ~1.28x). See
+# notebooks/t163_phase1_freshness_realism.ipynb for the investigation. gamma_scale is
+# *derived* from gamma_shape/reference_life (k*theta*eta_ref=1), not a separate literal,
+# so the two can't drift apart the way they had (committed artifact was 1/52, this
+# constant was a stale 1/28, from before reference_life_days was bumped to 26).
+_DEFAULT_REFERENCE_LIFE = 20.0
+_DEFAULT_GAMMA_SCALE = 1.0 / (_DEFAULT_GAMMA_SHAPE * _DEFAULT_REFERENCE_LIFE)
 _DEFAULT_Q10 = 3.0
 _DEFAULT_T_REF = 0.0
 _DEFAULT_SIGMA_POS = 0.08

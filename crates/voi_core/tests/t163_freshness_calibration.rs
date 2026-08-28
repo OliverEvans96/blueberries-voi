@@ -51,8 +51,10 @@ fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64
 fn arrival_f_distribution_realistic_band() {
     let model = ArrivalModel::embedded();
     assert!(
-        (model.reference_life_days - 26.0).abs() < 1e-9,
-        "artifact reference_life_days should be 26 for calibrated arrival f; got {}",
+        (model.reference_life_days - 20.0).abs() < 1e-9,
+        "artifact reference_life_days should be 20 for calibrated arrival f \
+         (T-163 Phase 1 follow-up: reduced from 26 after fixing the multilot \
+         shared-leg duration construction bug); got {}",
         model.reference_life_days
     );
     let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_501);

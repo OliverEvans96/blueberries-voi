@@ -36,10 +36,6 @@ const DURATION_EMPIRICAL_NOISE_D: f64 = 0.62;
 pub const LOTS_PER_DELIVERY: usize = 3;
 /// Share of calendar transit spent on the shared DC→store leg (remainder is upstream per lot).
 const SHARED_LEG_FRAC: f64 = 0.28;
-/// Prior-channel exposure uplift for L=3 multilot (ADR 0149): integrated lot Λ is
-/// ~1.18× a single-trip `thermal_nodes(d)` draw at the same calendar duration (tuned
-/// for generative mean coherence without collapsing the S1.8 ladder ordering).
-const MULTILOT_LAMBDA_SCALE: f64 = 1.18;
 
 /// Smallest cumulative exposure Λ ever used in a gamma-shape calculation, so a
 /// zero-duration or zero-temperature-factor delivery doesn't collapse the shape to zero.
@@ -881,14 +877,6 @@ impl ArrivalModel {
         corridor.d_min + delay
     }
 
-    /// Single-trip thermal nodes scaled for L=3 multilot filter projection (Prior/F2).
-    fn multilot_thermal_nodes(&self, d: f64) -> Vec<(f64, f64)> {
-        self.thermal_nodes(d)
-            .into_iter()
-            .map(|(lam, w)| (lam * MULTILOT_LAMBDA_SCALE, w))
-            .collect()
-    }
-
     /// Duration-weighted Q10 factor of the deterministic legged baseline. A break-free
     /// trip of length `d` has exposure exactly `d * phi_set` — the reefer holds its
     /// setpoints, so all thermal risk is event risk.
@@ -1272,7 +1260,7 @@ impl ArrivalModel {
         let mut upstream_ds = Vec::with_capacity(LOTS_PER_DELIVERY);
         for _ in 0..LOTS_PER_DELIVERY {
             upstream_ds.push(
-                self.draw_bottom_up_duration(corridor, rng_duration)
+                (self.draw_bottom_up_duration(corridor, rng_duration) * (1.0 - SHARED_LEG_FRAC))
                     .max(0.5),
             );
         }
@@ -1514,7 +1502,7 @@ impl ArrivalModel {
             ArrivalCondition::Prior => {
                 for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
                     let d = self.quadrature_duration_days(corridor, u_d);
-                    for (lot_lambda, w_t) in self.multilot_thermal_nodes(d) {
+                    for (lot_lambda, w_t) in self.thermal_nodes(d) {
                         accumulate(lot_lambda, w_d * w_t);
                     }
                 }
@@ -1574,7 +1562,7 @@ impl ArrivalModel {
                     .zip(self.quad_weights.iter())
                     .map(|(&u_d, &w_d)| {
                         let d = self.quadrature_duration_days(corridor, u_d);
-                        (w_d, self.multilot_thermal_nodes(d))
+                        (w_d, self.thermal_nodes(d))
                     })
                     .collect();
                 for (gi, slot) in cdf.iter_mut().enumerate() {
