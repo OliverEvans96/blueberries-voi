@@ -4,17 +4,17 @@
     {
       "name": "precool_staging",
       "weight": 0.15,
-      "setpoint_c": -1.65
+      "setpoint_c": -4.65
     },
     {
       "name": "line_haul",
       "weight": 0.6,
-      "setpoint_c": 0.58
+      "setpoint_c": -2.42
     },
     {
       "name": "dock_receiving",
       "weight": 0.25,
-      "setpoint_c": 2.32
+      "setpoint_c": -0.68
     }
   ],
   "thermal_modes": {
@@ -36,7 +36,7 @@
   "rho": 0.08,
   "tau_bar": 0.5,
   "sigma_pos": 0.08,
-  "q10": 2.0,
+  "q10": 1.5,
   "T_ref": 0.0,
   "gamma_shape": 2.0,
   "gamma_scale": 0.035714285714285714,
@@ -85,11 +85,11 @@
       "components": [
         {
           "corridor_key": "short_haul",
-          "weight": 0.7
+          "weight": 0.627
         },
         {
           "corridor_key": "long_haul",
-          "weight": 0.3
+          "weight": 0.373
         }
       ]
     }
@@ -150,9 +150,10 @@
       "sigma_pos"
     ],
     "adjustment_notes": {
-      "gamma": "arrival reference_life_days=14 (gamma_scale=1/28), unified with in-store eta_ref=14 (T-163 Phase B-A corridor-mixture pass). Leg setpoints shifted flat -2.0 C from compressed anchors (0.35/2.58/4.32 -> -1.65/0.58/2.32 C) to preserve clean-chain phi_bar centre after q10=2.0 and the eta_ref unification.",
+      "gamma": "arrival reference_life_days=14 (gamma_scale=1/28), unified with in-store eta_ref=14 (T-163 Phase B-A corridor-mixture pass).",
+      "calibration": "T-163 joint BO trial 38 (de-prioritize ac2_11a): p_short=0.627, q10=1.5, delta_c=-3.0 on prior -2.0 C leg shift -> setpoints -4.65/-2.42/-0.68 C. session_f=0.587, p50=0.857, pct_60_90=0.91, ac2_11a=1.295 (fails 2.18 floor; accepted). Alt trial 81: p_short=0.5, q10=1.5, delta_c=-0.277 -> better ac2_11a=1.858, weaker session_f=0.550.",
       "sigma_pos": "keep 0.08 (lognormal psi scale; not identified from n=6; probe temperature sd is not sigma_pos)",
-      "legs": "Nominal stage setpoints and mean shares (w_k). ASSUMED anchors for clean-chain phi_bar centre (~1.36); setpoints -1.65/0.58/2.32 C are a flat -2.0 C shift from compressed anchors (0.35/2.58/4.32 C) under eta_ref=14 / q10=2.0 unification.",
+      "legs": "Nominal stage setpoints and mean shares (w_k). BO trial 38: flat -5.0 C from compressed anchors (0.35/2.58/4.32 -> -4.65/-2.42/-0.68 C) under q10=1.5 and p_short=0.627/0.373 abdella_mix.",
       "thermal_modes": "Trip-wide cool/nominal/warm mode mix and offset_c values are ASSUMED (p_c=0.10, p_n=0.80, p_w=0.10; offsets -0.12/0/+0.22 C). Tuned under rho=0 for phi_bar SD, not fit from six traces.",
       "sigma_hour": "Hourly OU amplitude (0.028 C) is ASSUMED for chart realism and rho=0 phi_bar scatter; not fit from six traces.",
       "breaks": "rho (breaks per transit-day), tau_bar (mean break duration, days), and T_break are ASSUMED, NOT FITTED. All six Abdella shipments are clean chains with no cold-chain break, so a break frequency is not estimable from this data at any confidence. rho=0.08 / tau_bar=0.5 / T_break=12 put a typical break at ~1.2 reference-days and the duration share of Var(log Lambda) at ~82%, versus 100% at rho=0. Treat these numbers as a documented modelling regime, not a measurement."
