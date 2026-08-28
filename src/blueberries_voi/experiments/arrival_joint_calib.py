@@ -12,21 +12,50 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 REJECTED_OBJECTIVE = -1e6
+SESSION_F_MIN = 0.55
+TRUTH_P50_MIN = 0.65
+TRUTH_PCT_MIN = 0.45
+AC2_11A_MIN_RATIO = 2.18
+
+
+def trial_passes_all_gates(
+    *,
+    rejected_ac2_19: bool,
+    ac2_19_margin: float,
+    session_f: float,
+    p50: float,
+    pct_60_90: float,
+    ac2_11a_ratio: float,
+) -> bool:
+    """All four T-163 calibration gates (incl. ac2_11a floor)."""
+    if rejected_ac2_19 or ac2_19_margin <= 0.0:
+        return False
+    if session_f <= REJECTED_OBJECTIVE / 2:
+        return False
+    return (
+        session_f >= SESSION_F_MIN
+        and p50 >= TRUTH_P50_MIN
+        and pct_60_90 >= TRUTH_PCT_MIN
+        and ac2_11a_ratio >= AC2_11A_MIN_RATIO
+    )
 
 
 @dataclass(frozen=True)
 class JointCalibTrialResult:
-    """One seed-level evaluation of (p_short, q10, delta_c)."""
+    """One evaluation of (p_short, q10, delta_c)."""
 
     p_short: float
     q10: float
     delta_c: float
     seed: int
     ac2_19_margin: float
+    ac2_19_d8_margin: float
     p50: float
     pct_60_90: float
     session_f: float
     rejected_ac2_19: bool
+    fast_gates_pass: bool
+    elapsed_s: float
     ac2_11a_ratio: float | None = None
 
     @classmethod
@@ -36,12 +65,15 @@ class JointCalibTrialResult:
             p_short=float(payload["p_short"]),
             q10=float(payload["q10"]),
             delta_c=float(payload["delta_c"]),
-            seed=int(payload["seed"]),
+            seed=int(payload.get("seed", 0)),
             ac2_19_margin=float(payload["ac2_19_margin"]),
+            ac2_19_d8_margin=float(payload.get("ac2_19_d8_margin", 0.0)),
             p50=float(payload["p50"]),
             pct_60_90=float(payload["pct_60_90"]),
             session_f=float(payload["session_f"]),
             rejected_ac2_19=bool(payload["rejected_ac2_19"]),
+            fast_gates_pass=bool(payload.get("fast_gates_pass", False)),
+            elapsed_s=float(payload.get("elapsed_s", 0.0)),
             ac2_11a_ratio=None if ratio is None else float(ratio),
         )
 
@@ -64,7 +96,7 @@ def evaluate_joint_calib_trial(
     *,
     include_ac2_11a: bool = False,
 ) -> JointCalibTrialResult:
-    """Rust-first per-trial evaluator (apply_config + ac2_19 + band + session)."""
+    """Rust-first per-trial evaluator (fixed truth/session seeds; seed drives ac2_11a)."""
     fn = (
         getattr(rust_core, "evaluate_joint_calib_trial_py", None) if rust_core else None
     )
@@ -78,6 +110,16 @@ def evaluate_joint_calib_trial(
     return JointCalibTrialResult.from_rust(cast("dict[str, Any]", payload))
 
 
+def benchmark_joint_calib_trial() -> float:
+    """Time one representative fast trial (seconds)."""
+    fn = (
+        getattr(rust_core, "benchmark_joint_calib_trial_py", None) if rust_core else None
+    )
+    if not rust_available() or fn is None:
+        raise RuntimeError("benchmark_joint_calib_trial requires _core")
+    return float(fn())
+
+
 def evaluate_with_replicates(
     p_short: float,
     q10: float,
@@ -85,36 +127,23 @@ def evaluate_with_replicates(
     seeds: Sequence[int],
     *,
     include_ac2_11a: bool = False,
-    ac2_11a_on_promising_only: bool = True,
 ) -> dict[str, tuple[float, float]]:
-    """Mean and SEM over K seeds for Ax raw_data fields."""
-    rows: list[JointCalibTrialResult] = []
-    for seed in seeds:
-        rows.append(
-            evaluate_joint_calib_trial(
-                p_short,
-                q10,
-                delta_c,
-                int(seed),
-                include_ac2_11a=False,
-            )
-        )
+    """Mean and SEM for Ax: fast metrics once; ac2_11a over K seeds when enabled."""
+    fast = evaluate_joint_calib_trial(
+        p_short, q10, delta_c, int(seeds[0]), include_ac2_11a=False
+    )
 
-    if rows[0].rejected_ac2_19:
+    if fast.rejected_ac2_19:
         return {
-            "ac2_19_margin": (rows[0].ac2_19_margin, 0.0),
+            "ac2_19_margin": (fast.ac2_19_margin, 0.0),
             "session_f": (REJECTED_OBJECTIVE, 0.0),
             "p50": (0.0, 0.0),
             "pct_60_90": (0.0, 0.0),
-            "ac2_11a_ratio": (0.0, 0.0),
-            "rejected": (1.0, 0.0),
+            "ac2_11a_ratio": (REJECTED_OBJECTIVE, 0.0),
         }
 
-    promising = (
-        rows[0].session_f >= 0.55 and rows[0].p50 >= 0.65 and rows[0].pct_60_90 >= 0.45
-    )
     ac2_11a_values: list[float] = []
-    if include_ac2_11a and (not ac2_11a_on_promising_only or promising):
+    if include_ac2_11a:
         for seed in seeds:
             row = evaluate_joint_calib_trial(
                 p_short,
@@ -127,14 +156,13 @@ def evaluate_with_replicates(
                 ac2_11a_values.append(row.ac2_11a_ratio)
 
     return {
-        "ac2_19_margin": (rows[0].ac2_19_margin, 0.0),
-        "session_f": replicate_mean_sem([r.session_f for r in rows]),
-        "p50": replicate_mean_sem([r.p50 for r in rows]),
-        "pct_60_90": replicate_mean_sem([r.pct_60_90 for r in rows]),
+        "ac2_19_margin": (fast.ac2_19_margin, 0.0),
+        "session_f": (fast.session_f, 0.0),
+        "p50": (fast.p50, 0.0),
+        "pct_60_90": (fast.pct_60_90, 0.0),
         "ac2_11a_ratio": (
             replicate_mean_sem(ac2_11a_values) if ac2_11a_values else (0.0, 0.0)
         ),
-        "rejected": (0.0, 0.0),
     }
 
 
@@ -157,4 +185,12 @@ def ax_parameter_configs() -> list[Any]:
             parameter_type="float",
             bounds=(-3.0, 1.0),
         ),
+    ]
+
+
+def ax_outcome_constraints() -> list[str]:
+    return [
+        f"session_f >= {SESSION_F_MIN}",
+        f"p50 >= {TRUTH_P50_MIN}",
+        f"pct_60_90 >= {TRUTH_PCT_MIN}",
     ]
