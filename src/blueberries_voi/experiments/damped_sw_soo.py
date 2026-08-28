@@ -16,7 +16,7 @@ from blueberries_voi.sim.shipments import default_shipments, smoke_cool_shipment
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-TUNE_ARM = "sw"
+DEFAULT_TUNE_ARM = "sw"
 
 
 @dataclass(frozen=True)
@@ -57,12 +57,14 @@ def soo_job_payload(
     rho: float,
     root_seed: int,
     budgets: DampedSwSooBudgets,
+    tune_arm: str = DEFAULT_TUNE_ARM,
 ) -> dict[str, Any]:
     return {
         "trial_index": int(trial_index),
         "alpha": float(alpha),
         "rho": float(rho),
         "root_seed": int(root_seed),
+        "tune_arm": str(tune_arm),
         **budgets.to_dict(),
     }
 
@@ -71,6 +73,8 @@ def build_soo_jobs(
     trials: Mapping[int, Mapping[str, object]],
     seeds: Sequence[int],
     budgets: DampedSwSooBudgets,
+    *,
+    tune_arm: str = DEFAULT_TUNE_ARM,
 ) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     for trial_index, params in trials.items():
@@ -84,6 +88,7 @@ def build_soo_jobs(
                     rho=rho,
                     root_seed=int(seed),
                     budgets=budgets,
+                    tune_arm=tune_arm,
                 )
             )
     return jobs
@@ -114,8 +119,9 @@ def run_soo_shard(job: Mapping[str, Any]) -> dict[str, Any]:
             waste_cost=float(job["waste_cost"]),
             stockout_penalty=float(job["stockout_penalty"]),
         )
+        tune_arm = str(job.get("tune_arm", DEFAULT_TUNE_ARM))
         out = evaluate_alpha_episode_outcomes(
-            TUNE_ARM,
+            tune_arm,
             float(job["alpha"]),
             int(job["root_seed"]),
             rho=float(job["rho"]),
@@ -233,7 +239,7 @@ def evaluate_soo_jobs(
 
 
 __all__ = [
-    "TUNE_ARM",
+    "DEFAULT_TUNE_ARM",
     "DampedSwSooBudgets",
     "aggregate_soo_shards",
     "build_soo_jobs",

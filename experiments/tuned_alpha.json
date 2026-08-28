@@ -3,7 +3,7 @@
     "constant": 0.5,
     "rung0": 0.95,
     "sw": 0.95,
-    "sla_pb": 0.95,
+    "sla_pb": 0.5615826814442414,
     "sla_mc": 0.95,
     "rollout": 0.95,
     "dp": 0.9
@@ -38,6 +38,9 @@
       "rung0": 8.7,
       "sw": 9.8
     },
-    "rollout_not_tuned": true
+    "rollout_not_tuned": true,
+    "sla_pb_bo_source": "experiments/sla_pb_alpha_bo.json",
+    "sla_pb_bo_alpha": 0.5615826814442414,
+    "sla_pb_bo_rho": 0.5
   }
 }
