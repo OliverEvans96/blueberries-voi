@@ -11,12 +11,12 @@
   "arm_rhos": {
     "constant": 0.8,
     "sw": 0.8,
-    "sla_pb": 0.5
+    "sla_pb": 0.8
   },
   "arm_alphas": {
-    "constant": 0.5,
-    "sw": 0.95,
-    "sla_pb": 0.5615826814442414
+    "constant": 0.9,
+    "sw": 0.9,
+    "sla_pb": 0.9
   },
   "filtered_modal_wall_s": 38.70348052700865,
   "filtered_shards": 30
