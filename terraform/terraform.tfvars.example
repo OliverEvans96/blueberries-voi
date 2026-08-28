@@ -6,3 +6,6 @@
 enable_github_actions = true
 github_owner          = "OliverEvans96"
 github_repository     = "blueberries-voi"
+
+# Optional — default matches wrangler / Cloudflare Pages project name.
+# studio_pages_project_name = "blueberries-voi-studio"
