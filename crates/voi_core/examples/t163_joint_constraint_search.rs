@@ -14,7 +14,7 @@ use voi_core::arrival::{ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR
 use voi_core::demand_profile::DemandProfile;
 use voi_core::EngineSession;
 
-use common::{ac2_19_min_margin, apply_config, grid_size, par_map_grid};
+use common::{ac2_19_min_margin, configured_model, grid_size, par_map_grid};
 
 const N_TRUTH: usize = 400;
 const AC2_11A_MIN_RATIO: f64 = 2.18;
@@ -145,8 +145,7 @@ fn main() {
     eprintln!("phase1: {total} configs");
 
     let phase1: Vec<Phase1Row> = par_map_grid("phase1", |(p_short, q10, delta_c)| {
-        let mut model = ArrivalModel::embedded();
-        apply_config(&mut model, p_short, q10, delta_c);
+        let mut model = configured_model(p_short, q10, delta_c);
         let ac2_19_margin = ac2_19_min_margin(&mut model);
         let (p50, pct_60_90) = truth_band(&model);
         let session_f = session_weighted_mean_f(&model);
@@ -188,8 +187,7 @@ fn main() {
     let mut best_ratio = Vec::new();
     for (i, row) in fast_pass.iter().enumerate() {
         eprintln!("phase2: {}/{}", i + 1, fast_pass.len());
-        let mut model = ArrivalModel::embedded();
-        apply_config(&mut model, row.p_short, row.q10, row.delta_c);
+        let mut model = configured_model(row.p_short, row.q10, row.delta_c);
         let ratio = ac2_11a_ratio(&mut model);
         let json_row = json!({
             "p_short": row.p_short,
