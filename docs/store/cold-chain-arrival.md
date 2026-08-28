@@ -60,7 +60,7 @@ $$
 d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})
 $$
 
-$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor.
+$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor. With probability 0.78 the draw resamples a provenance shipment duration (plus Gaussian noise) from the pool for the **resolved leaf** corridor — S2 only for `short_haul`, S1 and S3–S6 for `long_haul`, all six for `abdella_all` — so the categorical regime choice controls duration in every draw, not only the analytic gamma tail.
 
 ### Cold-chain path and breaks
 

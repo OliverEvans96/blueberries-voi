@@ -30,6 +30,11 @@ const ABDELLA_EMPIRICAL_D: [f64; 6] = [
     6.513_888_888_888_888,
     4.083_333_333_333_333,
 ];
+/// Provenance shipment indices for regime-aware empirical duration resampling
+/// (`short_haul` = S2; `long_haul` = S1, S3–S6; `abdella_all` = pooled six).
+const ABDELLA_EMPIRICAL_SHORT_HAUL: [usize; 1] = [1];
+const ABDELLA_EMPIRICAL_LONG_HAUL: [usize; 5] = [0, 2, 3, 4, 5];
+const ABDELLA_EMPIRICAL_ALL: [usize; 6] = [0, 1, 2, 3, 4, 5];
 /// Small mix of empirical Abdella durations restores `Var(log d) ≈ 0.205` (ADR 0150 §5)
 /// while bottom-up stage gammas keep the pooled gamma mean/var (S1.1).
 const DURATION_EMPIRICAL_MIX: f64 = 0.78;
@@ -1156,21 +1161,40 @@ impl ArrivalModel {
         taus
     }
 
+    /// Abdella shipment indices used by the empirical duration overlay for a leaf corridor.
+    fn abdella_empirical_duration_indices(corridor_key: &str) -> Option<&'static [usize]> {
+        match corridor_key {
+            "abdella_all" => Some(&ABDELLA_EMPIRICAL_ALL),
+            "short_haul" => Some(&ABDELLA_EMPIRICAL_SHORT_HAUL),
+            "long_haul" => Some(&ABDELLA_EMPIRICAL_LONG_HAUL),
+            _ => None,
+        }
+    }
+
     /// Bottom-up Abdella stage_gamma construction: `d = Σ_k (w_k·d_min + e_k)` with
     /// independent per-leg `stage_gamma` draws `e_k ~ Gamma(w_k·a, b)`, yielding the
     /// pooled `d_min + Gamma(a, b)` law.
+    ///
+    /// With probability [`DURATION_EMPIRICAL_MIX`], resamples a provenance shipment duration
+    /// (plus Gaussian noise) from the pool for `corridor_key` — not the unconditional
+    /// six-shipment pool — so a resolved `short_haul` / `long_haul` regime controls duration
+    /// in every draw, not only the analytic tail.
     pub fn draw_bottom_up_duration<R: Rng + ?Sized>(
         &self,
-        corridor: &ArrivalCorridor,
+        corridor_key: &str,
         rng: &mut R,
     ) -> f64 {
+        let corridor = self.corridor(corridor_key);
         if rng.random::<f64>() < DURATION_EMPIRICAL_MIX {
-            let idx = (rng.random::<f64>() * ABDELLA_EMPIRICAL_D.len() as f64).floor() as usize;
-            let base = ABDELLA_EMPIRICAL_D[idx.min(ABDELLA_EMPIRICAL_D.len() - 1)];
-            let noise = Normal::new(0.0, DURATION_EMPIRICAL_NOISE_D)
-                .expect("empirical duration noise")
-                .sample(rng);
-            return (base + noise).max(1e-6);
+            if let Some(indices) = Self::abdella_empirical_duration_indices(corridor_key) {
+                let pick = (rng.random::<f64>() * indices.len() as f64).floor() as usize;
+                let idx = indices[pick.min(indices.len() - 1)];
+                let base = ABDELLA_EMPIRICAL_D[idx];
+                let noise = Normal::new(0.0, DURATION_EMPIRICAL_NOISE_D)
+                    .expect("empirical duration noise")
+                    .sample(rng);
+                return (base + noise).max(1e-6);
+            }
         }
         let mut total = 0.0;
         for leg in &self.legs {
@@ -1353,8 +1377,7 @@ impl ArrivalModel {
         rng_regime: &mut R,
     ) -> f64 {
         let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
-        let corridor = self.corridor(&resolved_key);
-        let d = self.draw_bottom_up_duration(corridor, rng_duration);
+        let d = self.draw_bottom_up_duration(&resolved_key, rng_duration);
         let taus = self.draw_break_taus(d, rng_temp);
         let lot_lambda = self.lambda_from_breaks(d, &taus);
         let psi_pos = self.draw_psi_pos(rng_pos);
@@ -1408,8 +1431,7 @@ impl ArrivalModel {
         rng_regime: &mut R,
     ) -> TruthDeliveryDraw {
         let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
-        let corridor = self.corridor(&resolved_key);
-        let duration_d = self.draw_bottom_up_duration(corridor, rng_duration);
+        let duration_d = self.draw_bottom_up_duration(&resolved_key, rng_duration);
         let (trace, lot_lambda) =
             self.draw_transit_for_corridor(duration_d, &resolved_key, temp_bias_c, rng_temp);
         let pack_date_days = duration_d.round() as i32;
@@ -1454,16 +1476,16 @@ impl ArrivalModel {
         rng_regime: &mut R,
     ) -> TruthMultilotDraw {
         let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
-        let corridor = self.corridor(&resolved_key);
         let arrivals_by = split_delivery_qty(n, LOTS_PER_DELIVERY);
-        let shared_d =
-            (self.draw_bottom_up_duration(corridor, rng_duration) * SHARED_LEG_FRAC).max(0.5);
+        let shared_d = (self.draw_bottom_up_duration(&resolved_key, rng_duration) * SHARED_LEG_FRAC)
+            .max(0.5);
         let (shared_template, _) =
             self.draw_transit_for_corridor(shared_d, &resolved_key, temp_bias_c, rng_temp);
         let mut upstream_ds = Vec::with_capacity(LOTS_PER_DELIVERY);
         for _ in 0..LOTS_PER_DELIVERY {
             upstream_ds.push(
-                (self.draw_bottom_up_duration(corridor, rng_duration) * (1.0 - SHARED_LEG_FRAC))
+                (self.draw_bottom_up_duration(&resolved_key, rng_duration)
+                    * (1.0 - SHARED_LEG_FRAC))
                     .max(0.5),
             );
         }
