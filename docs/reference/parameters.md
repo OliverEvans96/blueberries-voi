@@ -211,7 +211,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:209` (`rho`) |
 | Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:212` (`tau_bar`) |
 | Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
-| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1247` ([`thermal_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.thermal_nodes)) |
+| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
 | Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
 | Default mixture (`abdella_mix`) | 0.8 × `short_haul` + 0.2 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
 | Pooled `abdella_all` | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |

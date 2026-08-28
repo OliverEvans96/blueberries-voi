@@ -171,7 +171,7 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1001` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
 | Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:732` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
 | Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:764` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
-| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1247` ([`thermal_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.thermal_nodes)) |
+| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
 | Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
 | Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:923` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
 | Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:935` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
