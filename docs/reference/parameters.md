@@ -70,17 +70,26 @@ With the defaults $k = 2.0$ and $\eta_\text{ref} = 14$ reference-days, $\theta =
 0.035714$, giving a mean daily loss of $k\theta = 1/14 \approx 0.0714$ freshness units per
 reference-day at the reference temperature $T_\text{ref}$.
 
-Temperature accelerates aging through a Q10 factor, shared by the in-store clock and the
-arrival (transit) clock:
+Temperature accelerates aging through a Q10 factor, using the same functional form for
+both the in-store clock and the arrival (transit) clock:
 
 $$
 \phi(T) = Q_{10}^{\,(T - T_\text{ref})/10}
 $$
 
 where $Q_{10}$ (`q10`) is the rate multiplier per 10°C of warming and $T_\text{ref}$
-(`t_ref_c`) is the shared zero point of the thermal scale. In store, the daily decrement draw
+(`t_ref_c`) is the zero point of the thermal scale. In store, the daily decrement draw
 is $\text{Gamma}(k\cdot\phi(T_\text{store}),\,\theta)$ — a *shape*-scaled gamma, not a
 scale-scaled one (see below).
+
+**`q10` and `t_ref_c` are *not* kept in sync at runtime**, unlike `eta_ref` (below).
+`ModelParams::default()` and the embedded arrival artifact both start at `q10 = 2.0`, but
+changing the studio's Q10 slider only ever updates `self.params.q10` (in-store aging); it
+is deliberately never copied onto the arrival model, because doing so would invalidate the
+compile-time-baked Prior CDF on every studio init (see
+[cold-chain arrival](/store/cold-chain-arrival)). If you want to test a different transit
+Q10, it has to be set on the arrival artifact directly — there is no live studio control
+for it.
 
 For a delivered lot, cumulative thermal exposure over the transit leg is built from a
 **temperature path**, not a single mean-temperature draw. Calendar duration is
@@ -105,9 +114,11 @@ $\text{Gamma}(k\cdot\Lambda,\,\theta)$ — the same shape-scaled family as the i
 
 Under ADR 0149 each delivery targets **three lots** with
 $\Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}$; total units per
-delivery are split across lots, not multiplied. A planned v2 upgrade (see
-[cold-chain arrival](/store/cold-chain-arrival)) will add bottom-up stage durations, trip
-thermal modes, and hourly path noise while keeping this break law.
+delivery are split across lots, not multiplied. Duration itself is drawn either from a
+bottom-up per-leg gamma matching the corridor's shape/scale, or (78% of the time) resampled
+directly from the six real Abdella shipment durations plus noise — see
+[cold-chain arrival](/store/cold-chain-arrival) for the mechanism and why it matters for how
+much a corridor (or corridor mixture) actually controls duration.
 
 ## Why it's modeled this way
 
@@ -145,22 +156,22 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Reference life | $\eta_\text{ref}$ | 14.0 | reference-days | Shelf-life scale at $T_\text{ref}$; fixes mean daily loss jointly with $k$ | `crates/voi_core/src/params.rs:40` |
-| Gamma shape | $k$ | 2.0 | — | Shape of the daily/arrival gamma decrement draw | `crates/voi_core/src/params.rs:50` |
-| Gamma scale | $\theta$ | $1/28\approx0.035714$ (derived) | — | $\theta = 1/(k\cdot\eta_\text{ref})$; recomputed by `set_reference_life()` | `crates/voi_core/src/params.rs:62-64` |
-| Q10 coefficient | $Q_{10}$ | 2.0 | ×/10°C | Rate multiplier per 10°C above $T_\text{ref}$ | `crates/voi_core/src/params.rs:41` |
-| Reference temperature | $T_\text{ref}$ | 0.0 | °C | Shared zero point of the thermal-exposure scale | `crates/voi_core/src/params.rs:42` |
-| Store temperature | $T_\text{store}$ | 4.0 | °C | Assumed constant retail-display temperature | `crates/voi_core/src/params.rs:43` |
-| Picking exponent | $\sigma$ | 0.5 | — | Power-law freshness-selectivity in picking weights, $w \propto f^\sigma$ | `crates/voi_core/src/params.rs:44`, `crates/voi_core/src/physics.rs:360-368` |
+| Reference life | $\eta_\text{ref}$ | 14.0 | reference-days | Shelf-life scale at $T_\text{ref}$; fixes mean daily loss jointly with $k$ | `crates/voi_core/src/params.rs:24` |
+| Gamma shape | $k$ | 2.0 | — | Shape of the daily/arrival gamma decrement draw | `crates/voi_core/src/params.rs:49` |
+| Gamma scale | $\theta$ | $1/28\approx0.035714$ (derived) | — | $\theta = 1/(k\cdot\eta_\text{ref})$; recomputed by `set_reference_life()` | `crates/voi_core/src/params.rs:86-90` |
+| Q10 coefficient | $Q_{10}$ | 2.0 | ×/10°C | Rate multiplier per 10°C above $T_\text{ref}$ | `crates/voi_core/src/params.rs:27` |
+| Reference temperature | $T_\text{ref}$ | 0.0 | °C | Shared zero point of the thermal-exposure scale | `crates/voi_core/src/params.rs:29` |
+| Store temperature | $T_\text{store}$ | 4.0 | °C | Assumed constant retail-display temperature | `crates/voi_core/src/params.rs:31` |
+| Picking exponent | $\sigma$ | 0.5 | — | Power-law freshness-selectivity in picking weights, $w \propto f^\sigma$ | `crates/voi_core/src/params.rs:35`, `crates/voi_core/src/physics.rs:360-368` |
 
 ### Demand and logistics
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Demand mean | $\mu$ | 30.0 | units/day | Negative-binomial mean demand: flat legacy default `demand_mu`; the calendar profile's own scale is the separate `scale_target_mu` field | `crates/voi_core/src/params.rs:45` (`demand_mu`); `crates/voi_core/src/demand_profile.rs:106` ([`scale_target_mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu)); `data/freshnet/demand_profile.json` |
-| Demand variance-to-mean | $V/M$ | 2.0 | — | NB dispersion: variance $= (V/M)\times$ mean | `crates/voi_core/src/params.rs:46`; `data/freshnet/demand_profile.json` |
-| Case size | — | 8 | units/case | Orders round up to whole cases | `crates/voi_core/src/params.rs:47` |
-| Units per lot | — | 15 | units/lot | Virtual grid width per delivered lot on the $L\times U$ truth/filter grid | `crates/voi_core/src/params.rs:9,53` |
+| Demand mean | $\mu$ | 30.0 | units/day | Negative-binomial mean demand: flat legacy default `demand_mu`; the calendar profile's own scale is the separate `scale_target_mu` field | `crates/voi_core/src/params.rs:37` (`demand_mu`); `crates/voi_core/src/demand_profile.rs:106` ([`scale_target_mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu)); `data/freshnet/demand_profile.json` |
+| Demand variance-to-mean | $V/M$ | 2.0 | — | NB dispersion: variance $= (V/M)\times$ mean | `crates/voi_core/src/params.rs:39` (`demand_vm`); `data/freshnet/demand_profile.json` |
+| Case size | — | 8 | units/case | Orders round up to whole cases | `crates/voi_core/src/params.rs:41` |
+| Units per lot | — | 15 | units/lot | Virtual grid width per delivered lot on the $L\times U$ truth/filter grid | `crates/voi_core/src/params.rs:10,53` |
 | Lead time | — | 1 | days | Days between order placement and delivery | `crates/voi_core/src/session.rs:113` |
 | Delivery weekdays | — | Mon, Wed, Fri | weekday set | Calendar days deliveries can arrive on | `crates/voi_core/src/schedule.rs:10-13` |
 
@@ -168,7 +179,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Belief lot count | $L$ | 10 | lots | Virtual lot slots tracked in the flattened belief | `crates/voi_core/src/params.rs:6`; `crates/voi_core/src/session.rs:121` |
+| Belief lot count | $L$ | 10 | lots | Virtual lot slots tracked in the flattened belief | `crates/voi_core/src/params.rs:7`; `crates/voi_core/src/session.rs:121` |
 | Belief histogram bins | $K$ | 4 | bins | Freshness histogram bins per lot slot | `crates/voi_core/src/session.rs:122` (studio session default); `crates/voi_core/src/session.rs:1163` (RPC default) |
 | Particle count | $N$ | 200 | particles | Particles in the unit-level particle filter's belief bank | Studio (TS) `web/src/controls.ts:133`; RPC default `crates/voi_core/src/session.rs:1066` |
 
@@ -204,14 +215,14 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at −1.65 / 0.58 / 2.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); flat −2.0 °C shift from earlier compressed anchors under unified $\eta_\text{ref}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:199` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
-| Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Unified with in-store $\eta_\text{ref}$; studio η_ref slider drives both clocks; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
-| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Shared thermal scale for transit exposure and in-store aging | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:41` |
+| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at −1.65 / 0.58 / 2.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); flat −2.0 °C shift from earlier compressed anchors under unified $\eta_\text{ref}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:230` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Actively kept unified with in-store $\eta_\text{ref}$; the studio η_ref slider drives both clocks via `set_reference_life_days`; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
+| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Same default as in-store $Q_{10}$, but **not** actively synced — see the Q10 caveat above | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:41` |
 | Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:206` (`t_break`) |
 | Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:209` (`rho`) |
 | Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:212` (`tau_bar`) |
 | Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
-| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
+| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature (recurses into mixture components) | `crates/voi_core/src/arrival.rs:1567` (`thermal_nodes_for_key`) |
 | Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
 | Default mixture (`abdella_mix`) | 0.8 × `short_haul` + 0.2 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
 | Pooled `abdella_all` | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
@@ -230,7 +241,13 @@ that live in TypeScript and are not part of `ModelParams` itself.
   engine's shelf-life calibration.
 - `abdella_mix` (80% `short_haul` / 20% `long_haul`) is the production default corridor;
   `abdella_all` remains the moment-matched pooled Abdella fit. Studio no longer exposes haul
-  chips as first-class arrival lanes.
+  chips as first-class arrival lanes. The 80/20 weighting only fully applies to the minority
+  (22%) of duration draws that use the analytic per-component family — see
+  [cold-chain arrival](/store/cold-chain-arrival) for the empirical-resampling mechanism that
+  governs the rest.
+- `q10` (in-store and arrival) share a default value but are **not** actively kept in sync —
+  changing the studio Q10 slider only affects in-store aging. `eta_ref` (reference life) *is*
+  actively kept in sync between the two. Don't assume the two knobs behave the same way.
 - Break parameters $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario
   knobs** — the six Abdella shipments are clean chains with no observed breaks. Corridor
   durations are fit; leg setpoints are anchored to the break-free $\bar\varphi$ centre;
