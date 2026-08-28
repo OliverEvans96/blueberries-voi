@@ -1978,6 +1978,16 @@ impl ArrivalModel {
         self.rebuild_marginal_cdf_prior(true);
     }
 
+    /// Diagnostic-only: rebuild the filter prior and clear F2/F3 caches from the current
+    /// model fields (joint calibration grid search). Production paths should use
+    /// [`set_corridor`](Self::set_corridor) or [`set_reference_life_days`](Self::set_reference_life_days)
+    /// so only the knobs that actually changed pay for a rebuild.
+    pub fn refresh_filter_laws(&mut self) {
+        self.f2_cache.clear();
+        self.f3_cache.clear();
+        self.rebuild_marginal_cdf_prior(false);
+    }
+
     /// The corridor the filter prior and F2/F3 caches are currently built against.
     pub fn active_corridor(&self) -> &str {
         &self.active_corridor

@@ -236,6 +236,17 @@ impl EngineSession {
         }
     }
 
+    /// Diagnostic-only: replace the embedded arrival model (joint calibration search).
+    pub fn with_arrival_model(seed: u64, arrival_model: ArrivalModel) -> Self {
+        let mut sess = Self::new(seed);
+        let product = sess.arrival_product.clone();
+        sess.arrival_model = arrival_model;
+        sess.arrival_model.set_corridor(&product);
+        sess.params.q10 = sess.arrival_model.q10;
+        sess.gamma_table = crate::physics::GammaDecrementTable::for_params(&sess.params);
+        sess
+    }
+
     /// Rebuilds the session to a fresh episode at the given seed and marks it
     /// initialized. Must be called (directly or via `reset`) before `step`/`act`;
     /// re-applies the committed demand profile and re-seeds the particle bank so a
