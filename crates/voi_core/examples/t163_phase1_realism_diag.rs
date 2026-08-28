@@ -786,9 +786,6 @@ fn postfix_decay_only_refinement(base: &ArrivalModel) -> serde_json::Value {
 /// the real `abdella_mix` mixture (`DEFAULT_ARRIVAL_CORRIDOR`) and its regime stream.
 fn final_production_default_summary(n: usize, seed: u64) -> serde_json::Value {
     let model = ArrivalModel::embedded();
-    let short_mean = model.mean_delay_for_corridor("short_haul");
-    let long_mean = model.mean_delay_for_corridor("long_haul");
-    let regime_threshold = (short_mean + long_mean) / 2.0;
 
     let mut rng_d = Pcg64::seed_from_u64(seed);
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
@@ -818,12 +815,10 @@ fn final_production_default_summary(n: usize, seed: u64) -> serde_json::Value {
                 .sum::<f64>()
                 / total as f64,
         );
-        let delivery_duration =
-            draw.lots.iter().map(|lot| lot.duration_d).sum::<f64>() / draw.lots.len() as f64;
-        if delivery_duration < regime_threshold {
-            n_short += 1;
-        } else {
-            n_long += 1;
+        match draw.resolved_regime_key.as_str() {
+            "short_haul" => n_short += 1,
+            "long_haul" => n_long += 1,
+            other => panic!("unexpected resolved regime key: {other}"),
         }
     }
 

@@ -13,19 +13,17 @@ if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
 # T-150 f-native arrival physics; schema-2 arrival_model.json (v2 generative drift).
-# T-163 freshness calibration (reference_life_days=20, decoupled from eta_ref=14).
-# Reduced from 26 (T-163 Phase 1 follow-up, 2026-08-27) after fixing a multilot
-# shared-leg duration construction bug that had inflated every lot's duration/exposure
-# ~1.28x versus the moment-matched corridor -- see
-# notebooks/t163_phase1_freshness_realism.ipynb.
+# T-163: q10 3.0→2.0 session-wide (abdella_mix defaults, eta_ref=14).
+# Recomputed from run_voi_crn_cell(root_seed=1, beta=2.0, n_burn=2, n_score=8) on
+# 2026-08-28 after corridor-mixture + q10 recalibration.
 _T150_BASELINE: dict[str, float] = {
-    "P0": 239.5,
-    "P1": 239.5,
-    "F1": 239.5,
-    "F1s": 239.5,
-    "F2a": 239.5,
-    "F2": 239.5,
-    "B-state": 239.5,
+    "P0": 204.5,
+    "P1": 204.5,
+    "F1": 201.0,
+    "F1s": 201.0,
+    "F2a": 234.5,
+    "F2": 234.5,
+    "B-state": 234.5,
 }
 
 

@@ -123,6 +123,8 @@ pub struct TruthMultilotDraw {
     pub arrivals_by: Vec<u32>,
     /// Shared DC→store trace appended to every lot (identical tail).
     pub shared_trace: ShipmentTrace,
+    /// Leaf corridor key after mixture resolution (e.g. `short_haul` / `long_haul`).
+    pub resolved_regime_key: String,
 }
 
 /// One truth-path delivery: a single duration draw and one cold-chain break realization
@@ -1471,6 +1473,7 @@ impl ArrivalModel {
             lots,
             arrivals_by,
             shared_trace,
+            resolved_regime_key: resolved_key,
         }
     }
 
