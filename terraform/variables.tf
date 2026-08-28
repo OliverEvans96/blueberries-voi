@@ -33,3 +33,9 @@ variable "github_token" {
   default     = null
   nullable    = true
 }
+
+variable "studio_pages_project_name" {
+  description = "Cloudflare Pages project for studio PR previews and direct uploads."
+  type        = string
+  default     = "blueberries-voi-studio"
+}

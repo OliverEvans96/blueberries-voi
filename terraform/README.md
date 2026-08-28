@@ -1,6 +1,6 @@
-# Terraform (GitHub Actions secrets)
+# Terraform (GitHub Actions secrets + Cloudflare Pages)
 
-Mirrors the [personal-website](https://github.com/OliverEvans96/personal-website) pattern: SOPS-encrypted values in [`secrets/`](../secrets/) sync to GitHub Actions secrets via Terraform — no manual pasting in the GitHub UI.
+Mirrors the [personal-website](https://github.com/OliverEvans96/personal-website) pattern: SOPS-encrypted values in [`secrets/`](../secrets/) sync to GitHub Actions secrets via Terraform — no manual pasting in the GitHub UI. Cloudflare Pages infrastructure for studio PR previews is provisioned in the same root module.
 
 ## Prerequisites
 
@@ -17,7 +17,9 @@ cp terraform.tfvars.example terraform.tfvars
 
 Set `enable_github_actions = true` and the target `github_owner` / `github_repository`.
 
-If you run `terraform apply` without `terraform.tfvars`, `enable_github_actions` stays **false** (the default). Terraform will only refresh the SOPS data source and outputs — **no GitHub Actions secrets are created or updated**. Copy the example file before your first real apply.
+Optional: override `studio_pages_project_name` (default `blueberries-voi-studio`) if the Cloudflare Pages project should use a different name.
+
+If you run `terraform apply` without `terraform.tfvars`, `enable_github_actions` stays **false** (the default). Terraform will still plan the Cloudflare Pages project module and refresh the SOPS data source — **no GitHub Actions secrets or variables are created or updated**. Copy the example file before your first real apply.
 
 ## Apply
 
@@ -30,7 +32,18 @@ terraform init
 GITHUB_TOKEN=ghp_xxx terraform apply
 ```
 
-With `enable_github_actions = true`, Terraform creates/updates repository secret **`PERSONAL_WEBSITE_DISPATCH_PAT`** from SOPS. CI workflows in `packaging/github-workflows/` consume that secret for `repository_dispatch` to personal-website (docs and studio releases).
+With `enable_github_actions = true`, Terraform creates/updates:
+
+| GitHub resource | SOPS / tfvars source |
+|-----------------|----------------------|
+| Secret `PERSONAL_WEBSITE_DISPATCH_PAT` | SOPS |
+| Secret `CLOUDFLARE_API_TOKEN` | SOPS |
+| Secret `CLOUDFLARE_ACCOUNT_ID` | SOPS |
+| Variable `CLOUDFLARE_PAGES_PROJECT_NAME` | `studio_pages_project_name` |
+
+Terraform also creates the Cloudflare Pages project (`module.cloudflare_pages`). Outputs include `studio_pages_subdomain` (e.g. `blueberries-voi-studio.pages.dev`).
+
+CI workflows in `packaging/github-workflows/` consume these secrets/variables for personal-website dispatch and studio PR preview deploys.
 
 ## Workflow packaging (agent protocol)
 
@@ -44,4 +57,4 @@ GitHub Actions does **not** run symlinked workflow files — live `.github/workf
 
 ## Secret rotation
 
-See [secrets/README.md](../secrets/README.md). After updating `secrets/secrets.enc.yaml`, run `terraform apply` again to push the new value to GitHub.
+See [secrets/README.md](../secrets/README.md). After updating `secrets/secrets.enc.yaml`, run `terraform apply` again to push the new values to GitHub.
