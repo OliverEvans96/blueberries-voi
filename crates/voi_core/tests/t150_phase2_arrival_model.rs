@@ -1084,8 +1084,8 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
         );
     }
 
-    let mut model = ArrivalModel::embedded();
-    let mixed_mean = law_mean_f(&mut model, ArrivalCondition::Prior);
+    let mut default_model = ArrivalModel::embedded();
+    let default_prior_mean = law_mean_f(&mut default_model, ArrivalCondition::Prior);
 
     let abdella_only = json["corridors"]["abdella_all"].clone();
     let single_json = serde_json::json!({
@@ -1107,10 +1107,20 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     });
     let mut single = ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap())
         .expect("single corridor");
-    let single_mean = law_mean_f(&mut single, ArrivalCondition::Prior);
+    let abdella_all_only_mean = law_mean_f(&mut single, ArrivalCondition::Prior);
+
+    let mut model = ArrivalModel::embedded();
+    model.set_corridor("abdella_all");
+    let abdella_all_prior_mean = law_mean_f(&mut model, ArrivalCondition::Prior);
     assert!(
-        (mixed_mean - single_mean).abs() < 0.02,
-        "RED: P0 prior must not average corridors (mix_weight); mixed={mixed_mean:.4} abdella_only={single_mean:.4}"
+        (abdella_all_prior_mean - abdella_all_only_mean).abs() < 0.02,
+        "RED: set_corridor(abdella_all) prior must match single-corridor artifact; \
+         abdella_all_prior={abdella_all_prior_mean:.4} abdella_all_only={abdella_all_only_mean:.4}"
+    );
+    assert!(
+        (default_prior_mean - abdella_all_only_mean).abs() > 0.01,
+        "RED: default abdella_mix prior must differ from abdella_all-only; \
+         default={default_prior_mean:.4} abdella_all_only={abdella_all_only_mean:.4}"
     );
 }
 
@@ -1236,6 +1246,7 @@ fn ac2_12_within_lot_arrival_f_spread() {
     let params = ModelParams::default();
     let model = ArrivalModel::embedded();
     let mut rng = Pcg64::seed_from_u64(150_212);
+    let mut rng_regime = Pcg64::seed_from_u64(150_217);
     let units: Vec<f64> = model
         .draw_truth_delivery(
             "abdella_all",
@@ -1245,6 +1256,7 @@ fn ac2_12_within_lot_arrival_f_spread() {
             &mut Pcg64::seed_from_u64(150_214),
             &mut Pcg64::seed_from_u64(150_215),
             &mut Pcg64::seed_from_u64(150_216),
+            &mut rng_regime,
         )
         .unit_f;
 

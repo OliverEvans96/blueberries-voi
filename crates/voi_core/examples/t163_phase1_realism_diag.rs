@@ -13,7 +13,9 @@ use rand::{Rng, SeedableRng};
 use rand_distr::{Distribution, LogNormal};
 use rand_pcg::Pcg64;
 use serde_json::json;
-use voi_core::arrival::{split_delivery_qty, ArrivalCondition, ArrivalModel, LOTS_PER_DELIVERY};
+use voi_core::arrival::{
+    split_delivery_qty, ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR, LOTS_PER_DELIVERY,
+};
 
 /// Mirrors the private `SHARED_LEG_FRAC` in `crates/voi_core/src/arrival.rs` (line 38),
 /// whose own doc comment says "remainder is upstream per lot" — i.e. the documented
@@ -780,6 +782,71 @@ fn postfix_decay_only_refinement(base: &ArrivalModel) -> serde_json::Value {
     json!(rows)
 }
 
+/// Production-default realism: embedded artifact with zero overrides, truth drawn through
+/// the real `abdella_mix` mixture (`DEFAULT_ARRIVAL_CORRIDOR`) and its regime stream.
+fn final_production_default_summary(n: usize, seed: u64) -> serde_json::Value {
+    let model = ArrivalModel::embedded();
+    let short_mean = model.mean_delay_for_corridor("short_haul");
+    let long_mean = model.mean_delay_for_corridor("long_haul");
+    let regime_threshold = (short_mean + long_mean) / 2.0;
+
+    let mut rng_d = Pcg64::seed_from_u64(seed);
+    let mut rng_t = Pcg64::seed_from_u64(seed + 1);
+    let mut rng_p = Pcg64::seed_from_u64(seed + 2);
+    let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 4);
+
+    let mut delivery_means = Vec::with_capacity(n);
+    let mut n_short = 0usize;
+    let mut n_long = 0usize;
+    for _ in 0..n {
+        let draw = model.draw_truth_multilot_delivery_biased(
+            DEFAULT_ARRIVAL_CORRIDOR,
+            UNITS_PER_LOT,
+            0.0,
+            &mut rng_d,
+            &mut rng_t,
+            &mut rng_p,
+            &mut rng_g,
+            &mut rng_regime,
+        );
+        let total: usize = draw.lots.iter().map(|lot| lot.unit_f.len()).sum();
+        delivery_means.push(
+            draw.lots
+                .iter()
+                .flat_map(|lot| lot.unit_f.iter().copied())
+                .sum::<f64>()
+                / total as f64,
+        );
+        let delivery_duration =
+            draw.lots.iter().map(|lot| lot.duration_d).sum::<f64>() / draw.lots.len() as f64;
+        if delivery_duration < regime_threshold {
+            n_short += 1;
+        } else {
+            n_long += 1;
+        }
+    }
+
+    let (mean, p10, p50, p90, pct_below_0_5, pct_60_90) = summarize(delivery_means);
+    let n_f = n as f64;
+    json!({
+        "corridor": DEFAULT_ARRIVAL_CORRIDOR,
+        "n": n,
+        "mean": mean,
+        "p10": p10,
+        "p50": p50,
+        "p90": p90,
+        "pct_below_0_5": pct_below_0_5,
+        "pct_60_90": pct_60_90,
+        "regime_split": {
+            "short_haul_frac": n_short as f64 / n_f,
+            "long_haul_frac": n_long as f64 / n_f,
+            "short_haul_count": n_short,
+            "long_haul_count": n_long,
+        },
+    })
+}
+
 /// The final chosen candidate calibration: `eta_ref = 14`, `abdella_all` corridor and
 /// `q10 = 3.0` unchanged (no decay-rate or corridor-mix change needed — see notebook
 /// §10 for why the grid/mix searches above turned out not to beat this once the
@@ -863,6 +930,8 @@ fn main() {
     eprintln!("postfix_decay_only_refinement: {:?}", t0.elapsed());
     let final_candidate = final_candidate_summary(&model, 14.0, 2000);
     eprintln!("final_candidate_summary: {:?}", t0.elapsed());
+    let final_production_default = final_production_default_summary(2000, 980_001);
+    eprintln!("final_production_default_summary: {:?}", t0.elapsed());
 
     let out = json!({
         "artifact": artifact_summary,
@@ -884,6 +953,7 @@ fn main() {
         "postfix_mix_plus_decay_search": postfix_mix_decay,
         "postfix_decay_only_refinement": postfix_decay_refine,
         "final_candidate": final_candidate,
+        "final_production_default": final_production_default,
     });
 
     println!("{}", serde_json::to_string(&out).unwrap());
