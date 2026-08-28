@@ -18,6 +18,15 @@ fn empirical_quantiles(samples: &mut [f64]) -> (f64, f64, f64, f64) {
 }
 
 fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64> {
+    truth_arrival_f_samples_corridor(model, DEFAULT_ARRIVAL_CORRIDOR, n, seed)
+}
+
+fn truth_arrival_f_samples_corridor(
+    model: &ArrivalModel,
+    corridor_key: &str,
+    n: usize,
+    seed: u64,
+) -> Vec<f64> {
     let mut rng_d = Pcg64::seed_from_u64(seed);
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
@@ -26,7 +35,7 @@ fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
-                DEFAULT_ARRIVAL_CORRIDOR,
+                corridor_key,
                 45,
                 0.0,
                 &mut rng_d,
@@ -98,13 +107,16 @@ fn sync_params_preserves_artifact_arrival_reference_life() {
 }
 
 /// Prior birth law mean should track generative multilot mean (no systematic upward bias).
+/// Uses the pooled `abdella_all` corridor — mixture prior coherence is gated separately
+/// (`ac2_19_prior_single_corridor_no_mix_weight`).
 #[test]
 fn prior_mean_f_matches_generative_multilot() {
+    const CORRIDOR: &str = "abdella_all";
     let mut model = ArrivalModel::embedded();
     model.sync_params(&ModelParams::default());
-    let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_502);
+    let mut samples = truth_arrival_f_samples_corridor(&model, CORRIDOR, N_DRAWS, 163_502);
     let (truth_mean, _, _, _) = empirical_quantiles(&mut samples);
-    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, DEFAULT_ARRIVAL_CORRIDOR, 64);
+    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, CORRIDOR, 64);
     assert!(
         (prior.mean_f - truth_mean).abs() <= 0.03,
         "Prior mean_f={:.3} must track generative multilot mean {:.3} within 0.03",
