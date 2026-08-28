@@ -44,7 +44,7 @@ BeliefWorld = Literal["oracle", "filtered"]
 
 BAKEOFF_ARMS: tuple[str, ...] = ("constant", "rung0", "sw", "sla_pb")
 FILTERED_ARMS: tuple[str, ...] = ("constant", "sw", "sla_pb")
-FILTERED_OBS_PRESET: str = "P1"
+FILTERED_OBS_PRESET: str = "F3"
 DEFAULT_CONTROLLER_SEEDS: tuple[int, ...] = DEFAULT_ROLLOUT_SEEDS[:10]
 DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 14
