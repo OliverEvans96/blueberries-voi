@@ -52,6 +52,8 @@ PRODUCTION_N_SCORE = 45
 DEFAULT_RHO = 0.8
 DEFAULT_N_SLA_PATHS = 16
 DEFAULT_TUNED_ALPHA_PATH = "experiments/tuned_alpha.json"
+DEFAULT_TUNED_ALPHA_F3_PATH = "experiments/tuned_alpha_f3_filtered.json"
+DEFAULT_F3_FILTERED_BO_PATH = "experiments/f3_filtered_alpha_bo.json"
 DEFAULT_SLA_PB_BO_PATH = "experiments/sla_pb_alpha_bo.json"
 
 ARM_LABELS: dict[str, str] = {
@@ -65,12 +67,14 @@ __all__ = [
     "ARM_LABELS",
     "BAKEOFF_ARMS",
     "DEFAULT_CONTROLLER_SEEDS",
+    "DEFAULT_F3_FILTERED_BO_PATH",
     "DEFAULT_FILTER_N",
     "DEFAULT_N_BURN",
     "DEFAULT_N_SCORE",
     "DEFAULT_N_SLA_PATHS",
     "DEFAULT_RHO",
     "DEFAULT_SLA_PB_BO_PATH",
+    "DEFAULT_TUNED_ALPHA_F3_PATH",
     "DEFAULT_TUNED_ALPHA_PATH",
     "FILTERED_ARMS",
     "FILTERED_OBS_PRESET",
@@ -111,10 +115,35 @@ def arms_for_belief_world(belief_world: BeliefWorld | str) -> tuple[str, ...]:
     return BAKEOFF_ARMS
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _tuned_alpha_artifact_path(
+    alpha_table_path: Path | str | None,
+    *,
+    belief_world: BeliefWorld | str = "oracle",
+) -> Path:
+    if alpha_table_path is not None:
+        return Path(alpha_table_path)
+    world = str(belief_world).lower()
+    if world == "filtered":
+        env = os.environ.get("BLUEBERRIES_VOI_TUNED_ALPHA_F3")
+        if env:
+            return Path(env)
+        return _repo_root() / DEFAULT_TUNED_ALPHA_F3_PATH
+    env = os.environ.get("BLUEBERRIES_VOI_TUNED_ALPHA")
+    if env:
+        return Path(env)
+    return _repo_root() / DEFAULT_TUNED_ALPHA_PATH
+
+
 def _load_tuned_alpha_header(
     alpha_table_path: Path | str | None = None,
+    *,
+    belief_world: BeliefWorld | str = "oracle",
 ) -> dict[str, Any]:
-    path = Path(alpha_table_path or DEFAULT_TUNED_ALPHA_PATH)
+    path = _tuned_alpha_artifact_path(alpha_table_path, belief_world=belief_world)
     if not path.is_file():
         return {}
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -122,19 +151,43 @@ def _load_tuned_alpha_header(
     return dict(header) if isinstance(header, dict) else {}
 
 
+def _load_f3_bo_payload(
+    f3_bo_path: Path | str | None = None,
+) -> dict[str, Any]:
+    path = Path(f3_bo_path or _repo_root() / DEFAULT_F3_FILTERED_BO_PATH)
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+
+
+def _f3_arm_bo_entry(
+    arm_id: str,
+    *,
+    f3_bo_path: Path | str | None = None,
+) -> dict[str, Any]:
+    payload = _load_f3_bo_payload(f3_bo_path)
+    arms = payload.get("arms")
+    if not isinstance(arms, dict):
+        return {}
+    entry = arms.get(arm_id)
+    return dict(entry) if isinstance(entry, dict) else {}
+
+
 def resolve_arm_alpha(
     arm_id: str,
     *,
     alpha: float | None = None,
     alpha_table_path: Path | str | None = None,
+    belief_world: BeliefWorld | str = "oracle",
 ) -> float:
     """Per-arm tuned alpha when not overridden."""
     if alpha is not None:
         return float(alpha)
-    path = alpha_table_path or DEFAULT_TUNED_ALPHA_PATH
+    path = _tuned_alpha_artifact_path(alpha_table_path, belief_world=belief_world)
     try:
         table = require_tuned_alpha_table(path)
-    except (ValueError, OSError):
+    except (ValueError, OSError, FileNotFoundError):
         return 0.9
     if arm_id in table:
         return float(table[arm_id])
@@ -148,15 +201,29 @@ def resolve_arm_rho(
     default_rho: float = DEFAULT_RHO,
     alpha_table_path: Path | str | None = None,
     sla_pb_bo_path: Path | str | None = None,
+    f3_bo_path: Path | str | None = None,
+    belief_world: BeliefWorld | str = "oracle",
 ) -> float:
-    """Per-arm tuned rho when not overridden (``sla_pb`` SOO uses rho~0.5)."""
+    """Per-arm tuned rho when not overridden."""
     if rho is not None:
         return float(rho)
+    world = str(belief_world).lower()
+    if world == "filtered":
+        header = _load_tuned_alpha_header(
+            alpha_table_path, belief_world=belief_world
+        )
+        rhos = header.get("rhos")
+        if isinstance(rhos, dict) and arm_id in rhos and rhos[arm_id] is not None:
+            return float(rhos[arm_id])
+        entry = _f3_arm_bo_entry(arm_id, f3_bo_path=f3_bo_path)
+        if "best_rho" in entry:
+            return float(entry["best_rho"])
+        return float(default_rho)
     if arm_id == "sla_pb":
-        header = _load_tuned_alpha_header(alpha_table_path)
+        header = _load_tuned_alpha_header(alpha_table_path, belief_world=belief_world)
         if "sla_pb_bo_rho" in header:
             return float(header["sla_pb_bo_rho"])
-        bo_path = Path(sla_pb_bo_path or DEFAULT_SLA_PB_BO_PATH)
+        bo_path = Path(sla_pb_bo_path or _repo_root() / DEFAULT_SLA_PB_BO_PATH)
         if bo_path.is_file():
             payload = json.loads(bo_path.read_text(encoding="utf-8"))
             key = "best_rho_profit_soo"
@@ -321,12 +388,16 @@ def run_controller_eval(
         msg = "rung0 is oracle-only; excluded from filtered belief_world grid"
         raise ValueError(msg)
     arm_alpha = resolve_arm_alpha(
-        arm_id, alpha=alpha, alpha_table_path=alpha_table_path
+        arm_id,
+        alpha=alpha,
+        alpha_table_path=alpha_table_path,
+        belief_world=world,
     )
     arm_rho = resolve_arm_rho(
         arm_id,
         default_rho=DEFAULT_RHO,
         alpha_table_path=alpha_table_path,
+        belief_world=world,
     )
     score_days = _shard_n_score(arm_id, n_score, budgets)
     sla_paths = _shard_n_sla_paths(arm_id, n_sla_paths, budgets)
@@ -387,6 +458,8 @@ def controller_bakeoff_job_grid(
     *,
     alpha_table_path: Path | str | None = None,
     sla_pb_bo_path: Path | str | None = None,
+    f3_bo_path: Path | str | None = None,
+    belief_world: BeliefWorld | str = "oracle",
 ) -> list[tuple[int, str, float]]:
     """Cartesian product of seeds and arms with per-arm tuned rho."""
     return [
@@ -398,6 +471,8 @@ def controller_bakeoff_job_grid(
                 default_rho=float(rho),
                 alpha_table_path=alpha_table_path,
                 sla_pb_bo_path=sla_pb_bo_path,
+                f3_bo_path=f3_bo_path,
+                belief_world=belief_world,
             ),
         )
         for seed, arm in itertools.product(seeds, arms)

@@ -10,14 +10,14 @@
   },
   "arm_rhos": {
     "constant": 0.8,
-    "sw": 0.8,
-    "sla_pb": 0.8
+    "sw": 0.7093549234972596,
+    "sla_pb": 0.5
   },
   "arm_alphas": {
-    "constant": 0.9,
-    "sw": 0.9,
-    "sla_pb": 0.9
+    "constant": 0.1,
+    "sw": 0.8884534050211136,
+    "sla_pb": 0.9783958765478138
   },
-  "filtered_modal_wall_s": 38.70348052700865,
+  "filtered_modal_wall_s": 14.88312548599788,
   "filtered_shards": 30
 }

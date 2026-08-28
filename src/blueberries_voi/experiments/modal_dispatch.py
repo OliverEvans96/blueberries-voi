@@ -389,7 +389,15 @@ def _run_modal(
                 seeds = _smoke_seeds(seeds)
                 arms = (str(arms[0]),)
             budgets = _controller_bakeoff_budgets_dict(kwargs, smoke=smoke)
-            ctrl_grid = controller_bakeoff_job_grid(seeds, arms, rho)
+            # F3 tuned alpha/rho on remote via BLUEBERRIES_VOI_TUNED_ALPHA_F3.
+            budgets.pop("alpha_table_path", None)
+            ctrl_grid = controller_bakeoff_job_grid(
+                seeds,
+                arms,
+                rho,
+                belief_world=belief_world,
+                alpha_table_path=kwargs.get("alpha_table_path"),
+            )
             handles = [
                 controller_bakeoff_shard.spawn(seed, arm, rho_cell, budgets)
                 for seed, arm, rho_cell in ctrl_grid

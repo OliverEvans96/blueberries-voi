@@ -18,7 +18,13 @@ from blueberries_voi.experiments.controller_bakeoff import (
     arms_for_belief_world,
     controller_bakeoff_job_grid,
     merge_controller_bakeoff_rows,
+    resolve_arm_alpha,
     resolve_arm_rho,
+)
+from blueberries_voi.experiments.damped_sw_soo import (
+    DampedSwSooBudgets,
+    build_soo_jobs,
+    run_soo_shard,
 )
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_SEEDS,
@@ -443,3 +449,103 @@ def test_modal_app_wheel_path_relative_to_repo(
     assert app_mod.WHEEL_PATH.parent == wheel_dir.resolve()
     assert app_mod._TUNED_ALPHA.is_file()
     assert app_mod._REMOTE_TUNED_ALPHA == "/experiments/tuned_alpha.json"
+
+
+def test_f3_filtered_soo_job_payload_includes_belief_world() -> None:
+    budgets = DampedSwSooBudgets(
+        n_burn=2,
+        n_score=3,
+        lead_time=1,
+        unit_margin=2.0,
+        waste_cost=5.0,
+        stockout_penalty=3.0,
+        demand_mu=30.0,
+        demand_vm=2.0,
+        case_size=8,
+        use_calendar_demand=False,
+        demand_profile_path="",
+        use_abdella=True,
+        belief_world="filtered",
+        obs_preset="F3",
+    )
+    jobs = build_soo_jobs({0: {"alpha": 0.9, "rho": 0.8}}, [42], budgets, tune_arm="sw")
+    assert len(jobs) == 1
+    assert jobs[0]["belief_world"] == "filtered"
+    assert jobs[0]["obs_preset"] == "F3"
+    assert jobs[0]["tune_arm"] == "sw"
+
+
+@_RUST
+def test_run_soo_shard_filtered_f3_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    job = {
+        "trial_index": 0,
+        "alpha": 0.9,
+        "rho": 0.8,
+        "root_seed": 42,
+        "tune_arm": "constant",
+        "n_burn": 1,
+        "n_score": 2,
+        "belief_world": "filtered",
+        "obs_preset": "F3",
+        "filter_n": 24,
+        "unit_margin": 2.0,
+        "waste_cost": 5.0,
+        "stockout_penalty": 3.0,
+    }
+    out = run_soo_shard(job)
+    assert out["ok"] is True
+    assert isinstance(out["profit"], float)
+
+
+def test_resolve_arm_alpha_rho_filtered_f3_artifact(tmp_path: Path) -> None:
+    from blueberries_voi.sim.alpha_tune import save_tuned_alpha_table
+
+    f3_path = tmp_path / "tuned_alpha_f3_filtered.json"
+    save_tuned_alpha_table(
+        f3_path,
+        {"constant": 0.55, "sw": 0.88, "sla_pb": 0.72},
+        header={
+            "rhos": {"constant": 0.8, "sw": 0.75, "sla_pb": 0.55},
+        },
+    )
+    assert resolve_arm_alpha(
+        "sw", alpha_table_path=f3_path, belief_world="filtered"
+    ) == pytest.approx(0.88)
+    assert resolve_arm_rho(
+        "sla_pb", alpha_table_path=f3_path, belief_world="filtered"
+    ) == pytest.approx(0.55)
+    grid = controller_bakeoff_job_grid(
+        (42,),
+        ("sw", "sla_pb"),
+        0.8,
+        alpha_table_path=f3_path,
+        belief_world="filtered",
+    )
+    rhos = {arm: rho for _, arm, rho in grid}
+    assert rhos["sw"] == pytest.approx(0.75)
+    assert rhos["sla_pb"] == pytest.approx(0.55)
+
+
+def test_modal_f3_filtered_soo_grid_dry_run() -> None:
+    pytest.importorskip("modal")
+    budgets = DampedSwSooBudgets(
+        n_burn=2,
+        n_score=28,
+        lead_time=1,
+        unit_margin=2.0,
+        waste_cost=5.0,
+        stockout_penalty=3.0,
+        demand_mu=30.0,
+        demand_vm=2.0,
+        case_size=8,
+        use_calendar_demand=True,
+        demand_profile_path="/data/freshnet/demand_profile.json",
+        use_abdella=True,
+        belief_world="filtered",
+        obs_preset="F3",
+    )
+    trials = {0: {"alpha": 0.9, "rho": 0.8}, 1: {"alpha": 0.7, "rho": 0.6}}
+    jobs = build_soo_jobs(trials, [1, 2], budgets, tune_arm="sla_pb")
+    assert len(jobs) == 4
+    assert all(j["belief_world"] == "filtered" for j in jobs)

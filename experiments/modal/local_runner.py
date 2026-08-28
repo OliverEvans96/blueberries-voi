@@ -272,8 +272,15 @@ def run_controller_bakeoff_local(
     budget_kw = dict(budgets or {})
     for key in ("max_workers", "seeds", "arms", "rho", "progress"):
         budget_kw.pop(key, None)
-    budget_kw.setdefault("belief_world", "oracle")
-    grid = controller_bakeoff_job_grid(seeds, arms, rho)
+    belief_world = str(budget_kw.get("belief_world", "oracle"))
+    budget_kw.setdefault("belief_world", belief_world)
+    grid = controller_bakeoff_job_grid(
+        seeds,
+        arms,
+        rho,
+        belief_world=belief_world,
+        alpha_table_path=budget_kw.get("alpha_table_path"),
+    )
     tasks = [(seed, arm, arm_rho, dict(budget_kw)) for seed, arm, arm_rho in grid]
     total = len(tasks)
     log_line(f"controller_bakeoff local run: {total} jobs, workers={max_workers}")
