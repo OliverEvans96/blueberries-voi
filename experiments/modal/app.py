@@ -195,12 +195,12 @@ def controller_bakeoff_shard(
     from blueberries_voi.experiments.controller_bakeoff import run_controller_eval
 
     kw = dict(budgets_dict)
-    rho_kw = float(kw.pop("rho", rho))
+    kw.pop("rho", None)
     belief_world = str(kw.pop("belief_world", "oracle"))
     return run_controller_eval(
         seed,
         arm_id,
-        rho_kw,
+        float(rho),
         belief_world=belief_world,
         **kw,
     )

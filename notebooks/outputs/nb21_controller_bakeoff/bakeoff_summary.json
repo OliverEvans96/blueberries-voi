@@ -1,22 +1,15 @@
 {
-  "modal_wall_s": 22.279530921005062,
-  "rho": 0.8,
-  "arms": [
-    "constant",
-    "rung0",
-    "sw",
-    "sla_pb"
-  ],
-  "seeds": [
-    42,
-    7,
-    101,
-    2024,
-    11,
-    23,
-    37,
-    53,
-    71,
-    89
-  ]
+  "n_burn": 2,
+  "n_score": 45,
+  "horizon_days": 47,
+  "filtered_obs": "P1",
+  "arm_rhos": {
+    "constant": 0.8,
+    "sw": 0.8,
+    "sla_pb": 0.5
+  },
+  "oracle_modal_wall_s": 36.0,
+  "filtered_modal_wall_s": 21.3,
+  "oracle_shards": 40,
+  "filtered_shards": 30
 }

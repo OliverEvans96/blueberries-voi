@@ -249,11 +249,11 @@ def _controller_bakeoff_worker(
 
     kw = dict(budgets)
     belief_world = str(kw.pop("belief_world", "oracle"))
-    rho_val = float(kw.pop("rho", rho))
+    kw.pop("rho", None)
     return run_controller_eval(
         seed,
         arm_id,
-        rho_val,
+        float(rho),
         belief_world=belief_world,
         **kw,
     )
@@ -273,9 +273,8 @@ def run_controller_bakeoff_local(
     for key in ("max_workers", "seeds", "arms", "rho", "progress"):
         budget_kw.pop(key, None)
     budget_kw.setdefault("belief_world", "oracle")
-    budget_kw.setdefault("rho", float(rho))
     grid = controller_bakeoff_job_grid(seeds, arms, rho)
-    tasks = [(seed, arm, rho, dict(budget_kw)) for seed, arm, rho in grid]
+    tasks = [(seed, arm, arm_rho, dict(budget_kw)) for seed, arm, arm_rho in grid]
     total = len(tasks)
     log_line(f"controller_bakeoff local run: {total} jobs, workers={max_workers}")
     shards: list[dict[str, Any]] = []

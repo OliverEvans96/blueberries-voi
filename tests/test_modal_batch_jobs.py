@@ -18,6 +18,7 @@ from blueberries_voi.experiments.controller_bakeoff import (
     arms_for_belief_world,
     controller_bakeoff_job_grid,
     merge_controller_bakeoff_rows,
+    resolve_arm_rho,
 )
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_SEEDS,
@@ -317,6 +318,18 @@ def test_controller_bakeoff_filtered_arms_exclude_rung0() -> None:
     assert "rung0" not in filtered
     assert "rollout" not in filtered
     assert len(arms_for_belief_world("oracle")) == 4
+
+
+def test_resolve_arm_rho_sla_pb_uses_bo_tuned_rho() -> None:
+    assert resolve_arm_rho("sla_pb") == pytest.approx(0.5)
+    assert resolve_arm_rho("sw") == pytest.approx(0.8)
+
+
+def test_controller_bakeoff_job_grid_per_arm_rho() -> None:
+    grid = controller_bakeoff_job_grid((42,), ("sw", "sla_pb"), 0.8)
+    rhos = {arm: rho for _, arm, rho in grid}
+    assert rhos["sw"] == pytest.approx(0.8)
+    assert rhos["sla_pb"] == pytest.approx(0.5)
 
 
 def test_merge_controller_bakeoff_rows_dedup() -> None:

@@ -7,13 +7,14 @@ beliefs via ``EngineSession.act``. Excludes rollout and dp per T-163 bakeoff pla
 from __future__ import annotations
 
 import itertools
+import json
 import os
+from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
 from blueberries_voi.experiments.rollout_bakeoff import DEFAULT_ROLLOUT_SEEDS
 from blueberries_voi.experiments.voi_profit import (
@@ -43,12 +44,15 @@ BeliefWorld = Literal["oracle", "filtered"]
 
 BAKEOFF_ARMS: tuple[str, ...] = ("constant", "rung0", "sw", "sla_pb")
 FILTERED_ARMS: tuple[str, ...] = ("constant", "sw", "sla_pb")
+FILTERED_OBS_PRESET: str = "P1"
 DEFAULT_CONTROLLER_SEEDS: tuple[int, ...] = DEFAULT_ROLLOUT_SEEDS[:10]
 DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 14
+PRODUCTION_N_SCORE = 45
 DEFAULT_RHO = 0.8
 DEFAULT_N_SLA_PATHS = 16
 DEFAULT_TUNED_ALPHA_PATH = "experiments/tuned_alpha.json"
+DEFAULT_SLA_PB_BO_PATH = "experiments/sla_pb_alpha_bo.json"
 
 ARM_LABELS: dict[str, str] = {
     "constant": "Fixed order",
@@ -66,14 +70,19 @@ __all__ = [
     "DEFAULT_N_SCORE",
     "DEFAULT_N_SLA_PATHS",
     "DEFAULT_RHO",
+    "DEFAULT_SLA_PB_BO_PATH",
     "DEFAULT_TUNED_ALPHA_PATH",
     "FILTERED_ARMS",
+    "FILTERED_OBS_PRESET",
+    "PRODUCTION_N_SCORE",
     "BeliefWorld",
     "arms_for_belief_world",
     "belief_world_from_env",
     "controller_bakeoff_job_grid",
+    "filtered_obs_channels",
     "merge_controller_bakeoff_rows",
     "resolve_arm_alpha",
+    "resolve_arm_rho",
     "run_controller_eval",
 ]
 
@@ -86,11 +95,31 @@ def belief_world_from_env() -> BeliefWorld:
     return "oracle"
 
 
+def filtered_obs_channels(
+    channels: ObsChannels | dict[str, object] | None = None,
+) -> ObsChannels:
+    """Default P1 obs for filtered belief bakeoff unless overridden."""
+    if channels is not None:
+        return validate_channels(channels)
+    return channels_for_preset(FILTERED_OBS_PRESET)
+
+
 def arms_for_belief_world(belief_world: BeliefWorld | str) -> tuple[str, ...]:
-    """Oracle grid is five arms; filtered omits rung0 (no ``session.act`` support)."""
+    """Oracle grid is four arms; filtered omits rung0 (no ``session.act`` support)."""
     if str(belief_world).lower() == "filtered":
         return FILTERED_ARMS
     return BAKEOFF_ARMS
+
+
+def _load_tuned_alpha_header(
+    alpha_table_path: Path | str | None = None,
+) -> dict[str, Any]:
+    path = Path(alpha_table_path or DEFAULT_TUNED_ALPHA_PATH)
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    header = data.get("header")
+    return dict(header) if isinstance(header, dict) else {}
 
 
 def resolve_arm_alpha(
@@ -110,6 +139,37 @@ def resolve_arm_alpha(
     if arm_id in table:
         return float(table[arm_id])
     return 0.9
+
+
+def resolve_arm_rho(
+    arm_id: str,
+    *,
+    rho: float | None = None,
+    default_rho: float = DEFAULT_RHO,
+    alpha_table_path: Path | str | None = None,
+    sla_pb_bo_path: Path | str | None = None,
+) -> float:
+    """Per-arm tuned rho when not overridden (``sla_pb`` SOO uses rho~0.5)."""
+    if rho is not None:
+        return float(rho)
+    if arm_id == "sla_pb":
+        header = _load_tuned_alpha_header(alpha_table_path)
+        if "sla_pb_bo_rho" in header:
+            return float(header["sla_pb_bo_rho"])
+        bo_path = Path(sla_pb_bo_path or DEFAULT_SLA_PB_BO_PATH)
+        if bo_path.is_file():
+            payload = json.loads(bo_path.read_text(encoding="utf-8"))
+            key = "best_rho_profit_soo"
+            if key not in payload:
+                key = "best_rho_profit_moo"
+            if key in payload:
+                return float(payload[key])
+    if arm_id == "sw":
+        from blueberries_voi.experiments.voi_profit import load_damped_sw_bo_params
+
+        _, sw_rho = load_damped_sw_bo_params()
+        return float(sw_rho)
+    return float(default_rho)
 
 
 def _constant_order_qty(alpha: float, params: ModelParams | None = None) -> int:
@@ -263,12 +323,17 @@ def run_controller_eval(
     arm_alpha = resolve_arm_alpha(
         arm_id, alpha=alpha, alpha_table_path=alpha_table_path
     )
+    arm_rho = resolve_arm_rho(
+        arm_id,
+        default_rho=DEFAULT_RHO,
+        alpha_table_path=alpha_table_path,
+    )
     score_days = _shard_n_score(arm_id, n_score, budgets)
     sla_paths = _shard_n_sla_paths(arm_id, n_sla_paths, budgets)
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
     t0 = perf_counter()
     if world == "filtered":
-        ch = validate_channels(channels or channels_for_preset("P0"))
+        ch = filtered_obs_channels(channels)
         (
             profit,
             waste,
@@ -279,7 +344,7 @@ def run_controller_eval(
             arm_id,
             arm_alpha,
             int(seed),
-            float(rho),
+            arm_rho,
             n_burn=n_burn,
             n_score=score_days,
             n_sla_paths=sla_paths,
@@ -292,7 +357,7 @@ def run_controller_eval(
             arm_id,
             arm_alpha,
             int(seed),
-            float(rho),
+            arm_rho,
             n_burn=n_burn,
             n_score=score_days,
         )
@@ -301,7 +366,7 @@ def run_controller_eval(
         "seed": int(seed),
         "arm_id": str(arm_id),
         "alpha": float(arm_alpha),
-        "rho": float(rho),
+        "rho": float(arm_rho),
         "belief_world": world,
         "profit": float(profit),
         "waste": int(waste),
@@ -318,11 +383,23 @@ def run_controller_eval(
 def controller_bakeoff_job_grid(
     seeds: Sequence[int],
     arms: Sequence[str],
-    rho: float,
+    rho: float = DEFAULT_RHO,
+    *,
+    alpha_table_path: Path | str | None = None,
+    sla_pb_bo_path: Path | str | None = None,
 ) -> list[tuple[int, str, float]]:
-    """Cartesian product of seeds and arms with fixed rho."""
+    """Cartesian product of seeds and arms with per-arm tuned rho."""
     return [
-        (int(seed), str(arm), float(rho))
+        (
+            int(seed),
+            str(arm),
+            resolve_arm_rho(
+                arm,
+                default_rho=float(rho),
+                alpha_table_path=alpha_table_path,
+                sla_pb_bo_path=sla_pb_bo_path,
+            ),
+        )
         for seed, arm in itertools.product(seeds, arms)
     ]
 

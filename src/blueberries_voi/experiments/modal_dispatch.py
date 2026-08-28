@@ -467,7 +467,6 @@ def _controller_bakeoff_budgets_dict(
         "n_burn": n_burn,
         "n_score": n_score,
         "belief_world": str(kwargs.get("belief_world", belief_world_from_env())),
-        "rho": float(kwargs.get("rho", CTRL_RHO)),
         "filter_n": int(kwargs.get("filter_n", 24)),
         "n_sla_paths": int(kwargs.get("n_sla_paths", 16)),
         "alpha": kwargs.get("alpha"),
@@ -486,7 +485,7 @@ def _collect_handles(handles: list[Any], *, progress: bool) -> list[dict[str, An
         return [h.get() for h in handles]
     shards: list[dict[str, Any]] = []
     with (
-        ThreadPoolExecutor(max_workers=min(32, total)) as pool,
+        ThreadPoolExecutor(max_workers=total) as pool,
         tqdm(total=total, desc="modal batch", unit="shard") as bar,
     ):
         futs = {pool.submit(h.get): i for i, h in enumerate(handles)}
