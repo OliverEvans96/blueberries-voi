@@ -2,7 +2,7 @@
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
-use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::arrival::{ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::ModelParams;
 
 const N_DRAWS: usize = 400;
@@ -26,7 +26,7 @@ fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
-                "abdella_all",
+                DEFAULT_ARRIVAL_CORRIDOR,
                 45,
                 0.0,
                 &mut rng_d,
@@ -53,10 +53,8 @@ fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64
 fn arrival_f_distribution_realistic_band() {
     let model = ArrivalModel::embedded();
     assert!(
-        (model.reference_life_days - 20.0).abs() < 1e-9,
-        "artifact reference_life_days should be 20 for calibrated arrival f \
-         (T-163 Phase 1 follow-up: reduced from 26 after fixing the multilot \
-         shared-leg duration construction bug); got {}",
+        (model.reference_life_days - 14.0).abs() < 1e-9,
+        "artifact reference_life_days should be 14 (unified with eta_ref); got {}",
         model.reference_life_days
     );
     let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_501);
@@ -77,14 +75,14 @@ fn arrival_f_distribution_realistic_band() {
     );
 }
 
-/// `sync_params` must not collapse artifact arrival gamma back to store `eta_ref=14`.
+/// `sync_params` must not rewrite artifact gamma / reference life when only q10/t_ref change.
 #[test]
 fn sync_params_preserves_artifact_arrival_reference_life() {
     let mut model = ArrivalModel::embedded();
     let artifact_life = model.reference_life_days;
     assert!(
-        artifact_life > ModelParams::default().eta_ref + 1.0,
-        "test assumes decoupled arrival reference life"
+        (artifact_life - ModelParams::default().eta_ref).abs() < 1e-9,
+        "unified eta_ref must match artifact reference_life_days"
     );
     model.sync_params(&ModelParams::default());
     assert!(
@@ -106,7 +104,7 @@ fn prior_mean_f_matches_generative_multilot() {
     model.sync_params(&ModelParams::default());
     let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_502);
     let (truth_mean, _, _, _) = empirical_quantiles(&mut samples);
-    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, "abdella_all", 64);
+    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, DEFAULT_ARRIVAL_CORRIDOR, 64);
     assert!(
         (prior.mean_f - truth_mean).abs() <= 0.03,
         "Prior mean_f={:.3} must track generative multilot mean {:.3} within 0.03",

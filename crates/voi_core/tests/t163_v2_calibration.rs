@@ -18,14 +18,14 @@ fn empirical_mean_sd(samples: &[f64]) -> (f64, f64) {
     (mean, var.sqrt())
 }
 
-/// Abdella six-shipment φ̄ overlay (v2 §3.4.2; T-163 S1.3).
-const ABDELLA_PHI_BAR_MEAN: f64 = 1.36;
-const ABDELLA_PHI_BAR_SD: f64 = 0.075;
+/// Abdella six-shipment φ̄ overlay (v2 §3.4.2; T-163 S1.3; recalibrated at q10=2.0).
+const ABDELLA_PHI_BAR_MEAN: f64 = 1.050;
+const ABDELLA_PHI_BAR_SD: f64 = 0.044;
 const PHI_BAR_MEAN_TOL: f64 = 0.02;
 const PHI_BAR_SD_TOL: f64 = 0.015;
 
-/// Mean Λ = d·φ̄ over the six committed shipments.
-const ABDELLA_LAMBDA_MEAN: f64 = 6.342;
+/// Mean Λ = d·φ̄ over the six committed shipments (q10=2.0 artifact).
+const ABDELLA_LAMBDA_MEAN: f64 = 5.032;
 const LAMBDA_MEAN_TOL: f64 = 0.35;
 
 fn require_v2_artifact_fields() {
