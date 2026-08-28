@@ -63,6 +63,8 @@ notebooks/outputs/*
 !notebooks/outputs/t163_phase2/**
 !notebooks/outputs/t163_phase1_realism/
 !notebooks/outputs/t163_phase1_realism/**
+!notebooks/outputs/nb21_controller_bakeoff/
+!notebooks/outputs/nb21_controller_bakeoff/**
 .worktrees/
 
 # Web mockup (Vite)
