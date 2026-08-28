@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WF="$ROOT/.github/workflows"
 PKG="$ROOT/packaging/github-workflows"
 cd "$ROOT"
-for f in ci.yml release-studio.yml web-quality.yml rust-kernel.yml; do
+for f in ci.yml release-studio.yml studio-preview.yml web-quality.yml rust-kernel.yml; do
   if [[ -f "$PKG/$f" ]]; then
     install -m 644 "$PKG/$f" "$WF/$f"
   fi

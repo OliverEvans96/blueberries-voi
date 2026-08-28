@@ -1,0 +1,128 @@
+# Canonical studio PR preview workflow.
+#
+# Agent protocol forbids editing live `.github/workflows/`. A human must copy
+# this file to `.github/workflows/studio-preview.yml` before GitHub runs it.
+#
+# After green CI on same-repo pull requests, downloads ci-rust-wasm-build from
+# that workflow run, builds web/dist, and deploys to Cloudflare Pages on branch
+# pr-{number}. When the PR closes, deletes preview deployments for that branch.
+name: Studio preview
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  pull_request:
+    types: [closed]
+
+jobs:
+  deploy:
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    concurrency:
+      group: studio-preview-pr-${{ github.event.workflow_run.pull_requests[0].number }}
+      cancel-in-progress: true
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          number="${{ github.event.workflow_run.pull_requests[0].number }}"
+          if [[ -z "$number" ]]; then
+            echo "No pull request on workflow_run payload" >&2
+            exit 1
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "branch=pr-${number}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          lfs: true
+
+      - name: Download CI Rust/WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-rust-wasm-build
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build studio app
+        working-directory: web
+        run: npm run build
+
+      - name: Deploy preview to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy web/dist
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+            --branch=${{ steps.pr.outputs.branch }}
+            --commit-dirty=true
+
+      - name: Post preview URL comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.pr.outputs.number }}
+          body: |
+            ## Studio preview deployed
+
+            Preview branch `${{ steps.pr.outputs.branch }}` is live after CI on `${{ github.event.workflow_run.head_sha }}`.
+
+            **URL:** https://${{ steps.pr.outputs.branch }}.${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}.pages.dev
+
+            <!-- studio-preview-url -->
+          edit-mode: replace
+
+  cleanup:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Cloudflare Pages preview deployments
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          PREVIEW_BRANCH: pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${CLOUDFLARE_PAGES_PROJECT_NAME}/deployments"
+          response="$(curl -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api")"
+          mapfile -t deployment_ids < <(
+            echo "$response" | jq -r --arg branch "$PREVIEW_BRANCH" \
+              '.result[] | select(.deployment_trigger.metadata.branch == $branch) | .id'
+          )
+          if ((${#deployment_ids[@]} == 0)); then
+            echo "No preview deployments for branch ${PREVIEW_BRANCH}"
+            exit 0
+          fi
+          for deployment_id in "${deployment_ids[@]}"; do
+            echo "Deleting deployment ${deployment_id} (${PREVIEW_BRANCH})"
+            curl -sS -X DELETE \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "${api}/${deployment_id}?force=true"
+          done
