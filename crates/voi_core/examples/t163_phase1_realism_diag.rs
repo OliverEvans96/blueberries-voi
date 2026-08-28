@@ -54,6 +54,7 @@ fn truth_multilot_delivery_means_corridor(
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
     let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 4);
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
@@ -64,6 +65,7 @@ fn truth_multilot_delivery_means_corridor(
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             let total: usize = draw.lots.iter().map(|lot| lot.unit_f.len()).sum();
             draw.lots
@@ -107,6 +109,7 @@ fn truth_multilot_delivery_means_mixed(
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             let total: usize = draw.lots.iter().map(|lot| lot.unit_f.len()).sum();
             draw.lots
@@ -163,6 +166,7 @@ fn ladder_diagnostic(model: &ArrivalModel, n_deliveries: usize, seed: u64) -> se
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
     let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 5);
 
     let prior_law = model.rung_law_on_grid(ArrivalCondition::Prior, CORRIDOR, GRID_LEN);
 
@@ -186,6 +190,7 @@ fn ladder_diagnostic(model: &ArrivalModel, n_deliveries: usize, seed: u64) -> se
             &mut rng_t,
             &mut rng_p,
             &mut rng_g,
+            &mut rng_regime,
         );
         for lot in &draw.lots {
             let t = lot.unit_f.iter().sum::<f64>() / lot.unit_f.len() as f64;
@@ -460,11 +465,20 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
     let mut rng_t = Pcg64::seed_from_u64(700_002);
     let mut rng_p = Pcg64::seed_from_u64(700_003);
     let mut rng_g = Pcg64::seed_from_u64(700_004);
+    let mut rng_regime = Pcg64::seed_from_u64(700_005);
 
     let mut single_d = Vec::with_capacity(n);
     let mut single_lambda = Vec::with_capacity(n);
     for _ in 0..n {
-        let draw = model.draw_truth_delivery(CORRIDOR, 1, &mut rng_d, &mut rng_t, &mut rng_p, &mut rng_g);
+        let draw = model.draw_truth_delivery(
+            CORRIDOR,
+            1,
+            &mut rng_d,
+            &mut rng_t,
+            &mut rng_p,
+            &mut rng_g,
+            &mut rng_regime,
+        );
         single_d.push(draw.duration_d);
         single_lambda.push(draw.lambda);
     }
@@ -473,7 +487,14 @@ fn shared_leg_duration_audit(model: &ArrivalModel) -> serde_json::Value {
     let mut multi_lambda = Vec::with_capacity(n * LOTS_PER_DELIVERY);
     for _ in 0..n {
         let draw = model.draw_truth_multilot_delivery_biased(
-            CORRIDOR, UNITS_PER_LOT, 0.0, &mut rng_d, &mut rng_t, &mut rng_p, &mut rng_g,
+            CORRIDOR,
+            UNITS_PER_LOT,
+            0.0,
+            &mut rng_d,
+            &mut rng_t,
+            &mut rng_p,
+            &mut rng_g,
+            &mut rng_regime,
         );
         for lot in &draw.lots {
             multi_d.push(lot.duration_d);

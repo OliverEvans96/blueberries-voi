@@ -476,12 +476,14 @@ mod tests {
             let mut rng_t = Pcg64::seed_from_u64(22);
             let mut rng_p = Pcg64::seed_from_u64(33);
             let mut rng_g = Pcg64::seed_from_u64(44);
+            let mut rng_regime = Pcg64::seed_from_u64(55);
             let birth_f = model.draw_unit_f(
                 "abdella_all",
                 &mut rng_d,
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             assert!(
                 birth_f > 0.0 && birth_f <= 1.0,
@@ -622,6 +624,7 @@ mod tests {
             let mut rng_t = Pcg64::seed_from_u64(138_002);
             let mut rng_p = Pcg64::seed_from_u64(138_003);
             let mut rng_g = Pcg64::seed_from_u64(138_004);
+            let mut rng_regime = Pcg64::seed_from_u64(138_005);
             let unit_f: Vec<f64> = (0..upl)
                 .map(|_| {
                     model.draw_unit_f(
@@ -630,6 +633,7 @@ mod tests {
                         &mut rng_t,
                         &mut rng_p,
                         &mut rng_g,
+                        &mut rng_regime,
                     )
                 })
                 .collect();

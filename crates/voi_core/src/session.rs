@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
     shared_embedded_arrival, ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION,
-    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_REGIME, STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -474,6 +474,8 @@ impl EngineSession {
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
             let mut rng_gamma =
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
+            let mut rng_regime =
+                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_REGIME);
             let draw = self.arrival_model.draw_truth_multilot_delivery_biased(
                 &self.arrival_product,
                 n_units,
@@ -482,6 +484,7 @@ impl EngineSession {
                 &mut rng_temp,
                 &mut rng_pos,
                 &mut rng_gamma,
+                &mut rng_regime,
             );
             let mut lot_ids = Vec::with_capacity(LOTS_PER_DELIVERY);
             let mut lot_segments = Vec::with_capacity(LOTS_PER_DELIVERY);

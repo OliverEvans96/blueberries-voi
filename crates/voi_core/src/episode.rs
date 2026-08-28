@@ -61,6 +61,7 @@ pub fn run_closed_loop_episode(
             let mut rng_t = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 11));
             let mut rng_p = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 13));
             let mut rng_g = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 17));
+            let mut rng_regime = Pcg64::seed_from_u64(seed.wrapping_add(u64::from(day) * 19));
             Some(
                 arrival_model
                     .draw_truth_delivery(
@@ -70,6 +71,7 @@ pub fn run_closed_loop_episode(
                         &mut rng_t,
                         &mut rng_p,
                         &mut rng_g,
+                        &mut rng_regime,
                     )
                     .unit_f,
             )

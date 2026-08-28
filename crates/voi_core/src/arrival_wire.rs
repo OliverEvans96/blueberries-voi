@@ -6,14 +6,10 @@
 //! (`t150_wire_filter_parity_guard`); this adapter only picks which condition a rung
 //! observes and reshapes `arrival.rs`'s result into the wire's JSON.
 
-use crate::arrival::{ArrivalCondition, ArrivalCorridor, ArrivalModel};
+use crate::arrival::{ArrivalCondition, ArrivalModel};
 use crate::obs::{CodeType, DeliveryHistory, ObsChannels};
 
 const WIRE_GRID: usize = 81;
-
-fn expected_delay(corridor: &ArrivalCorridor) -> f64 {
-    corridor.d_min + corridor.delay_shape * corridor.delay_scale
-}
 
 /// Which law this rung's chart should show, as an `arrival.rs` condition — never
 /// numbers computed here. F3 reads the model's own record of the Λ the filter last
@@ -22,11 +18,7 @@ fn expected_delay(corridor: &ArrivalCorridor) -> f64 {
 /// known, so F3 falls back to the unconditional prior rather than inventing a
 /// synthetic Λ. F2 falls back to the corridor's expected duration, which is a
 /// meaningful "typical shipment" default even before any pack date has been observed.
-fn resolve_condition(
-    channels: ObsChannels,
-    model: &ArrivalModel,
-    corridor: &ArrivalCorridor,
-) -> ArrivalCondition {
+fn resolve_condition(model: &ArrivalModel, product: &str, channels: ObsChannels) -> ArrivalCondition {
     match channels.delivery_history {
         DeliveryHistory::TemperatureHistory => model
             .last_exposure_lambda()
@@ -35,7 +27,7 @@ fn resolve_condition(
         DeliveryHistory::PackDate => {
             let d = model
                 .last_duration_days()
-                .unwrap_or_else(|| expected_delay(corridor).round() as i32);
+                .unwrap_or_else(|| model.mean_delay_for_corridor(product).round() as i32);
             ArrivalCondition::Duration(d)
         }
         DeliveryHistory::None => ArrivalCondition::Prior,
@@ -83,8 +75,7 @@ pub fn arrival_summary_wire(
     transit_temp_bias_c: f64,
 ) -> serde_json::Value {
     let _ = transit_temp_bias_c;
-    let corridor = model.corridor(product).clone();
-    let condition = resolve_condition(channels, model, &corridor);
+    let condition = resolve_condition(model, product, channels);
     let law = model.rung_law_on_grid(condition, product, WIRE_GRID);
 
     let dx = 1.0 / (WIRE_GRID - 1) as f64;

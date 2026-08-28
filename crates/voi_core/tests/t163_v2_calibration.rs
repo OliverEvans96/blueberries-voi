@@ -56,6 +56,7 @@ fn clean_chain_phi_bar_moments() {
     let mut rng_temp = Pcg64::seed_from_u64(163_004);
     let mut rng_pos = Pcg64::seed_from_u64(163_005);
     let mut rng_gamma = Pcg64::seed_from_u64(163_006);
+    let mut rng_regime = Pcg64::seed_from_u64(163_007);
 
     let n_draws = 4_000usize;
     let mut phi_bars = Vec::with_capacity(n_draws);
@@ -68,6 +69,7 @@ fn clean_chain_phi_bar_moments() {
             &mut rng_temp,
             &mut rng_pos,
             &mut rng_gamma,
+            &mut rng_regime,
         );
         phi_bars.push(draw.phi_bar);
         lambdas.push(draw.lambda);

@@ -1244,6 +1244,7 @@ fn ac2_12_within_lot_arrival_f_spread() {
             &mut Pcg64::seed_from_u64(150_213),
             &mut Pcg64::seed_from_u64(150_214),
             &mut Pcg64::seed_from_u64(150_215),
+            &mut Pcg64::seed_from_u64(150_216),
         )
         .unit_f;
 

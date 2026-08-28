@@ -79,7 +79,8 @@ fn abdella_marginal_d_matches_pooled_gamma() {
         let mut rt = Pcg64::seed_from_u64(163_110 + i as u64);
         let mut rp = Pcg64::seed_from_u64(163_210 + i as u64);
         let mut rg = Pcg64::seed_from_u64(163_310 + i as u64);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(163_410 + i as u64);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         durations.push(draw.duration_d);
     }
 
@@ -130,7 +131,8 @@ fn var_log_d_matches_abdella() {
         let mut rt = Pcg64::seed_from_u64(163_120 + i as u64);
         let mut rp = Pcg64::seed_from_u64(163_220 + i as u64);
         let mut rg = Pcg64::seed_from_u64(163_320 + i as u64);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(163_420 + i as u64);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         durations.push(draw.duration_d);
     }
     let var_log_d = empirical_var_log(&durations);
@@ -189,7 +191,8 @@ fn breaks_clamped_inside_calendar_duration() {
         let mut rt = Pcg64::seed_from_u64(20_000 + seed);
         let mut rp = Pcg64::seed_from_u64(30_000 + seed);
         let mut rg = Pcg64::seed_from_u64(40_000 + seed);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(50_000 + seed);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         let calendar = calendar_transit_days(&draw.trace);
         assert!(
             (calendar - draw.duration_d).abs() < 1e-6,

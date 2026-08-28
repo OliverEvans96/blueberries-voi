@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "legs": [
     {
       "name": "precool_staging",
@@ -78,6 +78,20 @@
       "d_min": 1.852778,
       "delay_shape": 3.008681,
       "delay_scale": 0.973726
+    }
+  },
+  "corridor_mixtures": {
+    "abdella_mix": {
+      "components": [
+        {
+          "corridor_key": "short_haul",
+          "weight": 0.8
+        },
+        {
+          "corridor_key": "long_haul",
+          "weight": 0.2
+        }
+      ]
     }
   },
   "provenance": {

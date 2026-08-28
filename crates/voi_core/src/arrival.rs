@@ -18,7 +18,9 @@ use crate::physics::{gamma_p, gamma_q, store_temp_factor};
 use crate::shipments::{truth_transit_trace_for_corridor, ShipmentTrace};
 
 const EMBEDDED_ARRIVAL_JSON: &str = include_str!("../../../data/abdella/arrival_model.json");
-const SUPPORTED_SCHEMA_VERSION: u64 = 2;
+const SUPPORTED_SCHEMA_VERSION: u64 = 3;
+/// Default arrival product when the artifact defines the Abdella short/long mixture.
+pub const DEFAULT_ARRIVAL_CORRIDOR: &str = "abdella_mix";
 /// Abdella six-shipment calendar durations (days) from the committed artifact provenance.
 const ABDELLA_EMPIRICAL_D: [f64; 6] = [
     4.604_166_666_666_667,
@@ -60,6 +62,8 @@ pub const STREAM_ARRIVAL_TEMP: &str = ":arrival_temp";
 pub const STREAM_ARRIVAL_POS: &str = ":arrival_pos";
 /// CRN stream tag for the truth-path per-unit freshness-loss gamma draw.
 pub const STREAM_ARRIVAL_GAMMA: &str = ":arrival_gamma";
+/// CRN stream tag for the truth-path corridor-regime categorical draw (mixture only).
+pub const STREAM_ARRIVAL_REGIME: &str = ":arrival_regime";
 
 /// Mutually exclusive channel conditioning for filter-side arrival laws.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -175,6 +179,21 @@ pub struct ThermalModes {
     pub warm: ThermalModeSpec,
 }
 
+/// One leaf corridor and its weight inside a named mixture (e.g. `abdella_mix`).
+#[derive(Clone, Debug)]
+pub struct CorridorMixtureComponent {
+    /// Leaf corridor key — must exist in `ArrivalModel::corridors`, not another mixture.
+    pub corridor_key: String,
+    /// Unconditional draw probability; components sum to 1.
+    pub weight: f64,
+}
+
+/// Named categorical mixture over leaf corridor duration families.
+#[derive(Clone, Debug)]
+pub struct CorridorMixture {
+    pub components: Vec<CorridorMixtureComponent>,
+}
+
 /// A shipping lane's transit-duration prior: delivery duration is `d_min` plus a
 /// shifted-gamma delay.
 #[derive(Clone, Debug)]
@@ -198,8 +217,11 @@ pub struct ArrivalModel {
     pub schema_version: u64,
     /// Shipping-lane transit-duration priors, keyed by corridor name.
     pub corridors: HashMap<String, ArrivalCorridor>,
-    /// Corridor key used when a caller doesn't specify one; `"abdella_all"` if present in
-    /// the artifact, otherwise an arbitrary corridor from it.
+    /// Categorical mixtures over leaf corridors (schema 3); keys must not collide with
+    /// `corridors`.
+    pub corridor_mixtures: HashMap<String, CorridorMixture>,
+    /// Corridor key used when a caller doesn't specify one; `abdella_mix` when present,
+    /// else `"abdella_all"` if in the artifact, otherwise an arbitrary corridor from it.
     pub default_corridor: String,
     /// Deterministic transit legs (duration shares and setpoints) making up the
     /// break-free thermal baseline.
@@ -421,6 +443,8 @@ struct ArrivalModelJson {
     reference_life_days: f64,
     quadrature: QuadratureJson,
     corridors: HashMap<String, CorridorJson>,
+    #[serde(default)]
+    corridor_mixtures: HashMap<String, CorridorMixtureJson>,
     #[serde(default = "default_thermal_modes")]
     thermal_modes: ThermalModesJson,
     #[serde(default = "default_sigma_hour")]
@@ -479,6 +503,17 @@ struct CorridorJson {
     d_min: f64,
     delay_shape: f64,
     delay_scale: f64,
+}
+
+#[derive(Deserialize)]
+struct CorridorMixtureComponentJson {
+    corridor_key: String,
+    weight: f64,
+}
+
+#[derive(Deserialize)]
+struct CorridorMixtureJson {
+    components: Vec<CorridorMixtureComponentJson>,
 }
 
 fn sha256_hex(data: &[u8]) -> String {
@@ -702,11 +737,6 @@ impl ArrivalModel {
                 "thermal_modes probabilities must sum to 1, got {mode_p_sum}"
             )));
         }
-        let default_corridor = if raw.corridors.contains_key("abdella_all") {
-            "abdella_all".to_string()
-        } else {
-            raw.corridors.keys().next().cloned().unwrap_or_default()
-        };
         let corridors = raw
             .corridors
             .into_iter()
@@ -720,7 +750,65 @@ impl ArrivalModel {
                     },
                 )
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
+        let mixture_keys: std::collections::HashSet<String> =
+            raw.corridor_mixtures.keys().cloned().collect();
+        let corridor_mixtures = raw
+            .corridor_mixtures
+            .into_iter()
+            .map(|(k, m)| {
+                if corridors.contains_key(&k) {
+                    return Err(ArrivalModelError::Invalid(format!(
+                        "corridor_mixtures key {k:?} collides with corridors"
+                    )));
+                }
+                if m.components.is_empty() {
+                    return Err(ArrivalModelError::Invalid(format!(
+                        "corridor_mixtures[{k:?}] must have non-empty components"
+                    )));
+                }
+                let weight_sum: f64 = m.components.iter().map(|c| c.weight).sum();
+                if (weight_sum - 1.0).abs() > 1e-6 {
+                    return Err(ArrivalModelError::Invalid(format!(
+                        "corridor_mixtures[{k:?}] weights must sum to 1, got {weight_sum}"
+                    )));
+                }
+                let components: Result<Vec<CorridorMixtureComponent>, ArrivalModelError> = m
+                    .components
+                    .into_iter()
+                    .map(|c| {
+                        if c.weight < 0.0 {
+                            return Err(ArrivalModelError::Invalid(format!(
+                                "corridor_mixtures[{k:?}] component weight must be >= 0"
+                            )));
+                        }
+                        if !corridors.contains_key(&c.corridor_key) {
+                            return Err(ArrivalModelError::Invalid(format!(
+                                "corridor_mixtures[{k:?}] references unknown corridor {:?}",
+                                c.corridor_key
+                            )));
+                        }
+                        if mixture_keys.contains(&c.corridor_key) {
+                            return Err(ArrivalModelError::Invalid(format!(
+                                "corridor_mixtures[{k:?}] must reference leaf corridors only"
+                            )));
+                        }
+                        Ok(CorridorMixtureComponent {
+                            corridor_key: c.corridor_key,
+                            weight: c.weight,
+                        })
+                    })
+                    .collect();
+                Ok((k, CorridorMixture { components: components? }))
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
+        let default_corridor = if corridor_mixtures.contains_key(DEFAULT_ARRIVAL_CORRIDOR) {
+            DEFAULT_ARRIVAL_CORRIDOR.to_string()
+        } else if corridors.contains_key("abdella_all") {
+            "abdella_all".to_string()
+        } else {
+            corridors.keys().next().cloned().unwrap_or_default()
+        };
         let legs: Vec<ArrivalLeg> = raw
             .legs
             .into_iter()
@@ -751,6 +839,7 @@ impl ArrivalModel {
         Ok(Self {
             schema_version: raw.schema_version,
             corridors,
+            corridor_mixtures,
             default_corridor: default_corridor.clone(),
             legs,
             thermal_modes,
@@ -852,12 +941,77 @@ impl ArrivalModel {
     }
 
     /// Look up a corridor by key, falling back to `default_corridor` for an unrecognized
-    /// key rather than failing.
+    /// key rather than failing. Mixture keys are not leaf corridors — callers on the
+    /// truth path must [`resolve_corridor_regime`] first.
     pub fn corridor(&self, product: &str) -> &ArrivalCorridor {
         self.corridors
             .get(product)
             .or_else(|| self.corridors.get(&self.default_corridor))
             .expect("arrival corridor")
+    }
+
+    /// Whether `corridor_key` names a categorical mixture rather than a leaf corridor.
+    pub fn is_corridor_mixture(&self, corridor_key: &str) -> bool {
+        self.corridor_mixtures.contains_key(corridor_key)
+    }
+
+    /// Draw one leaf corridor from a mixture, or return `corridor_key` unchanged for a leaf.
+    /// Consumes `rng_regime` only when `corridor_key` is a mixture.
+    pub fn resolve_corridor_regime<R: Rng + ?Sized>(
+        &self,
+        corridor_key: &str,
+        rng_regime: &mut R,
+    ) -> String {
+        let Some(mixture) = self.corridor_mixtures.get(corridor_key) else {
+            return corridor_key.to_string();
+        };
+        let u: f64 = rng_regime.random();
+        let mut cum = 0.0;
+        for comp in &mixture.components {
+            cum += comp.weight;
+            if u < cum {
+                return comp.corridor_key.clone();
+            }
+        }
+        mixture
+            .components
+            .last()
+            .map(|c| c.corridor_key.clone())
+            .unwrap_or_else(|| corridor_key.to_string())
+    }
+
+    /// Expected transit duration in days for a leaf corridor or a mixture over leaves.
+    pub fn mean_delay_for_corridor(&self, corridor_key: &str) -> f64 {
+        if let Some(mixture) = self.corridor_mixtures.get(corridor_key) {
+            mixture
+                .components
+                .iter()
+                .map(|c| c.weight * self.mean_delay_for_corridor(&c.corridor_key))
+                .sum()
+        } else {
+            let corridor = self.corridor(corridor_key);
+            corridor.d_min + corridor.delay_shape * corridor.delay_scale
+        }
+    }
+
+    /// Prior-channel duration quadrature nodes `(d, weight)` for a leaf or mixture key.
+    pub fn prior_duration_nodes(&self, corridor_key: &str) -> Vec<(f64, f64)> {
+        if let Some(mixture) = self.corridor_mixtures.get(corridor_key) {
+            let mut out = Vec::new();
+            for comp in &mixture.components {
+                for (d, w) in self.prior_duration_nodes(&comp.corridor_key) {
+                    out.push((d, comp.weight * w));
+                }
+            }
+            out
+        } else {
+            let corridor = self.corridor(corridor_key);
+            self.quad_nodes
+                .iter()
+                .zip(self.quad_weights.iter())
+                .map(|(&u, &w)| (self.quadrature_duration_days(corridor, u), w))
+                .collect()
+        }
     }
 
     /// Duration-averaged Q10 temperature factor φ̄ for a given mean transit temperature.
@@ -1155,8 +1309,10 @@ impl ArrivalModel {
         rng_temp: &mut R,
         rng_pos: &mut R,
         rng_gamma: &mut R,
+        rng_regime: &mut R,
     ) -> f64 {
-        let corridor = self.corridor(corridor_key);
+        let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
+        let corridor = self.corridor(&resolved_key);
         let d = self.draw_bottom_up_duration(corridor, rng_duration);
         let taus = self.draw_break_taus(d, rng_temp);
         let lot_lambda = self.lambda_from_breaks(d, &taus);
@@ -1182,6 +1338,7 @@ impl ArrivalModel {
         rng_temp: &mut R,
         rng_pos: &mut R,
         rng_gamma: &mut R,
+        rng_regime: &mut R,
     ) -> TruthDeliveryDraw {
         self.draw_truth_delivery_biased(
             corridor_key,
@@ -1191,6 +1348,7 @@ impl ArrivalModel {
             rng_temp,
             rng_pos,
             rng_gamma,
+            rng_regime,
         )
     }
 
@@ -1206,11 +1364,13 @@ impl ArrivalModel {
         rng_temp: &mut R,
         rng_pos: &mut R,
         rng_gamma: &mut R,
+        rng_regime: &mut R,
     ) -> TruthDeliveryDraw {
-        let corridor = self.corridor(corridor_key);
+        let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
+        let corridor = self.corridor(&resolved_key);
         let duration_d = self.draw_bottom_up_duration(corridor, rng_duration);
         let (trace, lot_lambda) =
-            self.draw_transit_for_corridor(duration_d, corridor_key, temp_bias_c, rng_temp);
+            self.draw_transit_for_corridor(duration_d, &resolved_key, temp_bias_c, rng_temp);
         let pack_date_days = duration_d.round() as i32;
         let phi_bar = if duration_d > 1e-12 {
             lot_lambda / duration_d
@@ -1250,13 +1410,15 @@ impl ArrivalModel {
         rng_temp: &mut R,
         rng_pos: &mut R,
         rng_gamma: &mut R,
+        rng_regime: &mut R,
     ) -> TruthMultilotDraw {
-        let corridor = self.corridor(corridor_key);
+        let resolved_key = self.resolve_corridor_regime(corridor_key, rng_regime);
+        let corridor = self.corridor(&resolved_key);
         let arrivals_by = split_delivery_qty(n, LOTS_PER_DELIVERY);
         let shared_d =
             (self.draw_bottom_up_duration(corridor, rng_duration) * SHARED_LEG_FRAC).max(0.5);
         let (shared_template, _) =
-            self.draw_transit_for_corridor(shared_d, corridor_key, temp_bias_c, rng_temp);
+            self.draw_transit_for_corridor(shared_d, &resolved_key, temp_bias_c, rng_temp);
         let mut upstream_ds = Vec::with_capacity(LOTS_PER_DELIVERY);
         for _ in 0..LOTS_PER_DELIVERY {
             upstream_ds.push(
@@ -1271,7 +1433,7 @@ impl ArrivalModel {
         let mut lots = Vec::with_capacity(LOTS_PER_DELIVERY);
         for (&units, &upstream_d) in arrivals_by.iter().zip(upstream_ds.iter()) {
             let (upstream_trace, _) =
-                self.draw_transit_for_corridor(upstream_d, corridor_key, temp_bias_c, rng_temp);
+                self.draw_transit_for_corridor(upstream_d, &resolved_key, temp_bias_c, rng_temp);
             let trace = splice_upstream_before_shared(
                 &upstream_trace,
                 upstream_d,
@@ -1399,9 +1561,18 @@ impl ArrivalModel {
     /// v2 projection (plan §2.3–§2.5): for each mode `M`, baseline nodes from the
     /// Dirichlet stage split are crossed with the Poisson–gamma break enumeration; modes
     /// are mixed by their draw probabilities. Cached at F2/F3 build time — not per particle.
-    fn thermal_nodes(&self, d: f64) -> Vec<(f64, f64)> {
+    fn thermal_nodes_for_key(&self, d: f64, corridor_key: &str) -> Vec<(f64, f64)> {
+        if let Some(mixture) = self.corridor_mixtures.get(corridor_key) {
+            let mut out = Vec::new();
+            for comp in &mixture.components {
+                for (lam, w) in self.thermal_nodes_for_key(d, &comp.corridor_key) {
+                    out.push((lam, comp.weight * w));
+                }
+            }
+            return out;
+        }
         let d = d.max(0.0);
-        let corridor = self.corridor(&self.active_corridor);
+        let corridor = self.corridor(corridor_key);
         let counts = self.break_count_weights(d);
         let modes: [(&ThermalModeSpec, f64); 3] = [
             (&self.thermal_modes.cool, self.thermal_modes.cool.p),
@@ -1477,7 +1648,6 @@ impl ArrivalModel {
     /// then weighted and averaged — the numerical core every channel-conditional law in
     /// this file is built from.
     fn marginal_cdf_at(&self, condition: ArrivalCondition, corridor_key: &str, f: f64) -> f64 {
-        let corridor = self.corridor(corridor_key);
         let mut acc = 0.0;
         let mut w_sum = 0.0;
 
@@ -1497,12 +1667,11 @@ impl ArrivalModel {
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                return self.marginal_cdf_at_thermal(f, &self.thermal_nodes(d));
+                return self.marginal_cdf_at_thermal(f, &self.thermal_nodes_for_key(d, corridor_key));
             }
             ArrivalCondition::Prior => {
-                for (&u_d, &w_d) in self.quad_nodes.iter().zip(self.quad_weights.iter()) {
-                    let d = self.quadrature_duration_days(corridor, u_d);
-                    for (lot_lambda, w_t) in self.thermal_nodes(d) {
+                for (d, w_d) in self.prior_duration_nodes(corridor_key) {
+                    for (lot_lambda, w_t) in self.thermal_nodes_for_key(d, corridor_key) {
                         accumulate(lot_lambda, w_d * w_t);
                     }
                 }
@@ -1555,15 +1724,10 @@ impl ArrivalModel {
 
         match condition {
             ArrivalCondition::Prior => {
-                let corridor = self.corridor(corridor_key);
                 let duration_thermal: Vec<(f64, Vec<(f64, f64)>)> = self
-                    .quad_nodes
-                    .iter()
-                    .zip(self.quad_weights.iter())
-                    .map(|(&u_d, &w_d)| {
-                        let d = self.quadrature_duration_days(corridor, u_d);
-                        (w_d, self.thermal_nodes(d))
-                    })
+                    .prior_duration_nodes(corridor_key)
+                    .into_iter()
+                    .map(|(d, w_d)| (w_d, self.thermal_nodes_for_key(d, corridor_key)))
                     .collect();
                 for (gi, slot) in cdf.iter_mut().enumerate() {
                     let f = gi as f64 / (grid_len - 1) as f64;
@@ -1584,7 +1748,7 @@ impl ArrivalModel {
             }
             ArrivalCondition::Duration(d_days) => {
                 let d = f64::from(d_days).max(0.0);
-                let thermal = self.thermal_nodes(d);
+                let thermal = self.thermal_nodes_for_key(d, corridor_key);
                 for (gi, slot) in cdf.iter_mut().enumerate() {
                     let f = gi as f64 / (grid_len - 1) as f64;
                     *slot = self.marginal_cdf_at_thermal(f, &thermal).clamp(0.0, 1.0);

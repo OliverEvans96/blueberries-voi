@@ -119,6 +119,7 @@ fn run_truth(
                 let mut rng_t = stream_rng(seed, day, 5);
                 let mut rng_p = stream_rng(seed, day, 6);
                 let mut rng_g = stream_rng(seed, day, 8);
+                let mut rng_regime = stream_rng(seed, day, 12);
                 let draw = arrival_model.draw_truth_delivery(
                     "abdella_all",
                     arrival as usize,
@@ -126,6 +127,7 @@ fn run_truth(
                     &mut rng_t,
                     &mut rng_p,
                     &mut rng_g,
+                    &mut rng_regime,
                 );
                 let trace = ShipmentTrace {
                     times_d: vec![0.0, draw.duration_d],

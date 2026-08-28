@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::arrival::{
     ArrivalModel, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS,
-    STREAM_ARRIVAL_TEMP,
+    STREAM_ARRIVAL_REGIME, STREAM_ARRIVAL_TEMP,
 };
 use crate::day_step::{unit_day_step_with_birth, UnitDayStepIn};
 use crate::params::ModelParams;
@@ -355,6 +355,8 @@ pub fn run_alpha_tune_episode(
             let mut rng_pos = SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_POS);
             let mut rng_gamma_arr =
                 SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_GAMMA);
+            let mut rng_regime =
+                SpawnRng::spawn_rng(root_seed, RUN_ID, day, STREAM_ARRIVAL_REGIME);
             Some(
                 arrival_model
                     .draw_truth_delivery(
@@ -364,6 +366,7 @@ pub fn run_alpha_tune_episode(
                         &mut rng_temp,
                         &mut rng_pos,
                         &mut rng_gamma_arr,
+                        &mut rng_regime,
                     )
                     .unit_f,
             )
