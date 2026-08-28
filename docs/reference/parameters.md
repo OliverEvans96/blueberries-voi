@@ -198,7 +198,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
 | Episode horizon | — | 90 | days | Length of one studio episode | `crates/voi_core/src/session.rs:290`; Studio (TS) `web/src/mock/generate.ts:43` (`window_days`) |
-| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/params.rs:33,53` |
+| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/arrival.rs:23` (`DEFAULT_ARRIVAL_CORRIDOR`); `crates/voi_core/src/params.rs:77` (`arrival_product` default) |
 
 ### Arrival-model artifact (`data/abdella/arrival_model.json`, schema 3)
 

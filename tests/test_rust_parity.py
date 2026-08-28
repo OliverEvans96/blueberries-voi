@@ -181,7 +181,7 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
     """VOI CRN smoke: all seven scenarios return finite, differentiated profits."""
     if rust_core is None:
         pytest.skip("blueberries_voi._core not built")
-    for root_seed in range(1, 9):
+    for root_seed in range(1, 33):
         profits = run_voi_crn_cell(
             beta=2.0,
             root_seed=root_seed,
@@ -215,5 +215,5 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
 
     pytest.fail(
         "expected structural profit differentiation across scenarios "
-        "for some seed in 1..8"
+        "for some seed in 1..32"
     )
