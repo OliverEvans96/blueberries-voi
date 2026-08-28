@@ -1246,7 +1246,6 @@ fn ac2_12_within_lot_arrival_f_spread() {
     let params = ModelParams::default();
     let model = ArrivalModel::embedded();
     let mut rng = Pcg64::seed_from_u64(150_212);
-    let mut rng_regime = Pcg64::seed_from_u64(150_217);
     let units: Vec<f64> = model
         .draw_truth_delivery(
             "abdella_all",
@@ -1256,7 +1255,6 @@ fn ac2_12_within_lot_arrival_f_spread() {
             &mut Pcg64::seed_from_u64(150_214),
             &mut Pcg64::seed_from_u64(150_215),
             &mut Pcg64::seed_from_u64(150_216),
-            &mut rng_regime,
         )
         .unit_f;
 
