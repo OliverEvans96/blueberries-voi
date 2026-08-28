@@ -41,8 +41,8 @@ from blueberries_voi.simulator import EngineSession
 
 BeliefWorld = Literal["oracle", "filtered"]
 
-BAKEOFF_ARMS: tuple[str, ...] = ("constant", "rung0", "sw", "sla_pb", "sla_mc")
-FILTERED_ARMS: tuple[str, ...] = ("constant", "sw", "sla_pb", "sla_mc")
+BAKEOFF_ARMS: tuple[str, ...] = ("constant", "rung0", "sw", "sla_pb")
+FILTERED_ARMS: tuple[str, ...] = ("constant", "sw", "sla_pb")
 DEFAULT_CONTROLLER_SEEDS: tuple[int, ...] = DEFAULT_ROLLOUT_SEEDS[:10]
 DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 14
@@ -55,7 +55,6 @@ ARM_LABELS: dict[str, str] = {
     "rung0": "Rung 0 (age-blind)",
     "sw": "Damped SW",
     "sla_pb": "Window SLA (PB)",
-    "sla_mc": "Window SLA (MC)",
 }
 
 __all__ = [
@@ -143,13 +142,6 @@ def _act_kw(
         return {"policy": "sw", "alpha": float(alpha), "rho": float(rho)}
     if arm_id == "sla_pb":
         return {"policy": "sla_pb", "alpha": float(alpha), "rho": float(rho)}
-    if arm_id == "sla_mc":
-        return {
-            "policy": "sla_mc",
-            "alpha": float(alpha),
-            "rho": float(rho),
-            "n_sla_paths": int(n_sla_paths),
-        }
     msg = f"arm {arm_id!r} has no session.act mapping; use oracle path for rung0"
     raise ValueError(msg)
 
@@ -169,18 +161,14 @@ def _day_log_from_delta(day_idx: int, delta: dict[str, Any]) -> DayLog:
 
 
 def _shard_n_score(arm_id: str, n_score: int, budgets: dict[str, Any]) -> int:
-    """Allow per-arm scored-day overrides (e.g. sla_mc budget tuning)."""
+    """Allow per-arm scored-day overrides."""
     key = f"{arm_id}_n_score"
     if key in budgets:
         return int(budgets[key])
-    if arm_id == "sla_mc" and "sla_mc_n_score" in budgets:
-        return int(budgets["sla_mc_n_score"])
     return int(n_score)
 
 
 def _shard_n_sla_paths(arm_id: str, n_sla_paths: int, budgets: dict[str, Any]) -> int:
-    if arm_id == "sla_mc" and "n_sla_paths" in budgets:
-        return int(budgets["n_sla_paths"])
     return int(n_sla_paths)
 
 
@@ -322,7 +310,7 @@ def run_controller_eval(
         "day_no_stockout_rate": float(day_no_stockout_rate),
         "n_burn": int(n_burn),
         "n_score": int(score_days),
-        "n_sla_paths": int(sla_paths) if arm_id == "sla_mc" else 0,
+        "n_sla_paths": 0,
         "elapsed_s": float(elapsed),
     }
 

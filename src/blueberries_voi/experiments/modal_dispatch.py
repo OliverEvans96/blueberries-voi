@@ -473,8 +473,8 @@ def _controller_bakeoff_budgets_dict(
         "alpha": kwargs.get("alpha"),
         "alpha_table_path": kwargs.get("alpha_table_path"),
     }
-    if "sla_mc_n_score" in kwargs:
-        out["sla_mc_n_score"] = int(kwargs["sla_mc_n_score"])
+    if "n_sla_paths" in kwargs:
+        out["n_sla_paths"] = int(kwargs["n_sla_paths"])
     return out
 
 

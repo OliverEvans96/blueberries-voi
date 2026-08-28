@@ -87,7 +87,7 @@ Scaling notes and next-tier budgets: [PRELIM_SCALING.md](PRELIM_SCALING.md).
 | ``notebooks/17_prelim_channel_ladder.ipynb`` | ``gsin`` × 8, ``voi_profit`` × 28 | Part 1: 4 regimes × 2 seeds. Part 2: P0/P1/F1/F2a/F2/F3, 4 seeds, ``n_burn=2`` ``n_score=14``, oracle row |
 | ``notebooks/18_prelim_rollout_vs_sw.ipynb`` | ``rollout_eval`` × 8 | Oracle-shelf (SIM-01=B); 4 seeds, ``n_score=14``, ``H=7`` ``paths=4``; α from ``sw_alpha_bo.json`` |
 | ``notebooks/19_channel_factorial_belief_vs_profit.ipynb`` | ``channel_joint`` × ~72 | 12-cell product grid × planned seeds; joint MAE + profit shard; ``nb19_joint_rows.json`` |
-| ``notebooks/21_rust_controller_bakeoff.ipynb`` | ``controller_bakeoff`` × 50 | Oracle SIM-01=B; 10 seeds × 5 arms (constant, rung0, sw, sla_pb, sla_mc); no rollout; optional ``BELIEF_WORLD=filtered`` appendix |
+| ``notebooks/21_rust_controller_bakeoff.ipynb`` | ``controller_bakeoff`` × 40 | Oracle SIM-01=B; 10 seeds × 4 arms (constant, rung0, sw, sla_pb); no rollout/sla_mc; optional ``BELIEF_WORLD=filtered`` appendix |
 
 Set ``SMOKE=True`` for plumbing (shrinks grids via ``modal_dispatch``). Set
 ``BATCH_MODE="local"`` without Modal; build wheel + ``modal login`` for production.

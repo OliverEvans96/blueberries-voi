@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Ax SOO BO for ``sla_pb`` α/ρ (notebook 12 pattern, T-163 controller bakeoff).
+"""Ax SOO BO for ``sla_pb`` alpha/rho (notebook 12 pattern, T-163 controller bakeoff).
 
-Writes ``outputs/sla_pb_alpha_bo.json`` and patches ``experiments/tuned_alpha.json``.
+Writes ``experiments/sla_pb_alpha_bo.json`` and patches
+``experiments/tuned_alpha.json``.
 
 Usage::
 
@@ -32,14 +33,11 @@ from blueberries_voi.experiments.damped_sw_soo import (
     build_soo_jobs,
     evaluate_soo_jobs,
 )
-from blueberries_voi.model import ModelParams
-from blueberries_voi.model.demand_profile import load_demand_profile
 from blueberries_voi.sim.alpha_tune import (
     DEFAULT_TUNED_ALPHA_PATH,
     load_tuned_alpha_table,
     save_tuned_alpha_table,
 )
-from blueberries_voi.sim.profit import ProfitCosts
 
 ROOT = Path(__file__).resolve().parents[1]
 TUNE_ARM = "sla_pb"
@@ -195,7 +193,7 @@ def run_bo(*, use_modal: bool) -> dict[str, Any]:
     best_alpha = float(best_params["alpha"])
     best_rho = float(best_params["rho"])
     print(
-        f"SOO best: α={best_alpha:.4f}, ρ={best_rho:.4f} "
+        f"SOO best: alpha={best_alpha:.4f}, rho={best_rho:.4f} "
         f"(trial {best_index}, wall {wall_s / 60:.1f} min)"
     )
 

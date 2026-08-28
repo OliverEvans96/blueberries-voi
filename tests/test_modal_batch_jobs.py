@@ -316,7 +316,7 @@ def test_controller_bakeoff_filtered_arms_exclude_rung0() -> None:
     filtered = arms_for_belief_world("filtered")
     assert "rung0" not in filtered
     assert "rollout" not in filtered
-    assert len(arms_for_belief_world("oracle")) == 5
+    assert len(arms_for_belief_world("oracle")) == 4
 
 
 def test_merge_controller_bakeoff_rows_dedup() -> None:
@@ -345,14 +345,14 @@ def test_merge_controller_bakeoff_rows_dedup() -> None:
         },
         {
             "seed": 7,
-            "arm_id": "sla_mc",
+            "arm_id": "sla_pb",
             "belief_world": "oracle",
             "alpha": 0.95,
             "rho": 0.8,
             "profit": 12.0,
             "waste": 2,
             "stockout": 1,
-            "elapsed_s": 1.2,
+            "elapsed_s": 0.02,
         },
     ]
     rows = merge_controller_bakeoff_rows(shards)
