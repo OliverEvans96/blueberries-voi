@@ -201,15 +201,16 @@ fn ac2_5_transit_shelf_exposure_relationship() {
     let ratio = two_day_1c / (2.0 * phi_4c * per_ref_day);
     let expected_ratio = phi_1c / phi_4c;
     assert!((ratio - expected_ratio).abs() < 1e-12);
-    assert!((expected_ratio - 3.0_f64.powf(0.1) / 3.0_f64.powf(0.4)).abs() < 1e-12);
+    let q10 = params.q10;
+    assert!((expected_ratio - q10.powf(0.1) / q10.powf(0.4)).abs() < 1e-12);
 
     let pinned = 2.0 * phi_1c * per_ref_day;
     assert!(
         (two_day_1c - pinned).abs() < 1e-9,
         "two_day_1c={two_day_1c} pinned from committed params={pinned}"
     );
-    // After AC2.4 recalibration (eta_ref=14, k*theta=1/14): 2 * 3^0.1 / 14 ≈ 0.159
-    let recalibrated_pin = 2.0 * 3.0_f64.powf(0.1) / 14.0;
+    // After AC2.4 recalibration (eta_ref=14, k*theta=1/14): 2 * q10^0.1 / 14
+    let recalibrated_pin = 2.0 * q10.powf(0.1) / 14.0;
     assert!(
         (two_day_1c - recalibrated_pin).abs() < 1e-3,
         "RED: after recalibration two_day_1c={two_day_1c} expected ≈{recalibrated_pin}"
