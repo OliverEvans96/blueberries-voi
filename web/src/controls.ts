@@ -495,10 +495,10 @@ function mountSectionControlsDom(
         <div class="field">
           ${fieldLabelHtml(
             "Arrival corridor (MOD-21)",
-            "Unified Abdella-matched transit law: trip duration and temperature path are drawn from the six-shipment calibration (abdella_all). Illustrative short_haul / long_haul lanes are no longer exposed in the studio.",
+            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (80%) or long_haul (20%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
           )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Abdella six-shipment unified corridor">Abdella all</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>
           </div>
         </div>
         ${arrivalChartGroups()}

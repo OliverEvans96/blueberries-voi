@@ -76,7 +76,7 @@ export type ObsChannels = {
  * MOD-21 Abdella sampling frame (mock): all six vs corridor subsets.
  * Matches ADR alternatives A / B / C.
  */
-export type ArrivalProduct = "abdella_all" | "long_haul" | "short_haul";
+export type ArrivalProduct = "abdella_all" | "abdella_mix" | "long_haul" | "short_haul";
 
 export type SimConfig = {
   eta_ref: number;
