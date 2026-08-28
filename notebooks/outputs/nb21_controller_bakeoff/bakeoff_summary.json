@@ -18,6 +18,8 @@
     "sw": 0.8884534050211136,
     "sla_pb": 0.9783958765478138
   },
-  "filtered_modal_wall_s": 14.88312548599788,
+  "tuned_alpha_f3_path": "experiments/tuned_alpha_f3_filtered.json",
+  "bo_wall_s": 515.9393472159863,
+  "filtered_modal_wall_s": 15.508774312998867,
   "filtered_shards": 30
 }

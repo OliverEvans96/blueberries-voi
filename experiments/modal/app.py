@@ -58,8 +58,8 @@ _GSIN_BIN = _repo_relative_path(
     _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
 )
 _TUNED_ALPHA = _REPO / "experiments" / "tuned_alpha.json"
-_REMOTE_TUNED_ALPHA = "/experiments/tuned_alpha.json"
 _TUNED_ALPHA_F3 = _REPO / "experiments" / "tuned_alpha_f3_filtered.json"
+_REMOTE_TUNED_ALPHA = "/experiments/tuned_alpha.json"
 _REMOTE_TUNED_ALPHA_F3 = "/experiments/tuned_alpha_f3_filtered.json"
 
 _WHEEL_REMOTE = f"/tmp/{WHEEL_PATH.name}"
