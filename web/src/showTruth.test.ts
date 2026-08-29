@@ -47,10 +47,10 @@ describe("showTruth persistence (T-115)", () => {
     );
   });
 
-  it("loadShowTruth defaults to true when storage is empty", async () => {
+  it("loadShowTruth defaults to false when storage is empty", async () => {
     stubLocalStorage();
     const { loadShowTruth } = await import("./showTruth");
-    expect(loadShowTruth()).toBe(true);
+    expect(loadShowTruth()).toBe(false);
     expect(MEMORY_STORE.has(SHOW_TRUTH_KEY)).toBe(false);
   });
 

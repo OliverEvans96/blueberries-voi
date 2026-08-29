@@ -175,6 +175,10 @@ describe("T-089 ScenarioId type + default P1", () => {
   it("DEFAULT_SIM_CONFIG.obs_scenario remains P1", () => {
     expect(DEFAULT_SIM_CONFIG.obs_scenario).toBe("P1");
   });
+
+  it("DEFAULT_SIM_CONFIG.q10 matches unified transit default (2.0)", () => {
+    expect(DEFAULT_SIM_CONFIG.q10).toBe(2);
+  });
 });
 
 describe("T-113 obs_scenario is live; not config_dirty until Reset (supersedes T-089 apply path)", () => {

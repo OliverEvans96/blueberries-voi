@@ -75,13 +75,13 @@ The other live defaults: $q_{10} = 3.0$ (aging triples for every 10°C of warmin
 | Random daily decrement draw | $\Delta$ | `crates/voi_core/src/physics.rs:48` ([`draw_gamma_decrement`](/api/rust/voi_core/physics/fn.draw_gamma_decrement.html)) |
 | Apply decrement, clamp at 0 | $f_\text{next} = \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
 | Per-unit independent daily aging (production) | — | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
-| Gamma shape (fixed) | $k$ | `crates/voi_core/src/params.rs:25` (field), `:50` (default `2.0`) |
-| Gamma scale (derived) | $\theta$ | `crates/voi_core/src/params.rs:27` (field), `:62` (`set_reference_life`, derives $\theta = 1/(k\eta_\text{ref})$) |
-| Reference shelf life | $\eta_\text{ref}$ | `crates/voi_core/src/params.rs:40` (default `14.0`) |
-| Reference temperature | $T_\text{ref}$ | `crates/voi_core/src/params.rs:42` (default `0.0` °C) |
-| Studio default store temperature | $T_\text{store}$ | `crates/voi_core/src/params.rs:43` (default `4.0` °C) |
-| Q10 doubling/tripling factor | $q_{10}$ | `crates/voi_core/src/params.rs:41` (default `3.0`) |
-| Reference-life invariant guard test | $k\theta\eta_\text{ref} = 1$ | `crates/voi_core/src/params.rs:36` (`impl Default for ModelParams`, calls `set_reference_life()`) |
+| Gamma shape (fixed) | $k$ | `crates/voi_core/src/params.rs:49` (field), `:74` (default `2.0`) |
+| Gamma scale (derived) | $\theta$ | `crates/voi_core/src/params.rs:51` (field), `:86-90` (`set_reference_life`, derives $\theta = 1/(k\eta_\text{ref})$) |
+| Reference shelf life | $\eta_\text{ref}$ | `crates/voi_core/src/params.rs:24` (default `14.0`) |
+| Reference temperature | $T_\text{ref}$ | `crates/voi_core/src/params.rs:29` (default `0.0` °C) |
+| Studio default store temperature | $T_\text{store}$ | `crates/voi_core/src/params.rs:31` (default `4.0` °C) |
+| Q10 rate multiplier | $q_{10}$ | `crates/voi_core/src/params.rs:27` (default `2.0`) |
+| Reference-life invariant guard test | $k\theta\eta_\text{ref} = 1$ | `crates/voi_core/src/params.rs:60` (`impl Default for ModelParams`, calls `set_reference_life()`) |
 
 ## Caveats
 

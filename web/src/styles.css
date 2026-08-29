@@ -892,11 +892,11 @@ input[type="number"] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--paper-edge);
+  border: 1px solid color-mix(in srgb, #6b9e6b 35%, var(--paper-edge));
   border-radius: 10px;
   padding: 7px 10px;
-  background: #fffdf8;
-  color: var(--ink);
+  background: color-mix(in srgb, #6b9e6b 22%, #f4f7f4);
+  color: var(--ink-soft);
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.82rem;
@@ -1073,8 +1073,14 @@ input[type="number"] {
   color: var(--spoil-strong);
 }
 
-.pnl-value--missed {
+.pnl-value--service {
   color: var(--missed-strong);
+}
+
+.pnl-value-detail {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
 }
 
 .pnl-value--waste {

@@ -23,13 +23,19 @@ export function PnLTotalsPlaceholder() {
       </div>
       <div className="pnl-totals-line">
         <span className="pnl-item">
-          <span className="pnl-label">Missed sales</span>
-          <span className="pnl-value pnl-value--missed">0</span>
+          <span className="pnl-label">Service level</span>
+          <span className="pnl-value pnl-value--service">
+            <span className="pnl-value-pct">100%</span>
+            <span className="pnl-value-detail"> (0 missed sales)</span>
+          </span>
         </span>
         <span className="pnl-sep" aria-hidden="true">·</span>
         <span className="pnl-item">
-          <span className="pnl-label">Waste</span>
-          <span className="pnl-value pnl-value--waste">0</span>
+          <span className="pnl-label">Food waste</span>
+          <span className="pnl-value pnl-value--waste">
+            <span className="pnl-value-pct">0%</span>
+            <span className="pnl-value-detail"> (0 units)</span>
+          </span>
         </span>
       </div>
     </div>
