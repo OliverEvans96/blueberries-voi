@@ -208,7 +208,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
 | Episode horizon | — | 90 | days | Length of one studio episode | `crates/voi_core/src/session.rs:290`; Studio (TS) `web/src/mock/generate.ts:43` (`window_days`) |
-| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/arrival.rs:23` (`DEFAULT_ARRIVAL_CORRIDOR`); `crates/voi_core/src/params.rs:77` (`arrival_product` default) |
+| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/arrival.rs:23` ([`DEFAULT_ARRIVAL_CORRIDOR`](/api/rust/voi_core/arrival/constant.DEFAULT_ARRIVAL_CORRIDOR.html)); `crates/voi_core/src/params.rs:77` (`arrival_product` default) |
 
 ### Arrival-model artifact (`data/abdella/arrival_model.json`, schema 3)
 
@@ -217,7 +217,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at 0.35 / 2.58 / 4.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); Abdella compressed anchors under unified $\eta_\text{ref}$ and $q_{10}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:235` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
 | Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Actively kept unified with in-store $\eta_\text{ref}$; studio η_ref slider drives both clocks via `set_reference_life_days`; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
 | Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Shared thermal scale for transit exposure and in-store aging; mirrored from studio `q10` via [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) → `set_q10` | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:27` |
-| Trip thermal modes | — | 10% cool / 80% nominal / 10% warm | — | Per-trip offset applied to all leg setpoints (`thermal_modes` in artifact) | `data/abdella/arrival_model.json` (`thermal_modes`); `crates/voi_core/src/arrival.rs:1246` (`draw_thermal_mode_offset`) |
+| Trip thermal modes | — | 10% cool / 80% nominal / 10% warm | — | Per-trip offset applied to all leg setpoints (`thermal_modes` in artifact) | `data/abdella/arrival_model.json` (`thermal_modes`); `crates/voi_core/src/arrival.rs:1246` ([`draw_thermal_mode_offset`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_thermal_mode_offset)) |
 | Hourly OU path noise | $\sigma_\text{hour}$ | 0.028 | °C | Assumed amplitude for logger-like temperature scatter on line haul / dock | `data/abdella/arrival_model.json` (`sigma_hour`); `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
 | Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:242` (`t_break`) |
 | Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:245` (`rho`) |

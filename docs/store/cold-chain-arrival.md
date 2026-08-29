@@ -177,12 +177,12 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:1335` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
 | Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:1402` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
 | Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1375` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
-| Bottom-up / empirical-resample duration draw | $d$ | `crates/voi_core/src/arrival.rs:1187` (`draw_bottom_up_duration`) |
+| Bottom-up / empirical-resample duration draw | $d$ | `crates/voi_core/src/arrival.rs:1187` ([`draw_bottom_up_duration`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_bottom_up_duration)) |
 | Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:1088` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
 | Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:1120` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
 | Filter: enumerate break counts + gamma quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1633` (`thermal_nodes_for_key`) |
-| Filter: Prior/F2-fallback duration quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1049` (`prior_duration_nodes`) |
-| Categorical regime draw for a corridor mixture | — | `crates/voi_core/src/arrival.rs:986` (`resolve_corridor_regime`) |
+| Filter: Prior/F2-fallback duration quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1049` ([`prior_duration_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.prior_duration_nodes)) |
+| Categorical regime draw for a corridor mixture | — | `crates/voi_core/src/arrival.rs:986` ([`resolve_corridor_regime`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.resolve_corridor_regime)) |
 | Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
 | Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1297` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
 | Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1309` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
@@ -190,7 +190,7 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:664` (`gamma_dist_quantile`) |
 | Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:1369` (`draw_psi_pos`) |
 | Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors, corridor mixtures | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:578` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
-| Set unified reference life / Q10 (studio → transit) | — | `crates/voi_core/src/arrival.rs:1951` (`set_reference_life_days`), `:1974` (`set_q10`); both called from [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) (`:2202`) and RPC `configure` |
+| Set unified reference life / Q10 (studio → transit) | — | `crates/voi_core/src/arrival.rs:1951` ([`set_reference_life_days`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.set_reference_life_days)), `:1974` (`set_q10`); both called from [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) (`:2202`) and RPC `configure` |
 | Default Prior CDF bake (studio fast boot) | — | `crates/voi_core/src/arrival_prior_baked.rs`; loaded when fingerprint matches committed artifact; runtime rebuild when `eta_ref` or `q10` changes via `sync_params` (baked fast path at defaults `q10 = 2.0`, `eta_ref = 14`) |
 | Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 

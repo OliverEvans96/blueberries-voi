@@ -26,12 +26,28 @@
       "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda"
     },
     {
+      "symbol": "draw_bottom_up_duration",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.draw_bottom_up_duration",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_bottom_up_duration"
+    },
+    {
       "symbol": "draw_psi_pos",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
       "rustdoc_path": "voi_core/arrival/fn.draw_psi_pos.html",
       "linkable": false,
       "link_target": null
+    },
+    {
+      "symbol": "draw_thermal_mode_offset",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.draw_thermal_mode_offset",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.draw_thermal_mode_offset"
     },
     {
       "symbol": "draw_transit",
@@ -106,12 +122,28 @@
       "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.phi_set"
     },
     {
+      "symbol": "prior_duration_nodes",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.prior_duration_nodes",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.prior_duration_nodes"
+    },
+    {
       "symbol": "resolve_arrival_exposure",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
       "rustdoc_path": "voi_core/arrival/fn.resolve_arrival_exposure.html",
       "linkable": true,
       "link_target": "voi_core/arrival/fn.resolve_arrival_exposure.html"
+    },
+    {
+      "symbol": "resolve_corridor_regime",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.resolve_corridor_regime",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.resolve_corridor_regime"
     },
     {
       "symbol": "rho",
@@ -136,6 +168,14 @@
       "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture",
       "linkable": true,
       "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture"
+    },
+    {
+      "symbol": "set_reference_life_days",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/struct.ArrivalModel.html#method.set_reference_life_days",
+      "linkable": true,
+      "link_target": "voi_core/arrival/struct.ArrivalModel.html#method.set_reference_life_days"
     },
     {
       "symbol": "sigma_pos",
@@ -248,6 +288,14 @@
       "rustdoc_path": "voi_core/params/struct.ModelParams.html#method.demand_mu_for_day",
       "linkable": true,
       "link_target": "voi_core/params/struct.ModelParams.html#method.demand_mu_for_day"
+    },
+    {
+      "symbol": "demand_vm",
+      "module": "params",
+      "source_file": "crates/voi_core/src/params.rs",
+      "rustdoc_path": "voi_core/params/fn.demand_vm.html",
+      "linkable": false,
+      "link_target": null
     },
     {
       "symbol": "GammaDecrementTable::spoil_prob",
