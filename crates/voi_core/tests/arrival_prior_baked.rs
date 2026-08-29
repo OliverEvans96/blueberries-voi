@@ -60,7 +60,7 @@ fn embedded_prior_load_fast() {
 }
 
 #[test]
-fn sync_params_store_q10_does_not_rebuild_arrival_prior() {
+fn sync_params_store_q10_rebuilds_arrival_prior_when_not_baked() {
     let _guard = serial_guard();
     let mut model = ArrivalModel::embedded();
     model.clear_prior_rebuild_telemetry();
@@ -68,8 +68,21 @@ fn sync_params_store_q10_does_not_rebuild_arrival_prior() {
     params.q10 = 3.5;
     model.sync_params(&params);
     assert!(
+        model.prior_rebuilt_since_clear(),
+        "non-default store q10 must rebuild transit Prior CDF"
+    );
+}
+
+#[test]
+fn sync_params_default_q10_keeps_baked_arrival_prior() {
+    let _guard = serial_guard();
+    let mut model = ArrivalModel::embedded();
+    model.clear_prior_rebuild_telemetry();
+    let params = voi_core::ModelParams::default();
+    model.sync_params(&params);
+    assert!(
         !model.prior_rebuilt_since_clear(),
-        "store q10 must not rebuild transit Prior CDF (baked artifact q10)"
+        "default q10=2.0 must keep baked abdella_mix prior"
     );
 }
 
@@ -83,7 +96,7 @@ fn handle_rpc_studio_init_config_fast() {
             "config": {
                 "seed": 42,
                 "n_particles": 200,
-                "q10": 3,
+                "q10": 2.0,
                 "t_ref_c": 0,
                 "arrival_product": "abdella_mix",
             }
@@ -96,7 +109,7 @@ fn handle_rpc_studio_init_config_fast() {
     assert_eq!(v["ok"], true);
     assert_eq!(
         v["result"]["arrival_prior_rebuilt"], false,
-        "studio init with store q10=3 must keep baked abdella_mix prior"
+        "studio init with default q10=2 must keep baked abdella_mix prior"
     );
     if !cfg!(debug_assertions) {
         assert!(
@@ -167,7 +180,7 @@ fn studio_shaped_init_abdella_mix_no_rebuild() {
                 "n_particles": 200,
                 "H": 7,
                 "arrival_product": "abdella_mix",
-                "q10": 3.0,
+                "q10": 2.0,
                 "t_ref_c": 0.0,
                 "obs_scenario": "P1"
             }
@@ -305,7 +318,7 @@ fn init_cost_breakdown_studio_mix() {
             "n_particles": 200,
             "H": 7,
             "arrival_product": "abdella_mix",
-            "q10": 3.0,
+            "q10": 2.0,
             "t_ref_c": 0.0,
             "obs_scenario": "P1"
         }
