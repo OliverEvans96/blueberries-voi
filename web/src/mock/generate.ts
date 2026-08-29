@@ -40,7 +40,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   obs_scenario: "P1",
   obs_channels: DEFAULT_OBS_CHANNELS,
   window_days: 90,
-  arrival_product: "abdella_all",
+  arrival_product: "abdella_mix",
   spread_scale: 1,
   transit_temp_bias_c: 0,
 };

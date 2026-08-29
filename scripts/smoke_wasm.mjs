@@ -158,6 +158,13 @@ const ev = rpc({ id: "10", method: "events", params: { since_day: 0 } });
 assert(ev.result != null && typeof ev.result === "object", "events result");
 assert(Array.isArray(ev.result.days), "events.days array");
 
+assert(
+  init.result.arrival_summary === undefined,
+  "init must omit arrival_summary (lazy chart load)",
+);
+const arr = rpc({ id: "11", method: "arrival_summary", params: {} });
+assert(Array.isArray(arr.result.curve), "arrival_summary.curve");
+
 console.log(
-  "wasm smoke: init/reset/step/step_n/act/tradeoff_forecast/events + error envelopes ok; belief.lot_counts is array (wasm32)",
+  "wasm smoke: init/reset/step/step_n/act/tradeoff_forecast/events/arrival_summary + error envelopes ok; belief.lot_counts is array (wasm32)",
 );

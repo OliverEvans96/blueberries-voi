@@ -9,6 +9,7 @@
 import type { EngineAdapter } from "./adapter";
 import { MockAdapter } from "../mock/adapter";
 import { WasmAdapter } from "./wasmAdapter";
+import type { Snapshot } from "./types";
 
 /** Selected studio engine backend. */
 export type StudioAdapterKind = "wasm" | "mock";
@@ -128,6 +129,12 @@ export function resolveStudioAdapterKind(env: StudioEnv = {}): StudioAdapterKind
   return "wasm";
 }
 
+/** Bundled dev/studio WASM adapter — one worker across StrictMode remounts. */
+let bundledWasmAdapter: WasmAdapter | null = null;
+
+/** Shared init snapshot promise — avoids duplicate init RPC on StrictMode double-mount. */
+let bundledWasmInit: Promise<Snapshot> | null = null;
+
 /**
  * Construct the studio EngineAdapter for the resolved (or forced) kind.
  */
@@ -156,8 +163,32 @@ export function createStudioAdapter(
     if (assetBase) {
       wasmOpts.assetBaseUrl = assetBase;
     }
+    const external = Boolean(wasmOpts.workerUrl || wasmOpts.assetBaseUrl);
+    if (!external) {
+      bundledWasmAdapter ??= new WasmAdapter(wasmOpts);
+      return bundledWasmAdapter;
+    }
     return new WasmAdapter(wasmOpts);
   }
 
   return new MockAdapter();
+}
+
+/** @internal test hook — reset bundled singleton between vitest cases. */
+export function resetBundledWasmAdapterForTests(): void {
+  bundledWasmAdapter?.terminate();
+  bundledWasmAdapter = null;
+  bundledWasmInit = null;
+}
+
+/** Init RPC shared across StrictMode remounts (bundled wasm only). */
+export function sharedBundledWasmInit(
+  adapter: EngineAdapter,
+  config: Record<string, unknown>,
+): Promise<Snapshot> {
+  if (adapter !== bundledWasmAdapter || bundledWasmAdapter == null) {
+    return adapter.init(config);
+  }
+  bundledWasmInit ??= adapter.init(config);
+  return bundledWasmInit;
 }

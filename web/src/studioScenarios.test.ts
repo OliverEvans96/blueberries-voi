@@ -216,8 +216,16 @@ describe("T-113 obs_scenario is live; not config_dirty until Reset (supersedes T
 describe("T-089 react/studioLogic.ts passes staged config into adapter.init/reset", () => {
   it("bootstrap calls adapter.init with a config argument (not bare init())", () => {
     const src = readFileSync(MAIN_TS, "utf8");
+    // Shared StrictMode-safe init still forwards staged config into adapter.init.
     expect(src).not.toMatch(/adapter\.init\s*\(\s*\)/);
-    expect(src).toMatch(/adapter\.init\s*\(\s*[^)]+/);
+    expect(src).toMatch(/sharedBundledWasmInit\s*\(\s*adapter\s*,\s*\{/);
+    const helper = readFileSync(
+      join(WEB_SRC, "engine/studioAdapter.ts"),
+      "utf8",
+    );
+    expect(helper).toMatch(
+      /function sharedBundledWasmInit[\s\S]*?adapter\.init\s*\(\s*config\s*\)/,
+    );
   });
 
   it("Reset calls adapter.reset with staged config (not bare reset())", () => {

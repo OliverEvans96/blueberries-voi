@@ -45,7 +45,7 @@ _RETIRED_ARRIVAL_SYMBOLS = frozenset(
     {"mu_t", "sigma_t", "temp_floor_c", "sample_truncated_normal"}
 )
 _V2_ARRIVAL_SYMBOLS = frozenset(
-    {"thermal_nodes", "truth_transit_trace", "t_break", "legs"}
+    {"thermal_nodes_for_key", "truth_transit_trace", "t_break", "legs"}
 )
 _ARRIVAL_SOURCE_PATHS = (
     "crates/voi_core/src/arrival.rs",

@@ -160,6 +160,12 @@ the notebook is re-run on the integrate tip.
   translates into better ordering decisions or more profit — that question is separate,
   and the current answer is less encouraging; see
   [Does the money follow?](./does-money-follow)
-- The measurement compares believed vs. true *shelf* freshness (a store-wide summary), not
-  per-unit accuracy or the full shape of the belief distribution — two beliefs with the
-  same mean error can differ a lot in how well they capture the spread.
+- The table above still reports shelf-mean freshness **MAE** (a store-wide summary).
+  That is a useful regression anchor, but it does not score the full shape of the
+  freshness belief: two beliefs with the same mean error can differ a lot in spread.
+  Preferred shape-aware scores elsewhere in the project are **$W_1$** (1-Wasserstein)
+  between live freshness belief and truth for distribution fidelity, and **CRPS** of
+  the particle predictive for on-hand count $N$ when particle samples are available.
+  The interactive studio's belief-accuracy table uses mean-f MAE plus freshness $W_1$
+  (All-days = mean of daily $W_1$); see [The studio, guided](/using-it/studio-guide).
+  Notebook ladders may still publish MAE while those distributional metrics roll out.

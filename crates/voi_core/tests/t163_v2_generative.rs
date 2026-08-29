@@ -79,7 +79,8 @@ fn abdella_marginal_d_matches_pooled_gamma() {
         let mut rt = Pcg64::seed_from_u64(163_110 + i as u64);
         let mut rp = Pcg64::seed_from_u64(163_210 + i as u64);
         let mut rg = Pcg64::seed_from_u64(163_310 + i as u64);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(163_410 + i as u64);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         durations.push(draw.duration_d);
     }
 
@@ -130,13 +131,40 @@ fn var_log_d_matches_abdella() {
         let mut rt = Pcg64::seed_from_u64(163_120 + i as u64);
         let mut rp = Pcg64::seed_from_u64(163_220 + i as u64);
         let mut rg = Pcg64::seed_from_u64(163_320 + i as u64);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(163_420 + i as u64);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         durations.push(draw.duration_d);
     }
     let var_log_d = empirical_var_log(&durations);
     assert!(
         (var_log_d - ABDELLA_VAR_LOG_D).abs() <= VAR_LOG_D_TOL,
         "Var(log d)={var_log_d} not within ±{VAR_LOG_D_TOL} of {ABDELLA_VAR_LOG_D}"
+    );
+}
+
+/// Leaf corridors must resample empirical durations from their own provenance pool, not the
+/// unconditional six-shipment mix (otherwise `resolve_corridor_regime` only controls ~22% of draws).
+#[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
+fn empirical_duration_respects_resolved_regime() {
+    let m = model_rho_zero();
+    let n = 2_000usize;
+    let mut short = Vec::with_capacity(n);
+    let mut long = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut rng = Pcg64::seed_from_u64(163_025 + i as u64);
+        short.push(m.draw_bottom_up_duration("short_haul", &mut rng));
+        long.push(m.draw_bottom_up_duration("long_haul", &mut rng));
+    }
+    let short_frac_long = short.iter().filter(|&&d| d > 4.0).count() as f64 / n as f64;
+    let long_frac_short = long.iter().filter(|&&d| d < 3.5).count() as f64 / n as f64;
+    assert!(
+        short_frac_long < 0.12,
+        "short_haul empirical pool is S2 only; >4d draws should be rare, got {short_frac_long:.3}"
+    );
+    assert!(
+        long_frac_short < 0.12,
+        "long_haul empirical pool is S1,S3–S6; <3.5d draws should be rare, got {long_frac_short:.3}"
     );
 }
 
@@ -189,7 +217,8 @@ fn breaks_clamped_inside_calendar_duration() {
         let mut rt = Pcg64::seed_from_u64(20_000 + seed);
         let mut rp = Pcg64::seed_from_u64(30_000 + seed);
         let mut rg = Pcg64::seed_from_u64(40_000 + seed);
-        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(50_000 + seed);
+        let draw = m.draw_truth_delivery("abdella_all", 1, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         let calendar = calendar_transit_days(&draw.trace);
         assert!(
             (calendar - draw.duration_d).abs() < 1e-6,

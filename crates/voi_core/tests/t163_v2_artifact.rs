@@ -54,7 +54,7 @@ fn artifact_drops_truncated_normal_and_carries_v2_break_fields() {
     }
 }
 
-/// S1.11 — default session uses unified `abdella_all`; haul chips demoted in studio.
+/// S1.11 — default session uses unified `abdella_mix`; haul chips demoted in studio.
 #[test]
 fn session_default_unified_corridor() {
     let snap = EngineSession::new(42).snapshot_value();
@@ -63,8 +63,8 @@ fn session_default_unified_corridor() {
         .expect("applied_config object");
     assert_eq!(
         applied["arrival_product"].as_str(),
-        Some("abdella_all"),
-        "default session must use unified abdella_all corridor"
+        Some("abdella_mix"),
+        "default session must use unified abdella_mix corridor"
     );
 
     let controls = fs::read_to_string(repo_root().join("web/src/controls.ts"))

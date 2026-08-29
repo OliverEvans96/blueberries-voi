@@ -119,7 +119,8 @@ pub fn truth_transit_trace_for_corridor<R: Rng + ?Sized>(
     temp_bias_c: f64,
     rng: &mut R,
 ) -> ShipmentTrace {
-    let corridor = model.corridor(corridor_key);
+    let resolved_key = model.resolve_corridor_regime(corridor_key, rng);
+    let corridor = model.corridor(&resolved_key);
     let stage_d = model.decompose_stages_for_duration(corridor, duration_d, rng);
     let mode_offset = model.draw_thermal_mode_offset(rng);
 

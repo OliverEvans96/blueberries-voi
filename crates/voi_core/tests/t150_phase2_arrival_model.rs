@@ -201,15 +201,16 @@ fn ac2_5_transit_shelf_exposure_relationship() {
     let ratio = two_day_1c / (2.0 * phi_4c * per_ref_day);
     let expected_ratio = phi_1c / phi_4c;
     assert!((ratio - expected_ratio).abs() < 1e-12);
-    assert!((expected_ratio - 3.0_f64.powf(0.1) / 3.0_f64.powf(0.4)).abs() < 1e-12);
+    let q10 = params.q10;
+    assert!((expected_ratio - q10.powf(0.1) / q10.powf(0.4)).abs() < 1e-12);
 
     let pinned = 2.0 * phi_1c * per_ref_day;
     assert!(
         (two_day_1c - pinned).abs() < 1e-9,
         "two_day_1c={two_day_1c} pinned from committed params={pinned}"
     );
-    // After AC2.4 recalibration (eta_ref=14, k*theta=1/14): 2 * 3^0.1 / 14 ≈ 0.159
-    let recalibrated_pin = 2.0 * 3.0_f64.powf(0.1) / 14.0;
+    // After AC2.4 recalibration (eta_ref=14, k*theta=1/14): 2 * q10^0.1 / 14
+    let recalibrated_pin = 2.0 * q10.powf(0.1) / 14.0;
     assert!(
         (two_day_1c - recalibrated_pin).abs() < 1e-3,
         "RED: after recalibration two_day_1c={two_day_1c} expected ≈{recalibrated_pin}"
@@ -1084,8 +1085,8 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
         );
     }
 
-    let mut model = ArrivalModel::embedded();
-    let mixed_mean = law_mean_f(&mut model, ArrivalCondition::Prior);
+    let mut default_model = ArrivalModel::embedded();
+    let default_prior_mean = law_mean_f(&mut default_model, ArrivalCondition::Prior);
 
     let abdella_only = json["corridors"]["abdella_all"].clone();
     let single_json = serde_json::json!({
@@ -1107,10 +1108,20 @@ fn ac2_19_prior_single_corridor_no_mix_weight() {
     });
     let mut single = ArrivalModel::from_json(&serde_json::to_string(&single_json).unwrap())
         .expect("single corridor");
-    let single_mean = law_mean_f(&mut single, ArrivalCondition::Prior);
+    let abdella_all_only_mean = law_mean_f(&mut single, ArrivalCondition::Prior);
+
+    let mut model = ArrivalModel::embedded();
+    model.set_corridor("abdella_all");
+    let abdella_all_prior_mean = law_mean_f(&mut model, ArrivalCondition::Prior);
     assert!(
-        (mixed_mean - single_mean).abs() < 0.02,
-        "RED: P0 prior must not average corridors (mix_weight); mixed={mixed_mean:.4} abdella_only={single_mean:.4}"
+        (abdella_all_prior_mean - abdella_all_only_mean).abs() < 0.02,
+        "RED: set_corridor(abdella_all) prior must match single-corridor artifact; \
+         abdella_all_prior={abdella_all_prior_mean:.4} abdella_all_only={abdella_all_only_mean:.4}"
+    );
+    assert!(
+        (default_prior_mean - abdella_all_only_mean).abs() > 0.01,
+        "RED: default abdella_mix prior must differ from abdella_all-only; \
+         default={default_prior_mean:.4} abdella_all_only={abdella_all_only_mean:.4}"
     );
 }
 
@@ -1244,6 +1255,7 @@ fn ac2_12_within_lot_arrival_f_spread() {
             &mut Pcg64::seed_from_u64(150_213),
             &mut Pcg64::seed_from_u64(150_214),
             &mut Pcg64::seed_from_u64(150_215),
+            &mut Pcg64::seed_from_u64(150_216),
         )
         .unit_f;
 

@@ -173,10 +173,12 @@ def test_merge_gsin_diag_rows_shape() -> None:
                     "lot_n": 4.0,
                     "count_mae": 0.2,
                     "count_bias": 0.02,
+                    "crps_sum": 0.24,
                     "store_meanf_mae": 0.04,
                     "lot_meanf_mae": 0.08,
                     "lot_count_mae": 0.16,
                     "tv_sum": 0.3,
+                    "w1_sum": 0.1,
                     "ess_sum": 200.0,
                     "eff_inv_mae": 0.5,
                     "ms": 10.0,
@@ -196,10 +198,12 @@ def test_merge_gsin_diag_rows_shape() -> None:
                     "lot_n": 4.0,
                     "count_mae": 0.4,
                     "count_bias": 0.04,
+                    "crps_sum": 0.48,
                     "store_meanf_mae": 0.08,
                     "lot_meanf_mae": 0.16,
                     "lot_count_mae": 0.32,
                     "tv_sum": 0.6,
+                    "w1_sum": 0.2,
                     "ess_sum": 180.0,
                     "eff_inv_mae": 1.0,
                     "ms": 12.0,
@@ -214,6 +218,9 @@ def test_merge_gsin_diag_rows_shape() -> None:
     assert row["regime"] == REGIME_TITLES[0]
     assert row["channel"] == "P0"
     assert row["count_mae"] == pytest.approx(0.15)
+    assert row["count_crps"] == pytest.approx(0.18)
+    assert row["freshness_w1"] == pytest.approx(0.075)
+    assert row["hist_tv"] == pytest.approx(0.225)
     assert row["series"] == series
 
 

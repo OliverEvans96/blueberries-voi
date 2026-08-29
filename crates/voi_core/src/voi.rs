@@ -44,6 +44,8 @@ const STREAM_ARRIVAL_DURATION: u64 = 10;
 /// Truth-path arrival transit-temperature draw (T-150; dedicated stream — does not
 /// reuse the retired `STREAM_SENSOR` id).
 const STREAM_ARRIVAL_TEMP: u64 = 11;
+/// Truth-path corridor-regime categorical draw (mixture only).
+const STREAM_ARRIVAL_REGIME: u64 = 12;
 
 const FILTER_INIT_L: usize = 3;
 const FILTER_INIT_K: usize = 8;
@@ -313,6 +315,7 @@ fn run_scenario_episode(
             let mut rng_t = rng(root_seed, phys, day, STREAM_ARRIVAL_TEMP);
             let mut rng_p = rng(root_seed, phys, day, STREAM_ARRIVAL_POS);
             let mut rng_g = rng(root_seed, phys, day, STREAM_ARRIVAL_GAMMA);
+            let mut rng_regime = rng(root_seed, phys, day, STREAM_ARRIVAL_REGIME);
             let draw = arrival_model.draw_truth_delivery(
                 &params.arrival_product,
                 arrival as usize,
@@ -320,6 +323,7 @@ fn run_scenario_episode(
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             (Some(draw.unit_f), Some(draw.pack_date_days))
         } else {

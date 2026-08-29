@@ -61,6 +61,8 @@ outputs/
 notebooks/outputs/*
 !notebooks/outputs/t163_phase2/
 !notebooks/outputs/t163_phase2/**
+!notebooks/outputs/t163_phase1_realism/
+!notebooks/outputs/t163_phase1_realism/**
 .worktrees/
 
 # Web mockup (Vite)

@@ -334,7 +334,7 @@ export function StudioLayout() {
                 <tr>
                   <th scope="col" />
                   <th scope="col">Mean</th>
-                  <th scope="col">Distribution</th>
+                  <th scope="col">W₁ (dist.)</th>
                 </tr>
               </thead>
               <tbody>

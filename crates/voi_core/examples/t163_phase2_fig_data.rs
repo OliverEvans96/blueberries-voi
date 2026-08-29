@@ -17,6 +17,7 @@ fn multilot_delivery_mean_f_samples(model: &ArrivalModel, n: usize, seed: u64) -
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
     let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 4);
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
@@ -27,6 +28,7 @@ fn multilot_delivery_mean_f_samples(model: &ArrivalModel, n: usize, seed: u64) -
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             let total: usize = draw.lots.iter().map(|lot| lot.unit_f.len()).sum();
             draw.lots

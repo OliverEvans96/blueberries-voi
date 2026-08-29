@@ -5,8 +5,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::arrival::{
-    shared_embedded_arrival, ArrivalModel, LOTS_PER_DELIVERY, STREAM_ARRIVAL_DURATION,
-    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    shared_embedded_arrival, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR, LOTS_PER_DELIVERY,
+    STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_REGIME,
+    STREAM_ARRIVAL_TEMP,
 };
 use crate::arrival_wire::arrival_summary_wire;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
@@ -190,7 +191,10 @@ impl EngineSession {
     pub fn new(seed: u64) -> Self {
         let n = 16usize;
         let params = ModelParams::default();
-        let arrival_model = shared_embedded_arrival();
+        let mut arrival_model = shared_embedded_arrival();
+        if (arrival_model.reference_life_days - params.eta_ref).abs() > 1e-12 {
+            arrival_model.set_reference_life_days(params.eta_ref);
+        }
         Self {
             params: params.clone(),
             freshness: vec![],
@@ -224,12 +228,23 @@ impl EngineSession {
             catchup_days_last: 0,
             gamma_table: GammaDecrementTable::for_params(&params),
             arrival_model,
-            arrival_product: "abdella_all".to_string(),
+            arrival_product: DEFAULT_ARRIVAL_CORRIDOR.to_string(),
             spread_scale: 1.0,
             transit_temp_bias_c: 0.0,
             survival_cache: SurvivalCurveCache::for_params(&params, 8),
             n_sla_paths: 32,
         }
+    }
+
+    /// Diagnostic-only: replace the embedded arrival model (joint calibration search).
+    pub fn with_arrival_model(seed: u64, arrival_model: ArrivalModel) -> Self {
+        let mut sess = Self::new(seed);
+        let product = sess.arrival_product.clone();
+        sess.arrival_model = arrival_model;
+        sess.arrival_model.set_corridor(&product);
+        sess.params.q10 = sess.arrival_model.q10;
+        sess.gamma_table = crate::physics::GammaDecrementTable::for_params(&sess.params);
+        sess
     }
 
     /// Rebuilds the session to a fresh episode at the given seed and marks it
@@ -474,6 +489,8 @@ impl EngineSession {
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
             let mut rng_gamma =
                 SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
+            let mut rng_regime =
+                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_REGIME);
             let draw = self.arrival_model.draw_truth_multilot_delivery_biased(
                 &self.arrival_product,
                 n_units,
@@ -482,6 +499,7 @@ impl EngineSession {
                 &mut rng_temp,
                 &mut rng_pos,
                 &mut rng_gamma,
+                &mut rng_regime,
             );
             let mut lot_ids = Vec::with_capacity(LOTS_PER_DELIVERY);
             let mut lot_segments = Vec::with_capacity(LOTS_PER_DELIVERY);
@@ -616,8 +634,30 @@ impl EngineSession {
     /// pending pipeline, the config actually in effect (`applied_config`), the
     /// delivery/order schedule, and demand/arrival summaries. This is the payload sent
     /// after `init` and after any observation-rung switch.
+    ///
+    /// Studio init/reset omits `arrival_summary` (see [`snapshot_value_init`]); the chart
+    /// wire is fetched lazily via the `arrival_summary` RPC when the Arrival section opens.
     pub fn snapshot_value(&self) -> serde_json::Value {
-        serde_json::json!({
+        self.build_snapshot_value(true)
+    }
+
+    /// Init/reset snapshot without the heavy arrival chart wire (T-163 lazy load).
+    pub fn snapshot_value_init(&self) -> serde_json::Value {
+        self.build_snapshot_value(false)
+    }
+
+    /// Chart-ready arrival law for the current corridor and observation rung (T-150 AC3.3).
+    pub fn arrival_summary_value(&self) -> serde_json::Value {
+        arrival_summary_wire(
+            &self.arrival_model,
+            &self.arrival_product,
+            self.obs_channels,
+            self.transit_temp_bias_c,
+        )
+    }
+
+    fn build_snapshot_value(&self, include_arrival_summary: bool) -> serde_json::Value {
+        let mut snap = serde_json::json!({
             "seq": self.seq,
             "episode_day": self.day,
             "belief": self.belief_value(),
@@ -652,15 +692,18 @@ impl EngineSession {
             },
             "schedule": schedule_wire(&self.schedule),
             "demand_summary": demand_summary_wire(&self.params),
-            "arrival_summary": arrival_summary_wire(
-                &self.arrival_model,
-                &self.arrival_product,
-                self.obs_channels,
-                self.transit_temp_bias_c,
-            ),
             "arrival_prior_rebuilt": self.arrival_model.prior_rebuilt_since_clear(),
             "arrival_prior_rebuild_ms": self.arrival_model.prior_rebuild_ms_since_clear(),
-        })
+        });
+        if include_arrival_summary {
+            if let Some(obj) = snap.as_object_mut() {
+                obj.insert(
+                    "arrival_summary".to_string(),
+                    self.arrival_summary_value(),
+                );
+            }
+        }
+        snap
     }
 
     /// Renders one `DayDelta` (and the live state it leaves behind) to the RPC wire
@@ -979,7 +1022,7 @@ impl EngineSession {
         self.catchup_days_last = 0;
         let key = channels_cache_key(channels);
         if channels == self.obs_channels && self.rungs.contains_key(&key) {
-            let mut snap = self.snapshot_value();
+            let mut snap = self.snapshot_value_init();
             if self.uses_filter() {
                 if let Some(rung) = self.rungs.get(&key) {
                     if let Some(obj) = snap.as_object_mut() {
@@ -1056,7 +1099,7 @@ impl EngineSession {
                 },
             );
         }
-        let mut snap = self.snapshot_value();
+        let mut snap = self.snapshot_value_init();
         if self.enable_filter {
             if let Some(rung) = self.rungs.get(&self.active_rung_key()) {
                 if let Some(obj) = snap.as_object_mut() {
@@ -1186,6 +1229,11 @@ impl EngineSession {
     /// Number of particles backing the unit particle filter bank.
     pub fn n_particles(&self) -> usize {
         self._n_particles
+    }
+
+    /// Reference shelf life η_ref on the arrival model (transit freshness draws).
+    pub fn arrival_reference_life_days(&self) -> f64 {
+        self.arrival_model.reference_life_days
     }
 }
 
@@ -1432,6 +1480,7 @@ impl EngineSession {
                 self.params.set_reference_life();
                 self.gamma_table = GammaDecrementTable::for_params(&self.params);
             }
+            self.arrival_model.set_reference_life_days(eta);
         }
         if let Some(scale) = rpc_f64(params, "gamma_scale") {
             self.params.gamma_scale = scale;
@@ -1546,8 +1595,9 @@ pub fn handle_rpc(request_json: &str) -> String {
                         let _ = sess.set_obs_scenario(sc);
                     }
                 }
-                sess.snapshot_value()
+                sess.snapshot_value_init()
             }
+            "arrival_summary" => sess.arrival_summary_value(),
             "step" => {
                 let order = req
                     .params
