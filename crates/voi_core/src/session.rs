@@ -1670,7 +1670,7 @@ struct RpcRequest {
 /// `"step"` and `"step_n"` advance the simulation by one or many days under caller-supplied
 /// order quantities; `"act"` lets the policy choose the order itself from optional
 /// overrides; `"set_obs_scenario"` and `"set_obs_channels"` change what the store can see
-/// mid-run; `"tradeoff_forecast"` and `"events"` are read-only queries over the running
+/// mid-run; `"tradeoff_forecast"`, and `"events"` are read-only queries over the running
 /// session. Parse failures, unknown methods, and validation errors from the session all
 /// come back as `{"ok": false, "error": {...}}` rather than an `Err`, since this function's
 /// contract is "always produce a response string".

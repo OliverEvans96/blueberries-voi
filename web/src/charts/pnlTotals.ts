@@ -10,6 +10,10 @@ function units(n: number): string {
   return n.toFixed(0);
 }
 
+function pct(n: number): string {
+  return `${n.toFixed(0)}%`;
+}
+
 export function renderPnLTotals(
   container: HTMLElement,
   vm: ViewModel,
@@ -17,6 +21,8 @@ export function renderPnLTotals(
   // Episode totals for the full horizon (not a rolling window).
   const t = vm.pnl_totals;
   const impact = computeImpactTotals(vm.history);
+  const serviceLevelPct = (1 - impact.missedPct) * 100;
+  const wastePct = impact.wastePct * 100;
   container.innerHTML = `
     <div class="pnl-totals pnl-totals--compact">
       <div class="pnl-totals-line">
@@ -37,13 +43,13 @@ export function renderPnLTotals(
       </div>
       <div class="pnl-totals-line">
         <span class="pnl-item">
-          <span class="pnl-label">Missed sales</span>
-          <span class="pnl-value pnl-value--missed">${units(impact.missedTotal)}</span>
+          <span class="pnl-label">Service level</span>
+          <span class="pnl-value pnl-value--service"><span class="pnl-value-pct">${pct(serviceLevelPct)}</span><span class="pnl-value-detail"> (${units(impact.missedTotal)} missed sales)</span></span>
         </span>
         <span class="pnl-sep" aria-hidden="true">·</span>
         <span class="pnl-item">
-          <span class="pnl-label">Waste</span>
-          <span class="pnl-value pnl-value--waste">${units(impact.wasteTotal)}</span>
+          <span class="pnl-label">Food waste</span>
+          <span class="pnl-value pnl-value--waste"><span class="pnl-value-pct">${pct(wastePct)}</span><span class="pnl-value-detail"> (${units(impact.wasteTotal)} units)</span></span>
         </span>
       </div>
     </div>

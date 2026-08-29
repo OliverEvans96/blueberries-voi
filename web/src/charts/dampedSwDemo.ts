@@ -244,15 +244,14 @@ export function renderDampedSwDemo(
   container.replaceChildren();
   if (innerW <= 0) return;
 
-  const disabled = opts.policy === "constant";
+  if (opts.policy === "constant") return;
+
   const effective =
     opts.effectiveInventory ?? DEMO_EFFECTIVE_INVENTORY;
-  const decomp = disabled
-    ? null
-    : computeDampedSwDecomposition({
-        ...opts,
-        effectiveInventory: effective,
-      });
+  const decomp = computeDampedSwDecomposition({
+    ...opts,
+    effectiveInventory: effective,
+  });
 
   const svg = d3
     .select(container)
@@ -269,19 +268,6 @@ export function renderDampedSwDemo(
   const root = svg
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
-
-  if (disabled) {
-    root
-      .append("text")
-      .attr("class", "damped-sw-demo-hint")
-      .attr("x", innerW / 2)
-      .attr("y", innerH / 2)
-      .attr("text-anchor", "middle")
-      .text("Constant policy — α / ρ apply to damped_sw only");
-    return;
-  }
-
-  if (!decomp) return;
 
   const summary = opts.demandSummary ?? FALLBACK_SUMMARY;
   const mus = windowMus(summary, opts.episodeDay, decomp.protectionDays);

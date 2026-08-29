@@ -78,7 +78,7 @@ describe("renderDampedSwDemo", () => {
     expect(host.querySelectorAll(".legend-label").length).toBe(2);
   });
 
-  it("shows constant-policy hint instead of histogram", () => {
+  it("leaves host empty for constant policy", () => {
     const host = chartHost();
     renderDampedSwDemo(host, {
       alpha: 0.9,
@@ -91,8 +91,8 @@ describe("renderDampedSwDemo", () => {
       episodeDay: 0,
       effectiveInventory: 20,
     });
-    expect(host.querySelector(".damped-sw-demo-hint")).not.toBeNull();
-    expect(host.querySelectorAll(".prot-demand-hist-bar").length).toBe(0);
+    expect(host.querySelector("svg")).toBeNull();
+    expect(host.childElementCount).toBe(0);
   });
 });
 
