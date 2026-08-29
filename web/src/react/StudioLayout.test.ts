@@ -167,7 +167,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(metrics!.querySelector("#chart-sales-demand")).not.toBeNull();
     expect(metrics!.querySelector("#chart-controller-orders")).not.toBeNull();
     expect(metrics!.querySelector("#chart-spoil")).not.toBeNull();
-    expect(metrics!.querySelector("#chart-age-comp")).not.toBeNull();
+    expect(metrics!.querySelector("#chart-age-comp")).toBeNull();
     expect(metrics!.querySelector("#chart-inventory")).toBeNull();
     expect(metrics!.querySelector(".impact-row")).toBeNull();
     const totals = metrics!.querySelector("#pnl-totals-host");
@@ -193,23 +193,20 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
         .compareDocumentPosition(metrics!.querySelector("#chart-spoil")!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(
-      metrics!
-        .querySelector("#chart-spoil")!
-        .compareDocumentPosition(metrics!.querySelector("#chart-age-comp")!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
   });
 
-  it("belief pane orders today's histogram then history", () => {
+  it("belief pane orders today's histogram, summary, then history", () => {
     const { container } = render(createElement(StudioLayout));
     const belief = container.querySelector(".cockpit-pane--belief")!;
     const beliefLg = belief.querySelector("#chart-belief-lg")!;
+    const ageComp = belief.querySelector("#chart-age-comp")!;
     const history = belief.querySelector("#chart-history")!;
-    expect(belief.querySelector("#chart-age-comp")).toBeNull();
     expect(belief.querySelector("#chart-sla-stockout")).toBeNull();
     expect(
-      beliefLg.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+      beliefLg.compareDocumentPosition(ageComp) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      ageComp.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -221,7 +218,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(belief!.querySelector("#operator-bar-host")).toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
-    expect(belief!.querySelector("#chart-age-comp")).toBeNull();
+    expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(belief!.querySelector("#tradeoff-curve-host")).toBeNull();
     expect(belief!.querySelector("#tradeoff-histogram-host")).toBeNull();
     const runOperator = run!.querySelector("#operator-bar-host");
@@ -244,7 +241,9 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       belief.querySelector('[data-truth-caption="lots"] [data-truth-caption-label]')
         ?.textContent,
     ).toBe("Historical Freshness Distribution");
-    expect(belief.querySelector('[data-truth-caption="age-comp"]')).toBeNull();
+    expect(belief.querySelector('[data-truth-caption="age-comp"] [data-truth-caption-label]')
+      ?.textContent,
+    ).toBe("Historical Freshness Summary");
     expect(
       belief.querySelector('[data-truth-caption="belief-lg"] [data-truth-caption-label]')
         ?.textContent,

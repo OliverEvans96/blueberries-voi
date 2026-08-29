@@ -209,27 +209,6 @@ export function StudioLayout() {
               >
                 <ChartLoadingShell />
               </D3ChartHost>
-              <div
-                className="chart-caption impact-caption"
-                data-truth-caption="age-comp"
-              >
-                <span data-truth-caption-label>
-                  Historical Freshness Summary
-                </span>
-                <InfoTip>
-                  Groups on-hand units into freshness bands, since a unit close
-                  to spoiling barely protects against tomorrow&apos;s demand. The
-                  controller orders off this freshness-weighted total, called
-                  effective inventory.
-                </InfoTip>
-              </div>
-              <D3ChartHost
-                id="chart-age-comp"
-                className="chart"
-                ariaLabel="On-hand inventory by freshness band with effective overlay"
-              >
-                <ChartLoadingShell />
-              </D3ChartHost>
             </div>
           </section>
 
@@ -293,6 +272,27 @@ export function StudioLayout() {
                 id="chart-belief-lg"
                 className="chart"
                 ariaLabel="Today's Freshness Distribution"
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
+              <div
+                className="chart-caption impact-caption"
+                data-truth-caption="age-comp"
+              >
+                <span data-truth-caption-label>
+                  Historical Freshness Summary
+                </span>
+                <InfoTip>
+                  Groups on-hand units into freshness bands, since a unit close
+                  to spoiling barely protects against tomorrow&apos;s demand. The
+                  controller orders off this freshness-weighted total, called
+                  effective inventory.
+                </InfoTip>
+              </div>
+              <D3ChartHost
+                id="chart-age-comp"
+                className="chart"
+                ariaLabel="On-hand inventory by freshness band with effective overlay"
               >
                 <ChartLoadingShell />
               </D3ChartHost>

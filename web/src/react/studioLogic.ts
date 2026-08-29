@@ -936,9 +936,6 @@ export function initStudio(app: HTMLElement): () => void {
           wasteBarYMax(vm.history),
         );
       });
-      profileSync("renderRunStripCharts.ageComp", () =>
-        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
-      );
     });
   }
 
@@ -953,6 +950,9 @@ export function initStudio(app: HTMLElement): () => void {
         data,
         showTruth,
         BELIEF_HISTOGRAM_HEIGHT,
+      );
+      profileSync("renderCockpitBelief.ageComp", () =>
+        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
       );
       els.beliefAgeMarginal.replaceChildren();
     });

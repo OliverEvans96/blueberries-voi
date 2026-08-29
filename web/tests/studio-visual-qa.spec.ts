@@ -98,7 +98,7 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
     await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
     await expect(metrics.locator("#chart-spoil")).toBeVisible();
-    await expect(metrics.locator("#chart-age-comp")).toBeVisible();
+    await expect(metrics.locator("#chart-age-comp")).toHaveCount(0);
     await expect(metrics.locator(".pnl-totals-line")).toHaveCount(2);
     await expect(metrics.locator(".pnl-value--service")).toBeVisible();
     await expect(metrics.locator(".pnl-value--waste")).toBeVisible();
@@ -109,8 +109,9 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await waitForEngine(page);
     await advanceDays(page, 2);
     const belief = page.locator(".cockpit-pane--belief");
-    await expect(belief.locator("#chart-history")).toBeVisible();
     await expect(belief.locator("#chart-belief-lg")).toBeVisible();
+    await expect(belief.locator("#chart-age-comp")).toBeVisible();
+    await expect(belief.locator("#chart-history")).toBeVisible();
 
     const truthToggle = page.locator("[data-testid='obs-controls-pane'] .truth-toggle");
     await expect(truthToggle).toHaveAttribute("aria-checked", "false");
