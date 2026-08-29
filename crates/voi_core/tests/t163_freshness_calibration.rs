@@ -104,7 +104,7 @@ fn sync_params_couples_eta_ref_to_arrival_reference_life() {
     );
 }
 
-/// Store q10 alone must not rewrite arrival reference life (baked-prior fast path).
+/// Store q10 alone must not rewrite arrival reference life.
 #[test]
 fn sync_params_store_q10_preserves_arrival_reference_life() {
     let mut model = ArrivalModel::embedded();
@@ -115,6 +115,10 @@ fn sync_params_store_q10_preserves_arrival_reference_life() {
     assert!(
         (model.reference_life_days - artifact_life).abs() < 1e-12,
         "sync_params must not change reference_life_days when only store q10 changes"
+    );
+    assert!(
+        (model.q10 - 3.5).abs() < 1e-12,
+        "sync_params must mirror store q10 onto arrival model"
     );
 }
 
