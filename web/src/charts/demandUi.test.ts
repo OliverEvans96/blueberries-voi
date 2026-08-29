@@ -162,11 +162,9 @@ describe("T-087 DOW profile from demand_summary", () => {
     expect(main).toMatch(/plot-demand-forecast/);
   });
 
-  it("react/studioLogic.ts reparents focus charts into section hosts", () => {
+  it("react/studioLogic.ts keeps mountTuningChartHosts for section changes", () => {
     const main = stripComments(readFileSync(MAIN_TS, "utf8"));
     expect(main).toMatch(/mountTuningChartHosts/);
-    expect(main).toMatch(/chart-controller-orders-focus/);
-    expect(main).toMatch(/chart-spoil-focus/);
   });
 });
 

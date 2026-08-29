@@ -830,13 +830,6 @@ export function initStudio(app: HTMLElement): () => void {
     return false;
   }
 
-  function mountChartIntoHost(chartEl: HTMLElement, hostId: string): void {
-    const host = q<HTMLElement>(`#${hostId}`);
-    if (host && chartEl.parentElement !== host) {
-      host.appendChild(chartEl);
-    }
-  }
-
   function mountTuningChartHosts(_sectionId: SectionId): void {
     // Focus charts mount in tuning drawer hosts at render time.
   }
@@ -1000,8 +993,6 @@ export function initStudio(app: HTMLElement): () => void {
       profileSync("renderStore.applyHoverStyles", () => applyHoverStyles(hoveredDay));
     });
   }
-
-  const FOCUS_CHART_HEIGHT = 95;
 
   function renderActiveFocusPlots(): void {
     profileSync("renderActiveFocusPlots", () => {
