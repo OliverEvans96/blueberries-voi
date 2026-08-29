@@ -107,10 +107,6 @@
   min-height: 150px;
 }
 
-#chart-sla-stockout.chart {
-  min-height: 130px;
-}
-
 #chart-history.chart {
   min-height: 220px;
 }

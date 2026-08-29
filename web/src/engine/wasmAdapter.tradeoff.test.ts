@@ -31,36 +31,27 @@ function assertTradeoffMethods(adapter: EngineAdapter): void {
 }
 
 describe("EngineAdapter wire surface (T-127 AC-wire)", () => {
-  it("adapter.ts declares optional tradeoffForecast, slaStockoutCurve, and events", () => {
+  it("adapter.ts declares optional tradeoffForecast and events", () => {
     const src = readFileSync(ADAPTER_TS, "utf8");
     expect(src).toMatch(/tradeoffForecast\?/);
-    expect(src).toMatch(/slaStockoutCurve\?/);
     expect(src).toMatch(/events\?/);
     expect(src).toMatch(/TradeoffForecastWire|tradeoff_forecast/i);
-    expect(src).toMatch(/SlaStockoutCurveResult|sla_stockout/i);
     expect(src).toMatch(/EventsWire|since_day/);
   });
 
-  it("wasmAdapter.ts implements tradeoffForecast and slaStockoutCurve via handle_rpc", () => {
+  it("wasmAdapter.ts implements tradeoffForecast via handle_rpc", () => {
     const src = readFileSync(WASM_TS, "utf8");
     expect(src).toMatch(/tradeoffForecast/);
     expect(src).toMatch(/tradeoff_forecast/);
-    expect(src).toMatch(/slaStockoutCurve/);
-    expect(src).toMatch(/sla_stockout_curve/);
     expect(src).toMatch(/events/);
   });
 
   it("mockAdapter.ts returns deterministic fixtures", async () => {
     const src = readFileSync(MOCK_TS, "utf8");
     expect(src).toMatch(/tradeoffForecast/);
-    expect(src).toMatch(/slaStockoutCurve/);
     expect(src).toMatch(/events/);
     const mock = new MockAdapter();
     assertTradeoffMethods(mock);
-    expect(typeof mock.slaStockoutCurve).toBe("function");
-    const sla = await mock.slaStockoutCurve!();
-    expect(sla.candidates.length).toBeGreaterThan(0);
-    expect(sla.candidates[0]!.p_stockout).toBeDefined();
     const tf = (await mock.tradeoffForecast!()) as TradeoffForecastWire;
     expect(tf.candidates.length).toBeGreaterThan(0);
     expect(tf.candidates[0]!.joint_hist).toBeDefined();
@@ -88,10 +79,9 @@ describe("EngineAdapter wire surface (T-127 AC-wire)", () => {
     );
   });
 
-  it("WasmAdapter class exposes tradeoffForecast, slaStockoutCurve, and events methods", () => {
+  it("WasmAdapter class exposes tradeoffForecast and events methods", () => {
     const src = readFileSync(WASM_TS, "utf8");
     expect(src).toMatch(/async tradeoffForecast/);
-    expect(src).toMatch(/async slaStockoutCurve/);
     expect(src).toMatch(/async events/);
   });
 

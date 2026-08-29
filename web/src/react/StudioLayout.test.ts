@@ -25,15 +25,12 @@ const REQUIRED_CHART_IDS = [
   "chart-sales-demand",
   "chart-age-comp",
   "chart-arrival-prior",
-  "chart-arrival-shift",
   "chart-arrhenius-temp",
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-sla-stockout",
   "chart-controller-orders",
   "chart-spoil",
-  "chart-age-comp-focus",
   "chart-controller-orders-focus",
   "chart-spoil-focus",
 ] as const;
@@ -204,18 +201,15 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
-  it("belief pane orders today's histogram, SLA stockout, then history", () => {
+  it("belief pane orders today's histogram then history", () => {
     const { container } = render(createElement(StudioLayout));
     const belief = container.querySelector(".cockpit-pane--belief")!;
     const beliefLg = belief.querySelector("#chart-belief-lg")!;
-    const sla = belief.querySelector("#chart-sla-stockout")!;
     const history = belief.querySelector("#chart-history")!;
     expect(belief.querySelector("#chart-age-comp")).toBeNull();
+    expect(belief.querySelector("#chart-sla-stockout")).toBeNull();
     expect(
-      beliefLg.compareDocumentPosition(sla) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      sla.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+      beliefLg.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -226,7 +220,6 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(run!.querySelector("#operator-bar-host")).not.toBeNull();
     expect(belief!.querySelector("#operator-bar-host")).toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
-    expect(belief!.querySelector("#chart-sla-stockout")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
     expect(belief!.querySelector("#chart-age-comp")).toBeNull();
     expect(belief!.querySelector("#tradeoff-curve-host")).toBeNull();
@@ -285,8 +278,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       "chart-history",
       "chart-sales-demand",
       "chart-age-comp",
-      "chart-sla-stockout",
-      "chart-belief-age-marginal",
+          "chart-belief-age-marginal",
       "chart-belief-lg",
       "chart-controller-orders",
       "chart-spoil",

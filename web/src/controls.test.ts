@@ -123,6 +123,11 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']alpha-rho-pad["']/);
   });
 
+  it("autopilot block hides rollout and sla_mc policy chips in UI", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/data-policy=["']sla_mc["']/);
+  });
+
   it("autopilot block hides rollout chip and rollout budget fields in UI", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).not.toMatch(/data-policy=["']rollout["']/);

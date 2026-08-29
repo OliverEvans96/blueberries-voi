@@ -103,7 +103,7 @@ pub use physics::{
     picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
 };
 pub use protection_sim::{
-    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief, sla_stockout_curve,
+    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief,
     simulate_protection_path, McSlaModel, PbSlaModel, ProtectionPathResult, ProtectionWindow,
     SlaModel, SurvivalCurveCache,
 };

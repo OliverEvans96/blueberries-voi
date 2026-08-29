@@ -44,12 +44,12 @@ export function renderPnLTotals(
       <div class="pnl-totals-line">
         <span class="pnl-item">
           <span class="pnl-label">Service level</span>
-          <span class="pnl-value pnl-value--service">${pct(serviceLevelPct)} (${units(impact.missedTotal)} missed sales)</span>
+          <span class="pnl-value pnl-value--service"><span class="pnl-value-pct">${pct(serviceLevelPct)}</span><span class="pnl-value-detail"> (${units(impact.missedTotal)} missed sales)</span></span>
         </span>
         <span class="pnl-sep" aria-hidden="true">·</span>
         <span class="pnl-item">
           <span class="pnl-label">Food waste</span>
-          <span class="pnl-value pnl-value--waste">${pct(wastePct)} (${units(impact.wasteTotal)} units)</span>
+          <span class="pnl-value pnl-value--waste"><span class="pnl-value-pct">${pct(wastePct)}</span><span class="pnl-value-detail"> (${units(impact.wasteTotal)} units)</span></span>
         </span>
       </div>
     </div>

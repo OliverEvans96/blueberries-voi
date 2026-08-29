@@ -9,7 +9,6 @@ import type {
   Snapshot,
   TradeoffForecastResult,
   TradeoffForecastWire,
-  SlaStockoutCurveResult,
 } from "./types";
 
 /** Wire aliases documented for adapter implementers (T-127). */
@@ -41,7 +40,6 @@ export interface EngineAdapter {
     n_paths?: number;
     protection_days?: number;
   }): Promise<TradeoffForecastResult>;
-  slaStockoutCurve?(): Promise<SlaStockoutCurveResult>;
   /** Events RPC envelope: `{ days: EventDayWire[] }`. */
   events?(params: { since_day: number }): Promise<EventsResult>;
 }

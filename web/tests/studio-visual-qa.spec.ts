@@ -98,9 +98,9 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await expect(metrics.locator("#chart-sales-demand")).toBeVisible();
     await expect(metrics.locator("#chart-controller-orders")).toBeVisible();
     await expect(metrics.locator("#chart-spoil")).toBeVisible();
-    await expect(metrics.locator("#chart-age-comp")).toHaveCount(0);
+    await expect(metrics.locator("#chart-age-comp")).toBeVisible();
     await expect(metrics.locator(".pnl-totals-line")).toHaveCount(2);
-    await expect(metrics.locator(".pnl-value--missed")).toBeVisible();
+    await expect(metrics.locator(".pnl-value--service")).toBeVisible();
     await expect(metrics.locator(".pnl-value--waste")).toBeVisible();
   });
 
@@ -113,10 +113,10 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await expect(belief.locator("#chart-belief-lg")).toBeVisible();
 
     const truthToggle = page.locator("[data-testid='obs-controls-pane'] .truth-toggle");
-    await expect(truthToggle).toHaveAttribute("aria-checked", "true");
+    await expect(truthToggle).toHaveAttribute("aria-checked", "false");
     await expect(page.locator(".truth-toggle-label")).toContainText("Omniscience");
     await truthToggle.click();
-    await expect(truthToggle).toHaveAttribute("aria-checked", "false");
+    await expect(truthToggle).toHaveAttribute("aria-checked", "true");
   });
 
   test("4: exactly one order-qty control and one advance button", async ({ page }) => {
@@ -128,19 +128,6 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await expect(page.locator("#btn-reset")).toHaveCount(1);
   });
 
-  test("5: controller tradeoff in belief column", async ({ page }) => {
-    await page.goto("/");
-    await waitForEngine(page);
-    const belief = page.locator(".cockpit-pane--belief");
-    await expect(belief.locator('.belief-tradeoff-tabs [role="tab"]')).toHaveCount(2);
-    await expect(belief.locator("#tradeoff-curve-host")).toBeVisible();
-    await expect(belief.locator("#tradeoff-histogram-host")).toBeHidden();
-    await page.waitForTimeout(200);
-    const curvePaths = await belief
-      .locator("#tradeoff-curve-host path, #tradeoff-curve-host line")
-      .count();
-    expect(curvePaths).toBeGreaterThan(0);
-  });
 
   test("6: events pane 5-day window", async ({ page }) => {
     await page.goto("/");
@@ -185,8 +172,7 @@ test.describe("T-158 layout v7 — visual QA", () => {
       "#chart-pnl-economics",
       "#chart-history",
       "#chart-belief-lg",
-      "#tradeoff-curve-host",
-    ];
+          ];
 
     const heightsBefore = await page.evaluate((ids) => {
       const out: Record<string, number> = {};

@@ -175,3 +175,13 @@ describe("Missed-sales CSS tokens (T-116)", () => {
     expect(css).toMatch(/\.chip-missed\s*\{/);
   });
 });
+
+describe("PnL totals split percentage markup", () => {
+  it("renderPnLTotals uses pnl-value-pct and pnl-value-detail spans", () => {
+    const pnl = stripComments(readFileSync(PNL_TOTALS_TS, "utf8"));
+    expect(pnl).toMatch(/pnl-value-pct/);
+    expect(pnl).toMatch(/pnl-value-detail/);
+    expect(pnl).toMatch(/pnl-value--service/);
+    expect(pnl).toMatch(/pnl-value--waste/);
+  });
+});

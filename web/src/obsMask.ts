@@ -150,6 +150,7 @@ export function maskFromChannels(ch: ObsChannels): ObsMask {
     m.pack_date = true;
   } else if (ch.delivery_history === "temperature_history") {
     m.temperature_history = true;
+    m.pack_date = true;
   }
   return m;
 }

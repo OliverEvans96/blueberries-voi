@@ -33,15 +33,12 @@ const D3_CHART_IDS = [
   "chart-sales-demand",
   "chart-age-comp",
   "chart-arrival-prior",
-  "chart-arrival-shift",
   "chart-arrhenius-temp",
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
-  "chart-sla-stockout",
   "chart-controller-orders",
   "chart-spoil",
-  "chart-age-comp-focus",
   "chart-controller-orders-focus",
   "chart-spoil-focus",
 ] as const;
@@ -296,22 +293,6 @@ export function StudioLayout() {
                 id="chart-belief-lg"
                 className="chart"
                 ariaLabel="Today's Freshness Distribution"
-              >
-                <ChartLoadingShell />
-              </D3ChartHost>
-              <div className="chart-caption impact-caption">
-                SLA stockout risk
-                <InfoTip>
-                  Protection-window demand (background) versus the probability
-                  of a stockout at each order quantity (foreground), from the
-                  Poisson-binomial SLA fast path. The marker tracks the order
-                  slider.
-                </InfoTip>
-              </div>
-              <D3ChartHost
-                id="chart-sla-stockout"
-                className="chart"
-                ariaLabel="Protection demand and stockout probability by order quantity"
               >
                 <ChartLoadingShell />
               </D3ChartHost>

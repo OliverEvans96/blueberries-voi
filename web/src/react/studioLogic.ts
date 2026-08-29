@@ -35,7 +35,6 @@ import {
   BELIEF_FRESHNESS_TIME_HEIGHT,
   BELIEF_HISTOGRAM_HEIGHT,
   METRICS_STRIP_HEIGHT,
-  SLA_STOCKOUT_HEIGHT,
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
@@ -83,12 +82,7 @@ import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
-  refreshSlaStockoutMarker,
-  renderSlaStockoutChart,
-} from "../charts/slaStockoutChart";
-import {
   renderArrivalPrior,
-  renderArrivalShift,
 } from "../charts/arrivalPrior";
 import {
   renderArrheniusTemp,
@@ -115,7 +109,7 @@ import {
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
-import type { ActOpts, ScheduleWire, SlaStockoutCurveResult, Snapshot } from "../engine/types";
+import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {
   renderWeekCalendar,
@@ -286,7 +280,6 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsRefreshing = false;
   let lastEventsKey = "";
   let frameGen = 0;
-  let slaStockoutCurve: SlaStockoutCurveResult | null = null;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -333,9 +326,6 @@ export function initStudio(app: HTMLElement): () => void {
     get beliefLg(): HTMLElement {
       return q<HTMLElement>("#chart-belief-lg")!;
     },
-    get slaStockout(): HTMLElement {
-      return q<HTMLElement>("#chart-sla-stockout")!;
-    },
     get hoverNote(): HTMLElement {
       return q<HTMLElement>("#hover-note")!;
     },
@@ -357,23 +347,11 @@ export function initStudio(app: HTMLElement): () => void {
     get spoil(): HTMLElement {
       return q<HTMLElement>("#chart-spoil")!;
     },
-    get ageCompFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-age-comp-focus")!;
-    },
-    get controllerOrdersFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-controller-orders-focus")!;
-    },
-    get spoilFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-spoil-focus")!;
-    },
     get dampedSwDemo(): HTMLElement {
       return q<HTMLElement>("#chart-damped-sw-demo")!;
     },
     get arrivalPrior(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-prior")!;
-    },
-    get arrivalShift(): HTMLElement {
-      return q<HTMLElement>("#chart-arrival-shift")!;
     },
     get arrheniusTemp(): HTMLElement {
       return q<HTMLElement>("#chart-arrhenius-temp")!;
@@ -540,27 +518,9 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
-  async function fetchSlaStockoutCurve(gen: number): Promise<void> {
-    if (typeof adapter.slaStockoutCurve !== "function") {
-      slaStockoutCurve = null;
-      return;
-    }
-    try {
-      const result = await adapter.slaStockoutCurve();
-      if (gen !== frameGen) return;
-      slaStockoutCurve = result;
-    } catch {
-      if (gen !== frameGen) return;
-      slaStockoutCurve = null;
-    }
-  }
-
   async function commitFrame(): Promise<void> {
     const gen = ++frameGen;
-    await Promise.all([
-      profileAsync("fetchEvents", () => fetchEvents(gen)),
-      profileAsync("fetchSlaStockoutCurve", () => fetchSlaStockoutCurve(gen)),
-    ]);
+    await profileAsync("fetchEvents", () => fetchEvents(gen));
     if (gen !== frameGen) return;
     renderAll();
   }
@@ -688,7 +648,6 @@ export function initStudio(app: HTMLElement): () => void {
               sectionControlsApi?.update(controlsState());
               paintPortalDrawers();
               renderOperatorBar();
-              refreshSlaStockoutMarker(els.slaStockout, orderQty, slaStockoutCurve);
             },
           }),
         );
@@ -736,12 +695,9 @@ export function initStudio(app: HTMLElement): () => void {
     );
     setSalesDemandHover(els.salesDemand, day);
     setControllerOrdersHover(els.controllerOrders, day);
-    setControllerOrdersHover(els.controllerOrdersFocus, day);
     setWasteBarsHover(els.spoil, day);
-    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setFreshnessCompositionHover(els.ageComp, day);
-    setFreshnessCompositionHover(els.ageCompFocus, day);
     setDemandForecastHover(els.demandForecast, day);
   }
 
@@ -881,10 +837,8 @@ export function initStudio(app: HTMLElement): () => void {
     }
   }
 
-  function mountTuningChartHosts(sectionId: SectionId): void {
-    if (sectionId === "logistics") {
-      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
-    }
+  function mountTuningChartHosts(_sectionId: SectionId): void {
+    // Focus charts mount in tuning drawer hosts at render time.
   }
 
   function liveEffectiveInventory(): number | null {
@@ -1007,21 +961,6 @@ export function initStudio(app: HTMLElement): () => void {
         showTruth,
         BELIEF_HISTOGRAM_HEIGHT,
       );
-      const previewSchedule =
-        vm.config.delivery_weekdays?.length > 0
-          ? scheduleFromConfig(vm.config)
-          : schedule;
-      profileSync("renderCockpitBelief.slaStockout", () =>
-        renderSlaStockoutChart(els.slaStockout, {
-          curve: slaStockoutCurve,
-          orderQty,
-          demandVm: vm.config.demand_vm,
-          demandSummary: vm.demand_summary,
-          schedule: previewSchedule,
-          episodeDay: vm.episode_day,
-          height: SLA_STOCKOUT_HEIGHT,
-        }),
-      );
       els.beliefAgeMarginal.replaceChildren();
     });
   }
@@ -1067,11 +1006,6 @@ export function initStudio(app: HTMLElement): () => void {
   function renderActiveFocusPlots(): void {
     profileSync("renderActiveFocusPlots", () => {
       renderRunStripCharts();
-      if (plotVisible("plot-age-comp")) {
-        profileSync("renderActiveFocusPlots.ageCompFocus", () =>
-          renderAgeCompositionChart(els.ageCompFocus, FOCUS_CHART_HEIGHT),
-        );
-      }
       if (plotVisible("plot-demand-forecast")) {
         profileSync("renderActiveFocusPlots.demandForecast", () =>
           renderDemandForecast(
@@ -1102,11 +1036,6 @@ export function initStudio(app: HTMLElement): () => void {
               showTruth,
             ),
           ),
-        );
-      }
-      if (plotVisible("plot-arrival-shift")) {
-        profileSync("renderActiveFocusPlots.arrivalShift", () =>
-          renderArrivalShift(els.arrivalShift, vm.arrival_summary, vm.config.transit_temp_bias_c, 150),
         );
       }
       if (plotVisible("plot-arrhenius-temp")) {
@@ -1301,7 +1230,7 @@ export function initStudio(app: HTMLElement): () => void {
     applyDelta: async (delta) => {
       // Sync order slider before renderAll so chrome matches day.order_qty (T-100 AC).
       const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
-      if (typeof q === "number") {
+      if (typeof q === "number" && controllerState.policy !== "constant") {
         orderQty = snapOrder(q);
       }
       vm = projector.applyDelta(delta);
