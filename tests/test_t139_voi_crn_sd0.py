@@ -12,18 +12,17 @@ from blueberries_voi.voi import VOI_SCENARIOS, run_voi_crn_cell
 if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
-# T-150 f-native arrival physics; schema-2 arrival_model.json (v2 generative drift).
-# T-163: q10 3.0→2.0 session-wide (abdella_mix defaults, eta_ref=14).
+# T-163: unified q10=2.0 + Abdella leg anchors (q10 unification PR).
 # Recomputed from run_voi_crn_cell(root_seed=1, beta=2.0, n_burn=2, n_score=8) on
-# 2026-08-29 after F3 exposure/gsin_upc_diag alignment (e72e2894).
+# 2026-08-29 after merging main (F3 exposure align) + q10 sync + Abdella setpoints.
 _T150_BASELINE: dict[str, float] = {
-    "P0": 216.0,
-    "P1": 216.0,
-    "F1": 216.0,
-    "F1s": 216.0,
-    "F2a": 246.0,
-    "F2": 246.0,
-    "B-state": 206.0,
+    "P0": 241.0,
+    "P1": 241.0,
+    "F1": 241.0,
+    "F1s": 241.0,
+    "F2a": 241.0,
+    "F2": 241.0,
+    "B-state": 241.0,
 }
 
 

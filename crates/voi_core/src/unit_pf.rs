@@ -293,9 +293,8 @@ pub fn project_lot_map(
 
 /// Resolve channel-conditional arrival law from filter observation.
 ///
-/// Temperature traces must be integrated with the **arrival model's** `q10`/`t_ref`
-/// (embedded artifact / trial calibration), not [`ModelParams::q10`]: `sync_params`
-/// intentionally does not mirror store physics onto the arrival artifact (PR #65).
+/// Temperature traces integrate with the arrival model's unified `q10`/`t_ref`
+/// (kept in sync with [`ModelParams`] via [`ArrivalModel::sync_params`]).
 fn resolve_arrival_f_law(obs: &FilterObs, q10: f64, t_ref: f64) -> ArrivalCondition {
     if let Some(exposure) = resolve_arrival_exposure(
         obs.temp_temps_c.as_deref(),
@@ -824,10 +823,14 @@ mod tests {
     }
 
     #[test]
-    fn filter_birth_f3_integrates_trace_with_arrival_model_q10() {
+    fn filter_birth_f3_integrates_trace_with_synced_q10() {
         let times = vec![0.0, 1.5, 3.0];
         let temps = vec![4.0, 6.0, 8.0];
         let mut model = ArrivalModel::embedded();
+        let mut params = ModelParams::default();
+        params.q10 = 2.5;
+        model.sync_params(&params);
+        model.set_corridor(&params.arrival_product);
         let expected_lambda = resolve_arrival_exposure(
             Some(&temps),
             Some(&times),
@@ -835,10 +838,6 @@ mod tests {
             model.t_ref,
         )
         .expect("controlled trace integrates");
-        let mut params = ModelParams::default();
-        params.q10 = 2.0;
-        model.sync_params(&params);
-        model.set_corridor(&params.arrival_product);
 
         let mut bank = UnitParticleBank::empty(8);
         let mut rng = Pcg64::seed_from_u64(99);
@@ -868,22 +867,11 @@ mod tests {
             .expect("F3 birth should record exposure Λ");
         assert!(
             (used - expected_lambda).abs() < 1e-9,
-            "filter used Λ={used}, expected artifact q10 integration {expected_lambda}"
-        );
-        let store_lambda = resolve_arrival_exposure(
-            Some(&temps),
-            Some(&times),
-            params.q10,
-            params.t_ref_c,
-        )
-        .expect("store q10 integrates");
-        assert!(
-            (store_lambda - expected_lambda).abs() > 1e-6,
-            "test needs store q10 to disagree with artifact q10"
+            "filter used Λ={used}, expected synced q10 integration {expected_lambda}"
         );
         assert!(
-            (used - store_lambda).abs() > 1e-6,
-            "filter must not integrate F3 traces with ModelParams::q10"
+            (model.q10 - params.q10).abs() < 1e-12,
+            "sync_params must mirror store q10 onto arrival model"
         );
     }
 

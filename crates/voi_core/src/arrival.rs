@@ -952,11 +952,16 @@ impl ArrivalModel {
     }
 
     fn rebuild_marginal_cdf_prior(&mut self, record_telemetry: bool) {
+        // `std::time::Instant` is unavailable on wasm32-unknown-unknown (panics at now()).
+        #[cfg(not(target_arch = "wasm32"))]
         let t0 = std::time::Instant::now();
         self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
         if record_telemetry {
             self.prior_rebuilt_since_clear = true;
-            self.prior_rebuild_ms_since_clear = t0.elapsed().as_millis() as u64;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.prior_rebuild_ms_since_clear = t0.elapsed().as_millis() as u64;
+            }
         }
         self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
@@ -1964,6 +1969,25 @@ impl ArrivalModel {
         self.rebuild_marginal_cdf_prior(true);
     }
 
+    /// Sets unified Q₁₀ for transit exposure integration and re-evaluates the Prior CDF
+    /// fingerprint. No-op when `q10` is unchanged or ≤ 1.
+    pub fn set_q10(&mut self, q10: f64) {
+        if q10 <= 1.0 {
+            return;
+        }
+        if (self.q10 - q10).abs() < 1e-12 {
+            return;
+        }
+        self.q10 = q10;
+        let new_key = PriorCdfBuildKey::from_model(self);
+        if new_key == self.prior_build_key {
+            return;
+        }
+        self.f2_cache.clear();
+        self.f3_cache.clear();
+        self.rebuild_marginal_cdf_prior(true);
+    }
+
     /// Point the filter's prior and F2/F3 caches at a different corridor (T-150 finding
     /// 4: the configured `arrival_product` must reach the filter prior, not just the
     /// truth path). No-op if already active; otherwise invalidates the F2/F3 caches
@@ -2168,15 +2192,19 @@ impl ArrivalModel {
         self.marginal_cdf.variance_f
     }
 
-    /// Mirrors studio [`ModelParams::eta_ref`] onto `reference_life_days` so in-store
-    /// aging and transit freshness share one shelf-life knob (T-163). Store `q10` /
-    /// `t_ref_c` are intentionally **not** copied here — that would miss the compile-time
-    /// baked Prior fingerprint and rebuild the 512-point Prior CDF on every studio init
-    /// (PR #65 regression family). RPC `apply_rpc_configure` also calls
-    /// [`set_reference_life_days`](Self::set_reference_life_days) when `eta_ref` is set.
+    /// Mirrors studio [`ModelParams::eta_ref`] and [`ModelParams::q10`] onto the arrival
+    /// artifact so in-store aging and transit exposure share one thermal scale (T-163).
+    /// When the resulting [`PriorCdfBuildKey`] still matches the compile-time baked
+    /// fingerprint at the defaults (`q10 = 2.0`, `eta_ref = 14`), the fast path is
+    /// unchanged; non-default `q10` rebuilds the Prior CDF. RPC `apply_rpc_configure`
+    /// calls [`set_reference_life_days`](Self::set_reference_life_days) when `eta_ref`
+    /// is set and routes `q10` through here.
     pub fn sync_params(&mut self, params: &ModelParams) {
         if (self.reference_life_days - params.eta_ref).abs() > 1e-12 {
             self.set_reference_life_days(params.eta_ref);
+        }
+        if (self.q10 - params.q10).abs() > 1e-12 {
+            self.set_q10(params.q10);
         }
     }
 }

@@ -27,7 +27,7 @@ const GAMMA_SCALE = 0.08;
 /** Defaults aligned with blueberries_voi.model.ModelParams where applicable. */
 export const DEFAULT_SIM_CONFIG: SimConfig = {
   eta_ref: 14,
-  q10: 3,
+  q10: 2,
   t_ref_c: 0,
   t_store_c: 4,
   sigma: 0.5,
