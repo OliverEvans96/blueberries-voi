@@ -18,14 +18,18 @@ studio should open with realistic on-hand stock.
 2. **Opening protection window** (calendar-derived, no ambiguity on first manual order):
    - `first_order_day` = first `schedule.can_order(day)` for `day >= 0`
    - `first_order_arrival_day` = `first_order_day + lead_time`
-   - `opening_protection_days` = `first_order_arrival_day` — covers demand on episode
-     days `0 .. first_order_arrival_day` (exclusive of the arrival day). Example: default
-     MWF with `LT=1`, Monday episode start → first order Tuesday (day 1), arrival
-     Wednesday (day 2) → cover Mon–Tue (2 days).
-3. **Quantity:** `initial_stock_sla_pb` — the SLA_PB Poisson-binomial window model
-   (`OpeningStockPbModel`) at `INITIAL_STOCK_ALPHA = 0.95`, with units on shelf at
-   corridor prior freshness (`f_pipeline = 1.0`) from episode day 0. Not the plain
-   `protection_demand_quantile` (which ignores freshness spoilage over the window).
+   - `opening_protection_days` = `first_order_arrival_day + 1` — covers demand on
+     episode days `0 ..= first_order_arrival_day` inclusive. The arrival day is
+     included because `unit_day_step` sells before it delivers, so a truck due that
+     morning cannot satisfy that day's customers. Example: default MWF with `LT=1`,
+     Monday episode start → first order Tuesday (day 1), arrival Wednesday (day 2)
+     → cover Mon–Wed (3 days).
+3. **Quantity:** `initial_stock_sla_mc` — Monte Carlo window SLA over
+   [`simulate_protection_path`] / `unit_day_step` at `INITIAL_STOCK_ALPHA = 0.95`, with
+   units on shelf at corridor prior freshness (`f_pipeline = 1.0`) from episode day 0.
+   The fast `OpeningStockPbModel` path remains for tests and benchmarks but is not used
+   for studio RPC sizing because its Poisson-binomial approximation materially
+   undersizes relative to the truth day step (sell-before-deliver + gamma spoilage).
 4. **Freshness:** standard corridor draw via `draw_truth_multilot_delivery_biased` (same
    path as scheduled deliveries).
 5. **Filter:** birth from synthetic day-0 arrival observation; `bank_init` synced so

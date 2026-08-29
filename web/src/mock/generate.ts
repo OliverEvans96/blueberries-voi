@@ -144,9 +144,9 @@ function firstOrderArrivalDay(cfg: SimConfig): number {
   return firstOrderDay(cfg) + schedule.lead_time_days;
 }
 
-/** Opening protection window: days 0..arrival (Rust opening_protection_days). */
+/** Opening protection window: days 0..=arrival inclusive (Rust opening_protection_days). */
 function openingProtectionDays(cfg: SimConfig): number {
-  return firstOrderArrivalDay(cfg);
+  return firstOrderArrivalDay(cfg) + 1;
 }
 
 function initialStockQty(cfg: SimConfig): number {

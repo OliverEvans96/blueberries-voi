@@ -22,6 +22,9 @@ pub const STREAM_SLA_SPOIL: &str = ":sla-spoil";
 pub const STREAM_SLA_ALLOC: &str = ":sla-alloc";
 pub const STREAM_SLA_BIRTH: &str = ":sla-birth";
 
+/// Monte Carlo paths for [`initial_stock_sla_mc`] studio opening sizing.
+pub const INITIAL_STOCK_MC_PATHS: u32 = 32;
+
 /// Protection window anchored at `start_day` with `n_days` cover and delivery `lead_time`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ProtectionWindow {
@@ -524,6 +527,75 @@ impl SlaModel for OpeningStockPbModel<'_> {
     }
 }
 
+/// Monte Carlo opening-stock sizing via [`simulate_protection_path`] (truth `unit_day_step`).
+pub fn initial_stock_sla_mc(
+    params: &ModelParams,
+    schedule: &OrderSchedule,
+    alpha: f64,
+    root_seed: u64,
+    n_paths: u32,
+    shipments: &[ShipmentTrace],
+    f_start: f64,
+) -> u32 {
+    let n_days = schedule.opening_protection_days();
+    if n_days == 0 {
+        return 0;
+    }
+    struct OpeningMcModel<'a> {
+        n_days: u32,
+        params: &'a ModelParams,
+        shipments: &'a [ShipmentTrace],
+        root_seed: u64,
+        n_paths: u32,
+        f_start: f64,
+    }
+    impl SlaModel for OpeningMcModel<'_> {
+        fn p_no_stockout(&self, q: u32) -> f64 {
+            if q == 0 {
+                return 0.0;
+            }
+            let freshness = vec![self.f_start; q as usize];
+            let lot_offsets = vec![0, q as usize];
+            let n = self.n_paths.max(1);
+            let mut ok = 0u32;
+            for path in 0..n {
+                let r = simulate_protection_path(
+                    &freshness,
+                    &lot_offsets,
+                    self.params,
+                    self.shipments,
+                    self.root_seed,
+                    "opening-mc",
+                    path,
+                    self.n_days,
+                    0,
+                    0,
+                    0,
+                );
+                if r.stockout_indicator == 0 {
+                    ok += 1;
+                }
+            }
+            ok as f64 / n as f64
+        }
+    }
+    let model = OpeningMcModel {
+        n_days,
+        params,
+        shipments,
+        root_seed,
+        n_paths,
+        f_start,
+    };
+    let q_hint = case_round(
+        crate::policy::protection_demand_quantile(alpha, params, n_days, 0),
+        params.case_size,
+    )
+    .max(params.case_size * 2)
+    .min(sla_order_q_cap(params.case_size));
+    sla_order(&model, alpha, 1.0, params.case_size, q_hint)
+}
+
 /// Studio opening inventory sizing via the SLA_PB freshness-weighted window model (ADR 0152).
 pub fn initial_stock_sla_pb(
     params: &ModelParams,
@@ -796,6 +868,53 @@ mod tests {
         let q = initial_stock_sla_pb(&p, &s, 0.95, &mut survival, 1.0);
         assert!(q > 0, "opening stock should be positive for default MWF schedule");
         assert_eq!(q % p.case_size, 0);
+    }
+
+    #[test]
+    fn opening_stock_sla_mc_calibrated_to_unit_day_step() {
+        let mut p = ModelParams::default();
+        let profile = crate::demand_profile::DemandProfile::from_json(
+            include_str!("../../../data/freshnet/demand_profile.json"),
+        )
+        .unwrap();
+        p.apply_demand_profile(profile);
+        let s = OrderSchedule::default();
+        let ships = [ShipmentTrace::smoke_cool()];
+        let q_pb = {
+            let mut survival = SurvivalCurveCache::for_params(&p, 16);
+            initial_stock_sla_pb(&p, &s, 0.95, &mut survival, 1.0)
+        };
+        let q_mc = initial_stock_sla_mc(&p, &s, 0.95, 42, 32, &ships, 1.0);
+        eprintln!("opening q_pb={q_pb} q_mc={q_mc}");
+        assert!(q_mc >= q_pb, "MC truth path should not undersize vs PB");
+    }
+
+    #[test]
+    fn opening_stock_three_day_window_sizes_above_two_day() {
+        let mut p = ModelParams::default();
+        let profile = crate::demand_profile::DemandProfile::from_json(
+            include_str!("../../../data/freshnet/demand_profile.json"),
+        )
+        .unwrap();
+        p.apply_demand_profile(profile);
+        let s = OrderSchedule::default();
+        let mut survival = SurvivalCurveCache::for_params(&p, 16);
+        let q2day = {
+            let window = ProtectionWindow {
+                start_day: 0,
+                n_days: s.first_order_arrival_day(),
+                lead_time: 0,
+            };
+            let model = OpeningStockPbModel {
+                window,
+                params: &p,
+                f_start: 1.0,
+                survival: &survival,
+            };
+            sla_order(&model, 0.95, 1.0, p.case_size, 160)
+        };
+        let q3day = initial_stock_sla_pb(&p, &s, 0.95, &mut survival, 1.0);
+        assert!(q3day > q2day, "3-day window must size above legacy 2-day window");
     }
 
     #[test]

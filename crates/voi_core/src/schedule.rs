@@ -129,10 +129,14 @@ impl OrderSchedule {
             .saturating_add(self.lead_time_days)
     }
 
-    /// Demand days the opening shelf must cover before the first manual order lands:
-    /// episode days `0..first_order_arrival_day` (exclusive of the arrival day).
+    /// Demand days the opening shelf must cover before the first manual order can
+    /// satisfy customers: episode days `0..=first_order_arrival_day` inclusive.
+    ///
+    /// The arrival day is included because [`crate::day_step::unit_day_step`] sells
+    /// before it delivers — a truck due on the first order's arrival day lands after
+    /// that day's demand is settled, so opening stock must cover that day too.
     pub fn opening_protection_days(&self) -> u32 {
-        self.first_order_arrival_day()
+        self.first_order_arrival_day().saturating_add(1)
     }
 }
 
@@ -195,7 +199,7 @@ mod tests {
         let s = OrderSchedule::default();
         assert_eq!(s.first_order_day(), 1);
         assert_eq!(s.first_order_arrival_day(), 2);
-        assert_eq!(s.opening_protection_days(), 2);
+        assert_eq!(s.opening_protection_days(), 3);
     }
 
     #[test]
@@ -203,7 +207,7 @@ mod tests {
         let s = OrderSchedule::from_delivery(&[1], 1).unwrap();
         assert_eq!(s.first_order_day(), 0);
         assert_eq!(s.first_order_arrival_day(), 1);
-        assert_eq!(s.opening_protection_days(), 1);
+        assert_eq!(s.opening_protection_days(), 2);
         assert_eq!(s.protection_days(0), 8);
     }
 }

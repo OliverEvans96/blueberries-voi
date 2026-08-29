@@ -24,7 +24,7 @@ use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{
     case_round_ceil, constant_order, damped_sw_order_f_belief, INITIAL_STOCK_ALPHA,
 };
-use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, initial_stock_sla_pb, SurvivalCurveCache};
+use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, initial_stock_sla_mc, SurvivalCurveCache};
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
@@ -372,17 +372,19 @@ impl EngineSession {
     }
 
     /// Studio RPC init only (ADR 0152): place opening inventory on the shelf at day 0 using
-    /// the standard corridor arrival draw and SLA_PB sizing over the calendar-derived
+    /// the standard corridor arrival draw and SLA_MC sizing over the calendar-derived
     /// opening protection window at [`INITIAL_STOCK_ALPHA`]. Direct [`Self::init`] callers
     /// keep an empty shelf.
     pub fn seed_initial_stock(&mut self) {
         self.require_init();
         let f_pipe = 1.0;
-        let qty = initial_stock_sla_pb(
+        let qty = initial_stock_sla_mc(
             &self.params,
             &self.schedule,
             INITIAL_STOCK_ALPHA,
-            &mut self.survival_cache,
+            self.seed,
+            crate::protection_sim::INITIAL_STOCK_MC_PATHS,
+            &self.shipments,
             f_pipe,
         );
         if qty == 0 {
@@ -2038,7 +2040,7 @@ mod tests {
     }
 
     #[test]
-    fn rpc_init_initial_stock_qty_matches_sla_pb() {
+    fn rpc_init_initial_stock_qty_matches_sla_mc() {
         let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":7}}"#);
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["ok"], true, "{out}");
@@ -2048,12 +2050,13 @@ mod tests {
         let mut params = ModelParams::default();
         apply_demand_profile(&mut params, committed_demand_profile());
         let schedule = OrderSchedule::default();
-        let mut survival = SurvivalCurveCache::for_params(&params, 8);
-        let expected = initial_stock_sla_pb(
+        let expected = initial_stock_sla_mc(
             &params,
             &schedule,
             INITIAL_STOCK_ALPHA,
-            &mut survival,
+            7,
+            crate::protection_sim::INITIAL_STOCK_MC_PATHS,
+            &[ShipmentTrace::smoke_cool()],
             1.0,
         );
         assert_eq!(qty, expected);
@@ -2766,4 +2769,62 @@ mod tests {
     }
 
     const _SEED: u64 = 99;
+
+    #[test]
+    fn opening_stock_seed_42_covers_arrival_day_demand() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":42}}"#);
+        let init: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(init["ok"], true, "{out}");
+        let _ = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+        let _ = handle_rpc(r#"{"id":"3","method":"step","params":{"order":24}}"#);
+        let step2 = handle_rpc(r#"{"id":"4","method":"step","params":{"order":0}}"#);
+        let d2: serde_json::Value = serde_json::from_str(&step2).unwrap();
+        assert_eq!(d2["result"]["episode_day"], 2);
+        let demand = d2["result"]["day"]["demand"].as_u64().unwrap_or(0) as u32;
+        let sales = d2["result"]["day"]["sales_total"].as_u64().unwrap_or(0) as u32;
+        assert_eq!(
+            sales, demand,
+            "seed 42: opening stock must cover arrival-day demand before delivery lands"
+        );
+    }
+
+    #[test]
+    fn opening_stock_arrival_day_stockout_rate_near_alpha() {
+        let mut fails = 0u32;
+        for seed in 0..200u64 {
+            let out = handle_rpc(&format!(
+                r#"{{"id":"1","method":"init","params":{{"seed":{seed}}}}}"#
+            ));
+            let init: serde_json::Value = serde_json::from_str(&out).unwrap();
+            assert_eq!(init["ok"], true, "init failed for seed {seed}: {out}");
+            let _ = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+            let _ = handle_rpc(r#"{"id":"3","method":"step","params":{"order":24}}"#);
+            let step2 = handle_rpc(r#"{"id":"4","method":"step","params":{"order":0}}"#);
+            let d2: serde_json::Value = serde_json::from_str(&step2).unwrap();
+            assert_eq!(
+                d2["result"]["episode_day"], 2,
+                "expected day-2 step for seed {seed}"
+            );
+            let demand = d2["result"]["day"]["demand"].as_u64().unwrap_or(0) as u32;
+            let sales = d2["result"]["day"]["sales_total"].as_u64().unwrap_or(0) as u32;
+            if sales < demand {
+                fails += 1;
+            }
+        }
+        eprintln!("arrival-day stockouts in 200 seeds: {fails}");
+        assert!(
+            fails <= 20,
+            "arrival-day stockout rate should be near 5% at alpha=0.95; got {fails}/200"
+        );
+    }
+
+    #[test]
+    fn opening_stock_window_includes_arrival_day() {
+        let schedule = OrderSchedule::default();
+        assert_eq!(
+            schedule.opening_protection_days(),
+            schedule.first_order_arrival_day() + 1,
+            "sell-before-deliver requires covering arrival-day demand from opening stock"
+        );
+    }
 }
