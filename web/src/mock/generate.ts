@@ -129,17 +129,29 @@ function caseRound(qty: number, caseSize: number): number {
   return Math.round(qty / cs) * cs;
 }
 
-/** Protection window from episode day 0 (matches OrderSchedule::protection_days(0)). */
-function protectionDaysEpisode0(cfg: SimConfig): number {
+/** First manual order day from episode start (matches OrderSchedule::first_order_day). */
+function firstOrderDay(cfg: SimConfig): number {
   const schedule = scheduleFromConfig(cfg);
   const orderSet = new Set(schedule.order_weekdays);
-  let next = 1;
-  while (!orderSet.has(next % 7)) next += 1;
-  return next - 0 + schedule.lead_time_days;
+  let day = 0;
+  while (!orderSet.has(day % 7)) day += 1;
+  return day;
+}
+
+/** First manual order arrival day (matches OrderSchedule::first_order_arrival_day). */
+function firstOrderArrivalDay(cfg: SimConfig): number {
+  const schedule = scheduleFromConfig(cfg);
+  return firstOrderDay(cfg) + schedule.lead_time_days;
+}
+
+/** Opening protection window: days 0..arrival (Rust opening_protection_days). */
+function openingProtectionDays(cfg: SimConfig): number {
+  return firstOrderArrivalDay(cfg);
 }
 
 function initialStockQty(cfg: SimConfig): number {
-  const prot = protectionDaysEpisode0(cfg);
+  const prot = openingProtectionDays(cfg);
+  // Homogeneous NB quantile approximates Rust SLA_PB sizing (full PB model is Rust-only).
   const raw = homogeneousProtectionQuantile(
     INITIAL_STOCK_ALPHA,
     cfg.demand_mu,

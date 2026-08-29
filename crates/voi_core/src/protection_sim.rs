@@ -471,6 +471,92 @@ impl SlaModel for PbSlaModel<'_> {
     }
 }
 
+fn opening_day_no_stockout_prob(
+    q: u32,
+    day_offset: u32,
+    start_day: u32,
+    f_start: f64,
+    params: &ModelParams,
+    survival: &SurvivalCurveCache,
+) -> f64 {
+    let sim_day = start_day + day_offset;
+    let spoil_probs: Vec<f64> = (0..q)
+        .map(|_| {
+            let agings = day_offset + 1;
+            1.0 - survival.survival_at(f_start, agings as usize)
+        })
+        .collect();
+    let supply_pmf = alive_count_pmf(&spoil_probs);
+    let mu = params.demand_mu_for_day(sim_day);
+    let vm = params.demand_vm;
+    let mut prob = 0.0;
+    for (s, ps) in supply_pmf.iter().enumerate() {
+        if *ps <= 0.0 {
+            continue;
+        }
+        prob += *ps * nb_cdf_le(s as u32, mu, vm);
+    }
+    prob.clamp(0.0, 1.0)
+}
+
+/// Poisson-binomial opening-stock model: `q` units on shelf at `f_start` from episode day 0.
+pub struct OpeningStockPbModel<'a> {
+    pub window: ProtectionWindow,
+    pub params: &'a ModelParams,
+    pub f_start: f64,
+    pub survival: &'a SurvivalCurveCache,
+}
+
+impl SlaModel for OpeningStockPbModel<'_> {
+    fn p_no_stockout(&self, q: u32) -> f64 {
+        let mut joint = 1.0;
+        for d in 0..self.window.n_days {
+            joint *= opening_day_no_stockout_prob(
+                q,
+                d,
+                self.window.start_day,
+                self.f_start,
+                self.params,
+                self.survival,
+            );
+        }
+        joint.clamp(0.0, 1.0)
+    }
+}
+
+/// Studio opening inventory sizing via the SLA_PB freshness-weighted window model (ADR 0152).
+pub fn initial_stock_sla_pb(
+    params: &ModelParams,
+    schedule: &OrderSchedule,
+    alpha: f64,
+    survival: &mut SurvivalCurveCache,
+    f_start: f64,
+) -> u32 {
+    let n_days = schedule.opening_protection_days();
+    if n_days == 0 {
+        return 0;
+    }
+    let window = ProtectionWindow {
+        start_day: 0,
+        n_days,
+        lead_time: 0,
+    };
+    survival.rebuild_if_needed(params, n_days as usize + 1);
+    let model = OpeningStockPbModel {
+        window,
+        params,
+        f_start,
+        survival,
+    };
+    let q_hint = case_round(
+        crate::policy::protection_demand_quantile(alpha, params, n_days, 0),
+        params.case_size,
+    )
+    .max(params.case_size * 2)
+    .min(sla_order_q_cap(params.case_size));
+    sla_order(&model, alpha, 1.0, params.case_size, q_hint)
+}
+
 /// Upper q bound aligned with [`crate::tradeoff::full_tradeoff_q_candidates`].
 pub fn sla_order_q_cap(case_size: u32) -> u32 {
     let cs = case_size.max(1);
@@ -699,6 +785,46 @@ mod tests {
         assert!(
             empty > full,
             "empty ({empty}) should exceed well-stocked PB order ({full})"
+        );
+    }
+
+    #[test]
+    fn opening_stock_sla_pb_positive_for_default_schedule() {
+        let p = ModelParams::default();
+        let s = OrderSchedule::default();
+        let mut survival = SurvivalCurveCache::for_params(&p, 8);
+        let q = initial_stock_sla_pb(&p, &s, 0.95, &mut survival, 1.0);
+        assert!(q > 0, "opening stock should be positive for default MWF schedule");
+        assert_eq!(q % p.case_size, 0);
+    }
+
+    #[test]
+    fn opening_stock_sla_pb_uses_opening_window_not_protection_days() {
+        let mut p = ModelParams::default();
+        p.demand_mu = 4.0;
+        let s = OrderSchedule::from_delivery(&[1], 1).unwrap();
+        let mut survival = SurvivalCurveCache::for_params(&p, 16);
+        let opening = initial_stock_sla_pb(&p, &s, 0.95, &mut survival, 1.0);
+        let quantile_opening = case_round(
+            crate::policy::protection_demand_quantile(0.95, &p, s.opening_protection_days(), 0),
+            p.case_size,
+        );
+        let quantile_wrong = case_round(
+            crate::policy::protection_demand_quantile(0.95, &p, s.protection_days(0), 0),
+            p.case_size,
+        );
+        assert_ne!(s.opening_protection_days(), s.protection_days(0));
+        assert!(
+            quantile_wrong > quantile_opening,
+            "wrong window quantile ({quantile_wrong}) must exceed opening ({quantile_opening})"
+        );
+        assert!(
+            opening >= quantile_opening,
+            "SLA_PB opening stock ({opening}) should cover at least the NB quantile ({quantile_opening})"
+        );
+        assert!(
+            opening < quantile_wrong,
+            "opening ({opening}) must not use the protection_days(0) NB target ({quantile_wrong})"
         );
     }
 
