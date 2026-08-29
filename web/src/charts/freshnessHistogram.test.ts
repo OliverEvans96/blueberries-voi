@@ -11,12 +11,16 @@ import {
   DISPLAY_BIN_COUNT,
   emptyFreshnessHistogramData,
   freshnessHistogramDataFromFlat,
+  freshnessHistogramMeanPositions,
+  histogramBinCenters,
   histogramEdges,
+  meanFromHistogramMasses,
   rebinMasses,
   rebinMassesByInterval,
   renderFreshnessHistogram,
   truthMassesFromUnits,
   truthMassesInBins,
+  truthMeanFromUnits,
   type FreshnessHistogramData,
 } from "./freshnessHistogram";
 
@@ -127,6 +131,41 @@ describe("freshnessHistogramDataFromFlat", () => {
   });
 });
 
+describe("meanFromHistogramMasses / truthMeanFromUnits / freshnessHistogramMeanPositions", () => {
+  it("computes count-weighted belief mean from bin masses", () => {
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const centers = histogramBinCenters(edges);
+    const data = freshnessHistogramDataFromFlat(FLAT);
+    const belief = rebinMassesByInterval(data.f_edges, data.belief_masses, edges);
+    const mean = meanFromHistogramMasses(centers, belief);
+    expect(mean).toBeCloseTo(0.3);
+  });
+
+  it("computes truth mean from live units", () => {
+    const mean = truthMeanFromUnits(TRUTH_UNITS);
+    expect(mean).toBeCloseTo(
+      TRUTH_UNITS.reduce((sum, unit) => sum + unit.f, 0) / TRUTH_UNITS.length,
+    );
+  });
+
+  it("returns unique mean positions for belief and truth overlays", () => {
+    const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
+    const belief = rebinMassesByInterval(data.f_edges, data.belief_masses, edges);
+    const positions = freshnessHistogramMeanPositions(
+      edges,
+      belief,
+      data.truth_units,
+      true,
+    );
+    expect(positions).toHaveLength(2);
+    expect(positions[0]).toBeCloseTo(0.3);
+    expect(positions[1]).toBeCloseTo(
+      TRUTH_UNITS.reduce((sum, unit) => sum + unit.f, 0) / TRUTH_UNITS.length,
+    );
+  });
+});
+
 describe("renderFreshnessHistogram", () => {
   it("renders ~8 belief bars with green fill and semi-bold caps", () => {
     const el = host();
@@ -171,8 +210,35 @@ describe("renderFreshnessHistogram", () => {
     const labels = [...el.querySelectorAll(".legend-label")].map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual(["Belief", "Truth"]);
+    expect(labels).toEqual(["Belief", "Truth", "mean"]);
     expect(labels.some((label) => label?.startsWith("Lot"))).toBe(false);
+  });
+
+  it("draws dashed black vertical mean lines with a single mean legend swatch", () => {
+    const elBeliefOnly = host();
+    const elBoth = host();
+    const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
+
+    renderFreshnessHistogram(elBeliefOnly, data, false, 260);
+    renderFreshnessHistogram(elBoth, data, true, 260);
+
+    const beliefOnlyLines = elBeliefOnly.querySelectorAll(".freshness-mean-line");
+    expect(beliefOnlyLines.length).toBe(1);
+    expect(beliefOnlyLines[0]?.getAttribute("stroke")).toBe("#000");
+    expect(beliefOnlyLines[0]?.getAttribute("stroke-dasharray")).toBe("5,3");
+
+    const bothLines = elBoth.querySelectorAll(".freshness-mean-line");
+    expect(bothLines.length).toBe(2);
+    for (const line of bothLines) {
+      expect(line.getAttribute("stroke")).toBe("#000");
+      expect(line.getAttribute("stroke-dasharray")).toBe("5,3");
+    }
+
+    const meanLegendLabels = [...elBoth.querySelectorAll(".legend-label")].filter(
+      (node) => node.textContent === "mean",
+    );
+    expect(meanLegendLabels).toHaveLength(1);
+    expect(elBoth.querySelector(".freshness-mean-legend-swatch")).not.toBeNull();
   });
 
   it("empty scaffold renders fixed-height SVG with axes", () => {
