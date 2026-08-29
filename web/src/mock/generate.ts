@@ -12,6 +12,13 @@ import type {
   UnitExit,
 } from "../types";
 import { DEFAULT_OBS_CHANNELS } from "../obsMask";
+import { homogeneousProtectionQuantile } from "../charts/dampedSwDemo";
+
+/** Studio opening inventory service level (ADR 0152; matches Rust INITIAL_STOCK_ALPHA). */
+const INITIAL_STOCK_ALPHA = 0.95;
+/** Abdella corridor prior mean freshness for mock birth spread. */
+const ARRIVAL_PRIOR_MEAN_F = 0.87;
+const LOTS_PER_DELIVERY = 3;
 
 export const DEFAULT_ECONOMICS: Economics = {
   p_sell: 4.5,
@@ -114,6 +121,58 @@ function mulberry32(seed: number): () => number {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+function caseRound(qty: number, caseSize: number): number {
+  const cs = Math.max(1, Math.round(caseSize));
+  if (qty <= 0) return 0;
+  return Math.round(qty / cs) * cs;
+}
+
+/** Protection window from episode day 0 (matches OrderSchedule::protection_days(0)). */
+function protectionDaysEpisode0(cfg: SimConfig): number {
+  const schedule = scheduleFromConfig(cfg);
+  const orderSet = new Set(schedule.order_weekdays);
+  let next = 1;
+  while (!orderSet.has(next % 7)) next += 1;
+  return next - 0 + schedule.lead_time_days;
+}
+
+function initialStockQty(cfg: SimConfig): number {
+  const prot = protectionDaysEpisode0(cfg);
+  const raw = homogeneousProtectionQuantile(
+    INITIAL_STOCK_ALPHA,
+    cfg.demand_mu,
+    cfg.demand_vm,
+    prot,
+  );
+  return caseRound(raw, cfg.case_size);
+}
+
+function seedOpeningUnits(
+  cfg: SimConfig,
+  rng: () => number,
+  startLotId: number,
+  startUnitId: number,
+): { units: Unit[]; nextLotId: number; nextUnitId: number } {
+  const qty = initialStockQty(cfg);
+  if (qty <= 0) {
+    return { units: [], nextLotId: startLotId, nextUnitId: startUnitId };
+  }
+  const units: Unit[] = [];
+  let nextLotId = startLotId;
+  let nextUnitId = startUnitId;
+  const base = Math.floor(qty / LOTS_PER_DELIVERY);
+  const rem = qty % LOTS_PER_DELIVERY;
+  for (let i = 0; i < LOTS_PER_DELIVERY; i += 1) {
+    const n = base + (i < rem ? 1 : 0);
+    if (n <= 0) continue;
+    const born = birthUnitsForLot(nextLotId, n, ARRIVAL_PRIOR_MEAN_F, rng, nextUnitId);
+    units.push(...born.units);
+    nextUnitId = born.nextUnitId;
+    nextLotId += 1;
+  }
+  return { units, nextLotId, nextUnitId };
 }
 
 /** Q10 store-aging factor (matches voi_core store_temp_factor). */
@@ -508,10 +567,9 @@ function runDay(
 export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
-  const lots: Lot[] = [];
-  const units: Unit[] = [];
-  const nextLotId = 1;
-  const nextUnitId = 0;
+  const seeded = seedOpeningUnits(config, rng, 1, 0);
+  const units = seeded.units;
+  const lots = aggregateLotsFromUnits(units);
   const pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];
 
@@ -519,8 +577,8 @@ export function createInitialState(cfg: SimConfig): SimState {
     day: 0,
     lots,
     units,
-    nextLotId,
-    nextUnitId,
+    nextLotId: seeded.nextLotId,
+    nextUnitId: seeded.nextUnitId,
     pendingOrders,
     history,
     rng,

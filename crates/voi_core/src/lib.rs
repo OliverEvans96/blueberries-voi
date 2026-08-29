@@ -101,6 +101,7 @@ pub use params::ModelParams;
 pub use policy::{
     case_round, case_round_ceil, constant_order, damped_sw_order_f_belief,
     effective_inventory_f_belief, nbinom_ppf, protection_demand_quantile, rung0_order_f_belief,
+    INITIAL_STOCK_ALPHA,
 };
 pub use physics::{
     age_to_f, allocate_sales, apply_gamma_aging_independent, apply_gamma_decrement,

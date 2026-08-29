@@ -15,6 +15,9 @@ const PROTECTION_MC_DEFAULT_N: u32 = 20_000;
 /// quantile is used instead of falling back to Monte Carlo.
 const FLAT_MU_ATOL: f64 = 1e-9;
 
+/// Fixed service-level target for studio opening inventory (ADR 0152).
+pub const INITIAL_STOCK_ALPHA: f64 = 0.95;
+
 /// Derives a deterministic 32-bit seed for the protection-window Monte Carlo quantile
 /// from the query parameters that identify it, so repeated calls with the same inputs
 /// reproduce the same samples. An explicit `mc_seed` overrides the derivation entirely.
