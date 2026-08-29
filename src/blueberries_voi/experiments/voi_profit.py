@@ -215,9 +215,7 @@ def _run_scored_episode(
     session.init(cfg, seed=seed)
     setup(session)
 
-    act_kw = _policy_act_kw(
-        alpha, rho, policy=policy, n_rollout_paths=n_rollout_paths
-    )
+    act_kw = _policy_act_kw(alpha, rho, policy=policy, n_rollout_paths=n_rollout_paths)
     for _ in range(n_burn):
         session.act(**act_kw)
 
