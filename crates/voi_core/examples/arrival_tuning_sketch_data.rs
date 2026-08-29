@@ -5,7 +5,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use serde_json::json;
-use voi_core::arrival::ArrivalModel;
+use voi_core::arrival::{resolve_arrival_exposure, ArrivalModel};
 use voi_core::shipments::truth_transit_trace;
 
 const MC_N: usize = 800;
@@ -71,10 +71,18 @@ fn var_log_decomposition(rho: f64) -> serde_json::Value {
 fn trace_payload(model: &ArrivalModel, duration_d: f64, seed: u64) -> serde_json::Value {
     let mut rng = Pcg64::seed_from_u64(seed);
     let trace = truth_transit_trace(duration_d, model, 0.0, &mut rng);
+    let lambda = resolve_arrival_exposure(
+        Some(&trace.temps_c),
+        Some(&trace.times_d),
+        model.q10,
+        model.t_ref,
+    )
+    .expect("trace integrates");
     json!({
         "duration_d": duration_d,
         "times_d": trace.times_d,
         "temps_c": trace.temps_c,
+        "lambda": lambda,
         "rho": model.rho,
         "tau_bar": model.tau_bar,
         "sigma_hour": model.sigma_hour,
@@ -103,15 +111,6 @@ fn main() {
         tau_traces.push(trace_payload(&m, 5.5, 163_900 + i as u64));
     }
 
-    // sigma_hour traces at rho=0
-    let mut sigma_traces = Vec::new();
-    for (i, &sig) in [0.0_f64, 0.028, 0.05, 0.08].iter().enumerate() {
-        let mut m = ArrivalModel::embedded();
-        m.set_break_rate(0.0);
-        m.sigma_hour = sig;
-        sigma_traces.push(trace_payload(&m, 5.5, 164_000 + i as u64));
-    }
-
     let payload = json!({
         "phi_set": phi_set,
         "phi_break_default": phi_break_default,
@@ -119,7 +118,6 @@ fn main() {
         "t_ref": base.t_ref,
         "var_log_decomposition": decomp,
         "tau_bar_traces": tau_traces,
-        "sigma_hour_traces": sigma_traces,
     });
     println!("{}", serde_json::to_string(&payload).expect("json"));
 }
