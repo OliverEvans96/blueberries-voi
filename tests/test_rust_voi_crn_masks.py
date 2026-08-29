@@ -71,7 +71,9 @@ def test_rust_crn_p0_profit_differs_from_f2a(rust_backend: None) -> None:
             and not math.isclose(p0, f2a, rel_tol=0.0, abs_tol=_STRUCTURAL_ATOL)
         ):
             return
-    pytest.fail(f"P0 and F2a profits must differ for some seed in 1..{_MAX_PROBE_SEEDS}")
+    pytest.fail(
+        f"P0 and F2a profits must differ for some seed in 1..{_MAX_PROBE_SEEDS}"
+    )
 
 
 def test_rust_crn_f2a_profit_differs_from_p1(rust_backend: None) -> None:
