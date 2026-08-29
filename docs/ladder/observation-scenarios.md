@@ -114,4 +114,7 @@ Measured MAE numbers on this ladder drift when the arrival generative story chan
 re-run `notebooks/13_filter_accuracy_knowledge_ladder.ipynb` after multi-lot and break
 wiring land. The ordering guard
 `crates/voi_core/tests/t150_phase2_arrival_model.rs::ac2_11a_empirical_ladder_tracking_mae`
-is the regression anchor: MAE must strictly increase from F3 down to P0.
+is the regression anchor: shelf-mean freshness MAE must strictly increase from F3 down to
+P0. Shape-aware scores used elsewhere ($W_1$ on live freshness; CRPS on count when a
+particle predictive is available) are complementary; the studio's belief-accuracy table
+reports mean-f MAE plus freshness $W_1$ (All-days = mean of daily $W_1$).
