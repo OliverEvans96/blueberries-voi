@@ -15,15 +15,15 @@ if _maybe_core is None:
 # T-150 f-native arrival physics; schema-2 arrival_model.json (v2 generative drift).
 # T-163: q10 3.0→2.0 session-wide (abdella_mix defaults, eta_ref=14).
 # Recomputed from run_voi_crn_cell(root_seed=1, beta=2.0, n_burn=2, n_score=8) on
-# 2026-08-28 after corridor-mixture + q10 recalibration.
+# 2026-08-29 after F3 exposure/gsin_upc_diag alignment (e72e2894).
 _T150_BASELINE: dict[str, float] = {
-    "P0": 204.5,
-    "P1": 204.5,
-    "F1": 201.0,
-    "F1s": 201.0,
-    "F2a": 234.5,
-    "F2": 234.5,
-    "B-state": 234.5,
+    "P0": 216.0,
+    "P1": 216.0,
+    "F1": 216.0,
+    "F1s": 216.0,
+    "F2a": 246.0,
+    "F2": 246.0,
+    "B-state": 206.0,
 }
 
 

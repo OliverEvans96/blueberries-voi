@@ -205,9 +205,10 @@ def test_voi_crn_smoke_seven_scenarios_structural() -> None:
             continue
 
         p0 = float(profits["P0"])
-        f1 = float(profits["F1"])
+        f2a = float(profits["F2a"])
         bstate = float(profits["B-state"])
-        if math.isclose(p0, f1, abs_tol=1e-6):
+        # P0/F1 often collapse on short damped_sw smoke cells; pack_date + oracle still split.
+        if math.isclose(p0, f2a, abs_tol=1e-6):
             continue
         if math.isclose(p0, bstate, abs_tol=1e-6):
             continue
