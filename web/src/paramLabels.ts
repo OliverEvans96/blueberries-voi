@@ -106,7 +106,13 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   transit_temp_bias_c: {
     label: "Transit temperature bias",
     tooltip:
-      "Offset added to the simulated transit temperature, to explore a colder- or warmer-running route. Shifts delivered freshness, though the arrival-freshness chart doesn't yet reflect it (known display gap).",
+      "Uniform °C offset added to every leg setpoint on the simulated transit path (production `transit_temp_bias_c`). Updates the thermal-mode lottery chart on drag; Reset applies to deliveries.",
+    tier: "Preview",
+  },
+  break_rho: {
+    label: "Break hazard ρ",
+    tooltip:
+      "Mean cold-chain break rate in breaks per transit-day (`ArrivalModel.rho`). Updates the break lottery chart on drag; Reset rebuilds the arrival prior and simulated break draws.",
     tier: "Reset",
   },
   seed: {

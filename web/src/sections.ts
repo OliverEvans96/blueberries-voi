@@ -59,7 +59,11 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     label: "Arrival",
     blurb:
       "Transit assumptions set freshness at receipt — the identification signal for relative quality.",
-    plotIds: ["plot-arrival-prior", "plot-arrival-shift"],
+    plotIds: [
+      "plot-arrival-duration-lottery",
+      "plot-arrival-break-lottery",
+      "plot-arrival-thermal-lottery",
+    ],
     controlSection: "arrival",
   },
   {

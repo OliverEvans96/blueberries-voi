@@ -3,7 +3,6 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bindDemandSliderPreview } from "../engine/demandPreview";
-import { arrivalRugAvailable } from "../scenarioAvailability";
 import {
   applyMask,
   channelsCacheKey,
@@ -83,13 +82,10 @@ import { renderPnLTimeseries, setPnLHover } from "../charts/pnlTimeseries";
 import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
-  renderArrivalPrior,
-  renderArrivalShift,
-} from "../charts/arrivalPrior";
-import {
-  clearArrivalPriorPlaceholder,
-  renderArrivalPriorPlaceholder,
-} from "../charts/arrivalPriorPlaceholder";
+  renderBreakLottery,
+  renderDurationLottery,
+  renderThermalModeLottery,
+} from "../charts/arrivalLottery";
 import {
   renderArrheniusTemp,
   renderGammaFreshnessPath,
@@ -115,7 +111,7 @@ import {
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
-import type { ActOpts, ArrivalSummary, ScheduleWire, Snapshot } from "../engine/types";
+import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {
   renderWeekCalendar,
@@ -286,9 +282,6 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsRefreshing = false;
   let lastEventsKey = "";
   let frameGen = 0;
-  let arrivalSummaryLoading = false;
-  let arrivalSummaryLoadedKey = "";
-  let arrivalSummaryFetchGen = 0;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -368,14 +361,14 @@ export function initStudio(app: HTMLElement): () => void {
     get dampedSwDemo(): HTMLElement {
       return q<HTMLElement>("#chart-damped-sw-demo")!;
     },
-    get arrivalPrior(): HTMLElement {
-      return q<HTMLElement>("#chart-arrival-prior")!;
+    get arrivalDurationLottery(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-duration-lottery")!;
     },
-    get arrivalPriorOverlay(): HTMLElement | null {
-      return q<HTMLElement>("#chart-arrival-prior-overlay");
+    get arrivalBreakLottery(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-break-lottery")!;
     },
-    get arrivalShift(): HTMLElement {
-      return q<HTMLElement>("#chart-arrival-shift")!;
+    get arrivalThermalLottery(): HTMLElement {
+      return q<HTMLElement>("#chart-arrival-thermal-lottery")!;
     },
     get arrheniusTemp(): HTMLElement {
       return q<HTMLElement>("#chart-arrhenius-temp")!;
@@ -1032,63 +1025,16 @@ export function initStudio(app: HTMLElement): () => void {
 
   const FOCUS_CHART_HEIGHT = 95;
 
-  function arrivalSummaryWireKey(): string {
-    const c = vm.config;
-    const ch = c.obs_channels ?? channelsForPreset(c.obs_scenario);
-    return JSON.stringify({
-      arrival_product: c.arrival_product,
-      obs: ch,
-      transit_temp_bias_c: c.transit_temp_bias_c,
-      spread_scale: c.spread_scale,
-    });
-  }
-
-  function syncArrivalPriorOverlay(): void {
-    const overlay = els.arrivalPriorOverlay;
-    if (!overlay) return;
-    const waiting =
-      arrivalSummaryLoading ||
-      (plotVisible("plot-arrival-prior") && !vm.arrival_summary);
-    overlay.hidden = !waiting;
-  }
-
-  function invalidateArrivalSummary(): void {
-    arrivalSummaryLoadedKey = "";
-    arrivalSummaryFetchGen += 1;
-    vm = projector.clearArrivalSummary();
-  }
-
-  async function ensureArrivalSummary(): Promise<void> {
-    if (engineBooting()) return;
-    const key = arrivalSummaryWireKey();
-    if (vm.arrival_summary && arrivalSummaryLoadedKey === key) return;
-    const fetchFn = adapter.fetchArrivalSummary?.bind(adapter);
-    if (!fetchFn) return;
-    if (arrivalSummaryLoading) return;
-
-    arrivalSummaryLoading = true;
-    const gen = ++arrivalSummaryFetchGen;
-    syncArrivalPriorOverlay();
-    if (activeSection === "arrival" && plotVisible("plot-arrival-prior")) {
-      renderActiveFocusPlots();
+  function renderArrivalLotteryCharts(): void {
+    const cfg = vm.config;
+    if (plotVisible("plot-arrival-duration-lottery")) {
+      renderDurationLottery(els.arrivalDurationLottery, cfg, 168);
     }
-    try {
-      const summary = (await fetchFn()) as ArrivalSummary;
-      if (gen !== arrivalSummaryFetchGen || studioTeardown) return;
-      vm = projector.mergeArrivalSummary(summary);
-      arrivalSummaryLoadedKey = key;
-    } catch (err) {
-      reportStudioAdapterError(
-        `Arrival chart failed: ${formatAdapterError(err)}`,
-        studioErrorEl,
-        err,
-      );
-    } finally {
-      arrivalSummaryLoading = false;
-      syncArrivalPriorOverlay();
-      if (activeSection === "arrival") {
-        renderActiveFocusPlots();
-      }
+    if (plotVisible("plot-arrival-break-lottery")) {
+      renderBreakLottery(els.arrivalBreakLottery, cfg, 168);
+    }
+    if (plotVisible("plot-arrival-thermal-lottery")) {
+      renderThermalModeLottery(els.arrivalThermalLottery, cfg, 168);
     }
   }
 
@@ -1118,29 +1064,13 @@ export function initStudio(app: HTMLElement): () => void {
         );
       }
       profileSync("renderActiveFocusPlots.logisticsCalendar", () => renderLogisticsCalendar());
-      if (plotVisible("plot-arrival-prior")) {
-        profileSync("renderActiveFocusPlots.arrivalPrior", () => {
-          syncArrivalPriorOverlay();
-          if (vm.arrival_summary) {
-            clearArrivalPriorPlaceholder(els.arrivalPrior);
-            renderArrivalPrior(
-              els.arrivalPrior,
-              vm.arrival_summary,
-              historyForCharts(),
-              160,
-              arrivalRugAvailable(
-                vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
-                showTruth,
-              ),
-            );
-          } else {
-            renderArrivalPriorPlaceholder(els.arrivalPrior, 160);
-          }
-        });
-      }
-      if (plotVisible("plot-arrival-shift")) {
-        profileSync("renderActiveFocusPlots.arrivalShift", () =>
-          renderArrivalShift(els.arrivalShift, vm.arrival_summary, vm.config.transit_temp_bias_c, 150),
+      if (
+        plotVisible("plot-arrival-duration-lottery") ||
+        plotVisible("plot-arrival-break-lottery") ||
+        plotVisible("plot-arrival-thermal-lottery")
+      ) {
+        profileSync("renderActiveFocusPlots.arrivalLottery", () =>
+          renderArrivalLotteryCharts(),
         );
       }
       if (plotVisible("plot-arrhenius-temp")) {
@@ -1188,11 +1118,6 @@ export function initStudio(app: HTMLElement): () => void {
 
     renderActiveFocusPlots();
     syncTruthCaptions();
-
-    if (id === "arrival") {
-      void ensureArrivalSummary();
-    }
-
     // Defensive re-render one frame later:
     // report a stale/near-zero clientWidth in the same tick that its
     // ancestor's `hidden` flips off (T-127 "demand chart looks weird" bug),
@@ -1288,7 +1213,8 @@ export function initStudio(app: HTMLElement): () => void {
   async function resetEpisode(): Promise<void> {
     const mayRebuildPrior =
       vm.config.q10 !== DEFAULT_SIM_CONFIG.q10 ||
-      vm.config.t_ref_c !== DEFAULT_SIM_CONFIG.t_ref_c;
+      vm.config.t_ref_c !== DEFAULT_SIM_CONFIG.t_ref_c ||
+      vm.config.break_rho !== DEFAULT_SIM_CONFIG.break_rho;
     if (mayRebuildPrior) {
       beginStudioLoading(
         "Updating beliefs after settings changed… This might take ~30 seconds.",
@@ -1306,16 +1232,12 @@ export function initStudio(app: HTMLElement): () => void {
         );
       }
       captureSchedule(snap);
-      invalidateArrivalSummary();
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
       onHoverDay(null, null, null);
       await commitFrame();
       if (studioTeardown) return;
-      if (activeSection === "arrival") {
-        void ensureArrivalSummary();
-      }
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
@@ -1508,7 +1430,6 @@ export function initStudio(app: HTMLElement): () => void {
     beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
-      invalidateArrivalSummary();
       vm = projector.patchEngineState(snap);
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
@@ -1530,10 +1451,8 @@ export function initStudio(app: HTMLElement): () => void {
         autopilot.play();
         syncAutopilotChrome();
       }
-      if (activeSection === "arrival") {
-        void ensureArrivalSummary();
-      }
     }
+
   }
 
   railHandlers.onSetObsPreset = async (id: ScenarioId) => {
@@ -1601,15 +1520,11 @@ export function initStudio(app: HTMLElement): () => void {
       );
       if (studioTeardown) return;
       captureSchedule(snap);
-      invalidateArrivalSummary();
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       setSection(activeSection);
       await commitFrame();
       if (studioTeardown) return;
-      if (activeSection === "arrival") {
-        void ensureArrivalSummary();
-      }
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,

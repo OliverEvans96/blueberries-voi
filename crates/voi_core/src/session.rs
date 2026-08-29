@@ -1470,6 +1470,9 @@ impl EngineSession {
         if let Some(bias) = rpc_f64(params, "transit_temp_bias_c") {
             self.transit_temp_bias_c = bias.clamp(-2.0, 8.0);
         }
+        if let Some(rho) = rpc_f64(params, "break_rho") {
+            self.arrival_model.set_break_rate(rho.clamp(0.0, 1.0));
+        }
         let delivery = parse_delivery_weekdays_from_rpc(params)
             .unwrap_or_else(|| OrderSchedule::default().delivery_weekday_list());
         self.set_delivery_schedule(&delivery, self.lead_time);

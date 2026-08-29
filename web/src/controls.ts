@@ -209,11 +209,11 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   {
-    id: "spread_scale",
-    label: "spread_scale (FIL-11)",
-    min: 0.05,
-    max: 1.5,
-    step: 0.05,
+    id: "break_rho",
+    label: "break hazard ρ (/d)",
+    min: 0,
+    max: 0.15,
+    step: 0.01,
     format: (v) => v.toFixed(2),
     group: "arrival",
   },
@@ -300,24 +300,63 @@ function demandChartGroups(): string {
         })}`;
 }
 
+function arrivalCorridorChipsHtml(): string {
+  const products: { product: ArrivalProduct; label: string; title: string }[] = [
+    {
+      product: "abdella_mix",
+      label: "Abdella mix",
+      title: "70% short_haul + 30% long_haul corridor mixture",
+    },
+    { product: "abdella_all", label: "Abdella all", title: "Pooled six-shipment corridor" },
+    { product: "short_haul", label: "Short haul", title: "S2-like short corridor" },
+    { product: "long_haul", label: "Long haul", title: "S1/S3–S6 long corridor" },
+  ];
+  const buttons = products
+    .map(
+      (p) =>
+        `<button type="button" class="obs-chip arrival-chip" data-arrival="${p.product}" title="${p.title}">${p.label}</button>`,
+    )
+    .join("");
+  return `
+    <div class="field tuning-chart-group-sliders">
+      ${fieldLabelHtml(
+        "Arrival corridor",
+        "Production `arrival_product`: which Abdella duration family seeds transit and the filter prior. Chips update the duration lottery; Reset applies.",
+        { tierId: "arrival_product" },
+      )}
+      <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
+        ${buttons}
+      </div>
+    </div>`;
+}
+
 function arrivalChartGroups(): string {
   return `
         ${tuningChartGroup({
-          plotId: "plot-arrival-prior",
-          caption: "Arrival freshness prior · receipt rug",
-          tip: "The expected arrival-freshness distribution for the current corridor, with a rug of actual receipt freshness values from simulated deliveries. The particle filter draws each new lot's freshness from this same distribution.",
-          ariaLabel: "Arrival freshness prior distribution",
+          plotId: "plot-arrival-duration-lottery",
+          caption: "Duration lottery",
+          tip: "Discretized transit-duration pmf for the selected corridor (production `arrival_product`). Orange Λ ≈ d·φ_set on a clean chain at the current transit ΔT.",
+          ariaLabel: "Transit duration lottery",
           chartInnerHtml:
-            '<div class="chart-arrival-prior-slot"><div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div><div id="chart-arrival-prior-overlay" class="chart-arrival-loading-overlay" hidden aria-live="polite"><span class="engine-status-dot" aria-hidden="true"></span><span class="chart-arrival-loading-label">Loading arrival prior…</span></div></div>',
-          slidersHtml: slidersByIds(["spread_scale"]),
+            '<div id="chart-arrival-duration-lottery" class="chart" role="img" aria-label="Transit duration lottery"></div>',
+          slidersHtml: arrivalCorridorChipsHtml(),
         })}
         ${tuningChartGroup({
-          plotId: "plot-arrival-shift",
-          caption: "Transit ΔT shift vs baseline",
-          tip: "Compares the transit-temperature-bias curve against an unbiased baseline. The bias slider reshapes the displayed shift curve and applies to simulated deliveries.",
-          ariaLabel: "Transit temperature shift",
+          plotId: "plot-arrival-break-lottery",
+          caption: "Break lottery",
+          tip: "Poisson break counts at production break hazard ρ on the corridor mean duration d̄. Orange ΔΛ is extra reference-day exposure per outcome.",
+          ariaLabel: "Cold-chain break lottery",
           chartInnerHtml:
-            '<div id="chart-arrival-shift" class="chart" role="img" aria-label="Transit temperature shift"></div>',
+            '<div id="chart-arrival-break-lottery" class="chart" role="img" aria-label="Cold-chain break lottery"></div>',
+          slidersHtml: slidersByIds(["break_rho"]),
+        })}
+        ${tuningChartGroup({
+          plotId: "plot-arrival-thermal-lottery",
+          caption: "Thermal mode lottery",
+          tip: "Artifact trip-wide cool / nominal / warm mode mix. Orange Λ at corridor mean duration with production transit ΔT bias on leg setpoints.",
+          ariaLabel: "Trip thermal mode lottery",
+          chartInnerHtml:
+            '<div id="chart-arrival-thermal-lottery" class="chart" role="img" aria-label="Trip thermal mode lottery"></div>',
           slidersHtml: slidersByIds(["transit_temp_bias_c"]),
         })}`;
 }
@@ -489,18 +528,9 @@ function mountSectionControlsDom(
       </div>
       <div class="controls-block" data-section="arrival" hidden>
         <p class="hint">
-          MOD-11/18/21: arrival exposure from transit mix + Arrhenius shift.
-          Daily lead time stays 1 (no pipeline Gantt).
+          Production arrival knobs: corridor mixture, break hazard ρ, and transit ΔT.
+          Lottery charts update on drag; Reset applies changes to the engine.
         </p>
-        <div class="field">
-          ${fieldLabelHtml(
-            "Arrival corridor (MOD-21)",
-            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
-          )}
-          <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>
-          </div>
-        </div>
         ${arrivalChartGroups()}
       </div>
       <div class="controls-block" data-section="autopilot" hidden>

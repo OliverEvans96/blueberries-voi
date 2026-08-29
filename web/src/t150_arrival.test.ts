@@ -110,7 +110,7 @@ describe("T-150 Phase 3 arrival frontend", () => {
     const types = read("types.ts");
     const controls = read("controls.ts");
     for (const knob of [
-      "spread_scale",
+      "break_rho",
       "sensor_sigma",
       "transit_temp_bias_c",
     ] as const) {

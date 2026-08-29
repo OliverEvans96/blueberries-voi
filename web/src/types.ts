@@ -106,6 +106,8 @@ export type SimConfig = {
    * (Arrhenius shift of arrival cumulative thermal exposure).
    */
   transit_temp_bias_c: number;
+  /** Cold-chain break hazard ρ (breaks per transit-day); maps to `ArrivalModel.rho`. */
+  break_rho: number;
 };
 
 export type DayPnL = {

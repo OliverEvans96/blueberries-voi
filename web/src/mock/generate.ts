@@ -43,6 +43,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   arrival_product: "abdella_mix",
   spread_scale: 1,
   transit_temp_bias_c: 0,
+  break_rho: 0.08,
 };
 
 export type SimState = {
