@@ -1,7 +1,7 @@
 ---
 title: The studio, guided
 sources:
-  code: [web/src/react/StudioLayout.tsx, web/src/sections.ts, web/src/react/ObsControlsPane.tsx, web/src/controls.ts, web/src/paramLabels.ts, web/src/react/EventsPane.tsx, web/src/react/OperatorBar.tsx, web/src/react/studioLogic.ts, web/src/react/ReferenceDrawer.tsx]
+  code: [web/src/react/StudioLayout.tsx, web/src/sections.ts, web/src/react/ObsControlsPane.tsx, web/src/controls.ts, web/src/paramLabels.ts, web/src/react/EventsPane.tsx, web/src/react/OperatorBar.tsx, web/src/react/studioLogic.ts, web/src/react/ReferenceDrawer.tsx, web/src/charts/beliefAccuracy.ts]
 ---
 
 # The studio, guided
@@ -10,7 +10,7 @@ The interactive studio is a single-page store simulator. It runs the same Rust e
 
 ## The idea
 
-The studio is laid out in four zones on one screen. A **metrics column** across the top shows cumulative profit and loss, on-hand inventory by freshness band, and the day's order/spoilage/sales flow. Next to it, a **belief column** shows what the particle filter currently believes about freshness across the store — a freshness-over-time heatmap plus a panel showing the controller's inventory-vs-service tradeoff — with the day's run controls (order quantity, Advance, Autopilot, Reset) underneath. A narrow **sidebar** holds the observation-channel toggles (what the filter is allowed to see each day) and a rolling log of the last few days' deliveries, sales, and spoilage. Below all three, a full-width **tuning dock** holds every simulation knob, grouped into topic tabs (Demand, Arrival, Physics under "Sim params"; Logistics; Autopilot), with a small preview chart for whichever tab is open.
+The studio is laid out in four zones on one screen. A **metrics column** across the top shows cumulative profit and loss, on-hand inventory by freshness band, and the day's order/spoilage/sales flow. Next to it, a **belief column** shows what the particle filter currently believes about freshness across the store — a freshness-over-time heatmap plus a panel showing the controller's inventory-vs-service tradeoff — with the day's run controls (order quantity, Advance, Autopilot, Reset) underneath. When Omniscience is on, a small **belief accuracy** table under today's freshness histogram reports how far the filter sits from truth: **Mean** is shelf-mean freshness MAE, and **W₁ (dist.)** is the 1-Wasserstein distance between the belief and truth live-unit freshness distributions on the same eight display bins the histogram uses. **Today** is that day's score; **All days** is the mean of per-day scores (for W₁ that means $\overline{W_1}$, not a single pooled episode-cloud W₁). A narrow **sidebar** holds the observation-channel toggles (what the filter is allowed to see each day) and a rolling log of the last few days' deliveries, sales, and spoilage. Below all three, a full-width **tuning dock** holds every simulation knob, grouped into topic tabs (Demand, Arrival, Physics under "Sim params"; Logistics; Autopilot), with a small preview chart for whichever tab is open.
 
 The knobs are not all equal weight. Each slider carries a colored tier badge showing what pressing it does: some change the picture instantly without touching the simulated days at all, some just preview what a future run would look like, and most require pressing **Reset** before they take effect, because they feed physics or demand draws that already happened in the current run.
 
@@ -44,6 +44,7 @@ The 90-day episode horizon is fixed rather than user-configurable: long enough t
 | --- | --- | --- |
 | Cockpit grid: metrics / belief / sidebar / tuning-dock zones | `cockpit-grid`, `cockpit-pane--metrics`, `cockpit-pane--belief`, `cockpit-pane--sidebar`, `cockpit-row--tuning` | `web/src/react/StudioLayout.tsx:44` |
 | Freshness-over-time heatmap + controller tradeoff panel | `chart-history`, `belief-tradeoff-panel` | `web/src/react/StudioLayout.tsx:133`, `:162` |
+| Belief accuracy table (mean-f MAE + freshness W₁) | `data-belief-mae-table`, `currentFreshnessW1`, `meanFreshnessW1OverHistory` | `web/src/react/StudioLayout.tsx:331`, `web/src/charts/beliefAccuracy.ts:187`, `:222` |
 | Run controls (order qty, Place Order, Autopilot, Reset) | `OperatorBar` | `web/src/react/OperatorBar.tsx:6` |
 | Observation-channel toggles (code type, scan waste, delivery history) | `ObsControlsPane` | `web/src/react/ObsControlsPane.tsx:31` |
 | Recent-events log (last 5 days: delivered / sold / spoiled) | `EventsPane` | `web/src/react/EventsPane.tsx:2` |
@@ -57,4 +58,6 @@ The 90-day episode horizon is fixed rather than user-configurable: long enough t
 
 - The reference-drawer's **VOI** tab loads `/voi-reference.json`, a static demo stub the file itself labels "not live VOI computation" — it shows what a VOI table could look like, not a real value-of-information result from your current run. Treat any numbers there as placeholder formatting, not findings.
 - Autopilot and manual paths share the same controller call, but the browser's particle-filter and rollout budgets (`n_particles`, `n_rollout_paths`, `H`, `candidate_case_radius`) are dialed down for interactive wall-clock speed and are not necessarily the same budgets a batch/notebook VOI sweep would use — treat studio numbers as illustrative of the mechanism, not as citeable VOI results.
+- Belief-accuracy **All days** averages the per-day scores already shown under **Today**; it does not recompute a single Wasserstein distance on a pooled cloud of every day's live units. That mean-of-daily choice matches how the mean-f MAE column already aggregated, and keeps restock / empty-shelf days from being merged into one non-stationary measure.
+- The studio belief wire exports `lot_counts` as particle-averaged $\mathbb{E}[N]$ per lot, not the full particle predictive $\{N^{(i)}\}$. Count error in notebooks can use CRPS of that predictive; the studio cannot score CRPS from the wire alone and does not show a count-CRPS cell — only freshness mean MAE and freshness $W_1$.
 - Panel names and tab groupings may change as the UI evolves; treat this page as a snapshot of the current build, not a permanent contract.

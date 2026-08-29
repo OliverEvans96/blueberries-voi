@@ -1,21 +1,25 @@
 /**
- * Belief pane shelf mean-f MAE helpers.
+ * Belief pane shelf mean-f MAE and freshness-distribution W₁ helpers.
  */
 import { describe, expect, it } from "vitest";
 import type { FlatBelief } from "../engine/types";
 import type { BeliefHistoryDay, Day, Unit } from "../types";
 import {
   BELIEF_MAE_DECIMALS,
-  currentDistributionAbsError,
+  countMeanAbsError,
+  currentFreshnessW1,
   currentMeanFAbsError,
   distributionAbsError,
+  expectedCountFromFlat,
   formatMeanFAbsError,
-  meanDistributionAbsErrorOverHistory,
   meanFreshnessAbsError,
+  meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
   shelfMeanFFromFlat,
   shelfMeanFFromUnits,
+  wasserstein1FromBinMasses,
 } from "./beliefAccuracy";
+import { histogramEdges } from "./freshnessHistogram";
 
 const FLAT: FlatBelief = {
   L: 3,
@@ -134,40 +138,63 @@ describe("formatMeanFAbsError", () => {
   });
 });
 
-describe("distributionAbsError", () => {
+describe("countMeanAbsError", () => {
+  it("is |Σ lot_counts − N_truth|", () => {
+    expect(expectedCountFromFlat(FLAT)).toBeCloseTo(20);
+    expect(countMeanAbsError(FLAT, UNITS)).toBeCloseTo(10);
+  });
+
+  it("returns null for empty units", () => {
+    expect(countMeanAbsError(FLAT, [])).toBeNull();
+  });
+});
+
+describe("wasserstein1FromBinMasses", () => {
+  const edges = histogramEdges(0, 1, 8);
+
   it("is zero when normalized distributions match", () => {
     const masses = [5, 5, 0, 0, 0, 0, 0, 0];
-    expect(distributionAbsError(masses, masses)).toBeCloseTo(0);
+    expect(wasserstein1FromBinMasses(masses, masses, edges)).toBeCloseTo(0);
   });
 
   it("returns null when either side has zero total mass", () => {
-    expect(distributionAbsError([1, 0], [0, 0])).toBeNull();
-    expect(distributionAbsError([0, 0], [1, 0])).toBeNull();
+    expect(wasserstein1FromBinMasses([1, 0], [0, 0], [0, 0.5, 1])).toBeNull();
+    expect(wasserstein1FromBinMasses([0, 0], [1, 0], [0, 0.5, 1])).toBeNull();
   });
 
-  it("computes mean L1 distance on normalized shares", () => {
+  it("equals mean |quantile gap| for two point masses on equal bins", () => {
+    // All belief mass in bin 0 [0, 0.125); all truth in bin 4 [0.5, 0.625).
     const belief = [8, 0, 0, 0, 0, 0, 0, 0];
     const truth = [0, 0, 0, 0, 10, 0, 0, 0];
-    // |1-0| + |0-0| + ... + |0-1| over 8 bins = 2/8 = 0.25
+    // After bin 0: |1-0|*0.125; bins 1–3: |1-0|*0.125 each; after bin 4 both CDFs
+    // meet at 1 for remaining intervals → 4 * 0.125 = 0.5.
+    expect(wasserstein1FromBinMasses(belief, truth, edges)).toBeCloseTo(0.5);
+  });
+});
+
+describe("distributionAbsError (legacy bin MAE)", () => {
+  it("still computes mean L1 distance on normalized shares", () => {
+    const belief = [8, 0, 0, 0, 0, 0, 0, 0];
+    const truth = [0, 0, 0, 0, 10, 0, 0, 0];
     expect(distributionAbsError(belief, truth)).toBeCloseTo(0.25);
   });
 });
 
-describe("currentDistributionAbsError", () => {
+describe("currentFreshnessW1", () => {
   it("is positive when means agree but rebinned distributions differ", () => {
-    const distMae = currentDistributionAbsError(FLAT, UNITS);
-    expect(distMae).not.toBeNull();
-    expect(distMae!).toBeGreaterThan(0);
+    const w1 = currentFreshnessW1(FLAT, UNITS);
+    expect(w1).not.toBeNull();
+    expect(w1!).toBeGreaterThan(0);
     expect(currentMeanFAbsError(FLAT, UNITS)).toBeCloseTo(0);
   });
 
   it("returns null when units are empty", () => {
-    expect(currentDistributionAbsError(FLAT, [])).toBeNull();
+    expect(currentFreshnessW1(FLAT, [])).toBeNull();
   });
 });
 
-describe("meanDistributionAbsErrorOverHistory", () => {
-  it("averages per-day distribution MAE over aligned history rows", () => {
+describe("meanFreshnessW1OverHistory", () => {
+  it("averages per-day W₁ (not a pooled episode cloud)", () => {
     const history: Day[] = [
       dayRow(0, UNITS.slice(0, 5)),
       dayRow(1, UNITS),
@@ -176,24 +203,27 @@ describe("meanDistributionAbsErrorOverHistory", () => {
       { day: 0, flatBelief: FLAT },
       { day: 1, flatBelief: FLAT },
     ];
-    const result = meanDistributionAbsErrorOverHistory(history, beliefHistory);
+    const result = meanFreshnessW1OverHistory(history, beliefHistory);
     expect(result).not.toBeNull();
     expect(result!.dayCount).toBe(2);
-    expect(result!.meanMae).toBeGreaterThan(0);
+    expect(result!.meanW1).toBeGreaterThan(0);
+    const day0 = currentFreshnessW1(FLAT, UNITS.slice(0, 5))!;
+    const day1 = currentFreshnessW1(FLAT, UNITS)!;
+    expect(result!.meanW1).toBeCloseTo((day0 + day1) / 2);
   });
 
   it("skips days without matching belief or truth units", () => {
     const history: Day[] = [dayRow(0, []), dayRow(1, UNITS)];
     const beliefHistory: BeliefHistoryDay[] = [{ day: 1, flatBelief: FLAT }];
-    const result = meanDistributionAbsErrorOverHistory(history, beliefHistory);
+    const result = meanFreshnessW1OverHistory(history, beliefHistory);
     expect(result).not.toBeNull();
     expect(result!.dayCount).toBe(1);
   });
 
   it("returns null when no valid aligned days", () => {
-    expect(meanDistributionAbsErrorOverHistory([], [])).toBeNull();
+    expect(meanFreshnessW1OverHistory([], [])).toBeNull();
     expect(
-      meanDistributionAbsErrorOverHistory(
+      meanFreshnessW1OverHistory(
         [dayRow(0, [])],
         [{ day: 0, flatBelief: FLAT }],
       ),

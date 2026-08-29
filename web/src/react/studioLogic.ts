@@ -39,10 +39,10 @@ import {
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
-  currentDistributionAbsError,
+  currentFreshnessW1,
   currentMeanFAbsError,
   formatMeanFAbsError,
-  meanDistributionAbsErrorOverHistory,
+  meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
 } from "../charts/beliefAccuracy";
 import {
@@ -813,22 +813,22 @@ export function initStudio(app: HTMLElement): () => void {
 
     const flat = vm.belief_history.at(-1)?.flatBelief;
     const todayMeanMae = flat ? currentMeanFAbsError(flat, vm.live_units) : null;
-    const todayDistMae = flat
-      ? currentDistributionAbsError(flat, vm.live_units)
+    const todayDistW1 = flat
+      ? currentFreshnessW1(flat, vm.live_units)
       : null;
 
     const meanSummary = meanMeanFAbsErrorOverHistory(
       vm.history,
       vm.belief_history,
     );
-    const distSummary = meanDistributionAbsErrorOverHistory(
+    const distSummary = meanFreshnessW1OverHistory(
       vm.history,
       vm.belief_history,
     );
 
     if (
       todayMeanMae == null ||
-      todayDistMae == null ||
+      todayDistW1 == null ||
       !meanSummary ||
       !distSummary
     ) {
@@ -844,9 +844,9 @@ export function initStudio(app: HTMLElement): () => void {
     table.hidden = false;
     table.title = BELIEF_MAE_TOOLTIP;
     todayMeanCell.textContent = formatMeanFAbsError(todayMeanMae);
-    todayDistCell.textContent = formatMeanFAbsError(todayDistMae);
+    todayDistCell.textContent = formatMeanFAbsError(todayDistW1);
     allMeanCell.textContent = formatMeanFAbsError(meanSummary.meanMae);
-    allDistCell.textContent = formatMeanFAbsError(distSummary.meanMae);
+    allDistCell.textContent = formatMeanFAbsError(distSummary.meanW1);
   }
 
   function plotVisible(plotId: string): boolean {
