@@ -952,11 +952,16 @@ impl ArrivalModel {
     }
 
     fn rebuild_marginal_cdf_prior(&mut self, record_telemetry: bool) {
+        // `std::time::Instant` is unavailable on wasm32-unknown-unknown (panics at now()).
+        #[cfg(not(target_arch = "wasm32"))]
         let t0 = std::time::Instant::now();
         self.marginal_cdf = self.build_law_cdf(ArrivalCondition::Prior);
         if record_telemetry {
             self.prior_rebuilt_since_clear = true;
-            self.prior_rebuild_ms_since_clear = t0.elapsed().as_millis() as u64;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.prior_rebuild_ms_since_clear = t0.elapsed().as_millis() as u64;
+            }
         }
         self.prior_build_key = PriorCdfBuildKey::from_model(self);
     }
