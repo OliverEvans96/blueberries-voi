@@ -14,7 +14,7 @@ if _maybe_core is None:
 
 # T-163: unified q10=2.0 + Abdella leg anchors (q10 unification PR).
 # Recomputed from run_voi_crn_cell(root_seed=1, beta=2.0, n_burn=2, n_score=8) on
-# 2026-08-29 after q10 sync + Abdella setpoint restore.
+# 2026-08-29 after merging main (F3 exposure align) + q10 sync + Abdella setpoints.
 _T150_BASELINE: dict[str, float] = {
     "P0": 241.0,
     "P1": 241.0,
