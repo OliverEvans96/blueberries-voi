@@ -30,7 +30,7 @@ _FILTER_N = 32
 _H = 2
 # Production damped_sw policy. Rollout x 200 seed searches were 10+ min of verify.
 _N_ROLLOUT_PATHS = 0
-_MAX_PROBE_SEEDS = 8
+_MAX_PROBE_SEEDS = 12
 _LEAD_TIME = 1
 _BETA = 2.0
 
