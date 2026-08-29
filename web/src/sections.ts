@@ -51,7 +51,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     id: "logistics",
     label: "Logistics",
     blurb: "Case size and lead time set how you refill the cooler each day.",
-    plotIds: ["plot-logistics-calendar", "plot-age-comp"],
+    plotIds: ["plot-logistics-calendar"],
     controlSection: "logistics",
   },
   {
@@ -59,7 +59,7 @@ export const STUDIO_SECTIONS: StudioSection[] = [
     label: "Arrival",
     blurb:
       "Transit assumptions set freshness at receipt — the identification signal for relative quality.",
-    plotIds: ["plot-arrival-prior", "plot-arrival-shift"],
+    plotIds: ["plot-arrival-prior"],
     controlSection: "arrival",
   },
   {

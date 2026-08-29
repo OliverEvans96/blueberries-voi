@@ -25,14 +25,12 @@ const REQUIRED_CHART_IDS = [
   "chart-sales-demand",
   "chart-age-comp",
   "chart-arrival-prior",
-  "chart-arrival-shift",
   "chart-arrhenius-temp",
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
   "chart-spoil",
-  "chart-age-comp-focus",
   "chart-controller-orders-focus",
   "chart-spoil-focus",
 ] as const;
@@ -197,6 +195,21 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     ).toBeTruthy();
   });
 
+  it("belief pane orders today's histogram, summary, then history", () => {
+    const { container } = render(createElement(StudioLayout));
+    const belief = container.querySelector(".cockpit-pane--belief")!;
+    const beliefLg = belief.querySelector("#chart-belief-lg")!;
+    const ageComp = belief.querySelector("#chart-age-comp")!;
+    const history = belief.querySelector("#chart-history")!;
+    expect(belief.querySelector("#chart-sla-stockout")).toBeNull();
+    expect(
+      beliefLg.compareDocumentPosition(ageComp) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      ageComp.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("run pane hosts operator bar; belief pane hosts freshness charts only", () => {
     const { container } = render(createElement(StudioLayout));
     const run = container.querySelector(".cockpit-pane--run");
@@ -204,23 +217,19 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
     expect(run!.querySelector("#operator-bar-host")).not.toBeNull();
     expect(belief!.querySelector("#operator-bar-host")).toBeNull();
     expect(belief!.querySelector("#chart-history")).not.toBeNull();
-    expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(belief!.querySelector("#chart-belief-lg")).not.toBeNull();
+    expect(belief!.querySelector("#chart-age-comp")).not.toBeNull();
     expect(belief!.querySelector("#tradeoff-curve-host")).toBeNull();
     expect(belief!.querySelector("#tradeoff-histogram-host")).toBeNull();
     const runOperator = run!.querySelector("#operator-bar-host");
     const beliefHead = belief!.querySelector(".panel-head");
-    const history = belief!.querySelector("#chart-history");
+    const beliefLg = belief!.querySelector("#chart-belief-lg");
     expect(
       runOperator!.compareDocumentPosition(beliefHead!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      beliefHead!.compareDocumentPosition(history!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      history!.compareDocumentPosition(belief!.querySelector("#chart-age-comp")!) &
+      beliefHead!.compareDocumentPosition(beliefLg!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -232,9 +241,8 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       belief.querySelector('[data-truth-caption="lots"] [data-truth-caption-label]')
         ?.textContent,
     ).toBe("Historical Freshness Distribution");
-    expect(
-      belief.querySelector('[data-truth-caption="age-comp"] [data-truth-caption-label]')
-        ?.textContent,
+    expect(belief.querySelector('[data-truth-caption="age-comp"] [data-truth-caption-label]')
+      ?.textContent,
     ).toBe("Historical Freshness Summary");
     expect(
       belief.querySelector('[data-truth-caption="belief-lg"] [data-truth-caption-label]')
@@ -269,7 +277,7 @@ describe("StudioLayout cockpit grid (T-158 v7)", () => {
       "chart-history",
       "chart-sales-demand",
       "chart-age-comp",
-      "chart-belief-age-marginal",
+          "chart-belief-age-marginal",
       "chart-belief-lg",
       "chart-controller-orders",
       "chart-spoil",

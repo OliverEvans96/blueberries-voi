@@ -60,6 +60,7 @@ pub mod belief_flat;
 pub mod day_step;
 pub mod demand_profile;
 pub mod episode;
+pub mod joint_arrival_calib;
 pub mod obs;
 pub mod params;
 pub mod physics;
@@ -90,6 +91,11 @@ pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
 pub use demand_profile::{DemandProfile, DemandProfileError};
 pub use episode::{run_closed_loop_episode, EpisodeResult};
+pub use joint_arrival_calib::{
+    ac2_11a_ratio, ac2_19_d8_margin, ac2_19_min_margin, apply_config, benchmark_fast_trial,
+    benchmark_fast_vs_slow, configured_model, evaluate_fast_trial, evaluate_trial,
+    passes_ac2_11a, passes_fast_gates, truth_band, JointCalibFastResult, JointCalibTrialMetrics,
+};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use params::ModelParams;
 pub use policy::{
@@ -103,9 +109,9 @@ pub use physics::{
     picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
 };
 pub use protection_sim::{
-    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief, simulate_protection_path,
-    McSlaModel, PbSlaModel, ProtectionPathResult, ProtectionWindow, SlaModel,
-    SurvivalCurveCache,
+    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief,
+    simulate_protection_path, McSlaModel, PbSlaModel, ProtectionPathResult, ProtectionWindow,
+    SlaModel, SurvivalCurveCache,
 };
 pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,

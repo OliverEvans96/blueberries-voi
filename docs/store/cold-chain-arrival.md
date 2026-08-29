@@ -58,7 +58,7 @@ The transit generative model keeps compound-Poisson breaks and path-first Λ, an
 
 ## The math
 
-For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, an 80/20 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
+For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, a 62.7/37.3 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
 
 ### Duration
 
@@ -66,16 +66,9 @@ $$
 d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})
 $$
 
-$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor.
+$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen **leaf** corridor (for `abdella_mix`, a regime is drawn first — see Corridor mixtures).
 
-The truth path doesn't always draw from that analytic family, though. With probability
-0.78 (`DURATION_EMPIRICAL_MIX`), it instead resamples one of the six real Abdella shipment
-durations (1.9–6.5 days) and adds Gaussian noise (SD 0.62 days) — **independent of which
-corridor or mixture component was passed in**. Only the remaining 22% of draws use the
-corridor-specific bottom-up leg-gamma formula above. This keeps `Var(log d)` matched to the
-six-shipment sample without over-trusting a moment-matched analytic tail, but it means a
-corridor's own shape/scale only fully expresses itself in a minority of draws — see the
-caveat below on what this implies for `abdella_mix`.
+With probability 0.78 (`DURATION_EMPIRICAL_MIX`), the truth path resamples a provenance shipment duration (1.9–6.5 days) plus Gaussian noise (SD 0.62 days) from the pool for that **resolved leaf** corridor — S2 only for `short_haul`, S1 and S3–S6 for `long_haul`, all six for `abdella_all`. Only the remaining 22% of draws use the corridor-specific bottom-up per-leg gamma formula (`draw_bottom_up_duration`). This keeps `Var(log d)` matched to the six-shipment sample without over-trusting a moment-matched analytic tail, but a corridor's own shape/scale only fully expresses itself in that minority of draws — see the caveat below.
 
 ### Cold-chain path and breaks
 
@@ -83,9 +76,9 @@ The baseline path walks three named legs in order, each holding a fixed setpoint
 
 | Leg | Share $w_k$ | Setpoint $\mu_k$ |
 | --- | --- | --- |
-| `precool_staging` | 0.15 | −1.65 °C |
-| `line_haul` | 0.60 | 0.58 °C |
-| `dock_receiving` | 0.25 | 2.32 °C |
+| `precool_staging` | 0.15 | 0.35 °C |
+| `line_haul` | 0.60 | 2.58 °C |
+| `dock_receiving` | 0.25 | 4.32 °C |
 
 On top of that baseline, **break events** are drawn (ADR 0150):
 
@@ -145,7 +138,7 @@ From `data/abdella/arrival_model.json`:
 | Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
 | Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 14.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Leg setpoints were shifted flat by −2.0 °C from the earlier compressed anchors (0.35/2.58/4.32 → −1.65/0.58/2.32 °C) to preserve the clean-chain $\bar\varphi$ centre under $q_{10} = 2.0$ and the unified reference life. Duration dispersion now comes from **`abdella_mix`**, a categorical mixture drawing 80% `short_haul` (Abdella S2) and 20% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Studio **q₁₀** (RPC `q10`) is mirrored onto the arrival artifact via `sync_params` → `set_q10`, so F3 trace integration and in-store aging share one thermal scale. Leg setpoints use the Abdella compressed anchors (0.35 / 2.58 / 4.32 °C for precool / line haul / dock) under unified $q_{10} = 2.0$ and $\eta_\text{ref} = 14$. Trip thermal modes (`thermal_modes`: 10% cool / 80% nominal / 10% warm offsets) and hourly OU noise (`sigma_hour` = 0.028 °C) are assumed scenario knobs for chart realism. Duration dispersion comes from **`abdella_mix`**, a categorical mixture drawing 62.7% `short_haul` (Abdella S2) and 37.3% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation.
 
 **Corridors** (shifted-gamma duration law):
 
@@ -159,7 +152,7 @@ Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** fr
 
 | Mixture | Components | Role |
 | --- | --- | --- |
-| `abdella_mix` | 0.8 × `short_haul` + 0.2 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
+| `abdella_mix` | 0.627 × `short_haul` + 0.373 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
 
 `abdella_all` remains the moment-matched pooled Abdella fit (ADR 0148); `short_haul` and `long_haul` are the per-regime duration families that `abdella_mix` blends.
 
@@ -180,25 +173,25 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Concept | Symbol | Location |
 | --- | --- | --- |
 | Truth-path temperature trace (legs + breaks) | path → Λ | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
-| Exposure from observed path | Λ | `crates/voi_core/src/arrival.rs:2208` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
-| Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:1267` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
-| Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:1335` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
-| Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1307` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
-| Bottom-up / empirical-resample duration draw | $d$ | `crates/voi_core/src/arrival.rs:1123` (`draw_bottom_up_duration`) |
-| Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:1039` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
-| Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:1071` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
-| Filter: enumerate break counts + gamma quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1567` (`thermal_nodes_for_key`) |
-| Filter: Prior/F2-fallback duration quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1000` (`prior_duration_nodes`) |
-| Categorical regime draw for a corridor mixture | — | `crates/voi_core/src/arrival.rs:962` (`resolve_corridor_regime`) |
+| Exposure from observed path | Λ | `crates/voi_core/src/arrival.rs:2334` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
+| Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:1335` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
+| Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:1402` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
+| Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1375` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
+| Bottom-up / empirical-resample duration draw | $d$ | `crates/voi_core/src/arrival.rs:1187` (`draw_bottom_up_duration`) |
+| Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:1088` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
+| Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:1120` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
+| Filter: enumerate break counts + gamma quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1633` (`thermal_nodes_for_key`) |
+| Filter: Prior/F2-fallback duration quadrature (mixture-aware) | — | `crates/voi_core/src/arrival.rs:1049` (`prior_duration_nodes`) |
+| Categorical regime draw for a corridor mixture | — | `crates/voi_core/src/arrival.rs:986` (`resolve_corridor_regime`) |
 | Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
-| Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1229` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
-| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1241` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
-| Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1256` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
-| Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:659` (`gamma_dist_quantile`) |
-| Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:1301` (`draw_psi_pos`) |
-| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors, corridor mixtures | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:573` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
-| Set the unified reference life (studio η_ref → transit) | — | `crates/voi_core/src/arrival.rs:1858` (`set_reference_life_days`); called from [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) and RPC `configure` |
-| Default Prior CDF bake (studio fast boot) | — | `crates/voi_core/src/arrival_prior_baked.rs`; loaded when fingerprint matches committed artifact; runtime rebuild on η_ref change via `set_reference_life_days` — **not** on Q10 / $T_{\mathrm{ref}}$ change, which are intentionally never copied onto the arrival model (see caveats) |
+| Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1297` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
+| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1309` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
+| Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1324` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
+| Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:664` (`gamma_dist_quantile`) |
+| Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:1369` (`draw_psi_pos`) |
+| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors, corridor mixtures | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:578` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
+| Set unified reference life / Q10 (studio → transit) | — | `crates/voi_core/src/arrival.rs:1951` (`set_reference_life_days`), `:1974` (`set_q10`); both called from [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) (`:2202`) and RPC `configure` |
+| Default Prior CDF bake (studio fast boot) | — | `crates/voi_core/src/arrival_prior_baked.rs`; loaded when fingerprint matches committed artifact; runtime rebuild when `eta_ref` or `q10` changes via `sync_params` (baked fast path at defaults `q10 = 2.0`, `eta_ref = 14`) |
 | Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 
 ## Caveats
@@ -209,4 +202,4 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 
 **Break parameters are assumed, not measured.** The six Abdella shipments never broke; $\rho$ and $\bar\tau$ are scenario knobs. At $\rho \to 0$ the model should recover the clean-chain duration dominance seen in the data; at default $\rho$ the duration share of $\mathrm{Var}(\log \Lambda)$ is a design output (~80%), not an Abdella measurement.
 
-**The corridor mixture doesn't fully control duration.** `abdella_mix` draws a regime (80% `short_haul`, 20% `long_haul`) once per delivery, but each leg's actual duration only uses that regime's analytic shape/scale 22% of the time (`DURATION_EMPIRICAL_MIX`, see the Duration section). The other 78% resamples from the same six-shipment empirical pool regardless of regime. So two lots in the same delivery — even under the same resolved regime — can land on very different durations, and `short_haul`'s near-deterministic analytic family (`delay_scale = 0.05`) describes only a minority of what a "short haul" delivery's duration actually looks like in the truth path. The filter's `Prior`/`Duration` quadrature (`prior_duration_nodes`) models only the analytic per-component family — it has no term for this empirical-resampling floor, which is a real, currently-unresolved truth/filter mismatch worth keeping in mind when interpreting `Prior` belief width.
+**Empirical resampling limits mixture control.** `abdella_mix` draws a regime (62.7% `short_haul`, 37.3% `long_haul`) once per delivery, and the empirical branch (78% of draws) resamples from that regime's Abdella pool — but only the remaining 22% use the leaf corridor's analytic shape/scale (`DURATION_EMPIRICAL_MIX`, see Duration). So `short_haul`'s near-deterministic analytic family (`delay_scale = 0.05`) describes only a minority of what a "short haul" delivery's duration actually looks like in the truth path. The filter's `Prior`/`Duration` quadrature (`prior_duration_nodes`) models only the analytic per-component family — it has no term for this empirical-resampling floor, which is a real, currently-unresolved truth/filter mismatch worth keeping in mind when interpreting `Prior` belief width.

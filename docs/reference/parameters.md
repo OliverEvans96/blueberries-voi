@@ -82,14 +82,12 @@ where $Q_{10}$ (`q10`) is the rate multiplier per 10°C of warming and $T_\text{
 is $\text{Gamma}(k\cdot\phi(T_\text{store}),\,\theta)$ — a *shape*-scaled gamma, not a
 scale-scaled one (see below).
 
-**`q10` and `t_ref_c` are *not* kept in sync at runtime**, unlike `eta_ref` (below).
-`ModelParams::default()` and the embedded arrival artifact both start at `q10 = 2.0`, but
-changing the studio's Q10 slider only ever updates `self.params.q10` (in-store aging); it
-is deliberately never copied onto the arrival model, because doing so would invalidate the
-compile-time-baked Prior CDF on every studio init (see
-[cold-chain arrival](/store/cold-chain-arrival)). If you want to test a different transit
-Q10, it has to be set on the arrival artifact directly — there is no live studio control
-for it.
+**`eta_ref` and `q10` are actively mirrored onto the arrival model** via
+[`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params)
+(`set_reference_life_days` / `set_q10`), so in-store aging and transit exposure share one
+shelf-life and thermal scale when you move the studio sliders. **`t_ref_c` is not copied**
+onto the arrival artifact — only the shared default value in the JSON matters unless you
+edit the artifact directly.
 
 For a delivered lot, cumulative thermal exposure over the transit leg is built from a
 **temperature path**, not a single mean-temperature draw. Calendar duration is
@@ -116,9 +114,10 @@ Under ADR 0149 each delivery targets **three lots** with
 $\Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}$; total units per
 delivery are split across lots, not multiplied. Duration itself is drawn either from a
 bottom-up per-leg gamma matching the corridor's shape/scale, or (78% of the time) resampled
-directly from the six real Abdella shipment durations plus noise — see
+from the **regime-specific** Abdella shipment pool for the resolved leaf corridor — see
 [cold-chain arrival](/store/cold-chain-arrival) for the mechanism and why it matters for how
-much a corridor (or corridor mixture) actually controls duration.
+much a corridor mixture actually controls duration. Trip thermal modes and hourly OU path
+noise (`thermal_modes`, `sigma_hour`) are also part of the shipped generative path.
 
 ## Why it's modeled this way
 
@@ -215,16 +214,18 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at −1.65 / 0.58 / 2.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); flat −2.0 °C shift from earlier compressed anchors under unified $\eta_\text{ref}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:230` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
-| Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Actively kept unified with in-store $\eta_\text{ref}$; the studio η_ref slider drives both clocks via `set_reference_life_days`; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
-| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Same default as in-store $Q_{10}$, but **not** actively synced — see the Q10 caveat above | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:41` |
-| Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:206` (`t_break`) |
-| Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:209` (`rho`) |
-| Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:212` (`tau_bar`) |
-| Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
-| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature (recurses into mixture components) | `crates/voi_core/src/arrival.rs:1567` (`thermal_nodes_for_key`) |
+| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at 0.35 / 2.58 / 4.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); Abdella compressed anchors under unified $\eta_\text{ref}$ and $q_{10}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:235` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Actively kept unified with in-store $\eta_\text{ref}$; studio η_ref slider drives both clocks via `set_reference_life_days`; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
+| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Shared thermal scale for transit exposure and in-store aging; mirrored from studio `q10` via [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) → `set_q10` | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:27` |
+| Trip thermal modes | — | 10% cool / 80% nominal / 10% warm | — | Per-trip offset applied to all leg setpoints (`thermal_modes` in artifact) | `data/abdella/arrival_model.json` (`thermal_modes`); `crates/voi_core/src/arrival.rs:1246` (`draw_thermal_mode_offset`) |
+| Hourly OU path noise | $\sigma_\text{hour}$ | 0.028 | °C | Assumed amplitude for logger-like temperature scatter on line haul / dock | `data/abdella/arrival_model.json` (`sigma_hour`); `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
+| Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:242` (`t_break`) |
+| Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:245` (`rho`) |
+| Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:248` (`tau_bar`) |
+| Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:251` (`sigma_pos`) |
+| Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature (recurses into mixture components) | `crates/voi_core/src/arrival.rs:1633` (`thermal_nodes_for_key`) |
 | Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
-| Default mixture (`abdella_mix`) | 0.8 × `short_haul` + 0.2 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
+| Default mixture (`abdella_mix`) | 0.627 × `short_haul` + 0.373 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
 | Pooled `abdella_all` | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
 | Component `short_haul` | $d_\text{min}$ / shape / scale | 1.803 / 2.0 / 0.05 | days | Abdella S2 duration family | `data/abdella/arrival_model.json` (`corridors.short_haul`) |
 | Component `long_haul` | $d_\text{min}$ / shape / scale | 4.033 / 1.628 / 0.814 | days | Abdella S1, S3–S6 duration family | `data/abdella/arrival_model.json` (`corridors.long_haul`) |
@@ -239,15 +240,13 @@ that live in TypeScript and are not part of `ModelParams` itself.
   canonical value, derived in Rust from `eta_ref` and `gamma_shape`, is
   $1/28\approx0.035714$. Anything computed through that mock path will not match the live
   engine's shelf-life calibration.
-- `abdella_mix` (80% `short_haul` / 20% `long_haul`) is the production default corridor;
+- `abdella_mix` (62.7% `short_haul` / 37.3% `long_haul`) is the production default corridor;
   `abdella_all` remains the moment-matched pooled Abdella fit. Studio no longer exposes haul
-  chips as first-class arrival lanes. The 80/20 weighting only fully applies to the minority
-  (22%) of duration draws that use the analytic per-component family — see
-  [cold-chain arrival](/store/cold-chain-arrival) for the empirical-resampling mechanism that
-  governs the rest.
-- `q10` (in-store and arrival) share a default value but are **not** actively kept in sync —
-  changing the studio Q10 slider only affects in-store aging. `eta_ref` (reference life) *is*
-  actively kept in sync between the two. Don't assume the two knobs behave the same way.
+  chips as first-class arrival lanes. The analytic per-component family only governs the
+  minority (22%) of duration draws that skip empirical resampling — see
+  [cold-chain arrival](/store/cold-chain-arrival).
+- `eta_ref` and `q10` are **actively mirrored** onto the arrival model via `sync_params`;
+  `t_ref_c` is a shared default only (not copied at runtime).
 - Break parameters $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario
   knobs** — the six Abdella shipments are clean chains with no observed breaks. Corridor
   durations are fit; leg setpoints are anchored to the break-free $\bar\varphi$ centre;

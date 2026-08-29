@@ -45,6 +45,14 @@ When rotating **`PERSONAL_WEBSITE_DISPATCH_PAT`**:
 4. Run `terraform apply` with `enable_github_actions = true` to sync the new value to GitHub Actions secrets.
 5. Revoke the old PAT after confirming dispatch workflows succeed.
 
+When rotating **`CLOUDFLARE_API_TOKEN`** or updating **`CLOUDFLARE_ACCOUNT_ID`**:
+
+1. Create or copy the replacement Cloudflare API token (Pages Edit on the studio project account).
+2. Edit the encrypted file: `sops secrets/secrets.enc.yaml`
+3. Commit the updated `secrets.enc.yaml`.
+4. Run `terraform apply` with `enable_github_actions = true` to sync GitHub Actions secrets.
+5. Revoke the old API token after confirming studio preview deploys succeed.
+
 ## Local inspection (optional)
 
 ```bash

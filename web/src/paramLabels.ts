@@ -100,7 +100,7 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   arrival_product: {
     label: "Arrival corridor",
     tooltip:
-      "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (80%) or long_haul (20%) for trip duration and temperature; illustrative leaf lanes are not exposed as separate studio chips.",
+      "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature; illustrative leaf lanes are not exposed as separate studio chips.",
     tier: "Reset",
   },
   transit_temp_bias_c: {

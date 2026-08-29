@@ -81,8 +81,8 @@ _QUADRATURE_WEIGHTS = [
 _DEFAULT_CORRIDOR_MIXTURES: dict[str, Any] = {
     "abdella_mix": {
         "components": [
-            {"corridor_key": "short_haul", "weight": 0.8},
-            {"corridor_key": "long_haul", "weight": 0.2},
+            {"corridor_key": "short_haul", "weight": 0.7},
+            {"corridor_key": "long_haul", "weight": 0.3},
         ]
     }
 }

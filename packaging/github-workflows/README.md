@@ -56,6 +56,33 @@ not the GitHub UI.
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
 
+## Studio PR previews (`studio-preview.yml`)
+
+After a **green CI run on a same-repo pull request**, `studio-preview` deploys the
+full studio app (`web/dist`) to Cloudflare Pages on branch `pr-{number}`. Preview
+URLs follow `{branch}.{project}.pages.dev` (for example
+`pr-42.blueberries-voi-studio.pages.dev`). The workflow posts or updates a PR comment
+with the link.
+
+When the PR **closes**, the `cleanup` job lists Cloudflare Pages deployments for
+that preview branch and deletes them (`force=true`).
+
+### Human setup (Cloudflare + Terraform)
+
+1. Add **`CLOUDFLARE_API_TOKEN`** and **`CLOUDFLARE_ACCOUNT_ID`** to
+   `secrets/secrets.enc.yaml` (see [`secrets/`](../secrets/)).
+2. Run **`terraform apply`** with `enable_github_actions = true` to create the
+   Pages project and sync GitHub secrets/variable:
+   - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+   - Variable: `CLOUDFLARE_PAGES_PROJECT_NAME` (default project
+     `blueberries-voi-studio`)
+3. Sync live workflows after merge:
+   `./scripts/sync-github-workflows.sh`
+
+Fork PRs are skipped (`head_repository.full_name == github.repository`). The deploy
+job downloads **`ci-rust-wasm-build`** from the triggering CI workflow run (same
+artifact contract as `release-studio.yml`).
+
 ## Release scope
 
 - **Release studio** (`release-studio.yml`): on green **CI** `workflow_run`, downloads
