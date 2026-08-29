@@ -342,11 +342,11 @@ describe("EventsPane (Event Log refactor)", () => {
     expect(screen.queryByText(/^Loading event log/i)).toBeNull();
   });
 
-  it("F3 delivery day shows temperature history chart", () => {
+  it("F3 delivery day shows temperature history chart and pack date", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {
-          episode_day: 3,
+          episode_day: 4,
           config: {
             ...DEFAULT_SIM_CONFIG,
             obs_scenario: "F3",
@@ -356,12 +356,13 @@ describe("EventsPane (Event Log refactor)", () => {
         schedule: SCHEDULE,
         events: [
           {
-            day: 1,
+            day: 2,
             arrivals: 8,
             arrival_lot_ids: [301, 302],
             arrivals_by: [5, 3],
             sales_total: 4,
             waste_total: 0,
+            pack_dates_by_lot: [3, 5],
             temp_traces_by_lot: [
               {
                 lot_id: 301,
@@ -381,6 +382,14 @@ describe("EventsPane (Event Log refactor)", () => {
     );
     expect(screen.getByText(/temperature history/i)).toBeInTheDocument();
     expect(container.querySelector(".delivery-temp-chart--multi")).not.toBeNull();
+
+    const deliveryTable = container.querySelector(
+      '.events-day-card[data-day="2"] .events-delivery-table',
+    );
+    expect(deliveryTable).not.toBeNull();
+    expect(deliveryTable!.textContent).toMatch(/Pack date/);
+    expect(deliveryTable!.textContent).toMatch(/3/);
+    expect(deliveryTable!.textContent).not.toMatch(/Not observed/);
 
     const summaries = container.querySelector(
       '[data-testid="events-temp-summaries"]',

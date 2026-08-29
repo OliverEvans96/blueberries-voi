@@ -124,7 +124,7 @@ async function assertTextInitialized(page: Page): Promise<void> {
   await expect(pnl.locator(".pnl-value--rev")).toHaveText("$0");
   await expect(pnl.locator(".pnl-value--cost")).toHaveText("$0");
   await expect(pnl.locator(".pnl-value--profit")).toHaveText("$0");
-  await expect(pnl.locator(".pnl-value--missed")).toHaveText("0");
+  await expect(pnl.locator(".pnl-value--service")).toHaveText("0");
   await expect(pnl.locator(".pnl-value--waste")).toHaveText("0");
 }
 
@@ -198,7 +198,7 @@ test.describe("T-157 first-order init audit", () => {
     }
     // Text still populated (values may leave zero after first day).
     await expect(page.locator("#pnl-totals-host .pnl-totals")).toBeVisible();
-    await expect(page.locator("#pnl-totals-host .pnl-value--missed")).toBeVisible();
+    await expect(page.locator("#pnl-totals-host .pnl-value--service")).toBeVisible();
     await expect(page.locator("#pnl-totals-host .pnl-value--waste")).toBeVisible();
 
     for (const sel of LAYOUT_HOSTS) {
