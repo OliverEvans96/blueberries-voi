@@ -1080,6 +1080,7 @@ input[type="number"] {
 .pnl-value-detail {
   font-weight: 400;
   font-size: 0.9rem;
+  color: var(--ink-soft);
 }
 
 .pnl-value--waste {
