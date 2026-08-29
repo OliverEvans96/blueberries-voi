@@ -96,7 +96,7 @@ def evaluate_joint_calib_trial(
     *,
     include_ac2_11a: bool = False,
 ) -> JointCalibTrialResult:
-    """Rust-first per-trial evaluator (fixed truth/session seeds; seed drives ac2_11a)."""
+    """Rust-first per-trial evaluator (fixed seeds; seed drives ac2_11a)."""
     fn = (
         getattr(rust_core, "evaluate_joint_calib_trial_py", None) if rust_core else None
     )
@@ -113,7 +113,9 @@ def evaluate_joint_calib_trial(
 def benchmark_joint_calib_trial() -> float:
     """Time one representative fast trial (seconds)."""
     fn = (
-        getattr(rust_core, "benchmark_joint_calib_trial_py", None) if rust_core else None
+        getattr(rust_core, "benchmark_joint_calib_trial_py", None)
+        if rust_core
+        else None
     )
     if not rust_available() or fn is None:
         raise RuntimeError("benchmark_joint_calib_trial requires _core")

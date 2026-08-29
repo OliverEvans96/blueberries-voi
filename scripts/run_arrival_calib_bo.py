@@ -54,8 +54,16 @@ def _completed_trial_count(client: Client) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="T-163 arrival joint Ax BO")
-    parser.add_argument("--smoke", action="store_true", help="K=2, 10 trials, fast only")
-    parser.add_argument("--full", action="store_true", help="60 trials, K=6, ac2_11a leg")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="K=2, 10 trials, fast only",
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="60 trials, K=6, ac2_11a leg",
+    )
     parser.add_argument(
         "--search",
         action="store_true",
@@ -124,23 +132,21 @@ def main() -> None:
         for path in (ax_json, output_json):
             if path.is_file():
                 path.unlink()
-    bo_seeds = [
-        int(RNG.integers(0, 2**31 - 1)) for _ in range(cfg["k_bo_seeds"])
-    ]
+    bo_seeds = [int(RNG.integers(0, 2**31 - 1)) for _ in range(cfg["k_bo_seeds"])]
 
     rust_fn = (
         getattr(rust_core, "evaluate_joint_calib_trial_py", None) if rust_core else None
     )
+    batch = cfg.get("batch_size", cfg["total_ax_trials"])
     print(
         f"T-163 joint arrival BO rust={rust_available() and rust_fn is not None} "
-        f"trials={cfg['total_ax_trials']} batch={cfg.get('batch_size', cfg['total_ax_trials'])} "
+        f"trials={cfg['total_ax_trials']} batch={batch} "
         f"seeds={cfg['k_bo_seeds']} search={cfg.get('search_mode', False)} "
         f"slow={cfg['include_ac2_11a']}"
     )
     if not rust_available() or rust_fn is None:
         raise SystemExit(
-            "build _core: uv run maturin develop --release "
-            "-m crates/voi_py/Cargo.toml"
+            "build _core: uv run maturin develop --release -m crates/voi_py/Cargo.toml"
         )
 
     if RELOAD_AX and ax_json.is_file():
@@ -196,12 +202,12 @@ def main() -> None:
                     "pct_60_90": metrics["pct_60_90"],
                 },
             )
-            rejected = margin <= 0.0 or session_mean <= REJECTED_OBJECTIVE / 2
             ac2_11a_mean = metrics["ac2_11a_ratio"][0]
             session_mean = metrics["session_f"][0]
             p50_mean = metrics["p50"][0]
             pct_mean = metrics["pct_60_90"][0]
             margin = metrics["ac2_19_margin"][0]
+            rejected = margin <= 0.0 or session_mean <= REJECTED_OBJECTIVE / 2
             passes_all = trial_passes_all_gates(
                 rejected_ac2_19=rejected,
                 ac2_19_margin=margin,

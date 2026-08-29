@@ -12,6 +12,7 @@ import { WasmAdapter } from "./wasmAdapter";
 import { ViewModelProjector } from "./projector";
 import {
   createStudioAdapter,
+  resetBundledWasmAdapterForTests,
   resolveStudioAdapterKind,
   type StudioEnv,
 } from "./studioAdapter";
@@ -87,9 +88,11 @@ const PROD_ENV: StudioEnv = {
 
 describe("T-125 studio adapter selection (wasm default)", () => {
   beforeEach(() => {
+    resetBundledWasmAdapterForTests();
     installFakeWorker();
   });
   afterEach(() => {
+    resetBundledWasmAdapterForTests();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -191,7 +194,8 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     // T-086 / CAL-C2: primary play advances via step_n to the next order day.
     expect(src).toMatch(/adapter\.step_n\s*\(/);
     expect(src).toMatch(/adapter\.reset\s*\(/);
-    expect(src).toMatch(/adapter\.init\s*\(/);
+    // Bootstrap uses sharedBundledWasmInit → adapter.init(config).
+    expect(src).toMatch(/sharedBundledWasmInit\s*\(\s*adapter\s*,/);
     expect(src).toMatch(/projector\.applyDelta/);
     expect(src).toMatch(/projector\.applySnapshot/);
     // Must not call the fake day-loop generator from the studio chrome path.
@@ -227,6 +231,7 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
 
 describe("T-125 default path leaves fake generate.ts physics", () => {
   it("studioAdapter default (no explicit mock) is WasmAdapter not MockAdapter", () => {
+    resetBundledWasmAdapterForTests();
     installFakeWorker();
     try {
       const prod = createStudioAdapter({
@@ -241,6 +246,7 @@ describe("T-125 default path leaves fake generate.ts physics", () => {
       expect(dev).toBeInstanceOf(WasmAdapter);
       expect(dev).not.toBeInstanceOf(MockAdapter);
     } finally {
+      resetBundledWasmAdapterForTests();
       vi.unstubAllGlobals();
     }
   });

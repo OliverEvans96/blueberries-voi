@@ -256,9 +256,11 @@ describe("studio wires the chip in the header and follows bootstrap init", () =>
     const bootstrap = src.match(/async function bootstrap[\s\S]*?\n\}/);
     expect(bootstrap, "expected bootstrap() in react/studioLogic.ts").toBeTruthy();
     expect(bootstrap![0]).toMatch(/follow\(|applyEngineStatusChip/);
-    expect(bootstrap![0]).toMatch(/adapter\.init/);
+    expect(bootstrap![0]).toMatch(/sharedBundledWasmInit/);
     expect(src).toMatch(/reportStudioAdapterError/);
-    const beforeInit = src.slice(0, src.indexOf("adapter.init"));
+    const initAnchor = src.indexOf("sharedBundledWasmInit");
+    expect(initAnchor).toBeGreaterThanOrEqual(0);
+    const beforeInit = src.slice(0, initAnchor);
     expect(beforeInit).not.toMatch(/set\(\s*["']ready["']\s*\)/);
     expect(beforeInit).not.toMatch(/applyEngineStatusChip\([^)]*["']ready["']/);
   });
