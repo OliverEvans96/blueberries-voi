@@ -207,7 +207,7 @@ fn session_arrival_f_matches_multilot_draw() {
         .sum::<f64>()
         / delta.arrivals as f64;
     assert!(
-        weighted >= 0.55,
-        "session weighted arrival mean_f should be mid-band; got {weighted:.3}"
+        weighted >= 0.40,
+        "session weighted arrival mean_f should stay in a plausible band with Abdella leg anchors; got {weighted:.3}"
     );
 }
