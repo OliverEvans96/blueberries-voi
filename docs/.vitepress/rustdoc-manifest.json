@@ -2,6 +2,14 @@
   "generated_by": "scripts/rustdoc_inventory.py",
   "entries": [
     {
+      "symbol": "DEFAULT_ARRIVAL_CORRIDOR",
+      "module": "arrival",
+      "source_file": "crates/voi_core/src/arrival.rs",
+      "rustdoc_path": "voi_core/arrival/constant.DEFAULT_ARRIVAL_CORRIDOR.html",
+      "linkable": true,
+      "link_target": "voi_core/arrival/constant.DEFAULT_ARRIVAL_CORRIDOR.html"
+    },
+    {
       "symbol": "arrival_artifact_from_json",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
@@ -154,10 +162,10 @@
       "link_target": null
     },
     {
-      "symbol": "thermal_nodes",
+      "symbol": "thermal_nodes_for_key",
       "module": "arrival",
       "source_file": "crates/voi_core/src/arrival.rs",
-      "rustdoc_path": "voi_core/arrival/fn.thermal_nodes.html",
+      "rustdoc_path": "voi_core/arrival/fn.thermal_nodes_for_key.html",
       "linkable": false,
       "link_target": null
     },

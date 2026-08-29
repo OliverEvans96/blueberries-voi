@@ -34,7 +34,7 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   eta_ref: {
     label: "Reference shelf life (η)",
     tooltip:
-      "Shelf life in days at the reference temperature (default: 14 days at 0°C). Higher values mean fruit spoils more slowly on average.",
+      "Shelf life in days at the reference temperature (default: 14 days at 0°C). Drives both in-store aging and transit arrival freshness. Higher values mean fruit spoils more slowly on average.",
     tier: "Reset",
   },
   q10: {
@@ -100,7 +100,7 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
   arrival_product: {
     label: "Arrival corridor",
     tooltip:
-      "Unified Abdella-matched transit law (abdella_all). Trip duration and temperature are drawn from the six-shipment calibration; illustrative short_haul / long_haul lanes are not exposed in the studio.",
+      "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature; illustrative leaf lanes are not exposed as separate studio chips.",
     tier: "Reset",
   },
   transit_temp_bias_c: {

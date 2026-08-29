@@ -1,5 +1,6 @@
 //! MOD-12 model parameters (Python `model.params.ModelParams`).
 
+use crate::arrival::DEFAULT_ARRIVAL_CORRIDOR;
 use crate::demand_profile::DemandProfile;
 
 /// Default virtual lot slots on the f-native `L×U` filter grid (ADR 0130).
@@ -61,7 +62,7 @@ impl Default for ModelParams {
         let mut params = Self {
             beta: 2.0,
             eta_ref: 14.0,
-            q10: 3.0,
+            q10: 2.0,
             t_ref_c: 0.0,
             t_store_c: 4.0,
             sigma: 0.5,
@@ -73,7 +74,7 @@ impl Default for ModelParams {
             gamma_shape: 2.0,
             gamma_scale: 0.0,
             units_per_lot: DEFAULT_UNITS_PER_LOT,
-            arrival_product: "abdella_all".to_string(),
+            arrival_product: DEFAULT_ARRIVAL_CORRIDOR.to_string(),
         };
         params.set_reference_life();
         params

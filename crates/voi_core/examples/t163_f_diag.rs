@@ -12,6 +12,7 @@ fn main() {
     let mut rng_t = Pcg64::seed_from_u64(164);
     let mut rng_p = Pcg64::seed_from_u64(165);
     let mut rng_g = Pcg64::seed_from_u64(166);
+    let mut rng_regime = Pcg64::seed_from_u64(167);
     let n = 5000usize;
     let mut fs = Vec::with_capacity(n);
     let mut lambdas = Vec::with_capacity(n);
@@ -23,6 +24,7 @@ fn main() {
             &mut rng_t,
             &mut rng_p,
             &mut rng_g,
+            &mut rng_regime,
         );
         fs.push(draw.unit_f[0]);
         lambdas.push(draw.lambda);

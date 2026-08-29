@@ -52,7 +52,7 @@ Those v2 features are not on the integrate branch yet; the sections below descri
 
 ## The math
 
-For one delivery drawn from a **corridor** (an arrival lane — `abdella_all` is the Abdella-matched fit; `short_haul` and `long_haul` are illustrative studio corridors), the truth-path generative model proceeds as follows.
+For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, a 70/30 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
 
 ### Duration
 
@@ -60,7 +60,7 @@ $$
 d = d_{\min} + \mathrm{Gamma}(\text{delay\_shape}, \text{delay\_scale})
 $$
 
-$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor.
+$d$ is calendar transit duration in days, drawn once per delivery. $d_{\min}$, delay_shape, and delay_scale are properties of the chosen corridor. With probability 0.78 the draw resamples a provenance shipment duration (plus Gaussian noise) from the pool for the **resolved leaf** corridor — S2 only for `short_haul`, S1 and S3–S6 for `long_haul`, all six for `abdella_all` — so the categorical regime choice controls duration in every draw, not only the analytic gamma tail.
 
 ### Cold-chain path and breaks
 
@@ -68,9 +68,9 @@ The baseline path walks three named legs in order, each holding a fixed setpoint
 
 | Leg | Share $w_k$ | Setpoint $\mu_k$ |
 | --- | --- | --- |
-| `precool_staging` | 0.15 | 0.35 °C |
-| `line_haul` | 0.60 | 2.58 °C |
-| `dock_receiving` | 0.25 | 4.32 °C |
+| `precool_staging` | 0.15 | −1.65 °C |
+| `line_haul` | 0.60 | 0.58 °C |
+| `dock_receiving` | 0.25 | 2.32 °C |
 
 On top of that baseline, **break events** are drawn (ADR 0150):
 
@@ -114,7 +114,7 @@ P(f > x \mid \Lambda) = \gamma_p(k\Lambda,\ (1-x)/\theta), \qquad
 P(f = 0 \mid \Lambda) = \gamma_q(k\Lambda,\ 1/\theta)
 $$
 
-### Live calibrated numbers (schema 2)
+### Live calibrated numbers (schema 3)
 
 From `data/abdella/arrival_model.json`:
 
@@ -124,13 +124,13 @@ From `data/abdella/arrival_model.json`:
 | Break hazard | $\rho$ | 0.08 /day |
 | Mean break duration | $\bar\tau$ (`tau_bar`) | 0.5 days |
 | Position spread | $\sigma_{\text{pos}}$ | 0.08 |
-| Q10 coefficient | $q_{10}$ | 3.0 |
+| Q10 coefficient | $q_{10}$ | 2.0 |
 | Reference temperature | $T_{\mathrm{ref}}$ | 0.0 °C |
 | Gamma shape | $k$ | 2.0 |
-| Gamma scale | $\theta$ | 1/52 ≈ 0.019231 |
-| Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 26.0 reference-days |
+| Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
+| Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 14.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw. In-store aging still uses $\eta_\text{ref} = 14$ via `ModelParams.set_reference_life()` — the longer arrival reference life reflects that Abdella $\Lambda$ measures refrigerated-leg exposure while retail display units often retain more apparent freshness than a naive $1 - \Lambda/14$ mapping would imply.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Leg setpoints were shifted flat by −2.0 °C from the earlier compressed anchors (0.35/2.58/4.32 → −1.65/0.58/2.32 °C) to preserve the clean-chain $\bar\varphi$ centre under $q_{10} = 2.0$ and the unified reference life. Duration dispersion now comes from **`abdella_mix`**, a categorical mixture drawing 70% `short_haul` (Abdella S2) and 30% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation. The 70/30 split (not 80/20) is the minimum weighting that keeps the Prior channel strictly wider than every pack-date (F2) law at tested durations — a hard requirement for the knowledge ladder.
 
 **Corridors** (shifted-gamma duration law):
 
@@ -140,7 +140,13 @@ Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** fr
 | `long_haul` | 4.033 | 1.628 | 0.814 |
 | `abdella_all` | 1.853 | 3.009 | 0.974 |
 
-`abdella_all` is moment-matched to the six Abdella shipments (ADR 0148); `short_haul` and `long_haul` are illustrative only.
+**Corridor mixtures** (categorical regime draw before duration):
+
+| Mixture | Components | Role |
+| --- | --- | --- |
+| `abdella_mix` | 0.7 × `short_haul` + 0.3 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
+
+`abdella_all` remains the moment-matched pooled Abdella fit (ADR 0148); `short_haul` and `long_haul` are the per-regime duration families that `abdella_mix` blends.
 
 $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**, not fit — all six real shipments are clean chains with no observed breaks.
 
@@ -165,7 +171,7 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1001` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
 | Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:732` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
 | Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:764` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
-| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1247` ([`thermal_nodes`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.thermal_nodes)) |
+| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
 | Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
 | Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:923` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
 | Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:935` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |

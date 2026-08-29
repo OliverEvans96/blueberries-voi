@@ -60,6 +60,7 @@ pub mod belief_flat;
 pub mod day_step;
 pub mod demand_profile;
 pub mod episode;
+pub mod joint_arrival_calib;
 pub mod obs;
 pub mod params;
 pub mod physics;
@@ -83,13 +84,18 @@ pub use alpha_tune::{
 pub use arrival::{
     arrival_artifact_from_json, embedded_arrival_model, resolve_arrival_exposure,
     resolve_arrival_f_law_phi_bar, ArrivalCondition, ArrivalLeg, ArrivalModel, ArrivalModelError,
-    ArrivalRungLaw, TruthDeliveryDraw, STREAM_ARRIVAL_DURATION, STREAM_ARRIVAL_GAMMA,
-    STREAM_ARRIVAL_POS, STREAM_ARRIVAL_TEMP,
+    ArrivalRungLaw, TruthDeliveryDraw, DEFAULT_ARRIVAL_CORRIDOR, STREAM_ARRIVAL_DURATION,
+    STREAM_ARRIVAL_GAMMA, STREAM_ARRIVAL_POS, STREAM_ARRIVAL_REGIME, STREAM_ARRIVAL_TEMP,
 };
 pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
 pub use demand_profile::{DemandProfile, DemandProfileError};
 pub use episode::{run_closed_loop_episode, EpisodeResult};
+pub use joint_arrival_calib::{
+    ac2_11a_ratio, ac2_19_d8_margin, ac2_19_min_margin, apply_config, benchmark_fast_trial,
+    benchmark_fast_vs_slow, configured_model, evaluate_fast_trial, evaluate_trial,
+    passes_ac2_11a, passes_fast_gates, truth_band, JointCalibFastResult, JointCalibTrialMetrics,
+};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use params::ModelParams;
 pub use policy::{

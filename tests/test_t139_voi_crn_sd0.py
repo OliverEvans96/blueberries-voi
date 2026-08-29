@@ -13,15 +13,17 @@ if _maybe_core is None:
     pytest.skip("blueberries_voi._core not built", allow_module_level=True)
 
 # T-150 f-native arrival physics; schema-2 arrival_model.json (v2 generative drift).
-# T-163 freshness calibration (reference_life_days=26, decoupled from eta_ref=14).
+# T-163: q10 3.0→2.0 session-wide (abdella_mix defaults, eta_ref=14).
+# Recomputed from run_voi_crn_cell(root_seed=1, beta=2.0, n_burn=2, n_score=8) on
+# 2026-08-29 after F3 exposure/gsin_upc_diag alignment (e72e2894).
 _T150_BASELINE: dict[str, float] = {
-    "P0": 246.0,
-    "P1": 246.0,
-    "F1": 246.0,
-    "F1s": 246.0,
+    "P0": 216.0,
+    "P1": 216.0,
+    "F1": 216.0,
+    "F1s": 216.0,
     "F2a": 246.0,
     "F2": 246.0,
-    "B-state": 246.0,
+    "B-state": 206.0,
 }
 
 

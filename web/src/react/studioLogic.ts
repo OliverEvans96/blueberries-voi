@@ -22,6 +22,7 @@ import {
   createStudioAdapter,
   reportStudioAdapterError,
   resolveStudioAdapterKind,
+  sharedBundledWasmInit,
   STUDIO_PACKAGE_VERSION,
   studioFooterCopy,
   type StudioEnv,
@@ -38,10 +39,10 @@ import {
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
-  currentDistributionAbsError,
+  currentFreshnessW1,
   currentMeanFAbsError,
   formatMeanFAbsError,
-  meanDistributionAbsErrorOverHistory,
+  meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
 } from "../charts/beliefAccuracy";
 import {
@@ -86,6 +87,10 @@ import {
   renderArrivalShift,
 } from "../charts/arrivalPrior";
 import {
+  clearArrivalPriorPlaceholder,
+  renderArrivalPriorPlaceholder,
+} from "../charts/arrivalPriorPlaceholder";
+import {
   renderArrheniusTemp,
   renderGammaFreshnessPath,
 } from "../charts/physicsTeaching";
@@ -110,7 +115,7 @@ import {
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
-import type { ActOpts, ScheduleWire, Snapshot } from "../engine/types";
+import type { ActOpts, ArrivalSummary, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
 import {
   renderWeekCalendar,
@@ -281,6 +286,9 @@ export function initStudio(app: HTMLElement): () => void {
   let eventsRefreshing = false;
   let lastEventsKey = "";
   let frameGen = 0;
+  let arrivalSummaryLoading = false;
+  let arrivalSummaryLoadedKey = "";
+  let arrivalSummaryFetchGen = 0;
 
   function controllerToActOpts(): ActOpts {
     const s = controllerState;
@@ -362,6 +370,9 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get arrivalPrior(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-prior")!;
+    },
+    get arrivalPriorOverlay(): HTMLElement | null {
+      return q<HTMLElement>("#chart-arrival-prior-overlay");
     },
     get arrivalShift(): HTMLElement {
       return q<HTMLElement>("#chart-arrival-shift")!;
@@ -802,22 +813,22 @@ export function initStudio(app: HTMLElement): () => void {
 
     const flat = vm.belief_history.at(-1)?.flatBelief;
     const todayMeanMae = flat ? currentMeanFAbsError(flat, vm.live_units) : null;
-    const todayDistMae = flat
-      ? currentDistributionAbsError(flat, vm.live_units)
+    const todayDistW1 = flat
+      ? currentFreshnessW1(flat, vm.live_units)
       : null;
 
     const meanSummary = meanMeanFAbsErrorOverHistory(
       vm.history,
       vm.belief_history,
     );
-    const distSummary = meanDistributionAbsErrorOverHistory(
+    const distSummary = meanFreshnessW1OverHistory(
       vm.history,
       vm.belief_history,
     );
 
     if (
       todayMeanMae == null ||
-      todayDistMae == null ||
+      todayDistW1 == null ||
       !meanSummary ||
       !distSummary
     ) {
@@ -833,9 +844,9 @@ export function initStudio(app: HTMLElement): () => void {
     table.hidden = false;
     table.title = BELIEF_MAE_TOOLTIP;
     todayMeanCell.textContent = formatMeanFAbsError(todayMeanMae);
-    todayDistCell.textContent = formatMeanFAbsError(todayDistMae);
+    todayDistCell.textContent = formatMeanFAbsError(todayDistW1);
     allMeanCell.textContent = formatMeanFAbsError(meanSummary.meanMae);
-    allDistCell.textContent = formatMeanFAbsError(distSummary.meanMae);
+    allDistCell.textContent = formatMeanFAbsError(distSummary.meanW1);
   }
 
   function plotVisible(plotId: string): boolean {
@@ -1021,6 +1032,66 @@ export function initStudio(app: HTMLElement): () => void {
 
   const FOCUS_CHART_HEIGHT = 95;
 
+  function arrivalSummaryWireKey(): string {
+    const c = vm.config;
+    const ch = c.obs_channels ?? channelsForPreset(c.obs_scenario);
+    return JSON.stringify({
+      arrival_product: c.arrival_product,
+      obs: ch,
+      transit_temp_bias_c: c.transit_temp_bias_c,
+      spread_scale: c.spread_scale,
+    });
+  }
+
+  function syncArrivalPriorOverlay(): void {
+    const overlay = els.arrivalPriorOverlay;
+    if (!overlay) return;
+    const waiting =
+      arrivalSummaryLoading ||
+      (plotVisible("plot-arrival-prior") && !vm.arrival_summary);
+    overlay.hidden = !waiting;
+  }
+
+  function invalidateArrivalSummary(): void {
+    arrivalSummaryLoadedKey = "";
+    arrivalSummaryFetchGen += 1;
+    vm = projector.clearArrivalSummary();
+  }
+
+  async function ensureArrivalSummary(): Promise<void> {
+    if (engineBooting()) return;
+    const key = arrivalSummaryWireKey();
+    if (vm.arrival_summary && arrivalSummaryLoadedKey === key) return;
+    const fetchFn = adapter.fetchArrivalSummary?.bind(adapter);
+    if (!fetchFn) return;
+    if (arrivalSummaryLoading) return;
+
+    arrivalSummaryLoading = true;
+    const gen = ++arrivalSummaryFetchGen;
+    syncArrivalPriorOverlay();
+    if (activeSection === "arrival" && plotVisible("plot-arrival-prior")) {
+      renderActiveFocusPlots();
+    }
+    try {
+      const summary = (await fetchFn()) as ArrivalSummary;
+      if (gen !== arrivalSummaryFetchGen || studioTeardown) return;
+      vm = projector.mergeArrivalSummary(summary);
+      arrivalSummaryLoadedKey = key;
+    } catch (err) {
+      reportStudioAdapterError(
+        `Arrival chart failed: ${formatAdapterError(err)}`,
+        studioErrorEl,
+        err,
+      );
+    } finally {
+      arrivalSummaryLoading = false;
+      syncArrivalPriorOverlay();
+      if (activeSection === "arrival") {
+        renderActiveFocusPlots();
+      }
+    }
+  }
+
   function renderActiveFocusPlots(): void {
     profileSync("renderActiveFocusPlots", () => {
       renderRunStripCharts();
@@ -1048,18 +1119,24 @@ export function initStudio(app: HTMLElement): () => void {
       }
       profileSync("renderActiveFocusPlots.logisticsCalendar", () => renderLogisticsCalendar());
       if (plotVisible("plot-arrival-prior")) {
-        profileSync("renderActiveFocusPlots.arrivalPrior", () =>
-          renderArrivalPrior(
-            els.arrivalPrior,
-            vm.arrival_summary,
-            historyForCharts(),
-            160,
-            arrivalRugAvailable(
-              vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
-              showTruth,
-            ),
-          ),
-        );
+        profileSync("renderActiveFocusPlots.arrivalPrior", () => {
+          syncArrivalPriorOverlay();
+          if (vm.arrival_summary) {
+            clearArrivalPriorPlaceholder(els.arrivalPrior);
+            renderArrivalPrior(
+              els.arrivalPrior,
+              vm.arrival_summary,
+              historyForCharts(),
+              160,
+              arrivalRugAvailable(
+                vm.config.obs_channels ?? channelsForPreset(vm.config.obs_scenario),
+                showTruth,
+              ),
+            );
+          } else {
+            renderArrivalPriorPlaceholder(els.arrivalPrior, 160);
+          }
+        });
       }
       if (plotVisible("plot-arrival-shift")) {
         profileSync("renderActiveFocusPlots.arrivalShift", () =>
@@ -1112,7 +1189,11 @@ export function initStudio(app: HTMLElement): () => void {
     renderActiveFocusPlots();
     syncTruthCaptions();
 
-    // Defensive re-render one frame later: a plot's container can still
+    if (id === "arrival") {
+      void ensureArrivalSummary();
+    }
+
+    // Defensive re-render one frame later:
     // report a stale/near-zero clientWidth in the same tick that its
     // ancestor's `hidden` flips off (T-127 "demand chart looks weird" bug),
     // so re-measure once the browser has actually completed layout.
@@ -1225,12 +1306,16 @@ export function initStudio(app: HTMLElement): () => void {
         );
       }
       captureSchedule(snap);
+      invalidateArrivalSummary();
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       orderQty = snapOrder(orderQty);
       onHoverDay(null, null, null);
       await commitFrame();
       if (studioTeardown) return;
+      if (activeSection === "arrival") {
+        void ensureArrivalSummary();
+      }
     } catch (err) {
       reportStudioAdapterError(
         `Reset failed: ${formatAdapterError(err)}`,
@@ -1423,6 +1508,7 @@ export function initStudio(app: HTMLElement): () => void {
     beginStudioLoading("Updating observations…");
     try {
       const snap = (await engineStatus.follow(setCh(channels))) as Snapshot;
+      invalidateArrivalSummary();
       vm = projector.patchEngineState(snap);
       vm = projector.setConfig({ obs_channels: channels, obs_scenario });
       lastEventsKey = "";
@@ -1443,6 +1529,9 @@ export function initStudio(app: HTMLElement): () => void {
       if (resumeAfter) {
         autopilot.play();
         syncAutopilotChrome();
+      }
+      if (activeSection === "arrival") {
+        void ensureArrivalSummary();
       }
     }
   }
@@ -1507,14 +1596,20 @@ export function initStudio(app: HTMLElement): () => void {
     if (bootstrapped) return;
     bootstrapped = true;
     try {
-      const snap = await engineStatus.follow(adapter.init({ ...vm.config }));
+      const snap = await engineStatus.follow(
+        sharedBundledWasmInit(adapter, { ...vm.config }),
+      );
       if (studioTeardown) return;
       captureSchedule(snap);
+      invalidateArrivalSummary();
       vm = projector.applySnapshot(snap);
       projector.markConfigApplied();
       setSection(activeSection);
       await commitFrame();
       if (studioTeardown) return;
+      if (activeSection === "arrival") {
+        void ensureArrivalSummary();
+      }
     } catch (err) {
       reportStudioAdapterError(
         `Init failed: ${formatAdapterError(err)}`,

@@ -1206,6 +1206,37 @@ input[type="number"] {
   );
 }
 
+.chart-arrival-prior-slot {
+  position: relative;
+}
+
+.chart-arrival-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.chart-arrival-loading-overlay[hidden] {
+  display: none !important;
+}
+
+.chart-arrival-loading-overlay .engine-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, var(--belief));
+  animation: engine-status-pulse 1.6s ease-out infinite;
+}
+
 .tier-badge {
   font-size: 0.65rem;
   font-weight: 600;

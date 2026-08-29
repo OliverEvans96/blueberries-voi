@@ -85,7 +85,8 @@ fn trace_integrates_back_to_reported_lambda() {
         let mut rt = Pcg64::seed_from_u64(2_000 + seed);
         let mut rp = Pcg64::seed_from_u64(3_000 + seed);
         let mut rg = Pcg64::seed_from_u64(4_000 + seed);
-        let draw = m.draw_truth_delivery("abdella_all", 4, &mut rd, &mut rt, &mut rp, &mut rg);
+        let mut rr = Pcg64::seed_from_u64(5_000 + seed);
+        let draw = m.draw_truth_delivery("abdella_all", 4, &mut rd, &mut rt, &mut rp, &mut rg, &mut rr);
         let lambda_from_trace = resolve_arrival_exposure(
             Some(&draw.trace.temps_c),
             Some(&draw.trace.times_d),

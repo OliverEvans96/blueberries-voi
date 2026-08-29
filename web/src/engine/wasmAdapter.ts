@@ -156,6 +156,10 @@ export class WasmAdapter implements EngineAdapter {
     return (await this.call("events", params)) as EventsResult;
   }
 
+  async fetchArrivalSummary(): Promise<import("./types").ArrivalSummary> {
+    return (await this.call("arrival_summary", {})) as import("./types").ArrivalSummary;
+  }
+
   terminate(): void {
     this.worker.removeEventListener("message", this.onMessage);
     this.worker.removeEventListener("error", this.onError);

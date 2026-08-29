@@ -308,7 +308,7 @@ function arrivalChartGroups(): string {
           tip: "The expected arrival-freshness distribution for the current corridor, with a rug of actual receipt freshness values from simulated deliveries. The particle filter draws each new lot's freshness from this same distribution.",
           ariaLabel: "Arrival freshness prior distribution",
           chartInnerHtml:
-            '<div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div>',
+            '<div class="chart-arrival-prior-slot"><div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div><div id="chart-arrival-prior-overlay" class="chart-arrival-loading-overlay" hidden aria-live="polite"><span class="engine-status-dot" aria-hidden="true"></span><span class="chart-arrival-loading-label">Loading arrival prior…</span></div></div>',
           slidersHtml: slidersByIds(["spread_scale"]),
         })}
         ${tuningChartGroup({
@@ -495,10 +495,10 @@ function mountSectionControlsDom(
         <div class="field">
           ${fieldLabelHtml(
             "Arrival corridor (MOD-21)",
-            "Unified Abdella-matched transit law: trip duration and temperature path are drawn from the six-shipment calibration (abdella_all). Illustrative short_haul / long_haul lanes are no longer exposed in the studio.",
+            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
           )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_all" title="Abdella six-shipment unified corridor">Abdella all</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>
           </div>
         </div>
         ${arrivalChartGroups()}

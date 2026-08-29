@@ -2,7 +2,7 @@
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
-use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::arrival::{ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::ModelParams;
 
 const N_DRAWS: usize = 400;
@@ -18,20 +18,31 @@ fn empirical_quantiles(samples: &mut [f64]) -> (f64, f64, f64, f64) {
 }
 
 fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64> {
+    truth_arrival_f_samples_corridor(model, DEFAULT_ARRIVAL_CORRIDOR, n, seed)
+}
+
+fn truth_arrival_f_samples_corridor(
+    model: &ArrivalModel,
+    corridor_key: &str,
+    n: usize,
+    seed: u64,
+) -> Vec<f64> {
     let mut rng_d = Pcg64::seed_from_u64(seed);
     let mut rng_t = Pcg64::seed_from_u64(seed + 1);
     let mut rng_p = Pcg64::seed_from_u64(seed + 2);
     let mut rng_g = Pcg64::seed_from_u64(seed + 3);
+    let mut rng_regime = Pcg64::seed_from_u64(seed + 4);
     (0..n)
         .map(|_| {
             let draw = model.draw_truth_multilot_delivery_biased(
-                "abdella_all",
+                corridor_key,
                 45,
                 0.0,
                 &mut rng_d,
                 &mut rng_t,
                 &mut rng_p,
                 &mut rng_g,
+                &mut rng_regime,
             );
             draw.lots
                 .iter()
@@ -51,8 +62,8 @@ fn truth_arrival_f_samples(model: &ArrivalModel, n: usize, seed: u64) -> Vec<f64
 fn arrival_f_distribution_realistic_band() {
     let model = ArrivalModel::embedded();
     assert!(
-        (model.reference_life_days - 26.0).abs() < 1e-9,
-        "artifact reference_life_days should be 26 for calibrated arrival f; got {}",
+        (model.reference_life_days - 14.0).abs() < 1e-9,
+        "artifact reference_life_days should be 14 (unified with eta_ref); got {}",
         model.reference_life_days
     );
     let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_501);
@@ -73,36 +84,92 @@ fn arrival_f_distribution_realistic_band() {
     );
 }
 
-/// `sync_params` must not collapse artifact arrival gamma back to store `eta_ref=14`.
+/// `sync_params` couples `ModelParams::eta_ref` onto the arrival artifact.
 #[test]
-fn sync_params_preserves_artifact_arrival_reference_life() {
+fn sync_params_couples_eta_ref_to_arrival_reference_life() {
+    let mut model = ArrivalModel::embedded();
+    let mut params = ModelParams::default();
+    params.eta_ref = 12.0;
+    params.set_reference_life();
+    model.sync_params(&params);
+    assert!(
+        (model.reference_life_days - 12.0).abs() < 1e-9,
+        "sync_params must set arrival reference_life_days from eta_ref; got {}",
+        model.reference_life_days
+    );
+    assert!(
+        (model.gamma_scale - 1.0 / (2.0 * 12.0)).abs() < 1e-12,
+        "gamma_scale must follow k·θ·η=1; got {}",
+        model.gamma_scale
+    );
+}
+
+/// Store q10 alone must not rewrite arrival reference life (baked-prior fast path).
+#[test]
+fn sync_params_store_q10_preserves_arrival_reference_life() {
     let mut model = ArrivalModel::embedded();
     let artifact_life = model.reference_life_days;
-    assert!(
-        artifact_life > ModelParams::default().eta_ref + 1.0,
-        "test assumes decoupled arrival reference life"
-    );
-    model.sync_params(&ModelParams::default());
+    let mut params = ModelParams::default();
+    params.q10 = 3.5;
+    model.sync_params(&params);
     assert!(
         (model.reference_life_days - artifact_life).abs() < 1e-12,
-        "sync_params must preserve artifact reference_life_days; got {} vs {}",
-        model.reference_life_days,
-        artifact_life
+        "sync_params must not change reference_life_days when only store q10 changes"
+    );
+}
+
+/// RPC configure must keep store `eta_ref` and arrival `reference_life_days` aligned.
+#[test]
+fn rpc_configure_eta_ref_couples_store_and_arrival() {
+    use voi_core::EngineSession;
+
+    let mut sess = EngineSession::new(163_600);
+    sess.apply_configure(serde_json::json!({
+        "eta_ref": 12.0,
+        "seed": 163_600
+    }));
+    sess.init(163_600);
+    let snap = sess.snapshot_value_init();
+    assert!(
+        (snap["applied_config"]["eta_ref"].as_f64().unwrap() - 12.0).abs() < 1e-9,
+        "store eta_ref must be 12"
     );
     assert!(
-        (model.gamma_scale - 1.0 / (2.0 * artifact_life)).abs() < 1e-12,
-        "sync_params must preserve artifact gamma_scale"
+        (sess.arrival_reference_life_days() - 12.0).abs() < 1e-9,
+        "arrival reference_life_days must match eta_ref; got {}",
+        sess.arrival_reference_life_days()
+    );
+}
+
+/// Lower η_ref should yield lower mean transit freshness (same corridor, fixed seed).
+#[test]
+fn truth_arrival_f_mean_decreases_when_eta_ref_decreases() {
+    let model_default = ArrivalModel::embedded();
+    let mut samples_default = truth_arrival_f_samples(&model_default, 200, 163_601);
+    let (mean_default, _, _, _) = empirical_quantiles(&mut samples_default);
+
+    let mut model_short = ArrivalModel::embedded();
+    model_short.set_reference_life_days(10.0);
+    let mut samples_short = truth_arrival_f_samples(&model_short, 200, 163_601);
+    let (mean_short, _, _, _) = empirical_quantiles(&mut samples_short);
+
+    assert!(
+        mean_short < mean_default - 0.02,
+        "shorter eta_ref should lower mean arrival f: default={mean_default:.3} short={mean_short:.3}"
     );
 }
 
 /// Prior birth law mean should track generative multilot mean (no systematic upward bias).
+/// Uses the pooled `abdella_all` corridor — mixture prior coherence is gated separately
+/// (`ac2_19_prior_single_corridor_no_mix_weight`).
 #[test]
 fn prior_mean_f_matches_generative_multilot() {
+    const CORRIDOR: &str = "abdella_all";
     let mut model = ArrivalModel::embedded();
     model.sync_params(&ModelParams::default());
-    let mut samples = truth_arrival_f_samples(&model, N_DRAWS, 163_502);
+    let mut samples = truth_arrival_f_samples_corridor(&model, CORRIDOR, N_DRAWS, 163_502);
     let (truth_mean, _, _, _) = empirical_quantiles(&mut samples);
-    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, "abdella_all", 64);
+    let prior = model.rung_law_on_grid(ArrivalCondition::Prior, CORRIDOR, 64);
     assert!(
         (prior.mean_f - truth_mean).abs() <= 0.03,
         "Prior mean_f={:.3} must track generative multilot mean {:.3} within 0.03",
