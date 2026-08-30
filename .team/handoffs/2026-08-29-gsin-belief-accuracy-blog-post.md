@@ -2,7 +2,7 @@
 
 **Branches:** `fix/gsin-l-dim-truncation` (PR #88, off `main`), `feat/arrival-lottery-studio` (PR #89, off `main`, pre-existing single-commit UI feature, pushed/PR'd as a byproduct of this session's git cleanup)
 **Role:** ad hoc figure development + investigation for Oliver's personal blog post (`/home/oliver/job-search/afresh-blog-post/my-post/2026-08-26 Draft.md`), which turned into a real bug fix along the way.
-**Status:** PR #88 open, unreviewed. A follow-on plan (rho range change, Ax retune, production notebook rerun) is designed but **not yet executed** — paused per Oliver's request before starting.
+**Status (2026-08-30):** PR #88 open, unreviewed. The follow-on plan (rho range change, Ax retune batch structure, production notebook rerun sizing) is now **finalized and committed** into both `notebooks/12_damped_sw_alpha_bayesian_optimization.ipynb` and `notebooks/article_figures.ipynb` (commits `fb3a4fa8`, `9ab759d6`, `b5e76331` — see `.team/plans/2026-08-29-gsin-belief-accuracy-blog-post.md` §2.6 for the exact final config). **Neither notebook has actually been run yet** — an independent audit of both was requested before running for real; a first audit attempt was started and cancelled mid-run so this doc and the plan doc could be brought current first. A fresh, thorough audit prompt has been prepared (see below / handed to the next agent) rather than run inline.
 
 ---
 
@@ -62,4 +62,14 @@ The working directory is shared with other concurrent agent sessions. Early this
 - `figures/demand/plot_g_daily_mean_vs_model.png` — pre-rendered (FreshRetailNet fitting pipeline lived in now-archived notebook 15; not re-run in the article notebook to avoid re-triggering a dataset download).
 - Notebook cleanup: deleted 01-11, 13, 14×2, 15, 18, 20 (superseded); archived 16 and 21 under `notebooks/archive/` (kept for historical reference — rollout MOO POC, `sla_mc` convergence-issue record). Kept 12×2 (production Ax tuning, explicitly "production-necessary" per Oliver), 17, 19_build_your_own_controller, 19_channel_factorial_belief_vs_profit, both `t163_*`.
 
-See the companion plan doc (`.team/plans/2026-08-29-gsin-belief-accuracy-blog-post.md`) for the decisions log and the not-yet-executed next-steps plan.
+## 7. What changed after this doc was first written (2026-08-30)
+
+The §5 concurrent-session interference did **not** recur again after the point this doc was originally committed. Three more commits landed cleanly on `fix/gsin-l-dim-truncation`, finalizing (but not executing) the forward plan from the companion plan doc:
+
+- `fb3a4fa8` — Studio `rho` slider widened to `[0.5, 2.0]` (`web/src/controls.ts`), wasm rebuilt.
+- `9ab759d6` — notebook 12: `RHO_BOUNDS = (0.5, 2.0)`; Ax retune restructured from one 24-trial loop into **4 batch cells of 12 trials each (48 total)**, `AX_PARALLELISM = 4`, so a manual run can be stopped early between batches and each batch prints its improvement over the previous one.
+- `b5e76331` — `article_figures.ipynb` moved from an 8-seed local run to a **30-seed, Modal-dispatched production run** (`N_BURN=7, N_SCORE=45`), with its Modal dispatch code rewritten to match notebook 12's own established pattern exactly (explicit-argument shard functions, self-built `uv_sync` image, chunked spawn+get) rather than the older `experiments/modal/app.py` pattern it initially borrowed from — Oliver explicitly asked for Modal-usage consistency across notebooks before any audit or execution.
+
+Both notebooks are regenerated and syntax-checked but **not executed** — no Ax retune has actually run on Modal yet, no production article-figures run has happened. Oliver then asked for an independent sonnet-subagent audit of both notebooks' defensibility before running; that audit was launched, then cancelled partway through so these two docs could be updated to current state first (the audit was working off an earlier version of this doc/plan that didn't yet reflect the final batch/seed/concurrency numbers above). See `.team/plans/2026-08-29-gsin-belief-accuracy-blog-post.md` §2.6 for the exact final parameter values, and the audit prompt prepared alongside this update for the next attempt.
+
+See the companion plan doc (`.team/plans/2026-08-29-gsin-belief-accuracy-blog-post.md`) for the decisions log and the (now finalized-but-unexecuted) next-steps plan.

@@ -2,7 +2,7 @@
 
 Companion to `.team/handoffs/2026-08-29-gsin-belief-accuracy-blog-post.md` (read that first for narrative context). This doc is the decision record and the concrete not-yet-executed plan.
 
-**Status as of writing:** everything in §1 (decisions) is done and merged into the working tree on `fix/gsin-l-dim-truncation` (PR #88, open). Everything in §2 (forward plan) is designed but **paused before execution** at Oliver's explicit request ("please don't actually start running yet, but make a detailed plan / discuss"). One calibration step (§2.3) was explicitly approved and run. Nothing else in §2 has been executed.
+**Status as of 2026-08-30:** everything in §1 (decisions) is done and merged into the working tree on `fix/gsin-l-dim-truncation` (PR #88, open). §2's design has since been **finalized and committed into both notebooks** (rho bounds, Ax batch structure, article_figures seed count/Modal dispatch — see §2.6 below for the final locked-in values, which supersede the specific numbers quoted in §2.1/2.2/2.4 below). One calibration step (§2.3) was explicitly approved and run early on. **Execution of the actual production runs (Ax retune, article_figures Modal run) has NOT started** — an independent audit of both notebooks was requested before running; that audit was started, then cancelled mid-run at Oliver's request so the plan/handoff docs could be brought current first (a fresh audit prompt is being prepared separately). §2.1-§2.5 below are kept as-written for the historical reasoning; treat §2.6 as the authoritative current config.
 
 ---
 
@@ -76,6 +76,28 @@ Proposed scope (unchanged from tonight's local-run scope, just re-dispatched to 
 4. Ax retune, 50 trials — the long pole; duration depends on real per-trial Modal timing.
 5. Resolve the §2.1 open question (overwrite defaults or not).
 6. Rerun `article_figures.ipynb` with Modal dispatch + tuned values, sized from step 3's numbers, within the 15min/1CPU-hr cap.
+
+### 2.6 FINAL locked-in config (2026-08-30) — supersedes §2.1/§2.2/§2.4 numbers above
+
+Committed on `fix/gsin-l-dim-truncation` in three commits (`fb3a4fa8`, `9ab759d6`, `b5e76331`). **Not yet executed** — config only.
+
+**Studio + Ax search space (`web/src/controls.ts`, `notebooks/12_damped_sw_alpha_bayesian_optimization.ipynb`):**
+- Rho range: `[0.5, 2.0]` everywhere (Studio slider, `RHO_BOUNDS`, `RHO_BOUNDS` in article_figures.ipynb for its own fallback default). `DEFAULT_RHO = 0.8` unchanged, still inside range.
+- Ax retune split into **4 batches of 12 trials each (48 total)**, not one 50-trial run — reasoning per Oliver: easier to stop early on a manual run, and each batch reports progress/improvement vs. the previous batch. `run_ax_batch(batch_num, n_trials_this_batch)` helper shared by all 4 batch cells; batch 1 initializes (or reloads) the Ax client, batches 2-4 continue it.
+- `AX_PARALLELISM = 4` (was a guessed 10-15 in §2.2 above — Oliver gave an explicit number instead).
+- `MODAL_CONCURRENCY = 100` for the Ax retune (unchanged guess from §2.2, not re-validated against real account limits).
+- `FULL_RUN = True`: `N_BURN = N_SCORE = 28`, `K_BO_SEEDS = 6`.
+- Still not executed, so `outputs/damped_sw_alpha_bo.json` does not yet exist — article_figures.ipynb's controller-value cell falls back to `outputs/tuned_alpha.json`'s `"sw"` entry + `rho=0.8` until it does.
+
+**`article_figures.ipynb` production sizing:**
+- **30 seeds** (was 8): `SEEDS = tuple(int(s) for s in np.random.default_rng(2026).integers(0, 2**31 - 1, size=30))` — fixed-RNG reproducible, not hand-picked.
+- `N_BURN, N_SCORE = 7, 45` (was `N_BURN=2` at smoke scale; `N_SCORE` raised from tonight's earlier local runs to 45 for tighter CIs — this is a real increase in episode length, not just seed count, so cost scales more than linearly vs. the 8-seed baseline timing in §2.3).
+- Modal dispatch pattern **rewritten to match notebook 12's own established pattern exactly** (self-built `uv_sync(frozen=True)` image, explicit-argument shard functions — `_process_seed_ladder(seed, ladder, n_burn, n_score, alpha, rho)` etc. — no closures over notebook globals, chunked spawn+get via `dispatch_modal(fn, jobs, label)`), per Oliver's explicit request to keep Modal usage consistent across notebooks rather than diverging into the older `experiments/modal/app.py` pattern.
+- `MODAL_CONCURRENCY = 64`, `MODAL_FUNCTION_TIMEOUT_S = 600.0` for article_figures (independent of notebook 12's Ax-retune concurrency knob above).
+- Factorial section's shard calls now pass `controller_alpha=ALPHA, controller_rho=RHO` explicitly (previously relied on implicit defaults inside `run_seed_channel_joint` — a consistency fix, not a behavior change under current values).
+- **Not yet executed.** Both notebooks regenerated/syntax-checked only (no cell outputs).
+
+**Immediately outstanding before running for real:** an independent audit of both notebooks (methodology + code correctness) — requested by Oliver, one attempt started and cancelled before completion so this doc could be brought current first; see the audit prompt prepared alongside this update.
 
 ## 3. Standing risk to watch
 
