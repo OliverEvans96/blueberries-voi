@@ -208,6 +208,7 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
+  { id: "initial_stock_qty", label: "initial stock", min: 0, max: 400, step: 5, format: (v) => String(Math.round(v)), group: "logistics" },
   {
     id: "spread_scale",
     label: "spread_scale (FIL-11)",
@@ -364,7 +365,7 @@ function logisticsCalendarGroup(): string {
         </div>
       </div>
       <div class="tuning-chart-group-sliders">
-        ${slidersByIds(["lead_time", "case_size"])}
+        ${slidersByIds(["lead_time", "case_size", "initial_stock_qty"])}
       </div>
     </div>`;
 }

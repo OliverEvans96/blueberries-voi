@@ -85,6 +85,12 @@ export const PARAM_LABELS: Record<string, ParamLabel> = {
       "Days between placing an order and its arrival. A longer lead time means the policy must plan further ahead.",
     tier: "Reset",
   },
+  initial_stock_qty: {
+    label: "Initial stock",
+    tooltip:
+      "Units on the shelf when the episode starts. Freshness is drawn from the arrival corridor, same as scheduled deliveries. Takes effect on Reset.",
+    tier: "Reset",
+  },
   delivery_weekdays: {
     label: "Delivery days",
     tooltip:

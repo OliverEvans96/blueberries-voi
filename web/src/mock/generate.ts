@@ -13,6 +13,10 @@ import type {
 } from "../types";
 import { DEFAULT_OBS_CHANNELS } from "../obsMask";
 
+/** Abdella corridor prior mean freshness for mock birth spread. */
+const ARRIVAL_PRIOR_MEAN_F = 0.87;
+const LOTS_PER_DELIVERY = 3;
+
 export const DEFAULT_ECONOMICS: Economics = {
   p_sell: 4.5,
   c_unit: 1.8,
@@ -43,6 +47,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   arrival_product: "abdella_mix",
   spread_scale: 1,
   transit_temp_bias_c: 0,
+  initial_stock_qty: 120,
 };
 
 export type SimState = {
@@ -114,6 +119,32 @@ function mulberry32(seed: number): () => number {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
+}
+
+function seedOpeningUnits(
+  cfg: SimConfig,
+  rng: () => number,
+  startLotId: number,
+  startUnitId: number,
+): { units: Unit[]; nextLotId: number; nextUnitId: number } {
+  const qty = Math.max(0, Math.round(cfg.initial_stock_qty));
+  if (qty <= 0) {
+    return { units: [], nextLotId: startLotId, nextUnitId: startUnitId };
+  }
+  const units: Unit[] = [];
+  let nextLotId = startLotId;
+  let nextUnitId = startUnitId;
+  const base = Math.floor(qty / LOTS_PER_DELIVERY);
+  const rem = qty % LOTS_PER_DELIVERY;
+  for (let i = 0; i < LOTS_PER_DELIVERY; i += 1) {
+    const n = base + (i < rem ? 1 : 0);
+    if (n <= 0) continue;
+    const born = birthUnitsForLot(nextLotId, n, ARRIVAL_PRIOR_MEAN_F, rng, nextUnitId);
+    units.push(...born.units);
+    nextUnitId = born.nextUnitId;
+    nextLotId += 1;
+  }
+  return { units, nextLotId, nextUnitId };
 }
 
 /** Q10 store-aging factor (matches voi_core store_temp_factor). */
@@ -508,10 +539,9 @@ function runDay(
 export function createInitialState(cfg: SimConfig): SimState {
   const config: SimConfig = { ...cfg };
   const rng = mulberry32(config.seed);
-  const lots: Lot[] = [];
-  const units: Unit[] = [];
-  const nextLotId = 1;
-  const nextUnitId = 0;
+  const seeded = seedOpeningUnits(config, rng, 1, 0);
+  const units = seeded.units;
+  const lots = aggregateLotsFromUnits(units);
   const pendingOrders: { arriveOn: number; qty: number }[] = [];
   const history: Day[] = [];
 
@@ -519,8 +549,8 @@ export function createInitialState(cfg: SimConfig): SimState {
     day: 0,
     lots,
     units,
-    nextLotId,
-    nextUnitId,
+    nextLotId: seeded.nextLotId,
+    nextUnitId: seeded.nextUnitId,
     pendingOrders,
     history,
     rng,
