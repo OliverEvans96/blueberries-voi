@@ -106,6 +106,8 @@ export type SimConfig = {
    * (Arrhenius shift of arrival cumulative thermal exposure).
    */
   transit_temp_bias_c: number;
+  /** Opening on-hand units seeded at RPC init/reset (ADR 0152). */
+  initial_stock_qty: number;
 };
 
 export type DayPnL = {
