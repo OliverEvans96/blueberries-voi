@@ -414,7 +414,7 @@ function autopilotAlphaRhoSliders(): string {
         <label class="field" id="rho-field">
           ${fieldLabelHtml(
             "ρ (damping)",
-            "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster.",
+            "Multiplier on the gap between the target and current effective inventory. Below 1, orders close only part of the gap each day (damped); above 1, orders can exceed the gap and overshoot the target.",
             { valueId: "rho" },
           )}
           <input type="range" id="rho" min="0.5" max="2" step="0.01" />
