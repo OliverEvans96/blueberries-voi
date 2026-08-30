@@ -236,7 +236,7 @@ jobs:
           name: docs-dist
           path: docs/.vitepress/dist/
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
 
   web:
     name: web
