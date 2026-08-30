@@ -145,9 +145,12 @@ export function protectionDemandQuantile(
  * Directional coverage bias: 0 = stockout-leaning, 1 = spoilage-leaning.
  * Monotone in both α and ρ on their slider ranges.
  */
+const RHO_SLIDER_MIN = 0.5;
+const RHO_SLIDER_MAX = 2.0;
+
 export function coverageBiasScore(alpha: number, rho: number): number {
   const aNorm = (alpha - 0.5) / (0.99 - 0.5);
-  const rNorm = (rho - 0.1) / (1.0 - 0.1);
+  const rNorm = (rho - RHO_SLIDER_MIN) / (RHO_SLIDER_MAX - RHO_SLIDER_MIN);
   return Math.min(1, Math.max(0, (aNorm + rNorm) / 2));
 }
 

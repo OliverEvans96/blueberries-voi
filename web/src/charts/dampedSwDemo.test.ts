@@ -131,14 +131,14 @@ describe("coverageBiasScore", () => {
   });
 
   it("increases with rho holding alpha fixed", () => {
-    const low = coverageBiasScore(0.9, 0.2);
-    const high = coverageBiasScore(0.9, 0.95);
+    const low = coverageBiasScore(0.9, 0.5);
+    const high = coverageBiasScore(0.9, 1.5);
     expect(high).toBeGreaterThan(low);
   });
 
   it("clamps to [0, 1]", () => {
-    expect(coverageBiasScore(0.5, 0.1)).toBeGreaterThanOrEqual(0);
-    expect(coverageBiasScore(0.99, 1)).toBeLessThanOrEqual(1);
+    expect(coverageBiasScore(0.5, 0.5)).toBeGreaterThanOrEqual(0);
+    expect(coverageBiasScore(0.99, 2.0)).toBeLessThanOrEqual(1);
   });
 });
 
