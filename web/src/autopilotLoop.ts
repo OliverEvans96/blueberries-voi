@@ -23,9 +23,9 @@ export type AutopilotHandle = {
   isRunning: () => boolean;
 };
 
-/** Default cadence: rollout/sla_mc slower; damped_sw/sla_pb/constant at 500ms. */
+/** Default cadence: rollout slower; damped_sw/sla_pb/constant at 500ms. */
 export function defaultIntervalMsForPolicy(policy: string): number {
-  if (policy === "rollout" || policy === "sla_mc") return 1000;
+  if (policy === "rollout") return 1000;
   return 500;
 }
 

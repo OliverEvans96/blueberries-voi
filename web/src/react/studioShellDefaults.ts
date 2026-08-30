@@ -16,3 +16,9 @@ export const STUDIO_SHELL_DEFAULT_VM = {
 
 /** Default order qty snapped to case size (matches initStudio snapOrder(24)). */
 export const STUDIO_SHELL_DEFAULT_ORDER_QTY = 24;
+
+/**
+ * Floor for OperatorBar order-q slider max (`#order-range`).
+ * SLA stockout chart x-domain is fixed to `[0, ORDER_Q_SLIDER_MIN_MAX]`.
+ */
+export const ORDER_Q_SLIDER_MIN_MAX = 160;

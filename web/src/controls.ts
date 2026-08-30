@@ -107,7 +107,7 @@ export type ControlsState = {
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
-export type ControllerPolicy = "damped_sw" | "rollout" | "constant";
+export type ControllerPolicy = "damped_sw" | "rollout" | "constant" | "sla_pb";
 
 export type ControllerControlsState = {
   policy: ControllerPolicy;
@@ -320,16 +320,7 @@ function arrivalChartGroups(): string {
           ariaLabel: "Arrival freshness prior distribution",
           chartInnerHtml:
             '<div class="chart-arrival-prior-slot"><div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div><div id="chart-arrival-prior-overlay" class="chart-arrival-loading-overlay" hidden aria-live="polite"><span class="engine-status-dot" aria-hidden="true"></span><span class="chart-arrival-loading-label">Loading arrival prior…</span></div></div>',
-          slidersHtml: slidersByIds(["spread_scale"]),
-        })}
-        ${tuningChartGroup({
-          plotId: "plot-arrival-shift",
-          caption: "Transit ΔT shift vs baseline",
-          tip: "Compares the transit-temperature-bias curve against an unbiased baseline. The bias slider reshapes the displayed shift curve and applies to simulated deliveries.",
-          ariaLabel: "Transit temperature shift",
-          chartInnerHtml:
-            '<div id="chart-arrival-shift" class="chart" role="img" aria-label="Transit temperature shift"></div>',
-          slidersHtml: slidersByIds(["transit_temp_bias_c"]),
+          slidersHtml: slidersByIds(["spread_scale", "transit_temp_bias_c"]),
         })}`;
 }
 
@@ -387,18 +378,6 @@ function logisticsCalendarGroup(): string {
         ${slidersByIds(["lead_time", "case_size"])}
       </div>
     </div>`;
-}
-
-function logisticsAgeCompGroup(): string {
-  return tuningChartGroup({
-    plotId: "plot-age-comp",
-    caption: "Historical Freshness Summary",
-    tip: "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
-    ariaLabel: "On-hand inventory by freshness band preview",
-    chartInnerHtml: `<div id="chart-age-comp-focus-host" class="chart-host">
-            <div id="chart-age-comp-focus" class="chart" role="img" aria-label="On-hand inventory by freshness band preview"></div>
-          </div>`,
-  });
 }
 
 function autopilotAlphaRhoSliders(): string {
@@ -496,7 +475,6 @@ function mountSectionControlsDom(
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
         ${logisticsCalendarGroup()}
-        ${logisticsAgeCompGroup()}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
         <p class="hint">
@@ -526,7 +504,6 @@ function mountSectionControlsDom(
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
             <button type="button" class="obs-chip policy-chip" data-policy="sla_pb" title="Window SLA Poisson-binomial fast path">sla_pb</button>
-            <button type="button" class="obs-chip policy-chip" data-policy="sla_mc" title="Window SLA Monte Carlo oracle">sla_mc</button>
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
@@ -565,6 +542,11 @@ function mountSectionControlsDom(
     }
     const hint = root.querySelector("#alpha-rho-disabled-hint") as HTMLElement | null;
     if (hint) hint.hidden = !disabled;
+    const demoPlot = root.querySelector(
+      '[data-plot="plot-damped-sw-demo"]',
+    ) as HTMLElement | null;
+    const demoGroup = demoPlot?.closest(".tuning-chart-group") as HTMLElement | null;
+    if (demoGroup) demoGroup.hidden = disabled;
   }
 
   function syncControlAvailability(channels: SimConfig["obs_channels"]): void {
