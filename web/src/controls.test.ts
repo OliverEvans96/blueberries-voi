@@ -108,6 +108,7 @@ describe("T-127 tuning-dock content", () => {
     expect(src).toMatch(/id: "sigma"[\s\S]*group: "demand"/);
     expect(src).not.toMatch(/id: "sigma"[\s\S]*group: "physics"/);
     expect(src).toMatch(/id: "lead_time"[\s\S]*group: "logistics"/);
+    expect(src).toMatch(/id: "initial_stock_qty"[\s\S]*group: "logistics"/);
     expect(src).toMatch(/id="\$\{spec\.id\}"/);
   });
 

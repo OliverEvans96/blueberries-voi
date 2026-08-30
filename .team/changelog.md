@@ -2,6 +2,9 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-30
+- **Opening shelf stock is now a simple slider** — the studio starts with 120 units by default, and you can adjust initial stock on the logistics tab (0–400) before Reset. Freshness still comes from the same corridor draw as real deliveries.
+
 ## 2026-08-28
 - **The studio now opens with a realistic shelf of blueberries on day one** — stock arrives at standard corridor freshness and is sized to cover about two days of typical demand at a 95% service level, so the first Advance isn't staring at an empty store.
 

@@ -101,7 +101,6 @@ pub use params::ModelParams;
 pub use policy::{
     case_round, case_round_ceil, constant_order, damped_sw_order_f_belief,
     effective_inventory_f_belief, nbinom_ppf, protection_demand_quantile, rung0_order_f_belief,
-    INITIAL_STOCK_ALPHA,
 };
 pub use physics::{
     age_to_f, allocate_sales, apply_gamma_aging_independent, apply_gamma_decrement,
@@ -110,9 +109,8 @@ pub use physics::{
     picking_weights, picking_weights_f, q10_age_increment, weibull_survival, GammaDecrementTable,
 };
 pub use protection_sim::{
-    bank_start_state, initial_stock_sla_mc, initial_stock_sla_pb, sla_mc_order_f_belief,
-    sla_pb_order_f_belief, simulate_protection_path, INITIAL_STOCK_MC_PATHS, McSlaModel,
-    OpeningStockPbModel, PbSlaModel, ProtectionPathResult, ProtectionWindow, SlaModel,
+    bank_start_state, sla_mc_order_f_belief, sla_pb_order_f_belief, simulate_protection_path,
+    McSlaModel, PbSlaModel, ProtectionPathResult, ProtectionWindow, SlaModel,
     SurvivalCurveCache,
 };
 pub use rollout::{

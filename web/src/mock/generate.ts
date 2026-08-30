@@ -12,10 +12,7 @@ import type {
   UnitExit,
 } from "../types";
 import { DEFAULT_OBS_CHANNELS } from "../obsMask";
-import { homogeneousProtectionQuantile } from "../charts/dampedSwDemo";
 
-/** Studio opening inventory service level (ADR 0152; matches Rust INITIAL_STOCK_ALPHA). */
-const INITIAL_STOCK_ALPHA = 0.95;
 /** Abdella corridor prior mean freshness for mock birth spread. */
 const ARRIVAL_PRIOR_MEAN_F = 0.87;
 const LOTS_PER_DELIVERY = 3;
@@ -50,6 +47,7 @@ export const DEFAULT_SIM_CONFIG: SimConfig = {
   arrival_product: "abdella_mix",
   spread_scale: 1,
   transit_temp_bias_c: 0,
+  initial_stock_qty: 120,
 };
 
 export type SimState = {
@@ -123,51 +121,13 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-function caseRound(qty: number, caseSize: number): number {
-  const cs = Math.max(1, Math.round(caseSize));
-  if (qty <= 0) return 0;
-  return Math.round(qty / cs) * cs;
-}
-
-/** First manual order day from episode start (matches OrderSchedule::first_order_day). */
-function firstOrderDay(cfg: SimConfig): number {
-  const schedule = scheduleFromConfig(cfg);
-  const orderSet = new Set(schedule.order_weekdays);
-  let day = 0;
-  while (!orderSet.has(day % 7)) day += 1;
-  return day;
-}
-
-/** First manual order arrival day (matches OrderSchedule::first_order_arrival_day). */
-function firstOrderArrivalDay(cfg: SimConfig): number {
-  const schedule = scheduleFromConfig(cfg);
-  return firstOrderDay(cfg) + schedule.lead_time_days;
-}
-
-/** Opening protection window: days 0..=arrival inclusive (Rust opening_protection_days). */
-function openingProtectionDays(cfg: SimConfig): number {
-  return firstOrderArrivalDay(cfg) + 1;
-}
-
-function initialStockQty(cfg: SimConfig): number {
-  const prot = openingProtectionDays(cfg);
-  // Homogeneous NB quantile approximates Rust SLA_PB sizing (full PB model is Rust-only).
-  const raw = homogeneousProtectionQuantile(
-    INITIAL_STOCK_ALPHA,
-    cfg.demand_mu,
-    cfg.demand_vm,
-    prot,
-  );
-  return caseRound(raw, cfg.case_size);
-}
-
 function seedOpeningUnits(
   cfg: SimConfig,
   rng: () => number,
   startLotId: number,
   startUnitId: number,
 ): { units: Unit[]; nextLotId: number; nextUnitId: number } {
-  const qty = initialStockQty(cfg);
+  const qty = Math.max(0, Math.round(cfg.initial_stock_qty));
   if (qty <= 0) {
     return { units: [], nextLotId: startLotId, nextUnitId: startUnitId };
   }
