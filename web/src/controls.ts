@@ -12,6 +12,8 @@ import type { ScheduleWire } from "./engine/types";
 import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 import { controlAvailability } from "./scenarioAvailability";
 import { infoTipHtml } from "./infoTip";
+import { DEFAULT_OBS_CHANNELS } from "./obsMask";
+import { tunedControllerFor } from "./perChannelTuning";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -118,11 +120,20 @@ export type ControllerControlsState = {
   intervalMs: number;
 };
 
-/** ADR 0099 dialed browser budgets + CTL-01 defaults. */
+/**
+ * ADR 0099 dialed browser budgets + CTL-01 defaults. `alpha`/`rho` start at
+ * the per-channel Ax-tuned values for Studio's own default observation
+ * channels (`DEFAULT_OBS_CHANNELS`, i.e. `upc|on|none`) — see
+ * `perChannelTuning.ts`. Whenever observation channels change, `studioLogic`
+ * re-syncs `alpha`/`rho` to that channel's own tuning rather than leaving a
+ * single shared pair in place across every channel (2026-08-30: a shared
+ * pair was found to flatten the belief-accuracy-vs-profit relationship even
+ * when each channel's belief accuracy differed cleanly — see
+ * `.team/plans/2026-08-30-particle-filter-collapse-fix.md`).
+ */
 export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
   policy: "damped_sw",
-  alpha: 0.9999,
-  rho: 0.729237661891948,
+  ...tunedControllerFor(DEFAULT_OBS_CHANNELS),
   H: 7,
   n_rollout_paths: 2,
   candidate_case_radius: 1,

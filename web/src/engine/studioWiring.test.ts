@@ -223,7 +223,7 @@ describe("T-057 studio chrome wires projector + selected adapter", () => {
     const src = readFileSync(MAIN_TS, "utf8");
     expect(src).toMatch(/async function applyObsSelection/);
     const start = src.indexOf("async function applyObsSelection");
-    const body = src.slice(start, start + 1200);
+    const body = src.slice(start, start + 2500);
     expect(body).toMatch(/projector\.patchEngineState\s*\(/);
     expect(body).not.toMatch(/projector\.applySnapshot\s*\(/);
   });
