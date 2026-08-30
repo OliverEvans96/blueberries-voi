@@ -596,7 +596,20 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     let step_seed = rng.random::<u64>();
     let offsets = bank.lot_offsets.clone();
 
+    // Per-particle bookkeeping is gated on feasibility (ADR 0135): a particle whose
+    // proposal doesn't fit the day's evidence is left untouched and pruned by
+    // resampling below, exactly as it always was. This intentionally does NOT force
+    // depletion onto every particle every day (see the 2026-08-30 fix history) —
+    // that unconditional variant was tried and measured to have no effect on GSIN's
+    // production-scale outcomes (same profit/belief numbers with it on or off,
+    // confirmed by reverting the whole crate and re-running the article ladder),
+    // so the narrower, less invasive gate is kept. The only day this can't rely on
+    // resampling to self-correct is when literally every particle fails at once —
+    // that total-collapse case is handled by the unconditional rescue pass below
+    // `diag`, which is the sole place forced depletion still happens.
     let mut log_like = vec![0.0f64; n];
+    let mut aged_ok = vec![true; n];
+    let mut w_obs_vec = vec![0usize; n];
     for p in 0..n {
         let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(p as u64));
         let row = &mut bank.freshness[p];
@@ -604,6 +617,7 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
 
         let mut ll = 0.0f64;
         let (w_obs, spoil_ll) = ev.pb_spoilage_loglik(row, &offsets, table);
+        w_obs_vec[p] = w_obs;
         if ev.waste_tot.is_some() {
             ll = spoil_ll;
             let mut aged = false;
@@ -618,16 +632,18 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
                     aged = true;
                 }
             }
+            aged_ok[p] = aged;
             if !aged {
-                apply_fallback_waste_removal(row, w_obs);
+                ll = f64::NEG_INFINITY;
             }
         } else {
             apply_gamma_aging_independent(row, &mut path_rng, params);
         }
 
-        let sales_ll = score_sales_evidence(row, &offsets, &ev, params);
-        apply_sales_removal(row, &offsets, &ev, params, &mut path_rng);
-        ll += sales_ll;
+        if ll.is_finite() {
+            let sales_ll = score_sales_evidence(row, &offsets, &ev, params);
+            ll += sales_ll;
+        }
         log_like[p] = if ll.is_finite() { ll } else { -1e300 };
     }
 
@@ -660,6 +676,29 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             infeasible: n,
         }
     };
+
+    // Apply the day's sales removal now that per-particle outcomes AND the
+    // whole-day collapse status are both known. Particles that individually fit
+    // shed sales as usual. On an ordinary (non-collapse) day, particles that
+    // failed are left exactly as pre-fix code left them — untouched, pruned by
+    // resampling below. Only when EVERY particle failed today (total collapse,
+    // `z <= 0.0`) does bookkeeping become unconditional, forcing the known
+    // sales/waste totals onto every particle so the belief can't freeze.
+    let total_collapse = z <= 0.0;
+    for p in 0..n {
+        let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(1_000_000 + p as u64));
+        let row = &mut bank.freshness[p];
+        let ev = DayEvidence::resolve(obs, &bank.lot_ids, row, &offsets);
+        let succeeded = log_like[p] > -1e299;
+        if succeeded {
+            apply_sales_removal(row, &offsets, &ev, params, &mut path_rng);
+        } else if total_collapse {
+            if ev.waste_tot.is_some() && !aged_ok[p] {
+                apply_fallback_waste_removal(row, w_obs_vec[p]);
+            }
+            apply_sales_removal(row, &offsets, &ev, params, &mut path_rng);
+        }
+    }
 
     let idx = systematic_resample(&log_w);
     bank.freshness = idx.iter().map(|&j| bank.freshness[j].clone()).collect();
