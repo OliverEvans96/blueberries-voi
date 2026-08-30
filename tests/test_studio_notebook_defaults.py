@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
+from typing import TYPE_CHECKING
 
 from blueberries_voi.experiments.channel_joint import run_seed_channel_joint
 from blueberries_voi.experiments.damped_sw_soo import DampedSwSooBudgets
@@ -19,6 +19,9 @@ from blueberries_voi.sim.shipments import (
     default_shipments,
     mod21_demo_shipments,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_default_arrival_product_is_abdella_mix() -> None:

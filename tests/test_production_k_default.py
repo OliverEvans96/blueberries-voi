@@ -27,4 +27,4 @@ def test_default_session_config_k() -> None:
 
 def test_engine_session_python_default_k() -> None:
     session = EngineSession()
-    assert session._K == 30  # noqa: SLF001
+    assert session._K == 30
