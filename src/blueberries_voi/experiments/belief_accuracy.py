@@ -13,6 +13,7 @@ __all__ = [
     "aggregate_belief_masses",
     "centers_to_edges",
     "day_distribution_abs_error",
+    "day_w1_error",
     "display_bin_masses_for_belief_and_units",
     "distribution_abs_error",
     "histogram_edges",
@@ -150,3 +151,26 @@ def day_distribution_abs_error(delta: dict[str, Any]) -> float | None:
         return None
     belief_bins, truth_bins = display_bin_masses_for_belief_and_units(belief, units)
     return distribution_abs_error(belief_bins, truth_bins)
+
+
+def day_w1_error(delta: dict[str, Any]) -> float | None:
+    """Wasserstein-1 distance between belief and truth freshness distributions
+    for one scored day (belief mixture over ``f_grid`` vs. truth's per-unit
+    ``f`` values)."""
+    units = delta.get("live_units")
+    if not units:
+        return None
+    belief = delta.get("belief")
+    if not belief:
+        return None
+    truth_f = np.asarray([float(u["f"]) for u in units], dtype=float)
+    belief_masses = aggregate_belief_masses(belief)
+    total = float(belief_masses.sum())
+    if total <= 0 or truth_f.size == 0:
+        return None
+    grid = np.asarray(belief["f_grid"], dtype=float)
+    from scipy.stats import wasserstein_distance
+
+    return float(
+        wasserstein_distance(grid, truth_f, u_weights=belief_masses / total)
+    )

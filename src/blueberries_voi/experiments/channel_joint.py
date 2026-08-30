@@ -11,7 +11,10 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from blueberries_voi.experiments.belief_accuracy import day_distribution_abs_error
+from blueberries_voi.experiments.belief_accuracy import (
+    day_distribution_abs_error,
+    day_w1_error,
+)
 from blueberries_voi.experiments.filter_accuracy import PRESET_BY_KEY, day_accuracy
 from blueberries_voi.experiments.voi_profit import (
     DEFAULT_FILTER_N,
@@ -130,6 +133,7 @@ def run_seed_channel_joint(
     stockout = 0
     f_errors: list[float] = []
     dist_errors: list[float] = []
+    w1_errors: list[float] = []
 
     for day_idx in range(n_score):
         delta = session.act(**act_kw)
@@ -145,6 +149,9 @@ def run_seed_channel_joint(
         dist = day_distribution_abs_error(delta)
         if dist is not None:
             dist_errors.append(dist)
+        w1 = day_w1_error(delta)
+        if w1 is not None:
+            w1_errors.append(w1)
 
     row = _channel_row(
         seed,
@@ -162,6 +169,7 @@ def run_seed_channel_joint(
             "delivery": delivery,
             "mae_f": float(np.mean(f_errors)) if f_errors else float("nan"),
             "mae_dist": float(np.mean(dist_errors)) if dist_errors else float("nan"),
+            "freshness_w1": float(np.mean(w1_errors)) if w1_errors else float("nan"),
             "n_burn": int(n_burn),
             "n_score": int(n_score),
             "n_live_days": len(f_errors),
