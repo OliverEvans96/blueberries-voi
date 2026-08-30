@@ -19,7 +19,7 @@ use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_from_channels,
     preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
-use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
+use crate::params::{DEFAULT_K_DIM, DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache};
@@ -219,7 +219,7 @@ impl EngineSession {
             next_lot: 1,
             seq: 0,
             l_dim: DEFAULT_L_DIM,
-            k_dim: 4,
+            k_dim: DEFAULT_K_DIM,
             obs_scenario: "P1".to_string(),
             obs_channels: channels_for_preset("P1").unwrap(),
             richest_log: Vec::new(),
@@ -1576,7 +1576,7 @@ pub fn handle_rpc(request_json: &str) -> String {
             "init" | "reset" => {
                 let seed = rpc_u64(&req.params, "seed").unwrap_or(0);
                 let l = rpc_u64(&req.params, "L").unwrap_or(DEFAULT_L_DIM as u64) as usize;
-                let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
+                let k = rpc_u64(&req.params, "K").unwrap_or(DEFAULT_K_DIM as u64) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
                 sess.apply_rpc_configure(&req.params);
@@ -1829,7 +1829,7 @@ mod tests {
         assert!(belief["f_marginals"].is_array());
         assert!(belief["f_grid"].is_array());
         assert_eq!(belief["L"], DEFAULT_L_DIM);
-        assert_eq!(belief["K"], 4);
+        assert_eq!(belief["K"], DEFAULT_K_DIM);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
     }

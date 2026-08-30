@@ -75,7 +75,7 @@ B_STATE_AGE_ERROR_IS_ZERO: bool = True
 # Library smoke defaults stay cheap; experiment scripts may raise N / horizon.
 # After T-021 MF age updates, keep these small so CI stays tractable.
 _SMOKE_N = 16
-_SMOKE_K = 8
+_SMOKE_K = 30
 _SMOKE_L = 3
 _SMOKE_N_BURN = 2
 _SMOKE_N_SCORE = 4

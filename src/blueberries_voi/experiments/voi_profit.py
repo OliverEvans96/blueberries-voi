@@ -154,7 +154,7 @@ def profit_session_config(
         "n_rollout_paths": int(n_rollout_paths),
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
         "L": 50,
-        "K": 8,
+        "K": 30,
         "enable_filter": True,
         "belief_source": "filter",
         "lead_time": 1,
