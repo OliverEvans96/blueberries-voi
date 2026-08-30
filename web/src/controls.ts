@@ -406,7 +406,7 @@ function autopilotAlphaRhoSliders(): string {
             "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster.",
             { valueId: "rho" },
           )}
-          <input type="range" id="rho" min="0.1" max="1" step="0.01" />
+          <input type="range" id="rho" min="0.5" max="2" step="0.01" />
         </label>
         <p class="meta-readonly alpha-rho-disabled-hint" id="alpha-rho-disabled-hint" hidden>
           Constant policy — α / ρ apply to damped_sw only.
