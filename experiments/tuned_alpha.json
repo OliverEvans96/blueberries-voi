@@ -2,10 +2,10 @@
   "alphas": {
     "constant": 0.5,
     "rung0": 0.95,
-    "sw": 0.95,
+    "sw": 0.7569189506354848,
     "sla_pb": 0.95,
     "sla_mc": 0.95,
-    "rollout": 0.95,
+    "rollout": 0.7569189506354848,
     "dp": 0.9
   },
   "header": {
@@ -38,6 +38,13 @@
       "rung0": 8.7,
       "sw": 9.8
     },
-    "rollout_not_tuned": true
+    "rollout_not_tuned": true,
+    "damped_sw_bo": {
+      "source": "outputs/damped_sw_alpha_bo.json",
+      "best_alpha_profit_soo": 0.7569189506354848,
+      "best_rho_profit_soo": 1.63009232802778,
+      "full_run": true,
+      "n_trials": 48
+    }
   }
 }
