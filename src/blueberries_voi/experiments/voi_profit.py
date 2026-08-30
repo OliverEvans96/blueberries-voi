@@ -28,7 +28,7 @@ DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 30
 DEFAULT_FILTER_N = 24
 DEFAULT_TUNED_ALPHA_PATH = Path("experiments/tuned_alpha.json")
-DEFAULT_CONTROLLER_RHO: float = 1.63009232802778
+DEFAULT_CONTROLLER_RHO: float = 1.5938240528614713
 DEFAULT_DAMPED_SW_BO_PATH = Path("outputs/damped_sw_alpha_bo.json")
 
 __all__ = [
