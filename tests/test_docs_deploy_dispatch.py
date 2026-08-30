@@ -9,6 +9,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CI_WORKFLOW = _REPO_ROOT / "packaging" / "github-workflows" / "ci.yml"
 
 _DISPATCH_STEP_NAME = "Notify personal-website to redeploy docs"
+_STUDIO_DOWNLOAD = "Download studio dist artifact"
+_DOCS_DOWNLOAD = "Download docs dist artifact"
 _STUDIO_UPLOAD = "Upload studio dist artifact"
 _DOCS_UPLOAD = "Upload docs dist artifact"
 
@@ -37,7 +39,7 @@ def _web_job_block(text: str) -> str:
 
 
 def test_deploy_job_dispatches_personal_website_after_docs_dist() -> None:
-    """AC-dispatch-step + AC-step-order + AC-main-only: dispatch after uploads."""
+    """AC-dispatch-step + AC-step-order + AC-main-only: dispatch after downloads."""
     text = _CI_WORKFLOW.read_text(encoding="utf-8")
     deploy = _deploy_job_block(text)
 
@@ -47,12 +49,14 @@ def test_deploy_job_dispatches_personal_website_after_docs_dist() -> None:
     )
     assert main_gate in deploy, "deploy job must remain main/master push gated"
 
-    studio_idx = _step_index(deploy, _STUDIO_UPLOAD)
-    docs_idx = _step_index(deploy, _DOCS_UPLOAD)
+    studio_idx = _step_index(deploy, _STUDIO_DOWNLOAD)
+    docs_idx = _step_index(deploy, _DOCS_DOWNLOAD)
     dispatch_idx = _step_index(deploy, _DISPATCH_STEP_NAME)
     assert studio_idx < docs_idx < dispatch_idx, (
-        "dispatch step must follow studio-dist and docs-dist upload steps"
+        "dispatch step must follow studio-dist and docs-dist download steps"
     )
+    assert _STUDIO_UPLOAD not in deploy, "deploy must not re-upload studio-dist"
+    assert _DOCS_UPLOAD not in deploy, "deploy must not re-upload docs-dist"
 
     dispatch_block = deploy[dispatch_idx : dispatch_idx + 600]
     assert "uses: peter-evans/repository-dispatch@v3" in dispatch_block
