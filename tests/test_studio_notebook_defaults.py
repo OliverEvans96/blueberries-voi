@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
+
+from blueberries_voi.experiments.channel_joint import run_seed_channel_joint
 from blueberries_voi.experiments.damped_sw_soo import DampedSwSooBudgets
 from blueberries_voi.experiments.voi_profit import profit_session_config
+from blueberries_voi.filter.types import ObsChannels
 from blueberries_voi.sim.profit import (
     DEFAULT_STORE_ECONOMICS,
+    STUDIO_PROFIT_COSTS,
+    ProfitCosts,
     profit_costs_from_store_economics,
 )
 from blueberries_voi.sim.shipments import (
@@ -29,12 +35,36 @@ def test_default_shipments_use_abdella_mix_product_key() -> None:
 def test_studio_profit_costs_match_web_mock_defaults() -> None:
     econ = DEFAULT_STORE_ECONOMICS
     costs = profit_costs_from_store_economics(econ)
+    assert costs == STUDIO_PROFIT_COSTS
     assert costs.unit_margin == econ.sell_price - econ.purchase_cost
     assert costs.waste_cost == DEFAULT_STORE_ECONOMICS.waste_cost
     assert costs.stockout_penalty == DEFAULT_STORE_ECONOMICS.stockout_penalty
     assert costs.unit_margin == 2.7
     assert costs.waste_cost == 1.2
     assert costs.stockout_penalty == 2.5
+
+
+def test_channel_joint_defaults_to_studio_profit_costs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[ProfitCosts] = []
+
+    def _fake_day_profit(_log: object, costs: ProfitCosts) -> float:
+        captured.append(costs)
+        return 0.0
+
+    monkeypatch.setattr(
+        "blueberries_voi.experiments.channel_joint.day_profit",
+        _fake_day_profit,
+    )
+    run_seed_channel_joint(
+        42,
+        ObsChannels(code_type="upc", scan_waste=False, delivery_history="none"),
+        n_burn=0,
+        n_score=1,
+    )
+    assert captured
+    assert captured[0] == STUDIO_PROFIT_COSTS
 
 
 def test_profit_session_config_wires_abdella_mix_arrival() -> None:

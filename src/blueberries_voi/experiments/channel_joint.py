@@ -31,7 +31,7 @@ from blueberries_voi.filter.types import (
     channels_cache_key,
     validate_channels,
 )
-from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
+from blueberries_voi.sim.profit import STUDIO_PROFIT_COSTS, ProfitCosts, day_profit
 from blueberries_voi.simulator import EngineSession
 
 CodeTypeOpt: TypeAlias = Literal["upc", "gsin"]
@@ -106,7 +106,7 @@ def run_seed_channel_joint(
 ) -> dict[str, Any]:
     """One closed-loop episode: scored ``act()`` days yield MAE and profit."""
     ch = validate_channels(channels)
-    use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    use_costs = costs if costs is not None else STUDIO_PROFIT_COSTS
     alpha, rho = _resolve_controller_params(
         controller_alpha=controller_alpha,
         controller_rho=controller_rho,
