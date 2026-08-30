@@ -19,7 +19,7 @@ from blueberries_voi.filter.types import (
 )
 from blueberries_voi.sim.alpha_tune import require_tuned_alpha_table
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
-from blueberries_voi.sim.shipments import default_shipments
+from blueberries_voi.sim.shipments import DEFAULT_ARRIVAL_PRODUCT, default_shipments
 from blueberries_voi.sim.types_log import DayLog
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
@@ -147,6 +147,7 @@ def profit_session_config(
 ) -> dict[str, Any]:
     """EngineSession config for damped-SW closed-loop profit (nb15)."""
     return {
+        "arrival_product": DEFAULT_ARRIVAL_PRODUCT,
         "shipments": default_shipments(),
         "n_particles": int(filter_n),
         "H": int(DEMO_BUDGETS["H"]),
