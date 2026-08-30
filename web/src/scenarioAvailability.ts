@@ -25,6 +25,7 @@ export const ALL_CONTROL_IDS: string[] = [
   "demand_mu",
   "demand_vm",
   "eta_ref",
+  "initial_stock_qty",
   "lead_time",
   "p_sell",
   "q10",
