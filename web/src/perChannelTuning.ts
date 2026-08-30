@@ -4,7 +4,7 @@ import type { ObsChannels } from "./types";
  * Per-channel `damped_sw` `(alpha, rho)`, independently Ax-tuned against each
  * channel's own real closed-loop belief (particle filter at `n_particles=200`,
  * not the oracle belief a single shared retune would use) — see
- * `notebooks/12_damped_sw_alpha_bayesian_optimization.ipynb`'s per-channel
+ * `notebooks/damped_sw_controller_tuning.ipynb`'s per-channel
  * section and `outputs/damped_sw_alpha_bo_per_channel.json`. Values below are
  * the K=30-seed, 25-trial-per-channel run (properly de-noised; an earlier
  * K=4-seed pass showed BO overfitting and was discarded — see
