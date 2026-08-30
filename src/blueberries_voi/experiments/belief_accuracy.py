@@ -171,6 +171,4 @@ def day_w1_error(delta: dict[str, Any]) -> float | None:
     grid = np.asarray(belief["f_grid"], dtype=float)
     from scipy.stats import wasserstein_distance
 
-    return float(
-        wasserstein_distance(grid, truth_f, u_weights=belief_masses / total)
-    )
+    return float(wasserstein_distance(grid, truth_f, u_weights=belief_masses / total))

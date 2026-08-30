@@ -127,8 +127,7 @@ def test_gsin_high_rho_no_filter_collapse_regression(
         depleted = (int(day["sales_total"]) + int(day["waste_total"])) > 0
 
         assert not (depleted and lot_counts == prev_lot_counts), (
-            "belief frozen across a day with real depletion: "
-            f"lot_counts={lot_counts}"
+            f"belief frozen across a day with real depletion: lot_counts={lot_counts}"
         )
         assert abs(believed_total - on_hand) < 5.0, (
             f"believed on-hand {believed_total} diverged from truth {on_hand}"

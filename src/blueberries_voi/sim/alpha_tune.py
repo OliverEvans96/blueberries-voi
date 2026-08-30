@@ -399,11 +399,7 @@ def evaluate_alpha_episode_outcomes(
     """Score one (arm, alpha, rho) via closed-loop episode aggregates (SIM-01=B)."""
     p = params or ModelParams()
     product = str(arrival_product)
-    ships = (
-        list(shipments)
-        if shipments is not None
-        else mod21_demo_shipments(product)
-    )
+    ships = list(shipments) if shipments is not None else mod21_demo_shipments(product)
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
     rust_outcomes = _evaluate_via_rust_kernel(
         arm_id,
