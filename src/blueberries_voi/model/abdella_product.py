@@ -87,7 +87,7 @@ def build_derived_abdella_product(
     parquet_dir: Path | str,
     out_path: Path | str,
     *,
-    q10: float = 3.0,
+    q10: float = 2.0,
     t_ref_c: float = 0.0,
 ) -> Path:
     """Convert vendored Abdella Parquet into a numpy arrival-age ``.npz``.

@@ -327,7 +327,7 @@ function physicsChartGroups(): string {
         ${tuningChartGroup({
           plotId: "plot-arrhenius-temp",
           caption: "Q10 aging rate vs temperature",
-          tip: "How much faster freshness decays as the shelf gets warmer. The aging rate scales multiplicatively per 10°C — the default (3.0) triples it per 10°C of warming, not a fixed amount per degree.",
+          tip: "How much faster freshness decays as the shelf gets warmer. The aging rate scales multiplicatively per 10°C — the default (2.0) doubles it per 10°C of warming, not a fixed amount per degree.",
           ariaLabel: "Q10 aging rate versus store temperature",
           chartInnerHtml:
             '<div id="chart-arrhenius-temp" class="chart" role="img" aria-label="Q10 aging rate versus store temperature"></div>',
@@ -495,10 +495,10 @@ function mountSectionControlsDom(
         <div class="field">
           ${fieldLabelHtml(
             "Arrival corridor (MOD-21)",
-            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (70%) or long_haul (30%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
+            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (60%) or long_haul (40%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
           )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (60/40)">Abdella mix</button>
           </div>
         </div>
         ${arrivalChartGroups()}
