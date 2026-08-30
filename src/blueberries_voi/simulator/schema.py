@@ -233,6 +233,26 @@ def validate_snapshot(obj: Mapping[str, Any]) -> None:
     _validate_demand_summary(snap["demand_summary"], label="Snapshot.demand_summary")
 
 
+def _validate_filter_health(obj: Any, *, label: str) -> None:
+    fh = _require_mapping(obj, label=label)
+    for key in ("ess", "log_evidence"):
+        if key not in fh:
+            msg = f"{label} missing required key {key!r}"
+            raise KeyError(msg)
+        try:
+            float(fh[key])
+        except (TypeError, ValueError) as exc:
+            msg = f"{label}.{key} must be a number"
+            raise TypeError(msg) from exc
+    infeasible = fh.get("infeasible")
+    if not isinstance(infeasible, int):
+        msg = f"{label}.infeasible must be int, got {type(infeasible).__name__}"
+        raise TypeError(msg)
+    if infeasible < 0:
+        msg = f"{label}.infeasible must be non-negative"
+        raise ValueError(msg)
+
+
 def validate_day_delta(obj: Mapping[str, Any]) -> None:
     """Validate a hot DayDelta payload; raise on contract violation."""
     delta = _require_mapping(obj, label="DayDelta")
@@ -255,6 +275,9 @@ def validate_day_delta(obj: Mapping[str, Any]) -> None:
     if "belief" in delta and delta["belief"] is not None:
         belief = _require_mapping(delta["belief"], label="DayDelta.belief")
         validate_flat_belief(belief, label="DayDelta.belief")
+
+    if "filter_health" in delta and delta["filter_health"] is not None:
+        _validate_filter_health(delta["filter_health"], label="DayDelta.filter_health")
 
 
 __all__ = [

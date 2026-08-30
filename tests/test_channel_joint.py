@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 
 import pytest
 
@@ -13,7 +14,13 @@ from blueberries_voi.experiments.channel_joint import (
     merge_channel_joint_rows,
     run_seed_channel_joint,
 )
-from blueberries_voi.filter.types import channels_for_preset
+from blueberries_voi.experiments.voi_profit import (
+    _damped_sw_act_kw,
+    profit_session_config,
+)
+from blueberries_voi.filter.types import ObsChannels, channels_for_preset
+from blueberries_voi.simulator import EngineSession
+from blueberries_voi.simulator.schema import validate_day_delta
 
 _RUST = pytest.mark.skipif(
     _maybe_core is None,
@@ -66,3 +73,75 @@ def test_run_seed_channel_joint_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "profit" in out
     assert out["n_live_days"] >= 1
     json.dumps(out)
+
+
+@_RUST
+def test_gsin_high_rho_no_filter_collapse_regression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deterministic repro from 2026-08-30 GSIN PF collapse (plan §4).
+
+    Before the §2 fix, this (seed, channel, alpha, rho) combination froze the
+    unit particle filter's belief bit-for-bit for the rest of the episode
+    while the real shelf sold down toward zero, and the controller — reading
+    a frozen belief that still claimed the old on-hand count — stopped
+    reordering. `infeasible == filter_n` (total per-particle likelihood
+    failure) is *not* itself the bug: GSIN's cross-lot allocation
+    approximation genuinely fails on some days and recovers on its own, which
+    is expected and asserted separately. The actual defect signature is the
+    belief staying frozen across a day with real depletion.
+    """
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    seed = 1784690067
+    alpha = 0.7437600021964654
+    rho = 1.5938240528614713
+    n_burn = 7
+    n_score = 45
+    filter_n = 24
+    channels = ObsChannels(
+        code_type="gsin",
+        scan_waste=True,
+        delivery_history="none",
+    )
+    session = EngineSession()
+    cfg = profit_session_config(filter_n=filter_n)
+    session.init(cfg, seed=seed)
+    session.set_obs_channels(channels)
+    act_kw = _damped_sw_act_kw(alpha, rho)
+    for _ in range(n_burn):
+        delta = session.act(**act_kw)
+        validate_day_delta(delta)
+
+    prev_lot_counts: list[float] | None = None
+    for _ in range(n_score):
+        delta = session.act(**act_kw)
+        validate_day_delta(delta)
+        fh = delta.get("filter_health")
+        assert isinstance(fh, Mapping), "filter must run on scored days"
+
+        belief = delta["belief"]
+        lot_counts = list(belief["lot_counts"])
+        day = delta["day"]
+        on_hand = int(day["L"])
+        believed_total = sum(lot_counts)
+        depleted = (int(day["sales_total"]) + int(day["waste_total"])) > 0
+
+        assert not (depleted and lot_counts == prev_lot_counts), (
+            "belief frozen across a day with real depletion: "
+            f"lot_counts={lot_counts}"
+        )
+        assert abs(believed_total - on_hand) < 5.0, (
+            f"believed on-hand {believed_total} diverged from truth {on_hand}"
+        )
+        prev_lot_counts = lot_counts
+
+    row = run_seed_channel_joint(
+        seed,
+        channels,
+        n_burn=n_burn,
+        n_score=n_score,
+        filter_n=filter_n,
+        controller_alpha=alpha,
+        controller_rho=rho,
+    )
+    assert row["filter_collapse_days"] == 0

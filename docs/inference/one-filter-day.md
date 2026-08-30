@@ -151,7 +151,8 @@ scales with both the day's death count and the segment size.
 | Per-lot picking share | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:231` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
 | Cross-lot multinomial term | $\text{Multinomial}(\cdot)$ | `crates/voi_core/src/unit_ll.rs:252` ([`multinomial_log_pmf`](/api/rust/voi_core/unit_ll/fn.multinomial_log_pmf.html)) |
 | GSIN sales feasibility + allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:321` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
-| UPC sales feasibility + unscored removal | — | `crates/voi_core/src/unit_pf.rs:353` (`score_and_remove_sales`) |
+| UPC sales feasibility (scoring only) | — | `crates/voi_core/src/unit_pf.rs:429` (`score_sales_evidence`) |
+| Unscored sales removal (unconditional bookkeeping) | — | `crates/voi_core/src/unit_pf.rs:454` (`apply_sales_removal`) |
 | Unscored WOR removal draw | — | `crates/voi_core/src/unit_ll.rs:281` ([`sequential_kernel_path_logprob`](/api/rust/voi_core/unit_ll/fn.sequential_kernel_path_logprob.html)) |
 | Birth: append one lot segment | — | `crates/voi_core/src/unit_pf.rs:109` (`push_lot_births`), called from the birth block at `unit_pf.rs:523` |
 | Systematic resample | — | `crates/voi_core/src/unit_pf.rs:221` ([`systematic_resample`](/api/rust/voi_core/unit_pf/fn.systematic_resample.html)) |

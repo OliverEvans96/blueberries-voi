@@ -117,7 +117,7 @@ pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,
     terminal_salvage_unit_state, w_long, RolloutContext, RolloutCosts,
 };
-pub use session::{handle_rpc, BeliefSource, DayDelta, EngineSession};
+pub use session::{handle_rpc, BeliefSource, DayDelta, EngineSession, FilterDiagValue};
 pub use shipments::ShipmentTrace;
 pub use tradeoff::{full_tradeoff_q_candidates, tradeoff_forecast};
 pub use unit_ll::{
@@ -126,7 +126,7 @@ pub use unit_ll::{
 };
 pub use unit_pf::{
     filter_step_unit, filter_step_unit_with_birth, filter_step_unit_with_birth_cached,
-    systematic_resample, UnitParticleBank,
+    systematic_resample, StepDiagnostics, UnitParticleBank,
 };
 pub use voi::{run_voi_crn_cell, truth_f_belief, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};
 pub use wor::{sequential_wor_composition_prob, sequential_wor_composition_probs};

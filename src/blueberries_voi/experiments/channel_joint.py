@@ -134,6 +134,8 @@ def run_seed_channel_joint(
     f_errors: list[float] = []
     dist_errors: list[float] = []
     w1_errors: list[float] = []
+    filter_collapse_days = 0
+    prev_belief_key: tuple[Any, ...] | None = None
 
     for day_idx in range(n_score):
         delta = session.act(**act_kw)
@@ -142,6 +144,23 @@ def run_seed_channel_joint(
         profit += day_profit(log, use_costs)
         waste += log.waste_total
         stockout += max(0, log.demand - log.sales_total)
+
+        # A collapsed filter freezes lot_counts/f_marginals bit-for-bit even as
+        # real inventory depletes (2026-08-30 GSIN collapse). A single day of
+        # `infeasible == filter_n` is a normal, transient likelihood failure
+        # under GSIN's cross-lot approximation and recovers on its own — it is
+        # not itself evidence of the freeze bug, so it is not counted here.
+        belief = delta.get("belief")
+        if isinstance(belief, dict):
+            belief_key = (
+                tuple(belief.get("lot_counts", ())),
+                tuple(belief.get("f_marginals", ())),
+            )
+            depleted = (log.sales_total + log.waste_total) > 0
+            frozen = prev_belief_key is not None and belief_key == prev_belief_key
+            if depleted and frozen:
+                filter_collapse_days += 1
+            prev_belief_key = belief_key
 
         acc = day_accuracy(delta, episode_day)
         if acc is not None:
@@ -173,6 +192,7 @@ def run_seed_channel_joint(
             "n_burn": int(n_burn),
             "n_score": int(n_score),
             "n_live_days": len(f_errors),
+            "filter_collapse_days": int(filter_collapse_days),
         }
     )
     key = channels_cache_key(ch)
