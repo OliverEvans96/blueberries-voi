@@ -52,7 +52,7 @@ Those v2 features are not on the integrate branch yet; the sections below descri
 
 ## The math
 
-For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, a 70/30 mixture of `short_haul` and `long_haul`; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
+For one delivery drawn from a **corridor** (an arrival lane — `abdella_mix` is the production default, a ~63/37 mixture of `short_haul` and `long_haul`; Studio rounds this to **60/40** in the UI; `abdella_all` is the Abdella-matched pooled fit), the truth-path generative model proceeds as follows.
 
 ### Duration
 
@@ -130,7 +130,7 @@ From `data/abdella/arrival_model.json`:
 | Gamma scale | $\theta$ | 1/28 ≈ 0.035714 |
 | Reference life (arrival $f \mid \Lambda$) | $\eta_{\text{ref,arrival}}$ | 14.0 reference-days |
 
-Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Studio **q₁₀** (RPC `q10`) is mirrored onto the arrival artifact via `sync_params`, so F3 trace integration and in-store aging share one thermal scale. Leg setpoints use the Abdella compressed anchors (0.35 / 2.58 / 4.32 °C for precool / line haul / dock) under unified $q_{10} = 2.0$ and $\eta_\text{ref} = 14$. Duration dispersion comes from **`abdella_mix`**, a categorical mixture drawing 70% `short_haul` (Abdella S2) and 30% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation. The 70/30 split (not 80/20) is the minimum weighting that keeps the Prior channel strictly wider than every pack-date (F2) law at tested durations — a hard requirement for the knowledge ladder.
+Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** freshness draw, with $\eta_{\text{ref,arrival}} = \eta_\text{ref} = 14$ reference-days via `reference_life_days` and `ModelParams.set_reference_life()`. The studio **η_ref** slider (RPC `eta_ref`) drives both in-store aging and transit arrival freshness — one shelf-life knob for store and corridor. Studio **q₁₀** (RPC `q10`) is mirrored onto the arrival artifact via `sync_params`, so F3 trace integration and in-store aging share one thermal scale. Leg setpoints use the Abdella compressed anchors (0.35 / 2.58 / 4.32 °C for precool / line haul / dock) under unified $q_{10} = 2.0$ and $\eta_\text{ref} = 14$. Duration dispersion comes from **`abdella_mix`**, a categorical mixture drawing ~62.7% `short_haul` (Abdella S2) and ~37.3% `long_haul` (S1, S3–S6), restoring $Var(\log d) \approx 0.205$ without relying on a single pooled gamma approximation. That split (not 80/20) is the minimum weighting that keeps the Prior channel strictly wider than every pack-date (F2) law at tested durations — a hard requirement for the knowledge ladder; Studio labels it 60/40 for readability.
 
 **Corridors** (shifted-gamma duration law):
 

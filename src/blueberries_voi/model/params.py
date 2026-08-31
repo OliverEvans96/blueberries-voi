@@ -15,7 +15,7 @@ class ModelParams:
 
     beta: float = 2.0
     eta_ref: float = 14.0  # days at T_ref
-    q10: float = 3.0
+    q10: float = 2.0
     t_ref_c: float = 0.0
     t_store_c: float = 4.0
     sigma: float = 0.5

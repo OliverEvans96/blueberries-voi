@@ -4,6 +4,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 use crate::arrival::ArrivalModel;
+use crate::params::DEFAULT_K_DIM;
 use crate::belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 use crate::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn, ModelParams};
 use crate::demand_profile::DemandProfile;
@@ -48,7 +49,7 @@ const STREAM_ARRIVAL_TEMP: u64 = 11;
 const STREAM_ARRIVAL_REGIME: u64 = 12;
 
 const FILTER_INIT_L: usize = 3;
-const FILTER_INIT_K: usize = 8;
+const FILTER_INIT_K: usize = DEFAULT_K_DIM;
 
 /// Deterministically derives a substream RNG from `(root, run_tag, day, stream)`.
 ///

@@ -74,3 +74,12 @@ anything more drastic.
 **Depends on:** `X-04`, `MOD-07`, `FIL-01`
 
 **Milestone:** M2 — controller and multi-scenario
+
+## Note (2026-08-30): Studio / Ax ρ range widened
+
+The accepted decision above defines **Nahmias damping** semantics: $0<\rho\le 1$ partially closes
+the order gap. Studio (`web/src/controls.ts`) and Ax notebook 12 now allow $\rho\in[0.5,2]$ for
+**empirical tuning** — values $\rho>1$ over-close the gap (aggressive ordering), not classical
+damping. The implementation (`policy.rs`) accepts any $\rho>0$; only the tuning path documents the
+widened cap (`alpha_tune.rs`, `MAX_DAMPED_SW_RHO=2`). Default production $\rho=0.8$ remains inside
+the Nahmias band unless tuning shows otherwise.

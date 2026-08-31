@@ -2,15 +2,15 @@
   "alphas": {
     "constant": 0.5,
     "rung0": 0.95,
-    "sw": 0.95,
+    "sw": 0.9999,
     "sla_pb": 0.95,
     "sla_mc": 0.95,
-    "rollout": 0.95,
+    "rollout": 0.9999,
     "dp": 0.9
   },
   "header": {
     "physics_epoch": "t150-f-native-arrival",
-    "generated_from_commit": "556d6ef",
+    "generated_from_commit": "2bf264c2",
     "script": "experiments/regen_tuned_alpha.py",
     "shipments": "default_shipments (Abdella)",
     "n_burn": 14,
@@ -38,6 +38,13 @@
       "rung0": 8.7,
       "sw": 9.8
     },
-    "rollout_not_tuned": true
+    "rollout_not_tuned": true,
+    "damped_sw_bo": {
+      "source": "outputs/damped_sw_alpha_bo.json",
+      "best_alpha_profit_soo": 0.9999,
+      "best_rho_profit_soo": 0.729237661891948,
+      "full_run": true,
+      "n_trials": 48
+    }
   }
 }

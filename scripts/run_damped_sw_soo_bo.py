@@ -27,8 +27,11 @@ from blueberries_voi.experiments.damped_sw_soo import (
 )
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
-from blueberries_voi.sim.profit import ProfitCosts
-from blueberries_voi.sim.shipments import smoke_cool_shipments
+from blueberries_voi.sim.profit import (
+    DEFAULT_STORE_ECONOMICS,
+    profit_costs_from_store_economics,
+)
+from blueberries_voi.sim.shipments import DEFAULT_ARRIVAL_PRODUCT, mod21_demo_shipments
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 os.chdir(REPO_ROOT)
@@ -39,16 +42,16 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 POLICY = "damped_sw"
 FULL_RUN = True
 ALPHA_BOUNDS = (0.1, 0.9999)
-RHO_BOUNDS = (0.5, 1.0)
+RHO_BOUNDS = (0.5, 2.0)
 
-N_BURN, N_SCORE = 28, 28
+N_BURN, N_SCORE = 14, 45
 K_BO_SEEDS = 6
-TOTAL_AX_TRIALS = 24
+TOTAL_AX_TRIALS = 48
 EXTRA_AX_TRIALS = 0
 AX_PARALLELISM = 4
 
 USE_MODAL = True
-MODAL_CONCURRENCY = 32
+MODAL_CONCURRENCY = 100
 RELOAD_AX = True
 
 RNG = np.random.default_rng(20260817)
@@ -58,14 +61,11 @@ OUTPUT_JSON = REPO_ROOT / "outputs" / "damped_sw_alpha_bo.json"
 AX_JSON = REPO_ROOT / "outputs" / "damped_sw_alpha_bo_ax_client.json"
 _MODAL_DEMAND_PROFILE = "/data/freshnet/demand_profile.json"
 
-UNIT_MARGIN = 2.0
-WASTE_COST = 5.0
-STOCKOUT_PENALTY = 3.0
-costs = ProfitCosts(
-    unit_margin=UNIT_MARGIN,
-    waste_cost=WASTE_COST,
-    stockout_penalty=STOCKOUT_PENALTY,
-)
+costs = profit_costs_from_store_economics(DEFAULT_STORE_ECONOMICS)
+UNIT_MARGIN = costs.unit_margin
+WASTE_COST = costs.waste_cost
+STOCKOUT_PENALTY = costs.stockout_penalty
+ARRIVAL_PRODUCT = DEFAULT_ARRIVAL_PRODUCT
 
 USE_CALENDAR_DEMAND = True
 DEMAND_PROFILE_PATH = REPO_ROOT / "data" / "freshnet" / "demand_profile.json"
@@ -78,8 +78,11 @@ MODEL_PARAMS = ModelParams(
     case_size=8,
     demand_profile=_demand_profile,
 )
-shipments = smoke_cool_shipments()
+shipments = mod21_demo_shipments(ARRIVAL_PRODUCT)
 LEAD_TIME = 1
+DEMAND_MU = 30.0
+DEMAND_VM = 2.0
+CASE_SIZE = 8
 
 SOO_BUDGETS = DampedSwSooBudgets(
     n_burn=N_BURN,
@@ -88,14 +91,14 @@ SOO_BUDGETS = DampedSwSooBudgets(
     unit_margin=UNIT_MARGIN,
     waste_cost=WASTE_COST,
     stockout_penalty=STOCKOUT_PENALTY,
-    demand_mu=30.0,
-    demand_vm=2.0,
-    case_size=8,
+    demand_mu=DEMAND_MU,
+    demand_vm=DEMAND_VM,
+    case_size=CASE_SIZE,
     use_calendar_demand=USE_CALENDAR_DEMAND,
     demand_profile_path=(
         _MODAL_DEMAND_PROFILE if USE_MODAL else str(DEMAND_PROFILE_PATH)
     ),
-    use_abdella=False,
+    arrival_product=ARRIVAL_PRODUCT,
 )
 
 
@@ -220,12 +223,12 @@ def main() -> None:
             "stockout_penalty": STOCKOUT_PENALTY,
         },
         "model_params": {
-            "demand_mu": 30.0,
-            "demand_vm": 2.0,
+            "demand_mu": DEMAND_MU,
+            "demand_vm": DEMAND_VM,
             "use_calendar_demand": USE_CALENDAR_DEMAND,
-            "case_size": 8,
+            "case_size": CASE_SIZE,
             "lead_time": LEAD_TIME,
-            "use_abdella": False,
+            "arrival_product": ARRIVAL_PRODUCT,
         },
         "best_alpha_profit_soo": best_alpha_profit,
         "best_rho_profit_soo": best_rho_profit,

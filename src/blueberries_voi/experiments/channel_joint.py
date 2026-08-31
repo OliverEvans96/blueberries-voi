@@ -11,7 +11,10 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from blueberries_voi.experiments.belief_accuracy import day_distribution_abs_error
+from blueberries_voi.experiments.belief_accuracy import (
+    day_distribution_abs_error,
+    day_w1_error,
+)
 from blueberries_voi.experiments.filter_accuracy import PRESET_BY_KEY, day_accuracy
 from blueberries_voi.experiments.voi_profit import (
     DEFAULT_FILTER_N,
@@ -28,7 +31,7 @@ from blueberries_voi.filter.types import (
     channels_cache_key,
     validate_channels,
 )
-from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
+from blueberries_voi.sim.profit import STUDIO_PROFIT_COSTS, ProfitCosts, day_profit
 from blueberries_voi.simulator import EngineSession
 
 CodeTypeOpt: TypeAlias = Literal["upc", "gsin"]
@@ -103,7 +106,7 @@ def run_seed_channel_joint(
 ) -> dict[str, Any]:
     """One closed-loop episode: scored ``act()`` days yield MAE and profit."""
     ch = validate_channels(channels)
-    use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
+    use_costs = costs if costs is not None else STUDIO_PROFIT_COSTS
     alpha, rho = _resolve_controller_params(
         controller_alpha=controller_alpha,
         controller_rho=controller_rho,
@@ -130,6 +133,9 @@ def run_seed_channel_joint(
     stockout = 0
     f_errors: list[float] = []
     dist_errors: list[float] = []
+    w1_errors: list[float] = []
+    filter_collapse_days = 0
+    prev_belief_key: tuple[Any, ...] | None = None
 
     for day_idx in range(n_score):
         delta = session.act(**act_kw)
@@ -139,12 +145,32 @@ def run_seed_channel_joint(
         waste += log.waste_total
         stockout += max(0, log.demand - log.sales_total)
 
+        # A collapsed filter freezes lot_counts/f_marginals bit-for-bit even as
+        # real inventory depletes (2026-08-30 GSIN collapse). A single day of
+        # `infeasible == filter_n` is a normal, transient likelihood failure
+        # under GSIN's cross-lot approximation and recovers on its own — it is
+        # not itself evidence of the freeze bug, so it is not counted here.
+        belief = delta.get("belief")
+        if isinstance(belief, dict):
+            belief_key = (
+                tuple(belief.get("lot_counts", ())),
+                tuple(belief.get("f_marginals", ())),
+            )
+            depleted = (log.sales_total + log.waste_total) > 0
+            frozen = prev_belief_key is not None and belief_key == prev_belief_key
+            if depleted and frozen:
+                filter_collapse_days += 1
+            prev_belief_key = belief_key
+
         acc = day_accuracy(delta, episode_day)
         if acc is not None:
             f_errors.append(acc.abs_f_err)
         dist = day_distribution_abs_error(delta)
         if dist is not None:
             dist_errors.append(dist)
+        w1 = day_w1_error(delta)
+        if w1 is not None:
+            w1_errors.append(w1)
 
     row = _channel_row(
         seed,
@@ -162,9 +188,11 @@ def run_seed_channel_joint(
             "delivery": delivery,
             "mae_f": float(np.mean(f_errors)) if f_errors else float("nan"),
             "mae_dist": float(np.mean(dist_errors)) if dist_errors else float("nan"),
+            "freshness_w1": float(np.mean(w1_errors)) if w1_errors else float("nan"),
             "n_burn": int(n_burn),
             "n_score": int(n_score),
             "n_live_days": len(f_errors),
+            "filter_collapse_days": int(filter_collapse_days),
         }
     )
     key = channels_cache_key(ch)
