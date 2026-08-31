@@ -234,6 +234,14 @@
       "link_target": "voi_core/demand_profile/struct.DemandProfile.html#method.scale_target_mu"
     },
     {
+      "symbol": "DEFAULT_L_DIM",
+      "module": "params",
+      "source_file": "crates/voi_core/src/params.rs",
+      "rustdoc_path": "voi_core/params/constant.DEFAULT_L_DIM.html",
+      "linkable": true,
+      "link_target": "voi_core/params/constant.DEFAULT_L_DIM.html"
+    },
+    {
       "symbol": "demand_mu",
       "module": "params",
       "source_file": "crates/voi_core/src/params.rs",

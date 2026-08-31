@@ -13,6 +13,7 @@ import {
   expectedCountFromFlat,
   formatMeanFAbsError,
   meanFreshnessAbsError,
+  meanCountMaeOverHistory,
   meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
   shelfMeanFFromFlat,
@@ -146,6 +147,35 @@ describe("countMeanAbsError", () => {
 
   it("returns null for empty units", () => {
     expect(countMeanAbsError(FLAT, [])).toBeNull();
+  });
+});
+
+describe("meanCountMaeOverHistory", () => {
+  it("averages per-day count MAE over aligned history rows", () => {
+    const history: Day[] = [
+      dayRow(0, UNITS.slice(0, 5)),
+      dayRow(1, UNITS),
+    ];
+    const beliefHistory: BeliefHistoryDay[] = [
+      { day: 0, flatBelief: FLAT },
+      { day: 1, flatBelief: FLAT },
+    ];
+    const result = meanCountMaeOverHistory(history, beliefHistory);
+    expect(result).not.toBeNull();
+    expect(result!.dayCount).toBe(2);
+    const day0 = countMeanAbsError(FLAT, UNITS.slice(0, 5))!;
+    const day1 = countMeanAbsError(FLAT, UNITS)!;
+    expect(result!.meanMae).toBeCloseTo((day0 + day1) / 2);
+  });
+
+  it("returns null when no valid aligned days", () => {
+    expect(meanCountMaeOverHistory([], [])).toBeNull();
+    expect(
+      meanCountMaeOverHistory(
+        [dayRow(0, [])],
+        [{ day: 0, flatBelief: FLAT }],
+      ),
+    ).toBeNull();
   });
 });
 

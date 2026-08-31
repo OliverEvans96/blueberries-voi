@@ -8,8 +8,6 @@ sources:
 
 Once the CRN cell hands back one profit number per observation scenario (see [Same weather, different glasses](/economics/crn-seeding)), the project still needs to turn that ladder of numbers into a single headline figure for "how much is better information worth." That conversion — a percentage plus a supporting dollar amount, both measured against the least-informed scenario — happens in a small piece of Python, separate from the physics engine that produced the profits in the first place.
 
-![Absolute dollar VOI across β for the shrink-gun scenario and the full-state oracle, each measured against the books-only baseline, with paired-bootstrap confidence bands (smoke-scale toy sweep)](/figures/voi-dollar-ribbon.png)
-
 ## The idea
 
 Two scenarios' profits over the *same* simulated week — thanks to CRN pairing — can be subtracted directly: profit(richer scenario) minus profit(books-only scenario). That difference is a dollar figure. But a dollar figure alone doesn't say whether \$12 is a big deal: for a corner store that made \$200 that week it's a lot, for a chain store that made \$50,000 it's noise. So the difference also gets expressed as a percentage of the books-only baseline: does better information buy a 6% better week, or a 0.1% better week? The percentage is the headline number, because it's scale-free — a reader can translate it to their own store's size — while the dollar figure sticks around as supporting detail.
@@ -50,7 +48,7 @@ The paired bootstrap CI follows the same pairing rule used everywhere else profi
 | Paired bootstrap CI | `paired_bootstrap_ci` | `src/blueberries_voi/voi/bootstrap.py:30` |
 | Bootstrap resample of paired replication indices | `idx = rng.integers(...)` | `src/blueberries_voi/voi/bootstrap.py:55` |
 | Bootstrap result container (mean + percentile interval) | `BootstrapCI` | `src/blueberries_voi/voi/bootstrap.py:20` |
-| Per-scenario profits only — no VOI arithmetic here | `run_voi_crn_cell` | `crates/voi_core/src/voi.rs:352` |
+| Per-scenario profits only — no VOI arithmetic here | `run_voi_crn_cell` | `crates/voi_core/src/voi.rs:416` |
 
 ## Caveats
 

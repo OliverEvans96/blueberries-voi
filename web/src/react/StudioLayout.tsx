@@ -333,8 +333,17 @@ export function StudioLayout() {
               <thead>
                 <tr>
                   <th scope="col" />
-                  <th scope="col">Mean</th>
-                  <th scope="col">W₁ (dist.)</th>
+                  <th scope="col">
+                    Freshness
+                    <br />
+                    (mean)
+                  </th>
+                  <th scope="col">
+                    Freshness
+                    <br />
+                    (distribution)
+                  </th>
+                  <th scope="col">Count</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,11 +351,13 @@ export function StudioLayout() {
                   <th scope="row">Today</th>
                   <td data-belief-mae-today-mean />
                   <td data-belief-mae-today-dist />
+                  <td data-belief-mae-today-count />
                 </tr>
                 <tr>
                   <th scope="row">All days</th>
                   <td data-belief-mae-all-mean />
                   <td data-belief-mae-all-dist />
+                  <td data-belief-mae-all-count />
                 </tr>
               </tbody>
             </table>

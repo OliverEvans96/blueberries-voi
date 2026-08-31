@@ -27,10 +27,6 @@ export const BELIEF_DIST_W1_DEFINITION =
 /** @deprecated Prefer BELIEF_DIST_W1_DEFINITION; kept for older call sites. */
 export const BELIEF_DIST_MAE_DEFINITION = BELIEF_DIST_W1_DEFINITION;
 
-/** Combined tooltip for belief-pane accuracy stat rows. */
-export const BELIEF_MAE_TOOLTIP =
-  `${BELIEF_MAE_DEFINITION} ${BELIEF_DIST_W1_DEFINITION}`;
-
 /**
  * Count accuracy on the studio wire: MAE of E[N] only.
  * Full particle predictive CRPS is not available from FlatBelief (lot_counts
@@ -41,6 +37,10 @@ export const BELIEF_COUNT_MAE_DEFINITION =
   "count (wire lot_counts) and truth live-unit count. CRPS of the particle " +
   "predictive for N is not available on the studio belief wire — only E[N] " +
   "is exported.";
+
+/** Combined tooltip for belief-pane accuracy stat rows. */
+export const BELIEF_MAE_TOOLTIP =
+  `${BELIEF_MAE_DEFINITION} ${BELIEF_DIST_W1_DEFINITION} ${BELIEF_COUNT_MAE_DEFINITION}`;
 
 export const BELIEF_MAE_DECIMALS = 3;
 
@@ -309,6 +309,37 @@ export function meanMeanFAbsErrorOverHistory(
       continue;
     }
     const mae = currentMeanFAbsError(flat, units);
+    if (mae != null) {
+      errors.push(mae);
+    }
+  }
+  if (errors.length === 0) {
+    return null;
+  }
+  const sum = errors.reduce((acc, v) => acc + v, 0);
+  return { meanMae: sum / errors.length, dayCount: errors.length };
+}
+
+/**
+ * Mean daily count MAE over history days aligned with `belief_history`.
+ * Skips days with no truth units.
+ */
+export function meanCountMaeOverHistory(
+  history: readonly Day[],
+  beliefHistory: readonly BeliefHistoryDay[],
+): MeanMaeOverHistory | null {
+  if (history.length === 0 || beliefHistory.length === 0) {
+    return null;
+  }
+  const beliefs = beliefByDay(beliefHistory);
+  const errors: number[] = [];
+  for (const dayRow of history) {
+    const flat = beliefs.get(dayRow.day);
+    const units = dayRow.units ?? [];
+    if (!flat || units.length === 0) {
+      continue;
+    }
+    const mae = countMeanAbsError(flat, units);
     if (mae != null) {
       errors.push(mae);
     }

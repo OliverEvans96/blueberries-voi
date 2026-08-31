@@ -63,6 +63,7 @@ def test_run_seed_channel_joint_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
     assert out["preset"] == "P0"
     assert "mae_f" in out
     assert "mae_dist" in out
+    assert "count_mae" in out
     assert "profit" in out
     assert out["n_live_days"] >= 1
     json.dumps(out)

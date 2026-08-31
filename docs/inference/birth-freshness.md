@@ -30,8 +30,6 @@ cohort draw.
 This page is about that conditioning step: what gets pinned down, what gets integrated
 away, and how a particle can be born already dead with exactly the right probability.
 
-![Arrival CDF over birth freshness narrowing across books-only, lot ID + pack date, and temperature-history scenario families](/figures/birth-freshness-cdf.png)
-
 ## The idea
 
 Think back to the cold-chain story: a delivery's freshness depends on how long the trip
@@ -192,21 +190,21 @@ share the same quadrature machinery and the same underlying model.
 
 | Concept | Symbol / name | Location |
 | --- | --- | --- |
-| Scenario-appropriate condition (Exposure / Duration / Prior) | `ArrivalCondition` | `crates/voi_core/src/arrival.rs:42` |
-| Resolve which condition a delivery record implies | `resolve_arrival_f_law` | `crates/voi_core/src/unit_pf.rs:295` |
-| Path-integrated exposure from temperature trace (F3) | $\Lambda_{\text{obs}}$ | `crates/voi_core/src/arrival.rs:1210` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
-| Break-count thermal enumeration (replaces truncated-normal quadrature) | `thermal_nodes` | `crates/voi_core/src/arrival.rs:850` |
-| Pack-date duration on the filter wire | `FilterObs.pack_date_days` | `crates/voi_core/src/obs.rs:99` |
-| Marginal CDF over $f$ for a condition | `marginal_cdf_at` | `crates/voi_core/src/arrival.rs:880` |
-| Closed-form atom at $f=0$ | $\pi_0 = \gamma_q(k\Lambda, 1/\theta)$ | `crates/voi_core/src/arrival.rs:710` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
-| Cached, atom-divided CDF for inverse-CDF sampling | `build_law_cdf` | `crates/voi_core/src/arrival.rs:958` |
-| Draw one unit's birth freshness from the cache | `sample_unit_f_from_cache` | `crates/voi_core/src/arrival.rs:1017` |
-| GSIN: draw one lot's units under one condition | `sample_filter_birth_units` | `crates/voi_core/src/arrival.rs:1050` |
-| UPC: equally weighted mixture of lot laws | `mixture_law` / `mixture_cache` | `crates/voi_core/src/arrival.rs:1079` / `1114` |
-| UPC: draw merged cohort from mixture | `sample_filter_birth_units_mixture` | `crates/voi_core/src/arrival.rs:1131` |
-| Birth stage in the daily filter step | (step 3) | `crates/voi_core/src/unit_pf.rs:556`–`587` |
+| Scenario-appropriate condition (Exposure / Duration / Prior) | `ArrivalCondition` | `crates/voi_core/src/arrival.rs:75` |
+| Resolve which condition a delivery record implies | `resolve_arrival_f_law` | `crates/voi_core/src/unit_pf.rs:298` |
+| Path-integrated exposure from temperature trace (F3) | $\Lambda_{\text{obs}}$ | `crates/voi_core/src/arrival.rs:2334` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
+| Break-count thermal enumeration (replaces truncated-normal quadrature) | `thermal_nodes_for_key` | `crates/voi_core/src/arrival.rs:1633` |
+| Pack-date duration on the filter wire | `FilterObs.pack_date_days` | `crates/voi_core/src/obs.rs:107` |
+| Marginal CDF over $f$ for a condition | `marginal_cdf_at` | `crates/voi_core/src/arrival.rs:1750` |
+| Closed-form atom at $f=0$ | $\pi_0 = \gamma_q(k\Lambda, 1/\theta)$ | `crates/voi_core/src/arrival.rs:1324` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
+| Cached, atom-divided CDF for inverse-CDF sampling | `build_law_cdf` | `crates/voi_core/src/arrival.rs:1923` |
+| Draw one unit's birth freshness from the cache | `sample_unit_f_from_cache` | `crates/voi_core/src/arrival.rs:2036` |
+| GSIN: draw one lot's units under one condition | `sample_filter_birth_units` | `crates/voi_core/src/arrival.rs:2069` |
+| UPC: equally weighted mixture of lot laws | `mixture_law` / `mixture_cache` | `crates/voi_core/src/arrival.rs:2098` / `2132` |
+| UPC: draw merged cohort from mixture | `sample_filter_birth_units_mixture` | `crates/voi_core/src/arrival.rs:2149` |
+| Birth stage in the daily filter step | (step 3) | `crates/voi_core/src/unit_pf.rs:707`–`786` |
 | Duration / position quadrature nodes (8-point, version-pinned) | `quad_nodes`, `quad_weights` | `data/abdella/arrival_model.json` |
-| Inverse-sampling grid resolution | `ARRIVAL_GRID` (= 512) | `crates/voi_core/src/arrival.rs:24` |
+| Inverse-sampling grid resolution | `ARRIVAL_GRID` (= 512) | `crates/voi_core/src/arrival.rs:55` |
 
 ## Caveats
 

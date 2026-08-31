@@ -13,8 +13,6 @@ with uncertainty layered on top. This page walks through one day in plain words,
 the order the code runs it. No equations yet; those come once the pieces have
 names.
 
-![Horizontal timeline of one simulated day: age, spoil, sell, deliver panels in order](/figures/five-minutes-day-timeline.png)
-
 ## The idea
 
 Picture the shelf at the start of a day as a row of punnets, each with a freshness
@@ -61,11 +59,11 @@ no separate spoilage check applied afterward.
 
 | Step | What happens | File : line |
 | --- | --- | --- |
-| 1. Aging | Each alive unit gets an independent random freshness loss, faster when warmer | `crates/voi_core/src/day_step.rs:232` (`apply_gamma_step`), `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
-| 2. Spoilage | Units whose freshness fell to zero are counted and marked as waste exits | `crates/voi_core/src/day_step.rs:238` (`count_spoil_by_lot`) |
-| 3. Sales | Demand is filled by a freshness-weighted random draw over alive units | `crates/voi_core/src/day_step.rs:246` (`pick_units_f`), `crates/voi_core/src/physics.rs:360` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
-| 4. Delivery | A new lot is appended to the shelf, each unit's freshness set by the arrival model | `crates/voi_core/src/day_step.rs:250` (`if input.deliver`) |
-| Whole day | Runs steps 1–4 in this fixed order | `crates/voi_core/src/day_step.rs:217` ([`unit_day_step_with_birth`](/api/rust/voi_core/day_step/fn.unit_day_step_with_birth.html)) |
+| 1. Aging | Each alive unit gets an independent random freshness loss, faster when warmer | `crates/voi_core/src/day_step.rs:269` (`apply_gamma_step`), `crates/voi_core/src/physics.rs:252` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
+| 2. Spoilage | Units whose freshness fell to zero are counted and marked as waste exits | `crates/voi_core/src/day_step.rs:275` (`count_spoil_by_lot`) |
+| 3. Sales | Demand is filled by a freshness-weighted random draw over alive units | `crates/voi_core/src/day_step.rs:283` (`pick_units_f`), `crates/voi_core/src/physics.rs:380` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
+| 4. Delivery | A new lot is appended to the shelf, each unit's freshness set by the arrival model | `crates/voi_core/src/day_step.rs:287` (`if input.deliver`) |
+| Whole day | Runs steps 1–4 in this fixed order | `crates/voi_core/src/day_step.rs:254` ([`unit_day_step_with_birth`](/api/rust/voi_core/day_step/fn.unit_day_step_with_birth.html)) |
 
 ## Caveats
 

@@ -166,6 +166,13 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.belief-mae-table thead th:first-child {
+  text-align: left;
 }
 
 .belief-mae-table tbody th {

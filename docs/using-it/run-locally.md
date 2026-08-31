@@ -8,8 +8,6 @@ sources:
 
 Everything on this site can be run on your own machine: the Python package that notebooks and the CLI import, and the interactive browser studio that runs the same physics compiled to WebAssembly. The two have separate setup steps because they're separate build targets from one shared Rust core, not two independent implementations of the model.
 
-![Three run surfaces — Python, Rust voi_core, browser studio — and wheel vs wasm artifacts](/figures/run-surfaces-architecture.png)
-
 ## The idea
 
 The model's hot compute lives in one place — the Rust crate `voi_core` — with two doors into it. Python notebooks, the CLI, and pytest reach it through a PyO3 extension built by `uv`. The browser studio reaches the *same* Rust code through a `wasm-pack` build compiled to WebAssembly and loaded by Vite. Getting notebooks running only needs Python tooling; getting the interactive studio running also needs a working Rust toolchain, because the browser's copy of the physics has to be compiled from source before Vite can serve it.
@@ -19,7 +17,7 @@ The model's hot compute lives in one place — the Rust crate `voi_core` — wit
 Requires [uv](https://docs.astral.sh/uv/) and Python 3.11 (pinned in `.python-version`). From the repo root:
 
 ```bash
-uv sync --all-extras
+uv sync
 ```
 
 That installs the package plus every optional extra (tests, notebooks, viz, data ingest). From there:
@@ -27,7 +25,7 @@ That installs the package plus every optional extra (tests, notebooks, viz, data
 ```bash
 uv run pytest              # test suite
 uv run blueberries-voi --help   # CLI
-uv sync --extra notebooks && uv run jupyter lab   # notebooks
+uv run jupyter lab         # notebooks
 ```
 
 ### Interactive studio
@@ -62,7 +60,7 @@ The [Rust API reference](/reference/rust-api) published on this site is generate
 ./scripts/build-rustdoc.sh
 ```
 
-This runs `cargo doc --no-deps --workspace` and copies the per-crate output, plus a
+This runs `cargo doc --no-deps --workspace --locked` and copies the per-crate output, plus a
 hand-authored landing page linking the three crates together, into
 `docs/public/api/rust/`.
 
@@ -76,9 +74,9 @@ The model's hot compute lives in one Rust crate, reachable from both Python (via
 
 | Concept | Command / file | File:line |
 | --- | --- | --- |
-| Python package + all extras | `uv sync --all-extras` | `README.md:21` |
-| Test suite | `uv run pytest` | `README.md:135` |
-| CLI entry point | `uv run blueberries-voi --help` | `README.md:161` |
+| Python package + all extras | `uv sync` | `README.md:21` |
+| Test suite | `uv run pytest` | `README.md:155` |
+| CLI entry point | `uv run blueberries-voi --help` | `README.md:180` |
 | Rust→WASM build (crate → `web/src/wasm/`, mirrored to `packaging/wasm/pkg/`) | `./scripts/build-wasm.sh` | `scripts/build-wasm.sh:13` |
 | Studio dev-server launcher (sets `VITE_ENGINE_ADAPTER=wasm`, runs Vite) | `./scripts/studio.sh` | `scripts/studio.sh:8` |
 | Same launcher via npm | `npm run studio` (from `web/`) | `web/package.json:18` |

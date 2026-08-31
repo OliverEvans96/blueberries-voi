@@ -11,8 +11,6 @@ sources:
 
 The [particle filter's internal state](/inference/what-one-particle-is) is a bank of hundreds of complete, unit-level shelf hypotheses — one freshness number per believed-alive unit, in every particle. Nothing downstream (a studio chart, the ordering policy, a Python or TypeScript client) wants to receive that directly: it's too much data, shaped inconveniently, and tied to Rust-internal representations. So on every step the filter's belief gets flattened onto a small, fixed-shape summary called the **belief wire** — a histogram-per-lot projection that throws away most of the particle-level detail on purpose. This page explains what that projection keeps, what it discards, and how to size it correctly.
 
-![Belief wire: per-slot f_grid histograms above actual particle freshness scatter](/figures/belief-wire-histogram.png)
-
 ## The idea
 
 Picture the filter's real state as a spreadsheet: one row per particle, one column per unit currently believed alive, cell values are freshness. That's rich, but it's also an awkward shape — the number of columns changes every day as lots arrive and die, and no chart or policy function wants to read raw per-particle, per-unit numbers.
@@ -49,7 +47,7 @@ normalized so $\sum_k \text{f\_marginals}[s,k] = 1$ for every slot $s$ (a slot w
 
 **Histogram summary, not a richer per-particle export.** A richer, higher-fidelity histogram representation was compared against the shipped design in benchmarks; its better histogram-shape fidelity didn't justify the extra cost at the shelf sizes actually used, so the coarser, cheaper `f_marginals` summary is the production default.
 
-**`L` is a wire-sizing knob, not a filter capacity limit.** This is the detail most likely to be misunderstood, so it's worth stating precisely: the particle filter's own internal state is **not** bounded by `L` — it keeps every lot that *any* particle still believes has a live unit in it, and only drops a lot from its own bank once *every* particle agrees it's fully dead (`prune_dead_prefix`, run once per filter step, after birth). `L` only controls how many of the filter's *newest* lots get exported onto the wire, oldest-first truncation. Pick `L` too small, and a lot the filter still believes has live (if aging) units in it can fall outside the exported window — the wire will under-report on-hand inventory even though the filter's own internal belief is completely fine. Pick `L` large enough to comfortably cover the peak number of concurrently open cohorts with live units, under whatever delivery cadence and spoilage dynamics are in play, and the truncation becomes harmless: the oldest exported lot is already fully dead in every particle (all-zero histogram row, zero `lot_counts` entry) by the time it would fall out of the window, so nothing real is ever dropped. The **current production default is `L = 10`** (`DEFAULT_L_DIM`), with `K = 4` freshness bins by default in `EngineSession`.
+**`L` is a wire-sizing knob, not a filter capacity limit.** This is the detail most likely to be misunderstood, so it's worth stating precisely: the particle filter's own internal state is **not** bounded by `L` — it keeps every lot that *any* particle still believes has a live unit in it, and only drops a lot from its own bank once *every* particle agrees it's fully dead (`prune_dead_prefix`, run once per filter step, after birth). `L` only controls how many of the filter's *newest* lots get exported onto the wire, oldest-first truncation. Pick `L` too small, and a lot the filter still believes has live (if aging) units in it can fall outside the exported window — the wire will under-report on-hand inventory even though the filter's own internal belief is completely fine. Pick `L` large enough to comfortably cover the peak number of concurrently open cohorts with live units, under whatever delivery cadence and spoilage dynamics are in play, and the truncation becomes harmless: the oldest exported lot is already fully dead in every particle (all-zero histogram row, zero `lot_counts` entry) by the time it would fall out of the window, so nothing real is ever dropped. The **current production default is `L = 50`** (`DEFAULT_L_DIM`), with `K = 30` freshness bins by default in `EngineSession`.
 
 **Caveat:** totals-only observations (the "books only" and "shrink gun" scenarios, where the store never reports which specific lot a sale or a piece of waste came from) cannot recover a lot's *within-lot* freshness shape from evidence alone — the histogram in that case leans heavily on the birth model and gamma aging rather than on data. `f_marginals` under totals-only channels reflects the filter's prior aging trajectory more than it reflects anything the store actually reported that day.
 
@@ -57,16 +55,16 @@ normalized so $\sum_k \text{f\_marginals}[s,k] = 1$ for every slot $s$ (a slot w
 
 | Concept | Symbol / field | Location |
 | --- | --- | --- |
-| Flatten a particle bank onto the wire | `belief_flat_from_unit_bank` | `crates/voi_core/src/belief_flat.rs:31` |
-| Freshness bin centers, `K` evenly spaced points in `[0,1]` | `f_grid` | `crates/voi_core/src/belief_flat.rs:16` ([`f_grid_k`](/api/rust/voi_core/belief_flat/fn.f_grid_k.html)) |
-| Per-lot particle-weighted alive-unit count | `lot_counts[L]` | `crates/voi_core/src/belief_flat.rs:38`, `:58` |
-| Per-lot freshness histogram, normalized | `f_marginals[L×K]` | `crates/voi_core/src/belief_flat.rs:39`, `:62`–`77` |
-| Keep newest `L` filter lots, oldest-first truncation | `first_lot = n_lots.saturating_sub(l)` | `crates/voi_core/src/belief_flat.rs:36` |
+| Flatten a particle bank onto the wire | `belief_flat_from_unit_bank` | `crates/voi_core/src/belief_flat.rs:32` |
+| Freshness bin centers, `K` evenly spaced points in `[0,1]` | `f_grid` | `crates/voi_core/src/belief_flat.rs:17` ([`f_grid_k`](/api/rust/voi_core/belief_flat/fn.f_grid_k.html)) |
+| Per-lot particle-weighted alive-unit count | `lot_counts[L]` | `crates/voi_core/src/belief_flat.rs:39`, `:59` |
+| Per-lot freshness histogram, normalized | `f_marginals[L×K]` | `crates/voi_core/src/belief_flat.rs:40`, `:63`–`78` |
+| Keep newest `L` filter lots, oldest-first truncation | `first_lot = n_lots.saturating_sub(l)` | `crates/voi_core/src/belief_flat.rs:37` |
 | Filter's own internal lot retention (not bounded by `L`) | `prune_dead_prefix` | `crates/voi_core/src/unit_pf.rs:134` |
-| Wire dimensions stored on the session | `l_dim`, `k_dim` | `crates/voi_core/src/session.rs:73`–`74` |
-| Default wire size: `L = 10` lot slots | `DEFAULT_L_DIM` | `crates/voi_core/src/params.rs:6` |
-| Default wire size: `K = 4` freshness bins | `k_dim: 4` | `crates/voi_core/src/session.rs:122` |
-| Guard test: legacy `tau_grid` / `age_marginals` never exported | `belief_flat_from_unit_bank_exports_f_wire_keys` | `crates/voi_core/src/belief_flat.rs:97` |
+| Wire dimensions stored on the session | `l_dim`, `k_dim` | `crates/voi_core/src/session.rs:142`, `:144` |
+| Default wire size: `L = 50` lot slots | `DEFAULT_L_DIM` | `crates/voi_core/src/params.rs:7` |
+| Default wire size: `K = 30` freshness bins | `k_dim: DEFAULT_K_DIM` | `crates/voi_core/src/session.rs:239` |
+| Guard test: legacy `tau_grid` / `age_marginals` never exported | `belief_flat_from_unit_bank_exports_f_wire_keys` | `crates/voi_core/src/belief_flat.rs:98` |
 
 ## Caveats
 

@@ -8,8 +8,6 @@ sources:
 
 Every unit of fruit in this model carries one number for how good it still is: **freshness**, $f$, running from $1$ (pristine) down to $0$ (spoiled). The model doesn't track how many days old a punnet is. "Age" implies one clock ticking the same way for every berry, and that isn't true here — a berry that rode in the warm part of a pallet is worse off than one that rode in the cold part, even though they left the farm on the same day and arrived on the same truck.
 
-![Two units with identical calendar age but different freshness f, beside f decaying toward zero while calendar days advance](/figures/freshness-not-age-schematic.png)
-
 ## The idea
 
 Freshness behaves like a fuel gauge, not an odometer. An odometer climbs at a fixed rate no matter how you drive; a fuel gauge drains at a rate that depends on conditions — hills, traffic, a heavy foot on the pedal. Freshness starts near full and drains faster under harsher conditions (warmer temperatures), but what's being tracked is remaining quality, not elapsed time.
@@ -40,11 +38,11 @@ A design that keeps an age-in-days state variable and converts it to a survival 
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Freshness state, mutated in place | $f$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
-| Cumulative thermal exposure along a trace | $\Lambda$ | `crates/voi_core/src/shipments.rs:21` (`arrival_exposure_from_path`, doc: "Cumulative thermal exposure along a temperature path (reference-days)") |
-| Legacy age↔freshness map (research path only) | `age_to_f` / `f_to_age` | `crates/voi_core/src/physics.rs:15`, `:23` |
-| Legacy consumer — Weibull salvage | — | `crates/voi_core/src/rollout.rs:90` (`f_to_age` in `terminal_salvage_unit_state`) |
-| Legacy consumer — ground-truth birth freshness | — | `crates/voi_core/src/shipments.rs:107` (`truth_birth_from_trace`, doc: "under legacy Weibull mapping") |
+| Freshness state, mutated in place | $f$ | `crates/voi_core/src/physics.rs:230` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
+| Cumulative thermal exposure along a trace | $\Lambda$ | `crates/voi_core/src/shipments.rs:48` (`arrival_exposure_from_path`, doc: "Cumulative thermal exposure along a temperature path (reference-days)") |
+| Legacy age↔freshness map (research path only) | `age_to_f` / `f_to_age` | `crates/voi_core/src/physics.rs:19`, `:30` |
+| Legacy consumer — Weibull salvage | — | `crates/voi_core/src/rollout.rs:103` (`f_to_age` in `terminal_salvage_unit_state`) |
+| Legacy consumer — ground-truth birth freshness | — | `crates/voi_core/src/shipments.rs:294` (`truth_birth_from_trace`, doc: "under legacy Weibull mapping") |
 | Python research-path age helpers (allowlisted, non-production) | `_age_to_f` / `_f_to_age` | `src/blueberries_voi/filter/belief.py:17`, `:21` |
 | Terminology grep guard (bans "effective age" / `age_at_receipt` / `age_marginal` outside the allowlist) | — | `crates/voi_core/tests/t150_phase1_terminology.rs:102` (`ac1_3_effective_age_grep_guard_with_allowlist`) |
 

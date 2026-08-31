@@ -8,8 +8,6 @@ sources:
 
 The VOI experiment compares what a store earns under several different observation scenarios — from books-only up through richer scanning and a perfect-state oracle. For that comparison to mean anything, the profit numbers it produces need to differ *because* the scenarios see different things, not because one scenario happened to draw a luckier week of demand and spoilage than another. The project's random-number scheme exists to rule that second explanation out.
 
-![Scored profit per observation scenario under one shared root_seed=42 physics realization, with a books-only baseline dashed line](/figures/crn-profit-by-scenario.png)
-
 ## The idea
 
 Imagine seven observers watching the same week unfold in the same store — the same customers walk in on the same days, the same trucks arrive carrying berries at the same true freshness, the same units spoil on the same flips of the coin. What differs between the seven is only which pair of glasses each one is wearing: one can only read the cash-register tape ("books only"), another additionally gets a scan of what got thrown out ("shrink gun"), another can trace which lot a sold unit came from ("lot ID at POS"), and so on up to an observer that gets told the true state of every unit on the shelf (the oracle).
@@ -39,21 +37,21 @@ The addressing scheme underneath this is a hierarchical SeedSequence spawn tree,
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Physics tag shared by every observation scenario, every day | `physics_tag()` | `crates/voi_core/src/voi.rs:57` |
-| Per-scenario filter tag (only the filter's own randomness differs by scenario) | `filter_tag(scenario)` | `crates/voi_core/src/voi.rs:61` |
-| Demand draws (shared truth) | `STREAM_DEMAND` | `crates/voi_core/src/voi.rs:24` |
-| Sales-allocation draws (shared truth) | `STREAM_ALLOC` | `crates/voi_core/src/voi.rs:25` |
-| Gamma-aging draws (shared truth) | `STREAM_GAMMA` | `crates/voi_core/src/voi.rs:26` |
-| Filter's own internal randomness (per-scenario, not shared) | `STREAM_FILTER` | `crates/voi_core/src/voi.rs:31` |
-| Birth-freshness spread draws | `STREAM_BIRTH` | `crates/voi_core/src/voi.rs:33` |
-| Arrival within-pallet position draw | `STREAM_ARRIVAL_POS` | `crates/voi_core/src/voi.rs:35` |
-| Arrival gamma-loss draw | `STREAM_ARRIVAL_GAMMA` | `crates/voi_core/src/voi.rs:37` |
-| Arrival transit-duration draw | `STREAM_ARRIVAL_DURATION` | `crates/voi_core/src/voi.rs:40` |
-| Arrival transit-temperature draw | `STREAM_ARRIVAL_TEMP` | `crates/voi_core/src/voi.rs:43` |
-| Named arrival streams shared with rollout / interactive session | `STREAM_ARRIVAL_DURATION` / `_TEMP` / `_POS` / `_GAMMA` | `crates/voi_core/src/arrival.rs:18-21` |
-| NumPy-`SeedSequence`-compatible RNG (rollout, alpha-tune, interactive session — not the VOI cell above) | `SpawnRng::spawn_rng` | `crates/voi_core/src/spawn_rng.rs:23` |
+| Physics tag shared by every observation scenario, every day | `physics_tag()` | `crates/voi_core/src/voi.rs:71` |
+| Per-scenario filter tag (only the filter's own randomness differs by scenario) | `filter_tag(scenario)` | `crates/voi_core/src/voi.rs:78` |
+| Demand draws (shared truth) | `STREAM_DEMAND` | `crates/voi_core/src/voi.rs:28` |
+| Sales-allocation draws (shared truth) | `STREAM_ALLOC` | `crates/voi_core/src/voi.rs:29` |
+| Gamma-aging draws (shared truth) | `STREAM_GAMMA` | `crates/voi_core/src/voi.rs:30` |
+| Filter's own internal randomness (per-scenario, not shared) | `STREAM_FILTER` | `crates/voi_core/src/voi.rs:35` |
+| Birth-freshness spread draws | `STREAM_BIRTH` | `crates/voi_core/src/voi.rs:37` |
+| Arrival within-pallet position draw | `STREAM_ARRIVAL_POS` | `crates/voi_core/src/voi.rs:39` |
+| Arrival gamma-loss draw | `STREAM_ARRIVAL_GAMMA` | `crates/voi_core/src/voi.rs:41` |
+| Arrival transit-duration draw | `STREAM_ARRIVAL_DURATION` | `crates/voi_core/src/voi.rs:44` |
+| Arrival transit-temperature draw | `STREAM_ARRIVAL_TEMP` | `crates/voi_core/src/voi.rs:47` |
+| Named arrival streams shared with rollout / interactive session | `STREAM_ARRIVAL_DURATION` / `_TEMP` / `_POS` / `_GAMMA` | `crates/voi_core/src/arrival.rs:61-69` |
+| NumPy-`SeedSequence`-compatible RNG (rollout, alpha-tune, interactive session — not the VOI cell above) | `SpawnRng::spawn_rng` | `crates/voi_core/src/spawn_rng.rs:34` |
 | Same primitive, Python side | `spawn_rng` | `src/blueberries_voi/rng.py:36` |
-| Cross-language bit-identical fixture (Rust side) | `ac8_birth_stream_next_u64_fixture` | `crates/voi_core/src/spawn_rng.rs:166` |
+| Cross-language bit-identical fixture (Rust side) | `ac8_birth_stream_next_u64_fixture` | `crates/voi_core/src/spawn_rng.rs:189` |
 | Cross-language bit-identical fixture (Python side) | `test_birth_spawn_rng_matches_rust_next_u64_fixture` | `tests/test_rng.py:65` |
 
 ## Caveats

@@ -21,8 +21,6 @@ and a generative trace replace the retired truncated-normal temperature law (ADR
 page explains why duration still dominates, and why the temperature channel finally has
 something real left to learn once a pack date is known.
 
-![Duration (days) vs. mean transit temperature factor for the six real Abdella shipments used to anchor the arrival model's assumed families](/figures/cold-chain-arrival-calibration-overlay.png)
-
 ## The idea
 
 Every delivery's freshness at arrival is driven by one number: cumulative thermal exposure
@@ -146,12 +144,12 @@ six traces. This is a *between-shipment* decomposition, not a within-shipment on
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Deterministic transit legs (break-free baseline) | `legs` | `crates/voi_core/src/arrival.rs:138-140` |
-| Cold-chain break hazard and mean break duration | `rho`, `tau_bar`, `T_break` | `crates/voi_core/src/arrival.rs:143-149` |
-| Cumulative exposure with breaks inside calendar `d` | `lambda_from_breaks` | `crates/voi_core/src/arrival.rs:594-603` |
-| Generative path + integrated Λ | `draw_transit`, `truth_transit_trace` | `crates/voi_core/src/arrival.rs:721-731`, `crates/voi_core/src/shipments.rs:97-102` |
-| Q10 exposure from an observed trace (F3 channel) | `resolve_arrival_exposure` | `crates/voi_core/src/arrival.rs:1210` |
-| Per-unit truth draw (duration + breaks + position) | `draw_unit_f` | `crates/voi_core/src/arrival.rs:744` |
+| Deterministic transit legs (break-free baseline) | `legs` | `crates/voi_core/src/arrival.rs:233-235` |
+| Cold-chain break hazard and mean break duration | `rho`, `tau_bar`, `T_break` | `crates/voi_core/src/arrival.rs:240-248` |
+| Cumulative exposure with breaks inside calendar `d` | `lambda_from_breaks` | `crates/voi_core/src/arrival.rs:1115-1124` |
+| Generative path + integrated Λ | `draw_transit`, `truth_transit_trace` | `crates/voi_core/src/arrival.rs:1335-1342`, `crates/voi_core/src/shipments.rs:97-102` |
+| Q10 exposure from an observed trace (F3 channel) | `resolve_arrival_exposure` | `crates/voi_core/src/arrival.rs:2334` |
+| Per-unit truth draw (duration + breaks + position) | `draw_unit_f` | `crates/voi_core/src/arrival.rs:1375` |
 | Corridor duration family + break defaults | `corridors`, `rho`, `tau_bar`, `legs` | `data/abdella/arrival_model.json` |
 | Abdella duration fit and provenance notes | — | `scripts/fit_abdella_arrival.py`, `data/abdella/arrival_model.json` (`provenance.adjustment_notes.breaks`) |
 | Six-shipment empirical overlay (duration vs. φ̄) | — | `data/abdella/calibration_note.md`, `data/abdella/arrival_calibration_overlay.png` |
