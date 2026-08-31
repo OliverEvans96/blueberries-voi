@@ -134,6 +134,7 @@ def run_seed_channel_joint(
     f_errors: list[float] = []
     dist_errors: list[float] = []
     w1_errors: list[float] = []
+    count_errors: list[float] = []
     filter_collapse_days = 0
     prev_belief_key: tuple[Any, ...] | None = None
 
@@ -165,6 +166,7 @@ def run_seed_channel_joint(
         acc = day_accuracy(delta, episode_day)
         if acc is not None:
             f_errors.append(acc.abs_f_err)
+            count_errors.append(acc.count_gap)
         dist = day_distribution_abs_error(delta)
         if dist is not None:
             dist_errors.append(dist)
@@ -189,6 +191,7 @@ def run_seed_channel_joint(
             "mae_f": float(np.mean(f_errors)) if f_errors else float("nan"),
             "mae_dist": float(np.mean(dist_errors)) if dist_errors else float("nan"),
             "freshness_w1": float(np.mean(w1_errors)) if w1_errors else float("nan"),
+            "count_mae": float(np.mean(count_errors)) if count_errors else float("nan"),
             "n_burn": int(n_burn),
             "n_score": int(n_score),
             "n_live_days": len(f_errors),
