@@ -5,10 +5,12 @@ Used by ``notebooks/article_figures.ipynb`` and ``scripts/sync_blog_figures.py``
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ARTICLE_FIGURES_DIR = REPO_ROOT / "notebooks" / "outputs" / "article_figures"
+BARCODE_DIR = REPO_ROOT / "outputs" / "blueberry-pint-barcodes"
 DEFAULT_WEB_DEST = (
     Path.home()
     / "code"
@@ -46,13 +48,23 @@ BLOG_PUBLISHED_FIGURES: tuple[str, ...] = (
     BLOG_FIG_FACTORIAL_W1_COUNT,
 )
 
-# (source path relative to ARTICLE_FIGURES_DIR, website basename)
-SYNC_SOURCES: tuple[tuple[str, str], ...] = (
-    (BLOG_FIG_GAMMA, BLOG_FIG_GAMMA),
-    (BLOG_FIG_COLD_CHAIN, BLOG_FIG_COLD_CHAIN),
-    (BLOG_FIG_DEMAND, BLOG_FIG_DEMAND),
-    (BLOG_FIG_LADDER, BLOG_FIG_LADDER),
-    (BLOG_FIG_FACTORIAL, BLOG_FIG_FACTORIAL),
-    (BLOG_FIG_FACTORIAL_W1_COUNT, BLOG_FIG_FACTORIAL_W1_COUNT),
-    (f"barcodes/{BLOG_FIG_UPC_GSIN}", BLOG_FIG_UPC_GSIN),
+# Subdirectory under the website dest for full barcode asset bundle.
+BARCODE_WEB_SUBDIR = "barcodes"
+
+
+@dataclass(frozen=True)
+class SyncCopy:
+    """One file copy: ``source_dir / rel_path`` → ``dest_dir / dest_rel``."""
+
+    source_dir: Path
+    rel_path: str
+    dest_rel: str
+
+
+# Article figures from notebooks/outputs/article_figures/
+SYNC_ARTICLE_FIGURES: tuple[SyncCopy, ...] = tuple(
+    SyncCopy(ARTICLE_FIGURES_DIR, name, name) for name in BLOG_PUBLISHED_FIGURES[1:]
 )
+
+# Blog composite at site root; full barcode bundle under dest/barcodes/.
+SYNC_BARCODE_BLOG = SyncCopy(BARCODE_DIR, BLOG_FIG_UPC_GSIN, BLOG_FIG_UPC_GSIN)
