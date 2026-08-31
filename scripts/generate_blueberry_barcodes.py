@@ -236,12 +236,14 @@ def _load_font(size: int) -> ImageFont.ImageFont:
 
 
 def _fit_image(img: Image.Image, max_w: int, max_h: int) -> Image.Image:
-    """Scale ``img`` down to fit inside ``max_w`` × ``max_h``, preserving aspect."""
+    """Scale ``img`` down to fit inside ``max_w`` x ``max_h``, preserving aspect."""
     scale = min(max_w / img.width, max_h / img.height, 1.0)
     if scale == 1.0:
         return img
     size = (max(1, round(img.width * scale)), max(1, round(img.height * scale)))
-    resample = Image.Resampling.NEAREST if max(img.size) < 200 else Image.Resampling.LANCZOS
+    resample = (
+        Image.Resampling.NEAREST if max(img.size) < 200 else Image.Resampling.LANCZOS
+    )
     return img.resize(size, resample)
 
 
@@ -252,13 +254,19 @@ def _remove_white_pixels(img: Image.Image, *, threshold: int = 250) -> Image.Ima
     width, height = rgba.size
     for y in range(height):
         for x in range(width):
-            r, g, b, a = pixels[x, y]
+            r, g, b, _a = pixels[x, y]
             if r >= threshold and g >= threshold and b >= threshold:
                 pixels[x, y] = (r, g, b, 0)
     return rgba
 
 
-def _centered_text_x(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, col_w: int, col_x: int) -> int:
+def _centered_text_x(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    col_w: int,
+    col_x: int,
+) -> int:
     bbox = draw.textbbox((0, 0), text, font=font)
     text_w = bbox[2] - bbox[0]
     return col_x + (col_w - text_w) // 2
@@ -306,7 +314,9 @@ def render_blog_figure(
             img = _remove_white_pixels(img)
         fitted.append((label, img_path, code_scale, img))
 
-    common_code_bottom = y_barcode + max(img.height + 2 * code_pad for *_, img in fitted)
+    common_code_bottom = y_barcode + max(
+        img.height + 2 * code_pad for *_, img in fitted
+    )
 
     layouts: list[tuple[str, int, Image.Image, int, int, int, int, int]] = []
     for col, (label, _img_path, _code_scale, img) in enumerate(fitted):
@@ -316,7 +326,9 @@ def render_blog_figure(
         code_bottom = common_code_bottom
         label_y = code_bottom + label_gap
         label_bottom = probe_draw.textbbox((0, label_y), label, font=label_font)[3]
-        layouts.append((label, col_x, img, x_img, y_img, code_bottom, col_w, label_y, label_bottom))
+        layouts.append(
+            (label, col_x, img, x_img, y_img, code_bottom, col_w, label_y, label_bottom)
+        )
 
     height = max(label_bottom for *_, label_bottom in layouts) + margin_v
 
@@ -325,7 +337,17 @@ def render_blog_figure(
     white = (255, 255, 255, 255)
     black = (0, 0, 0, 255)
 
-    for label, col_x, img, x_img, y_img, code_bottom, col_w, label_y, _label_bottom in layouts:
+    for (
+        label,
+        col_x,
+        img,
+        x_img,
+        y_img,
+        code_bottom,
+        col_w,
+        label_y,
+        _label_bottom,
+    ) in layouts:
         if code_white_bg:
             draw.rectangle(
                 (
@@ -362,7 +384,9 @@ def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
     draw = ImageDraw.Draw(sheet)
     title_font = _load_font(20)
     body_font = _load_font(14)
-    draw.text((margin, margin), f"{BRAND} — {lot.lot_label}", fill="black", font=title_font)
+    draw.text(
+        (margin, margin), f"{BRAND} — {lot.lot_label}", fill="black", font=title_font
+    )
     draw.text((margin, margin + 32), PRODUCT, fill="#333333", font=body_font)
     draw.text(
         (margin, margin + 56),
@@ -378,10 +402,17 @@ def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
     )
     y = header_h
     sheet.paste(dm, (margin, y))
-    draw.text((margin, y + dm.height + 4), "GS1 DataMatrix (]d2)", fill="#555555", font=body_font)
+    draw.text(
+        (margin, y + dm.height + 4),
+        "GS1 DataMatrix (]d2)",
+        fill="#555555",
+        font=body_font,
+    )
     x_qr = margin * 2 + dm.width
     sheet.paste(qr, (x_qr, y))
-    draw.text((x_qr, y + qr.height + 4), "GS1 QR Code (]Q3)", fill="#555555", font=body_font)
+    draw.text(
+        (x_qr, y + qr.height + 4), "GS1 QR Code (]Q3)", fill="#555555", font=body_font
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(path)
 
@@ -430,7 +461,11 @@ def generate_all(output_dir: Path, *, code_white_bg: bool = True) -> ProductBarc
     product_dict["upc_png"] = str(manifest.upc_png)
     product_dict["blog_figure_png"] = str(manifest.blog_figure_png)
     product_dict["lots"] = [
-        {**asdict(lot), "datamatrix_png": str(lot.datamatrix_png), "qr_png": str(lot.qr_png)}
+        {
+            **asdict(lot),
+            "datamatrix_png": str(lot.datamatrix_png),
+            "qr_png": str(lot.qr_png),
+        }
         for lot in manifest.lots
     ]
     meta_path.write_text(
@@ -442,8 +477,9 @@ def generate_all(output_dir: Path, *, code_white_bg: bool = True) -> ProductBarc
                         "does not encode lot."
                     ),
                     "gsin": (
-                        "Global Shipment Identification Number: 17 digits = GS1 company "
-                        "prefix + shipper reference (16) + mod-10 check digit. "
+                        "Global Shipment Identification Number: 17 digits = "
+                        "GS1 company prefix + shipper reference (16) + "
+                        "mod-10 check digit. "
                         "Encoded with AI 402 in GS1 DataMatrix and GS1 QR."
                     ),
                     "company_prefix": GS1_COMPANY_PREFIX,
@@ -486,7 +522,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-code-white-bg",
         action="store_true",
-        help="Key barcode art to transparency (no white pads or white pixels) in blog composite",
+        help=(
+            "Key barcode art to transparency (no white pads or white pixels) "
+            "in blog composite"
+        ),
     )
     args = parser.parse_args(argv)
     manifest = generate_all(args.output, code_white_bg=not args.no_code_white_bg)

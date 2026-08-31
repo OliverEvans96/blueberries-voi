@@ -164,7 +164,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Belief lot count | $L$ | 50 | lots | Virtual lot slots tracked in the flattened belief | `crates/voi_core/src/params.rs:7` (`DEFAULT_L_DIM`); `crates/voi_core/src/session.rs:238` |
+| Belief lot count | $L$ | 50 | lots | Virtual lot slots tracked in the flattened belief | `crates/voi_core/src/params.rs:7` ([`DEFAULT_L_DIM`](/api/rust/voi_core/params/constant.DEFAULT_L_DIM.html)); `crates/voi_core/src/session.rs:238` |
 | Belief histogram bins | $K$ | 30 | bins | Freshness histogram bins per lot slot | `crates/voi_core/src/session.rs:239` (studio session default); `crates/voi_core/src/session.rs:1737` (RPC default) |
 | Particle count | $N$ | 200 | particles | Particles in the unit-level particle filter's belief bank | Studio (TS) `web/src/controls.ts:140`; RPC default `crates/voi_core/src/session.rs:1566` |
 
@@ -194,7 +194,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
 | Episode horizon | — | 90 | days | Length of one studio episode | `crates/voi_core/src/session.rs:632-633`; Studio (TS) `web/src/mock/generate.ts:49` (`window_days`) |
-| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/arrival.rs:23` (`DEFAULT_ARRIVAL_CORRIDOR`); `crates/voi_core/src/params.rs:80` (`arrival_product` default) |
+| Default corridor | — | `abdella_mix` | corridor key | Default arrival corridor (lane) selected | `crates/voi_core/src/arrival.rs:23` ([`DEFAULT_ARRIVAL_CORRIDOR`](/api/rust/voi_core/arrival/constant.DEFAULT_ARRIVAL_CORRIDOR.html)); `crates/voi_core/src/params.rs:80` (`arrival_product` default) |
 
 ### Arrival-model artifact (`data/abdella/arrival_model.json`, schema 3)
 
