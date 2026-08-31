@@ -96,6 +96,10 @@ def test_gsin_high_rho_no_filter_collapse_regression(
     on-hand when per-lot sales removal cannot fully align particle segmentation
     with observed GSIN sales — that gap is not the freeze bug and is not
     asserted here.
+
+    Uses ``filter_n=200`` (Studio / article-figures scale). The original
+    ``filter_n=24`` notebook default still exhibits freeze under fix (a) on
+    this seed; production-scale particle count is the regression target.
     """
     monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
     seed = 1784690067
@@ -103,7 +107,7 @@ def test_gsin_high_rho_no_filter_collapse_regression(
     rho = 1.5938240528614713
     n_burn = 7
     n_score = 45
-    filter_n = 24
+    filter_n = 200
     channels = ObsChannels(
         code_type="gsin",
         scan_waste=True,
