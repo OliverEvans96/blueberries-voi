@@ -39,9 +39,11 @@ import {
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
+  countMeanAbsError,
   currentFreshnessW1,
   currentMeanFAbsError,
   formatMeanFAbsError,
+  meanCountMaeOverHistory,
   meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
 } from "../charts/beliefAccuracy";
@@ -783,16 +785,28 @@ export function initStudio(app: HTMLElement): () => void {
     const visible = showTruth && vm.live_units.length > 0;
     const todayMeanCell = q<HTMLElement>("[data-belief-mae-today-mean]");
     const todayDistCell = q<HTMLElement>("[data-belief-mae-today-dist]");
+    const todayCountCell = q<HTMLElement>("[data-belief-mae-today-count]");
     const allMeanCell = q<HTMLElement>("[data-belief-mae-all-mean]");
     const allDistCell = q<HTMLElement>("[data-belief-mae-all-dist]");
+    const allCountCell = q<HTMLElement>("[data-belief-mae-all-count]");
 
-    if (!visible || !todayMeanCell || !todayDistCell || !allMeanCell || !allDistCell) {
+    if (
+      !visible ||
+      !todayMeanCell ||
+      !todayDistCell ||
+      !todayCountCell ||
+      !allMeanCell ||
+      !allDistCell ||
+      !allCountCell
+    ) {
       table.hidden = true;
       table.removeAttribute("title");
       todayMeanCell?.replaceChildren();
       todayDistCell?.replaceChildren();
+      todayCountCell?.replaceChildren();
       allMeanCell?.replaceChildren();
       allDistCell?.replaceChildren();
+      allCountCell?.replaceChildren();
       return;
     }
 
@@ -801,6 +815,7 @@ export function initStudio(app: HTMLElement): () => void {
     const todayDistW1 = flat
       ? currentFreshnessW1(flat, vm.live_units)
       : null;
+    const todayCountMae = flat ? countMeanAbsError(flat, vm.live_units) : null;
 
     const meanSummary = meanMeanFAbsErrorOverHistory(
       vm.history,
@@ -810,19 +825,27 @@ export function initStudio(app: HTMLElement): () => void {
       vm.history,
       vm.belief_history,
     );
+    const countSummary = meanCountMaeOverHistory(
+      vm.history,
+      vm.belief_history,
+    );
 
     if (
       todayMeanMae == null ||
       todayDistW1 == null ||
+      todayCountMae == null ||
       !meanSummary ||
-      !distSummary
+      !distSummary ||
+      !countSummary
     ) {
       table.hidden = true;
       table.removeAttribute("title");
       todayMeanCell.replaceChildren();
       todayDistCell.replaceChildren();
+      todayCountCell.replaceChildren();
       allMeanCell.replaceChildren();
       allDistCell.replaceChildren();
+      allCountCell.replaceChildren();
       return;
     }
 
@@ -830,8 +853,10 @@ export function initStudio(app: HTMLElement): () => void {
     table.title = BELIEF_MAE_TOOLTIP;
     todayMeanCell.textContent = formatMeanFAbsError(todayMeanMae);
     todayDistCell.textContent = formatMeanFAbsError(todayDistW1);
+    todayCountCell.textContent = formatMeanFAbsError(todayCountMae);
     allMeanCell.textContent = formatMeanFAbsError(meanSummary.meanMae);
     allDistCell.textContent = formatMeanFAbsError(distSummary.meanW1);
+    allCountCell.textContent = formatMeanFAbsError(countSummary.meanMae);
   }
 
   function plotVisible(plotId: string): boolean {
