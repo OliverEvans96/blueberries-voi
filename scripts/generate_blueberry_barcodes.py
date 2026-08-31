@@ -23,6 +23,7 @@ Example::
 
     uv run python scripts/generate_blueberry_barcodes.py
     uv run python scripts/generate_blueberry_barcodes.py -o outputs/my-barcodes
+    uv run python scripts/generate_blueberry_barcodes.py --no-code-white-bg
 """
 
 from __future__ import annotations
@@ -99,6 +100,13 @@ class ProductBarcodeSet:
 # Blog content width (px).
 BLOG_FIGURE_WIDTH = 800
 BLOG_FIGURE_BARCODE_HEIGHT = 260
+# White inset around each barcode on the transparent blog composite.
+BLOG_CODE_PAD = 12
+# QR / DataMatrix render smaller than UPC in the blog composite (same slot, centered).
+BLOG_2D_CODE_SCALE = 0.62
+BLOG_MARGIN_H = 32
+BLOG_MARGIN_V = 14
+BLOG_LABEL_GAP = 8
 
 
 def gs1_mod10_check_digit(data_without_check: str) -> int:
@@ -237,6 +245,19 @@ def _fit_image(img: Image.Image, max_w: int, max_h: int) -> Image.Image:
     return img.resize(size, resample)
 
 
+def _remove_white_pixels(img: Image.Image, *, threshold: int = 250) -> Image.Image:
+    """Return ``img`` with near-white pixels fully transparent (RGBA)."""
+    rgba = img.convert("RGBA")
+    pixels = rgba.load()
+    width, height = rgba.size
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = pixels[x, y]
+            if r >= threshold and g >= threshold and b >= threshold:
+                pixels[x, y] = (r, g, b, 0)
+    return rgba
+
+
 def _centered_text_x(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, col_w: int, col_x: int) -> int:
     bbox = draw.textbbox((0, 0), text, font=font)
     text_w = bbox[2] - bbox[0]
@@ -249,46 +270,79 @@ def render_blog_figure(
     *,
     lot_index: int = 1,
     width: int = BLOG_FIGURE_WIDTH,
+    code_white_bg: bool = True,
 ) -> None:
-    """Compose UPC + GSIN QR + GSIN DataMatrix side by side for a blog figure."""
+    """Compose UPC + GSIN QR + GSIN DataMatrix side by side for a blog figure.
+
+    The canvas is transparent. With ``code_white_bg``, each barcode gets a small
+    white pad; otherwise barcode art is keyed to transparency (no white pixels).
+    Codes are bottom-aligned; labels sit below each code.
+    """
     lot = next(lot for lot in manifest.lots if lot.lot_index == lot_index)
-    panels: tuple[tuple[str, Path], ...] = (
-        ("UPC", manifest.upc_png),
-        ("GSIN QR", lot.qr_png),
-        ("GSIN DataMatrix", lot.datamatrix_png),
+    panels: tuple[tuple[str, Path, float], ...] = (
+        ("UPC", manifest.upc_png, 1.0),
+        ("GSIN QR", lot.qr_png, BLOG_2D_CODE_SCALE),
+        ("GSIN DataMatrix", lot.datamatrix_png, BLOG_2D_CODE_SCALE),
     )
 
-    margin = 32
-    label_gap = 14
+    margin_h = BLOG_MARGIN_H
+    margin_v = BLOG_MARGIN_V
+    label_gap = BLOG_LABEL_GAP
     label_font = _load_font(20)
-    col_w = (width - margin * (len(panels) + 1)) // len(panels)
+    col_w = (width - margin_h * (len(panels) + 1)) // len(panels)
     barcode_h = BLOG_FIGURE_BARCODE_HEIGHT
+    code_pad = BLOG_CODE_PAD if code_white_bg else 0
 
-    # Measure label height from the tallest caption (DataMatrix is two words).
-    probe = Image.new("RGB", (1, 1))
+    probe = Image.new("RGBA", (1, 1))
     probe_draw = ImageDraw.Draw(probe)
-    label_h = max(
-        probe_draw.textbbox((0, 0), label, font=label_font)[3]
-        - probe_draw.textbbox((0, 0), label, font=label_font)[1]
-        for label, _ in panels
-    )
-    height = margin + barcode_h + label_gap + label_h + margin
 
-    sheet = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(sheet)
-    y_barcode = margin
+    y_barcode = margin_v
+    fitted: list[tuple[str, Path, float, Image.Image]] = []
+    for label, img_path, code_scale in panels:
+        inner_w = max(1, round((col_w - 2 * BLOG_CODE_PAD) * code_scale))
+        inner_h = max(1, round((barcode_h - 2 * BLOG_CODE_PAD) * code_scale))
+        img = _fit_image(Image.open(img_path).convert("RGB"), inner_w, inner_h)
+        if not code_white_bg:
+            img = _remove_white_pixels(img)
+        fitted.append((label, img_path, code_scale, img))
 
-    for col, (label, img_path) in enumerate(panels):
-        col_x = margin + col * (col_w + margin)
-        img = _fit_image(Image.open(img_path).convert("RGB"), col_w, barcode_h)
+    common_code_bottom = y_barcode + max(img.height + 2 * code_pad for *_, img in fitted)
+
+    layouts: list[tuple[str, int, Image.Image, int, int, int, int, int]] = []
+    for col, (label, _img_path, _code_scale, img) in enumerate(fitted):
+        col_x = margin_h + col * (col_w + margin_h)
         x_img = col_x + (col_w - img.width) // 2
-        y_img = y_barcode + (barcode_h - img.height) // 2
-        sheet.paste(img, (x_img, y_img))
-        label_y = y_barcode + barcode_h + label_gap
+        y_img = common_code_bottom - code_pad - img.height
+        code_bottom = common_code_bottom
+        label_y = code_bottom + label_gap
+        label_bottom = probe_draw.textbbox((0, label_y), label, font=label_font)[3]
+        layouts.append((label, col_x, img, x_img, y_img, code_bottom, col_w, label_y, label_bottom))
+
+    height = max(label_bottom for *_, label_bottom in layouts) + margin_v
+
+    sheet = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(sheet)
+    white = (255, 255, 255, 255)
+    black = (0, 0, 0, 255)
+
+    for label, col_x, img, x_img, y_img, code_bottom, col_w, label_y, _label_bottom in layouts:
+        if code_white_bg:
+            draw.rectangle(
+                (
+                    x_img - code_pad,
+                    y_img - code_pad,
+                    x_img + img.width + code_pad,
+                    code_bottom,
+                ),
+                fill=white,
+            )
+            sheet.paste(img, (x_img, y_img))
+        else:
+            sheet.paste(img, (x_img, y_img), img)
         draw.text(
             (_centered_text_x(draw, label, label_font, col_w, col_x), label_y),
             label,
-            fill="black",
+            fill=black,
             font=label_font,
         )
 
@@ -332,7 +386,7 @@ def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
     sheet.save(path)
 
 
-def generate_all(output_dir: Path) -> ProductBarcodeSet:
+def generate_all(output_dir: Path, *, code_white_bg: bool = True) -> ProductBarcodeSet:
     """Create UPC + three lot GSIN symbologies under ``output_dir``."""
     gtin12 = build_gtin12()
     upc_path = output_dir / "upc-a-clamshell.png"
@@ -369,7 +423,7 @@ def generate_all(output_dir: Path) -> ProductBarcodeSet:
         blog_figure_png=blog_path,
         lots=tuple(lots),
     )
-    render_blog_figure(manifest, blog_path)
+    render_blog_figure(manifest, blog_path, code_white_bg=code_white_bg)
 
     meta_path = output_dir / "manifest.json"
     product_dict = asdict(manifest)
@@ -429,8 +483,13 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("outputs/blueberry-pint-barcodes"),
         help="Output directory (default: outputs/blueberry-pint-barcodes)",
     )
+    parser.add_argument(
+        "--no-code-white-bg",
+        action="store_true",
+        help="Key barcode art to transparency (no white pads or white pixels) in blog composite",
+    )
     args = parser.parse_args(argv)
-    manifest = generate_all(args.output)
+    manifest = generate_all(args.output, code_white_bg=not args.no_code_white_bg)
     _print_summary(manifest, args.output)
     return 0
 
