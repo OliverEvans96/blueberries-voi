@@ -13,7 +13,7 @@ from blueberries_voi.experiments.channel_joint import (
     merge_channel_joint_rows,
     run_seed_channel_joint,
 )
-from blueberries_voi.filter.types import channels_for_preset
+from blueberries_voi.filter.types import ObsChannels, channels_for_preset
 
 _RUST = pytest.mark.skipif(
     _maybe_core is None,
@@ -66,3 +66,53 @@ def test_run_seed_channel_joint_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "profit" in out
     assert out["n_live_days"] >= 1
     json.dumps(out)
+
+
+@_RUST
+def test_gsin_high_rho_no_filter_collapse_regression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deterministic repro from 2026-08-30 GSIN PF collapse (plan §4).
+
+    Before the §2 fix, this (seed, channel, alpha, rho) combination froze the
+    unit particle filter's belief bit-for-bit for the rest of the episode
+    while the real shelf sold down toward zero, and the controller — reading
+    a frozen belief that still claimed the old on-hand count — stopped
+    reordering. `infeasible == filter_n` (total per-particle likelihood
+    failure) is *not* itself the bug: GSIN's cross-lot allocation
+    approximation genuinely fails on some days and recovers on its own, which
+    is expected and asserted separately. The actual defect signature is the
+    belief staying frozen across a day with real depletion.
+
+    Under the narrow collapse fix (ADR / plan §4 option a), total-collapse
+    rescue days may still leave ``sum(lot_counts)`` transiently above truth
+    on-hand when per-lot sales removal cannot fully align particle segmentation
+    with observed GSIN sales — that gap is not the freeze bug and is not
+    asserted here.
+
+    Uses ``filter_n=200`` (Studio / article-figures scale). Under fix (a) this
+    repro still allows at most one belief-freeze day (``filter_collapse_days
+    <= 1``); at ``filter_n=24`` the same seed logged six freeze days pre-guard.
+    """
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    seed = 1784690067
+    alpha = 0.7437600021964654
+    rho = 1.5938240528614713
+    n_burn = 7
+    n_score = 45
+    filter_n = 200
+    channels = ObsChannels(
+        code_type="gsin",
+        scan_waste=True,
+        delivery_history="none",
+    )
+    row = run_seed_channel_joint(
+        seed,
+        channels,
+        n_burn=n_burn,
+        n_score=n_score,
+        filter_n=filter_n,
+        controller_alpha=alpha,
+        controller_rho=rho,
+    )
+    assert row["filter_collapse_days"] <= 1

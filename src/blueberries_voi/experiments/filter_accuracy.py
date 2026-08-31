@@ -109,7 +109,7 @@ def session_config_base(*, n_rollout_paths: int = 0) -> dict[str, Any]:
         "n_rollout_paths": int(n_rollout_paths),
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
         "L": 3,
-        "K": 8,
+        "K": 30,
         "enable_filter": True,
         "lead_time": 1,
         "obs_scenario": "P0",

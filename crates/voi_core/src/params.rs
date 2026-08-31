@@ -4,7 +4,10 @@ use crate::arrival::DEFAULT_ARRIVAL_CORRIDOR;
 use crate::demand_profile::DemandProfile;
 
 /// Default virtual lot slots on the f-native `L×U` filter grid (ADR 0130).
-pub const DEFAULT_L_DIM: usize = 10;
+pub const DEFAULT_L_DIM: usize = 50;
+
+/// Default freshness bins on the belief wire (`f_grid` / `f_marginals` K dimension).
+pub const DEFAULT_K_DIM: usize = 30;
 
 /// Default virtual units per lot on the f-native `L×U` grid (ADR 0130).
 pub const DEFAULT_UNITS_PER_LOT: usize = 15;

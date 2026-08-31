@@ -28,6 +28,9 @@ export const DEFAULT_ECONOMICS: Economics = {
 const GAMMA_SHAPE = 2.0;
 const GAMMA_SCALE = 0.08;
 
+/** Belief wire freshness bins (matches Rust `DEFAULT_K_DIM` / Python `PRODUCTION_K`). */
+export const DEFAULT_K_WIRE = 30;
+
 /** Defaults aligned with blueberries_voi.model.ModelParams where applicable. */
 export const DEFAULT_SIM_CONFIG: SimConfig = {
   eta_ref: 14,
@@ -359,7 +362,7 @@ export function generateFlatBelief(
   lots: Lot[],
   rng: () => number,
   scenario: ObsScenarioKey = "P1",
-  K = 12,
+  K = DEFAULT_K_WIRE,
 ): FlatBelief {
   const L = lots.length;
   if (L === 0) {

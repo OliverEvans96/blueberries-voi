@@ -50,6 +50,7 @@ export const DEMO_BUDGETS = {
   H: 7,
   n_rollout_paths: 2,
   candidate_case_radius: 1,
+  K: 30,
 } as const;
 
 /**

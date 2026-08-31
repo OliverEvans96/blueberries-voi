@@ -469,6 +469,19 @@ def test_live_init_snapshot_validates_like_golden() -> None:
 
 
 @_RUST_RUNTIME
+def test_live_step_day_delta_includes_filter_health() -> None:
+    session = EngineSession()
+    session.init(_golden_config(), seed=_FIXED_SEED)
+    delta = session.step(16)
+    assert "filter_health" in delta
+    fh = delta["filter_health"]
+    assert isinstance(fh, Mapping)
+    assert "ess" in fh and "log_evidence" in fh and "infeasible" in fh
+    assert float(fh["ess"]) > 0.0
+    _validate_day_delta(delta)
+
+
+@_RUST_RUNTIME
 def test_live_step_day_delta_validates_like_golden() -> None:
     session = EngineSession()
     session.init(_golden_config(), seed=_FIXED_SEED)

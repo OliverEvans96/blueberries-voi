@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DEFAULT_PROFIT_COSTS",
     "DEFAULT_STORE_ECONOMICS",
+    "STUDIO_PROFIT_COSTS",
     "ProfitCosts",
     "StoreEconomics",
     "day_profit",
@@ -83,6 +84,10 @@ def profit_costs_from_store_economics(economics: StoreEconomics) -> ProfitCosts:
         waste_cost=float(economics.waste_cost),
         stockout_penalty=float(economics.stockout_penalty),
     )
+
+
+# Notebook / channel_joint closed-loop profit defaults (matches web mock generate.ts).
+STUDIO_PROFIT_COSTS = profit_costs_from_store_economics(DEFAULT_STORE_ECONOMICS)
 
 
 def day_profit_store(day: DayLog, economics: StoreEconomics) -> float:

@@ -28,7 +28,7 @@ where:
 - $F^{-1}_{D}(\alpha)$ is the $\alpha$-quantile of total demand $D$ over the protection window — see [Protection demand](/control/protection-demand) for how this is computed under the delivery calendar.
 - $\tilde I$ is effective inventory, the quality-weighted stock already on hand plus pipeline — see [Effective inventory](/control/effective-inventory).
 - $[\,\cdot\,]^+$ means $\max(\cdot, 0)$: never order a negative amount.
-- $\rho \in (0, 1]$ is the **damping factor**. Default: $0.8$.
+- $\rho > 0$ scales how much of the order gap is closed before case-rounding. Values in $(0, 1]$ are the classical **damping** interpretation (partial gap closure; Nahmias); $\rho > 1$ over-closes the gap (more aggressive ordering) and is allowed in Studio and Ax tuning up to $2$. Default: $0.8$.
 - $\text{caseRound}(x) = \big\lfloor x / c + 0.5 \big\rfloor \cdot c$ rounds to the **nearest** multiple of the case size $c$ (ties round away from zero), not up or down.
 
 **Worked example**, continuing the effective-inventory page's numbers: with $\tilde I = 18$ and a 3-day protection window ($F^{-1}_{D}(0.9) \approx 107$ units, under the default demand parameters — see [Protection demand](/control/protection-demand) for how that number is produced), the raw damped gap is $\rho \, [107 - 18]^+ = 0.8 \times 89 = 71.2$. Case-rounded to a case size of 8, that becomes $\text{caseRound}(71.2) = 72$ units.

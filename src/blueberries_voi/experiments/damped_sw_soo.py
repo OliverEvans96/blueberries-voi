@@ -11,7 +11,11 @@ from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
 from blueberries_voi.sim.alpha_tune import evaluate_alpha_episode_outcomes
 from blueberries_voi.sim.profit import ProfitCosts
-from blueberries_voi.sim.shipments import default_shipments, smoke_cool_shipments
+from blueberries_voi.sim.shipments import (
+    DEFAULT_ARRIVAL_PRODUCT,
+    mod21_demo_shipments,
+    smoke_cool_shipments,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -34,7 +38,7 @@ class DampedSwSooBudgets:
     case_size: int
     use_calendar_demand: bool
     demand_profile_path: str
-    use_abdella: bool
+    arrival_product: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -106,9 +110,11 @@ def run_soo_shard(job: Mapping[str, Any]) -> dict[str, Any]:
     t0 = time.perf_counter()
     try:
         params = _model_params_from_job(job)
-        ships = (
-            default_shipments() if bool(job["use_abdella"]) else smoke_cool_shipments()
-        )
+        product = str(job.get("arrival_product", DEFAULT_ARRIVAL_PRODUCT))
+        if product == "smoke_cool":
+            ships = smoke_cool_shipments()
+        else:
+            ships = mod21_demo_shipments(product)
         costs = ProfitCosts(
             unit_margin=float(job["unit_margin"]),
             waste_cost=float(job["waste_cost"]),
@@ -125,6 +131,7 @@ def run_soo_shard(job: Mapping[str, Any]) -> dict[str, Any]:
             n_burn=int(job["n_burn"]),
             n_score=int(job["n_score"]),
             lead_time=int(job["lead_time"]),
+            arrival_product=product,
         )
         elapsed = time.perf_counter() - t0
         return {

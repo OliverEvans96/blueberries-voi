@@ -113,6 +113,7 @@ import {
   type SectionId,
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import { tunedControllerFor } from "../perChannelTuning";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ArrivalSummary, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
@@ -1449,6 +1450,14 @@ export function initStudio(app: HTMLElement): () => void {
     explicitPreset?: ScenarioId,
   ): Promise<void> {
     const obs_scenario = resolveDisplayObsScenario(channels, explicitPreset);
+    // Each of the 12 observation-channel combinations has its own
+    // independently Ax-tuned (alpha, rho) (perChannelTuning.ts) -- a single
+    // shared pair was found to flatten the belief-accuracy-vs-profit
+    // relationship even where belief accuracy itself differed cleanly, so
+    // switching channels re-syncs the controller rather than leaving
+    // whatever pair was dialed in for the previous channel.
+    controllerState = { ...controllerState, ...tunedControllerFor(channels) };
+    sectionControlsApi.updateController(controllerState);
     const setCh =
       adapter.set_obs_channels?.bind(adapter) ??
       adapter.setObsChannels?.bind(adapter);
