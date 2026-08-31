@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from statistics import mean, stdev
 from typing import TYPE_CHECKING, Any, cast
 
+from blueberries_voi.filter.types import channels_for_preset
 from blueberries_voi.model import ModelParams
 from blueberries_voi.model.demand_profile import load_demand_profile
 from blueberries_voi.sim.alpha_tune import evaluate_alpha_episode_outcomes
@@ -20,7 +21,10 @@ from blueberries_voi.sim.shipments import (
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-TUNE_ARM = "sw"
+DEFAULT_TUNE_ARM = "sw"
+DEFAULT_BELIEF_WORLD = "oracle"
+DEFAULT_FILTER_N = 24
+DEFAULT_OBS_PRESET = "F3"
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,9 @@ class DampedSwSooBudgets:
     use_calendar_demand: bool
     demand_profile_path: str
     arrival_product: str
+    belief_world: str = DEFAULT_BELIEF_WORLD
+    filter_n: int = DEFAULT_FILTER_N
+    obs_preset: str = DEFAULT_OBS_PRESET
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -61,12 +68,14 @@ def soo_job_payload(
     rho: float,
     root_seed: int,
     budgets: DampedSwSooBudgets,
+    tune_arm: str = DEFAULT_TUNE_ARM,
 ) -> dict[str, Any]:
     return {
         "trial_index": int(trial_index),
         "alpha": float(alpha),
         "rho": float(rho),
         "root_seed": int(root_seed),
+        "tune_arm": str(tune_arm),
         **budgets.to_dict(),
     }
 
@@ -75,6 +84,8 @@ def build_soo_jobs(
     trials: Mapping[int, Mapping[str, object]],
     seeds: Sequence[int],
     budgets: DampedSwSooBudgets,
+    *,
+    tune_arm: str = DEFAULT_TUNE_ARM,
 ) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     for trial_index, params in trials.items():
@@ -88,6 +99,7 @@ def build_soo_jobs(
                     rho=rho,
                     root_seed=int(seed),
                     budgets=budgets,
+                    tune_arm=tune_arm,
                 )
             )
     return jobs
@@ -105,34 +117,69 @@ def _model_params_from_job(job: Mapping[str, Any]) -> ModelParams:
     )
 
 
+def _run_filtered_soo_cell(
+    job: Mapping[str, Any],
+    *,
+    tune_arm: str,
+    costs: ProfitCosts,
+) -> tuple[float, int, int]:
+    from blueberries_voi.experiments.controller_bakeoff import run_controller_eval
+
+    preset = str(job.get("obs_preset", DEFAULT_OBS_PRESET))
+    channels = channels_for_preset(preset)
+    row = run_controller_eval(
+        int(job["root_seed"]),
+        tune_arm,
+        float(job["rho"]),
+        alpha=float(job["alpha"]),
+        belief_world="filtered",
+        n_burn=int(job["n_burn"]),
+        n_score=int(job["n_score"]),
+        filter_n=int(job.get("filter_n", DEFAULT_FILTER_N)),
+        channels=channels,
+        costs=costs,
+    )
+    return float(row["profit"]), int(row["waste"]), int(row["stockout"])
+
+
 def run_soo_shard(job: Mapping[str, Any]) -> dict[str, Any]:
     """Score one (trial, alpha, rho, seed) cell; safe for Modal workers."""
     t0 = time.perf_counter()
     try:
-        params = _model_params_from_job(job)
-        product = str(job.get("arrival_product", DEFAULT_ARRIVAL_PRODUCT))
-        if product == "smoke_cool":
-            ships = smoke_cool_shipments()
-        else:
-            ships = mod21_demo_shipments(product)
         costs = ProfitCosts(
             unit_margin=float(job["unit_margin"]),
             waste_cost=float(job["waste_cost"]),
             stockout_penalty=float(job["stockout_penalty"]),
         )
-        out = evaluate_alpha_episode_outcomes(
-            TUNE_ARM,
-            float(job["alpha"]),
-            int(job["root_seed"]),
-            rho=float(job["rho"]),
-            params=params,
-            shipments=ships,
-            costs=costs,
-            n_burn=int(job["n_burn"]),
-            n_score=int(job["n_score"]),
-            lead_time=int(job["lead_time"]),
-            arrival_product=product,
-        )
+        tune_arm = str(job.get("tune_arm", DEFAULT_TUNE_ARM))
+        belief_world = str(job.get("belief_world", DEFAULT_BELIEF_WORLD)).lower()
+        if belief_world == "filtered":
+            profit, waste, stockout = _run_filtered_soo_cell(
+                job, tune_arm=tune_arm, costs=costs
+            )
+        else:
+            params = _model_params_from_job(job)
+            product = str(job.get("arrival_product", DEFAULT_ARRIVAL_PRODUCT))
+            if product == "smoke_cool":
+                ships = smoke_cool_shipments()
+            else:
+                ships = mod21_demo_shipments(product)
+            out = evaluate_alpha_episode_outcomes(
+                tune_arm,
+                float(job["alpha"]),
+                int(job["root_seed"]),
+                rho=float(job["rho"]),
+                params=params,
+                shipments=ships,
+                costs=costs,
+                n_burn=int(job["n_burn"]),
+                n_score=int(job["n_score"]),
+                lead_time=int(job["lead_time"]),
+                arrival_product=product,
+            )
+            profit = float(out.profit)
+            waste = int(out.total_waste)
+            stockout = int(out.total_lost_sales)
         elapsed = time.perf_counter() - t0
         return {
             "trial_index": int(job["trial_index"]),
@@ -140,9 +187,9 @@ def run_soo_shard(job: Mapping[str, Any]) -> dict[str, Any]:
             "alpha": float(job["alpha"]),
             "rho": float(job["rho"]),
             "ok": True,
-            "profit": float(out.profit),
-            "waste": int(out.total_waste),
-            "stockout": int(out.total_lost_sales),
+            "profit": profit,
+            "waste": waste,
+            "stockout": stockout,
             "wall_s": float(elapsed),
             "error": None,
         }
@@ -240,7 +287,10 @@ def evaluate_soo_jobs(
 
 
 __all__ = [
-    "TUNE_ARM",
+    "DEFAULT_BELIEF_WORLD",
+    "DEFAULT_FILTER_N",
+    "DEFAULT_OBS_PRESET",
+    "DEFAULT_TUNE_ARM",
     "DampedSwSooBudgets",
     "aggregate_soo_shards",
     "build_soo_jobs",

@@ -35,6 +35,7 @@ from blueberries_voi.sim.bakeoff_rollout import RolloutPolicy
 from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
+from blueberries_voi.sim.service import service_metrics_from_steps
 from blueberries_voi.sim.shipments import (
     DEFAULT_ARRIVAL_PRODUCT,
     mod21_demo_shipments,
@@ -90,6 +91,8 @@ class AlphaTuneEpisodeOutcomes:
     profit: float
     total_waste: int
     total_lost_sales: int
+    fill_rate: float
+    day_no_stockout_rate: float
 
 
 def _scored_outcomes(
@@ -97,10 +100,13 @@ def _scored_outcomes(
 ) -> AlphaTuneEpisodeOutcomes:
     waste = sum(day.waste_total for day in episode.scored)
     lost = sum(max(0, day.demand - day.sales_total) for day in episode.scored)
+    service = service_metrics_from_steps(episode.scored)
     return AlphaTuneEpisodeOutcomes(
         profit=float(episode_profit(episode, costs)),
         total_waste=int(waste),
         total_lost_sales=int(lost),
+        fill_rate=float(service.fill_rate),
+        day_no_stockout_rate=float(service.day_no_stockout_rate),
     )
 
 
@@ -273,7 +279,7 @@ def _evaluate_via_rust_kernel(
     if fn is None:
         return None
     times, temps = _shipments_wire(ships)
-    profit, waste, lost = fn(
+    profit, waste, lost, demand, sales, no_stockout_days = fn(
         arm_id,
         float(alpha),
         int(root_seed),
@@ -295,10 +301,16 @@ def _evaluate_via_rust_kernel(
         demand_profile=_core_demand_profile(params),
         arrival_product=str(arrival_product),
     )
+    fill_rate = float(sales) / float(demand) if demand > 0 else 1.0
+    day_no_stockout_rate = (
+        float(no_stockout_days) / float(n_score) if n_score > 0 else 1.0
+    )
     return AlphaTuneEpisodeOutcomes(
         profit=float(profit),
         total_waste=int(waste),
         total_lost_sales=int(lost),
+        fill_rate=fill_rate,
+        day_no_stockout_rate=day_no_stockout_rate,
     )
 
 

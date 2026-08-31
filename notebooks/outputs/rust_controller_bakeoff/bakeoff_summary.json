@@ -1,0 +1,25 @@
+{
+  "n_burn": 2,
+  "n_score": 45,
+  "horizon_days": 47,
+  "filtered_obs": "F3",
+  "obs_channels": {
+    "code_type": "gsin",
+    "scan_waste": true,
+    "delivery_history": "temperature_history"
+  },
+  "arm_rhos": {
+    "constant": 0.8,
+    "sw": 0.7093549234972596,
+    "sla_pb": 0.5
+  },
+  "arm_alphas": {
+    "constant": 0.1,
+    "sw": 0.8884534050211136,
+    "sla_pb": 0.9783958765478138
+  },
+  "tuned_alpha_f3_path": "experiments/tuned_alpha_f3_filtered.json",
+  "bo_wall_s": 515.9393472159863,
+  "filtered_modal_wall_s": 15.508774312998867,
+  "filtered_shards": 30
+}

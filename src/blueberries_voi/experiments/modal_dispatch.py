@@ -22,6 +22,22 @@ from blueberries_voi.experiments.channel_joint import (
     channel_joint_job_grid,
     merge_channel_joint_rows,
 )
+from blueberries_voi.experiments.controller_bakeoff import (
+    DEFAULT_CONTROLLER_SEEDS,
+    arms_for_belief_world,
+    belief_world_from_env,
+    controller_bakeoff_job_grid,
+    merge_controller_bakeoff_rows,
+)
+from blueberries_voi.experiments.controller_bakeoff import (
+    DEFAULT_N_BURN as CTRL_N_BURN,
+)
+from blueberries_voi.experiments.controller_bakeoff import (
+    DEFAULT_N_SCORE as CTRL_N_SCORE,
+)
+from blueberries_voi.experiments.controller_bakeoff import (
+    DEFAULT_RHO as CTRL_RHO,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_N_DAYS,
     DEFAULT_SEEDS,
@@ -57,7 +73,14 @@ from blueberries_voi.filter.types import (
 )
 
 BatchMode = Literal["modal", "local"]
-BatchJob = Literal["nb13", "gsin", "voi_profit", "rollout_eval", "channel_joint"]
+BatchJob = Literal[
+    "nb13",
+    "gsin",
+    "voi_profit",
+    "rollout_eval",
+    "channel_joint",
+    "controller_bakeoff",
+]
 
 __all__ = ["BatchJob", "BatchMode", "run_batch"]
 
@@ -212,6 +235,24 @@ def _run_local(
         )
         return rows
 
+    if job == "controller_bakeoff":
+        seeds = tuple(kwargs.get("seeds", DEFAULT_CONTROLLER_SEEDS))
+        belief_world = str(kwargs.get("belief_world", belief_world_from_env()))
+        arms = tuple(kwargs.get("arms", arms_for_belief_world(belief_world)))
+        rho = float(kwargs.get("rho", CTRL_RHO))
+        if smoke:
+            seeds = _smoke_seeds(seeds)
+            arms = (str(arms[0]),)
+        return local_runner.run_controller_bakeoff_local(
+            out_path or Path("/tmp/controller_bakeoff_rows.json"),
+            seeds=seeds,
+            arms=arms,
+            rho=rho,
+            budgets=kwargs,
+            max_workers=kwargs.get("max_workers"),
+            progress=progress,
+        )
+
     assert_never(job)
 
 
@@ -242,6 +283,7 @@ def _run_modal(
     voi_oracle_profit_shard = app_mod.voi_oracle_profit_shard
     rollout_eval_shard = app_mod.rollout_eval_shard
     channel_joint_shard = app_mod.channel_joint_shard
+    controller_bakeoff_shard = app_mod.controller_bakeoff_shard
 
     with app.run():
         if job == "nb13":
@@ -338,6 +380,33 @@ def _run_modal(
             _write_optional_json(rows, out_path)
             return rows
 
+        if job == "controller_bakeoff":
+            seeds = tuple(kwargs.get("seeds", DEFAULT_CONTROLLER_SEEDS))
+            belief_world = str(kwargs.get("belief_world", belief_world_from_env()))
+            arms = tuple(kwargs.get("arms", arms_for_belief_world(belief_world)))
+            rho = float(kwargs.get("rho", CTRL_RHO))
+            if smoke:
+                seeds = _smoke_seeds(seeds)
+                arms = (str(arms[0]),)
+            budgets = _controller_bakeoff_budgets_dict(kwargs, smoke=smoke)
+            # F3 tuned alpha/rho on remote via BLUEBERRIES_VOI_TUNED_ALPHA_F3.
+            budgets.pop("alpha_table_path", None)
+            ctrl_grid = controller_bakeoff_job_grid(
+                seeds,
+                arms,
+                rho,
+                belief_world=belief_world,
+                alpha_table_path=kwargs.get("alpha_table_path"),
+            )
+            handles = [
+                controller_bakeoff_shard.spawn(seed, arm, rho_cell, budgets)
+                for seed, arm, rho_cell in ctrl_grid
+            ]
+            shards = _collect_handles(handles, progress=progress)
+            rows = merge_controller_bakeoff_rows(shards)
+            _write_optional_json(rows, out_path)
+            return rows
+
     assert_never(job)
 
 
@@ -395,6 +464,28 @@ def _rollout_budgets_dict(kwargs: dict[str, Any], *, smoke: bool) -> dict[str, A
     }
 
 
+def _controller_bakeoff_budgets_dict(
+    kwargs: dict[str, Any], *, smoke: bool
+) -> dict[str, Any]:
+    n_burn = int(kwargs.get("n_burn", CTRL_N_BURN))
+    n_score = int(kwargs.get("n_score", CTRL_N_SCORE))
+    if smoke:
+        n_burn = min(n_burn, 1)
+        n_score = min(n_score, 2)
+    out: dict[str, Any] = {
+        "n_burn": n_burn,
+        "n_score": n_score,
+        "belief_world": str(kwargs.get("belief_world", belief_world_from_env())),
+        "filter_n": int(kwargs.get("filter_n", 24)),
+        "n_sla_paths": int(kwargs.get("n_sla_paths", 16)),
+        "alpha": kwargs.get("alpha"),
+        "alpha_table_path": kwargs.get("alpha_table_path"),
+    }
+    if "n_sla_paths" in kwargs:
+        out["n_sla_paths"] = int(kwargs["n_sla_paths"])
+    return out
+
+
 def _collect_handles(handles: list[Any], *, progress: bool) -> list[dict[str, Any]]:
     total = len(handles)
     if total == 0:
@@ -403,7 +494,7 @@ def _collect_handles(handles: list[Any], *, progress: bool) -> list[dict[str, An
         return [h.get() for h in handles]
     shards: list[dict[str, Any]] = []
     with (
-        ThreadPoolExecutor(max_workers=min(32, total)) as pool,
+        ThreadPoolExecutor(max_workers=total) as pool,
         tqdm(total=total, desc="modal batch", unit="shard") as bar,
     ):
         futs = {pool.submit(h.get): i for i, h in enumerate(handles)}

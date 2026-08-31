@@ -58,7 +58,9 @@ _GSIN_BIN = _repo_relative_path(
     _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
 )
 _TUNED_ALPHA = _REPO / "experiments" / "tuned_alpha.json"
+_TUNED_ALPHA_F3 = _REPO / "experiments" / "tuned_alpha_f3_filtered.json"
 _REMOTE_TUNED_ALPHA = "/experiments/tuned_alpha.json"
+_REMOTE_TUNED_ALPHA_F3 = "/experiments/tuned_alpha_f3_filtered.json"
 
 _WHEEL_REMOTE = f"/tmp/{WHEEL_PATH.name}"
 
@@ -77,6 +79,10 @@ if modal.is_local():
         )
     if _TUNED_ALPHA.is_file():
         image = image.add_local_file(str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True)
+    if _TUNED_ALPHA_F3.is_file():
+        image = image.add_local_file(
+            str(_TUNED_ALPHA_F3), _REMOTE_TUNED_ALPHA_F3, copy=True
+        )
     image = image.run_commands(
         f"pip install {_WHEEL_REMOTE}",
         (
@@ -92,6 +98,7 @@ if modal.is_local():
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
             "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
+            "BLUEBERRIES_VOI_TUNED_ALPHA_F3": _REMOTE_TUNED_ALPHA_F3,
         }
     )
 else:
@@ -101,6 +108,7 @@ else:
             "BLUEBERRIES_VOI_BACKEND": "rust",
             "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
             "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
+            "BLUEBERRIES_VOI_TUNED_ALPHA_F3": _REMOTE_TUNED_ALPHA_F3,
         }
     )
 
@@ -183,6 +191,27 @@ def rollout_eval_shard(
     from blueberries_voi.experiments.rollout_bakeoff import run_rollout_eval
 
     return run_rollout_eval(seed, arm_id, alpha, rho, **budgets_dict)
+
+
+@app.function(timeout=600, cpu=1.0)
+def controller_bakeoff_shard(
+    seed: int,
+    arm_id: str,
+    rho: float,
+    budgets_dict: dict[str, Any],
+) -> dict[str, Any]:
+    from blueberries_voi.experiments.controller_bakeoff import run_controller_eval
+
+    kw = dict(budgets_dict)
+    kw.pop("rho", None)
+    belief_world = str(kw.pop("belief_world", "oracle"))
+    return run_controller_eval(
+        seed,
+        arm_id,
+        float(rho),
+        belief_world=belief_world,
+        **kw,
+    )
 
 
 @app.function(timeout=600, cpu=1.0)

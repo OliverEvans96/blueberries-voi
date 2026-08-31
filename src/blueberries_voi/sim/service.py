@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class _StepLike(Protocol):
@@ -20,7 +23,7 @@ class ServiceMetrics:
     scored_days: int
 
 
-def service_metrics_from_steps(steps: list[_StepLike]) -> ServiceMetrics:
+def service_metrics_from_steps(steps: Sequence[_StepLike]) -> ServiceMetrics:
     """Aggregate fill rate and Pr(no stockout) from per-day controller logs."""
     if not steps:
         return ServiceMetrics(fill_rate=0.0, day_no_stockout_rate=0.0, scored_days=0)

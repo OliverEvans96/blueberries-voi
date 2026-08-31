@@ -12,6 +12,20 @@ from blueberries_voi.experiments.channel_joint import (
     channel_joint_job_grid,
     merge_channel_joint_rows,
 )
+from blueberries_voi.experiments.controller_bakeoff import (
+    BAKEOFF_ARMS,
+    DEFAULT_CONTROLLER_SEEDS,
+    arms_for_belief_world,
+    controller_bakeoff_job_grid,
+    merge_controller_bakeoff_rows,
+    resolve_arm_alpha,
+    resolve_arm_rho,
+)
+from blueberries_voi.experiments.damped_sw_soo import (
+    DampedSwSooBudgets,
+    build_soo_jobs,
+    run_soo_shard,
+)
 from blueberries_voi.experiments.filter_accuracy import (
     DEFAULT_SEEDS,
     all_channel_combos,
@@ -34,6 +48,7 @@ from blueberries_voi.experiments.rollout_bakeoff import (
 )
 from blueberries_voi.experiments.voi_profit import (
     DEFAULT_PROFIT_SEEDS,
+    load_damped_sw_bo_params,
     merge_voi_profit_rows,
     run_seed_channel_profit,
     voi_profit_job_grid,
@@ -307,6 +322,84 @@ def test_best_alpha_per_arm_picks_highest_mean() -> None:
     assert best_alpha_per_arm(rows, "sw") == pytest.approx(0.8)
 
 
+def test_controller_bakeoff_job_grid_size() -> None:
+    grid = controller_bakeoff_job_grid(DEFAULT_CONTROLLER_SEEDS[:2], BAKEOFF_ARMS, 0.8)
+    assert len(grid) == 2 * len(BAKEOFF_ARMS)
+
+
+def test_controller_bakeoff_filtered_arms_exclude_rung0() -> None:
+    filtered = arms_for_belief_world("filtered")
+    assert "rung0" not in filtered
+    assert "rollout" not in filtered
+    assert len(arms_for_belief_world("oracle")) == 4
+
+
+def test_resolve_arm_rho_sla_pb_uses_bo_tuned_rho() -> None:
+    _, sw_rho = load_damped_sw_bo_params()
+    assert resolve_arm_rho("sla_pb") == pytest.approx(0.5)
+    assert resolve_arm_rho("sw") == pytest.approx(sw_rho)
+
+
+def test_controller_bakeoff_job_grid_per_arm_rho() -> None:
+    _, sw_rho = load_damped_sw_bo_params()
+    grid = controller_bakeoff_job_grid((42,), ("sw", "sla_pb"), 0.8)
+    rhos = {arm: rho for _, arm, rho in grid}
+    assert rhos["sw"] == pytest.approx(sw_rho)
+    assert rhos["sla_pb"] == pytest.approx(0.5)
+
+
+def test_merge_controller_bakeoff_rows_dedup() -> None:
+    shards = [
+        {
+            "seed": 42,
+            "arm_id": "sw",
+            "belief_world": "oracle",
+            "alpha": 0.9,
+            "rho": 0.8,
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "elapsed_s": 0.5,
+        },
+        {
+            "seed": 42,
+            "arm_id": "sw",
+            "belief_world": "oracle",
+            "alpha": 0.9,
+            "rho": 0.8,
+            "profit": 10.0,
+            "waste": 1,
+            "stockout": 0,
+            "elapsed_s": 0.5,
+        },
+        {
+            "seed": 7,
+            "arm_id": "sla_pb",
+            "belief_world": "oracle",
+            "alpha": 0.95,
+            "rho": 0.8,
+            "profit": 12.0,
+            "waste": 2,
+            "stockout": 1,
+            "elapsed_s": 0.02,
+        },
+    ]
+    rows = merge_controller_bakeoff_rows(shards)
+    assert len(rows) == 2
+    sw_row = next(r for r in rows if r["arm_id"] == "sw")
+    assert sw_row["elapsed_s"] == pytest.approx(0.5)
+
+
+def test_modal_controller_bakeoff_grid_dry_run() -> None:
+    pytest.importorskip("modal")
+    grid = controller_bakeoff_job_grid((42,), arms_for_belief_world("oracle"), 0.8)
+    args = [
+        (seed, arm, rho, {"n_burn": 2, "n_score": 14, "belief_world": "oracle"})
+        for seed, arm, rho in grid
+    ]
+    assert len(args) == len(BAKEOFF_ARMS)
+
+
 def test_gsin_cells_subset_grid() -> None:
     cells = [(2, 0), (3, 1)]
     assert len(cells) == 2
@@ -366,3 +459,103 @@ def test_modal_app_wheel_path_relative_to_repo(
     assert app_mod.WHEEL_PATH.parent == wheel_dir.resolve()
     assert app_mod._TUNED_ALPHA.is_file()
     assert app_mod._REMOTE_TUNED_ALPHA == "/experiments/tuned_alpha.json"
+
+
+def test_f3_filtered_soo_job_payload_includes_belief_world() -> None:
+    budgets = DampedSwSooBudgets(
+        n_burn=2,
+        n_score=3,
+        lead_time=1,
+        unit_margin=2.0,
+        waste_cost=5.0,
+        stockout_penalty=3.0,
+        demand_mu=30.0,
+        demand_vm=2.0,
+        case_size=8,
+        use_calendar_demand=False,
+        demand_profile_path="",
+        arrival_product="abdella_mix",
+        belief_world="filtered",
+        obs_preset="F3",
+    )
+    jobs = build_soo_jobs({0: {"alpha": 0.9, "rho": 0.8}}, [42], budgets, tune_arm="sw")
+    assert len(jobs) == 1
+    assert jobs[0]["belief_world"] == "filtered"
+    assert jobs[0]["obs_preset"] == "F3"
+    assert jobs[0]["tune_arm"] == "sw"
+
+
+@_RUST
+def test_run_soo_shard_filtered_f3_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BLUEBERRIES_VOI_BACKEND", "rust")
+    job = {
+        "trial_index": 0,
+        "alpha": 0.9,
+        "rho": 0.8,
+        "root_seed": 42,
+        "tune_arm": "constant",
+        "n_burn": 1,
+        "n_score": 2,
+        "belief_world": "filtered",
+        "obs_preset": "F3",
+        "filter_n": 24,
+        "unit_margin": 2.0,
+        "waste_cost": 5.0,
+        "stockout_penalty": 3.0,
+    }
+    out = run_soo_shard(job)
+    assert out["ok"] is True
+    assert isinstance(out["profit"], float)
+
+
+def test_resolve_arm_alpha_rho_filtered_f3_artifact(tmp_path: Path) -> None:
+    from blueberries_voi.sim.alpha_tune import save_tuned_alpha_table
+
+    f3_path = tmp_path / "tuned_alpha_f3_filtered.json"
+    save_tuned_alpha_table(
+        f3_path,
+        {"constant": 0.55, "sw": 0.88, "sla_pb": 0.72},
+        header={
+            "rhos": {"constant": 0.8, "sw": 0.75, "sla_pb": 0.55},
+        },
+    )
+    assert resolve_arm_alpha(
+        "sw", alpha_table_path=f3_path, belief_world="filtered"
+    ) == pytest.approx(0.88)
+    assert resolve_arm_rho(
+        "sla_pb", alpha_table_path=f3_path, belief_world="filtered"
+    ) == pytest.approx(0.55)
+    grid = controller_bakeoff_job_grid(
+        (42,),
+        ("sw", "sla_pb"),
+        0.8,
+        alpha_table_path=f3_path,
+        belief_world="filtered",
+    )
+    rhos = {arm: rho for _, arm, rho in grid}
+    assert rhos["sw"] == pytest.approx(0.75)
+    assert rhos["sla_pb"] == pytest.approx(0.55)
+
+
+def test_modal_f3_filtered_soo_grid_dry_run() -> None:
+    pytest.importorskip("modal")
+    budgets = DampedSwSooBudgets(
+        n_burn=2,
+        n_score=28,
+        lead_time=1,
+        unit_margin=2.0,
+        waste_cost=5.0,
+        stockout_penalty=3.0,
+        demand_mu=30.0,
+        demand_vm=2.0,
+        case_size=8,
+        use_calendar_demand=True,
+        demand_profile_path="/data/freshnet/demand_profile.json",
+        arrival_product="abdella_mix",
+        belief_world="filtered",
+        obs_preset="F3",
+    )
+    trials = {0: {"alpha": 0.9, "rho": 0.8}, 1: {"alpha": 0.7, "rho": 0.6}}
+    jobs = build_soo_jobs(trials, [1, 2], budgets, tune_arm="sla_pb")
+    assert len(jobs) == 4
+    assert all(j["belief_world"] == "filtered" for j in jobs)

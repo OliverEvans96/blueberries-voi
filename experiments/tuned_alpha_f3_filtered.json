@@ -1,0 +1,21 @@
+{
+  "alphas": {
+    "constant": 0.1,
+    "sw": 0.8884534050211136,
+    "sla_pb": 0.9783958765478138
+  },
+  "header": {
+    "belief_world": "filtered",
+    "obs_preset": "F3",
+    "bo_source": "experiments/f3_filtered_alpha_bo.json",
+    "rhos": {
+      "constant": 0.8,
+      "sw": 0.7093549234972596,
+      "sla_pb": 0.5
+    },
+    "n_burn": 2,
+    "n_score": 28,
+    "bo_episode_note": "BO scored at n_score=28; controller bakeoff uses n_score=45",
+    "generated_from_commit": "5017f12f"
+  }
+}
