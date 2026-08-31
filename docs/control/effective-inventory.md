@@ -8,8 +8,6 @@ sources:
 
 Before the store can decide how much to order, it needs one number that answers "how much protection against running out do I already have?" Just counting units on the shelf overstates that protection, because a unit that's nearly spoiled barely helps tomorrow's customers. **Effective inventory**, $\tilde I$, is that number done right: every unit counted in proportion to how much sellable life it has left, not as a flat $1$.
 
-![Raw unit counts vs freshness-weighted totals for one shelf's lots](/figures/effective-inventory-bars.png)
-
 ## The idea
 
 Picture two shelves, each with 10 units. Shelf A's units are freshly delivered — freshness $f$ near 1 for every unit. Shelf B's units have been sitting for a while — freshness $f$ near 0.2, close to spoiling. Both shelves report "10 units on hand," but they don't offer the same protection against a busy day: Shelf B's units will mostly be gone, sold or spoiled, well before Shelf A's would be. A policy that orders off raw unit counts would treat the two shelves identically and under-order for Shelf B.
@@ -44,13 +42,13 @@ The project uses a single, unit-level freshness coordinate $f$ end-to-end: groun
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Effective inventory (Rust) | $\tilde I$ | `crates/voi_core/src/policy.rs:179` ([`effective_inventory_f_belief`](/api/rust/voi_core/policy/fn.effective_inventory_f_belief.html)) |
+| Effective inventory (Rust) | $\tilde I$ | `crates/voi_core/src/policy.rs:217` ([`effective_inventory_f_belief`](/api/rust/voi_core/policy/fn.effective_inventory_f_belief.html)) |
 | Effective inventory (Python) | $\tilde I$ | `src/blueberries_voi/filter/belief.py:131` (`effective_inventory`) |
-| Effective inventory (TypeScript, studio charts) | $\tilde I$ | `web/src/charts/inventoryTarget.ts:99` (`effectiveInventoryFromFlatBelief`) |
-| Per-lot expected freshness loop | $\mathbb{E}[f \mid \ell] = \sum_k p_{\ell k} f_k$ | `crates/voi_core/src/policy.rs:189-196` (inline accumulation inside `effective_inventory_f_belief`) |
-| Lot counts (expected alive units per lot) | $n_\ell$ | `crates/voi_core/src/policy.rs:180` (`lot_counts` parameter) |
-| Freshness histogram (bin masses, bin centers) | $p_{\ell k}$, $f_k$ | `crates/voi_core/src/policy.rs:181-182` (`f_marginals`, `f_grid` parameters) |
-| Pipeline term | $q_{\text{pipeline}} \, f_{\text{pipe}}$ | `crates/voi_core/src/policy.rs:183-184, 197` (`pending_sum`, `f_pipeline_default`) |
+| Effective inventory (TypeScript, studio charts) | $\tilde I$ | `web/src/charts/inventoryTarget.ts:67` (`effectiveInventoryFromFlatBelief`) |
+| Per-lot expected freshness loop | $\mathbb{E}[f \mid \ell] = \sum_k p_{\ell k} f_k$ | `crates/voi_core/src/policy.rs:227-234` (inline accumulation inside `effective_inventory_f_belief`) |
+| Lot counts (expected alive units per lot) | $n_\ell$ | `crates/voi_core/src/policy.rs:218` (`lot_counts` parameter) |
+| Freshness histogram (bin masses, bin centers) | $p_{\ell k}$, $f_k$ | `crates/voi_core/src/policy.rs:219-220` (`f_marginals`, `f_grid` parameters) |
+| Pipeline term | $q_{\text{pipeline}} \, f_{\text{pipe}}$ | `crates/voi_core/src/policy.rs:221-222, 235` (`pending_sum`, `f_pipeline_default`) |
 
 ## Caveats
 

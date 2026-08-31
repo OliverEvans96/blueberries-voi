@@ -8,11 +8,9 @@ sources:
 
 Every day, the particle filter turns yesterday's belief plus today's observation into
 today's belief. It does this by running the *same* four-stage update — spoilage, sales,
-birth, resample — on every particle in the bank, whether the store scans a pooled UPC
+resample, birth — on every particle in the bank, whether the store scans a pooled UPC
 code or a per-lot GSIN code. This page walks through those four stages once, in order,
 so the other inference pages can point back at it instead of re-deriving the mechanics.
-
-![Filter-tracked freshness belief against ground truth over a multi-week episode](/figures/one-filter-day-belief-tracks.png)
 
 ## The idea
 
@@ -32,13 +30,14 @@ A day breaks into four moves, always in this order:
    particle actually has enough live stock to cover the sales, optionally scores how
    sales split across lots (only possible if lots are separately identified), and then
    removes the sold units from the particle's state.
-3. **Birth.** A new delivery arrives as one new lot, and each of its units gets a
-   starting freshness drawn from the arrival law appropriate to what this observation
-   scenario knows about the shipment (see [Birth freshness](/inference/birth-freshness)).
-4. **Resample and retire.** Particles that explained the day well get copied more often
-   than particles that explained it poorly; particles that are completely inconsistent
-   with the day's evidence get dropped. Lots that no particle believes still hold a live
-   unit are quietly retired from every row.
+3. **Resample.** Particles that explained the day well get copied more often than
+   particles that explained it poorly; particles that are completely inconsistent with
+   the day's evidence get dropped.
+4. **Birth and retire.** A new delivery arrives as one new lot, and each of its units
+   gets a starting freshness drawn from the arrival law appropriate to what this
+   observation scenario knows about the shipment (see
+   [Birth freshness](/inference/birth-freshness)). Lots that no particle believes still
+   hold a live unit are quietly retired from every row.
 
 The one thing to hold onto: **all of the randomness in a filter day lives in guessing
 which units died, how much the survivors decayed, and which units got sold** — not in
@@ -137,27 +136,27 @@ scales with both the day's death count and the segment size.
 
 | Concept | Symbol | Location |
 | --- | --- | --- |
-| Per-unit spoil probability | $p_i = P(\delta \ge f_i)$ | `crates/voi_core/src/physics.rs:340` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
+| Per-unit spoil probability | $p_i = P(\delta \ge f_i)$ | `crates/voi_core/src/physics.rs:356` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
 | Live-unit spoil-probability vector | $p_1,\dots,p_n$ | `crates/voi_core/src/unit_ll.rs:14` ([`spoil_probs_from_freshness`](/api/rust/voi_core/unit_ll/fn.spoil_probs_from_freshness.html)) |
 | Poisson-binomial log-PMF (DP) | $\log P(W=w)$ | `crates/voi_core/src/unit_ll.rs:27` ([`pb_log_pmf`](/api/rust/voi_core/unit_ll/fn.pb_log_pmf.html)) |
 | GSIN per-lot spoilage likelihood | $\sum_\ell \log P(W_\ell = w_\ell)$ | `crates/voi_core/src/unit_ll.rs:57` ([`pb_loglik_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_loglik_by_lot.html)) |
 | UPC pooled spoilage likelihood | $\log P(W = w_\text{tot})$ | `crates/voi_core/src/unit_ll.rs:82` ([`pb_loglik_pooled`](/api/rust/voi_core/unit_ll/fn.pb_loglik_pooled.html)) |
-| Backward death-set proposal (pooled) | $q(\text{deaths} \mid f, w)$ | `crates/voi_core/src/unit_ll.rs:109` ([`pb_sample_deaths`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths.html)) |
-| Backward death-set proposal (per lot) | — | `crates/voi_core/src/unit_ll.rs:179` ([`pb_sample_deaths_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths_by_lot.html)) |
-| Truncated survivor decrement | $\delta_i \mid \delta_i < f_i$ | `crates/voi_core/src/physics.rs:202` ([`draw_gamma_decrement_truncated`](/api/rust/voi_core/physics/fn.draw_gamma_decrement_truncated.html)) |
-| Apply deaths + truncated survivor aging | — | `crates/voi_core/src/unit_ll.rs:210` ([`apply_pb_aging_proposal`](/api/rust/voi_core/unit_ll/fn.apply_pb_aging_proposal.html)) |
-| Unconditional aging (no waste observed) | — | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
-| Picking weight | $w_i \propto \max(f_i,0)^\sigma$ | `crates/voi_core/src/physics.rs:360` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
-| Per-lot picking share | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:231` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
-| Cross-lot multinomial term | $\text{Multinomial}(\cdot)$ | `crates/voi_core/src/unit_ll.rs:252` ([`multinomial_log_pmf`](/api/rust/voi_core/unit_ll/fn.multinomial_log_pmf.html)) |
-| GSIN sales feasibility + allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:321` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
+| Backward death-set proposal (pooled) | $q(\text{deaths} \mid f, w)$ | `crates/voi_core/src/unit_ll.rs:88` ([`pb_sample_deaths`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths.html)) |
+| Backward death-set proposal (per lot) | — | `crates/voi_core/src/unit_ll.rs:158` ([`pb_sample_deaths_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths_by_lot.html)) |
+| Truncated survivor decrement | $\delta_i \mid \delta_i < f_i$ | `crates/voi_core/src/physics.rs:209` ([`draw_gamma_decrement_truncated`](/api/rust/voi_core/physics/fn.draw_gamma_decrement_truncated.html)) |
+| Apply deaths + truncated survivor aging | — | `crates/voi_core/src/unit_ll.rs:189` ([`apply_pb_aging_proposal`](/api/rust/voi_core/unit_ll/fn.apply_pb_aging_proposal.html)) |
+| Unconditional aging (no waste observed) | — | `crates/voi_core/src/physics.rs:252` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
+| Picking weight | $w_i \propto \max(f_i,0)^\sigma$ | `crates/voi_core/src/physics.rs:380` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
+| Per-lot picking share | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:210` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
+| Cross-lot multinomial term | $\text{Multinomial}(\cdot)$ | `crates/voi_core/src/unit_ll.rs:231` ([`multinomial_log_pmf`](/api/rust/voi_core/unit_ll/fn.multinomial_log_pmf.html)) |
+| GSIN sales feasibility + allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:300` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
 | UPC sales feasibility (scoring only) | — | `crates/voi_core/src/unit_pf.rs:429` (`score_sales_evidence`) |
 | Unscored sales removal (unconditional bookkeeping) | — | `crates/voi_core/src/unit_pf.rs:454` (`apply_sales_removal`) |
-| Unscored WOR removal draw | — | `crates/voi_core/src/unit_ll.rs:281` ([`sequential_kernel_path_logprob`](/api/rust/voi_core/unit_ll/fn.sequential_kernel_path_logprob.html)) |
-| Birth: append one lot segment | — | `crates/voi_core/src/unit_pf.rs:109` (`push_lot_births`), called from the birth block at `unit_pf.rs:523` |
-| Systematic resample | — | `crates/voi_core/src/unit_pf.rs:221` ([`systematic_resample`](/api/rust/voi_core/unit_pf/fn.systematic_resample.html)) |
+| Unscored WOR removal draw | — | `crates/voi_core/src/unit_ll.rs:260` ([`sequential_kernel_path_logprob`](/api/rust/voi_core/unit_ll/fn.sequential_kernel_path_logprob.html)) |
+| Birth: append one lot segment | — | `crates/voi_core/src/unit_pf.rs:119` (`push_lot_births`), called from the birth block at `unit_pf.rs:707` |
+| Systematic resample | — | `crates/voi_core/src/unit_pf.rs:229` ([`systematic_resample`](/api/rust/voi_core/unit_pf/fn.systematic_resample.html)) |
 | Retire dead-in-every-particle lots | — | `crates/voi_core/src/unit_pf.rs:134` (`prune_dead_prefix`) |
-| Full day orchestration | — | `crates/voi_core/src/unit_pf.rs:438` ([`filter_step_unit_with_birth_cached`](/api/rust/voi_core/unit_pf/fn.filter_step_unit_with_birth_cached.html)) |
+| Full day orchestration | — | `crates/voi_core/src/unit_pf.rs:577` ([`filter_step_unit_with_birth_cached`](/api/rust/voi_core/unit_pf/fn.filter_step_unit_with_birth_cached.html)) |
 
 ## Caveats
 

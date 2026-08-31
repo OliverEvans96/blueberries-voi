@@ -21,8 +21,6 @@ particular unit's own spoilage happened to run. This is why `FilterObs` (the str
 every observation channel ultimately fills in) has no freshness-valued field at all —
 there is nothing in the wire format for it to fill.
 
-![Conditioning tiers corridor → d → φ̄ → Λ with books-only, lot ID + pack date, and temperature-history scenarios marked](/figures/conditioning-tier-diagram.png)
-
 ## The idea
 
 Picture a pallet of blueberries leaving the farm. Two different instruments could ride
@@ -119,16 +117,16 @@ non-production research path — it is not used by any current observation scena
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Channel-conditional arrival law, mutually exclusive cases | `enum ArrivalCondition { Exposure(f64), Duration(i32), Prior }` | `crates/voi_core/src/arrival.rs:25` |
-| Temperature-history case: conditions on the full exposure $\Lambda$ | `ArrivalCondition::Exposure(f64)` | `crates/voi_core/src/arrival.rs:27` |
-| Pack-date case: conditions on duration $d$ only | `ArrivalCondition::Duration(i32)` | `crates/voi_core/src/arrival.rs:29` |
-| No-delivery-history case: corridor prior only | `ArrivalCondition::Prior` | `crates/voi_core/src/arrival.rs:31` |
-| Exact $\Lambda$ from an observed trace (the temperature-history integral) | `resolve_arrival_exposure(obs_temps, obs_times, q10, t_ref)` | `crates/voi_core/src/arrival.rs:776` |
-| $P(f>x \mid \Lambda)$ / $P(f=0 \mid \Lambda)$ | `ArrivalModel::p_f_gt_at`, `ArrivalModel::p_f_zero` | `crates/voi_core/src/arrival.rs:400`, `crates/voi_core/src/arrival.rs:426` |
-| $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$ | `store_temp_factor(t_store_c, t_ref_c, q10)` | `crates/voi_core/src/physics.rs:31` |
-| Filter's own choice of condition, per-day, from `FilterObs` | `resolve_arrival_f_law(obs, params)` | `crates/voi_core/src/unit_pf.rs:287` |
-| No freshness-valued field on the wire | `struct FilterObs { .. temp_times_d, temp_temps_c, pack_date_days .. }` (no `f` field) | `crates/voi_core/src/obs.rs:60` |
-| Retired age↔freshness mapping (legacy Weibull salvage path only, not a production observation scenario) | `age_to_f`, `f_to_age` | `crates/voi_core/src/physics.rs:15`, `crates/voi_core/src/physics.rs:23` (used at `crates/voi_core/src/rollout.rs:90`) |
+| Channel-conditional arrival law, mutually exclusive cases | `enum ArrivalCondition { Exposure(f64), Duration(i32), Prior }` | `crates/voi_core/src/arrival.rs:75` |
+| Temperature-history case: conditions on the full exposure $\Lambda$ | `ArrivalCondition::Exposure(f64)` | `crates/voi_core/src/arrival.rs:77` |
+| Pack-date case: conditions on duration $d$ only | `ArrivalCondition::Duration(i32)` | `crates/voi_core/src/arrival.rs:79` |
+| No-delivery-history case: corridor prior only | `ArrivalCondition::Prior` | `crates/voi_core/src/arrival.rs:81` |
+| Exact $\Lambda$ from an observed trace (the temperature-history integral) | `resolve_arrival_exposure(obs_temps, obs_times, q10, t_ref)` | `crates/voi_core/src/arrival.rs:2334` |
+| $P(f>x \mid \Lambda)$ / $P(f=0 \mid \Lambda)$ | `ArrivalModel::p_f_gt_at`, `ArrivalModel::p_f_zero` | `crates/voi_core/src/arrival.rs:1297`, `crates/voi_core/src/arrival.rs:1324` |
+| $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$ | `store_temp_factor(t_store_c, t_ref_c, q10)` | `crates/voi_core/src/physics.rs:38` |
+| Filter's own choice of condition, per-day, from `FilterObs` | `resolve_arrival_f_law(obs, q10, t_ref)` | `crates/voi_core/src/unit_pf.rs:298` |
+| No freshness-valued field on the wire | `struct FilterObs { .. temp_times_d, temp_temps_c, pack_date_days .. }` (no `f` field) | `crates/voi_core/src/obs.rs:90` |
+| Retired age↔freshness mapping (legacy Weibull salvage path only, not a production observation scenario) | `age_to_f`, `f_to_age` | `crates/voi_core/src/physics.rs:19`, `crates/voi_core/src/physics.rs:30` (used at `crates/voi_core/src/rollout.rs:111`) |
 
 ## Caveats
 

@@ -8,8 +8,6 @@ sources:
 
 A unit becomes waste the moment its freshness hits zero — no separate coin flip, no shared store-wide event, just one unit's own daily freshness draw running out. This page covers how that's tracked in the simulator: which unit spoiled, when, and in which lot, all of which feed the waste counts a store (and its filter) actually gets to see.
 
-![Small multiples: ~15 units in one lot crossing f = 0 on different days](/figures/spoilage-freshness-paths.png)
-
 ## The idea
 
 Every alive unit loses a random amount of freshness each day (see [how fruit ages](/store/gamma-aging) for the full mechanism), and that random amount is drawn **independently for every unit** — not once for the whole store, and not once per lot. A lot that arrives with fifteen units all at freshness $0.85$ doesn't stay a tidy, uniform block: over the following days, some units in that lot get unlucky draws and lose freshness fast, others get lucky and barely change, and the lot spreads out. A unit is marked **spoiled** — removed from what can be sold, counted as waste — the instant its own freshness crosses zero, whatever day that happens to be for that particular unit.
@@ -44,13 +42,13 @@ Drawing an independent decrement for every unit, rather than one shared decremen
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Independent per-unit daily decrement (production ground truth) | $\Delta_i$ | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
-| Apply one decrement, clamp at 0 | $f \leftarrow \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
-| Spoil cause code on a per-unit exit record | `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:34` |
-| Detect newly-spoiled units (before/after comparison) | `waste_by[ℓ]` | `crates/voi_core/src/day_step.rs:98` (`count_spoil_by_lot`) |
-| Per-unit spoiled-exit records (unit id, freshness at spoil, cause) | — | `crates/voi_core/src/day_step.rs:114` (`spoil_unit_exits`) |
-| Deterministic shared-decrement path (tests only) | — | `crates/voi_core/src/day_step.rs:89` (`apply_gamma_step`, `gamma_decrement: Some(d)` branch) |
-| Precomputed spoil-probability table for the current parameters | $P(\delta \ge f)$ | `crates/voi_core/src/physics.rs:340` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
+| Independent per-unit daily decrement (production ground truth) | $\Delta_i$ | `crates/voi_core/src/physics.rs:252` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
+| Apply one decrement, clamp at 0 | $f \leftarrow \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:230` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
+| Spoil cause code on a per-unit exit record | `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:40` |
+| Detect newly-spoiled units (before/after comparison) | `waste_by[ℓ]` | `crates/voi_core/src/day_step.rs:120` (`count_spoil_by_lot`) |
+| Per-unit spoiled-exit records (unit id, freshness at spoil, cause) | — | `crates/voi_core/src/day_step.rs:138` (`spoil_unit_exits`) |
+| Deterministic shared-decrement path (tests only) | — | `crates/voi_core/src/day_step.rs:103` (`apply_gamma_step`, `gamma_decrement: Some(d)` branch) |
+| Precomputed spoil-probability table for the current parameters | $P(\delta \ge f)$ | `crates/voi_core/src/physics.rs:356` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
 
 ## Caveats
 

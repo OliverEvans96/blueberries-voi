@@ -17,8 +17,6 @@ the model — there is no fourth channel and no way to observe freshness directl
 Understanding this grid helps in reading the rest of this section, since the seven named
 [observation scenarios](./observation-scenarios.md) are just labels for points on it.
 
-![Three channel axes with named presets highlighted on the 12-combination grid](/figures/obs-channel-grid-presets.png)
-
 ## The idea
 
 Think of a grocer choosing hardware and process. There are three independent switches:
@@ -116,12 +114,12 @@ for exactly where this shows up.
 | Channel triple (the three switches) | `ObsChannels { code_type, scan_waste, delivery_history }` | `crates/voi_core/src/obs.rs:32` |
 | POS code-type switch | `CodeType::{Upc, Gsin}` | `crates/voi_core/src/obs.rs:46` |
 | Delivery-history switch | `DeliveryHistory::{None, PackDate, TemperatureHistory}` | `crates/voi_core/src/obs.rs:56` |
-| Masked observation (journey fields gated by mask) | `FilterObs` (`pack_date_days`, `temp_times_d`, `temp_temps_c`, `arrival_lot_ids`) | `crates/voi_core/src/obs.rs:84` |
-| Channels → observation mask | `mask_from_channels(ch: ObsChannels) -> ObsMask` | `crates/voi_core/src/obs.rs:261` |
-| All 12 combinations exercised | `mask_from_channels_all_twelve_combos` (test) | `crates/voi_core/src/obs.rs:434` |
-| Waste granularity coupled to code type | `if ch.code_type == CodeType::Gsin { m.waste_by_lot = true }` | `crates/voi_core/src/obs.rs:274` |
-| TypeScript port (studio UI) | `ObsChannels`, `maskFromChannels`, `temp_traces_by_lot` on wire | `web/src/obsMask.ts:20`, `web/src/obsMask.ts:131`, `web/src/obsMask.ts:45` |
-| Python port (research path) | `ObsChannels` dataclass | `src/blueberries_voi/filter/types.py:160` |
+| Masked observation (journey fields gated by mask) | `FilterObs` (`pack_date_days`, `temp_times_d`, `temp_temps_c`, `arrival_lot_ids`) | `crates/voi_core/src/obs.rs:90` |
+| Channels → observation mask | `mask_from_channels(ch: ObsChannels) -> ObsMask` | `crates/voi_core/src/obs.rs:276` |
+| All 12 combinations exercised | `mask_from_channels_all_twelve_combos` (test) | `crates/voi_core/src/obs.rs:480` |
+| Waste granularity coupled to code type | `if ch.code_type == CodeType::Gsin { m.waste_by_lot = true }` | `crates/voi_core/src/obs.rs:290` |
+| TypeScript port (studio UI) | `ObsChannels`, `maskFromChannels`, `temp_traces_by_lot` on wire | `web/src/obsMask.ts:20`, `web/src/obsMask.ts:132`, `web/src/obsMask.ts:46` |
+| Python port (research path) | `ObsChannels` dataclass | `src/blueberries_voi/filter/types.py:162` |
 
 ## Caveats
 

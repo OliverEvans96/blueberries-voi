@@ -14,8 +14,6 @@ the store more money once it's plugged into the ordering decision. The honest cu
 answer: at today's experiment budgets, mostly not, or at least not in a way that's been
 measured cleanly yet.
 
-![Box/strip plot of closed-loop profit per observation scenario across many seeds](/figures/profit-by-scenario-boxplot.png)
-
 ## The idea
 
 Belief accuracy isn't what the store actually cares about — profit is. So take the same
@@ -86,8 +84,8 @@ not established facts — none has been isolated and confirmed as the cause:
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Damped survival-weighted order from belief | `damped_sw_order_f_belief(...)` | `crates/voi_core/src/policy.rs:201` |
-| Single-scalar reduction of the freshness belief consumed by the policy | `effective_inventory_f_belief(...)` | `crates/voi_core/src/policy.rs:179` |
+| Damped survival-weighted order from belief | `damped_sw_order_f_belief(...)` | `crates/voi_core/src/policy.rs:246` |
+| Single-scalar reduction of the freshness belief consumed by the policy | `effective_inventory_f_belief(...)` | `crates/voi_core/src/policy.rs:217` |
 | Uncalibrated shared profit-cost scaffold | `DEFAULT_PROFIT_COSTS` | see [Profit accounting](/economics/profit-accounting) for the Rust/Python cost model |
 
 ## Caveats

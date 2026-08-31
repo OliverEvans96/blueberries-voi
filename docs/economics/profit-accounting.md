@@ -8,8 +8,6 @@ sources:
 
 Every simulated day distills down to one number: the profit that day's decisions produced. It's not just "money in minus money out" — it's built from three terms (margin earned, waste written off, and a penalty for turning a customer away empty-handed), and which terms are included is itself a modeling choice that shapes which ordering policies end up looking good in the experiment.
 
-![Daily profit waterfall: margin, waste, stockout for a books-only day vs a lot ID + pack date day](/figures/profit-waterfall-daily.png)
-
 ## The idea
 
 A day at the shelf breaks into three buckets. Some demand gets **sold** — that's margin in the till. Some units sit unsold until they spoil and get thrown out — that's **waste**, a pure loss on units that were paid for but never rang up. And on a day the shelf runs empty before demand stops, some customers leave without buying — that's a **stockout**, which costs at least the margin that would have been earned, plus a flat penalty per lost sale on top of the forgone margin.
@@ -52,14 +50,14 @@ The stockout penalty is the load-bearing choice. Unmet demand is lost and censor
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Day-profit formula (Python) | `day_profit` | `src/blueberries_voi/sim/profit.py:37` |
-| Lost sales, censored (no backorder) | `lost` | `src/blueberries_voi/sim/profit.py:44` |
-| Episode profit, summed over scored days | `episode_profit` | `src/blueberries_voi/sim/profit.py:52` |
-| Cost parameters container | `ProfitCosts` | `src/blueberries_voi/sim/profit.py:20` |
-| Uncalibrated default costs (\$2 / \$1.50 / \$3) | `DEFAULT_PROFIT_COSTS` | `src/blueberries_voi/sim/profit.py:30` |
+| Day-profit formula (Python) | `day_profit` | `src/blueberries_voi/sim/profit.py:42` |
+| Lost sales, censored (no backorder) | `lost` | `src/blueberries_voi/sim/profit.py:49` |
+| Episode profit, summed over scored days | `episode_profit` | `src/blueberries_voi/sim/profit.py:57` |
+| Cost parameters container | `ProfitCosts` | `src/blueberries_voi/sim/profit.py:25` |
+| Uncalibrated default costs (\$2 / \$1.50 / \$3) | `DEFAULT_PROFIT_COSTS` | `src/blueberries_voi/sim/profit.py:35` |
 | Which days are "scored" (post burn-in) | `EpisodeLog.scored` | `src/blueberries_voi/sim/types_log.py:45` |
-| Day-profit formula (Rust, rollout's inner loop) | `day_profit` | `crates/voi_core/src/rollout.rs:107` |
-| Same \$2 / \$1.50 / \$3 scaffold, Rust side | `RolloutCosts::default` | `crates/voi_core/src/rollout.rs:32` |
+| Day-profit formula (Rust, rollout's inner loop) | `day_profit` | `crates/voi_core/src/rollout.rs:129` |
+| Same \$2 / \$1.50 / \$3 scaffold, Rust side | `RolloutCosts::default` | `crates/voi_core/src/rollout.rs:37` |
 
 ## Caveats
 
