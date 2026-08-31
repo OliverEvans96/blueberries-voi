@@ -22,6 +22,9 @@ const TRUTH_COLOR = TRUTH_BAR_COLOR;
 const BELIEF_FILL_OPACITY = 0.25;
 const TRUTH_FILL_OPACITY = 0.35;
 const TOP_STROKE_WIDTH = 2.5;
+const MEAN_LINE_COLOR = "#000";
+const MEAN_LINE_DASH = "5,3";
+const MEAN_LINE_WIDTH = 1.5;
 
 type HistBin = {
   index: number;
@@ -151,6 +154,71 @@ export function freshnessHistogramDataFromFlat(
   };
 }
 
+/** Bin centers (midpoints) for histogram edges. */
+export function histogramBinCenters(edges: readonly number[]): number[] {
+  return edges.slice(0, -1).map((lo, i) => (lo + edges[i + 1]!) / 2);
+}
+
+/** Count-weighted mean freshness from histogram bin masses and centers. */
+export function meanFromHistogramMasses(
+  centers: readonly number[],
+  masses: readonly number[],
+): number | null {
+  let total = 0;
+  let weighted = 0;
+  for (let i = 0; i < masses.length; i++) {
+    const mass = masses[i] ?? 0;
+    total += mass;
+    weighted += mass * (centers[i] ?? 0);
+  }
+  if (total <= 0) {
+    return null;
+  }
+  return weighted / total;
+}
+
+/** Mean freshness across live truth units. */
+export function truthMeanFromUnits(units: readonly Unit[]): number | null {
+  if (units.length <= 0) {
+    return null;
+  }
+  let sum = 0;
+  for (const unit of units) {
+    sum += unit.f;
+  }
+  return sum / units.length;
+}
+
+/** Unique mean positions for visible belief/truth overlays (rounded for dedup). */
+export function freshnessHistogramMeanPositions(
+  edges: readonly number[],
+  belief: readonly number[],
+  truthUnits: readonly Unit[],
+  showTruth: boolean,
+): number[] {
+  const centers = histogramBinCenters(edges);
+  const positions: number[] = [];
+  const beliefMean = meanFromHistogramMasses(centers, belief);
+  if (beliefMean !== null) {
+    positions.push(beliefMean);
+  }
+  if (showTruth && truthUnits.length > 0) {
+    const truthMean = truthMeanFromUnits(truthUnits);
+    if (truthMean !== null) {
+      positions.push(truthMean);
+    }
+  }
+  const seen = new Set<number>();
+  const unique: number[] = [];
+  for (const value of positions) {
+    const key = Math.round(value * 1e6);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(value);
+  }
+  return unique;
+}
+
 /** Rebin histogram chart data onto the standard 8 display bins on [0, 1]. */
 export function displayBinMassesFromHistogramData(
   data: FreshnessHistogramData,
@@ -261,6 +329,28 @@ export function renderFreshnessHistogram(
     drawBars(toHistBin(truth), "freshness-truth-bar", "freshness-truth-cap", TRUTH_COLOR, TRUTH_FILL_OPACITY);
   }
 
+  const meanPositions = freshnessHistogramMeanPositions(
+    edges,
+    belief,
+    data.truth_units,
+    showTruth,
+  );
+  if (meanPositions.length > 0) {
+    const meanGroup = g.append("g").attr("class", "freshness-mean-lines");
+    for (const meanF of meanPositions) {
+      meanGroup
+        .append("line")
+        .attr("class", "freshness-mean-line")
+        .attr("x1", x(meanF))
+        .attr("x2", x(meanF))
+        .attr("y1", 0)
+        .attr("y2", innerH)
+        .attr("stroke", MEAN_LINE_COLOR)
+        .attr("stroke-width", MEAN_LINE_WIDTH)
+        .attr("stroke-dasharray", MEAN_LINE_DASH);
+    }
+  }
+
   g.append("g")
     .attr("class", "axis axis-y")
     .call(d3.axisLeft(y).ticks(5).tickSizeOuter(0))
@@ -292,29 +382,51 @@ export function renderFreshnessHistogram(
     .attr("class", "legend freshness-histogram-legend")
     .attr("transform", `translate(${margin.left + 4}, 6)`);
 
-  const legendItems: Array<{ label: string; color: string }> = [
-    { label: "Belief", color: BELIEF_COLOR },
+  type LegendItem =
+    | { label: string; kind: "bar"; color: string; fillOpacity: number }
+    | { label: string; kind: "mean-line"; color: string };
+
+  const legendItems: LegendItem[] = [
+    { label: "Belief", kind: "bar", color: BELIEF_COLOR, fillOpacity: BELIEF_FILL_OPACITY },
   ];
   if (showTruth) {
-    legendItems.push({ label: "Truth", color: TRUTH_COLOR });
+    legendItems.push({
+      label: "Truth",
+      kind: "bar",
+      color: TRUTH_COLOR,
+      fillOpacity: TRUTH_FILL_OPACITY,
+    });
+  }
+  if (meanPositions.length > 0) {
+    legendItems.push({ label: "mean", kind: "mean-line", color: MEAN_LINE_COLOR });
   }
 
   legendItems.forEach((item, i) => {
     const itemG = legend
       .append("g")
       .attr("transform", `translate(${i * 72},0)`);
-    itemG
-      .append("rect")
-      .attr("width", 10)
-      .attr("height", 10)
-      .attr("rx", 2)
-      .attr("fill", item.color)
-      .attr(
-        "fill-opacity",
-        item.label === "Truth" ? TRUTH_FILL_OPACITY : BELIEF_FILL_OPACITY,
-      )
-      .attr("stroke", item.color)
-      .attr("stroke-width", TOP_STROKE_WIDTH);
+    if (item.kind === "bar") {
+      itemG
+        .append("rect")
+        .attr("width", 10)
+        .attr("height", 10)
+        .attr("rx", 2)
+        .attr("fill", item.color)
+        .attr("fill-opacity", item.fillOpacity)
+        .attr("stroke", item.color)
+        .attr("stroke-width", TOP_STROKE_WIDTH);
+    } else {
+      itemG
+        .append("line")
+        .attr("class", "freshness-mean-legend-swatch")
+        .attr("x1", 0)
+        .attr("x2", 12)
+        .attr("y1", 5)
+        .attr("y2", 5)
+        .attr("stroke", item.color)
+        .attr("stroke-width", MEAN_LINE_WIDTH)
+        .attr("stroke-dasharray", MEAN_LINE_DASH);
+    }
     itemG
       .append("text")
       .attr("class", "legend-label")

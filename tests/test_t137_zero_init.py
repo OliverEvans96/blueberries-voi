@@ -31,7 +31,7 @@ def test_starting_inv_not_in_controls_or_mock() -> None:
     assert hits == [], f"starting_inv must be removed from web: {hits}"
 
 
-def test_mock_create_initial_state_empty_lots() -> None:
+def test_empty_flat_belief_helper_still_zero() -> None:
     from blueberries_voi.simulator.belief import empty_flat_belief
 
     flat = empty_flat_belief(L=2, K=4)

@@ -109,6 +109,35 @@ impl OrderSchedule {
     pub fn protection_days(&self, day: u32) -> u32 {
         self.next_order_day(day) - day + self.lead_time_days
     }
+
+    /// First absolute episode day on which a manual order may be placed (`day >= 0`).
+    pub fn first_order_day(&self) -> u32 {
+        let mut day = 0u32;
+        while !self.can_order(day) {
+            day += 1;
+            if day > 10_000 {
+                panic!("no order weekday configured");
+            }
+        }
+        day
+    }
+
+    /// Calendar day when the first manual order (placed on [`Self::first_order_day`])
+    /// arrives on shelf.
+    pub fn first_order_arrival_day(&self) -> u32 {
+        self.first_order_day()
+            .saturating_add(self.lead_time_days)
+    }
+
+    /// Demand days the opening shelf must cover before the first manual order can
+    /// satisfy customers: episode days `0..=first_order_arrival_day` inclusive.
+    ///
+    /// The arrival day is included because [`crate::day_step::unit_day_step`] sells
+    /// before it delivers — a truck due on the first order's arrival day lands after
+    /// that day's demand is settled, so opening stock must cover that day too.
+    pub fn opening_protection_days(&self) -> u32 {
+        self.first_order_arrival_day().saturating_add(1)
+    }
 }
 
 #[cfg(test)]
@@ -163,5 +192,22 @@ mod tests {
     #[test]
     fn from_delivery_rejects_empty() {
         assert!(OrderSchedule::from_delivery(&[], 1).is_err());
+    }
+
+    #[test]
+    fn first_order_day_default_mwf_monday_start() {
+        let s = OrderSchedule::default();
+        assert_eq!(s.first_order_day(), 1);
+        assert_eq!(s.first_order_arrival_day(), 2);
+        assert_eq!(s.opening_protection_days(), 3);
+    }
+
+    #[test]
+    fn opening_protection_tuesday_only_lt1() {
+        let s = OrderSchedule::from_delivery(&[1], 1).unwrap();
+        assert_eq!(s.first_order_day(), 0);
+        assert_eq!(s.first_order_arrival_day(), 1);
+        assert_eq!(s.opening_protection_days(), 2);
+        assert_eq!(s.protection_days(0), 8);
     }
 }

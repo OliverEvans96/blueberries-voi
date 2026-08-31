@@ -1,6 +1,7 @@
 import type { ViewModel } from "../types";
 import { HostHoverTip } from "./HostHoverTip";
 import { InfoTip } from "./InfoTip";
+import { ORDER_Q_SLIDER_MIN_MAX } from "./studioShellDefaults";
 
 /**
  * OperatorBar — the primary "you are in control" action zone (T-127 layout
@@ -67,7 +68,7 @@ export function OperatorBar({
             type="range"
             id="order-range"
             min={0}
-            max={Math.max(160, vm.config.case_size * 20)}
+            max={Math.max(ORDER_Q_SLIDER_MIN_MAX, vm.config.case_size * 20)}
             step={vm.config.case_size}
             value={orderQty}
             disabled={controlsDisabled}

@@ -92,21 +92,23 @@
 }
 
 .metrics-stack .chart {
-  min-height: 120px;
+  min-height: 130px;
 }
 
 #chart-pnl-economics.chart,
 #chart-sales-demand.chart,
-#chart-orders-spoilage.chart {
-  min-height: 150px;
+#chart-controller-orders.chart,
+#chart-spoil.chart,
+#chart-age-comp.chart {
+  min-height: 130px;
 }
 
 #chart-belief-lg.chart {
-  min-height: 130px;
+  min-height: 150px;
 }
 
-#chart-age-comp.chart {
-  min-height: 130px;
+#chart-history.chart {
+  min-height: 220px;
 }
 
 #chart-belief-age-marginal.chart {

@@ -108,6 +108,7 @@ describe("T-127 tuning-dock content", () => {
     expect(src).toMatch(/id: "sigma"[\s\S]*group: "demand"/);
     expect(src).not.toMatch(/id: "sigma"[\s\S]*group: "physics"/);
     expect(src).toMatch(/id: "lead_time"[\s\S]*group: "logistics"/);
+    expect(src).toMatch(/id: "initial_stock_qty"[\s\S]*group: "logistics"/);
     expect(src).toMatch(/id="\$\{spec\.id\}"/);
   });
 
@@ -123,6 +124,11 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']alpha-rho-pad["']/);
   });
 
+  it("autopilot block hides rollout and sla_mc policy chips in UI", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/data-policy=["']sla_mc["']/);
+  });
+
   it("autopilot block hides rollout chip and rollout budget fields in UI", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).not.toMatch(/data-policy=["']rollout["']/);
@@ -131,8 +137,8 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']candidate_case_radius["']/);
   });
 
-  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to damped_sw", () => {
-    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("damped_sw");
+  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to sla_pb", () => {
+    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("sla_pb");
   });
 
   it("sigma slider min/max are 0 (uniform sentinel) and SIGMA_PRECISION_MAX, not raw sigma bounds", () => {

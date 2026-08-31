@@ -2,6 +2,12 @@
 
 Plain-English notes of what shipped, for non-technical readers.
 
+## 2026-08-30
+- **Opening shelf stock is now a simple slider** — the studio starts with 120 units by default, and you can adjust initial stock on the logistics tab (0–400) before Reset. Freshness still comes from the same corridor draw as real deliveries.
+
+## 2026-08-28
+- **The studio now opens with a realistic shelf of blueberries on day one** — stock arrives at standard corridor freshness and is sized to cover about two days of typical demand at a 95% service level, so the first Advance isn't staring at an empty store.
+
 ## 2026-08-27
 - **Window SLA ordering (`sla_pb` / `sla_mc`)** — new protection-window controllers in the Rust kernel, studio policy chips, and alpha-tune ladder arms; reference protection simulator fixes for tradeoff display.
 - **The studio now loads in seconds instead of minutes on first open** — the default arrival belief curve is precomputed at build time, and Reset only shows an “updating beliefs” message when you change cold-chain reference settings (Q10 or reference temperature) that require a full recalculation (~30 seconds).
