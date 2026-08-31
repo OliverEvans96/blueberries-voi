@@ -8,8 +8,6 @@ sources:
 
 Before getting into how this project decides how many blueberries to order, it helps to see the classical puzzle every inventory-ordering system gets compared against. The **newsvendor problem** asks: given uncertain demand and a cost for guessing too low versus too high, what's the single best order quantity? It supplies the vocabulary — "critical fractile," "underage cost," "overage cost" — that later pages in this section use, even where this project does something different with it.
 
-![Demand curve with overage and underage regions shaded around order quantity q](/figures/newsvendor-critical-fractile.png)
-
 ## The idea
 
 Picture a newspaper vendor deciding, before dawn, how many papers to buy for the day. Buy too few, and they miss sales they could have made. Buy too many, and the leftover papers are worthless once the day is over. The vendor doesn't know exactly how many customers will show up; they only know roughly what a normal day looks like.

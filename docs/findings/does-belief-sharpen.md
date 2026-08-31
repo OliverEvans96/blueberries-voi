@@ -8,7 +8,7 @@ sources:
     - crates/voi_core/src/session.rs
     - crates/voi_core/src/policy.rs
     - crates/voi_core/tests/t150_phase2_arrival_model.rs
-    - notebooks/13_filter_accuracy_knowledge_ladder.ipynb
+    - experiments/modal/app.py
     - experiments/data/nb13_channel_rows.json
 ---
 
@@ -19,8 +19,6 @@ channels actually produce a more accurate belief about shelf freshness. This pag
 measures that directly: replay the same 30 days of deliveries and customer demand through
 six observation scenarios and see how far each scenario's belief drifts from the truth
 the simulator generated.
-
-![Mean absolute error between believed and true shelf freshness, one bar per observation scenario, from books-only down to a full temperature trace](/figures/scenarios-accuracy-ladder.png)
 
 ## The idea
 
@@ -66,7 +64,7 @@ day-by-day sequence of deliveries and orders under the damped survival-weighted 
 
 Measured values (mean $|\hat f - f|$ on shelf freshness, averaged over the three seeds;
 **from the last notebook run before the breaks + multi-lot docs pass — re-run
-`notebooks/13_filter_accuracy_knowledge_ladder.ipynb` to refresh after integrate merges**):
+`modal run experiments/modal/app.py::nb13` to refresh after integrate merges**):
 
 | Observation scenario | What it observes about the delivery | MAE |
 | --- | --- | --- |
@@ -129,10 +127,10 @@ the notebook is re-run on the integrate tip.
 
 | Concept | Symbol / field | File:line |
 | --- | --- | --- |
-| Observation-scenario selector on a running session | `EngineSession::set_obs_scenario(&str)` | `crates/voi_core/src/session.rs:988` |
+| Observation-scenario selector on a running session | `EngineSession::set_obs_scenario(&str)` | `crates/voi_core/src/session.rs:1249` |
 | Damped survival-weighted order from belief | `damped_sw_order_f_belief(...)` | `crates/voi_core/src/policy.rs:246` |
-| Empirical ladder-ordering regression (Rust, single trajectory) | `ac2_11a_empirical_ladder_tracking_mae` | `crates/voi_core/tests/t150_phase2_arrival_model.rs:760` (assertions at lines 826–837: `F3 < F2 < P0` strictly, `MAE(P0) ≥ 3·MAE(F2)`) |
-| 30-day / 3-seed cross-scenario replay (source of the table above) | `N_DAYS = 30`, `SEEDS = (42, 7, 99)` | `notebooks/13_filter_accuracy_knowledge_ladder.ipynb` |
+| Empirical ladder-ordering regression (Rust, single trajectory) | `ac2_11a_empirical_ladder_tracking_mae` | `crates/voi_core/tests/t150_phase2_arrival_model.rs:809` (assertions at lines 879–890: `F3 < F2 < P0` strictly, `MAE(P0) ≥ 3·MAE(F2)`) |
+| 30-day / 3-seed cross-scenario replay (source of the table above) | `N_DAYS = 30`, `SEEDS = (42, 7, 99)` | `experiments/modal/app.py::nb13` (`src/blueberries_voi/experiments/filter_accuracy.py`) |
 | Per-seed, per-scenario MAE rows (raw data behind the averages above) | `mae_f` column | `experiments/data/nb13_channel_rows.json` |
 
 ## Caveats

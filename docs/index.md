@@ -25,8 +25,6 @@ For how rustdoc fits this narrative site, see
 [Rust API (voi_core)](/reference/rust-api).
 :::
 
-![Filter accuracy improves as the store's observation channel gets richer, from books-only down to a full temperature trace](/figures/accuracy-ladder-mae-f.png)
-
 ## The idea
 
 Three pieces do the work, and they all run on the same code. A Rust kernel

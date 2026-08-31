@@ -8,9 +8,7 @@ sources:
 
 The store never sees the shelf directly — only sales, and sometimes waste counts or a lot ID. Turning those partial signals into a belief about what's actually on the shelf requires something that represents "what the shelf plausibly looks like right now" and updates that representation as each day's numbers come in. The model's state doesn't look like the smooth, single-hump distributions most textbook filters assume, so the choice of filtering method follows from the shape of the state itself.
 
-![A particle-filter belief over freshness bins on one real episode day: several separated bars of probability mass, not a single smooth bump, with almost no mass anywhere near the true value](/figures/freshness-marginal-non-gaussian.png)
-
-This is an actual filter output (books-only observations, day 24 of an episode): the freshness marginal across bins is lumpy and multi-modal, not a bell curve, and can sit far from the true freshness (dashed line) when observations are sparse — exactly the kind of shape a Gaussian summary would flatten out.
+This is an actual filter output (books-only observations, day 24 of an episode): the freshness marginal across bins is lumpy and multi-modal, not a bell curve, and can sit far from the true freshness when observations are sparse — exactly the kind of shape a Gaussian summary would flatten out.
 
 ## The idea
 
@@ -62,14 +60,14 @@ The unit-level, freshness-native particle filter (`unit_pf.rs`) runs the real ge
 
 | Concept | Symbol / name | File:line |
 |---|---|---|
-| Particle bank (the crowd of hypothetical shelves) | `UnitParticleBank` | `crates/voi_core/src/unit_pf.rs:51` |
-| Per-particle freshness state | `freshness: Vec<Vec<f64>>` | `crates/voi_core/src/unit_pf.rs:53` |
-| Per-particle weight | `weights: Vec<f64>` | `crates/voi_core/src/unit_pf.rs:52` |
-| One filtering step (age, apply evidence, reweight) | `filter_step_unit` | `crates/voi_core/src/unit_pf.rs:404` |
-| Resampling the crowd | `systematic_resample` | `crates/voi_core/src/unit_pf.rs:221` |
-| Threshold spoilage event ($f \le 0$ is dead) | `apply_gamma_aging_independent` | `crates/voi_core/src/physics.rs:245` |
-| Freshness-weighted, without-replacement sales draw | `sequential_kernel_path_logprob` | `crates/voi_core/src/unit_ll.rs:281` |
-| Default particle count | `n_particles` (default 200) | `crates/voi_core/src/session.rs:1066`, `crates/voi_core/src/session.rs:1765` |
+| Particle bank (the crowd of hypothetical shelves) | `UnitParticleBank` | `crates/voi_core/src/unit_pf.rs:53` |
+| Per-particle freshness state | `freshness: Vec<Vec<f64>>` | `crates/voi_core/src/unit_pf.rs:58` |
+| Per-particle weight | `weights: Vec<f64>` | `crates/voi_core/src/unit_pf.rs:55` |
+| One filtering step (age, apply evidence, reweight) | `filter_step_unit` | `crates/voi_core/src/unit_pf.rs:525` |
+| Resampling the crowd | `systematic_resample` | `crates/voi_core/src/unit_pf.rs:229` |
+| Threshold spoilage event ($f \le 0$ is dead) | `apply_gamma_aging_independent` | `crates/voi_core/src/physics.rs:252` |
+| Freshness-weighted, without-replacement sales draw | `sequential_kernel_path_logprob` | `crates/voi_core/src/unit_ll.rs:260` |
+| Default particle count | `n_particles` (default 200) | `crates/voi_core/src/session.rs:1566` |
 
 ## Caveats
 

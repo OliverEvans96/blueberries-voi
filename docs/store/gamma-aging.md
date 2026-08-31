@@ -8,8 +8,6 @@ sources:
 
 Every day a unit sits on the shelf (or rides in the truck), it loses a random amount of freshness — not a fixed amount, a random one, drawn fresh each day, whose size depends on that day's temperature. This is the physical engine underneath the whole model: everything the store believes, orders, and eventually sells or throws away traces back to how this daily loss is drawn.
 
-![Overlaid Δ histograms at cold vs warm temperature beside one unit's f path stepping to zero](/figures/gamma-aging-decrement.png)
-
 ## The idea
 
 Think of freshness loss as small setbacks piling up over a day — a bit of moisture lost here, a bruise starting there, a spot where mould gets a foothold. Warmer temperatures don't make each setback bigger; they make setbacks happen more often. A day at room temperature isn't a day in the fridge with the damage turned up in volume — it's more like several fridge-days of setbacks compressed into one day.
@@ -52,7 +50,7 @@ $$
 
 so that $k\theta$ — the expected freshness loss per reference-day — equals exactly $1/\eta_\text{ref}$, regardless of how $k$ or $\eta_\text{ref}$ individually get tuned. With the model's live defaults ($k = 2.0$, $\eta_\text{ref} = 14.0$ reference-days at $T_\text{ref} = 0°\text{C}$), that invariant gives $\theta = 1/(k\eta_\text{ref}) = 1/28 \approx 0.0357$, so one reference-day of exposure costs exactly $k\theta = 1/14 \approx 0.0714$ of freshness — about $7.1\%$ — no matter what temperature path produced that reference-day.
 
-The other live defaults: $q_{10} = 3.0$ (aging triples for every 10°C of warming) and a studio default store temperature $T_\text{store} = 4°\text{C}$ (the interactive slider runs roughly $0$–$12°\text{C}$).
+The other live defaults: $q_{10} = 2.0$ (aging doubles for every 10°C of warming) and a studio default store temperature $T_\text{store} = 4°\text{C}$ (the interactive slider runs roughly $0$–$12°\text{C}$).
 
 ## Why it's modelled this way
 
@@ -69,19 +67,19 @@ The other live defaults: $q_{10} = 3.0$ (aging triples for every 10°C of warmin
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Q10 temperature factor | $\bar\phi$ | `crates/voi_core/src/physics.rs:31` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
-| Shape-scaled gamma shape for one store day | $k \cdot \bar\phi$ | `crates/voi_core/src/physics.rs:42` (`store_gamma_shape`, private helper) |
-| Expected daily decrement | $k\theta\bar\phi$ | `crates/voi_core/src/physics.rs:36` ([`gamma_decrement_for_store`](/api/rust/voi_core/physics/fn.gamma_decrement_for_store.html)) |
-| Random daily decrement draw | $\Delta$ | `crates/voi_core/src/physics.rs:48` ([`draw_gamma_decrement`](/api/rust/voi_core/physics/fn.draw_gamma_decrement.html)) |
-| Apply decrement, clamp at 0 | $f_\text{next} = \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:223` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
-| Per-unit independent daily aging (production) | — | `crates/voi_core/src/physics.rs:245` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
-| Gamma shape (fixed) | $k$ | `crates/voi_core/src/params.rs:25` (field), `:50` (default `2.0`) |
-| Gamma scale (derived) | $\theta$ | `crates/voi_core/src/params.rs:27` (field), `:62` (`set_reference_life`, derives $\theta = 1/(k\eta_\text{ref})$) |
-| Reference shelf life | $\eta_\text{ref}$ | `crates/voi_core/src/params.rs:40` (default `14.0`) |
-| Reference temperature | $T_\text{ref}$ | `crates/voi_core/src/params.rs:42` (default `0.0` °C) |
-| Studio default store temperature | $T_\text{store}$ | `crates/voi_core/src/params.rs:43` (default `4.0` °C) |
-| Q10 doubling/tripling factor | $q_{10}$ | `crates/voi_core/src/params.rs:41` (default `3.0`) |
-| Reference-life invariant guard test | $k\theta\eta_\text{ref} = 1$ | `crates/voi_core/src/params.rs:36` (`impl Default for ModelParams`, calls `set_reference_life()`) |
+| Q10 temperature factor | $\bar\phi$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
+| Shape-scaled gamma shape for one store day | $k \cdot \bar\phi$ | `crates/voi_core/src/physics.rs:49` (`store_gamma_shape`, private helper) |
+| Expected daily decrement | $k\theta\bar\phi$ | `crates/voi_core/src/physics.rs:43` ([`gamma_decrement_for_store`](/api/rust/voi_core/physics/fn.gamma_decrement_for_store.html)) |
+| Random daily decrement draw | $\Delta$ | `crates/voi_core/src/physics.rs:55` ([`draw_gamma_decrement`](/api/rust/voi_core/physics/fn.draw_gamma_decrement.html)) |
+| Apply decrement, clamp at 0 | $f_\text{next} = \max(f-\Delta, 0)$ | `crates/voi_core/src/physics.rs:230` ([`apply_gamma_decrement`](/api/rust/voi_core/physics/fn.apply_gamma_decrement.html)) |
+| Per-unit independent daily aging (production) | — | `crates/voi_core/src/physics.rs:252` ([`apply_gamma_aging_independent`](/api/rust/voi_core/physics/fn.apply_gamma_aging_independent.html)) |
+| Gamma shape (fixed) | $k$ | `crates/voi_core/src/params.rs:52` (field), `:77` (default `2.0`) |
+| Gamma scale (derived) | $\theta$ | `crates/voi_core/src/params.rs:54` (field), `:89` (`set_reference_life`, derives $\theta = 1/(k\eta_\text{ref})$) |
+| Reference shelf life | $\eta_\text{ref}$ | `crates/voi_core/src/params.rs:67` (default `14.0`) |
+| Reference temperature | $T_\text{ref}$ | `crates/voi_core/src/params.rs:69` (default `0.0` °C) |
+| Studio default store temperature | $T_\text{store}$ | `crates/voi_core/src/params.rs:70` (default `4.0` °C) |
+| Q10 doubling factor | $q_{10}$ | `crates/voi_core/src/params.rs:68` (default `2.0`) |
+| Reference-life invariant guard test | $k\theta\eta_\text{ref} = 1$ | `crates/voi_core/src/params.rs:63` (`impl Default for ModelParams`, calls `set_reference_life()`) |
 
 ## Caveats
 

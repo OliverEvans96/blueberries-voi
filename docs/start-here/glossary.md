@@ -12,8 +12,6 @@ of the site without breaking stride. Every entry below is checked against the
 current Rust source, and defaults are the values `ModelParams::default()` ships
 with.
 
-![Cheat sheet: where f, Λ, φ̄, d, and ψ live on corridor → truck → shelf → sale](/figures/glossary-symbol-journey.png)
-
 ## State and physics
 
 | Symbol | Meaning |
@@ -26,7 +24,7 @@ with.
 | $\eta_\mathrm{ref}$ | **Reference life** — shelf life in reference-days at the reference temperature $T_\mathrm{ref}$. Default: **14 days at 0 °C**. |
 | $k$ | **Gamma-process shape parameter**, shared by transit and in-store aging. Default: **2.0**. |
 | $\theta$ | **Gamma-process scale parameter**, derived so $k\theta\eta_\mathrm{ref} = 1$. Default: **1/28** (≈0.0357) given the defaults above. |
-| $q_{10}$ | **Rate multiplier per 10 °C** of temperature: how much faster things age when warmer. Default: **3.0**. |
+| $q_{10}$ | **Rate multiplier per 10 °C** of temperature: how much faster things age when warmer. Default: **2.0**. |
 | $\sigma$ | **Picking-weight exponent** — a customer's chance of picking a given unit is proportional to $f^\sigma$. Default: **0.5**; $\sigma = 0$ would make picking uniform/random. |
 
 ## Control and inventory
@@ -36,7 +34,7 @@ with.
 | $\alpha$ | The **target service-level quantile** used by the ordering policy. Default: **0.9**. This is a *tuned* dial, not the textbook newsvendor critical fractile. |
 | $\rho$ | **Damping factor** on the ordering rule. Default: **0.8**. |
 | $\tilde{I}$ | **Effective inventory** — quality-weighted on-hand units. Each unit counts as its expected freshness, not as a flat $1$. |
-| $L$ | Number of most-recent **lots** exported to the belief wire for charts/policy. Default: **10**. |
+| $L$ | Number of most-recent **lots** exported to the belief wire for charts/policy. Default: **50**. |
 | $K$ | Number of freshness histogram bins per lot on the belief wire. |
 | $U$ | Max units per lot slot in the internal grid (`units_per_lot`). Default: **15**. |
 | $\mu(\text{day})$ | The calendar demand profile's mean for a given day: $\mu(\text{day}) = \text{scale} \times \text{dow\_factor}[\text{day} \bmod 7] \times \text{week\_factor}[\lfloor \text{day} / 7 \rfloor]$. |

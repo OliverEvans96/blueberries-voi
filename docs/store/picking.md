@@ -8,8 +8,6 @@ sources:
 
 When a customer buys blueberries, the model has to decide *which physical unit* on the shelf they took — the punnet from Monday's delivery, or the one from Wednesday's? This page is about that choice. It is not first-in-first-out, and getting that right matters: it determines how long an old, unlucky punnet can linger on the shelf before it either sells or spoils, which is exactly the kind of thing a store's freshness beliefs are trying to track.
 
-![Picking weight vs freshness f at σ = 0 (uniform) and σ = 0.5 (weighted lottery favors fresher units)](/figures/picking-weight-freshness.png)
-
 ## The idea
 
 Picture the shelf as a small lottery, redrawn one ticket at a time. Every unit still alive (freshness $f > 0$) gets a ticket; fresher units get proportionally more tickets, so they're more *likely* to be drawn, but every alive unit — however tired — always holds at least one ticket. A customer walks up, the model draws one ticket, that unit is sold, and its tickets leave the drum. Then the next customer's draw is run on whatever's left. This repeats once per sale, so the odds shift after every single purchase as the mix of what's still on the shelf changes.
@@ -38,12 +36,12 @@ The numeric value, $\sigma = 0.5$, is used as a single "moderately fresh-biased"
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Picking weights over alive units | $w_i$ | `crates/voi_core/src/physics.rs:360` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
-| Picking-weight exponent (field, default `0.5`) | $\sigma$ | `crates/voi_core/src/params.rs:18` (field), `:44` (default) |
-| Uniform-picking override flag | — | `crates/voi_core/src/params.rs:22` (field), `:48` (default `false`) |
-| Sequential without-replacement sales loop (recomputes weights each pick) | — | `crates/voi_core/src/day_step.rs:136` (`pick_units_f`) |
-| Units eligible to sell = alive count | $\#\{f_i > 0\}$ | `crates/voi_core/src/day_step.rs:146` (`to_sell = demand.min(...)`) |
-| Lots leave the belief wire oldest-first (bookkeeping, not a picking rule) | — | `crates/voi_core/src/belief_flat.rs:28` (doc comment) |
+| Picking weights over alive units | $w_i$ | `crates/voi_core/src/physics.rs:380` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
+| Picking-weight exponent (field, default `0.5`) | $\sigma$ | `crates/voi_core/src/params.rs:38` (field), `:71` (default) |
+| Uniform-picking override flag | — | `crates/voi_core/src/params.rs:47` (field), `:75` (default `false`) |
+| Sequential without-replacement sales loop (recomputes weights each pick) | — | `crates/voi_core/src/day_step.rs:166` (`pick_units_f`) |
+| Units eligible to sell = alive count | $\#\{f_i > 0\}$ | `crates/voi_core/src/day_step.rs:176` (`to_sell = demand.min(...)`) |
+| Lots leave the belief wire oldest-first (bookkeeping, not a picking rule) | — | `crates/voi_core/src/belief_flat.rs:29` (doc comment) |
 
 ## Caveats
 

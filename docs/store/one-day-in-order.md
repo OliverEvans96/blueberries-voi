@@ -8,8 +8,6 @@ sources:
 
 Every simulated day runs through the same four events in the same fixed order: age, then spoil, then sell, then deliver. That order isn't an implementation detail — swapping any two of these steps changes the store's numbers, because it changes what's actually available to sell or to spoil at each moment. This page walks through the sequence and why it's fixed the way it is.
 
-![Horizontal timeline for one simulated day: Age, Spoil, Sell, Deliver, each step annotated with freshness-array changes](/figures/one-day-four-steps.png)
-
 ## The idea
 
 Think through one day from the shelf's point of view. Whatever survived to this morning has spent another day (or transit leg) losing freshness overnight — so the first thing that happens is **aging**: every alive unit's freshness ticks down by its own random amount. Some of those units, having just lost that freshness, cross zero — they're now spoiled, and they get pulled off the shelf as **waste** before a single customer walks in. Only after that culling happens do today's **sales** get resolved: a day's worth of demand is drawn, and units are sold one at a time out of whatever's left alive, using the freshness-weighted lottery described on [the picking page](/store/picking). Last, after the registers have rung up today's sales, today's **delivery** — if one is scheduled — gets unloaded onto the shelf. A fresh truck's units are not in play for today's sales at all: they can't be bought same-day, and they don't pad out today's picking pool, because they aren't added to the shelf state until after the sales step has already finished with it.
@@ -37,12 +35,12 @@ Independent per-unit gamma aging (see [spoilage and waste](/store/spoilage-waste
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Full day-step function (calls all four steps in order) | — | `crates/voi_core/src/day_step.rs:217` ([`unit_day_step_with_birth`](/api/rust/voi_core/day_step/fn.unit_day_step_with_birth.html)) |
-| Step 1 — age (independent per-unit decrement) | $f_i \leftarrow \max(f_i - \Delta_i, 0)$ | `crates/voi_core/src/day_step.rs:232` (calls `apply_gamma_step`) |
-| Step 2 — detect and record spoiled units | `waste_by`, `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:238` (`count_spoil_by_lot`), `:239` (`spoil_unit_exits`) |
-| Step 3 — sell from the post-spoilage alive set | `sales_total`, `sales_by` | `crates/voi_core/src/day_step.rs:242` (calls `pick_units_f`) |
-| Step 4 — append today's delivery after sales | `lot_offsets.push(...)` | `crates/voi_core/src/day_step.rs:250` (`if input.deliver { ... }`) |
-| Filter's transition step assumes the same post-aging, post-spoilage alive set | — | `crates/voi_core/src/unit_pf.rs:351` (doc comment on the filter step) |
+| Full day-step function (calls all four steps in order) | — | `crates/voi_core/src/day_step.rs:254` ([`unit_day_step_with_birth`](/api/rust/voi_core/day_step/fn.unit_day_step_with_birth.html)) |
+| Step 1 — age (independent per-unit decrement) | $f_i \leftarrow \max(f_i - \Delta_i, 0)$ | `crates/voi_core/src/day_step.rs:269` (calls `apply_gamma_step`) |
+| Step 2 — detect and record spoiled units | `waste_by`, `UnitExitCause::Spoiled` | `crates/voi_core/src/day_step.rs:275` (`count_spoil_by_lot`), `:276` (`spoil_unit_exits`) |
+| Step 3 — sell from the post-spoilage alive set | `sales_total`, `sales_by` | `crates/voi_core/src/day_step.rs:283` (calls `pick_units_f`) |
+| Step 4 — append today's delivery after sales | `lot_offsets.push(...)` | `crates/voi_core/src/day_step.rs:287` (`if input.deliver { ... }`) |
+| Filter's transition step assumes the same post-aging, post-spoilage alive set | — | `crates/voi_core/src/unit_pf.rs:427` (doc comment on the filter step) |
 
 ## Caveats
 

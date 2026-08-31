@@ -18,8 +18,6 @@ This page explains what that difference buys the filter — it is not two differ
 bolted together, it is the same [one-day update](/inference/one-filter-day) run at two
 different resolutions of the same evidence, with a structural fork at birth and scoring.
 
-![Filter accuracy across UPC-only, lot-resolved, and combined observation setups](/figures/upc-vs-gsin-channel-combos.png)
-
 ## The idea
 
 Imagine two clerks recording the same day at the same store. A delivery of 40 units just
@@ -150,11 +148,11 @@ measures.
 | UPC pooled removal (unconditional bookkeeping) | — | `crates/voi_core/src/unit_pf.rs:454` (`apply_sales_removal`, aggregate branch) |
 | Per-lot picking share (allocation weights) | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:210` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
 | Lot-id → bank-segment matching | — | `crates/voi_core/src/unit_pf.rs:262` ([`project_lot_map`](/api/rust/voi_core/unit_pf/fn.project_lot_map.html)) |
-| Unmatched-lot fallback to aggregate scoring | — | `crates/voi_core/src/unit_pf.rs:288` (drop → `None` inside `project_lot_map`, consumed by `DayEvidence::resolve` at `unit_pf.rs:323`) |
+| Unmatched-lot fallback to aggregate scoring | — | `crates/voi_core/src/unit_pf.rs:288` (drop → `None` inside `project_lot_map`, consumed by `DayEvidence::resolve` at `unit_pf.rs:383`) |
 | Bank's observed lot segmentation | `lot_offsets` / `lot_ids` | `crates/voi_core/src/unit_pf.rs:53` (`UnitParticleBank` fields) |
-| UPC mixture birth law | $\text{Law}_\text{UPC} = \frac{1}{L}\sum_\ell \text{Law}_\ell$ | `crates/voi_core/src/arrival.rs:1079` ([`mixture_law`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.mixture_law)) |
-| UPC mixture birth draws | — | `crates/voi_core/src/arrival.rs:1131` ([`sample_filter_birth_units_mixture`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture)) |
-| GSIN per-lot birth draws | — | `crates/voi_core/src/arrival.rs:1050` ([`sample_filter_birth_units`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units)) |
+| UPC mixture birth law | $\text{Law}_\text{UPC} = \frac{1}{L}\sum_\ell \text{Law}_\ell$ | `crates/voi_core/src/arrival.rs:2098` ([`mixture_law`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.mixture_law)) |
+| UPC mixture birth draws | — | `crates/voi_core/src/arrival.rs:2149` ([`sample_filter_birth_units_mixture`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units_mixture)) |
+| GSIN per-lot birth draws | — | `crates/voi_core/src/arrival.rs:2069` ([`sample_filter_birth_units`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sample_filter_birth_units)) |
 | `code_type` toggles per-lot vs pooled segmentation | `ObsChannels` | `crates/voi_core/src/obs.rs:32` |
 
 ## Caveats

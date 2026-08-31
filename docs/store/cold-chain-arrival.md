@@ -15,8 +15,6 @@ sources:
 
 Every delivery starts its life in the store already partway degraded, because it spent a day or several inside a truck before it ever reached a shelf. This page describes how the simulator turns "a shipment travelled through a refrigerated corridor" into a probability distribution over each unit's freshness `f` the moment it arrives. It matters because every observation scenario in the knowledge ladder — from books only through the full temperature-history scenario — is a different amount of information about the *same* underlying trip, not a different model. Get the generative story right here and the whole ladder's information gains become meaningful.
 
-![Six Abdella cold-chain shipments (duration vs. mean temperature factor) plotted against the corridor families the arrival model assumes](/figures/cold-chain-arrival-calibration-overlay.png)
-
 ## The idea
 
 Think of one delivery as a truck making one trip. Three things about the trip are shared by every berry on the truck:
@@ -37,7 +35,7 @@ $$
 \Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}
 $$
 
-Under **GSIN**, the filter holds three segments, each born from its own arrival law (`Duration(d_\ell)` or `Exposure(Λ_\ell)`). Under **UPC**, one cohort is born from the mixture `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)` — mix the laws, don't average the dates. On the current integrate branch the session may still mint one lot id per delivery; the three-lot DC model above is the target wiring described in ADR 0149 and the multi-lot plan.
+Under **GSIN**, the filter holds three segments, each born from its own arrival law (`Duration(d_\ell)` or `Exposure(Λ_\ell)`). Under **UPC**, one cohort is born from the mixture `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)` — mix the laws, don't average the dates. The current integrate branch's session mints three lot ids per delivery via `draw_truth_multilot_delivery_biased`, matching the three-lot DC model described in ADR 0149.
 
 ### Planned v2 upgrade (design direction)
 
@@ -68,9 +66,9 @@ The baseline path walks three named legs in order, each holding a fixed setpoint
 
 | Leg | Share $w_k$ | Setpoint $\mu_k$ |
 | --- | --- | --- |
-| `precool_staging` | 0.15 | −1.65 °C |
-| `line_haul` | 0.60 | 0.58 °C |
-| `dock_receiving` | 0.25 | 2.32 °C |
+| `precool_staging` | 0.15 | 0.35 °C |
+| `line_haul` | 0.60 | 2.58 °C |
+| `dock_receiving` | 0.25 | 4.32 °C |
 
 On top of that baseline, **break events** are drawn (ADR 0150):
 
@@ -144,7 +142,7 @@ Note $k \cdot \theta \cdot \eta_{\text{ref,arrival}} = 1$ for the **arrival** fr
 
 | Mixture | Components | Role |
 | --- | --- | --- |
-| `abdella_mix` | 0.7 × `short_haul` + 0.3 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
+| `abdella_mix` | 0.627 × `short_haul` + 0.373 × `long_haul` | Production default; short haul matches Abdella S2, long haul matches S1 and S3–S6 |
 
 `abdella_all` remains the moment-matched pooled Abdella fit (ADR 0148); `short_haul` and `long_haul` are the per-regime duration families that `abdella_mix` blends.
 
@@ -165,20 +163,20 @@ $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario parameters**
 | Concept | Symbol | Location |
 | --- | --- | --- |
 | Truth-path temperature trace (legs + breaks) | path → Λ | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
-| Exposure from observed path | Λ | `crates/voi_core/src/arrival.rs:1716` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
-| Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:961` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
-| Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:1027` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
-| Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1001` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
-| Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:732` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
-| Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:764` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
-| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
+| Exposure from observed path | Λ | `crates/voi_core/src/arrival.rs:2334` ([`resolve_arrival_exposure`](/api/rust/voi_core/arrival/fn.resolve_arrival_exposure.html)) |
+| Truth draw: path then Λ | — | `crates/voi_core/src/arrival.rs:1335` ([`draw_transit`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_transit)) |
+| Whole-delivery truth draw | $d$, trace, Λ; per-unit $\psi$/loss | `crates/voi_core/src/arrival.rs:1402` ([`draw_truth_delivery`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_truth_delivery)) |
+| Truth-path per-unit generative draw | $d$, breaks, $\psi$, $\Lambda$, $f$ | `crates/voi_core/src/arrival.rs:1375` ([`draw_unit_f`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.draw_unit_f)) |
+| Break-free baseline factor | $\varphi_{\mathrm{set}}$ | `crates/voi_core/src/arrival.rs:1088` ([`phi_set`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.phi_set)) |
+| Closed-form Λ given break durations | — | `crates/voi_core/src/arrival.rs:1120` ([`lambda_from_breaks`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.lambda_from_breaks)) |
+| Filter: enumerate break counts + gamma quadrature | — | `crates/voi_core/src/arrival.rs:1633` (`thermal_nodes_for_key`) |
 | Q10 temperature factor | $\phi(T)$ | `crates/voi_core/src/physics.rs:38` ([`store_temp_factor`](/api/rust/voi_core/physics/fn.store_temp_factor.html)) |
-| Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:923` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
-| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:935` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
-| Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:950` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
-| Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:535` (`gamma_dist_quantile`) |
-| Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:995` (`draw_psi_pos`) |
-| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:449` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
+| Tail probability given exposure | $P(f>x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1297` ([`p_f_gt_at`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_gt_at)) |
+| Full CDF given exposure | $P(f\le x\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1309` ([`cdf_f_given_lambda`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.cdf_f_given_lambda)) |
+| Spoiled-on-arrival atom | $P(f=0\mid\Lambda)$ | `crates/voi_core/src/arrival.rs:1324` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
+| Gamma quantile (break enumeration) | — | `crates/voi_core/src/arrival.rs:664` (`gamma_dist_quantile`) |
+| Position multiplier draw | $\psi$ | `crates/voi_core/src/arrival.rs:1369` (`draw_psi_pos`) |
+| Artifact fields: legs, $T_{\mathrm{break}}$, $\rho$, $\bar\tau$, corridors | — | `data/abdella/arrival_model.json`; parsed by `crates/voi_core/src/arrival.rs:578` ([`arrival_artifact_from_json`](/api/rust/voi_core/arrival/fn.arrival_artifact_from_json.html)) |
 | Default Prior CDF bake (studio fast boot) | — | `crates/voi_core/src/arrival_prior_baked.rs`; loaded when fingerprint matches committed artifact; runtime rebuild on Q10 / $T_{\mathrm{ref}}$ change via [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
 | Reporting overlay (no fitting) | six-shipment table + figure | `scripts/arrival_calibration_note.py`, `data/abdella/calibration_note.md` |
 

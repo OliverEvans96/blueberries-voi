@@ -8,8 +8,6 @@ sources:
 
 The [previous page](/inference/why-particle-filter) argued that the filter should track its belief as a crowd of complete hypothetical shelves rather than a single smooth summary. This page looks at what a single member of that crowd — one particle — actually stores, and how the crowd is laid out in memory so that hundreds of them can be updated every simulated day.
 
-![Three particles as shaded shelves: same lot widths, different freshness shading](/figures/particle-shelf-shading.png)
-
 ## The idea
 
 A particle is a full, concrete guess at "here is exactly what's on the shelf right now": one freshness number for every unit that particle believes is alive, grouped into the lots (deliveries) they arrived in. The filter keeps a bank of many such particles side by side — by default 200 of them — each carrying its own opinion about how fresh every unit is, and its own weight (how much the filter currently trusts that guess).
@@ -54,14 +52,14 @@ Sharing the lot segmentation across particles, rather than letting each particle
 
 | Concept | Symbol / name | File:line |
 |---|---|---|
-| The particle bank itself | `UnitParticleBank` struct | `crates/voi_core/src/unit_pf.rs:51` |
-| Per-particle weight | `weights: Vec<f64>` | `crates/voi_core/src/unit_pf.rs:52` |
-| Per-particle freshness vector $f^{(i)}$ | `freshness: Vec<Vec<f64>>` | `crates/voi_core/src/unit_pf.rs:53` |
-| Shared lot segment boundaries $o_0,\dots,o_L$ | `lot_offsets: Vec<usize>` | `crates/voi_core/src/unit_pf.rs:55` |
-| Shared lot identities | `lot_ids: Vec<i64>` | `crates/voi_core/src/unit_pf.rs:57` |
-| Zero-init constructor (empty bank) | `UnitParticleBank::empty` | `crates/voi_core/src/unit_pf.rs:62` |
-| Number of lots currently tracked | `UnitParticleBank::n_lots` | `crates/voi_core/src/unit_pf.rs:87` |
-| Appending one delivery as a new shared segment | `push_lot_births` | `crates/voi_core/src/unit_pf.rs:109` |
+| The particle bank itself | `UnitParticleBank` struct | `crates/voi_core/src/unit_pf.rs:53` |
+| Per-particle weight | `weights: Vec<f64>` | `crates/voi_core/src/unit_pf.rs:55` |
+| Per-particle freshness vector $f^{(i)}$ | `freshness: Vec<Vec<f64>>` | `crates/voi_core/src/unit_pf.rs:58` |
+| Shared lot segment boundaries $o_0,\dots,o_L$ | `lot_offsets: Vec<usize>` | `crates/voi_core/src/unit_pf.rs:60` |
+| Shared lot identities | `lot_ids: Vec<i64>` | `crates/voi_core/src/unit_pf.rs:62` |
+| Zero-init constructor (empty bank) | `UnitParticleBank::empty` | `crates/voi_core/src/unit_pf.rs:67` |
+| Number of lots currently tracked | `UnitParticleBank::n_lots` | `crates/voi_core/src/unit_pf.rs:93` |
+| Appending one delivery as a new shared segment | `push_lot_births` | `crates/voi_core/src/unit_pf.rs:119` |
 
 ## Caveats
 

@@ -8,8 +8,6 @@ sources:
 
 How many customers buy blueberries on a given day isn't a flat average with a bit of noise sprinkled on — real grocery demand has a weekly rhythm (weekends busier than midweek) and a slower drift across the weeks, and even after accounting for both of those, the day-to-day count is noisier than a simple random count would be. This page covers where that shape comes from and, just as importantly, what every ordering policy in this project is — and isn't — allowed to know about it.
 
-![μ(day) over a ~13-week window: day-of-week sawtooth on slower week-to-week drift](/figures/demand-calendar-sawtooth.png)
-
 ## The idea
 
 Demand here has two layers. The first is a **known shape**: a repeating day-of-week pattern (some days just draw more shoppers than others) multiplied by a slower week-to-week factor (some weeks are busier than others across the whole window). That shape isn't invented — it's fit from a real retail dataset and then scaled so the *average* day lands around 30 units of demand.
@@ -46,13 +44,13 @@ The demand shape comes from a Chinese retail dataset rather than a US one becaus
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Calendar mean for a day | $\mu(\text{day})$ | `crates/voi_core/src/demand_profile.rs:95` ([`DemandProfile::mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.mu)) |
-| Resolve calendar mean vs. legacy flat mean | — | `crates/voi_core/src/params.rs:69` ([`demand_mu_for_day`](/api/rust/voi_core/params/struct.ModelParams.html#method.demand_mu_for_day)) |
+| Calendar mean for a day | $\mu(\text{day})$ | `crates/voi_core/src/demand_profile.rs:114` ([`DemandProfile::mu`](/api/rust/voi_core/demand_profile/struct.DemandProfile.html#method.mu)) |
+| Resolve calendar mean vs. legacy flat mean | — | `crates/voi_core/src/params.rs:96` ([`demand_mu_for_day`](/api/rust/voi_core/params/struct.ModelParams.html#method.demand_mu_for_day)) |
 | Overall level (committed default `30.0`) | scale_target_mu | `data/freshnet/demand_profile.json` (`scale_target_mu`) |
 | Day-of-week / week multiplier tables | dow_factor, week_factor | `data/freshnet/demand_profile.json` (`dow_factors`, `week_factors`) |
-| Overdispersion (committed default `2.0`) | vm | `data/freshnet/demand_profile.json` (`demand_vm`); field default `crates/voi_core/src/params.rs:46` |
-| Negative-binomial demand draw (gamma-Poisson mixture) | $r$, $p$, $\lambda$, $X$ | `crates/voi_core/src/physics.rs:508` (`draw_demand_from_mu`), mixture sampler `crates/voi_core/src/spawn_rng.rs:71` ([`negative_binomial_gamma_poisson`](/api/rust/voi_core/spawn_rng/fn.negative_binomial_gamma_poisson.html)) |
-| Every ordering policy reads the same calendar mean (no forecasting) | — | `crates/voi_core/src/policy.rs:133` (`protection_demand_quantile`, calls `demand_mu_for_day`) |
+| Overdispersion (committed default `2.0`) | vm | `data/freshnet/demand_profile.json` (`demand_vm`); field default `crates/voi_core/src/params.rs:73` |
+| Negative-binomial demand draw (gamma-Poisson mixture) | $r$, $p$, $\lambda$, $X$ | `crates/voi_core/src/physics.rs:551` (`draw_demand_from_mu`), mixture sampler `crates/voi_core/src/spawn_rng.rs:83` ([`negative_binomial_gamma_poisson`](/api/rust/voi_core/spawn_rng/fn.negative_binomial_gamma_poisson.html)) |
+| Every ordering policy reads the same calendar mean (no forecasting) | — | `crates/voi_core/src/policy.rs:143` (`protection_demand_quantile`, calls `demand_mu_for_day`) |
 | Dataset provenance | — | `data/freshnet/demand_profile.json` (`dataset_id: "Dingdong-Inc/FreshRetailNet-50K"`) |
 
 ## Caveats

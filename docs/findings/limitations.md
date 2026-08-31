@@ -16,8 +16,6 @@ None of these are hidden defects: each is a considered scope decision or a known
 most already have a caveat on the page where they're most relevant. This page exists so a
 reader doesn't have to hunt across the whole site to get the full list at once.
 
-![Annotated delivery journey: harvest and field heat out of scope; refrigerated leg and shelf life modeled](/figures/limitations-journey-map.png)
-
 ## The idea
 
 Treat this as a checklist for reading any result on this site with the right amount of
@@ -46,9 +44,9 @@ that looks more capable than the underlying evidence supports.
 | Limitation | Where it's enforced / visible | File:line |
 | --- | --- | --- |
 | Refrigerated-leg-only scope (arrival `f` is an upper bound) | Arrival window excludes field heat | `data/abdella/arrival_model.json` (`provenance.window`); see [Cold-chain arrival model](/store/cold-chain-arrival) |
-| Arrival families assumed, not fitted, on n=6 shipments | `provenance.notes`: "Hand-authored assumed families... Not MLE-fitted" | `data/abdella/arrival_model.json` |
-| Studio corridor bias knob not applied to the displayed prior chart | `transit_temp_bias_c` parameter, accepted but unused | `crates/voi_core/src/arrival_wire.rs:69-81` (applied to truth path at `crates/voi_core/src/session.rs:318`, explicitly not applied in `arrival_summary_wire`) |
-| Only the default mixed corridor is tied to the six real shipments | `abdella_all` corridor vs. illustrative `short_haul`/`long_haul` chips | `data/abdella/arrival_model.json` (`corridors`, `provenance.notes`); studio chips at `web/src/controls.ts:315-317` |
+| Arrival families assumed, not fitted, on n=6 shipments | `provenance.notes`: "Six strawberry logger shipments (not MLE-validated)" | `data/abdella/arrival_model.json` |
+| Studio corridor bias knob not applied to the displayed prior chart | `transit_temp_bias_c` parameter, accepted but unused | `crates/voi_core/src/arrival_wire.rs:69-81` (applied to truth path at `crates/voi_core/src/session.rs:450`, explicitly not applied in `arrival_summary_wire`) |
+| Studio corridor selector exposes only the default blend, not its leaf corridors | Only chip is `abdella_mix` (a `short_haul`/`long_haul` blend); `abdella_all`, `short_haul`, `long_haul` aren't separately selectable | `data/abdella/arrival_model.json` (`corridors`, `corridor_mixtures.abdella_mix`); studio chip at `web/src/controls.ts:490-491` |
 
 ## Caveats
 
@@ -108,10 +106,11 @@ section *is* the list rather than a coda to it.
    adding a bias-shifted variant of the displayed curve is a real extension, left as a
    follow-up.
 
-7. **The short-haul/long-haul corridor chips are illustrative, not calibrated.** The
-   studio's corridor selector offers three chips — "All six" (the default), "Long-haul",
-   and "Short-haul." Only the default (`abdella_all`) is the corridor whose parameters
-   were anchored against the six real Abdella shipments' calibrated moments; the
-   short-haul and long-haul corridors are documented in the arrival artifact's own
-   provenance notes as "illustrative studio corridors only" — useful for exploring how the
-   model responds to a different corridor shape, not representative of any measured route.
+7. **The studio's corridor selector exposes only the default blend, not its leaf
+   corridors.** The corridor chip row offers a single chip, "Abdella mix" (`abdella_mix`)
+   — the production default, a ~63/37 mixture of `short_haul` (anchored to Abdella S2)
+   and `long_haul` (anchored to Abdella S1, S3–S6), displayed in the UI as 60/40 for
+   readability. The separately-fitted pooled `abdella_all` corridor and the individual
+   `short_haul`/`long_haul` corridors are all still moment-matched to the six real
+   Abdella shipments, but none of them is exposed as its own studio chip — only the
+   blended default is selectable.
