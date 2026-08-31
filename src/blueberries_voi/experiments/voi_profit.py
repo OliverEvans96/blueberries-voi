@@ -19,7 +19,7 @@ from blueberries_voi.filter.types import (
 )
 from blueberries_voi.sim.alpha_tune import require_tuned_alpha_table
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
-from blueberries_voi.sim.shipments import default_shipments
+from blueberries_voi.sim.shipments import DEFAULT_ARRIVAL_PRODUCT, default_shipments
 from blueberries_voi.sim.types_log import DayLog
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
@@ -28,7 +28,7 @@ DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 30
 DEFAULT_FILTER_N = 24
 DEFAULT_TUNED_ALPHA_PATH = Path("experiments/tuned_alpha.json")
-DEFAULT_CONTROLLER_RHO: float = 0.8
+DEFAULT_CONTROLLER_RHO: float = 1.5938240528614713
 DEFAULT_DAMPED_SW_BO_PATH = Path("outputs/damped_sw_alpha_bo.json")
 
 __all__ = [
@@ -147,13 +147,14 @@ def profit_session_config(
 ) -> dict[str, Any]:
     """EngineSession config for damped-SW closed-loop profit (nb15)."""
     return {
+        "arrival_product": DEFAULT_ARRIVAL_PRODUCT,
         "shipments": default_shipments(),
         "n_particles": int(filter_n),
         "H": int(DEMO_BUDGETS["H"]),
         "n_rollout_paths": int(n_rollout_paths),
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
-        "L": 3,
-        "K": 8,
+        "L": 50,
+        "K": 30,
         "enable_filter": True,
         "belief_source": "filter",
         "lead_time": 1,

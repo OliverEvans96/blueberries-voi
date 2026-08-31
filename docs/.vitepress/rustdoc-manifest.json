@@ -506,6 +506,14 @@
       "link_target": "voi_core/unit_ll/fn.spoil_probs_from_freshness.html"
     },
     {
+      "symbol": "apply_sales_removal",
+      "module": "unit_pf",
+      "source_file": "crates/voi_core/src/unit_pf.rs",
+      "rustdoc_path": "voi_core/unit_pf/fn.apply_sales_removal.html",
+      "linkable": false,
+      "link_target": null
+    },
+    {
       "symbol": "filter_step_unit_with_birth_cached",
       "module": "unit_pf",
       "source_file": "crates/voi_core/src/unit_pf.rs",
@@ -538,10 +546,10 @@
       "link_target": null
     },
     {
-      "symbol": "score_and_remove_sales",
+      "symbol": "score_sales_evidence",
       "module": "unit_pf",
       "source_file": "crates/voi_core/src/unit_pf.rs",
-      "rustdoc_path": "voi_core/unit_pf/fn.score_and_remove_sales.html",
+      "rustdoc_path": "voi_core/unit_pf/fn.score_sales_evidence.html",
       "linkable": false,
       "link_target": null
     },

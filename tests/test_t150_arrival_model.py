@@ -23,8 +23,8 @@ _CHANGELOG = _REPO_ROOT / ".team" / "changelog.md"
 _PHYSICS_EPOCH_MARKER = _REPO_ROOT / "data" / "abdella" / ".t150_physics_epoch"
 _VOI_CRN_FIXTURES = _REPO_ROOT / "tests" / "fixtures" / "voi_crn"
 _NOTEBOOKS = (
-    _REPO_ROOT / "notebooks" / "13_filter_accuracy_knowledge_ladder.ipynb",
-    _REPO_ROOT / "notebooks" / "14_gsin_vs_upc_filter_accuracy.ipynb",
+    _REPO_ROOT / "notebooks" / "article_figures.ipynb",
+    _REPO_ROOT / "notebooks" / "damped_sw_controller_tuning.ipynb",
 )
 
 try:

@@ -23,6 +23,7 @@ import type { SectionId } from "./sections";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTROLS_TS = join(HERE, "controls.ts");
+const PARAM_LABELS_TS = join(HERE, "paramLabels.ts");
 
 /** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
 const TUNING_DOCK_SECTIONS: SectionId[] = [
@@ -102,6 +103,19 @@ describe("T-127 controls data-section rename", () => {
   });
 });
 
+describe("arrival corridor copy", () => {
+  it("describes abdella_mix as 60/40 short/long blend in controls and param labels", () => {
+    const controls = readFileSync(CONTROLS_TS, "utf8");
+    const labels = readFileSync(PARAM_LABELS_TS, "utf8");
+    for (const src of [controls, labels]) {
+      expect(src).toMatch(/short_haul \(60%\).*long_haul \(40%\)/s);
+      expect(src).not.toMatch(/70%/);
+      expect(src).not.toMatch(/80\/20/);
+    }
+    expect(controls).toMatch(/corridor blend \(60\/40\)/);
+  });
+});
+
 describe("T-127 tuning-dock content", () => {
   it("moves sigma picking slider to demand and adds lead_time to logistics", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
@@ -137,8 +151,8 @@ describe("T-127 tuning-dock content", () => {
     expect(src).not.toMatch(/id=["']candidate_case_radius["']/);
   });
 
-  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to sla_pb", () => {
-    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("sla_pb");
+  it("DEFAULT_CONTROLLER_CONTROLS defaults policy to damped_sw", () => {
+    expect(DEFAULT_CONTROLLER_CONTROLS.policy).toBe("damped_sw");
   });
 
   it("sigma slider min/max are 0 (uniform sentinel) and SIGMA_PRECISION_MAX, not raw sigma bounds", () => {

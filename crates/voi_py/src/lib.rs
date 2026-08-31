@@ -19,7 +19,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
-use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::arrival::{ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::physics::{draw_demand_spawn, draw_gamma_decrement, picking_weights_f};
 use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
@@ -285,6 +285,7 @@ pub fn evaluate_alpha_tune_episode_py(
         demand_vm,
         case_size,
         demand_profile,
+        None,
     )?;
     Ok(profit)
 }
@@ -316,6 +317,7 @@ pub fn evaluate_alpha_tune_episode_py(
     demand_vm=2.0,
     case_size=8,
     demand_profile=None,
+    arrival_product=None,
 ))]
 pub fn evaluate_alpha_tune_outcomes_py(
     arm_id: &str,
@@ -337,6 +339,7 @@ pub fn evaluate_alpha_tune_outcomes_py(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
+    arrival_product: Option<&str>,
 ) -> PyResult<(f64, u32, u32)> {
     evaluate_alpha_tune_outcomes_inner(
         arm_id,
@@ -358,6 +361,7 @@ pub fn evaluate_alpha_tune_outcomes_py(
         demand_vm,
         case_size,
         demand_profile,
+        arrival_product,
     )
 }
 
@@ -388,6 +392,7 @@ fn evaluate_alpha_tune_outcomes_inner(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
+    arrival_product: Option<&str>,
 ) -> PyResult<(f64, u32, u32)> {
     let arm =
         parse_alpha_tune_arm(arm_id).map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
@@ -406,6 +411,11 @@ fn evaluate_alpha_tune_outcomes_inner(
         case_size,
         ..ModelParams::default()
     };
+    if let Some(product) = arrival_product {
+        params.arrival_product = product.to_string();
+    } else {
+        params.arrival_product = DEFAULT_ARRIVAL_CORRIDOR.to_string();
+    }
     if let Some(profile) = demand_profile {
         params.apply_demand_profile(profile.inner.clone());
     }

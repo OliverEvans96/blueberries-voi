@@ -54,7 +54,7 @@ def default_session_config(**overrides: Any) -> dict[str, Any]:
         "n_rollout_paths": 0,
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
         "L": 10,
-        "K": 4,
+        "K": 30,
     }
     if obs_channels is not None:
         ch = validate_channels(obs_channels)

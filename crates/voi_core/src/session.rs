@@ -19,7 +19,7 @@ use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_from_channels,
     preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
-use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
+use crate::params::{DEFAULT_K_DIM, DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache};
@@ -31,7 +31,7 @@ use crate::schedule::OrderSchedule;
 use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
-use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
+use crate::unit_pf::{filter_step_unit_with_birth_cached, StepDiagnostics, UnitParticleBank};
 use crate::voi::truth_f_belief;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
@@ -236,7 +236,7 @@ impl EngineSession {
             next_lot: 1,
             seq: 0,
             l_dim: DEFAULT_L_DIM,
-            k_dim: 4,
+            k_dim: DEFAULT_K_DIM,
             obs_scenario: "P1".to_string(),
             obs_channels: channels_for_preset("P1").unwrap(),
             richest_log: Vec::new(),
@@ -699,7 +699,7 @@ impl EngineSession {
             pack_dates_by_lot,
         };
         let day_idx = self.day;
-        if self.uses_filter() {
+        let filter_diag = if self.uses_filter() {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 {
@@ -710,7 +710,7 @@ impl EngineSession {
             // `filter_step_unit_with_birth_cached` syncs params and the configured
             // corridor onto `self.arrival_model` itself; an external sync here was
             // redundant (T-150: `sync_params` was rebuilding every CDF twice per day).
-            filter_step_unit_with_birth_cached(
+            let diag = filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
                 &self.params,
@@ -723,7 +723,10 @@ impl EngineSession {
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
-        }
+            Some(FilterDiagValue::from(diag))
+        } else {
+            None
+        };
         let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets)
             .iter()
             .sum();
@@ -736,6 +739,7 @@ impl EngineSession {
             arrivals: arrival,
             episode_day: self.day,
             unit_exits: out.unit_exits,
+            filter_diag,
         };
         self.day += 1;
         self.seq += 1;
@@ -823,7 +827,7 @@ impl EngineSession {
     /// Renders one `DayDelta` (and the live state it leaves behind) to the RPC wire
     /// format sent to the studio after each `step`/`act` call.
     pub fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
-        serde_json::json!({
+        let mut out = serde_json::json!({
             "seq": self.seq,
             "episode_day": d.episode_day,
             "day": {
@@ -841,7 +845,20 @@ impl EngineSession {
             "pipeline": self.pipeline_value(),
             "drop_oldest": self.seq > 14,
             "belief": self.belief_value(),
-        })
+        });
+        if let Some(fd) = d.filter_diag {
+            if let Some(obj) = out.as_object_mut() {
+                obj.insert(
+                    "filter_health".to_string(),
+                    serde_json::json!({
+                        "ess": fd.ess,
+                        "log_evidence": fd.log_evidence,
+                        "infeasible": fd.infeasible,
+                    }),
+                );
+            }
+        }
+        out
     }
 
     fn belief_value(&self) -> serde_json::Value {
@@ -1630,6 +1647,27 @@ impl EngineSession {
     }
 }
 
+/// Filter health surfaced on each hot DayDelta when the unit PF ran that day.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct FilterDiagValue {
+    /// Effective sample size of the pre-resample weights (`1 / Σ w²`, max `N`).
+    pub ess: f64,
+    /// `log Σ w` before normalization — the incremental observation log-evidence.
+    pub log_evidence: f64,
+    /// Particles the day's observation ruled out entirely.
+    pub infeasible: usize,
+}
+
+impl From<StepDiagnostics> for FilterDiagValue {
+    fn from(d: StepDiagnostics) -> Self {
+        Self {
+            ess: d.ess,
+            log_evidence: d.log_evidence,
+            infeasible: d.infeasible,
+        }
+    }
+}
+
 /// What changed in one simulated day, returned by `"step"`, `"step_n"`, and `"act"`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DayDelta {
@@ -1643,6 +1681,9 @@ pub struct DayDelta {
     /// Every unit that left inventory this day, spoiled or sold, with the freshness it
     /// held at the moment it exited.
     pub unit_exits: Vec<UnitExit>,
+    /// Present when `enable_filter` is true and belief source is not oracle truth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_diag: Option<FilterDiagValue>,
 }
 
 /// A decoded JSON-RPC request: `method` selects the [`EngineSession`] call in
@@ -1693,7 +1734,7 @@ pub fn handle_rpc(request_json: &str) -> String {
             "init" | "reset" => {
                 let seed = rpc_u64(&req.params, "seed").unwrap_or(0);
                 let l = rpc_u64(&req.params, "L").unwrap_or(DEFAULT_L_DIM as u64) as usize;
-                let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
+                let k = rpc_u64(&req.params, "K").unwrap_or(DEFAULT_K_DIM as u64) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
                 sess.apply_rpc_configure(&req.params);
@@ -1947,7 +1988,7 @@ mod tests {
         assert!(belief["f_marginals"].is_array());
         assert!(belief["f_grid"].is_array());
         assert_eq!(belief["L"], DEFAULT_L_DIM);
-        assert_eq!(belief["K"], 4);
+        assert_eq!(belief["K"], DEFAULT_K_DIM);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
     }
@@ -2309,6 +2350,32 @@ mod tests {
         assert!(v["result"]["belief"]["lot_counts"].is_array(), "{out}");
         assert!(v["result"]["day"]["day"].is_number(), "{out}");
         assert!(v["result"]["drop_oldest"].is_boolean());
+    }
+
+    #[test]
+    fn rpc_step_includes_filter_health_when_filter_runs() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":1,"config":{"enable_filter":true,"belief_source":"filter"}}}"#,
+        );
+        let out = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let fh = &v["result"]["filter_health"];
+        assert!(fh.is_object(), "filter_health must be present: {out}");
+        assert!(fh["ess"].as_f64().is_some_and(|x| x > 0.0));
+        assert!(fh["log_evidence"].is_number());
+        assert!(fh["infeasible"].as_u64().is_some());
+    }
+
+    #[test]
+    fn day_delta_omits_filter_health_for_oracle_belief() {
+        let mut s = EngineSession::new(3);
+        s.init(3);
+        s.set_belief_source(BeliefSource::Truth);
+        let d = s.step(0);
+        assert!(d.filter_diag.is_none());
+        let wire = s.day_delta_value(&d);
+        assert!(wire.get("filter_health").is_none());
     }
 
     #[test]

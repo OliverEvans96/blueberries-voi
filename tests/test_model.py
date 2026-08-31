@@ -52,6 +52,10 @@ def test_survival_ratio_diverges_from_hazard_at_beta4() -> None:
     assert abs(p_sr - p_h) > 0.02
 
 
+def test_model_params_q10_default_matches_production_unified() -> None:
+    assert ModelParams().q10 == 2.0
+
+
 def test_q10_one_day_at_4c() -> None:
     dtau = q10_age_increment(1.0, t_store_c=4.0, t_ref_c=0.0, q10=3.0)
     expected = 3.0**0.4

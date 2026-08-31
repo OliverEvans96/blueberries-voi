@@ -422,47 +422,92 @@ impl DayEvidence {
     }
 }
 
-/// Score today's sales evidence and apply the unscored WOR removal (ADR 0135).
+/// Score today's sales evidence without mutating particle state (ADR 0135).
 ///
 /// Runs on freshness that has already been aged, so `alive` here is the post-spoilage
 /// live set — exactly the population truth picks from.
-fn score_and_remove_sales<R: Rng + ?Sized>(
+fn score_sales_evidence(
+    freshness: &[f64],
+    offsets: &[usize],
+    ev: &DayEvidence,
+    params: &ModelParams,
+) -> f64 {
+    let Some(sales_tot) = ev.sales_tot else {
+        return 0.0;
+    };
+
+    if let Some(ref sales_by) = ev.sales_by {
+        return loglik_sales_by_units(freshness, sales_by, offsets, params);
+    }
+
+    let alive = freshness.iter().filter(|&&f| f > 0.0).count();
+    if alive < sales_tot as usize {
+        return f64::NEG_INFINITY;
+    }
+    0.0
+}
+
+/// Apply the day's known sales depletion via WOR draws, capped at live inventory.
+///
+/// Bookkeeping is unconditional: resampling weights may rule a particle out, but the
+/// shelf must still shed observed sales totals.
+fn apply_sales_removal<R: Rng + ?Sized>(
     freshness: &mut [f64],
     offsets: &[usize],
     ev: &DayEvidence,
     params: &ModelParams,
     path_rng: &mut R,
-) -> f64 {
+) {
     let Some(sales_tot) = ev.sales_tot else {
-        return 0.0;
+        return;
     };
     let n_lots = offsets.len().saturating_sub(1);
 
     if let Some(ref sales_by) = ev.sales_by {
-        // Per-lot feasibility + the cross-lot allocation UPC structurally cannot see.
-        let ll = loglik_sales_by_units(freshness, sales_by, offsets, params);
-        if !ll.is_finite() {
-            return ll;
-        }
         for ell in 0..n_lots {
             let sales = sales_by[ell] as usize;
-            if sales > 0 {
-                let sl = &mut freshness[offsets[ell]..offsets[ell + 1]];
-                let _ = sequential_kernel_path_logprob(sl, sales, params, path_rng);
+            if sales == 0 {
+                continue;
+            }
+            let sl = &mut freshness[offsets[ell]..offsets[ell + 1]];
+            let alive = sl.iter().filter(|&&f| f > 0.0).count();
+            let to_remove = sales.min(alive);
+            if to_remove > 0 {
+                let _ = sequential_kernel_path_logprob(sl, to_remove, params, path_rng);
             }
         }
-        return ll;
+        return;
     }
 
-    // Aggregate channel: feasibility only, then one pooled WOR draw over the store.
     let alive = freshness.iter().filter(|&&f| f > 0.0).count();
-    if alive < sales_tot as usize {
-        return f64::NEG_INFINITY;
+    let to_remove = (sales_tot as usize).min(alive);
+    if to_remove > 0 {
+        let _ = sequential_kernel_path_logprob(freshness, to_remove, params, path_rng);
     }
-    if sales_tot > 0 {
-        let _ = sequential_kernel_path_logprob(freshness, sales_tot as usize, params, path_rng);
+}
+
+/// Remove exactly `w` spoiled units when the Poisson-binomial proposal path fails.
+///
+/// Stalest live units (lowest freshness) are zeroed first — a simple bookkeeping
+/// fallback when lot attribution is uncertain, not a likelihood proposal.
+fn apply_fallback_waste_removal(freshness: &mut [f64], w: usize) {
+    if w == 0 {
+        return;
     }
-    0.0
+    let mut live: Vec<usize> = freshness
+        .iter()
+        .enumerate()
+        .filter(|(_, &f)| f > 0.0)
+        .map(|(i, _)| i)
+        .collect();
+    live.sort_by(|&a, &b| {
+        freshness[a]
+            .partial_cmp(&freshness[b])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for &i in live.iter().take(w) {
+        freshness[i] = 0.0;
+    }
 }
 
 /// Health of one filter update, for regression gates and studio diagnostics.
@@ -551,15 +596,32 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     let step_seed = rng.random::<u64>();
     let offsets = bank.lot_offsets.clone();
 
+    // Per-particle bookkeeping is gated on feasibility (ADR 0135): a particle whose
+    // proposal doesn't fit the day's evidence is left untouched and pruned by
+    // resampling below, exactly as it always was. This intentionally does NOT force
+    // depletion onto every particle every day (see the 2026-08-30 fix history) —
+    // that unconditional variant was tried and measured to have no effect on GSIN's
+    // production-scale outcomes (same profit/belief numbers with it on or off,
+    // confirmed by reverting the whole crate and re-running the article ladder),
+    // so the narrower, less invasive gate is kept. The only day this can't rely on
+    // resampling to self-correct is when literally every particle fails at once —
+    // that total-collapse case is handled by the unconditional rescue pass below
+    // `diag`, which is the sole place forced depletion still happens.
     let mut log_like = vec![0.0f64; n];
+    let mut aged_ok = vec![true; n];
+    let mut w_obs_vec = vec![0usize; n];
     for p in 0..n {
         let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(p as u64));
         let row = &mut bank.freshness[p];
         let ev = DayEvidence::resolve(obs, &bank.lot_ids, row, &offsets);
 
-        let (w_obs, mut ll) = ev.pb_spoilage_loglik(row, &offsets, table);
+        let mut ll = 0.0f64;
+        let (w_obs, spoil_ll) = ev.pb_spoilage_loglik(row, &offsets, table);
+        w_obs_vec[p] = w_obs;
         if ev.waste_tot.is_some() {
-            if ll.is_finite() {
+            ll = spoil_ll;
+            let mut aged = false;
+            if spoil_ll.is_finite() {
                 let (deaths, _log_q) = if let Some(by) = &ev.waste_by {
                     pb_sample_deaths_by_lot(row, &offsets, by, table, &mut path_rng)
                 } else {
@@ -567,16 +629,20 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
                 };
                 if deaths.len() == w_obs {
                     apply_pb_aging_proposal(row, &deaths, params, &mut path_rng);
-                } else {
-                    ll = f64::NEG_INFINITY;
+                    aged = true;
                 }
+            }
+            aged_ok[p] = aged;
+            if !aged {
+                ll = f64::NEG_INFINITY;
             }
         } else {
             apply_gamma_aging_independent(row, &mut path_rng, params);
         }
 
         if ll.is_finite() {
-            ll += score_and_remove_sales(row, &offsets, &ev, params, &mut path_rng);
+            let sales_ll = score_sales_evidence(row, &offsets, &ev, params);
+            ll += sales_ll;
         }
         log_like[p] = if ll.is_finite() { ll } else { -1e300 };
     }
@@ -610,6 +676,29 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
             infeasible: n,
         }
     };
+
+    // Apply the day's sales removal now that per-particle outcomes AND the
+    // whole-day collapse status are both known. Particles that individually fit
+    // shed sales as usual. On an ordinary (non-collapse) day, particles that
+    // failed are left exactly as pre-fix code left them — untouched, pruned by
+    // resampling below. Only when EVERY particle failed today (total collapse,
+    // `z <= 0.0`) does bookkeeping become unconditional, forcing the known
+    // sales/waste totals onto every particle so the belief can't freeze.
+    let total_collapse = z <= 0.0;
+    for p in 0..n {
+        let mut path_rng = Pcg64::seed_from_u64(step_seed.wrapping_add(1_000_000 + p as u64));
+        let row = &mut bank.freshness[p];
+        let ev = DayEvidence::resolve(obs, &bank.lot_ids, row, &offsets);
+        let succeeded = log_like[p] > -1e299;
+        if succeeded {
+            apply_sales_removal(row, &offsets, &ev, params, &mut path_rng);
+        } else if total_collapse {
+            if ev.waste_tot.is_some() && !aged_ok[p] {
+                apply_fallback_waste_removal(row, w_obs_vec[p]);
+            }
+            apply_sales_removal(row, &offsets, &ev, params, &mut path_rng);
+        }
+    }
 
     let idx = systematic_resample(&log_w);
     bank.freshness = idx.iter().map(|&j| bank.freshness[j].clone()).collect();
