@@ -48,6 +48,7 @@ from blueberries_voi.experiments.rollout_bakeoff import (
 )
 from blueberries_voi.experiments.voi_profit import (
     DEFAULT_PROFIT_SEEDS,
+    load_damped_sw_bo_params,
     merge_voi_profit_rows,
     run_seed_channel_profit,
     voi_profit_job_grid,
@@ -187,10 +188,12 @@ def test_merge_gsin_diag_rows_shape() -> None:
                     "lot_n": 4.0,
                     "count_mae": 0.2,
                     "count_bias": 0.02,
+                    "crps_sum": 0.24,
                     "store_meanf_mae": 0.04,
                     "lot_meanf_mae": 0.08,
                     "lot_count_mae": 0.16,
                     "tv_sum": 0.3,
+                    "w1_sum": 0.1,
                     "ess_sum": 200.0,
                     "eff_inv_mae": 0.5,
                     "ms": 10.0,
@@ -210,10 +213,12 @@ def test_merge_gsin_diag_rows_shape() -> None:
                     "lot_n": 4.0,
                     "count_mae": 0.4,
                     "count_bias": 0.04,
+                    "crps_sum": 0.48,
                     "store_meanf_mae": 0.08,
                     "lot_meanf_mae": 0.16,
                     "lot_count_mae": 0.32,
                     "tv_sum": 0.6,
+                    "w1_sum": 0.2,
                     "ess_sum": 180.0,
                     "eff_inv_mae": 1.0,
                     "ms": 12.0,
@@ -228,6 +233,9 @@ def test_merge_gsin_diag_rows_shape() -> None:
     assert row["regime"] == REGIME_TITLES[0]
     assert row["channel"] == "P0"
     assert row["count_mae"] == pytest.approx(0.15)
+    assert row["count_crps"] == pytest.approx(0.18)
+    assert row["freshness_w1"] == pytest.approx(0.075)
+    assert row["hist_tv"] == pytest.approx(0.225)
     assert row["series"] == series
 
 
@@ -327,14 +335,16 @@ def test_controller_bakeoff_filtered_arms_exclude_rung0() -> None:
 
 
 def test_resolve_arm_rho_sla_pb_uses_bo_tuned_rho() -> None:
+    _, sw_rho = load_damped_sw_bo_params()
     assert resolve_arm_rho("sla_pb") == pytest.approx(0.5)
-    assert resolve_arm_rho("sw") == pytest.approx(0.8)
+    assert resolve_arm_rho("sw") == pytest.approx(sw_rho)
 
 
 def test_controller_bakeoff_job_grid_per_arm_rho() -> None:
+    _, sw_rho = load_damped_sw_bo_params()
     grid = controller_bakeoff_job_grid((42,), ("sw", "sla_pb"), 0.8)
     rhos = {arm: rho for _, arm, rho in grid}
-    assert rhos["sw"] == pytest.approx(0.8)
+    assert rhos["sw"] == pytest.approx(sw_rho)
     assert rhos["sla_pb"] == pytest.approx(0.5)
 
 
@@ -464,7 +474,7 @@ def test_f3_filtered_soo_job_payload_includes_belief_world() -> None:
         case_size=8,
         use_calendar_demand=False,
         demand_profile_path="",
-        use_abdella=True,
+        arrival_product="abdella_mix",
         belief_world="filtered",
         obs_preset="F3",
     )
@@ -541,7 +551,7 @@ def test_modal_f3_filtered_soo_grid_dry_run() -> None:
         case_size=8,
         use_calendar_demand=True,
         demand_profile_path="/data/freshnet/demand_profile.json",
-        use_abdella=True,
+        arrival_product="abdella_mix",
         belief_world="filtered",
         obs_preset="F3",
     )

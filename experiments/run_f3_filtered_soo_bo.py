@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ax SOO BO for constant / sw / sla_pb under filtered F3 beliefs (T-163 nb21).
+"""Ax SOO BO for constant / sw / sla_pb under filtered F3 beliefs (T-163).
 
 Scores shards via ``run_controller_eval`` (belief_world=filtered, preset F3), not
 oracle ``evaluate_alpha_episode_outcomes``.
@@ -229,9 +229,7 @@ def run_arm_bo(
 
     best_params, _pred, best_index, _name = client.get_best_parameterization()
     best_alpha = float(best_params["alpha"])
-    best_rho = (
-        float(best_params["rho"]) if arm != "constant" else CONSTANT_FIXED_RHO
-    )
+    best_rho = float(best_params["rho"]) if arm != "constant" else CONSTANT_FIXED_RHO
     print(
         f"F3 {arm} best: alpha={best_alpha:.4f}, rho={best_rho:.4f} "
         f"(trial {best_index}, wall {wall_s / 60:.1f} min)"

@@ -78,7 +78,7 @@ describe("renderDampedSwDemo", () => {
     expect(host.querySelectorAll(".legend-label").length).toBe(2);
   });
 
-  it("shows constant-policy hint instead of histogram", () => {
+  it("leaves host empty for constant policy", () => {
     const host = chartHost();
     renderDampedSwDemo(host, {
       alpha: 0.9,
@@ -91,8 +91,8 @@ describe("renderDampedSwDemo", () => {
       episodeDay: 0,
       effectiveInventory: 20,
     });
-    expect(host.querySelector(".damped-sw-demo-hint")).not.toBeNull();
-    expect(host.querySelectorAll(".prot-demand-hist-bar").length).toBe(0);
+    expect(host.querySelector("svg")).toBeNull();
+    expect(host.childElementCount).toBe(0);
   });
 });
 
@@ -131,14 +131,14 @@ describe("coverageBiasScore", () => {
   });
 
   it("increases with rho holding alpha fixed", () => {
-    const low = coverageBiasScore(0.9, 0.2);
-    const high = coverageBiasScore(0.9, 0.95);
+    const low = coverageBiasScore(0.9, 0.5);
+    const high = coverageBiasScore(0.9, 1.5);
     expect(high).toBeGreaterThan(low);
   });
 
   it("clamps to [0, 1]", () => {
-    expect(coverageBiasScore(0.5, 0.1)).toBeGreaterThanOrEqual(0);
-    expect(coverageBiasScore(0.99, 1)).toBeLessThanOrEqual(1);
+    expect(coverageBiasScore(0.5, 0.5)).toBeGreaterThanOrEqual(0);
+    expect(coverageBiasScore(0.99, 2.0)).toBeLessThanOrEqual(1);
   });
 });
 

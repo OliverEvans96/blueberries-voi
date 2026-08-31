@@ -209,9 +209,7 @@ def resolve_arm_rho(
         return float(rho)
     world = str(belief_world).lower()
     if world == "filtered":
-        header = _load_tuned_alpha_header(
-            alpha_table_path, belief_world=belief_world
-        )
+        header = _load_tuned_alpha_header(alpha_table_path, belief_world=belief_world)
         rhos = header.get("rhos")
         if isinstance(rhos, dict) and arm_id in rhos and rhos[arm_id] is not None:
             return float(rhos[arm_id])

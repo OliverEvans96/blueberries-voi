@@ -2,6 +2,9 @@
  * Sim truth overlay toggle — DecisionRail switch UX (ADR 0125 / T-127 shell).
  */
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -85,6 +88,12 @@ describe("DecisionRail truth toggle", () => {
     expect(btn.getAttribute("aria-checked")).toBe("true");
     expect(btn.classList.contains("truth-toggle--on")).toBe(true);
     expect(btn.querySelector(".truth-toggle-text")?.textContent).toBe("On");
+  });
+
+  it("off-state toggle uses muted green fill in styles.css", () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "styles.css"), "utf8");
+    expect(css).toMatch(/\.truth-toggle\s*\{[^}]*#6b9e6b/);
+    expect(css).toMatch(/\.truth-toggle--on\s*\{[^}]*var\(--truth-strong\)/);
   });
 
   it("renders truth toggle in decision-rail-truth section", () => {

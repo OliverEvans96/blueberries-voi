@@ -36,7 +36,10 @@ from blueberries_voi.sim.episode import run_closed_loop_episode
 from blueberries_voi.sim.order_schedule import DEFAULT_ORDER_SCHEDULE, OrderSchedule
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, episode_profit
 from blueberries_voi.sim.service import service_metrics_from_steps
-from blueberries_voi.sim.shipments import default_shipments
+from blueberries_voi.sim.shipments import (
+    DEFAULT_ARRIVAL_PRODUCT,
+    mod21_demo_shipments,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -267,6 +270,7 @@ def _evaluate_via_rust_kernel(
     rollout_h: int,
     n_rollout_paths: int,
     candidate_case_radius: int,
+    arrival_product: str,
 ) -> AlphaTuneEpisodeOutcomes | None:
     """Return scored outcomes from ``voi_core`` when the PyO3 shim is available."""
     if not rust_available() or rust_core is None:
@@ -295,6 +299,7 @@ def _evaluate_via_rust_kernel(
         demand_vm=float(params.demand_vm),
         case_size=int(params.case_size),
         demand_profile=_core_demand_profile(params),
+        arrival_product=str(arrival_product),
     )
     fill_rate = float(sales) / float(demand) if demand > 0 else 1.0
     day_no_stockout_rate = (
@@ -394,6 +399,7 @@ def evaluate_alpha_episode_outcomes(
     params: ModelParams | None = None,
     costs: ProfitCosts | None = None,
     shipments: Sequence[ShipmentTrace] | None = None,
+    arrival_product: str = DEFAULT_ARRIVAL_PRODUCT,
     n_burn: int = 2,
     n_score: int = 5,
     lead_time: int = 1,
@@ -404,7 +410,8 @@ def evaluate_alpha_episode_outcomes(
 ) -> AlphaTuneEpisodeOutcomes:
     """Score one (arm, alpha, rho) via closed-loop episode aggregates (SIM-01=B)."""
     p = params or ModelParams()
-    ships = list(shipments) if shipments is not None else default_shipments()
+    product = str(arrival_product)
+    ships = list(shipments) if shipments is not None else mod21_demo_shipments(product)
     use_costs = costs if costs is not None else DEFAULT_PROFIT_COSTS
     rust_outcomes = _evaluate_via_rust_kernel(
         arm_id,
@@ -420,6 +427,7 @@ def evaluate_alpha_episode_outcomes(
         rollout_h=rollout_h,
         n_rollout_paths=n_rollout_paths,
         candidate_case_radius=candidate_case_radius,
+        arrival_product=product,
     )
     if rust_outcomes is not None:
         return rust_outcomes

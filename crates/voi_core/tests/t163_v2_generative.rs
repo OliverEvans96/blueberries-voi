@@ -142,6 +142,32 @@ fn var_log_d_matches_abdella() {
     );
 }
 
+/// Leaf corridors must resample empirical durations from their own provenance pool, not the
+/// unconditional six-shipment mix (otherwise `resolve_corridor_regime` only controls ~22% of draws).
+#[test]
+#[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]
+fn empirical_duration_respects_resolved_regime() {
+    let m = model_rho_zero();
+    let n = 2_000usize;
+    let mut short = Vec::with_capacity(n);
+    let mut long = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut rng = Pcg64::seed_from_u64(163_025 + i as u64);
+        short.push(m.draw_bottom_up_duration("short_haul", &mut rng));
+        long.push(m.draw_bottom_up_duration("long_haul", &mut rng));
+    }
+    let short_frac_long = short.iter().filter(|&&d| d > 4.0).count() as f64 / n as f64;
+    let long_frac_short = long.iter().filter(|&&d| d < 3.5).count() as f64 / n as f64;
+    assert!(
+        short_frac_long < 0.12,
+        "short_haul empirical pool is S2 only; >4d draws should be rare, got {short_frac_long:.3}"
+    );
+    assert!(
+        long_frac_short < 0.12,
+        "long_haul empirical pool is S1,S3–S6; <3.5d draws should be rare, got {long_frac_short:.3}"
+    );
+}
+
 /// S1.4 — hourly OU wiggle on the path even when ρ=0 (not flat within a stage).
 #[test]
 #[ignore = "T-163 v2 generative MC; slow: run via cargo test -- --ignored"]

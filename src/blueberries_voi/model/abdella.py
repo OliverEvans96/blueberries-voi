@@ -158,7 +158,7 @@ def arrival_age_from_path(
     temps_c: np.ndarray,
     times_d: np.ndarray,
     *,
-    q10: float = 3.0,
+    q10: float = 2.0,
     t_ref_c: float = 0.0,
 ) -> float:
     """Integrate Q10/Arrhenius acceleration along a temperature path."""
@@ -178,7 +178,7 @@ def arrival_age_from_path(
 def shipment_arrival_age(
     shipment: ShipmentTrace,
     *,
-    q10: float = 3.0,
+    q10: float = 2.0,
     t_ref_c: float = 0.0,
 ) -> float:
     return arrival_age_from_path(

@@ -37,6 +37,12 @@ def test_ensure_demo_shipments_preserves_nonempty() -> None:
     assert out["shipments"] is existing
 
 
+def test_ensure_demo_shipments_defers_when_arrival_product_set() -> None:
+    out = ensure_demo_shipments({"arrival_product": "abdella_mix"})
+    assert "shipments" not in out
+    assert out["arrival_product"] == "abdella_mix"
+
+
 def test_default_shipments_delegates_to_mod21_demo(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -44,6 +50,8 @@ def test_default_shipments_delegates_to_mod21_demo(
 
     sentinel = smoke_cool_shipments()
     monkeypatch.setattr(
-        shipments_mod, "mod21_demo_shipments", lambda product="abdella_all": sentinel
+        shipments_mod,
+        "mod21_demo_shipments",
+        lambda product=shipments_mod.DEFAULT_ARRIVAL_PRODUCT: sentinel,
     )
     assert default_shipments() is sentinel

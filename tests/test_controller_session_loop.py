@@ -184,6 +184,7 @@ def test_default_session_config_smoke_shipments() -> None:
     assert cfg["lead_time"] == 1
     assert cfg["belief_source"] == "filter"
     assert cfg["n_rollout_paths"] == 0
+    assert cfg["K"] == 30
     assert cfg["delivery_weekdays"] == [0, 2, 4]
 
 

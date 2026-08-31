@@ -33,14 +33,12 @@ const D3_CHART_IDS = [
   "chart-sales-demand",
   "chart-age-comp",
   "chart-arrival-prior",
-  "chart-arrival-shift",
   "chart-arrhenius-temp",
   "chart-gamma-path",
   "chart-belief-age-marginal",
   "chart-belief-lg",
   "chart-controller-orders",
   "chart-spoil",
-  "chart-age-comp-focus",
   "chart-controller-orders-focus",
   "chart-spoil-focus",
 ] as const;
@@ -257,6 +255,47 @@ export function StudioLayout() {
                   Filter belief over time — hover a day to link charts.
                 </span>
               </div>
+              <div
+                className="chart-caption impact-caption"
+                data-truth-caption="belief-lg"
+              >
+                <span data-truth-caption-label>
+                  Today&apos;s Freshness Distribution
+                </span>
+                <InfoTip>
+                  A histogram of the filter&apos;s current belief over freshness
+                  values. Separate bumps instead of one smooth curve reflect
+                  genuine uncertainty about which units are close to spoiling.
+                </InfoTip>
+              </div>
+              <D3ChartHost
+                id="chart-belief-lg"
+                className="chart"
+                ariaLabel="Today's Freshness Distribution"
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
+              <div
+                className="chart-caption impact-caption"
+                data-truth-caption="age-comp"
+              >
+                <span data-truth-caption-label>
+                  Historical Freshness Summary
+                </span>
+                <InfoTip>
+                  Groups on-hand units into freshness bands, since a unit close
+                  to spoiling barely protects against tomorrow&apos;s demand. The
+                  controller orders off this freshness-weighted total, called
+                  effective inventory.
+                </InfoTip>
+              </div>
+              <D3ChartHost
+                id="chart-age-comp"
+                className="chart"
+                ariaLabel="On-hand inventory by freshness band with effective overlay"
+              >
+                <ChartLoadingShell />
+              </D3ChartHost>
               <div className="chart-caption" data-truth-caption="lots">
               <span data-truth-caption-label>
                 Historical Freshness Distribution
@@ -264,7 +303,7 @@ export function StudioLayout() {
               <InfoTip>
                 A heatmap of believed freshness per lot over time, with the
                 hidden ground truth overlaid for comparison. Freshness runs
-                from 1 (pristine) to 0 (spoiled) and decays at each unit's own
+                from 1 (pristine) to 0 (spoiled) and decays at each unit&apos;s own
                 pace.
               </InfoTip>
             </div>
@@ -272,47 +311,6 @@ export function StudioLayout() {
               id="chart-history"
               className="chart"
               ariaLabel="Belief freshness over time with truth overlay"
-            >
-              <ChartLoadingShell />
-            </D3ChartHost>
-            <div
-              className="chart-caption impact-caption"
-              data-truth-caption="age-comp"
-            >
-              <span data-truth-caption-label>
-                Historical Freshness Summary
-              </span>
-              <InfoTip>
-                Groups on-hand units into freshness bands, since a unit close
-                to spoiling barely protects against tomorrow's demand. The
-                controller orders off this freshness-weighted total, called
-                effective inventory.
-              </InfoTip>
-            </div>
-            <D3ChartHost
-              id="chart-age-comp"
-              className="chart"
-              ariaLabel="On-hand inventory by freshness band with effective overlay"
-            >
-              <ChartLoadingShell />
-            </D3ChartHost>
-            <div
-              className="chart-caption impact-caption"
-              data-truth-caption="belief-lg"
-            >
-              <span data-truth-caption-label>
-                Today&apos;s Freshness Distribution
-              </span>
-              <InfoTip>
-                A histogram of the filter's current belief over freshness
-                values. Separate bumps instead of one smooth curve reflect
-                genuine uncertainty about which units are close to spoiling.
-              </InfoTip>
-            </div>
-            <D3ChartHost
-              id="chart-belief-lg"
-              className="chart"
-              ariaLabel="Today's Freshness Distribution"
             >
               <ChartLoadingShell />
             </D3ChartHost>
@@ -336,7 +334,7 @@ export function StudioLayout() {
                 <tr>
                   <th scope="col" />
                   <th scope="col">Mean</th>
-                  <th scope="col">Distribution</th>
+                  <th scope="col">W₁ (dist.)</th>
                 </tr>
               </thead>
               <tbody>

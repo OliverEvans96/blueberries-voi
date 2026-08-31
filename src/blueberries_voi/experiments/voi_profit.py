@@ -19,7 +19,7 @@ from blueberries_voi.filter.types import (
 )
 from blueberries_voi.sim.alpha_tune import require_tuned_alpha_table
 from blueberries_voi.sim.profit import DEFAULT_PROFIT_COSTS, ProfitCosts, day_profit
-from blueberries_voi.sim.shipments import default_shipments
+from blueberries_voi.sim.shipments import DEFAULT_ARRIVAL_PRODUCT, default_shipments
 from blueberries_voi.sim.types_log import DayLog
 from blueberries_voi.simulator import DEMO_BUDGETS, EngineSession
 
@@ -28,7 +28,7 @@ DEFAULT_N_BURN = 2
 DEFAULT_N_SCORE = 30
 DEFAULT_FILTER_N = 24
 DEFAULT_TUNED_ALPHA_PATH = Path("experiments/tuned_alpha.json")
-DEFAULT_CONTROLLER_RHO: float = 0.8
+DEFAULT_CONTROLLER_RHO: float = 1.5938240528614713
 DEFAULT_DAMPED_SW_BO_PATH = Path("outputs/damped_sw_alpha_bo.json")
 
 __all__ = [
@@ -113,18 +113,30 @@ def _resolve_controller_params(
     return alpha, rho
 
 
+def _policy_act_kw(
+    alpha: float,
+    rho: float,
+    *,
+    policy: str = "damped_sw",
+    n_rollout_paths: int = 0,
+) -> dict[str, Any]:
+    return {
+        "policy": str(policy),
+        "alpha": float(alpha),
+        "rho": float(rho),
+        "n_rollout_paths": int(n_rollout_paths),
+    }
+
+
 def _damped_sw_act_kw(
     alpha: float,
     rho: float,
     *,
     n_rollout_paths: int = 0,
 ) -> dict[str, Any]:
-    return {
-        "policy": "damped_sw",
-        "alpha": float(alpha),
-        "rho": float(rho),
-        "n_rollout_paths": int(n_rollout_paths),
-    }
+    return _policy_act_kw(
+        alpha, rho, policy="damped_sw", n_rollout_paths=n_rollout_paths
+    )
 
 
 def profit_session_config(
@@ -135,13 +147,14 @@ def profit_session_config(
 ) -> dict[str, Any]:
     """EngineSession config for damped-SW closed-loop profit (nb15)."""
     return {
+        "arrival_product": DEFAULT_ARRIVAL_PRODUCT,
         "shipments": default_shipments(),
         "n_particles": int(filter_n),
         "H": int(DEMO_BUDGETS["H"]),
         "n_rollout_paths": int(n_rollout_paths),
         "candidate_case_radius": int(DEMO_BUDGETS["candidate_case_radius"]),
-        "L": 3,
-        "K": 8,
+        "L": 50,
+        "K": 30,
         "enable_filter": True,
         "belief_source": "filter",
         "lead_time": 1,
@@ -193,6 +206,7 @@ def _run_scored_episode(
     setup: Any,
     costs: ProfitCosts,
     session_config: dict[str, Any] | None = None,
+    policy: str = "damped_sw",
 ) -> tuple[float, int, int]:
     session = EngineSession()
     cfg = session_config or profit_session_config(
@@ -202,7 +216,7 @@ def _run_scored_episode(
     session.init(cfg, seed=seed)
     setup(session)
 
-    act_kw = _damped_sw_act_kw(alpha, rho, n_rollout_paths=n_rollout_paths)
+    act_kw = _policy_act_kw(alpha, rho, policy=policy, n_rollout_paths=n_rollout_paths)
     for _ in range(n_burn):
         session.act(**act_kw)
 
@@ -259,6 +273,7 @@ def run_seed_channel_profit(
     controller_alpha: float | None = None,
     controller_rho: float | None = None,
     bo_json_path: Path | str | None = None,
+    policy: str = "damped_sw",
 ) -> dict[str, Any]:
     """One closed-loop episode: ``init`` → ``set_obs_channels`` → ``act`` loop."""
     ch = validate_channels(channels)
@@ -283,6 +298,7 @@ def run_seed_channel_profit(
         rho=rho,
         setup=_setup,
         costs=use_costs,
+        policy=policy,
     )
     return _channel_row(
         seed,
@@ -305,6 +321,7 @@ def run_seed_oracle_profit(
     controller_alpha: float | None = None,
     controller_rho: float | None = None,
     bo_json_path: Path | str | None = None,
+    policy: str = "damped_sw",
 ) -> dict[str, Any]:
     """B-state ceiling via ``EngineSession`` truth belief.
 
@@ -336,6 +353,7 @@ def run_seed_oracle_profit(
             filter_n=filter_n,
             alpha_table_path=alpha_table_path,
         ),
+        policy=policy,
     )
     return _channel_row(
         seed,

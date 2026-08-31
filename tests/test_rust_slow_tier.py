@@ -65,7 +65,7 @@ def test_rust_slow_tier_counts_in_expected_band() -> None:
     all_tests = _list_tests()
     ignored = _list_tests("--ignored")
     default = all_tests - ignored
-    assert 180 <= len(default) <= 250, f"default tier count {len(default)} outside band"
+    assert 180 <= len(default) <= 260, f"default tier count {len(default)} outside band"
     assert 50 <= len(ignored) <= 120, f"ignored tier count {len(ignored)} outside band"
     assert default.isdisjoint(ignored)
 

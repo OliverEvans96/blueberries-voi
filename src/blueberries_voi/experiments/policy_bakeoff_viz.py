@@ -221,9 +221,7 @@ def write_alpha_vs_observed_figure(
     plt.close(fig)
 
 
-def _mean_by_arm(
-    rows: list[dict[str, Any]], field: str
-) -> dict[str, float]:
+def _mean_by_arm(rows: list[dict[str, Any]], field: str) -> dict[str, float]:
     buckets: dict[str, list[float]] = {}
     for row in rows:
         arm = str(row["arm_id"])

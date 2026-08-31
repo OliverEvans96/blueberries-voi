@@ -39,10 +39,10 @@ import {
 } from "../charts/chartHeights";
 import {
   BELIEF_MAE_TOOLTIP,
-  currentDistributionAbsError,
+  currentFreshnessW1,
   currentMeanFAbsError,
   formatMeanFAbsError,
-  meanDistributionAbsErrorOverHistory,
+  meanFreshnessW1OverHistory,
   meanMeanFAbsErrorOverHistory,
 } from "../charts/beliefAccuracy";
 import {
@@ -84,7 +84,6 @@ import { renderPnLTotals } from "../charts/pnlTotals";
 import { renderSalesDemand, setSalesDemandHover } from "../charts/salesDemand";
 import {
   renderArrivalPrior,
-  renderArrivalShift,
 } from "../charts/arrivalPrior";
 import {
   clearArrivalPriorPlaceholder,
@@ -114,6 +113,7 @@ import {
   type SectionId,
 } from "../sections";
 import { DEFAULT_SIM_CONFIG } from "../mock/generate";
+import { tunedControllerFor } from "../perChannelTuning";
 import type { Economics, HoverDay, ObsChannels, ScenarioId, SimConfig, ViewModel } from "../types";
 import type { ActOpts, ArrivalSummary, ScheduleWire, Snapshot } from "../engine/types";
 import { buildStepNOrders } from "../calendar/nextOrderAdvance";
@@ -356,15 +356,6 @@ export function initStudio(app: HTMLElement): () => void {
     get spoil(): HTMLElement {
       return q<HTMLElement>("#chart-spoil")!;
     },
-    get ageCompFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-age-comp-focus")!;
-    },
-    get controllerOrdersFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-controller-orders-focus")!;
-    },
-    get spoilFocus(): HTMLElement {
-      return q<HTMLElement>("#chart-spoil-focus")!;
-    },
     get dampedSwDemo(): HTMLElement {
       return q<HTMLElement>("#chart-damped-sw-demo")!;
     },
@@ -373,9 +364,6 @@ export function initStudio(app: HTMLElement): () => void {
     },
     get arrivalPriorOverlay(): HTMLElement | null {
       return q<HTMLElement>("#chart-arrival-prior-overlay");
-    },
-    get arrivalShift(): HTMLElement {
-      return q<HTMLElement>("#chart-arrival-shift")!;
     },
     get arrheniusTemp(): HTMLElement {
       return q<HTMLElement>("#chart-arrhenius-temp")!;
@@ -719,12 +707,9 @@ export function initStudio(app: HTMLElement): () => void {
     );
     setSalesDemandHover(els.salesDemand, day);
     setControllerOrdersHover(els.controllerOrders, day);
-    setControllerOrdersHover(els.controllerOrdersFocus, day);
     setWasteBarsHover(els.spoil, day);
-    setWasteBarsHover(els.spoilFocus, day);
     setPnLHover(els.pnlEconomics, day);
     setFreshnessCompositionHover(els.ageComp, day);
-    setFreshnessCompositionHover(els.ageCompFocus, day);
     setDemandForecastHover(els.demandForecast, day);
   }
 
@@ -813,22 +798,22 @@ export function initStudio(app: HTMLElement): () => void {
 
     const flat = vm.belief_history.at(-1)?.flatBelief;
     const todayMeanMae = flat ? currentMeanFAbsError(flat, vm.live_units) : null;
-    const todayDistMae = flat
-      ? currentDistributionAbsError(flat, vm.live_units)
+    const todayDistW1 = flat
+      ? currentFreshnessW1(flat, vm.live_units)
       : null;
 
     const meanSummary = meanMeanFAbsErrorOverHistory(
       vm.history,
       vm.belief_history,
     );
-    const distSummary = meanDistributionAbsErrorOverHistory(
+    const distSummary = meanFreshnessW1OverHistory(
       vm.history,
       vm.belief_history,
     );
 
     if (
       todayMeanMae == null ||
-      todayDistMae == null ||
+      todayDistW1 == null ||
       !meanSummary ||
       !distSummary
     ) {
@@ -844,9 +829,9 @@ export function initStudio(app: HTMLElement): () => void {
     table.hidden = false;
     table.title = BELIEF_MAE_TOOLTIP;
     todayMeanCell.textContent = formatMeanFAbsError(todayMeanMae);
-    todayDistCell.textContent = formatMeanFAbsError(todayDistMae);
+    todayDistCell.textContent = formatMeanFAbsError(todayDistW1);
     allMeanCell.textContent = formatMeanFAbsError(meanSummary.meanMae);
-    allDistCell.textContent = formatMeanFAbsError(distSummary.meanMae);
+    allDistCell.textContent = formatMeanFAbsError(distSummary.meanW1);
   }
 
   function plotVisible(plotId: string): boolean {
@@ -857,17 +842,8 @@ export function initStudio(app: HTMLElement): () => void {
     return false;
   }
 
-  function mountChartIntoHost(chartEl: HTMLElement, hostId: string): void {
-    const host = q<HTMLElement>(`#${hostId}`);
-    if (host && chartEl.parentElement !== host) {
-      host.appendChild(chartEl);
-    }
-  }
-
-  function mountTuningChartHosts(sectionId: SectionId): void {
-    if (sectionId === "logistics") {
-      mountChartIntoHost(els.ageCompFocus, "chart-age-comp-focus-host");
-    }
+  function mountTuningChartHosts(_sectionId: SectionId): void {
+    // Focus charts mount in tuning drawer hosts at render time.
   }
 
   function liveEffectiveInventory(): number | null {
@@ -977,9 +953,6 @@ export function initStudio(app: HTMLElement): () => void {
 
   function renderCockpitBelief(): void {
     profileSync("renderCockpitBelief", () => {
-      profileSync("renderCockpitBelief.ageComp", () =>
-        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
-      );
       const flat = vm.belief_history.at(-1)?.flatBelief;
       const data = flat
         ? freshnessHistogramDataFromFlat(flat, vm.live_units)
@@ -989,6 +962,9 @@ export function initStudio(app: HTMLElement): () => void {
         data,
         showTruth,
         BELIEF_HISTOGRAM_HEIGHT,
+      );
+      profileSync("renderCockpitBelief.ageComp", () =>
+        renderAgeCompositionChart(els.ageComp, METRICS_STRIP_HEIGHT),
       );
       els.beliefAgeMarginal.replaceChildren();
     });
@@ -1029,8 +1005,6 @@ export function initStudio(app: HTMLElement): () => void {
       profileSync("renderStore.applyHoverStyles", () => applyHoverStyles(hoveredDay));
     });
   }
-
-  const FOCUS_CHART_HEIGHT = 95;
 
   function arrivalSummaryWireKey(): string {
     const c = vm.config;
@@ -1095,11 +1069,6 @@ export function initStudio(app: HTMLElement): () => void {
   function renderActiveFocusPlots(): void {
     profileSync("renderActiveFocusPlots", () => {
       renderRunStripCharts();
-      if (plotVisible("plot-age-comp")) {
-        profileSync("renderActiveFocusPlots.ageCompFocus", () =>
-          renderAgeCompositionChart(els.ageCompFocus, FOCUS_CHART_HEIGHT),
-        );
-      }
       if (plotVisible("plot-demand-forecast")) {
         profileSync("renderActiveFocusPlots.demandForecast", () =>
           renderDemandForecast(
@@ -1137,11 +1106,6 @@ export function initStudio(app: HTMLElement): () => void {
             renderArrivalPriorPlaceholder(els.arrivalPrior, 160);
           }
         });
-      }
-      if (plotVisible("plot-arrival-shift")) {
-        profileSync("renderActiveFocusPlots.arrivalShift", () =>
-          renderArrivalShift(els.arrivalShift, vm.arrival_summary, vm.config.transit_temp_bias_c, 150),
-        );
       }
       if (plotVisible("plot-arrhenius-temp")) {
         profileSync("renderActiveFocusPlots.arrheniusTemp", () =>
@@ -1343,7 +1307,7 @@ export function initStudio(app: HTMLElement): () => void {
     applyDelta: async (delta) => {
       // Sync order slider before renderAll so chrome matches day.order_qty (T-100 AC).
       const q = (delta.day as { order_qty?: number } | undefined)?.order_qty;
-      if (typeof q === "number") {
+      if (typeof q === "number" && controllerState.policy !== "constant") {
         orderQty = snapOrder(q);
       }
       vm = projector.applyDelta(delta);
@@ -1486,6 +1450,14 @@ export function initStudio(app: HTMLElement): () => void {
     explicitPreset?: ScenarioId,
   ): Promise<void> {
     const obs_scenario = resolveDisplayObsScenario(channels, explicitPreset);
+    // Each of the 12 observation-channel combinations has its own
+    // independently Ax-tuned (alpha, rho) (perChannelTuning.ts) -- a single
+    // shared pair was found to flatten the belief-accuracy-vs-profit
+    // relationship even where belief accuracy itself differed cleanly, so
+    // switching channels re-syncs the controller rather than leaving
+    // whatever pair was dialed in for the previous channel.
+    controllerState = { ...controllerState, ...tunedControllerFor(channels) };
+    sectionControlsApi.updateController(controllerState);
     const setCh =
       adapter.set_obs_channels?.bind(adapter) ??
       adapter.setObsChannels?.bind(adapter);

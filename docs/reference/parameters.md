@@ -204,16 +204,16 @@ that live in TypeScript and are not part of `ModelParams` itself.
 
 | Parameter | Symbol | Default | Unit | Meaning | Defined in |
 | --- | --- | --- | --- | --- | --- |
-| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at −1.65 / 0.58 / 2.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); flat −2.0 °C shift from earlier compressed anchors under unified $\eta_\text{ref}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:199` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
+| Transit legs | $w_k$, $\mu_k$ | 15% / 60% / 25% at 0.35 / 2.58 / 4.32 °C | — / °C | Deterministic break-free baseline (`precool_staging`, `line_haul`, `dock_receiving`); Abdella compressed anchors under unified $\eta_\text{ref}$ and $q_{10}$ | `data/abdella/arrival_model.json` (`legs`); `crates/voi_core/src/arrival.rs:199` (`legs` on [`ArrivalModel`](/api/rust/voi_core/arrival/struct.ArrivalModel.html)) |
 | Reference life (arrival) | $\eta_{\text{ref,arrival}}$ | 14.0 | reference-days | Unified with in-store $\eta_\text{ref}$; studio η_ref slider drives both clocks; $k\theta\eta=1$ | `data/abdella/arrival_model.json` (`reference_life_days`); synced via RPC configure and [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) |
-| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Shared thermal scale for transit exposure and in-store aging | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:41` |
+| Q10 coefficient (arrival) | $Q_{10}$ | 2.0 | ×/10°C | Shared thermal scale for transit exposure and in-store aging; mirrored from studio `q10` via [`sync_params`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.sync_params) | `data/abdella/arrival_model.json` (`q10`); `crates/voi_core/src/params.rs:41` |
 | Break temperature | $T_{\mathrm{break}}$ | 12.0 | °C | Fixed temperature during a cold-chain break episode | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:206` (`t_break`) |
 | Break hazard | $\rho$ | 0.08 | /day | Poisson rate of break events per transit-day (assumed, not fit) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:209` (`rho`) |
 | Mean break duration | $\bar\tau$ | 0.5 | days | Mean duration of each break at $T_{\mathrm{break}}$ (assumed) | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:212` (`tau_bar`) |
 | Position spread | $\sigma_\text{pos}$ | 0.08 | log-scale | Log-normal spread of $\psi$, the within-pallet position multiplier | `data/abdella/arrival_model.json`; `crates/voi_core/src/arrival.rs:215` (`sigma_pos`) |
 | Filter thermal nodes | — | — | — | Stage-gamma baseline nodes for filter quadrature | `crates/voi_core/src/arrival.rs:1564` (`thermal_nodes_for_key`) |
 | Truth transit trace | — | — | — | Bottom-up generative temperature path | `crates/voi_core/src/shipments.rs:98` ([`truth_transit_trace`](/api/rust/voi_core/shipments/fn.truth_transit_trace.html)) |
-| Default mixture (`abdella_mix`) | 0.8 × `short_haul` + 0.2 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
+| Default mixture (`abdella_mix`) | 0.7 × `short_haul` + 0.3 × `long_haul` | — | — | Production default; categorical regime draw before duration | `data/abdella/arrival_model.json` (`corridor_mixtures.abdella_mix`) |
 | Pooled `abdella_all` | $d_\text{min}$ / delay shape / delay scale | 1.853 days / 3.009 / 0.974 | days / — / days | Moment-matched Abdella pooled duration law | `data/abdella/arrival_model.json` (`corridors.abdella_all`) |
 | Component `short_haul` | $d_\text{min}$ / shape / scale | 1.803 / 2.0 / 0.05 | days | Abdella S2 duration family | `data/abdella/arrival_model.json` (`corridors.short_haul`) |
 | Component `long_haul` | $d_\text{min}$ / shape / scale | 4.033 / 1.628 / 0.814 | days | Abdella S1, S3–S6 duration family | `data/abdella/arrival_model.json` (`corridors.long_haul`) |
@@ -228,7 +228,7 @@ that live in TypeScript and are not part of `ModelParams` itself.
   canonical value, derived in Rust from `eta_ref` and `gamma_shape`, is
   $1/28\approx0.035714$. Anything computed through that mock path will not match the live
   engine's shelf-life calibration.
-- `abdella_mix` (80% `short_haul` / 20% `long_haul`) is the production default corridor;
+- `abdella_mix` (70% `short_haul` / 30% `long_haul`) is the production default corridor;
   `abdella_all` remains the moment-matched pooled Abdella fit. Studio no longer exposes haul
   chips as first-class arrival lanes.
 - Break parameters $\rho$, $\bar\tau$, and $T_{\mathrm{break}}$ are **assumed scenario

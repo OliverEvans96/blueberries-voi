@@ -22,6 +22,8 @@ use crate::spawn_rng::SpawnRng;
 use crate::voi::truth_f_belief;
 
 const RUN_ID: &str = "alpha-tune";
+/// Upper bound for damped_sw `rho` in tuning paths; matches Studio slider and Ax search space.
+const MAX_DAMPED_SW_RHO: f64 = 2.0;
 const ORACLE_K: usize = 5;
 const STREAM_DEMAND: &str = ":demand";
 const STREAM_ALLOC: &str = ":alloc";
@@ -292,8 +294,10 @@ pub fn run_alpha_tune_episode(
     if !(0.0 < alpha && alpha < 1.0) {
         return Err(format!("alpha must be in (0,1), got {alpha}"));
     }
-    if !(0.0 < rho && rho <= 1.0) {
-        return Err(format!("rho must be in (0,1], got {rho}"));
+    if !(0.0 < rho && rho <= MAX_DAMPED_SW_RHO) {
+        return Err(format!(
+            "rho must be in (0,{MAX_DAMPED_SW_RHO}], got {rho}"
+        ));
     }
     if shipments.is_empty() {
         return Err("shipments must be non-empty".to_string());
@@ -456,6 +460,29 @@ pub fn parse_alpha_tune_arm(arm_id: &str) -> Result<AlphaTuneArm, String> {
 mod tests {
     use super::*;
     use crate::shipments::ShipmentTrace;
+
+    #[test]
+    fn rho_above_one_accepted_for_sw_tune() {
+        let ships = [ShipmentTrace::smoke_cool()];
+        let params = ModelParams::default();
+        let costs = AlphaTuneCosts::default();
+        let rollout = AlphaTuneRolloutBudgets::default();
+        let ep = run_alpha_tune_episode(
+            AlphaTuneArm::Sw,
+            0.9,
+            1.25,
+            42,
+            2,
+            3,
+            1,
+            &params,
+            &ships,
+            &costs,
+            &rollout,
+        )
+        .expect("rho=1.25 is valid for damped_sw tuning");
+        assert!(ep.scored_profit.is_finite());
+    }
 
     #[test]
     fn alpha_tune_smoke_finite_profit() {

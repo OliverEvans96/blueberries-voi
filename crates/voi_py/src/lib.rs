@@ -19,7 +19,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3::{IntoPyObject, PyAny};
 use serde_json::Value;
-use voi_core::arrival::{ArrivalCondition, ArrivalModel};
+use voi_core::arrival::{ArrivalCondition, ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::physics::{draw_demand_spawn, draw_gamma_decrement, picking_weights_f};
 use voi_core::policy::protection_demand_quantile;
 use voi_core::schedule::OrderSchedule;
@@ -32,6 +32,7 @@ use voi_core::{
     DayDelta, DemandProfile, EngineSession, ModelParams, RolloutContext, RolloutCosts,
     ShipmentTrace, SurvivalCurveCache,
 };
+use voi_core::joint_arrival_calib::{benchmark_fast_trial, evaluate_fast_trial};
 
 /// Loads a `DemandProfile` from `source`, treating it as a filesystem path if a file
 /// exists there and otherwise parsing it directly as a JSON literal -- lets Python callers
@@ -284,6 +285,7 @@ pub fn evaluate_alpha_tune_episode_py(
         demand_vm,
         case_size,
         demand_profile,
+        None,
     )?;
     Ok(profit)
 }
@@ -315,6 +317,7 @@ pub fn evaluate_alpha_tune_episode_py(
     demand_vm=2.0,
     case_size=8,
     demand_profile=None,
+    arrival_product=None,
 ))]
 pub fn evaluate_alpha_tune_outcomes_py(
     arm_id: &str,
@@ -336,6 +339,7 @@ pub fn evaluate_alpha_tune_outcomes_py(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
+    arrival_product: Option<&str>,
 ) -> PyResult<(f64, u32, u32, u32, u32, u32)> {
     evaluate_alpha_tune_outcomes_inner(
         arm_id,
@@ -357,6 +361,7 @@ pub fn evaluate_alpha_tune_outcomes_py(
         demand_vm,
         case_size,
         demand_profile,
+        arrival_product,
     )
 }
 
@@ -387,6 +392,7 @@ fn evaluate_alpha_tune_outcomes_inner(
     demand_vm: f64,
     case_size: u32,
     demand_profile: Option<&PyDemandProfile>,
+    arrival_product: Option<&str>,
 ) -> PyResult<(f64, u32, u32, u32, u32, u32)> {
     let arm =
         parse_alpha_tune_arm(arm_id).map_err(|err| pyo3::exceptions::PyValueError::new_err(err))?;
@@ -405,6 +411,11 @@ fn evaluate_alpha_tune_outcomes_inner(
         case_size,
         ..ModelParams::default()
     };
+    if let Some(product) = arrival_product {
+        params.arrival_product = product.to_string();
+    } else {
+        params.arrival_product = DEFAULT_ARRIVAL_CORRIDOR.to_string();
+    }
     if let Some(profile) = demand_profile {
         params.apply_demand_profile(profile.inner.clone());
     }
@@ -430,6 +441,45 @@ fn evaluate_alpha_tune_outcomes_inner(
         ep.scored_sales,
         ep.scored_no_stockout_days,
     ))
+}
+
+/// Evaluate one T-163 joint arrival calibration candidate (fast Ax path).
+/// Fixed truth/session seeds; optional `ac2_11a` uses `seed` as the slow-leg draw seed.
+#[pyfunction]
+#[pyo3(signature = (p_short, q10, delta_c, seed, include_ac2_11a=false))]
+pub fn evaluate_joint_calib_trial_py<'py>(
+    py: Python<'py>,
+    p_short: f64,
+    q10: f64,
+    delta_c: f64,
+    seed: u64,
+    include_ac2_11a: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let m = evaluate_fast_trial(p_short, q10, delta_c, include_ac2_11a, seed);
+    let dict = PyDict::new(py);
+    dict.set_item("p_short", m.p_short)?;
+    dict.set_item("q10", m.q10)?;
+    dict.set_item("delta_c", m.delta_c)?;
+    dict.set_item("seed", seed)?;
+    dict.set_item("ac2_19_margin", m.ac2_19_margin)?;
+    dict.set_item("ac2_19_d8_margin", m.ac2_19_d8_margin)?;
+    dict.set_item("p50", m.p50)?;
+    dict.set_item("pct_60_90", m.pct_60_90)?;
+    dict.set_item("session_f", m.session_f)?;
+    dict.set_item("rejected_ac2_19", m.rejected_ac2_19)?;
+    dict.set_item("fast_gates_pass", m.fast_gates_pass)?;
+    dict.set_item("elapsed_s", m.elapsed_s)?;
+    match m.ac2_11a_ratio {
+        Some(r) => dict.set_item("ac2_11a_ratio", r)?,
+        None => dict.set_item("ac2_11a_ratio", py.None())?,
+    }
+    Ok(dict)
+}
+
+/// Time one representative fast trial (returns elapsed seconds).
+#[pyfunction]
+pub fn benchmark_joint_calib_trial_py() -> f64 {
+    benchmark_fast_trial()
 }
 
 /// Runs a fixed-order closed-loop episode (constant order quantity every day, default
@@ -1226,6 +1276,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_voi_crn_cell_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_alpha_tune_outcomes_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_joint_calib_trial_py, m)?)?;
+    m.add_function(wrap_pyfunction!(benchmark_joint_calib_trial_py, m)?)?;
     m.add_function(wrap_pyfunction!(run_episode_py, m)?)?;
     m.add_function(wrap_pyfunction!(rollout_order_py, m)?)?;
     m.add_function(wrap_pyfunction!(damped_sw_order_f_belief_py, m)?)?;

@@ -19,16 +19,19 @@ use crate::obs::{
     channels_cache_key, channels_for_preset, channels_json, mask_from_channels,
     preset_for_channels, validate_channels_json, ObsChannels, RichDay,
 };
-use crate::params::{DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
+use crate::params::{DEFAULT_K_DIM, DEFAULT_L_DIM, DEFAULT_UNITS_PER_LOT};
 use crate::physics::{draw_demand, draw_demand_spawn, GammaDecrementTable};
 use crate::policy::{case_round_ceil, constant_order, damped_sw_order_f_belief};
 use crate::protection_sim::{sla_mc_order_f_belief, sla_pb_order_f_belief, SurvivalCurveCache};
+
+/// Default opening inventory for studio RPC init/reset (ADR 0152).
+pub const DEFAULT_INITIAL_STOCK_QTY: u64 = 120;
 use crate::rollout::{rollout_order, RolloutContext, RolloutCosts};
 use crate::schedule::OrderSchedule;
 use crate::shipments::{mod21_demo_shipments, ShipmentTrace};
 use crate::spawn_rng::SpawnRng;
 use crate::tradeoff::tradeoff_forecast;
-use crate::unit_pf::{filter_step_unit_with_birth_cached, UnitParticleBank};
+use crate::unit_pf::{filter_step_unit_with_birth_cached, StepDiagnostics, UnitParticleBank};
 use crate::voi::truth_f_belief;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
@@ -174,6 +177,20 @@ pub struct EngineSession {
     survival_cache: SurvivalCurveCache,
     /// Default MC path count for `sla_mc` act arm.
     n_sla_paths: u32,
+    /// Opening inventory placed on the shelf at studio RPC init (ADR 0152); 0 when unset.
+    initial_stock_qty: u32,
+}
+
+/// Result of drawing and registering a multilot delivery on the ground-truth shelf.
+struct InjectedDelivery {
+    arrival: u32,
+    delivery_lot_f: Option<Vec<Vec<f64>>>,
+    pack_date_days: Option<i32>,
+    pack_dates_by_lot: Vec<i32>,
+    shipment_trace: Option<ShipmentTrace>,
+    temp_traces_by_lot: Vec<(i64, ShipmentTrace)>,
+    arrival_lot_ids: Vec<i64>,
+    arrivals_by: Vec<u32>,
 }
 
 impl Default for EngineSession {
@@ -219,7 +236,7 @@ impl EngineSession {
             next_lot: 1,
             seq: 0,
             l_dim: DEFAULT_L_DIM,
-            k_dim: 4,
+            k_dim: DEFAULT_K_DIM,
             obs_scenario: "P1".to_string(),
             obs_channels: channels_for_preset("P1").unwrap(),
             richest_log: Vec::new(),
@@ -233,7 +250,19 @@ impl EngineSession {
             transit_temp_bias_c: 0.0,
             survival_cache: SurvivalCurveCache::for_params(&params, 8),
             n_sla_paths: 32,
+            initial_stock_qty: 0,
         }
+    }
+
+    /// Diagnostic-only: replace the embedded arrival model (joint calibration search).
+    pub fn with_arrival_model(seed: u64, arrival_model: ArrivalModel) -> Self {
+        let mut sess = Self::new(seed);
+        let product = sess.arrival_product.clone();
+        sess.arrival_model = arrival_model;
+        sess.arrival_model.set_corridor(&product);
+        sess.params.q10 = sess.arrival_model.q10;
+        sess.gamma_table = crate::physics::GammaDecrementTable::for_params(&sess.params);
+        sess
     }
 
     /// Rebuilds the session to a fresh episode at the given seed and marks it
@@ -270,6 +299,7 @@ impl EngineSession {
         let n = self._n_particles.max(1);
         self.bank = UnitParticleBank::empty(n);
         self.bank_init = UnitParticleBank::empty(n);
+        self.initial_stock_qty = 0;
     }
 
     fn uses_filter(&self) -> bool {
@@ -340,6 +370,155 @@ impl EngineSession {
         // ADR 0136: zero-init — empty shelf until observed arrivals (no phantom L×U pre-fill).
         self.bank = UnitParticleBank::empty(n);
         self.bank_init = self.bank.clone();
+    }
+
+    /// Studio RPC init only (ADR 0152): place opening inventory on the shelf at day 0 using
+    /// the configured `initial_stock_qty` and the standard corridor arrival draw.
+    /// Direct [`Self::init`] callers keep an empty shelf.
+    pub fn seed_initial_stock(&mut self) {
+        self.require_init();
+        let qty = self.initial_stock_qty;
+        if qty == 0 {
+            return;
+        }
+        let pre_lot_ids = self.lot_ids.clone();
+        let injection = self.draw_and_register_delivery(0, qty);
+        self.apply_delivery_physics(&injection, 0);
+        let rich = RichDay {
+            sales_total: 0,
+            waste_total: 0,
+            arrivals: injection.arrival,
+            sales_by: vec![],
+            waste_by: vec![],
+            lot_ids: pre_lot_ids,
+            arrival_lot_ids: injection.arrival_lot_ids,
+            arrivals_by: injection.arrivals_by,
+            shipment_trace: injection.shipment_trace,
+            temp_traces_by_lot: injection.temp_traces_by_lot,
+            pack_date_days: injection.pack_date_days,
+            pack_dates_by_lot: injection.pack_dates_by_lot,
+        };
+        if self.uses_filter() {
+            let obs = self.mask_active().apply(&rich);
+            let mut fr = stream_rng(self.seed, 0, 6);
+            let mut rng_birth_filter = if obs.arrivals > 0 {
+                Some(stream_rng(self.seed, 0, STREAM_BIRTH))
+            } else {
+                None
+            };
+            filter_step_unit_with_birth_cached(
+                &mut self.bank,
+                &obs,
+                &self.params,
+                &self.shipments,
+                &mut fr,
+                rng_birth_filter.as_mut(),
+                &mut self.gamma_table,
+                Some(&mut self.arrival_model),
+                Some(self.obs_channels.code_type),
+            );
+            let bank = self.bank.clone();
+            self.record_belief_for_day(0, &bank);
+            self.bank_init = self.bank.clone();
+        }
+    }
+
+    /// Draws a multilot delivery, registers lot ids on the session, and returns segment
+    /// metadata for physics and filter birth.
+    fn draw_and_register_delivery(&mut self, day: u32, qty: u32) -> InjectedDelivery {
+        if qty == 0 {
+            return InjectedDelivery {
+                arrival: 0,
+                delivery_lot_f: None,
+                pack_date_days: None,
+                pack_dates_by_lot: Vec::new(),
+                shipment_trace: None,
+                temp_traces_by_lot: Vec::new(),
+                arrival_lot_ids: Vec::new(),
+                arrivals_by: Vec::new(),
+            };
+        }
+        let n_units = qty as usize;
+        let mut rng_dur =
+            SpawnRng::spawn_rng(self.seed, "session", day, STREAM_ARRIVAL_DURATION);
+        let mut rng_temp = SpawnRng::spawn_rng(self.seed, "session", day, STREAM_ARRIVAL_TEMP);
+        let mut rng_pos = SpawnRng::spawn_rng(self.seed, "session", day, STREAM_ARRIVAL_POS);
+        let mut rng_gamma =
+            SpawnRng::spawn_rng(self.seed, "session", day, STREAM_ARRIVAL_GAMMA);
+        let mut rng_regime =
+            SpawnRng::spawn_rng(self.seed, "session", day, STREAM_ARRIVAL_REGIME);
+        let draw = self.arrival_model.draw_truth_multilot_delivery_biased(
+            &self.arrival_product,
+            n_units,
+            self.transit_temp_bias_c,
+            &mut rng_dur,
+            &mut rng_temp,
+            &mut rng_pos,
+            &mut rng_gamma,
+            &mut rng_regime,
+        );
+        let mut lot_ids = Vec::with_capacity(LOTS_PER_DELIVERY);
+        let mut lot_segments = Vec::with_capacity(LOTS_PER_DELIVERY);
+        let mut pack_dates = Vec::with_capacity(LOTS_PER_DELIVERY);
+        let mut trace_pairs = Vec::with_capacity(LOTS_PER_DELIVERY);
+        for lot in &draw.lots {
+            let mut unit_f = lot.unit_f.clone();
+            if (self.spread_scale - 1.0).abs() > 1e-12 && !unit_f.is_empty() {
+                let mean = unit_f.iter().sum::<f64>() / unit_f.len() as f64;
+                for f in &mut unit_f {
+                    *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
+                }
+            }
+            let lot_id = self.next_lot;
+            self.next_lot += 1;
+            self.lot_ids.push(lot_id);
+            lot_ids.push(lot_id);
+            lot_segments.push(unit_f);
+            pack_dates.push(lot.pack_date_days);
+            trace_pairs.push((lot_id, lot.trace.clone()));
+        }
+        let first_trace = trace_pairs.first().map(|(_, t)| t.clone());
+        InjectedDelivery {
+            arrival: qty,
+            delivery_lot_f: Some(lot_segments),
+            pack_date_days: first_trace.as_ref().map(|_| draw.lots[0].pack_date_days),
+            pack_dates_by_lot: pack_dates,
+            shipment_trace: first_trace,
+            temp_traces_by_lot: trace_pairs,
+            arrival_lot_ids: lot_ids,
+            arrivals_by: draw.arrivals_by,
+        }
+    }
+
+    /// Appends delivered units to ground-truth freshness without drawing demand or aging.
+    fn apply_delivery_physics(&mut self, injection: &InjectedDelivery, day: u32) {
+        if injection.arrival == 0 {
+            return;
+        }
+        let mut rng_birth = Some(stream_rng(self.seed, day, STREAM_BIRTH));
+        let input = UnitDayStepIn {
+            freshness: self.freshness.clone(),
+            lot_offsets: self.lot_offsets.clone(),
+            demand: None,
+            gamma_decrement: None,
+            deliver: true,
+            deliver_units: Some(injection.arrival),
+            delivery_unit_f: None,
+            delivery_lot_f: injection.delivery_lot_f.clone(),
+            units_per_lot: Some(self.params.units_per_lot),
+        };
+        let out = unit_day_step_with_birth(
+            &input,
+            &self.params,
+            &self.shipments,
+            None,
+            None,
+            None,
+            None,
+            rng_birth.as_mut(),
+        );
+        self.freshness = out.freshness;
+        self.lot_offsets = out.lot_offsets;
     }
 
     pub fn episode_day(&self) -> u32 {
@@ -460,69 +639,14 @@ impl EngineSession {
         *self.pending.entry(self.day + self.lead_time).or_insert(0) += order;
         let arrival = self.pending.remove(&self.day).unwrap_or(0);
         let pre_lot_ids = self.lot_ids.clone();
-        let (
-            delivery_lot_f,
-            pack_date_days,
-            pack_dates_by_lot,
-            shipment_trace,
-            temp_traces_by_lot,
-            arrival_lot_ids,
-            arrivals_by,
-        ) = if arrival > 0 {
-            let n_units = arrival as usize;
-            let mut rng_dur =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_DURATION);
-            let mut rng_temp =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_TEMP);
-            let mut rng_pos =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_POS);
-            let mut rng_gamma =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_GAMMA);
-            let mut rng_regime =
-                SpawnRng::spawn_rng(self.seed, "session", self.day, STREAM_ARRIVAL_REGIME);
-            let draw = self.arrival_model.draw_truth_multilot_delivery_biased(
-                &self.arrival_product,
-                n_units,
-                self.transit_temp_bias_c,
-                &mut rng_dur,
-                &mut rng_temp,
-                &mut rng_pos,
-                &mut rng_gamma,
-                &mut rng_regime,
-            );
-            let mut lot_ids = Vec::with_capacity(LOTS_PER_DELIVERY);
-            let mut lot_segments = Vec::with_capacity(LOTS_PER_DELIVERY);
-            let mut pack_dates = Vec::with_capacity(LOTS_PER_DELIVERY);
-            let mut trace_pairs = Vec::with_capacity(LOTS_PER_DELIVERY);
-            for lot in &draw.lots {
-                let mut unit_f = lot.unit_f.clone();
-                if (self.spread_scale - 1.0).abs() > 1e-12 && !unit_f.is_empty() {
-                    let mean = unit_f.iter().sum::<f64>() / unit_f.len() as f64;
-                    for f in &mut unit_f {
-                        *f = (mean + self.spread_scale * (*f - mean)).clamp(0.0, 1.0);
-                    }
-                }
-                let lot_id = self.next_lot;
-                self.next_lot += 1;
-                self.lot_ids.push(lot_id);
-                lot_ids.push(lot_id);
-                lot_segments.push(unit_f);
-                pack_dates.push(lot.pack_date_days);
-                trace_pairs.push((lot_id, lot.trace.clone()));
-            }
-            let first_trace = trace_pairs.first().map(|(_, t)| t.clone());
-            (
-                Some(lot_segments),
-                first_trace.as_ref().map(|_| draw.lots[0].pack_date_days),
-                pack_dates,
-                first_trace,
-                trace_pairs,
-                lot_ids,
-                draw.arrivals_by,
-            )
-        } else {
-            (None, None, Vec::new(), None, Vec::new(), Vec::new(), Vec::new())
-        };
+        let injection = self.draw_and_register_delivery(self.day, arrival);
+        let delivery_lot_f = injection.delivery_lot_f.clone();
+        let pack_date_days = injection.pack_date_days;
+        let pack_dates_by_lot = injection.pack_dates_by_lot.clone();
+        let shipment_trace = injection.shipment_trace.clone();
+        let temp_traces_by_lot = injection.temp_traces_by_lot.clone();
+        let arrival_lot_ids = injection.arrival_lot_ids.clone();
+        let arrivals_by = injection.arrivals_by.clone();
         let demand = if self.params.demand_profile.is_some() {
             let mut rng_d = SpawnRng::spawn_rng(self.seed, "session", self.day, ":demand");
             draw_demand_spawn(&mut rng_d, &self.params, Some(self.day))
@@ -575,7 +699,7 @@ impl EngineSession {
             pack_dates_by_lot,
         };
         let day_idx = self.day;
-        if self.uses_filter() {
+        let filter_diag = if self.uses_filter() {
             let obs = self.mask_active().apply(&rich);
             let mut fr = stream_rng(self.seed, day_idx, 6);
             let mut rng_birth_filter = if obs.arrivals > 0 {
@@ -586,7 +710,7 @@ impl EngineSession {
             // `filter_step_unit_with_birth_cached` syncs params and the configured
             // corridor onto `self.arrival_model` itself; an external sync here was
             // redundant (T-150: `sync_params` was rebuilding every CDF twice per day).
-            filter_step_unit_with_birth_cached(
+            let diag = filter_step_unit_with_birth_cached(
                 &mut self.bank,
                 &obs,
                 &self.params,
@@ -599,7 +723,10 @@ impl EngineSession {
             );
             let bank = self.bank.clone();
             self.record_belief_for_day(day_idx, &bank);
-        }
+            Some(FilterDiagValue::from(diag))
+        } else {
+            None
+        };
         let on_hand: u32 = alive_by_lot(&self.freshness, &self.lot_offsets)
             .iter()
             .sum();
@@ -612,6 +739,7 @@ impl EngineSession {
             arrivals: arrival,
             episode_day: self.day,
             unit_exits: out.unit_exits,
+            filter_diag,
         };
         self.day += 1;
         self.seq += 1;
@@ -678,6 +806,7 @@ impl EngineSession {
                 "q10": self.params.q10,
                 "t_ref_c": self.params.t_ref_c,
                 "t_store_c": self.params.t_store_c,
+                "initial_stock_qty": self.initial_stock_qty,
             },
             "schedule": schedule_wire(&self.schedule),
             "demand_summary": demand_summary_wire(&self.params),
@@ -698,7 +827,7 @@ impl EngineSession {
     /// Renders one `DayDelta` (and the live state it leaves behind) to the RPC wire
     /// format sent to the studio after each `step`/`act` call.
     pub fn day_delta_value(&self, d: &DayDelta) -> serde_json::Value {
-        serde_json::json!({
+        let mut out = serde_json::json!({
             "seq": self.seq,
             "episode_day": d.episode_day,
             "day": {
@@ -716,7 +845,20 @@ impl EngineSession {
             "pipeline": self.pipeline_value(),
             "drop_oldest": self.seq > 14,
             "belief": self.belief_value(),
-        })
+        });
+        if let Some(fd) = d.filter_diag {
+            if let Some(obj) = out.as_object_mut() {
+                obj.insert(
+                    "filter_health".to_string(),
+                    serde_json::json!({
+                        "ess": fd.ess,
+                        "log_evidence": fd.log_evidence,
+                        "infeasible": fd.infeasible,
+                    }),
+                );
+            }
+        }
+        out
     }
 
     fn belief_value(&self) -> serde_json::Value {
@@ -1499,6 +1641,30 @@ impl EngineSession {
             self.gamma_table = GammaDecrementTable::for_params(&self.params);
             self.arrival_model.sync_params(&self.params);
         }
+        self.initial_stock_qty = rpc_u64(params, "initial_stock_qty")
+            .map(|n| n.min(u64::from(u32::MAX)) as u32)
+            .unwrap_or(DEFAULT_INITIAL_STOCK_QTY as u32);
+    }
+}
+
+/// Filter health surfaced on each hot DayDelta when the unit PF ran that day.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct FilterDiagValue {
+    /// Effective sample size of the pre-resample weights (`1 / Σ w²`, max `N`).
+    pub ess: f64,
+    /// `log Σ w` before normalization — the incremental observation log-evidence.
+    pub log_evidence: f64,
+    /// Particles the day's observation ruled out entirely.
+    pub infeasible: usize,
+}
+
+impl From<StepDiagnostics> for FilterDiagValue {
+    fn from(d: StepDiagnostics) -> Self {
+        Self {
+            ess: d.ess,
+            log_evidence: d.log_evidence,
+            infeasible: d.infeasible,
+        }
     }
 }
 
@@ -1515,6 +1681,9 @@ pub struct DayDelta {
     /// Every unit that left inventory this day, spoiled or sold, with the freshness it
     /// held at the moment it exited.
     pub unit_exits: Vec<UnitExit>,
+    /// Present when `enable_filter` is true and belief source is not oracle truth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_diag: Option<FilterDiagValue>,
 }
 
 /// A decoded JSON-RPC request: `method` selects the [`EngineSession`] call in
@@ -1541,7 +1710,7 @@ struct RpcRequest {
 /// `"step"` and `"step_n"` advance the simulation by one or many days under caller-supplied
 /// order quantities; `"act"` lets the policy choose the order itself from optional
 /// overrides; `"set_obs_scenario"` and `"set_obs_channels"` change what the store can see
-/// mid-run; `"tradeoff_forecast"` and `"events"` are read-only queries over the running
+/// mid-run; `"tradeoff_forecast"`, and `"events"` are read-only queries over the running
 /// session. Parse failures, unknown methods, and validation errors from the session all
 /// come back as `{"ok": false, "error": {...}}` rather than an `Err`, since this function's
 /// contract is "always produce a response string".
@@ -1565,7 +1734,7 @@ pub fn handle_rpc(request_json: &str) -> String {
             "init" | "reset" => {
                 let seed = rpc_u64(&req.params, "seed").unwrap_or(0);
                 let l = rpc_u64(&req.params, "L").unwrap_or(DEFAULT_L_DIM as u64) as usize;
-                let k = rpc_u64(&req.params, "K").unwrap_or(4) as usize;
+                let k = rpc_u64(&req.params, "K").unwrap_or(DEFAULT_K_DIM as u64) as usize;
                 sess.reset(seed);
                 sess.set_belief_dims(l, k.max(1));
                 sess.apply_rpc_configure(&req.params);
@@ -1584,6 +1753,7 @@ pub fn handle_rpc(request_json: &str) -> String {
                         let _ = sess.set_obs_scenario(sc);
                     }
                 }
+                sess.seed_initial_stock();
                 sess.snapshot_value_init()
             }
             "arrival_summary" => sess.arrival_summary_value(),
@@ -1818,7 +1988,7 @@ mod tests {
         assert!(belief["f_marginals"].is_array());
         assert!(belief["f_grid"].is_array());
         assert_eq!(belief["L"], DEFAULT_L_DIM);
-        assert_eq!(belief["K"], 4);
+        assert_eq!(belief["K"], DEFAULT_K_DIM);
         assert_eq!(v["result"]["episode_day"], 0);
         assert_eq!(v["result"]["seq"], 0);
     }
@@ -1857,6 +2027,152 @@ mod tests {
         assert!(
             f_mass > 0.0,
             "filter-enabled init must expose non-zero f marginal mass"
+        );
+    }
+
+    #[test]
+    fn direct_init_stays_empty_shelf() {
+        let mut s = EngineSession::new(42);
+        s.init(42);
+        let snap = s.snapshot_value();
+        let on_hand: u32 = snap["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .map(|n| n as u32)
+            .sum();
+        assert_eq!(on_hand, 0);
+    }
+
+    #[test]
+    fn rpc_init_seeds_initial_stock_on_hand() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":42}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let on_hand: u32 = v["result"]["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .map(|n| n as u32)
+            .sum();
+        assert!(on_hand > 0, "RPC init must seed opening inventory: {out}");
+        let qty = v["result"]["applied_config"]["initial_stock_qty"]
+            .as_u64()
+            .unwrap() as u32;
+        assert_eq!(on_hand, qty);
+        assert_eq!(qty, DEFAULT_INITIAL_STOCK_QTY as u32);
+    }
+
+    #[test]
+    fn rpc_init_respects_initial_stock_qty_param() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":7,"initial_stock_qty":64}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let qty = v["result"]["applied_config"]["initial_stock_qty"]
+            .as_u64()
+            .unwrap() as u32;
+        assert_eq!(qty, 64);
+        let on_hand: u32 = v["result"]["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .map(|n| n as u32)
+            .sum();
+        assert_eq!(on_hand, 64);
+        assert_eq!(v["result"]["episode_day"], 0);
+    }
+
+    #[test]
+    fn rpc_reset_respects_initial_stock_qty_param() {
+        let _ = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":1}}"#);
+        let out = handle_rpc(
+            r#"{"id":"2","method":"reset","params":{"seed":2,"initial_stock_qty":200}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let qty = v["result"]["applied_config"]["initial_stock_qty"]
+            .as_u64()
+            .unwrap() as u32;
+        assert_eq!(qty, 200);
+    }
+
+    #[test]
+    fn initial_stock_on_shelf_before_first_step_demand() {
+        let out = handle_rpc(r#"{"id":"1","method":"init","params":{"seed":99}}"#);
+        let init: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(init["ok"], true, "{out}");
+        let on_hand_init: u32 = init["result"]["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .map(|n| n as u32)
+            .sum();
+        assert!(on_hand_init > 0, "opening stock on shelf before first step");
+
+        let step0 = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+        let d0: serde_json::Value = serde_json::from_str(&step0).unwrap();
+        assert_eq!(d0["ok"], true, "{step0}");
+        assert_eq!(d0["result"]["episode_day"], 0);
+        let on_hand_after_d0: u32 = d0["result"]["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_u64())
+            .map(|n| n as u32)
+            .sum();
+        assert!(
+            on_hand_after_d0 < on_hand_init,
+            "day-0 demand must consume opening stock"
+        );
+
+        let step1 = handle_rpc(r#"{"id":"3","method":"step","params":{"order":24}}"#);
+        let d1: serde_json::Value = serde_json::from_str(&step1).unwrap();
+        assert_eq!(d1["ok"], true, "{step1}");
+        assert_eq!(d1["result"]["episode_day"], 1);
+        assert!(
+            d1["result"]["day"]["order_qty"].as_u64().unwrap_or(0) > 0,
+            "first order day (Tue) must accept manual order"
+        );
+
+        let step2 = handle_rpc(r#"{"id":"4","method":"step","params":{"order":0}}"#);
+        let d2: serde_json::Value = serde_json::from_str(&step2).unwrap();
+        assert_eq!(d2["ok"], true, "{step2}");
+        assert_eq!(d2["result"]["episode_day"], 2);
+        assert!(
+            d2["result"]["day"]["arrivals"].as_u64().unwrap_or(0) > 0,
+            "first manual order (Tue) must deliver Wed (day 2)"
+        );
+    }
+
+    #[test]
+    fn rpc_init_filter_mass_matches_on_hand() {
+        let out = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":11,"config":{"enable_filter":true}}}"#,
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let on_hand: f64 = v["result"]["live_lots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|l| l["n"].as_f64())
+            .sum();
+        let belief_mass: f64 = v["result"]["belief"]["lot_counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_f64())
+            .sum();
+        assert!(on_hand > 0.0);
+        assert!(
+            (belief_mass - on_hand).abs() < 1.0,
+            "belief mass {belief_mass} should track on_hand {on_hand}"
         );
     }
 
@@ -2034,6 +2350,32 @@ mod tests {
         assert!(v["result"]["belief"]["lot_counts"].is_array(), "{out}");
         assert!(v["result"]["day"]["day"].is_number(), "{out}");
         assert!(v["result"]["drop_oldest"].is_boolean());
+    }
+
+    #[test]
+    fn rpc_step_includes_filter_health_when_filter_runs() {
+        let _ = handle_rpc(
+            r#"{"id":"1","method":"init","params":{"seed":1,"config":{"enable_filter":true,"belief_source":"filter"}}}"#,
+        );
+        let out = handle_rpc(r#"{"id":"2","method":"step","params":{"order":0}}"#);
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["ok"], true, "{out}");
+        let fh = &v["result"]["filter_health"];
+        assert!(fh.is_object(), "filter_health must be present: {out}");
+        assert!(fh["ess"].as_f64().is_some_and(|x| x > 0.0));
+        assert!(fh["log_evidence"].is_number());
+        assert!(fh["infeasible"].as_u64().is_some());
+    }
+
+    #[test]
+    fn day_delta_omits_filter_health_for_oracle_belief() {
+        let mut s = EngineSession::new(3);
+        s.init(3);
+        s.set_belief_source(BeliefSource::Truth);
+        let d = s.step(0);
+        assert!(d.filter_diag.is_none());
+        let wire = s.day_delta_value(&d);
+        assert!(wire.get("filter_health").is_none());
     }
 
     #[test]
@@ -2491,4 +2833,14 @@ mod tests {
     }
 
     const _SEED: u64 = 99;
+
+    #[test]
+    fn opening_stock_window_includes_arrival_day() {
+        let schedule = OrderSchedule::default();
+        assert_eq!(
+            schedule.opening_protection_days(),
+            schedule.first_order_arrival_day() + 1,
+            "sell-before-deliver requires covering arrival-day demand from opening stock"
+        );
+    }
 }

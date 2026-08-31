@@ -425,6 +425,7 @@ def _voi_budgets_dict(kwargs: dict[str, Any], *, smoke: bool) -> dict[str, Any]:
         "controller_alpha": kwargs.get("controller_alpha"),
         "controller_rho": kwargs.get("controller_rho"),
         "bo_json_path": kwargs.get("bo_json_path"),
+        "policy": kwargs.get("policy", "damped_sw"),
     }
 
 

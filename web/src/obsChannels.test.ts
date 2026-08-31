@@ -73,11 +73,13 @@ describe("T-135 maskFromChannels", () => {
     expect(m.pack_date).toBe(true);
   });
 
-  it("F3 preset enables temperature history", async () => {
+  it("F3 preset enables temperature history and pack date", async () => {
     const { channelsForPreset, maskFromChannels } = await loadObsMask();
     const ch = channelsForPreset("F3");
     expect(ch.delivery_history).toBe("temperature_history");
-    expect(maskFromChannels(ch).temperature_history).toBe(true);
+    const m = maskFromChannels(ch);
+    expect(m.temperature_history).toBe(true);
+    expect(m.pack_date).toBe(true);
   });
 });
 

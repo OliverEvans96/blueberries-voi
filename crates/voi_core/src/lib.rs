@@ -60,6 +60,7 @@ pub mod belief_flat;
 pub mod day_step;
 pub mod demand_profile;
 pub mod episode;
+pub mod joint_arrival_calib;
 pub mod obs;
 pub mod params;
 pub mod physics;
@@ -90,6 +91,11 @@ pub use belief_flat::{belief_flat_from_unit_bank, f_grid_k};
 pub use day_step::{alive_by_lot, unit_day_step, UnitDayStepIn, UnitDayStepOut};
 pub use demand_profile::{DemandProfile, DemandProfileError};
 pub use episode::{run_closed_loop_episode, EpisodeResult};
+pub use joint_arrival_calib::{
+    ac2_11a_ratio, ac2_19_d8_margin, ac2_19_min_margin, apply_config, benchmark_fast_trial,
+    benchmark_fast_vs_slow, configured_model, evaluate_fast_trial, evaluate_trial,
+    passes_ac2_11a, passes_fast_gates, truth_band, JointCalibFastResult, JointCalibTrialMetrics,
+};
 pub use obs::{mask_for, FilterObs, ObsMask, RichDay};
 pub use params::ModelParams;
 pub use policy::{
@@ -111,7 +117,7 @@ pub use rollout::{
     candidate_orders, day_profit, rollout_order, terminal_salvage_f_belief,
     terminal_salvage_unit_state, w_long, RolloutContext, RolloutCosts,
 };
-pub use session::{handle_rpc, BeliefSource, DayDelta, EngineSession};
+pub use session::{handle_rpc, BeliefSource, DayDelta, EngineSession, FilterDiagValue};
 pub use shipments::ShipmentTrace;
 pub use tradeoff::{full_tradeoff_q_candidates, tradeoff_forecast};
 pub use unit_ll::{
@@ -120,7 +126,7 @@ pub use unit_ll::{
 };
 pub use unit_pf::{
     filter_step_unit, filter_step_unit_with_birth, filter_step_unit_with_birth_cached,
-    systematic_resample, UnitParticleBank,
+    systematic_resample, StepDiagnostics, UnitParticleBank,
 };
 pub use voi::{run_voi_crn_cell, truth_f_belief, CrnBudgets, PHYSICS_RUN_ID, VOI_SCENARIOS};
 pub use wor::{sequential_wor_composition_prob, sequential_wor_composition_probs};

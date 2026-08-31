@@ -23,6 +23,7 @@ import type { SectionId } from "./sections";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTROLS_TS = join(HERE, "controls.ts");
+const PARAM_LABELS_TS = join(HERE, "paramLabels.ts");
 
 /** Tuning-dock tab sections wired by StudioLayout / studioLogic setSection(). */
 const TUNING_DOCK_SECTIONS: SectionId[] = [
@@ -102,12 +103,26 @@ describe("T-127 controls data-section rename", () => {
   });
 });
 
+describe("arrival corridor copy", () => {
+  it("describes abdella_mix as 60/40 short/long blend in controls and param labels", () => {
+    const controls = readFileSync(CONTROLS_TS, "utf8");
+    const labels = readFileSync(PARAM_LABELS_TS, "utf8");
+    for (const src of [controls, labels]) {
+      expect(src).toMatch(/short_haul \(60%\).*long_haul \(40%\)/s);
+      expect(src).not.toMatch(/70%/);
+      expect(src).not.toMatch(/80\/20/);
+    }
+    expect(controls).toMatch(/corridor blend \(60\/40\)/);
+  });
+});
+
 describe("T-127 tuning-dock content", () => {
   it("moves sigma picking slider to demand and adds lead_time to logistics", () => {
     const src = readFileSync(CONTROLS_TS, "utf8");
     expect(src).toMatch(/id: "sigma"[\s\S]*group: "demand"/);
     expect(src).not.toMatch(/id: "sigma"[\s\S]*group: "physics"/);
     expect(src).toMatch(/id: "lead_time"[\s\S]*group: "logistics"/);
+    expect(src).toMatch(/id: "initial_stock_qty"[\s\S]*group: "logistics"/);
     expect(src).toMatch(/id="\$\{spec\.id\}"/);
   });
 
@@ -121,6 +136,11 @@ describe("T-127 tuning-dock content", () => {
     expect(src).toMatch(/type="range"[\s\S]*id=["']alpha["']/);
     expect(src).toMatch(/type="range"[\s\S]*id=["']rho["']/);
     expect(src).not.toMatch(/id=["']alpha-rho-pad["']/);
+  });
+
+  it("autopilot block hides rollout and sla_mc policy chips in UI", () => {
+    const src = readFileSync(CONTROLS_TS, "utf8");
+    expect(src).not.toMatch(/data-policy=["']sla_mc["']/);
   });
 
   it("autopilot block hides rollout chip and rollout budget fields in UI", () => {

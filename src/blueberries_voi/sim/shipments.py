@@ -12,11 +12,15 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 __all__ = [
+    "DEFAULT_ARRIVAL_PRODUCT",
     "default_shipments",
     "ensure_demo_shipments",
     "mod21_demo_shipments",
     "smoke_cool_shipments",
 ]
+
+# Studio / WASM default corridor mixture (web mock/generate.ts arrival_product).
+DEFAULT_ARRIVAL_PRODUCT = "abdella_mix"
 
 # MOD-21 demo durations at 1 °C (crates/voi_core/src/shipments.rs).
 _MOD21_DEMO_DURATIONS_D: tuple[float, ...] = (
@@ -49,9 +53,9 @@ def mod21_demo_shipments(product: str = "abdella_all") -> list[ShipmentTrace]:
 
 
 def default_shipments(root: Path | None = None) -> list[ShipmentTrace]:
-    """Production default: fitted MOD-21 mix without parquet (ADR 0148)."""
+    """Production default: MOD-21 demo traces keyed to ``DEFAULT_ARRIVAL_PRODUCT``."""
     del root
-    return mod21_demo_shipments("abdella_all")
+    return mod21_demo_shipments(DEFAULT_ARRIVAL_PRODUCT)
 
 
 def smoke_cool_shipments() -> list[ShipmentTrace]:
@@ -69,9 +73,14 @@ def smoke_cool_shipments() -> list[ShipmentTrace]:
 
 
 def ensure_demo_shipments(config: dict[str, Any]) -> dict[str, Any]:
-    """Fill missing/empty ``shipments`` with parquet-free smoke fixtures (ADR 0107)."""
+    """Fill missing shipments: defer to Rust mod21 when ``arrival_product`` is set."""
     out = dict(config)
     ships = out.get("shipments")
-    if not ships:
-        out["shipments"] = smoke_cool_shipments()
+    if ships:
+        return out
+    product = out.get("arrival_product")
+    if isinstance(product, str) and product:
+        out.pop("shipments", None)
+        return out
+    out["shipments"] = smoke_cool_shipments()
     return out

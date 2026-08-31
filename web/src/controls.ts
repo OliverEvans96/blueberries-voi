@@ -12,6 +12,8 @@ import type { ScheduleWire } from "./engine/types";
 import { PARAM_LABELS, type ControlTier } from "./paramLabels";
 import { controlAvailability } from "./scenarioAvailability";
 import { infoTipHtml } from "./infoTip";
+import { DEFAULT_OBS_CHANNELS } from "./obsMask";
+import { tunedControllerFor } from "./perChannelTuning";
 
 /** Studio episode length (ADR 0122 / T-112). */
 export const EPISODE_HORIZON = 90;
@@ -105,7 +107,7 @@ export type ControlsState = {
 };
 
 /** Autopilot / ActOpts knobs (T-099); not ModelParams until Reset. */
-export type ControllerPolicy = "damped_sw" | "rollout" | "constant";
+export type ControllerPolicy = "damped_sw" | "rollout" | "constant" | "sla_pb";
 
 export type ControllerControlsState = {
   policy: ControllerPolicy;
@@ -118,11 +120,20 @@ export type ControllerControlsState = {
   intervalMs: number;
 };
 
-/** ADR 0099 dialed browser budgets + CTL-01 defaults. */
+/**
+ * ADR 0099 dialed browser budgets + CTL-01 defaults. `alpha`/`rho` start at
+ * the per-channel Ax-tuned values for Studio's own default observation
+ * channels (`DEFAULT_OBS_CHANNELS`, i.e. `upc|on|none`) — see
+ * `perChannelTuning.ts`. Whenever observation channels change, `studioLogic`
+ * re-syncs `alpha`/`rho` to that channel's own tuning rather than leaving a
+ * single shared pair in place across every channel (2026-08-30: a shared
+ * pair was found to flatten the belief-accuracy-vs-profit relationship even
+ * when each channel's belief accuracy differed cleanly — see
+ * `.team/plans/2026-08-30-particle-filter-collapse-fix.md`).
+ */
 export const DEFAULT_CONTROLLER_CONTROLS: ControllerControlsState = {
   policy: "damped_sw",
-  alpha: 0.9,
-  rho: 0.8,
+  ...tunedControllerFor(DEFAULT_OBS_CHANNELS),
   H: 7,
   n_rollout_paths: 2,
   candidate_case_radius: 1,
@@ -208,6 +219,7 @@ const CONFIG_SLIDERS: SliderSpec[] = [
   },
   { id: "case_size", label: "case size", min: 1, max: 24, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
   { id: "lead_time", label: "lead time (days)", min: 0, max: 7, step: 1, format: (v) => String(Math.round(v)), group: "logistics" },
+  { id: "initial_stock_qty", label: "initial stock", min: 0, max: 400, step: 5, format: (v) => String(Math.round(v)), group: "logistics" },
   {
     id: "spread_scale",
     label: "spread_scale (FIL-11)",
@@ -309,16 +321,7 @@ function arrivalChartGroups(): string {
           ariaLabel: "Arrival freshness prior distribution",
           chartInnerHtml:
             '<div class="chart-arrival-prior-slot"><div id="chart-arrival-prior" class="chart" role="img" aria-label="Arrival freshness prior distribution"></div><div id="chart-arrival-prior-overlay" class="chart-arrival-loading-overlay" hidden aria-live="polite"><span class="engine-status-dot" aria-hidden="true"></span><span class="chart-arrival-loading-label">Loading arrival prior…</span></div></div>',
-          slidersHtml: slidersByIds(["spread_scale"]),
-        })}
-        ${tuningChartGroup({
-          plotId: "plot-arrival-shift",
-          caption: "Transit ΔT shift vs baseline",
-          tip: "Compares the transit-temperature-bias curve against an unbiased baseline. The bias slider reshapes the displayed shift curve and applies to simulated deliveries.",
-          ariaLabel: "Transit temperature shift",
-          chartInnerHtml:
-            '<div id="chart-arrival-shift" class="chart" role="img" aria-label="Transit temperature shift"></div>',
-          slidersHtml: slidersByIds(["transit_temp_bias_c"]),
+          slidersHtml: slidersByIds(["spread_scale", "transit_temp_bias_c"]),
         })}`;
 }
 
@@ -327,7 +330,7 @@ function physicsChartGroups(): string {
         ${tuningChartGroup({
           plotId: "plot-arrhenius-temp",
           caption: "Q10 aging rate vs temperature",
-          tip: "How much faster freshness decays as the shelf gets warmer. The aging rate scales multiplicatively per 10°C — the default (3.0) triples it per 10°C of warming, not a fixed amount per degree.",
+          tip: "How much faster freshness decays as the shelf gets warmer. The aging rate scales multiplicatively per 10°C — the default (2.0) doubles it per 10°C of warming, not a fixed amount per degree.",
           ariaLabel: "Q10 aging rate versus store temperature",
           chartInnerHtml:
             '<div id="chart-arrhenius-temp" class="chart" role="img" aria-label="Q10 aging rate versus store temperature"></div>',
@@ -373,21 +376,9 @@ function logisticsCalendarGroup(): string {
         </div>
       </div>
       <div class="tuning-chart-group-sliders">
-        ${slidersByIds(["lead_time", "case_size"])}
+        ${slidersByIds(["lead_time", "case_size", "initial_stock_qty"])}
       </div>
     </div>`;
-}
-
-function logisticsAgeCompGroup(): string {
-  return tuningChartGroup({
-    plotId: "plot-age-comp",
-    caption: "Historical Freshness Summary",
-    tip: "On-hand inventory broken into freshness bands, from near-pristine to nearly spoiled. A shelf skewed toward low-freshness bands offers less real protection against demand than the unit count suggests.",
-    ariaLabel: "On-hand inventory by freshness band preview",
-    chartInnerHtml: `<div id="chart-age-comp-focus-host" class="chart-host">
-            <div id="chart-age-comp-focus" class="chart" role="img" aria-label="On-hand inventory by freshness band preview"></div>
-          </div>`,
-  });
 }
 
 function autopilotAlphaRhoSliders(): string {
@@ -403,10 +394,10 @@ function autopilotAlphaRhoSliders(): string {
         <label class="field" id="rho-field">
           ${fieldLabelHtml(
             "ρ (damping)",
-            "Fraction of the gap to the target closed each order day. Lower ρ dampens orders; higher ρ closes the gap faster.",
+            "Multiplier on the gap between the target and current effective inventory. Below 1, orders close only part of the gap each day (damped); above 1, orders can exceed the gap and overshoot the target.",
             { valueId: "rho" },
           )}
-          <input type="range" id="rho" min="0.1" max="1" step="0.01" />
+          <input type="range" id="rho" min="0.5" max="2" step="0.01" />
         </label>
         <p class="meta-readonly alpha-rho-disabled-hint" id="alpha-rho-disabled-hint" hidden>
           Constant policy — α / ρ apply to damped_sw only.
@@ -485,7 +476,6 @@ function mountSectionControlsDom(
       <div class="controls-block" data-section="logistics" hidden>
         <p class="hint">Case snap, lead time, and stocking targets for daily refill.</p>
         ${logisticsCalendarGroup()}
-        ${logisticsAgeCompGroup()}
       </div>
       <div class="controls-block" data-section="arrival" hidden>
         <p class="hint">
@@ -495,10 +485,10 @@ function mountSectionControlsDom(
         <div class="field">
           ${fieldLabelHtml(
             "Arrival corridor (MOD-21)",
-            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (80%) or long_haul (20%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
+            "Abdella corridor mixture (abdella_mix): each delivery draws short_haul (60%) or long_haul (40%) for trip duration and temperature. Illustrative leaf lanes are not exposed as separate studio chips.",
           )}
           <div class="chip-row" id="arrival-chips" role="group" aria-label="Arrival corridor">
-            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (80/20)">Abdella mix</button>
+            <button type="button" class="obs-chip arrival-chip" data-arrival="abdella_mix" title="Abdella short/long corridor blend (60/40)">Abdella mix</button>
           </div>
         </div>
         ${arrivalChartGroups()}
@@ -515,7 +505,6 @@ function mountSectionControlsDom(
           <div class="chip-row" id="policy-chips" role="group" aria-label="Controller policy">
             <button type="button" class="obs-chip policy-chip" data-policy="damped_sw" title="Damped survival-weighted base-stock">damped_sw</button>
             <button type="button" class="obs-chip policy-chip" data-policy="sla_pb" title="Window SLA Poisson-binomial fast path">sla_pb</button>
-            <button type="button" class="obs-chip policy-chip" data-policy="sla_mc" title="Window SLA Monte Carlo oracle">sla_mc</button>
             <button type="button" class="obs-chip policy-chip" data-policy="constant" title="Constant order">constant</button>
           </div>
         </div>
@@ -554,6 +543,11 @@ function mountSectionControlsDom(
     }
     const hint = root.querySelector("#alpha-rho-disabled-hint") as HTMLElement | null;
     if (hint) hint.hidden = !disabled;
+    const demoPlot = root.querySelector(
+      '[data-plot="plot-damped-sw-demo"]',
+    ) as HTMLElement | null;
+    const demoGroup = demoPlot?.closest(".tuning-chart-group") as HTMLElement | null;
+    if (demoGroup) demoGroup.hidden = disabled;
   }
 
   function syncControlAvailability(channels: SimConfig["obs_channels"]): void {

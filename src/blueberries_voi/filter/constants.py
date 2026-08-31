@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 PRODUCTION_BACKEND: str = "counts_only"
-PRODUCTION_K: int = 8
+PRODUCTION_K: int = 30
 PRODUCTION_N: int = 2000
 PRODUCTION_ESS_FRACTION: float = 0.5
 PRODUCTION_L: int = 3

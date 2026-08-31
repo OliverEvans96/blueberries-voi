@@ -17,7 +17,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
-use voi_core::arrival::ArrivalModel;
+use voi_core::arrival::{ArrivalModel, DEFAULT_ARRIVAL_CORRIDOR};
 use voi_core::day_step::{alive_by_lot, unit_day_step_with_birth, UnitDayStepIn};
 use voi_core::obs::{mask_for, RichDay};
 use voi_core::physics::{draw_demand, GammaDecrementTable};
@@ -121,7 +121,7 @@ fn run_truth(
                 let mut rng_g = stream_rng(seed, day, 8);
                 let mut rng_regime = stream_rng(seed, day, 12);
                 let draw = arrival_model.draw_truth_delivery(
-                    "abdella_all",
+                    DEFAULT_ARRIVAL_CORRIDOR,
                     arrival as usize,
                     &mut rng_d,
                     &mut rng_t,
@@ -129,10 +129,7 @@ fn run_truth(
                     &mut rng_g,
                     &mut rng_regime,
                 );
-                let trace = ShipmentTrace {
-                    times_d: vec![0.0, draw.duration_d],
-                    temps_c: vec![draw.t_bar, draw.t_bar],
-                };
+                let trace = draw.trace.clone();
                 let lot_id = next_lot;
                 lot_ids.push(lot_id);
                 next_lot += 1;
@@ -244,6 +241,65 @@ fn tv(a: &[f64], b: &[f64]) -> f64 {
         .sum::<f64>()
 }
 
+/// 1-Wasserstein distance between two empirical measures on \(\mathbb{R}\).
+///
+/// Empty-vs-empty is 0. Empty-vs-nonempty treats the empty side as a Dirac at 0
+/// (so distance equals the mean absolute value of the nonempty sample).
+fn wasserstein_1(u_values: &[f64], v_values: &[f64]) -> f64 {
+    match (u_values.is_empty(), v_values.is_empty()) {
+        (true, true) => return 0.0,
+        (true, false) => {
+            return v_values.iter().map(|x| x.abs()).sum::<f64>() / v_values.len() as f64;
+        }
+        (false, true) => {
+            return u_values.iter().map(|x| x.abs()).sum::<f64>() / u_values.len() as f64;
+        }
+        (false, false) => {}
+    }
+    let mut u = u_values.to_vec();
+    let mut v = v_values.to_vec();
+    u.sort_unstable_by(|a, b| a.partial_cmp(b).expect("finite freshness"));
+    v.sort_unstable_by(|a, b| a.partial_cmp(b).expect("finite freshness"));
+    let nu = u.len();
+    let nv = v.len();
+    let mut all_values = Vec::with_capacity(nu + nv);
+    all_values.extend_from_slice(&u);
+    all_values.extend_from_slice(&v);
+    all_values.sort_unstable_by(|a, b| a.partial_cmp(b).expect("finite freshness"));
+    let mut w1 = 0.0;
+    for i in 0..all_values.len() - 1 {
+        let delta = all_values[i + 1] - all_values[i];
+        if delta == 0.0 {
+            continue;
+        }
+        let t = all_values[i];
+        let u_cdf = u.partition_point(|&x| x <= t) as f64 / nu as f64;
+        let v_cdf = v.partition_point(|&x| x <= t) as f64 / nv as f64;
+        w1 += (u_cdf - v_cdf).abs() * delta;
+    }
+    w1
+}
+
+/// CRPS of an equal-weight empirical forecast vs observation `y`.
+///
+/// \(\mathrm{CRPS}=\mathbb{E}|X-y|-\tfrac12\mathbb{E}|X-X'|\).
+fn crps_empirical(samples: &[f64], y: f64) -> f64 {
+    let n = samples.len();
+    if n == 0 {
+        return y.abs();
+    }
+    let n_f = n as f64;
+    let term1 = samples.iter().map(|&x| (x - y).abs()).sum::<f64>() / n_f;
+    let mut xs = samples.to_vec();
+    xs.sort_unstable_by(|a, b| a.partial_cmp(b).expect("finite count"));
+    // sum_{i,j}|x_i-x_j| = 2 * sum_i (2i - n + 1) x_(i)  (0-based sorted)
+    let mut sum_abs = 0.0;
+    for (i, &x) in xs.iter().enumerate() {
+        sum_abs += (2.0 * i as f64 - n_f + 1.0) * x;
+    }
+    term1 - sum_abs / (n_f * n_f)
+}
+
 /// Per-day belief-vs-truth trace for one channel on one seed.
 #[derive(Default, Clone)]
 struct Series {
@@ -261,10 +317,14 @@ struct Metrics {
     lot_n: f64,
     count_mae: f64,
     count_bias: f64,
+    /// Sum of per-day CRPS of particle predictive for store on-hand \(N\).
+    crps_sum: f64,
     store_meanf_mae: f64,
     lot_meanf_mae: f64,
     lot_count_mae: f64,
     tv_sum: f64,
+    /// Sum of per-day 1-Wasserstein on live-only particle-pooled \(f\) vs truth.
+    w1_sum: f64,
     ess_sum: f64,
     eff_inv_mae: f64,
     ms: f64,
@@ -277,10 +337,12 @@ impl Metrics {
         self.lot_n += o.lot_n;
         self.count_mae += o.count_mae;
         self.count_bias += o.count_bias;
+        self.crps_sum += o.crps_sum;
         self.store_meanf_mae += o.store_meanf_mae;
         self.lot_meanf_mae += o.lot_meanf_mae;
         self.lot_count_mae += o.lot_count_mae;
         self.tv_sum += o.tv_sum;
+        self.w1_sum += o.w1_sum;
         self.ess_sum += o.ess_sum;
         self.eff_inv_mae += o.eff_inv_mae;
         self.ms += o.ms;
@@ -328,14 +390,17 @@ fn run_channel(
         let ess = diag.ess;
         m.ess_sum += ess;
 
-        // Store-level: expected live count, mean f, and freshness histogram.
+        // Store-level: expected live count, CRPS(N), mean f, hist TV, and W1(f).
         let mut exp_alive = 0.0;
+        let mut particle_counts: Vec<f64> = Vec::with_capacity(n as usize);
         let mut all_alive_f: Vec<f64> = Vec::new();
         let mut meanf_acc = 0.0;
         let mut meanf_w = 0.0;
         for row in &bank.freshness {
             let live: Vec<f64> = row.iter().copied().filter(|&f| f > 0.0).collect();
-            exp_alive += live.len() as f64 / n as f64;
+            let n_live = live.len() as f64;
+            particle_counts.push(n_live);
+            exp_alive += n_live / n as f64;
             if !live.is_empty() {
                 meanf_acc += live.iter().sum::<f64>() / live.len() as f64;
                 meanf_w += 1.0;
@@ -352,12 +417,15 @@ fn run_channel(
         } else {
             0.0
         };
-        m.count_mae += (exp_alive - f64::from(td.on_hand)).abs();
-        m.count_bias += exp_alive - f64::from(td.on_hand);
+        let truth_n = f64::from(td.on_hand);
+        m.count_mae += (exp_alive - truth_n).abs();
+        m.count_bias += exp_alive - truth_n;
+        m.crps_sum += crps_empirical(&particle_counts, truth_n);
         m.store_meanf_mae += (bel_mf - truth_mf).abs();
         m.tv_sum += tv(&hist(&all_alive_f, K_BINS), &hist(&td.alive_f, K_BINS));
+        m.w1_sum += wasserstein_1(&all_alive_f, &td.alive_f);
         m.series.day.push(d as u32);
-        m.series.truth_on_hand.push(f64::from(td.on_hand));
+        m.series.truth_on_hand.push(truth_n);
         m.series.belief_on_hand.push(exp_alive);
         m.series.truth_mean_f.push(truth_mf);
         m.series.belief_mean_f.push(bel_mf);
@@ -495,15 +563,17 @@ fn default_params() -> ModelParams {
 
 fn metrics_json(m: &Metrics) -> String {
     format!(
-        r#"{{"n":{n},"lot_n":{lot_n},"count_mae":{count_mae:.12},"count_bias":{count_bias:.12},"store_meanf_mae":{store_meanf_mae:.12},"lot_meanf_mae":{lot_meanf_mae:.12},"lot_count_mae":{lot_count_mae:.12},"tv_sum":{tv_sum:.12},"ess_sum":{ess_sum:.12},"eff_inv_mae":{eff_inv_mae:.12},"ms":{ms:.12}}}"#,
+        r#"{{"n":{n},"lot_n":{lot_n},"count_mae":{count_mae:.12},"count_bias":{count_bias:.12},"crps_sum":{crps_sum:.12},"store_meanf_mae":{store_meanf_mae:.12},"lot_meanf_mae":{lot_meanf_mae:.12},"lot_count_mae":{lot_count_mae:.12},"tv_sum":{tv_sum:.12},"w1_sum":{w1_sum:.12},"ess_sum":{ess_sum:.12},"eff_inv_mae":{eff_inv_mae:.12},"ms":{ms:.12}}}"#,
         n = m.n,
         lot_n = m.lot_n,
         count_mae = m.count_mae,
         count_bias = m.count_bias,
+        crps_sum = m.crps_sum,
         store_meanf_mae = m.store_meanf_mae,
         lot_meanf_mae = m.lot_meanf_mae,
         lot_count_mae = m.lot_count_mae,
         tv_sum = m.tv_sum,
+        w1_sum = m.w1_sum,
         ess_sum = m.ess_sum,
         eff_inv_mae = m.eff_inv_mae,
         ms = m.ms,
@@ -554,14 +624,16 @@ fn report(
 ) -> Vec<String> {
     println!("\n=== {title} (gamma arrival, ADR 0141) ===");
     println!(
-        "{:<5} {:>8} {:>8} {:>10} {:>9} {:>10} {:>8} {:>8} {:>7} {:>7}",
+        "{:<5} {:>8} {:>8} {:>8} {:>10} {:>9} {:>10} {:>8} {:>8} {:>8} {:>7} {:>7}",
         "chan",
         "cnt_MAE",
         "cnt_bias",
+        "CRPS_N",
         "storeF_MAE",
         "lotF_MAE",
         "lotCnt_MAE",
         "hist_TV",
+        "W1_f",
         "effInv",
         "ESS",
         "ms/day"
@@ -587,22 +659,24 @@ fn report(
         }
         let n = agg.n.max(1.0);
         let ln = agg.lot_n.max(1.0);
-        let (cnt, bias, sf, lf, lc, tvm, ei, ess, ms) = (
+        let (cnt, bias, crps, sf, lf, lc, tvm, w1, ei, ess, ms) = (
             agg.count_mae / n,
             agg.count_bias / n,
+            agg.crps_sum / n,
             agg.store_meanf_mae / n,
             agg.lot_meanf_mae / ln,
             agg.lot_count_mae / ln,
             agg.tv_sum / n,
+            agg.w1_sum / n,
             agg.eff_inv_mae / n,
             agg.ess_sum / n,
             agg.ms / N_SEEDS as f64,
         );
         println!(
-            "{scenario:<5} {cnt:>8.3} {bias:>8.3} {sf:>10.4} {lf:>9.4} {lc:>10.3} {tvm:>8.3} {ei:>8.3} {ess:>7.1} {ms:>7.2}"
+            "{scenario:<5} {cnt:>8.3} {bias:>8.3} {crps:>8.3} {sf:>10.4} {lf:>9.4} {lc:>10.3} {tvm:>8.3} {w1:>8.4} {ei:>8.3} {ess:>7.1} {ms:>7.2}"
         );
         rows.push(format!(
-            r#"{{"regime":"{title}","channel":"{scenario}","count_mae":{cnt:.6},"count_bias":{bias:.6},"store_mean_f_mae":{sf:.6},"lot_mean_f_mae":{lf:.6},"lot_count_mae":{lc:.6},"hist_tv":{tvm:.6},"eff_inv_mae":{ei:.6},"ess":{ess:.3},"ms_per_day":{ms:.4},"series":{}}}"#,
+            r#"{{"regime":"{title}","channel":"{scenario}","count_mae":{cnt:.6},"count_bias":{bias:.6},"count_crps":{crps:.6},"store_mean_f_mae":{sf:.6},"lot_mean_f_mae":{lf:.6},"lot_count_mae":{lc:.6},"hist_tv":{tvm:.6},"freshness_w1":{w1:.6},"eff_inv_mae":{ei:.6},"ess":{ess:.3},"ms_per_day":{ms:.4},"series":{}}}"#,
             json_series(&first_series)
         ));
     }
