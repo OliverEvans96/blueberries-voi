@@ -64,7 +64,7 @@ export default defineConfig({
           { text: "Why a particle filter", link: "/inference/why-particle-filter" },
           { text: "What one particle is", link: "/inference/what-one-particle-is" },
           { text: "One filter day, four stages", link: "/inference/one-filter-day" },
-          { text: "UPC vs GSIN: refinement, not a different model", link: "/inference/upc-vs-gsin" },
+          { text: "UPC vs LGTIN: refinement, not a different model", link: "/inference/upc-vs-lgtin" },
           { text: "Birth freshness: what each observation scenario conditions on", link: "/inference/birth-freshness" },
           { text: "From particles to charts: the wire", link: "/inference/belief-wire" },
         ],

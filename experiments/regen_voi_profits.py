@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate ``experiments/data/voi_profits_after.json`` for notebook 14 §4.
 
-The closed-loop half of the GSIN/UPC study had no committed harness — the numbers
+The closed-loop half of the LGTIN/UPC study had no committed harness — the numbers
 in ``voi_profits_before.json`` were produced by an ad-hoc call. This script pins
 the budgets the data README documents (``n_burn=2 n_score=30 filter_n=24``, seeds
 42/7/101/2024) so the "after" side can be regenerated at any tip.

@@ -14,8 +14,8 @@ Proved with `cargo test -p voi_core <filter>` on branch `team/T-138/qa-arrivals-
 - **AC-6** → `t134_arrival_f.rs::filter_particles_differ_within_lot_under_dispersion` — currently failing: within-lot segment remains uniform (guard also requires `arrival_dispersion_sd` + `birth_f_units`)
 - **AC-7** → `t134_arrival_f.rs::stream_birth_wired_in_production_paths` — currently failing: `session.rs` / `voi.rs` / `rollout.rs` / `alpha_tune.rs` lack `:birth` / `STREAM_BIRTH`
 - **AC-9** → `t134_arrival_f.rs::rollout_unit_state_from_f_belief_samples_per_unit` — currently failing: `rollout.rs` still uses `repeat_n(e_f.max(0.0), alive)` and no `:birth` draws
-- **AC-10** → `unit_pf_ac.rs::gsin_waste_can_strictly_narrow_under_within_lot_dispersion` — currently failing: guard requires `birth_f_units` before dispersion-backed narrowing is in scope
-- **AC-11** → `unit_pf_ac.rs::gsin_waste_uniform_freshness_never_strictly_narrows` — **passing** (lot-uniform regression guard; ADR 0137 limit recovered)
+- **AC-10** → `unit_pf_ac.rs::lgtin_waste_can_strictly_narrow_under_within_lot_dispersion` — currently failing: guard requires `birth_f_units` before dispersion-backed narrowing is in scope
+- **AC-11** → `unit_pf_ac.rs::lgtin_waste_uniform_freshness_never_strictly_narrows` — **passing** (lot-uniform regression guard; ADR 0137 limit recovered)
 - **AC-13** → `unit_pf_ac.rs::production_likelihood_terms_take_no_rng` — currently failing: architect tip lacks `delta_interval_loglik` / `spoil_delta_interval` exports in `unit_ll.rs` (0137 baseline not on this branch)
 - **AC-13** → `unit_pf_ac.rs::superseded_binomial_waste_primitives_are_gone` — **passing** on architect tip
 - **AC-15** → `t134_arrival_f.rs::dispersion_sd_positive_enables_non_uniform_birth_path` — currently failing: lot-uniform birth paths remain in `day_step.rs` / `unit_pf.rs`
@@ -23,8 +23,8 @@ Proved with `cargo test -p voi_core <filter>` on branch `team/T-138/qa-arrivals-
 ## Not covered by tests (this qa shard)
 
 - **AC-8** (`:birth` in Python `rng.py` + `tests/test_rng.py` parity) — owned by **impl-crn-streams** shard per plan; verify on that worktree
-- **AC-12** (`gsin_upc_diag` homogeneous `count_bias` ≤ 0.05) — owned by **impl-diag-sweep**; requires diag example + regen script
-- **AC-14** (Dispersion sweep regime + `regen_gsin_upc_data.sh`) — owned by **impl-diag-sweep**
+- **AC-12** (`lgtin_upc_diag` homogeneous `count_bias` ≤ 0.05) — owned by **impl-diag-sweep**; requires diag example + regen script
+- **AC-14** (Dispersion sweep regime + `regen_lgtin_upc_data.sh`) — owned by **impl-diag-sweep**
 
 ## T-134 guards retained (pre-existing RED on architect tip)
 

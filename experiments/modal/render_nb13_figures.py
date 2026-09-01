@@ -24,7 +24,7 @@ SCENARIO_LABELS = {
     "F1": "F1 · + lot sales",
     "F1s": "F1s · + lot waste",
     "F2a": "F2a · + pack date",
-    "F2": "F2 · + pack date (GSIN bundle)",
+    "F2": "F2 · + pack date (LGTIN bundle)",
     "F3": "F3 · + temperature trace (Λ)",
 }
 SCENARIO_COLORS = {

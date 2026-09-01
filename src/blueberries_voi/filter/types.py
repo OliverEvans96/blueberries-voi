@@ -19,7 +19,7 @@ AGE_GRID_HI: float = 8.0
 
 ScenarioId: TypeAlias = Literal["P0", "P1", "F1", "F1s", "F2a", "F2", "F3"]
 
-CodeType: TypeAlias = Literal["upc", "gsin"]
+CodeType: TypeAlias = Literal["upc", "lgtin"]
 DeliveryHistory: TypeAlias = Literal["none", "pack_date", "temperature_history"]
 
 _RICH_FIELD_NAMES: frozenset[str] = frozenset(
@@ -104,12 +104,12 @@ _PRESET_CHANNELS: dict[ScenarioId, dict[str, str | bool]] = {
         "delivery_history": "none",
     },
     "F1": {
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "scan_waste": True,
         "delivery_history": "none",
     },
     "F1s": {
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "scan_waste": True,
         "delivery_history": "none",
     },
@@ -119,12 +119,12 @@ _PRESET_CHANNELS: dict[ScenarioId, dict[str, str | bool]] = {
         "delivery_history": "pack_date",
     },
     "F2": {
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "scan_waste": True,
         "delivery_history": "pack_date",
     },
     "F3": {
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "scan_waste": True,
         "delivery_history": "temperature_history",
     },
@@ -174,7 +174,7 @@ def validate_channels(raw: Mapping[str, object] | ObsChannels) -> ObsChannels:
     code_type = str(raw.get("code_type", ""))
     scan_waste = bool(raw.get("scan_waste", False))
     delivery_history = str(raw.get("delivery_history", ""))
-    if code_type not in ("upc", "gsin"):
+    if code_type not in ("upc", "lgtin"):
         msg = f"invalid code_type: {code_type!r}"
         raise ValueError(msg)
     if delivery_history not in ("none", "pack_date", "temperature_history"):
@@ -231,11 +231,11 @@ def channels_cache_key(channels: ObsChannels) -> str:
 
 def mask_from_channels(channels: ObsChannels) -> ObsMask:
     present: set[str] = {"arrivals", "sales_total"}
-    if channels.code_type == "gsin":
+    if channels.code_type == "lgtin":
         present.update({"sales_by_lot", "lot_ids_live", "arrival_lot_ids"})
     if channels.scan_waste:
         present.add("waste_total")
-        if channels.code_type == "gsin":
+        if channels.code_type == "lgtin":
             present.add("waste_by_lot")
     if channels.delivery_history == "pack_date":
         present.add("pack_date")

@@ -21,12 +21,12 @@ import type { ObsChannels } from "./types";
 export type ChannelTuning = { alpha: number; rho: number };
 
 export const PER_CHANNEL_TUNING: Record<string, ChannelTuning> = {
-  "gsin|off|none": { alpha: 0.8071589220265128, rho: 1.394628748377438 },
-  "gsin|off|pack_date": { alpha: 0.8442973276444823, rho: 1.2777455488434784 },
-  "gsin|off|temperature_history": { alpha: 0.793295164558508, rho: 1.2963693999365884 },
-  "gsin|on|none": { alpha: 0.6954157752332277, rho: 1.6260255076922476 },
-  "gsin|on|pack_date": { alpha: 0.7819331431293843, rho: 1.3782009127639303 },
-  "gsin|on|temperature_history": { alpha: 0.7960607826645429, rho: 1.3747979103936117 },
+  "lgtin|off|none": { alpha: 0.8071589220265128, rho: 1.394628748377438 },
+  "lgtin|off|pack_date": { alpha: 0.8442973276444823, rho: 1.2777455488434784 },
+  "lgtin|off|temperature_history": { alpha: 0.793295164558508, rho: 1.2963693999365884 },
+  "lgtin|on|none": { alpha: 0.6954157752332277, rho: 1.6260255076922476 },
+  "lgtin|on|pack_date": { alpha: 0.7819331431293843, rho: 1.3782009127639303 },
+  "lgtin|on|temperature_history": { alpha: 0.7960607826645429, rho: 1.3747979103936117 },
   "upc|off|none": { alpha: 0.6530923499888022, rho: 1.5911718315868328 },
   "upc|off|pack_date": { alpha: 0.8308848716092779, rho: 1.3994280218508455 },
   "upc|off|temperature_history": { alpha: 0.735492293554861, rho: 1.462916084653586 },

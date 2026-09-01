@@ -77,7 +77,7 @@ Factorization is in the **likelihood routing**, not in separate filter banks.
 `filter_step_unit` runs the **same four stages for every channel** (ADR 0137). Only the
 *resolution* of the evidence changes:
 
-| Stage | UPC (aggregate) | GSIN (lot-resolved) |
+| Stage | UPC (aggregate) | LGTIN (lot-resolved) |
 |-------|-----------------|---------------------|
 | Spoilage → decrement interval | pooled `waste_tot` | intersection over per-lot `waste_by` |
 | Sales feasibility | pooled `alive ≥ sales_tot` | per-lot `alive_ℓ ≥ sales_ℓ` |
@@ -94,11 +94,11 @@ smallest live freshness in the observed group. The likelihood is that interval's
 
 Important details:
 
-- **GSIN refines UPC; it never contradicts it.** UPC sees the store total and gets the pooled
-  interval; GSIN sees `w_ℓ` per lot and gets `⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot
-  counts is consistent with their sum, so `I_gsin ⊆ I_pooled` **always**.
+- **LGTIN refines UPC; it never contradicts it.** UPC sees the store total and gets the pooled
+  interval; LGTIN sees `w_ℓ` per lot and gets `⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot
+  counts is consistent with their sum, so `I_lgtin ⊆ I_pooled` **always**.
 - **Ties are informative.** A cohort born at one freshness spoils *together*, so some splits
-  are unreachable rather than merely unlikely — a constraint only GSIN can see.
+  are unreachable rather than merely unlikely — a constraint only LGTIN can see.
 - **`sales_by` dominates.** If per-lot sales are observed, the pooled feasibility gate is not
   used, even when `sales_total` is also on the wire.
 - **The weight is deterministic.** Randomness lives in the proposal (adapted aging, unscored
@@ -127,7 +127,7 @@ Since ADR 0137 the filter uses **the same shape**. `UnitParticleBank` carries
 `lot_offsets` and `lot_ids` shared by every particle:
 
 1. On delivery, append **one** segment of exactly `arrivals` units — no fixed-width eviction.
-2. Under GSIN, `arrival_lot_ids` supplies real identities and `sales_by` / `waste_by` are
+2. Under LGTIN, `arrival_lot_ids` supplies real identities and `sales_by` / `waste_by` are
    matched to segments **by id** (`project_lot_map`), never by position. An observation that
    attributes a nonzero count to a lot the bank does not hold degrades that day to aggregate
    scoring rather than killing every particle. Under UPC the ids are internal and monotone.
@@ -136,7 +136,7 @@ Since ADR 0137 the filter uses **the same shape**. `UnitParticleBank` carries
 
 Before ADR 0137 the filter guessed its own boundaries as fixed `units_per_lot` chunks and
 drained one chunk per delivery. That partition was unrelated to truth's, which silently
-returned `-inf` from the GSIN likelihood almost every day and inflated the row by
+returned `-inf` from the LGTIN likelihood almost every day and inflated the row by
 `arrivals − units_per_lot` per delivery.
 
 `belief_flat_from_unit_bank` reads the bank's segmentation (newest **L** lots, oldest first,

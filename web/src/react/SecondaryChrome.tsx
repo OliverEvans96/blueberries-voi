@@ -9,7 +9,7 @@ import { scenarioTitle } from "../controls";
 import { channelsForPreset } from "../obsMask";
 import type { ObsChannels, ScenarioId, ViewModel } from "../types";
 
-const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "gsin"];
+const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "lgtin"];
 const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
   "none",
   "pack_date",
@@ -20,7 +20,7 @@ const PRESET_IDS: ScenarioId[] = ["P0", "P1", "F1", "F2a", "F2", "F3"];
 
 const CODE_LABEL: Record<ObsChannels["code_type"], string> = {
   upc: "UPC",
-  gsin: "GSIN (include lot #)",
+  lgtin: "LGTIN (include lot #)",
 };
 
 const HISTORY_LABEL: Record<ObsChannels["delivery_history"], string> = {

@@ -331,7 +331,7 @@ mod t163_events_wire {
             }
             let lot_ids = day["arrival_lot_ids"]
                 .as_array()
-                .expect("F3 GSIN must expose arrival_lot_ids");
+                .expect("F3 LGTIN must expose arrival_lot_ids");
             assert_eq!(
                 lot_ids.len(),
                 LOTS_PER_DELIVERY,
@@ -373,7 +373,7 @@ mod t163_events_wire {
             );
             let lot_ids = day["arrival_lot_ids"]
                 .as_array()
-                .expect("F2 GSIN exposes arrival_lot_ids");
+                .expect("F2 LGTIN exposes arrival_lot_ids");
             assert_eq!(
                 lot_ids.len(),
                 LOTS_PER_DELIVERY,

@@ -45,7 +45,7 @@
     1076639086
   ],
   "per_channel": {
-    "gsin|off|temperature_history": {
+    "lgtin|off|temperature_history": {
       "alpha": 0.793295164558508,
       "rho": 1.2963693999365884,
       "profit": 1857.5,
@@ -227,7 +227,7 @@
         }
       ]
     },
-    "gsin|off|none": {
+    "lgtin|off|none": {
       "alpha": 0.8071589220265128,
       "rho": 1.394628748377438,
       "profit": 1864.4733333333336,
@@ -1137,7 +1137,7 @@
         }
       ]
     },
-    "gsin|off|pack_date": {
+    "lgtin|off|pack_date": {
       "alpha": 0.8442973276444823,
       "rho": 1.2777455488434784,
       "profit": 1872.0333333333328,
@@ -1319,7 +1319,7 @@
         }
       ]
     },
-    "gsin|on|none": {
+    "lgtin|on|none": {
       "alpha": 0.6954157752332277,
       "rho": 1.6260255076922476,
       "profit": 1871.686666666667,
@@ -1501,7 +1501,7 @@
         }
       ]
     },
-    "gsin|on|temperature_history": {
+    "lgtin|on|temperature_history": {
       "alpha": 0.7960607826645429,
       "rho": 1.3747979103936117,
       "profit": 1865.3133333333333,
@@ -1865,7 +1865,7 @@
         }
       ]
     },
-    "gsin|on|pack_date": {
+    "lgtin|on|pack_date": {
       "alpha": 0.7819331431293843,
       "rho": 1.3782009127639303,
       "profit": 1859.38,

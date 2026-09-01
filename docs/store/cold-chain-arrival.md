@@ -35,7 +35,7 @@ $$
 \Lambda_\ell = \Lambda_{\mathrm{upstream},\ell} + \Lambda_{\mathrm{shared}}
 $$
 
-Under **GSIN**, the filter holds three segments, each born from its own arrival law (`Duration(d_\ell)` or `Exposure(Λ_\ell)`). Under **UPC**, one cohort is born from the mixture `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)` — mix the laws, don't average the dates. The current integrate branch's session mints three lot ids per delivery via `draw_truth_multilot_delivery_biased`, matching the three-lot DC model described in ADR 0149.
+Under **LGTIN**, the filter holds three segments, each born from its own arrival law (`Duration(d_\ell)` or `Exposure(Λ_\ell)`). Under **UPC**, one cohort is born from the mixture `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)` — mix the laws, don't average the dates. The current integrate branch's session mints three lot ids per delivery via `draw_truth_multilot_delivery_biased`, matching the three-lot DC model described in ADR 0149.
 
 ### Planned v2 upgrade (design direction)
 

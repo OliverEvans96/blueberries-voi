@@ -1,4 +1,4 @@
-"""Modal batch map for notebook 13 and gsin_upc_diag (optional extra).
+"""Modal batch map for notebook 13 and lgtin_upc_diag (optional extra).
 
 Build artifacts locally before ``modal run`` — see README.md in this directory.
 """
@@ -53,9 +53,9 @@ if _WHEEL.is_dir():
 else:
     WHEEL_PATH = _WHEEL
 
-_GSIN_BIN = _repo_relative_path(
-    "GSIN_UPC_DIAG_BIN",
-    _REPO / "target" / "release" / "examples" / "gsin_upc_diag",
+_LGTIN_BIN = _repo_relative_path(
+    "LGTIN_UPC_DIAG_BIN",
+    _REPO / "target" / "release" / "examples" / "lgtin_upc_diag",
 )
 _TUNED_ALPHA = _REPO / "experiments" / "tuned_alpha.json"
 _TUNED_ALPHA_F3 = _REPO / "experiments" / "tuned_alpha_f3_filtered.json"
@@ -73,9 +73,9 @@ if modal.is_local():
     )
     image = image.add_local_dir(str(_DATA_DIR), remote_path="/data", copy=True)
     image = image.add_local_file(str(WHEEL_PATH), _WHEEL_REMOTE, copy=True)
-    if _GSIN_BIN.is_file():
+    if _LGTIN_BIN.is_file():
         image = image.add_local_file(
-            str(_GSIN_BIN), "/usr/local/bin/gsin_upc_diag", copy=True
+            str(_LGTIN_BIN), "/usr/local/bin/lgtin_upc_diag", copy=True
         )
     if _TUNED_ALPHA.is_file():
         image = image.add_local_file(str(_TUNED_ALPHA), _REMOTE_TUNED_ALPHA, copy=True)
@@ -96,7 +96,7 @@ if modal.is_local():
         {
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
-            "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "LGTIN_UPC_DIAG_BIN": "/usr/local/bin/lgtin_upc_diag",
             "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
             "BLUEBERRIES_VOI_TUNED_ALPHA_F3": _REMOTE_TUNED_ALPHA_F3,
         }
@@ -106,7 +106,7 @@ else:
         {
             "PYTHONPATH": "/pkg",
             "BLUEBERRIES_VOI_BACKEND": "rust",
-            "GSIN_UPC_DIAG_BIN": "/usr/local/bin/gsin_upc_diag",
+            "LGTIN_UPC_DIAG_BIN": "/usr/local/bin/lgtin_upc_diag",
             "BLUEBERRIES_VOI_TUNED_ALPHA": _REMOTE_TUNED_ALPHA,
             "BLUEBERRIES_VOI_TUNED_ALPHA_F3": _REMOTE_TUNED_ALPHA_F3,
         }
@@ -134,8 +134,8 @@ def nb13_shard(
 
 
 @app.function(timeout=600, cpu=1.0)
-def gsin_shard(regime_index: int, seed_index: int) -> dict[str, Any]:
-    from blueberries_voi.experiments.gsin_upc import run_regime_seed
+def lgtin_shard(regime_index: int, seed_index: int) -> dict[str, Any]:
+    from blueberries_voi.experiments.lgtin_upc import run_regime_seed
 
     return run_regime_seed(regime_index, seed_index)
 
@@ -274,10 +274,13 @@ def nb13(
 
 
 @app.local_entrypoint()
-def gsin(out: str = "gsin_upc_sharded.json") -> None:
-    from blueberries_voi.experiments.gsin_upc import gsin_job_grid, merge_gsin_diag_rows
+def lgtin(out: str = "lgtin_upc_sharded.json") -> None:
+    from blueberries_voi.experiments.lgtin_upc import (
+        lgtin_job_grid,
+        merge_lgtin_diag_rows,
+    )
 
-    shards = list(gsin_shard.starmap(gsin_job_grid()))
-    rows = merge_gsin_diag_rows(shards)
+    shards = list(lgtin_shard.starmap(lgtin_job_grid()))
+    rows = merge_lgtin_diag_rows(shards)
     Path(out).write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out} ({len(rows)} rows)")

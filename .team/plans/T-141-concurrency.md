@@ -5,7 +5,7 @@
 **Peak parallelism (executed):** 3
 **Critical path length:** 8 waves (maximal DAG)
 
-Independent per-unit gamma aging (truth + filter), Poisson-binomial spoilage DP, GammaDecrementTable (4096 grid), delete ADR-0137 interval primitives, regen GSIN/UPC diag.
+Independent per-unit gamma aging (truth + filter), Poisson-binomial spoilage DP, GammaDecrementTable (4096 grid), delete ADR-0137 interval primitives, regen LGTIN/UPC diag.
 
 ## Waves
 

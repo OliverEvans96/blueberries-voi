@@ -85,7 +85,7 @@ fn filter_step_unit_uses_systematic_resample_not_multinomial() {
     );
 }
 
-/// ADR 0143: aggregate and GSIN paths score independent per-unit Poisson-binomial spoilage.
+/// ADR 0143: aggregate and LGTIN paths score independent per-unit Poisson-binomial spoilage.
 #[test]
 fn aggregate_router_scores_poisson_binomial_spoilage() {
     require_unit_pf();
@@ -1270,10 +1270,10 @@ fn filter_birth_matches_arrival_qty_not_upl() {
     );
 }
 
-/// ADR 0149: under GSIN a delivery splits into L = 3 independently scorable segments.
+/// ADR 0149: under LGTIN a delivery splits into L = 3 independently scorable segments.
 #[test]
-#[ignore = "GSIN multilot delivery segments; slow: run via cargo test -- --ignored"]
-fn gsin_multilot_delivery_segments_match_l() {
+#[ignore = "LGTIN multilot delivery segments; slow: run via cargo test -- --ignored"]
+fn lgtin_multilot_delivery_segments_match_l() {
     require_unit_pf();
     use rand::SeedableRng;
     use rand_pcg::Pcg64;
@@ -1298,7 +1298,7 @@ fn gsin_multilot_delivery_segments_match_l() {
     assert_eq!(
         bank.lot_ids.len(),
         L,
-        "GSIN must add {L} shelf segments per delivery, got {:?}",
+        "LGTIN must add {L} shelf segments per delivery, got {:?}",
         bank.lot_ids
     );
     let widths: Vec<usize> = bank

@@ -50,7 +50,7 @@ See [ticket-adr-reservations-2026-08-13.md](./plans/ticket-adr-reservations-2026
   Oliver reopened ADR 0038 (option A, 1:1 delivery↔cohort) and decided **not** the random-lot-count
   framing this note originally anticipated. ADR [0149](./adr/0149-mod-16-three-fixed-lots-per-delivery.md)
   fixes lot count at a known constant `L = 3` (split, not multiplied, so runtime stays flat), forks
-  GSIN (three segments) vs UPC (one mixture-of-laws cohort), and supersedes 0038. A companion ADR
+  LGTIN (three segments) vs UPC (one mixture-of-laws cohort), and supersedes 0038. A companion ADR
   [0150](./adr/0150-arrival-thermal-break-events.md) replaces the truncated-normal transit
   temperature with cold-chain break events, superseding part of ADR 0144 and part of ADR 0148, so
   each of the three lots in 0149's DC model can draw its own break-event journey. Touches MOD-01,

@@ -190,7 +190,7 @@ function DeliverySection({
   const tableClass =
     codeType === "upc"
       ? "events-delivery-table events-delivery-table--upc"
-      : "events-delivery-table events-delivery-table--gsin";
+      : "events-delivery-table events-delivery-table--lgtin";
 
   return (
     <section
@@ -202,13 +202,13 @@ function DeliverySection({
         <h4 className="events-section-title">Delivery</h4>
         <InfoTip>
           Units that arrived on the shelf that day. UPC stores see one pooled
-          delivery row; GSIN stores see each arriving lot separately (ADR 0149).
+          delivery row; LGTIN stores see each arriving lot separately (ADR 0149).
         </InfoTip>
       </span>
       <table className={tableClass}>
         <thead>
           <tr>
-            {codeType === "gsin" ? <th scope="col">Lot</th> : null}
+            {codeType === "lgtin" ? <th scope="col">Lot</th> : null}
             <th scope="col">Delivered</th>
             <th scope="col">Pack date</th>
           </tr>
@@ -422,7 +422,7 @@ export function EventsPane({
             ? lotRows(ev?.waste_by, ev?.lot_ids)
             : [];
           const deliveredLots =
-            codeType === "gsin" &&
+            codeType === "lgtin" &&
             obsMask.arrival_lot_ids &&
             ev?.arrival_lot_ids?.length
               ? arrivalLotRows(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build ``notebooks/14_gsin_vs_upc_filter_accuracy.ipynb`` from its markdown source.
+"""Build ``notebooks/14_lgtin_vs_upc_filter_accuracy.ipynb`` from its markdown source.
 
 Cell text lives in ``experiments/notebook_14_source.md`` rather than in string
 literals here, so prose wraps where prose should wrap.
@@ -8,7 +8,7 @@ Usage::
 
     uv run python experiments/build_notebook_14.py
     cd notebooks && uv run jupyter nbconvert --to notebook --execute --inplace \
-        14_gsin_vs_upc_filter_accuracy.ipynb
+        14_lgtin_vs_upc_filter_accuracy.ipynb
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import nbformat as nbf
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "experiments" / "notebook_14_source.md"
-OUT = ROOT / "notebooks" / "14_gsin_vs_upc_filter_accuracy.ipynb"
+OUT = ROOT / "notebooks" / "14_lgtin_vs_upc_filter_accuracy.ipynb"
 
 MARKDOWN_MARKER = "<!-- markdown -->"
 CODE_MARKER = "<!-- code -->"

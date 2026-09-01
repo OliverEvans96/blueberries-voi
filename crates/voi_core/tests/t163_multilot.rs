@@ -325,11 +325,11 @@ fn delivery_quantity_split_not_multiplied() {
     );
 }
 
-// --- S2.5: GSIN births three segments ---------------------------------------
+// --- S2.5: LGTIN births three segments ---------------------------------------
 
 #[test]
 #[ignore = "T-163 multilot EngineSession stepping; slow: run via cargo test -- --ignored"]
-fn gsin_three_segments_per_delivery() {
+fn lgtin_three_segments_per_delivery() {
     use voi_core::shipments::mod21_demo_shipments;
 
     let arrivals = 40u32;
@@ -357,7 +357,7 @@ fn gsin_three_segments_per_delivery() {
     assert_eq!(
         bank.lot_ids.len(),
         LOTS_PER_DELIVERY,
-        "GSIN must birth {LOTS_PER_DELIVERY} segments, got ids {:?}",
+        "LGTIN must birth {LOTS_PER_DELIVERY} segments, got ids {:?}",
         bank.lot_ids
     );
     let seg_units: Vec<usize> = bank
@@ -373,7 +373,7 @@ fn gsin_three_segments_per_delivery() {
     );
     assert!(
         seg_units.iter().all(|&w| w > 0),
-        "each GSIN segment must receive a positive split: {seg_units:?}"
+        "each LGTIN segment must receive a positive split: {seg_units:?}"
     );
 }
 

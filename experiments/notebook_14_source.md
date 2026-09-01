@@ -1,15 +1,15 @@
 <!--
-Source cells for notebooks/14_gsin_vs_upc_filter_accuracy.ipynb.
+Source cells for notebooks/14_lgtin_vs_upc_filter_accuracy.ipynb.
 Build with: uv run python experiments/build_notebook_14.py
 Cells are separated by `<!-- markdown -->` / `<!-- code -->` markers.
 -->
 
 <!-- markdown -->
-# GSIN vs UPC: what lot-level scan data actually buys the filter
+# LGTIN vs UPC: what lot-level scan data actually buys the filter
 
-**Question.** GSIN (lot-resolved scanning) should give the particle filter strictly more
+**Question.** LGTIN (lot-resolved scanning) should give the particle filter strictly more
 information than UPC (aggregate totals). It was doing the opposite: more diffuse beliefs
-and large phantom inventory. Why, and what does GSIN buy once that is fixed?
+and large phantom inventory. Why, and what does LGTIN buy once that is fixed?
 
 **Setup.** For each seed, one physics episode is simulated under a fixed exogenous order
 script, so *every* observation channel sees the identical ground truth (common random
@@ -20,38 +20,38 @@ belief is compared with truth.
 |------|-------------|--------------|--------------------|
 | P0 | upc | off | none |
 | P1 | upc | on | none |
-| F1 | **gsin** | on | none |
+| F1 | **lgtin** | on | none |
 | F2a | upc | on | pack date |
-| F2 | **gsin** | on | pack date |
-| F3 | **gsin** | on | temperature trace |
+| F2 | **lgtin** | on | pack date |
+| F3 | **lgtin** | on | temperature trace |
 
-`P1 → F1` and `F2a → F2` are the clean UPC↔GSIN contrasts: same waste and delivery
+`P1 → F1` and `F2a → F2` are the clean UPC↔LGTIN contrasts: same waste and delivery
 channels, only the code type changes.
 
 **Data.** `experiments/data/*.json`, produced by
-`cargo run -p voi_core --release --example gsin_upc_diag`. Four code epochs are on disk:
+`cargo run -p voi_core --release --example lgtin_upc_diag`. Four code epochs are on disk:
 
 | File | Epoch | Spoilage model |
 |------|-------|----------------|
-| `gsin_upc_before.json` | T-137, pre-ADR-0137 | binomial waste; GSIN likelihood degenerate (the bug) |
-| `gsin_upc_pre_t141.json` | ADR 0137 | shared-δ interval constraint |
-| `gsin_upc_t140.json` | T-140 / ADR 0141 | shared-δ interval, unified gamma **arrival** |
-| `gsin_upc_after.json` | T-141 / ADR 0143 | **independent per-unit aging** + Poisson-binomial |
+| `lgtin_upc_before.json` | T-137, pre-ADR-0137 | binomial waste; LGTIN likelihood degenerate (the bug) |
+| `lgtin_upc_pre_t141.json` | ADR 0137 | shared-δ interval constraint |
+| `lgtin_upc_t140.json` | T-140 / ADR 0141 | shared-δ interval, unified gamma **arrival** |
+| `lgtin_upc_after.json` | T-141 / ADR 0143 | **independent per-unit aging** + Poisson-binomial |
 
-> **T-150 recal pending.** The committed `gsin_upc_after.json` / `voi_profits_after.json`
+> **T-150 recal pending.** The committed `lgtin_upc_after.json` / `voi_profits_after.json`
 > side still reflects pre–ADR-0144 arrival physics. After corridor plumbing and RNG stream
 > fixes merge, regenerate the after side and add a T-150 / ADR 0144 row to the epoch ladder.
 
-Regenerate the after side with `experiments/regen_gsin_upc_data.sh` (belief metrics) and
+Regenerate the after side with `experiments/regen_lgtin_upc_data.sh` (belief metrics) and
 `experiments/regen_voi_profits.py` (§4 closed loop). Use `experiments/regen_tuned_alpha.py`
 for the production α table (`rollout` inherits `sw`; not independently tuned).
 
 Two provenance corrections worth stating, because they change how the columns read:
 
-1. `gsin_upc_pre_t141.json` is **not** a run of the T-140 parent harness — it is a
+1. `lgtin_upc_pre_t141.json` is **not** a run of the T-140 parent harness — it is a
    byte-identical copy of the ADR 0137-era file (18 rows, three regimes, no thermal
-   fixture). The true T-140 baseline is `gsin_upc_t140.json`, regenerated at that tip.
-2. > **Harness note.** The T-138 rewrite of `gsin_upc_diag` reintroduced, in the
+   fixture). The true T-140 baseline is `lgtin_upc_t140.json`, regenerated at that tip.
+2. > **Harness note.** The T-138 rewrite of `lgtin_upc_diag` reintroduced, in the
    > *measurement* code, the same fixed-`units_per_lot` partition that ADR 0137 removed from
    > the filter, and read ESS back off `bank.weights` *after* the step's resample — where
    > they are uniform by construction. **Per-lot MAE and ESS are meaningless in any
@@ -74,10 +74,10 @@ DATA = Path("..") / "experiments" / "data"
 if not DATA.exists():  # notebook executed from the repo root
     DATA = Path("experiments") / "data"
 
-before = json.loads((DATA / "gsin_upc_before.json").read_text())
-after = json.loads((DATA / "gsin_upc_after.json").read_text())
-adr0137 = json.loads((DATA / "gsin_upc_pre_t141.json").read_text())
-t140 = json.loads((DATA / "gsin_upc_t140.json").read_text())
+before = json.loads((DATA / "lgtin_upc_before.json").read_text())
+after = json.loads((DATA / "lgtin_upc_after.json").read_text())
+adr0137 = json.loads((DATA / "lgtin_upc_pre_t141.json").read_text())
+t140 = json.loads((DATA / "lgtin_upc_t140.json").read_text())
 
 # The epoch ladder, oldest first. Labels are what §6 charts.
 EPOCHS = {
@@ -90,7 +90,7 @@ voi_before = json.loads((DATA / "voi_profits_before.json").read_text())
 voi_after = json.loads((DATA / "voi_profits_after.json").read_text())
 
 RUNGS = ["P0", "P1", "F1", "F2a", "F2", "F3"]
-GSIN = {"F1", "F2", "F3"}
+LGTIN = {"F1", "F2", "F3"}
 REGIMES = list(dict.fromkeys(r["regime"] for r in after))
 
 # Regimes are addressed by name, never by position. The two oldest epochs predate the
@@ -170,17 +170,17 @@ for name, rows in EPOCHS.items():
     print(f"{name.replace(chr(10), ' '):<22} {len(rows):>3} rows")
 
 <!-- markdown -->
-## 1. The defect: GSIN believed in inventory that was not there
+## 1. The defect: LGTIN believed in inventory that was not there
 
 `count_bias` is the mean signed error of the belief's expected live-unit count against
 truth, averaged over days after burn-in. Positive means the filter thinks the shelf holds
 more than it does.
 
-Before the fix, the GSIN rungs carried **+24 to +25 units** of phantom mass. The mechanism
+Before the fix, the LGTIN rungs carried **+24 to +25 units** of phantom mass. The mechanism
 was not statistical: the filter partitioned each particle row into fixed `units_per_lot`
 chunks while truth appends one variable-width segment per delivery. Once those partitions
 diverged, `waste_by.len() != n_lots` made the lot-resolved likelihood return `-inf` for
-every particle, the weights normalised to uniform, and GSIN ran as a blind bootstrap
+every particle, the weights normalised to uniform, and LGTIN ran as a blind bootstrap
 filter — with a fixed-width drain on each arrival inflating the row every delivery.
 
 <!-- code -->
@@ -204,7 +204,7 @@ plt.show()
 <!-- markdown -->
 After the fix the bias is **exactly zero** for every rung that observes spoilage (T-141 /
 ADR 0143: independent per-unit decrements in truth, Poisson-binomial adapted proposal in
-the filter, per-lot death draws under GSIN).
+the filter, per-lot death draws under LGTIN).
 
 That is not a tuning result, it is conservation. With an empty shelf at day 0, observed
 arrivals, observed sales, and a spoilage step that backward-samples **which units died**
@@ -223,7 +223,7 @@ a = pick(after, regime)
 fig, axes = plt.subplots(1, 2, figsize=(13, 3.8), sharey=True)
 for ax, rungs, title in [
     (axes[0], ["P0"], "P0 — no spoilage channel"),
-    (axes[1], ["P1", "F1"], "P1 (UPC) and F1 (GSIN) — spoilage observed"),
+    (axes[1], ["P1", "F1"], "P1 (UPC) and F1 (LGTIN) — spoilage observed"),
 ]:
     s = a[rungs[0]]["series"]
     # Truth as a wide pale band: the lot-resolved beliefs land exactly on it, and a
@@ -254,16 +254,16 @@ Truth is correspondingly smoother than it was, and P0 tracks it far better than 
 earlier epoch (§3) — but with no waste channel it still has to average over when spoilage
 lands.
 
-## 2. What GSIN actually buys, and at which scale
+## 2. What LGTIN actually buys, and at which scale
 
 With the counts pinned, the honest comparison is *per lot*. Both channels observe the
 delivery stream, so the bank's j-th-newest segment is truth's j-th-newest lot for either
-one; the metrics below align on that. Only GSIN additionally learns which lot each sale and
+one; the metrics below align on that. Only LGTIN additionally learns which lot each sale and
 each spoil came from.
 
 **T-141 / ADR 0143.** Ground truth ages each live unit with an independent gamma draw;
 the filter scores spoilage with an exact Poisson-binomial DP and backward-samples deaths
-(per-lot under GSIN). Store `count_bias` is **0.000** on every spoilage rung across all
+(per-lot under LGTIN). Store `count_bias` is **0.000** on every spoilage rung across all
 four diag regimes (24 rows).
 
 This is the epoch where lot-resolved spoilage finally becomes **level**-informative, which
@@ -272,7 +272,7 @@ every live unit identically, so per-lot waste counts could only falsify lot *ord
 with independent decrements the counts constrain per-unit death probabilities. Deep shelf,
 `P1 → F1`, per-lot mean-f MAE:
 
-| epoch | spoilage model | P1 (UPC) | F1 (GSIN) | GSIN gain |
+| epoch | spoilage model | P1 (UPC) | F1 (LGTIN) | LGTIN gain |
 |-------|----------------|----------|-----------|-----------|
 | ADR 0137 | shared δ | 0.1291 | 0.1259 | 2.4% |
 | T-140 / ADR 0141 | shared δ | 0.0891 | 0.0880 | 1.3% |
@@ -307,15 +307,15 @@ for ax, key, ylab, fmt in [
 ]:
     grouped_bars(
         ax, labels,
-        {"UPC": [a[u][key] for u, _ in pairs], "GSIN": [a[g][key] for _, g in pairs]},
+        {"UPC": [a[u][key] for u, _ in pairs], "LGTIN": [a[g][key] for _, g in pairs]},
         [C_BEFORE, C_AFTER], fmt=fmt, ylabel=ylab,
     )
-fig.suptitle(f"UPC vs GSIN at matched waste/delivery channels — {regime}",
+fig.suptitle(f"UPC vs LGTIN at matched waste/delivery channels — {regime}",
              y=1.02, fontsize=12)
 fig.tight_layout()
 plt.show()
 
-print(f"{'pair':<12} {'metric':<24} {'UPC':>10} {'GSIN':>10}")
+print(f"{'pair':<12} {'metric':<24} {'UPC':>10} {'LGTIN':>10}")
 for u, g in pairs:
     for key in ("lot_count_mae", "lot_mean_f_mae", "store_mean_f_mae", "eff_inv_mae", "ess"):
         print(f"{u+' → '+g:<12} {key:<24} {a[u][key]:>10.4f} {a[g][key]:>10.4f}")
@@ -325,7 +325,7 @@ for u, g in pairs:
 `0.000` for P1/F1/F2a/F2/F3): once sales and spoils are observed, the adapted PB proposal
 removes exactly the right number of units. That is conservation, and both channels get it.
 
-**Per-lot count is exact under GSIN and only under GSIN** (`0.000` vs `0.29–0.67` for UPC):
+**Per-lot count is exact under LGTIN and only under LGTIN** (`0.000` vs `0.29–0.67` for UPC):
 attributing sales and spoils to named lots makes each segment conserve the way the store
 total does. This is the channel's most durable value — it has held at `0.000` in every
 epoch since ADR 0137, and it is not a statistical result that better physics could erode.
@@ -399,7 +399,7 @@ for ax, ncol in zip(axes, (3, 2)):
               loc="upper left", bbox_to_anchor=(-0.01, 1.13), handlelength=1.1,
               columnspacing=1.4, handletextpad=0.5)
 fig.suptitle("What each delivery_history rung buys, by what the fleet varies "
-             "(all at code_type = gsin)", y=1.06, fontsize=12)
+             "(all at code_type = lgtin)", y=1.06, fontsize=12)
 fig.tight_layout(rect=(0, 0, 1, 0.97))
 plt.show()
 
@@ -500,7 +500,7 @@ for s in SCEN:
     print(f"{s:<9} {pb[s]:>9.1f} {pa[s]:>9.1f} {pa[s] - pb[s]:>+9.1f}")
 
 <!-- markdown -->
-Before the fix the GSIN rungs earned roughly **a third** of the UPC rungs' profit — a filter
+Before the fix the LGTIN rungs earned roughly **a third** of the UPC rungs' profit — a filter
 running blind produces a belief the controller cannot use. After, every rung lands within a
 few percent of the others and of the `B-state` oracle.
 
@@ -548,7 +548,7 @@ rungs (108–128 ms) are the ones to watch as `L` grows. Each spoilage day runs 
 Poisson-binomial DP plus truncated-gamma survivors instead of short-circuiting on a shared
 δ. P0 is unaffected (~5 ms) because it never observes waste.
 
-One practical consequence outside the notebook: `gsin_upc_ac12` shells out to this
+One practical consequence outside the notebook: `lgtin_upc_ac12` shells out to this
 diagnostic, so the regression gate is now a ~17 minute release run. Both of its tests share
 a single invocation rather than spawning it twice.
 
@@ -576,7 +576,7 @@ fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.4))
 grouped_bars(
     axes[0], [e.replace("\n", " ") for e in EPOCH_KEYS],
     {"P1 (UPC)": epoch_series("P1", "store_mean_f_mae"),
-     "F1 (GSIN)": epoch_series("F1", "store_mean_f_mae")},
+     "F1 (LGTIN)": epoch_series("F1", "store_mean_f_mae")},
     [C_BEFORE, C_AFTER], fmt="{:.3f}", ylabel="store mean freshness MAE", legend=False,
     label_size=7.0,
 )
@@ -596,7 +596,7 @@ for rows in EPOCHS.values():
 grouped_bars(
     axes[1], [e.replace("\n", " ") for e in EPOCH_KEYS],
     {"store mean-f": gain, "per-lot mean-f": gain_lot},
-    [C_AFTER, C_THIRD], fmt="{:.0f}%", ylabel="GSIN improvement over UPC (%)",
+    [C_AFTER, C_THIRD], fmt="{:.0f}%", ylabel="LGTIN improvement over UPC (%)",
     legend=False, label_size=7.0,
 )
 axes[1].axhline(0, color=INK_3, linewidth=0.8, zorder=2)
@@ -632,20 +632,20 @@ Three readings, in order of how much they should change anyone's mind.
 from lot codes.** Store mean-f MAE on the deep shelf went `0.148 → 0.117 → 0.084 → 0.019`
 across the four epochs. Effective-inventory MAE — the number the controller actually sees —
 went `12.4 → 8.3 → 6.1 → 1.27`. Those are large, real gains, and they accrued to the UPC
-rungs and the GSIN rungs in almost equal measure. They were bought by fixing the *physics
+rungs and the LGTIN rungs in almost equal measure. They were bought by fixing the *physics
 and the likelihood*, not by adding data.
 
 **2. What lot codes buy has stayed remarkably stable, except once.** The `P1 → F1` store
 mean-f gain is 1.3% / 6.0% / 4.0% at the last three epochs — small, and not trending up.
-Per-lot count has been exact under GSIN and only under GSIN since ADR 0137. The single real
+Per-lot count has been exact under LGTIN and only under LGTIN since ADR 0137. The single real
 movement is per-lot *freshness*, which jumped from ~1–2% to 21–29% at T-141, because
 independent per-unit aging is what makes a lot-resolved waste count mean something about
 that lot's freshness rather than merely about lot ordering.
 
 **3. The oldest column is archaeology, and its per-lot numbers should not be read at all.**
-`T-137 pre-0137` is the era when the GSIN likelihood returned `-inf` and the filter ran
-blind. Its store metrics are honestly bad (GSIN 5% *worse* than UPC). Its per-lot metrics
-look like GSIN wins — `+16%` on mean-f, `+20%` on count — but both channels were carrying
+`T-137 pre-0137` is the era when the LGTIN likelihood returned `-inf` and the filter ran
+blind. Its store metrics are honestly bad (LGTIN 5% *worse* than UPC). Its per-lot metrics
+look like LGTIN wins — `+16%` on mean-f, `+20%` on count — but both channels were carrying
 tens of units of phantom mass on partitions that did not correspond to truth's lots, so
 those percentages are two wrong numbers dividing into each other, not a gain.
 
@@ -671,10 +671,10 @@ both survived a review. It is worth assuming there is a third.
 3. **VOI monotonicity** — see the caveat in §4. Policy/cost issue, not a filter issue, and
    now the binding constraint on this whole line of work: three epochs of belief-accuracy
    improvement have produced no profit ordering.
-4. **ESS falls under GSIN** (`110` vs `144` at P1 on the deep shelf, N=200). This is the
+4. **ESS falls under LGTIN** (`110` vs `144` at P1 on the deep shelf, N=200). This is the
    expected signature of a sharper likelihood concentrating weight, not a defect — but it
-   means the non-regression guard cannot ask for `F1.ess >= P1.ess`. `gsin_upc_ac12` now
-   asserts an ESS *floor* per rung instead, plus per-lot count exactness under GSIN.
+   means the non-regression guard cannot ask for `F1.ess >= P1.ess`. `lgtin_upc_ac12` now
+   asserts an ESS *floor* per rung instead, plus per-lot count exactness under LGTIN.
 5. **Cost headroom.** 20× runtime for the PB path (§5). Fine at `N=200, L=10`; worth a
    budget check before raising either.
 *Closed since this notebook was written:* the legacy binomial waste primitives

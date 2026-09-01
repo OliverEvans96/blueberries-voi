@@ -7,7 +7,7 @@ Identifiers and symbologies follow GS1 General Specifications (2025):
   every pint of the same SKU (``CodeType::Upc`` in this repo).
 * **LGTIN** — a case-level **GTIN-14** (AI **01**) paired with a **batch/lot
   number** (AI **10**) on the case or logistics label, one lot number per
-  delivery lot (``CodeType::Gsin`` in this repo — see note below). Encoded in
+  delivery lot (``CodeType::Lgtin`` in this repo). Encoded in
   **GS1 DataMatrix** (``]d2``) and **GS1 QR Code** (``]Q3``) with FNC1 in the
   first position.
 

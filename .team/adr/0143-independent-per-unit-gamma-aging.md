@@ -13,11 +13,11 @@ RELATED: [0130](./0130-f-native-c2-a-unit-pf.md) (f-native unit PF),
 
 ADR 0137 replaced binomial waste with an exact interval constraint on **one shared** daily
 gamma decrement `δ`. That matched a generative model where every live unit received the same
-aging draw, which forced lot-homogeneous freshness within segments and made GSIN `waste_by`
+aging draw, which forced lot-homogeneous freshness within segments and made LGTIN `waste_by`
 a pure **contrast falsifier** — it could reject mis-ordered particles but never sharpen the
 posterior over freshness **level** relative to pooled UPC waste.
 
-Empirical GSIN/UPC diagnostics (notebook 14, `gsin_upc_diag`) showed the structural ceiling:
+Empirical LGTIN/UPC diagnostics (notebook 14, `lgtin_upc_diag`) showed the structural ceiling:
 level gains came from pack-date / delivery-history channels, not lot-resolved spoilage. The
 investigation hypothesis: independent unit aging unlocks lot-resolved spoilage as a **level**
 informative channel because units within a lot can diverge before spoiling.
@@ -34,7 +34,7 @@ informative channel because units within a lot can diverge before spoiling.
 For a cohort with pre-aging freshness vector `f` and spoil probabilities
 `p_i = P(δ_i ≥ f_i)` from the gamma decrement law, observing `w` spoils yields the
 Poisson-binomial PMF. We score **`log PMF(w)`** exactly via a DP (`pb_log_pmf`,
-`pb_loglik_by_lot` for GSIN segments, pooled alive set for UPC).
+`pb_loglik_by_lot` for LGTIN segments, pooled alive set for UPC).
 
 ### 3. Fully adapted proposal
 
@@ -68,16 +68,16 @@ The following are **removed from the codebase** (not feature-gated):
 
 Guard tests forbid reintroduction. ADR 0137 interval semantics are historical only.
 
-### 6. GSIN waste_by always scored when aligned
+### 6. LGTIN waste_by always scored when aligned
 
 Remove the T-139 guard that disabled lot-resolved waste when segments lacked spread — with
 independent aging, per-lot counts are always meaningful when `sales_by` alignment holds.
 
 ## Consequences
 
-- **Level information from spoilage:** UPC and GSIN waste observations constrain per-unit
+- **Level information from spoilage:** UPC and LGTIN waste observations constrain per-unit
   death probabilities, not just order statistics of a shared decrement.
-- **GSIN ≤ UPC guard:** Richer channel remains at least as informative on comparable metrics
+- **LGTIN ≤ UPC guard:** Richer channel remains at least as informative on comparable metrics
   (AC-G4 non-regression); strict improvement is measured, not assumed.
 - **count_bias == 0:** With adapted PB spoilage + observed arrivals/sales, store count
   conservation is exact on scored rungs (hard gate in diagnostics).

@@ -24,7 +24,7 @@ reopened it (`.team/backlog.md`, "Migrate arrival cohorts → proper lots (MOD-1
 **Why A made the ladder collapse.** Under A, lot identity is redundant with shelf age: a
 M/W/F schedule means every lot on the shelf has a distinct age, and age alone nearly pins the
 sales allocation. Measured: books-only 0.109 → pack-date 0.034 → *lot ID +* pack-date 0.032.
-GSIN buys almost nothing over F2 because there is nothing for lot identity to distinguish that
+LGTIN buys almost nothing over F2 because there is nothing for lot identity to distinguish that
 age doesn't already distinguish.
 
 **The uncounted channel.** ADR 0038's own card text named a VOI channel nothing has counted:
@@ -69,14 +69,14 @@ Total units per delivery is unchanged; the case-rounded order quantity is divide
 three lots. This is what keeps per-day filter runtime flat — the concern the T-129 report
 raised against a randomized `k` (each additional lot multiplying the arrival-birth work) does
 not apply here, because the total work per delivery (total units aged, scored, evicted) is the
-same as under one lot; it's only *segmented* differently under GSIN.
+same as under one lot; it's only *segmented* differently under LGTIN.
 
-### 3. GSIN holds segments; UPC holds a merged cohort — a structural fork, not a new mask field
+### 3. LGTIN holds segments; UPC holds a merged cohort — a structural fork, not a new mask field
 
 A UPC store's inventory record *is* one undifferentiated pile — it cannot track three cohorts
 it can't tell apart at the register. So:
 
-- **GSIN:** three segments, each born from its own `ArrivalCondition` (`Duration(d_ℓ)` or
+- **LGTIN:** three segments, each born from its own `ArrivalCondition` (`Duration(d_ℓ)` or
   `Exposure(Λ_ℓ)` — see ADR 0150), each independently scorable for sales and waste.
 - **UPC:** one segment of `Q` units, born from the mixture law
   `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)`.
@@ -90,9 +90,9 @@ uncertainty.
 **No new observation-mask fields.** The three channel switches stay orthogonal:
 `delivery_history` controls what journey data arrives (duration only, or the full exposure
 trace); `code_type` controls whether that data can be held in per-lot segments at all. The
-`waste_by_lot → code_type = Gsin` coupling (`obs.rs`) remains the sole documented exception to
+`waste_by_lot → code_type = Lgtin` coupling (`obs.rs`) remains the sole documented exception to
 that orthogonality. An earlier draft of this decision proposed a coupled
-`delivery_history_by_lot` mask field to let a GSIN store see per-lot journey data while a UPC
+`delivery_history_by_lot` mask field to let a LGTIN store see per-lot journey data while a UPC
 store saw only pooled journey data (or vice versa) — **rejected**: the `code_type` /
 `delivery_history` fork above already determines whether journey data lands in segments or gets
 mixed into one law, so a third field would duplicate information the fork already encodes.
@@ -113,13 +113,13 @@ exposure additivity. It also fixes the correlation structure honestly: lots on o
 correlated (shared final leg) but not identical (independent upstream legs), where option A
 made them identical by construction.
 
-### 5. What GSIN now buys, in descending expected effect
+### 5. What LGTIN now buys, in descending expected effect
 
 1. **Sequential attribution.** Pooled totals cannot distinguish "sales came from the fresh lot,
    leaving a stale shelf" from the reverse. The multinomial allocation term can. Particles
    genuinely differ in allocation (picking weight ∝ `f^σ`); under UPC nothing penalizes that
    diversity, so the posterior spreads further every day.
-2. **Composition.** Under GSIN the bag is exactly 13/13/14 units per lot; under UPC it's
+2. **Composition.** Under LGTIN the bag is exactly 13/13/14 units per lot; under UPC it's
    roughly `Multinomial(Q, ⅓, ⅓, ⅓)`, a spread of ~±3 units per lot.
 3. **Lot count** — ADR 0038's uncounted third channel, obtained with **no transdimensional
    inference**: the low rung (P0/P1, no lot ID observed) simply assumes one lot per delivery
@@ -151,7 +151,7 @@ made them identical by construction.
 - **Coupled `delivery_history_by_lot` mask field** (an earlier draft of this decision) —
   rejected; subsumed by the `code_type` / `delivery_history` structural fork in §3.
 - **Averaging pack dates across lots before mixing, under UPC** — rejected; discards the
-  between-lot variance that is exactly what makes the UPC posterior honestly wider than GSIN's.
+  between-lot variance that is exactly what makes the UPC posterior honestly wider than LGTIN's.
 
 ## Consequences
 
@@ -161,7 +161,7 @@ channel is testable rather than assumed away, since the low rung's misspecificat
 now a fixed, knowable quantity rather than either zero (A) or an unbounded transdimensional
 unknown (B).
 
-**Makes hard / costs.** GSIN shelf segment count rises from ~3–5 to ~9–15. Per-lot
+**Makes hard / costs.** LGTIN shelf segment count rises from ~3–5 to ~9–15. Per-lot
 Poisson-binomial spoilage DP is `O(n_ℓ · w_ℓ)`, so three smaller lots cost *less* per lot than
 one large one at fixed total units — but per-lot loop overhead and the `L×K` belief-wire
 payload both roughly triple. Measure, don't assume.
@@ -170,7 +170,7 @@ payload both roughly triple. Measure, don't assume.
 per-delivery random draw, until a future ADR reopens it with real-world evidence that lot count
 itself carries information worth modeling as uncertain. The `code_type` / `delivery_history`
 structural fork (§3) as the sole mechanism connecting observation channels to lot segmentation,
-with `waste_by_lot → code_type = Gsin` as the one prior exception, now read as an instance of
+with `waste_by_lot → code_type = Lgtin` as the one prior exception, now read as an instance of
 the same pattern rather than a one-off.
 
 **Revisit if.** Real delivery data ever motivates modeling lot count as informative or

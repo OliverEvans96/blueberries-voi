@@ -17,7 +17,7 @@ function obsChannels(page: Page) {
 
 async function setObsChannels(
   page: Page,
-  partial: { scanWaste?: boolean; codeType?: "upc" | "gsin" },
+  partial: { scanWaste?: boolean; codeType?: "upc" | "lgtin" },
 ) {
   if (partial.codeType) {
     await obsChannels(page)
@@ -161,7 +161,7 @@ test.describe("T-158 layout v7 — visual QA", () => {
     await advanceDays(page, 3);
     await setObsChannels(page, { scanWaste: false });
     await expect(page.locator("#events-pane-host")).toBeVisible();
-    await setObsChannels(page, { codeType: "gsin", scanWaste: true });
+    await setObsChannels(page, { codeType: "lgtin", scanWaste: true });
     await expect(page.locator("#events-pane-host")).toBeVisible();
   });
 

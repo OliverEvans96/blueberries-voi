@@ -2,7 +2,7 @@ import "../styles/obsControls.css";
 import type { ObsChannels, ViewModel } from "../types";
 import { InfoTip } from "./InfoTip";
 
-const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "gsin"];
+const CODE_OPTIONS: ObsChannels["code_type"][] = ["upc", "lgtin"];
 const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
   "none",
   "pack_date",
@@ -11,7 +11,7 @@ const HISTORY_OPTIONS: ObsChannels["delivery_history"][] = [
 
 const CODE_LABEL: Record<ObsChannels["code_type"], string> = {
   upc: "UPC",
-  gsin: "GSIN (include lot #)",
+  lgtin: "LGTIN (include lot #)",
 };
 
 const HISTORY_LABEL: Record<ObsChannels["delivery_history"], string> = {
@@ -134,7 +134,7 @@ export function ObsControlsPane({
           <span className="obs-channel-label">
             Code type
             <InfoTip>
-              UPC can't tell which delivery a unit came from. GSIN also
+              UPC can't tell which delivery a unit came from. LGTIN also
               encodes the lot, so the filter can track sales and spoilage
               per lot instead of only storewide.
             </InfoTip>
@@ -161,7 +161,7 @@ export function ObsControlsPane({
             <InfoTip>
               Off: spoiled units are discarded with no count reaching the
               filter. On: a daily spoilage total reaches the filter —
-              storewide, or per lot when Code type is GSIN.
+              storewide, or per lot when Code type is LGTIN.
             </InfoTip>
           </span>
           <div className="chip-row">

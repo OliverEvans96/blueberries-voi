@@ -1,7 +1,7 @@
 [
   {
     "seed": 7,
-    "key": "code=gsin|waste=0|hist=none",
+    "key": "code=lgtin|waste=0|hist=none",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "quantity_only",
@@ -11,7 +11,7 @@
   },
   {
     "seed": 42,
-    "key": "code=gsin|waste=0|hist=none",
+    "key": "code=lgtin|waste=0|hist=none",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "quantity_only",
@@ -21,7 +21,7 @@
   },
   {
     "seed": 99,
-    "key": "code=gsin|waste=0|hist=none",
+    "key": "code=lgtin|waste=0|hist=none",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "quantity_only",
@@ -31,7 +31,7 @@
   },
   {
     "seed": 7,
-    "key": "code=gsin|waste=0|hist=pack_date",
+    "key": "code=lgtin|waste=0|hist=pack_date",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "pack_date_per_lot",
@@ -41,7 +41,7 @@
   },
   {
     "seed": 42,
-    "key": "code=gsin|waste=0|hist=pack_date",
+    "key": "code=lgtin|waste=0|hist=pack_date",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "pack_date_per_lot",
@@ -51,7 +51,7 @@
   },
   {
     "seed": 99,
-    "key": "code=gsin|waste=0|hist=pack_date",
+    "key": "code=lgtin|waste=0|hist=pack_date",
     "pos": "lot_id",
     "waste": "none",
     "deliveries": "pack_date_per_lot",
@@ -61,7 +61,7 @@
   },
   {
     "seed": 7,
-    "key": "code=gsin|waste=1|hist=none",
+    "key": "code=lgtin|waste=1|hist=none",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "quantity_only",
@@ -71,7 +71,7 @@
   },
   {
     "seed": 42,
-    "key": "code=gsin|waste=1|hist=none",
+    "key": "code=lgtin|waste=1|hist=none",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "quantity_only",
@@ -81,7 +81,7 @@
   },
   {
     "seed": 99,
-    "key": "code=gsin|waste=1|hist=none",
+    "key": "code=lgtin|waste=1|hist=none",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "quantity_only",
@@ -91,7 +91,7 @@
   },
   {
     "seed": 7,
-    "key": "code=gsin|waste=1|hist=pack_date",
+    "key": "code=lgtin|waste=1|hist=pack_date",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "pack_date_per_lot",
@@ -101,7 +101,7 @@
   },
   {
     "seed": 42,
-    "key": "code=gsin|waste=1|hist=pack_date",
+    "key": "code=lgtin|waste=1|hist=pack_date",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "pack_date_per_lot",
@@ -111,7 +111,7 @@
   },
   {
     "seed": 99,
-    "key": "code=gsin|waste=1|hist=pack_date",
+    "key": "code=lgtin|waste=1|hist=pack_date",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "pack_date_per_lot",
@@ -121,7 +121,7 @@
   },
   {
     "seed": 7,
-    "key": "code=gsin|waste=1|hist=temperature_history",
+    "key": "code=lgtin|waste=1|hist=temperature_history",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "temperature_history",
@@ -131,7 +131,7 @@
   },
   {
     "seed": 42,
-    "key": "code=gsin|waste=1|hist=temperature_history",
+    "key": "code=lgtin|waste=1|hist=temperature_history",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "temperature_history",
@@ -141,7 +141,7 @@
   },
   {
     "seed": 99,
-    "key": "code=gsin|waste=1|hist=temperature_history",
+    "key": "code=lgtin|waste=1|hist=temperature_history",
     "pos": "lot_id",
     "waste": "lot_id",
     "deliveries": "temperature_history",

@@ -168,7 +168,7 @@ addopts = [
     "--strict-config",
 ]
 markers = [
-    "slow: release bench_day_timing and Modal gsin CLI smoke (nightly tier)",
+    "slow: release bench_day_timing and Modal lgtin CLI smoke (nightly tier)",
     "docs: VitePress docs guards (content may be WIP)",
 ]
 
