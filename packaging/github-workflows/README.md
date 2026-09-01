@@ -18,17 +18,17 @@ Five jobs start in parallel; **rust**, **web**, and **python** wait on **build**
 
 | Job | Waits on | What |
 |-----|----------|------|
-| `build` | — | `uv sync --extra rust`, maturin wheel (`--release`), WASM (`--release`), `cargo test --release --no-run`; upload `ci-rust-wasm-build` |
-| `rust` | `build` | restore Cargo registry cache; download `target/`; `cargo test --release` (prebuilt binaries) |
-| `python` | `build` | download `ci-rust-wasm-build` (`target/` + PyO3 wheel); Rust toolchain for pytest `cargo test --release` subprocess only; unzip prebuilt `_core`; verify no `voi_*` recompile before pytest; ruff, mypy, pytest+coverage (`-m "not docs"`) |
-| `docs` | — | `npm ci` in `docs/`, VitePress + `cargo doc` rustdoc bundle, docs/rustdoc guards, upload `docs-dist` |
-| `web` | `build` | download WASM from `ci-rust-wasm-build`; `build:lib`, vitest, `npm pack`; on main: `npm run build` + upload `studio-dist` |
+| `build` | — | `uv sync --extra rust`, maturin wheel (`--release`), WASM (`--release`), `cargo test --release --no-run`; upload `ci-rust-wasm-build` (`target/release/` + WASM + wheels; 2-day retention) |
+| `rust` | `build` | restore Cargo registry cache; download `ci-rust-wasm-build`; `cargo test --release` (prebuilt binaries) |
+| `python` | `build` | download `ci-rust-wasm-build` (`target/release/` + PyO3 wheel); Rust toolchain for pytest `cargo test --release` subprocess only; unzip prebuilt `_core`; verify no `voi_*` recompile before pytest; ruff, mypy, pytest+coverage (`-m "not docs"`) |
+| `docs` | — | `npm ci` in `docs/`, VitePress + `cargo doc` rustdoc bundle, docs/rustdoc guards, upload `docs-dist` (7-day retention) |
+| `web` | `build` | download WASM from `ci-rust-wasm-build`; `build:lib`, vitest, `npm pack`; on main: `npm run build` + upload `studio-dist` (3-day retention) |
 
 On **main/master** pushes only, `deploy` runs after `build`, `rust`, `python`, `web`, and
-`docs` succeed. It downloads `studio-dist` and `docs-dist` from those jobs, re-uploads
-both artifacts, then dispatches `blueberries-docs-published` to
-`OliverEvans96/personal-website` so the site redeploys and serves the latest
-`/docs/blueberries/` bundle.
+`docs` succeed. It downloads `studio-dist` and `docs-dist` to verify upstream artifacts,
+then dispatches `blueberries-docs-published` to `OliverEvans96/personal-website` so the
+site redeploys and serves the latest `/docs/blueberries/` bundle (`docs-dist` from the
+`docs` job on that run).
 
 ### Personal-website dispatch (human setup)
 
@@ -51,7 +51,7 @@ not the GitHub UI.
 
 | Event | Workflow | When |
 |-------|----------|------|
-| `blueberries-docs-published` | `ci.yml` `deploy` job | After `studio-dist` + `docs-dist` upload on green main |
+| `blueberries-docs-published` | `ci.yml` `deploy` job | After green main CI; `docs-dist` from `docs` job on that run |
 | `blueberries-studio-published` | `release-studio.yml` | After immutable `studio-v*` release (includes `client_payload.version`) |
 
 `web-quality.yml` and `rust-kernel.yml` are **workflow_dispatch** stubs; gates live in CI.
