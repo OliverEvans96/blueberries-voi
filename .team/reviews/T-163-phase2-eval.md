@@ -45,7 +45,7 @@ Phase 3 (notebook pipeline: split nb 12, damped_sw only, nb 17/19) can start onc
 | S2.2 Exposure additivity | **pass** | upstream + shared per lot |
 | S2.3 Per-lot traces | **pass** | temp_traces_by_lot wire |
 | S2.4 Quantity split | **pass** | not multiplied |
-| S2.5 GSIN birth | **pass** | three segments |
+| S2.5 LGTIN birth | **pass** | three segments |
 | S2.6 UPC mixture birth | **pass** | pointwise CDF average |
 | S2.7 Per-lot resolve | **pass** | resolve_arrival_f_law per lot |
 | S2.8 FilterObs shape | **pass** | per-lot pack dates + traces |

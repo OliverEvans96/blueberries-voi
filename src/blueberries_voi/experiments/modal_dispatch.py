@@ -45,7 +45,7 @@ from blueberries_voi.experiments.filter_accuracy import (
     nb13_job_grid,
     nb13_job_grid_with_f3,
 )
-from blueberries_voi.experiments.gsin_upc import gsin_job_grid, merge_gsin_diag_rows
+from blueberries_voi.experiments.lgtin_upc import lgtin_job_grid, merge_lgtin_diag_rows
 from blueberries_voi.experiments.rollout_bakeoff import (
     DEFAULT_DESKTOP_ALPHAS,
     DEFAULT_RHO,
@@ -75,7 +75,7 @@ from blueberries_voi.filter.types import (
 BatchMode = Literal["modal", "local"]
 BatchJob = Literal[
     "nb13",
-    "gsin",
+    "lgtin",
     "voi_profit",
     "rollout_eval",
     "channel_joint",
@@ -154,16 +154,16 @@ def _run_local(
         )
         return rows
 
-    if job == "gsin":
-        gsin_cells = kwargs.get("gsin_cells")
-        if gsin_cells is not None:
-            grid = [(int(r), int(s)) for r, s in gsin_cells]
+    if job == "lgtin":
+        lgtin_cells = kwargs.get("lgtin_cells")
+        if lgtin_cells is not None:
+            grid = [(int(r), int(s)) for r, s in lgtin_cells]
         else:
-            grid = gsin_job_grid()
+            grid = lgtin_job_grid()
         if smoke:
             grid = grid[:1]
-        rows = local_runner.run_gsin_local(
-            out_path or Path("/tmp/gsin_rows.json"),
+        rows = local_runner.run_lgtin_local(
+            out_path or Path("/tmp/lgtin_rows.json"),
             grid=grid,
             max_workers=kwargs.get("max_workers"),
         )
@@ -278,7 +278,7 @@ def _run_modal(
 
     app = app_mod.app
     nb13_shard = app_mod.nb13_shard
-    gsin_shard = app_mod.gsin_shard
+    lgtin_shard = app_mod.lgtin_shard
     voi_profit_shard = app_mod.voi_profit_shard
     voi_oracle_profit_shard = app_mod.voi_oracle_profit_shard
     rollout_eval_shard = app_mod.rollout_eval_shard
@@ -306,17 +306,17 @@ def _run_modal(
             _write_optional_json(rows, out_path)
             return rows
 
-        if job == "gsin":
-            raw_cells = kwargs.get("gsin_cells")
+        if job == "lgtin":
+            raw_cells = kwargs.get("lgtin_cells")
             if raw_cells is not None:
-                gsin_cells = [(int(r), int(s)) for r, s in raw_cells]
+                lgtin_cells = [(int(r), int(s)) for r, s in raw_cells]
             else:
-                gsin_cells = gsin_job_grid()
+                lgtin_cells = lgtin_job_grid()
             if smoke:
-                gsin_cells = gsin_cells[:1]
-            handles = [gsin_shard.spawn(regime, seed) for regime, seed in gsin_cells]
+                lgtin_cells = lgtin_cells[:1]
+            handles = [lgtin_shard.spawn(regime, seed) for regime, seed in lgtin_cells]
             shards = _collect_handles(handles, progress=progress)
-            rows = merge_gsin_diag_rows(shards)
+            rows = merge_lgtin_diag_rows(shards)
             _write_optional_json(rows, out_path)
             return rows
 

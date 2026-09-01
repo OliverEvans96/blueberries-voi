@@ -42,7 +42,7 @@ are fixed:
   pack date. Break events inside a generative path (`truth_transit_trace` →
   `resolve_arrival_exposure`) give F3 real thermal residual to mop up; expect the **F2 → F3
   step to grow** relative to the old ladder.
-- **Lot identity (GSIN):** with one lot per delivery, lot ID was redundant with shelf age
+- **Lot identity (LGTIN):** with one lot per delivery, lot ID was redundant with shelf age
   on a M/W/F schedule (pack-date 0.034 → lot ID + pack-date 0.032). **Fixed `L = 3` lots
   per delivery** (ADR 0149) puts three same-calendar-age cohorts at **different
   freshness** on the shelf, so lot-resolved channels should **separate more** from
@@ -71,7 +71,7 @@ Measured values (mean $|\hat f - f|$ on shelf freshness, averaged over the three
 | **Books only** | nothing | 0.109 |
 | **Shrink gun** | nothing (waste totals only, no delivery signal) | 0.114 |
 | **Pack date on the ASN** | calendar duration $d$ | 0.034 |
-| **Lot ID + pack date** | calendar duration $d$ (+ lot-resolved birth under GSIN) | 0.032 |
+| **Lot ID + pack date** | calendar duration $d$ (+ lot-resolved birth under LGTIN) | 0.032 |
 | **Lot ID + pack date + temperature history** | cumulative exposure $\Lambda$ from path | 0.017 |
 
 The step from the books-only scenario to a pack-date scenario is roughly a **3× reduction** in error

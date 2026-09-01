@@ -62,7 +62,7 @@ def channel_from_factorial(
     deliveries: DeliveryOpt,
 ) -> ObsChannels:
     """Map notebook 13 factorial axes to ``ObsChannels`` (ADR 0133)."""
-    code_type: Literal["upc", "gsin"] = "gsin" if pos == "lot_id" else "upc"
+    code_type: Literal["upc", "lgtin"] = "lgtin" if pos == "lot_id" else "upc"
     scan_waste = waste != "none"
     delivery_history: Literal["none", "pack_date", "temperature_history"] = (
         "pack_date" if deliveries == "pack_date_per_lot" else "none"
@@ -83,10 +83,10 @@ def all_channel_combos() -> list[ObsChannels]:
 
 
 def factorial_labels(channels: ObsChannels) -> tuple[PosOpt, WasteOpt, DeliveryOpt]:
-    pos: PosOpt = "lot_id" if channels.code_type == "gsin" else "upc_only"
+    pos: PosOpt = "lot_id" if channels.code_type == "lgtin" else "upc_only"
     if not channels.scan_waste:
         waste: WasteOpt = "none"
-    elif channels.code_type == "gsin":
+    elif channels.code_type == "lgtin":
         waste = "lot_id"
     else:
         waste = "daily_counts"

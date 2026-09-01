@@ -4,7 +4,7 @@
   "horizon_days": 47,
   "filtered_obs": "F3",
   "obs_channels": {
-    "code_type": "gsin",
+    "code_type": "lgtin",
     "scan_waste": true,
     "delivery_history": "temperature_history"
   },

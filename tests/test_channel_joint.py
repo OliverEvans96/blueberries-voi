@@ -25,7 +25,7 @@ def test_all_obs_channels_product_count_and_axes() -> None:
     combos = all_obs_channels_product()
     assert len(combos) == 12
     code_types = {c.code_type for c in combos}
-    assert code_types == {"upc", "gsin"}
+    assert code_types == {"upc", "lgtin"}
     deliveries = {c.delivery_history for c in combos}
     assert deliveries == {"none", "pack_date", "temperature_history"}
 
@@ -70,17 +70,17 @@ def test_run_seed_channel_joint_tiny(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @_RUST
-def test_gsin_high_rho_no_filter_collapse_regression(
+def test_lgtin_high_rho_no_filter_collapse_regression(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Deterministic repro from 2026-08-30 GSIN PF collapse (plan §4).
+    """Deterministic repro from 2026-08-30 LGTIN PF collapse (plan §4).
 
     Before the §2 fix, this (seed, channel, alpha, rho) combination froze the
     unit particle filter's belief bit-for-bit for the rest of the episode
     while the real shelf sold down toward zero, and the controller — reading
     a frozen belief that still claimed the old on-hand count — stopped
     reordering. `infeasible == filter_n` (total per-particle likelihood
-    failure) is *not* itself the bug: GSIN's cross-lot allocation
+    failure) is *not* itself the bug: LGTIN's cross-lot allocation
     approximation genuinely fails on some days and recovers on its own, which
     is expected and asserted separately. The actual defect signature is the
     belief staying frozen across a day with real depletion.
@@ -88,7 +88,7 @@ def test_gsin_high_rho_no_filter_collapse_regression(
     Under the narrow collapse fix (ADR / plan §4 option a), total-collapse
     rescue days may still leave ``sum(lot_counts)`` transiently above truth
     on-hand when per-lot sales removal cannot fully align particle segmentation
-    with observed GSIN sales — that gap is not the freeze bug and is not
+    with observed LGTIN sales — that gap is not the freeze bug and is not
     asserted here.
 
     Uses ``filter_n=200`` (Studio / article-figures scale). Under fix (a) this
@@ -103,7 +103,7 @@ def test_gsin_high_rho_no_filter_collapse_regression(
     n_score = 45
     filter_n = 200
     channels = ObsChannels(
-        code_type="gsin",
+        code_type="lgtin",
         scan_waste=True,
         delivery_history="none",
     )

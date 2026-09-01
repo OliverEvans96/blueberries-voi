@@ -24,7 +24,7 @@ AccuracyColumn = Literal["mae_f", "mae_dist"]
 
 CODE_TYPE_LABELS: dict[str, str] = {
     "upc": "UPC barcode",
-    "gsin": "GSIN case code",
+    "lgtin": "LGTIN case code",
 }
 WASTE_LABELS: dict[str, str] = {
     "off": "Waste scan off",
@@ -107,8 +107,8 @@ def facet_heatmap_figure(
 
 
 # Scatter ``s`` is area in points²; legend ``markersize`` is diameter in points.
-CODE_SCATTER_S: dict[str, float] = {"upc": 45.0, "gsin": 110.0}
-CODE_LEGEND_MARKERSIZE: dict[str, float] = {"upc": 6.0, "gsin": 10.0}
+CODE_SCATTER_S: dict[str, float] = {"upc": 45.0, "lgtin": 110.0}
+CODE_LEGEND_MARKERSIZE: dict[str, float] = {"upc": 6.0, "lgtin": 10.0}
 
 _FACTORIAL_KEYS: tuple[str, str, str] = ("code_type", "waste", "delivery")
 
@@ -141,7 +141,7 @@ def profit_vs_accuracy_scatter_figure(
     """Scatter profit vs belief accuracy on one axes.
 
     Color encodes waste scan (on/off); marker shape encodes delivery history;
-    marker size encodes code type (UPC smaller, GSIN larger). Points are means
+    marker size encodes code type (UPC smaller, LGTIN larger). Points are means
     across seeds; horizontal and vertical bars show seed std for MAE and profit.
     """
     waste_colors = {"off": "#4c72b0", "on": "#dd8452"}

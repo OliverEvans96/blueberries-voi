@@ -13,9 +13,9 @@ pub struct ObsMask {
     pub sales_total: bool,
     /// Store-wide waste (spoilage) count, pooled across lots.
     pub waste_total: bool,
-    /// Sales broken out per live lot; requires lot-resolved (GSIN) codes.
+    /// Sales broken out per live lot; requires lot-resolved (LGTIN) codes.
     pub sales_by_lot: bool,
-    /// Waste broken out per live lot; requires lot-resolved (GSIN) codes.
+    /// Waste broken out per live lot; requires lot-resolved (LGTIN) codes.
     pub waste_by_lot: bool,
     /// Pack date of today's arriving shipment, pinning transit duration `d`.
     pub pack_date: bool,
@@ -30,7 +30,7 @@ pub struct ObsMask {
 /// Global scan observation channels (supersedes ADR 0133 pos/waste/deliveries).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObsChannels {
-    /// POS code granularity: pooled UPC vs lot-resolved GSIN.
+    /// POS code granularity: pooled UPC vs lot-resolved LGTIN.
     pub code_type: CodeType,
     /// Whether the store scans waste at all (off = spoilage is invisible).
     pub scan_waste: bool,
@@ -39,13 +39,13 @@ pub struct ObsChannels {
 }
 
 /// Point-of-sale code granularity. `Upc` pools every unit of an item under one barcode, so
-/// sales/waste can only be counted store-wide; `Gsin` carries lot identity, so counts can be
+/// sales/waste can only be counted store-wide; `Lgtin` carries lot identity, so counts can be
 /// attributed to the specific delivery a unit came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CodeType {
     Upc,
-    Gsin,
+    Lgtin,
 }
 
 /// What a store knows about an arriving delivery's transit history. Neither variant ever
@@ -162,7 +162,7 @@ pub fn parse_channels(
 ) -> Result<ObsChannels, String> {
     let code_type = match code_type {
         "upc" => CodeType::Upc,
-        "gsin" => CodeType::Gsin,
+        "lgtin" => CodeType::Lgtin,
         other => return Err(format!("invalid code_type: {other:?}")),
     };
     let delivery_history = match delivery_history {
@@ -202,7 +202,7 @@ pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
             delivery_history: DeliveryHistory::None,
         }),
         "F1" | "F1s" => Ok(ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::None,
         }),
@@ -212,12 +212,12 @@ pub fn channels_for_preset(id: &str) -> Result<ObsChannels, String> {
             delivery_history: DeliveryHistory::PackDate,
         }),
         "F2" => Ok(ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::PackDate,
         }),
         "F3" => Ok(ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::TemperatureHistory,
         }),
@@ -241,7 +241,7 @@ pub fn preset_for_channels(ch: ObsChannels) -> Option<&'static str> {
 pub fn channels_cache_key(ch: ObsChannels) -> String {
     let code = match ch.code_type {
         CodeType::Upc => "upc",
-        CodeType::Gsin => "gsin",
+        CodeType::Lgtin => "lgtin",
     };
     let waste = if ch.scan_waste { "1" } else { "0" };
     let hist = match ch.delivery_history {
@@ -257,7 +257,7 @@ pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
     serde_json::json!({
         "code_type": match ch.code_type {
             CodeType::Upc => "upc",
-            CodeType::Gsin => "gsin",
+            CodeType::Lgtin => "lgtin",
         },
         "scan_waste": ch.scan_waste,
         "delivery_history": match ch.delivery_history {
@@ -270,8 +270,8 @@ pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
 
 /// Derives which `RichDay` fields are visible from the three independent channel toggles.
 /// Arrivals and store-wide sales are always on. Per-lot breakdowns only turn on under
-/// `Gsin` codes, since pooled `Upc` codes can't attribute a sale/waste event to a lot; waste
-/// fields only turn on when `scan_waste` is set, and `waste_by_lot` further requires `Gsin`.
+/// `Lgtin` codes, since pooled `Upc` codes can't attribute a sale/waste event to a lot; waste
+/// fields only turn on when `scan_waste` is set, and `waste_by_lot` further requires `Lgtin`.
 /// `delivery_history` maps onto exactly one of `pack_date`/`temperature_history`, never both.
 pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
     let mut m = ObsMask {
@@ -279,14 +279,14 @@ pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
         sales_total: true,
         ..ObsMask::default()
     };
-    if ch.code_type == CodeType::Gsin {
+    if ch.code_type == CodeType::Lgtin {
         m.sales_by_lot = true;
         m.lot_ids_live = true;
         m.arrival_lot_ids = true;
     }
     if ch.scan_waste {
         m.waste_total = true;
-        if ch.code_type == CodeType::Gsin {
+        if ch.code_type == CodeType::Lgtin {
             m.waste_by_lot = true;
         }
     }
@@ -445,32 +445,32 @@ mod tests {
             delivery_history: DeliveryHistory::TemperatureHistory,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: false,
             delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: false,
             delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: false,
             delivery_history: DeliveryHistory::TemperatureHistory,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::None,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::PackDate,
         },
         ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::TemperatureHistory,
         },
@@ -482,7 +482,7 @@ mod tests {
             let m = mask_from_channels(ch);
             let f = present_fields(&m);
             assert!(f["arrivals"] && f["sales_total"]);
-                if ch.code_type == CodeType::Gsin {
+                if ch.code_type == CodeType::Lgtin {
                 assert!(f["sales_by_lot"] && f["lot_ids_live"] && f["arrival_lot_ids"]);
             } else {
                 assert!(!f["sales_by_lot"] && !f["lot_ids_live"] && !f["arrival_lot_ids"]);
@@ -536,11 +536,11 @@ mod tests {
     #[test]
     fn channels_cache_key_canonical() {
         let ch = ObsChannels {
-            code_type: CodeType::Gsin,
+            code_type: CodeType::Lgtin,
             scan_waste: true,
             delivery_history: DeliveryHistory::None,
         };
-        assert_eq!(channels_cache_key(ch), "code=gsin|waste=1|hist=none");
+        assert_eq!(channels_cache_key(ch), "code=lgtin|waste=1|hist=none");
     }
 
     #[test]

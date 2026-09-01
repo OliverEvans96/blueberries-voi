@@ -51,10 +51,10 @@
 ### nb19 factorial (`experiments/data/nb19_joint_rows.json`)
 
 - **36 rows**, seeds `{7, 42, 99}` only (reduced vs earlier 6-seed audit artifact — faster Modal batch for pipeline validation).
-- **Delivery history dominates belief accuracy for GSIN:** `delivery=none` → mean MAE(mean f) ≈ **0.104**; with `pack_date` or `temperature_history` → ≈ **0.061–0.065**. UPC without delivery stays low (~0.057).
-- **Profit weakly coupled to MAE(mean f):** scatter shows high-profit points at both low and high error; `delivery=none` GSIN runs span MAE 0.087–0.119 with profit 1020–1305 on same code/waste settings — seed-driven.
+- **Delivery history dominates belief accuracy for LGTIN:** `delivery=none` → mean MAE(mean f) ≈ **0.104**; with `pack_date` or `temperature_history` → ≈ **0.061–0.065**. UPC without delivery stays low (~0.057).
+- **Profit weakly coupled to MAE(mean f):** scatter shows high-profit points at both low and high error; `delivery=none` LGTIN runs span MAE 0.087–0.119 with profit 1020–1305 on same code/waste settings — seed-driven.
 - **Waste scan toggle ≈ no effect on MAE or profit** in this factorial (on/off pairs identical to 0.001 in means) — consistent with belief channel not using waste scans in these presets.
-- **GSIN vs UPC profit nearly identical** when averaged (~1130) despite large GSIN MAE penalty without delivery — closed-loop controller compensates.
+- **LGTIN vs UPC profit nearly identical** when averaged (~1130) despite large LGTIN MAE penalty without delivery — closed-loop controller compensates.
 
 ### Inconsistencies / open questions
 

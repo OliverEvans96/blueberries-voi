@@ -71,8 +71,8 @@ tasks:
     role: implement
     shard: diag-sweep
     files:
-      - crates/voi_core/examples/gsin_upc_diag.rs
-      - experiments/regen_gsin_upc_data.sh
+      - crates/voi_core/examples/lgtin_upc_diag.rs
+      - experiments/regen_lgtin_upc_data.sh
     deps: [impl-crn-streams]
 
   - id: merge

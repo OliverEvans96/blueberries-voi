@@ -6,7 +6,7 @@ TICKET: T-138
 RELATED: [0130](./0130-f-native-c2-a-unit-pf.md) (f-native C2-A unit PF),
 [0133](./0133-observation-channel-toggles.md) (orthogonal observation channels),
 [0137](./0137-observed-lot-segmentation-and-exact-spoilage-likelihood.md) (shared-decrement
-spoilage, GSIN homogeneity theorem),
+spoilage, LGTIN homogeneity theorem),
 [0138](./0138-arrival-f-birth-wiring.md) (single lot-mean birth draw wired through session/VOI;
 **distinct ticket** — does not introduce within-lot spread)
 
@@ -16,8 +16,8 @@ ADR 0137 unified spoilage scoring on the shared gamma decrement and documented a
 limit of the **lot-uniform birth** model: every live unit in a delivery segment carries the
 same freshness, so a lot spoils all-or-nothing and the store's order statistics are just the
 lot values. Under that homogeneity, measured over random cohort-consistent shelves
-(`gsin_waste_never_narrows_the_pooled_interval`), the GSIN per-lot spoilage interval
-`I_gsin` was **exactly** the pooled interval in ~91% of draws and **empty** otherwise — a
+(`lgtin_waste_never_narrows_the_pooled_interval`), the LGTIN per-lot spoilage interval
+`I_lgtin` was **exactly** the pooled interval in ~91% of draws and **empty** otherwise — a
 strictly tighter non-empty interval **never** occurred. `waste_by` therefore falsifies
 mis-ordered particles but cannot sharpen the posterior over the shared decrement.
 
@@ -25,7 +25,7 @@ Physical receipts are not lot-uniform: clamshells within a GS1 lot differ in tra
 exposure and pack timing. The simulator and filter still extend deliveries with
 `vec![birth_f; U]`, and rollout forward simulation initializes belief units by repeating the
 lot marginal mean `e_f` — collapsing within-lot uncertainty that the filter posterior may
-carry. That mismatch blocks GSIN from exploiting spoilage as a **level** channel and biases
+carry. That mismatch blocks LGTIN from exploiting spoilage as a **level** channel and biases
 rollout paths.
 
 ADR 0138 wired the **lot-mean** birth freshness from receipt metadata through session, VOI,
@@ -64,8 +64,8 @@ filter birth, without changing the shared-decrement likelihood machinery from AD
    binomial waste.
 
 7. **Acceptance test supersession** — replace
-   `gsin_waste_never_narrows_the_pooled_interval` with a converse that shows strictly tighter
-   non-empty `I_gsin ⊂ I_pooled` can occur when `arrival_dispersion_sd > 0`, and that
+   `lgtin_waste_never_narrows_the_pooled_interval` with a converse that shows strictly tighter
+   non-empty `I_lgtin ⊂ I_pooled` can occur when `arrival_dispersion_sd > 0`, and that
    `arrival_dispersion_sd = 0` recovers the ADR 0137 homogeneity limit.
 
 Epistemic channel draws (shipment index, pack-date Gaussian width, F2 Dirac age) are
@@ -74,7 +74,7 @@ Epistemic channel draws (shipment index, pack-date Gaussian width, F2 Dirac age)
 ## Alternatives considered
 
 - **Change the spoilage likelihood first (Stage B)** — rejected for this ticket. Tightening
-  `I_gsin` requires heterogeneous unit freshness inside segments; without Stage A births the
+  `I_lgtin` requires heterogeneous unit freshness inside segments; without Stage A births the
   interval algebra has nothing to intersect. Stage B (T-139) may revisit contrast-sensitive
   weighting once dispersion exists.
 
@@ -84,7 +84,7 @@ Epistemic channel draws (shipment index, pack-date Gaussian width, F2 Dirac age)
   dim/show rules for `f2a_transit_sd`.
 
 - **Filter lot-uniform, truth dispersed** — rejected. Structural mismatch reintroduces the
-  phantom-mass and interval-emptying pathologies ADR 0137 fixed; GSIN diagnostics would score
+  phantom-mass and interval-emptying pathologies ADR 0137 fixed; LGTIN diagnostics would score
   a generative model the filter does not represent.
 
 - **Deterministic within-lot quantiles from marginals (no new stream)** — rejected. Rollout
@@ -93,12 +93,12 @@ Epistemic channel draws (shipment index, pack-date Gaussian width, F2 Dirac age)
 
 ## Consequences
 
-- **GSIN spoilage can sharpen the decrement posterior** when units within a lot disagree on
+- **LGTIN spoilage can sharpen the decrement posterior** when units within a lot disagree on
   freshness — the converse test is the observable proof. This is the intended unlock for
-  measured GSIN level gains beyond lot-attribution alone.
+  measured LGTIN level gains beyond lot-attribution alone.
 - **ESS may drop** when dispersion increases particle diversity within segments; resample cost
   is unchanged but weight degeneracy may rise — monitor `StepDiagnostics.ess` in
-  `gsin_upc_diag`.
+  `lgtin_upc_diag`.
 - **`count_bias` must stay near zero** under zero-init + observed arrivals (ADR 0136/0137
   conservation contract); dispersion must not inflate row length or alive mass.
 - **Stage B (T-139)** may adjust cross-lot sales allocation or contrast weighting once

@@ -34,11 +34,11 @@ from blueberries_voi.filter.types import (
 from blueberries_voi.sim.profit import STUDIO_PROFIT_COSTS, ProfitCosts, day_profit
 from blueberries_voi.simulator import EngineSession
 
-CodeTypeOpt: TypeAlias = Literal["upc", "gsin"]
+CodeTypeOpt: TypeAlias = Literal["upc", "lgtin"]
 WasteOpt: TypeAlias = Literal["off", "on"]
 DeliveryOpt: TypeAlias = Literal["none", "pack_date", "temperature_history"]
 
-CODE_OPTS: tuple[CodeTypeOpt, ...] = ("upc", "gsin")
+CODE_OPTS: tuple[CodeTypeOpt, ...] = ("upc", "lgtin")
 WASTE_OPTS: tuple[WasteOpt, ...] = ("off", "on")
 DELIVERY_OPTS: tuple[DeliveryOpt, ...] = (
     "none",
@@ -147,9 +147,9 @@ def run_seed_channel_joint(
         stockout += max(0, log.demand - log.sales_total)
 
         # A collapsed filter freezes lot_counts/f_marginals bit-for-bit even as
-        # real inventory depletes (2026-08-30 GSIN collapse). A single day of
+        # real inventory depletes (2026-08-30 LGTIN collapse). A single day of
         # `infeasible == filter_n` is a normal, transient likelihood failure
-        # under GSIN's cross-lot approximation and recovers on its own — it is
+        # under LGTIN's cross-lot approximation and recovers on its own — it is
         # not itself evidence of the freeze bug, so it is not counted here.
         belief = delta.get("belief")
         if isinstance(belief, dict):

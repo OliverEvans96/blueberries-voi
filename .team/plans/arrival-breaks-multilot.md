@@ -15,7 +15,7 @@ caching, and adds: bottom-up Abdella-matched stage durations, trip thermal
 modes, required hourly OU on charts, unified duration (no haul toggle), and
 an explicit closed-form filter projection + Abdella calibration recipe.
 
-This file remains authority for §2 multi-lot / §3 UPC-vs-GSIN / remaining
+This file remains authority for §2 multi-lot / §3 UPC-vs-LGTIN / remaining
 non-thermal sections, unless a later plan says otherwise.
 
 READ ALSO .team/handoffs/arrival-breaks-multilot.md (build state + corrections).
@@ -45,7 +45,7 @@ normal. The trace is a rendering of two scalars, and one of them barely moves
 98.4 / 1.6 split. A pack date is a duration measurement, so it removes 98.4% of
 shipment-level exposure uncertainty and a full trace can only mop up the remaining 1.6%.
 
-**GSIN is worth ~nothing because lot identity is redundant with shelf age.** One lot per
+**LGTIN is worth ~nothing because lot identity is redundant with shelf age.** One lot per
 delivery on a M/W/F schedule means every lot on the shelf has a distinct age, and age
 already orders freshness — so pooled counts nearly pin the sales allocation anyway.
 Measured ladder: books-only 0.109 → pack-date 0.034 → *lot ID +* pack-date 0.032.
@@ -128,12 +128,12 @@ duration (pack date) or total exposure (trace). It is purely a truth-path and
 trace-rendering change, made trivial by the exposure additivity above. It also fixes the
 correlation structure honestly: lots on one truck become correlated but not identical.
 
-### 3. Under UPC the delivery is one cohort; under GSIN it is three lots
+### 3. Under UPC the delivery is one cohort; under LGTIN it is three lots
 
 A UPC store's inventory record *is* one undifferentiated pile — it cannot track three
 cohorts it can't tell apart at the register. So:
 
-- **GSIN:** three segments, each born from its own `ArrivalCondition` (`Duration(d_ℓ)` or
+- **LGTIN:** three segments, each born from its own `ArrivalCondition` (`Duration(d_ℓ)` or
   `Exposure(Λ_ℓ)`), each scorable per-lot for sales and waste.
 - **UPC:** one segment of `Q` units, born from the mixture
   `Law_UPC = (1/L) Σ_ℓ Law(record_ℓ)`.
@@ -143,13 +143,13 @@ came back) — it just cannot attribute them, so the laws get mixed. **Mix the l
 average the dates:** a mixture of three laws with different means has variance including
 the between-lot spread; averaging dates first would leave only within-lot variance.
 
-Three things GSIN now buys, in descending order of expected effect:
+Three things LGTIN now buys, in descending order of expected effect:
 
 1. **Sequential attribution.** Pooled totals cannot distinguish "sales came from the fresh
    lot, leaving a stale shelf" from the reverse. The multinomial allocation term can.
    Particles genuinely differ in allocation (picking is weight ∝ `f^σ`); under UPC nothing
    penalises that diversity, so the posterior spreads further every day.
-2. **Composition.** Under GSIN the bag is exactly 13/13/14 units per lot; under UPC it's
+2. **Composition.** Under LGTIN the bag is exactly 13/13/14 units per lot; under UPC it's
    roughly Multinomial(Q, ⅓,⅓,⅓), a spread of ~±3 units per lot.
 3. **Lot count** — ADR 0038's uncounted third channel, obtained with no transdimensional
    inference because the low rung simply assumes one and the error is measured.
@@ -178,7 +178,7 @@ touches only F3 — 3× more builds per delivery. Both are paid for by **reducin
 `ARRIVAL_GRID` from 4096 to 512** (`arrival.rs:19`), an 8× cut across every row at an
 inverse-sampling resolution of 0.002 in freshness, far below any noise floor here.
 
-Secondary: shelf segment count goes from ~3–5 to ~9–15 under GSIN. Per-lot Poisson-binomial
+Secondary: shelf segment count goes from ~3–5 to ~9–15 under LGTIN. Per-lot Poisson-binomial
 DP is `O(n_ℓ·w_ℓ)`, so three smaller lots cost *less* than one large one at fixed total
 units — but per-lot loop overhead and the `L×K` belief-wire payload both triple. Measure,
 don't assume.
@@ -199,7 +199,7 @@ don't assume.
   per-lot draws and traces; populate `RichDay.arrival_lot_ids` (already `Vec<i64>`) and a
   per-lot trace list.
 - `unit_pf.rs` — birth block (~line 555–587): replace the `.first()` lot id and single
-  `push_lot_births` call with a loop over sub-lots under GSIN, or one merged cohort under
+  `push_lot_births` call with a loop over sub-lots under LGTIN, or one merged cohort under
   UPC. `resolve_arrival_f_law` (~line 300) becomes per-lot rather than per-delivery.
 - `obs.rs` — `FilterObs` carries per-lot pack dates and per-lot traces. **No new mask
   field.**

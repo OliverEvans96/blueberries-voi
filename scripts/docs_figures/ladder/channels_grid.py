@@ -14,11 +14,11 @@ AXES = ("POS code", "waste scan", "delivery hist")
 PRESETS = [
     ("P0", "UPC", "off", "qty only"),
     ("P1", "UPC", "on", "qty only"),
-    ("F1", "GSIN", "off", "qty only"),
-    ("F1s", "GSIN", "on", "qty only"),
+    ("F1", "LGTIN", "off", "qty only"),
+    ("F1s", "LGTIN", "on", "qty only"),
     ("F2a", "UPC", "off", "pack date"),
-    ("F2", "GSIN", "off", "pack date"),
-    ("F3", "GSIN", "on", "temp trace"),
+    ("F2", "LGTIN", "off", "pack date"),
+    ("F3", "LGTIN", "on", "temp trace"),
 ]
 
 

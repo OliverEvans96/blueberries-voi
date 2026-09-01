@@ -31,7 +31,7 @@ reasons rather than genuine findings:
 - **Temperature history**: `shipments.rs::truth_transit_trace` fabricated a trace and then
   bisected a constant offset until its `phi_bar` matched an already-drawn scalar. The trace
   carried no information beyond two numbers, one of which barely moved (`sigma_T = 0.53 C`).
-- **GSIN**: with one lot per delivery on a M/W/F schedule, every shelf lot has a distinct
+- **LGTIN**: with one lot per delivery on a M/W/F schedule, every shelf lot has a distinct
   age, and age already orders freshness — so pooled counts nearly pin the sales allocation.
   Measured ladder: books-only 0.109 → pack-date 0.034 → *lot ID +* pack-date 0.032.
 
@@ -123,7 +123,7 @@ Branch **off Stage 1's tip, not `main`** (it builds on the new arrival API).
   upstream journeys plus one shared DC→store leg; populate `RichDay.arrival_lot_ids`
   (already `Vec<i64>`) and a per-lot trace list.
 - `unit_pf.rs` birth block (~555–587): replace the `.first()` lot id and single
-  `push_lot_births` call. **Under GSIN** push three segments, each from its own
+  `push_lot_births` call. **Under LGTIN** push three segments, each from its own
   `ArrivalCondition`. **Under UPC** push one merged cohort of `Q` units from the mixture law
   Stage 1 added (`Law_UPC = (1/L) sum_l Law_l` — the pointwise average of the component
   cached CDFs; mixture variance is *not* the average of component variances).
@@ -155,7 +155,7 @@ then open **one** PR.
   as part of the change and the `docs` job is a hard gate, so it will fail until the
   follow-up pass. Pages needing rewrite: `docs/store/cold-chain-arrival.md`,
   `docs/findings/why-pack-date.md`, `docs/findings/does-belief-sharpen.md`,
-  `docs/inference/upc-vs-gsin.md`, `docs/ladder/channels.md`,
+  `docs/inference/upc-vs-lgtin.md`, `docs/ladder/channels.md`,
   `docs/ladder/observation-scenarios.md`, `docs/inference/birth-freshness.md`.
   `test_docs_code_refs.py` pins `file:line` citations and will fail on `arrival.rs` /
   `shipments.rs` regardless.

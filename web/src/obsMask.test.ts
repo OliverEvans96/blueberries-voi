@@ -159,17 +159,17 @@ describe("resolveDisplayObsScenario (custom WASM obs_scenario)", () => {
     const mod = await import("./obsMask");
     expect(
       mod.resolveDisplayObsScenario(
-        { code_type: "gsin", scan_waste: true, delivery_history: "none" },
+        { code_type: "lgtin", scan_waste: true, delivery_history: "none" },
         "F1s",
       ),
     ).toBe("F1s");
   });
 
-  it("returns F3 for temperature_history GSIN preset", async () => {
+  it("returns F3 for temperature_history LGTIN preset", async () => {
     const mod = await import("./obsMask");
     expect(
       mod.resolveDisplayObsScenario({
-        code_type: "gsin",
+        code_type: "lgtin",
         scan_waste: true,
         delivery_history: "temperature_history",
       }),

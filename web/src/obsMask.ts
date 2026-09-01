@@ -14,7 +14,7 @@ export type ObsMask = {
   temperature_history: boolean;
 };
 
-export type CodeType = "upc" | "gsin";
+export type CodeType = "upc" | "lgtin";
 export type DeliveryHistory = "none" | "pack_date" | "temperature_history";
 
 export type ObsChannels = {
@@ -69,12 +69,12 @@ export const DEFAULT_OBS_CHANNELS: ObsChannels = {
 const PRESET_CHANNELS: Record<string, ObsChannels> = {
   P0: { code_type: "upc", scan_waste: false, delivery_history: "none" },
   P1: DEFAULT_OBS_CHANNELS,
-  F1: { code_type: "gsin", scan_waste: true, delivery_history: "none" },
-  F1s: { code_type: "gsin", scan_waste: true, delivery_history: "none" },
+  F1: { code_type: "lgtin", scan_waste: true, delivery_history: "none" },
+  F1s: { code_type: "lgtin", scan_waste: true, delivery_history: "none" },
   F2a: { code_type: "upc", scan_waste: true, delivery_history: "pack_date" },
-  F2: { code_type: "gsin", scan_waste: true, delivery_history: "pack_date" },
+  F2: { code_type: "lgtin", scan_waste: true, delivery_history: "pack_date" },
   F3: {
-    code_type: "gsin",
+    code_type: "lgtin",
     scan_waste: true,
     delivery_history: "temperature_history",
   },
@@ -135,14 +135,14 @@ export function maskFromChannels(ch: ObsChannels): ObsMask {
     arrivals: true,
     sales_total: true,
   };
-  if (ch.code_type === "gsin") {
+  if (ch.code_type === "lgtin") {
     m.sales_by_lot = true;
     m.lot_ids_live = true;
     m.arrival_lot_ids = true;
   }
   if (ch.scan_waste) {
     m.waste_total = true;
-    if (ch.code_type === "gsin") {
+    if (ch.code_type === "lgtin") {
       m.waste_by_lot = true;
     }
   }

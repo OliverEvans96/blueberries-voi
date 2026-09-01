@@ -23,7 +23,7 @@ DEFAULT_WEB_DEST = (
 )
 
 # Website basenames under public/images/blog/blueberries-voi/
-BLOG_FIG_UPC_GSIN = "upc-vs-gsin-codes.png"
+BLOG_FIG_UPC_LGTIN = "upc-vs-lgtin-codes.png"
 BLOG_FIG_GAMMA = "gamma_process.png"
 BLOG_FIG_COLD_CHAIN = "cold_chain_calibration.png"
 BLOG_FIG_DEMAND = "demand_calendar_validation.png"
@@ -40,7 +40,7 @@ BLOG_FIG_APPENDIX_SIGNED_BIAS = "appendix_signed_bias.png"
 BLOG_FIG_APPENDIX_CRPS_RATIO = "appendix_crps_mean_ratio.png"
 
 BLOG_PUBLISHED_FIGURES: tuple[str, ...] = (
-    BLOG_FIG_UPC_GSIN,
+    BLOG_FIG_UPC_LGTIN,
     BLOG_FIG_GAMMA,
     BLOG_FIG_COLD_CHAIN,
     BLOG_FIG_DEMAND,
@@ -69,4 +69,4 @@ SYNC_ARTICLE_FIGURES: tuple[SyncCopy, ...] = tuple(
 )
 
 # Blog composite at site root; full barcode bundle under dest/barcodes/.
-SYNC_BARCODE_BLOG = SyncCopy(BARCODE_DIR, BLOG_FIG_UPC_GSIN, BLOG_FIG_UPC_GSIN)
+SYNC_BARCODE_BLOG = SyncCopy(BARCODE_DIR, BLOG_FIG_UPC_LGTIN, BLOG_FIG_UPC_LGTIN)

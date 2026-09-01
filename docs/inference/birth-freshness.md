@@ -19,7 +19,7 @@ What the filter *can* do is draw from the same generative story used to make the
 of that story this scenario's channels actually handed it — a temperature trace, a pack
 date, or nothing at all.
 
-Each physical delivery carries **three lots** (`L = 3`). Under **GSIN**, birth pushes
+Each physical delivery carries **three lots** (`L = 3`). Under **LGTIN**, birth pushes
 **three segments**, each from its own `ArrivalCondition` (`Duration(d_ℓ)` or
 `Exposure(Λ_ℓ)` for that lot's record). Under **UPC**, birth pushes **one merged cohort**
 of `Q` units from the equally weighted mixture
@@ -121,7 +121,7 @@ always produces the same marginal law, byte-for-byte, and Rust and Python builds
 never numerically diverge from each other on it. Laws are cached on a 512-point
 `ARRIVAL_GRID` (down from 4096) at an inverse-sampling resolution of ~0.002 in freshness.
 
-Under **GSIN**, each of the three lots per delivery calls this machinery once with its
+Under **LGTIN**, each of the three lots per delivery calls this machinery once with its
 own resolved condition. Under **UPC**, the filter builds each component law, then mixes
 CDFs pointwise: $\text{Law}_\text{UPC} = \frac{1}{L}\sum_\ell \text{Law}_\ell$.
 
@@ -199,7 +199,7 @@ share the same quadrature machinery and the same underlying model.
 | Closed-form atom at $f=0$ | $\pi_0 = \gamma_q(k\Lambda, 1/\theta)$ | `crates/voi_core/src/arrival.rs:1324` ([`p_f_zero`](/api/rust/voi_core/arrival/struct.ArrivalModel.html#method.p_f_zero)) |
 | Cached, atom-divided CDF for inverse-CDF sampling | `build_law_cdf` | `crates/voi_core/src/arrival.rs:1923` |
 | Draw one unit's birth freshness from the cache | `sample_unit_f_from_cache` | `crates/voi_core/src/arrival.rs:2036` |
-| GSIN: draw one lot's units under one condition | `sample_filter_birth_units` | `crates/voi_core/src/arrival.rs:2069` |
+| LGTIN: draw one lot's units under one condition | `sample_filter_birth_units` | `crates/voi_core/src/arrival.rs:2069` |
 | UPC: equally weighted mixture of lot laws | `mixture_law` / `mixture_cache` | `crates/voi_core/src/arrival.rs:2098` / `2132` |
 | UPC: draw merged cohort from mixture | `sample_filter_birth_units_mixture` | `crates/voi_core/src/arrival.rs:2149` |
 | Birth stage in the daily filter step | (step 3) | `crates/voi_core/src/unit_pf.rs:707`–`786` |

@@ -3,7 +3,7 @@ parent_tip: team/T-140/implement
 optimize: balanced
 description: >
   Independent per-unit gamma aging (truth + filter), Poisson-binomial spoilage DP,
-  GammaDecrementTable (4096 grid), delete ADR-0137 interval primitives, regen GSIN/UPC diag.
+  GammaDecrementTable (4096 grid), delete ADR-0137 interval primitives, regen LGTIN/UPC diag.
 max_parallel: 3
 batch_below:
   max_files: 3
@@ -40,7 +40,7 @@ tasks:
     shard: qa-filter
     files:
       - crates/voi_core/tests/t141_independent_aging.rs
-      - crates/voi_core/tests/gsin_upc_ac12.rs
+      - crates/voi_core/tests/lgtin_upc_ac12.rs
       - .team/qa/T-141-filter-tests.md
     deps: [architect]
 
@@ -48,7 +48,7 @@ tasks:
     role: implement
     shard: impl-baseline-json
     files:
-      - experiments/data/gsin_upc_pre_t141.json
+      - experiments/data/lgtin_upc_pre_t141.json
       - experiments/data/README.md
     deps: [architect]
 
@@ -92,10 +92,10 @@ tasks:
     role: implement
     shard: impl-diag-notebook
     files:
-      - crates/voi_core/examples/gsin_upc_diag.rs
-      - experiments/data/gsin_upc_after.json
+      - crates/voi_core/examples/lgtin_upc_diag.rs
+      - experiments/data/lgtin_upc_after.json
       - experiments/notebook_14_source.md
-      - notebooks/14_gsin_vs_upc_filter_accuracy.ipynb
+      - notebooks/14_lgtin_vs_upc_filter_accuracy.ipynb
     deps: [impl-session-voi, impl-baseline-json]
 
   - id: merge

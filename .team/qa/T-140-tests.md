@@ -8,7 +8,7 @@
 | AC-4 | Thermal fleet φ̄ | `t140_arrival_gamma::shipments_thermal_phi_bar_non_degenerate` |
 | AC-6 | F3 gamma birth | `t140_arrival_gamma::unit_pf_f3_uses_gamma_birth_path` |
 | AC-7 | Python/TS drop f2a slider | `test_arrival_priors_no_f2a_constant`, web scenario tests (implement shard) |
-| AC-8 | count_bias guard | existing `gsin_upc_ac12` (post-implement) |
+| AC-8 | count_bias guard | existing `lgtin_upc_ac12` (post-implement) |
 | AC-9 | Notebook 14 source | grep `calendar` + `thermal` in `notebook_14_source.md` |
 
 RED command:

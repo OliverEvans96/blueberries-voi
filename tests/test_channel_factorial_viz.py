@@ -32,8 +32,8 @@ SAMPLE_ROWS = [
     },
     {
         "seed": 42,
-        "key": "code=gsin|waste=1|hist=temperature_history",
-        "code_type": "gsin",
+        "key": "code=lgtin|waste=1|hist=temperature_history",
+        "code_type": "lgtin",
         "waste": "on",
         "delivery": "temperature_history",
         "mae_f": 0.09,
@@ -74,7 +74,7 @@ MULTI_SEED_ROWS = [
     },
     {
         "seed": 7,
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "waste": "on",
         "delivery": "temperature_history",
         "mae_f": 0.08,
@@ -83,7 +83,7 @@ MULTI_SEED_ROWS = [
     },
     {
         "seed": 42,
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "waste": "on",
         "delivery": "temperature_history",
         "mae_f": 0.09,
@@ -92,7 +92,7 @@ MULTI_SEED_ROWS = [
     },
     {
         "seed": 99,
-        "code_type": "gsin",
+        "code_type": "lgtin",
         "waste": "on",
         "delivery": "temperature_history",
         "mae_f": 0.10,
@@ -158,7 +158,7 @@ def test_scatter_legend_encodes_waste_delivery_and_code_type() -> None:
     assert DELIVERY_LABELS["pack_date"] in labels
     assert DELIVERY_LABELS["temperature_history"] in labels
     assert CODE_TYPE_LABELS["upc"] in labels
-    assert CODE_TYPE_LABELS["gsin"] in labels
+    assert CODE_TYPE_LABELS["lgtin"] in labels
     assert fig._suptitle is None
     assert fig.axes[0].get_title() == "Belief accuracy vs profit (nb19)"
 

@@ -1,4 +1,4 @@
-//! Diagnostic: UPC vs GSIN belief accuracy on a common truth trajectory.
+//! Diagnostic: UPC vs LGTIN belief accuracy on a common truth trajectory.
 //!
 //! Runs one shared physics episode per seed (fixed exogenous order script → identical
 //! truth for every channel, CRN), then replays the richest day log through each ObsMask.
@@ -6,13 +6,13 @@
 //! Metrics are reported both **store-level** (partition-free) and **per-lot**. Per-lot
 //! comparison aligns by *arrival order from the newest*: both channels observe the
 //! delivery stream, so the bank's j-th-newest segment is truth's j-th-newest lot. Only
-//! GSIN additionally learns which lot each sale and spoil came from — that difference is
+//! LGTIN additionally learns which lot each sale and spoil came from — that difference is
 //! what these numbers are meant to price.
 //!
-//! Run: `cargo run -p voi_core --release --example gsin_upc_diag [out.json]`
+//! Run: `cargo run -p voi_core --release --example lgtin_upc_diag [out.json]`
 //!
 //! Shard mode (Modal / batch map): emit one truth episode + six mask replays:
-//! `cargo run -p voi_core --release --example gsin_upc_diag --shard <regime_idx> <seed_idx>`
+//! `cargo run -p voi_core --release --example lgtin_upc_diag --shard <regime_idx> <seed_idx>`
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64;

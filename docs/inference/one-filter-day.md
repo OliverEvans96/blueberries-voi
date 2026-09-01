@@ -9,7 +9,7 @@ sources:
 Every day, the particle filter turns yesterday's belief plus today's observation into
 today's belief. It does this by running the *same* four-stage update — spoilage, sales,
 resample, birth — on every particle in the bank, whether the store scans a pooled UPC
-code or a per-lot GSIN code. This page walks through those four stages once, in order,
+code or a per-lot LGTIN code. This page walks through those four stages once, in order,
 so the other inference pages can point back at it instead of re-deriving the mechanics.
 
 ## The idea
@@ -48,7 +48,7 @@ of the particle's state and the day's counts. That split matters for what follow
 
 Let $f_i \in [0, 1]$ be unit $i$'s freshness just before today's aging step, and let
 $n$ be the number of live units ($f_i > 0$) under consideration (the whole store for
-UPC, one lot's worth for a GSIN per-lot term).
+UPC, one lot's worth for a LGTIN per-lot term).
 
 **Spoilage — the per-unit death probability.** The store's daily gamma decrement law is
 shared across units — same shape $k$ and scale $\theta$ — but every live unit draws its
@@ -72,7 +72,7 @@ $$
 $$
 
 and $P(W = w) = \alpha_n(w)$. UPC scores one such term against the pooled waste total;
-GSIN scores one term *per lot* against that lot's own waste count.
+LGTIN scores one term *per lot* against that lot's own waste count.
 
 **Spoilage — the adapted proposal.** Rather than aging every unit blind and hoping the
 death count matches, the filter runs the same DP *backward* to sample exactly which
@@ -83,11 +83,11 @@ that would have killed them. Because the proposal already matches the target exa
 the resulting importance weight reduces to the Poisson-binomial PMF above — nothing
 extra to correct for.
 
-**Sales — feasibility and (under GSIN) allocation.** Let $\text{sales}_\ell$ be the sales
+**Sales — feasibility and (under LGTIN) allocation.** Let $\text{sales}_\ell$ be the sales
 attributed to lot $\ell$, and let $w_i \propto \max(f_i, 0)^\sigma$ be the picking weight
 that favors fresher units (or uniform, if the store's picking is set to uniform). Define
 each lot's picking share $\text{share}_\ell = \sum_{i \in \ell} w_i \big/ \sum_i w_i$
-(pre-removal). GSIN scores
+(pre-removal). LGTIN scores
 
 $$
 \mathcal{L}_\text{sales} = \Big[\textstyle\prod_\ell \mathbb{1}\{\text{alive}_\ell \ge \text{sales}_\ell\}\Big] \cdot \text{Multinomial}(\text{sales}_1, \dots, \text{sales}_L;\ \text{sales}_\text{tot},\ \text{share}_1, \dots, \text{share}_L)
@@ -122,7 +122,7 @@ The fully adapted death proposal follows a standing design principle in this cod
 importance weights should be exact and deterministic given the day's evidence, not a
 Monte Carlo estimate re-scored into the weight. Scoring sales as "sample one
 weighted-without-replacement path, then score that path's probability" would conflate
-sampling with scoring, and would make GSIN — despite observing *more* — pay a variance
+sampling with scoring, and would make LGTIN — despite observing *more* — pay a variance
 penalty for every extra lot it scored separately, making its posteriors *more* diffuse
 than UPC's on the same data. Splitting the sales likelihood into a deterministic
 closed-form term (the multinomial allocation above) and a separate, unscored
@@ -139,7 +139,7 @@ scales with both the day's death count and the segment size.
 | Per-unit spoil probability | $p_i = P(\delta \ge f_i)$ | `crates/voi_core/src/physics.rs:356` ([`GammaDecrementTable::spoil_prob`](/api/rust/voi_core/physics/struct.GammaDecrementTable.html#method.spoil_prob)) |
 | Live-unit spoil-probability vector | $p_1,\dots,p_n$ | `crates/voi_core/src/unit_ll.rs:14` ([`spoil_probs_from_freshness`](/api/rust/voi_core/unit_ll/fn.spoil_probs_from_freshness.html)) |
 | Poisson-binomial log-PMF (DP) | $\log P(W=w)$ | `crates/voi_core/src/unit_ll.rs:27` ([`pb_log_pmf`](/api/rust/voi_core/unit_ll/fn.pb_log_pmf.html)) |
-| GSIN per-lot spoilage likelihood | $\sum_\ell \log P(W_\ell = w_\ell)$ | `crates/voi_core/src/unit_ll.rs:57` ([`pb_loglik_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_loglik_by_lot.html)) |
+| LGTIN per-lot spoilage likelihood | $\sum_\ell \log P(W_\ell = w_\ell)$ | `crates/voi_core/src/unit_ll.rs:57` ([`pb_loglik_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_loglik_by_lot.html)) |
 | UPC pooled spoilage likelihood | $\log P(W = w_\text{tot})$ | `crates/voi_core/src/unit_ll.rs:82` ([`pb_loglik_pooled`](/api/rust/voi_core/unit_ll/fn.pb_loglik_pooled.html)) |
 | Backward death-set proposal (pooled) | $q(\text{deaths} \mid f, w)$ | `crates/voi_core/src/unit_ll.rs:88` ([`pb_sample_deaths`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths.html)) |
 | Backward death-set proposal (per lot) | — | `crates/voi_core/src/unit_ll.rs:158` ([`pb_sample_deaths_by_lot`](/api/rust/voi_core/unit_ll/fn.pb_sample_deaths_by_lot.html)) |
@@ -149,7 +149,7 @@ scales with both the day's death count and the segment size.
 | Picking weight | $w_i \propto \max(f_i,0)^\sigma$ | `crates/voi_core/src/physics.rs:380` ([`picking_weights_f`](/api/rust/voi_core/physics/fn.picking_weights_f.html)) |
 | Per-lot picking share | $\text{share}_\ell$ | `crates/voi_core/src/unit_ll.rs:210` ([`lot_shares_from_freshness`](/api/rust/voi_core/unit_ll/fn.lot_shares_from_freshness.html)) |
 | Cross-lot multinomial term | $\text{Multinomial}(\cdot)$ | `crates/voi_core/src/unit_ll.rs:231` ([`multinomial_log_pmf`](/api/rust/voi_core/unit_ll/fn.multinomial_log_pmf.html)) |
-| GSIN sales feasibility + allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:300` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
+| LGTIN sales feasibility + allocation | $\mathcal{L}_\text{sales}$ | `crates/voi_core/src/unit_ll.rs:300` ([`loglik_sales_by_units`](/api/rust/voi_core/unit_ll/fn.loglik_sales_by_units.html)) |
 | UPC sales feasibility (scoring only) | — | `crates/voi_core/src/unit_pf.rs:429` (`score_sales_evidence`) |
 | Unscored sales removal (unconditional bookkeeping) | — | `crates/voi_core/src/unit_pf.rs:454` (`apply_sales_removal`) |
 | Unscored WOR removal draw | — | `crates/voi_core/src/unit_ll.rs:260` ([`sequential_kernel_path_logprob`](/api/rust/voi_core/unit_ll/fn.sequential_kernel_path_logprob.html)) |

@@ -66,12 +66,12 @@ describe("DecisionRail (T-135 obs channels)", () => {
     const props = baseProps();
     render(createElement(DecisionRail, props));
 
-    const gsin = document.querySelector(
-      '[data-obs-code-type="gsin"]',
+    const lgtin = document.querySelector(
+      '[data-obs-code-type="lgtin"]',
     ) as HTMLButtonElement;
-    fireEvent.click(gsin);
+    fireEvent.click(lgtin);
     expect(props.onSetObsChannels).toHaveBeenCalledWith(
-      expect.objectContaining({ code_type: "gsin" }),
+      expect.objectContaining({ code_type: "lgtin" }),
     );
   });
 });

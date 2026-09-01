@@ -57,7 +57,7 @@ uv run pytest tests/test_t163_arrival_fit.py tests/test_t163_calibration.py -v -
 | S2.2 | `t163_multilot.rs::lot_exposure_is_upstream_plus_shared` | assertion — `Λ_ℓ` decomposition |
 | S2.3 | `t_events_temp_trace.rs` (update) + `t163_multilot.rs::per_lot_traces_spliced` | assertion — single trace or wrong splice |
 | S2.4 | `t163_multilot.rs::delivery_quantity_split_not_multiplied` | assertion — total units inflated |
-| S2.5 | `unit_pf_ac.rs` (GSIN segment count) + `t163_multilot.rs::gsin_three_segments_per_delivery` | assertion — one segment / wrong law |
+| S2.5 | `unit_pf_ac.rs` (LGTIN segment count) + `t163_multilot.rs::lgtin_three_segments_per_delivery` | assertion — one segment / wrong law |
 | S2.6 | `t163_multilot.rs::upc_merged_cohort_uses_mixture_law` + `t151::mixture_law_*` | assertion — UPC not mixing laws |
 | S2.7 | `t163_multilot.rs::resolve_arrival_f_law_per_lot` | assertion — per-delivery law only |
 | S2.8 | `t163_multilot.rs::filter_obs_carries_per_lot_pack_dates_and_traces` | assertion — missing per-lot fields / extra mask |

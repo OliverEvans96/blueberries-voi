@@ -114,7 +114,7 @@ describe("ViewModelProjector.patchEngineState obs_scenario sync (T-126 AC-obschi
     projector.applySnapshot(sampleSnapshot());
     projector.markConfigApplied();
     const channels = {
-      code_type: "gsin" as const,
+      code_type: "lgtin" as const,
       scan_waste: true,
       delivery_history: "pack_date" as const,
     };

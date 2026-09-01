@@ -63,7 +63,7 @@ export type ScenarioId = "P0" | "P1" | "F1" | "F1s" | "F2a" | "F2" | "F3";
 /** WASM may emit ``custom`` when channels do not match a named preset. */
 export type ObsScenarioKey = ScenarioId | "custom";
 
-export type CodeType = "upc" | "gsin";
+export type CodeType = "upc" | "lgtin";
 export type DeliveryHistory = "none" | "pack_date" | "temperature_history";
 
 export type ObsChannels = {

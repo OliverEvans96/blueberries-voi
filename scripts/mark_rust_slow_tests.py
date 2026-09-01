@@ -50,7 +50,7 @@ NAMED_SLOW: dict[str, str] = {
     ),
     "p1_f1_zero_sales_belief_mass_parity": "P0/P1/F1 zero-sales parity",
     "filter_birth_matches_arrival_qty_not_upl": "filter birth qty parity",
-    "gsin_multilot_delivery_segments_match_l": "GSIN multilot delivery segments",
+    "lgtin_multilot_delivery_segments_match_l": "LGTIN multilot delivery segments",
     "upc_multilot_delivery_merges_to_one_segment": "UPC multilot delivery merge",
     "session_configure_loads_calendar_profile_and_uses_day_in_demand": (
         "90-day calendar demand"

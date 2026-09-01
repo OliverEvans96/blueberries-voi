@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate GS1-compliant UPC-A and GSIN barcodes for a fictional blueberry pint.
+"""Generate GS1-compliant UPC-A and LGTIN barcodes for a fictional blueberry pint.
 
 Identifiers and symbologies follow GS1 General Specifications (2025):
 
 * **GTIN-12 (UPC-A)** — consumer trade item on the clamshell. One pooled code for
   every pint of the same SKU (``CodeType::Upc`` in this repo).
-* **GSIN** — 17-digit Global Shipment Identification Number (AI **402**) on the
-  case or logistics label, one per delivery lot (``CodeType::Gsin``). Encoded in
+* **LGTIN** — 17-digit Global Shipment Identification Number (AI **402**) on the
+  case or logistics label, one per delivery lot (``CodeType::Lgtin``). Encoded in
   **GS1 DataMatrix** (``]d2``) and **GS1 QR Code** (``]Q3``) with FNC1 in the
   first position.
 
@@ -73,20 +73,20 @@ LOT_SHIPPER_REFS = ("000104121", "000104132", "000104143")
 
 @dataclass(frozen=True, slots=True)
 class LotBarcodeSet:
-    """One logistics lot: GSIN + rendered symbology paths."""
+    """One logistics lot: LGTIN + rendered symbology paths."""
 
     lot_index: int
     lot_label: str
     shipper_reference: str
-    gsin: str
-    gsin_element_string: str
+    lgtin: str
+    lgtin_element_string: str
     datamatrix_png: Path
     qr_png: Path
 
 
 @dataclass(frozen=True, slots=True)
 class ProductBarcodeSet:
-    """Retail SKU plus per-lot GSIN labels."""
+    """Retail SKU plus per-lot LGTIN labels."""
 
     brand: str
     product: str
@@ -110,7 +110,7 @@ BLOG_LABEL_GAP = 8
 
 
 def gs1_mod10_check_digit(data_without_check: str) -> int:
-    """Return the single GS1 mod-10 check digit (GTIN, GSIN, SSCC, …)."""
+    """Return the single GS1 mod-10 check digit (GTIN, LGTIN, SSCC, …)."""
     full = calculate_check_digit(data_without_check)
     return int(full[-1])
 
@@ -148,12 +148,12 @@ def format_upc_human_readable(gtin12: str) -> str:
     return f"{ns} {manufacturer} {product} {check}"
 
 
-def build_gsin(
+def build_lgtin(
     *,
     company_prefix: str = GS1_COMPANY_PREFIX,
     shipper_reference: str,
 ) -> str:
-    """Build a 17-digit GSIN (prefix + shipper ref + mod-10 check digit)."""
+    """Build a 17-digit LGTIN (prefix + shipper ref + mod-10 check digit)."""
     if not company_prefix.isdigit():
         msg = "company_prefix must be numeric"
         raise ValueError(msg)
@@ -171,12 +171,12 @@ def build_gsin(
     return calculate_check_digit(combined)
 
 
-def gsin_element_string(gsin: str) -> str:
+def lgtin_element_string(lgtin: str) -> str:
     """Parenthesised AI notation for HRI and GS1 element strings."""
-    if len(gsin) != 17 or not gsin.isdigit():
-        msg = "GSIN must be 17 numeric digits"
+    if len(lgtin) != 17 or not lgtin.isdigit():
+        msg = "LGTIN must be 17 numeric digits"
         raise ValueError(msg)
-    return f"(402){gsin}"
+    return f"(402){lgtin}"
 
 
 def render_upc_a(gtin12: str, path: Path, *, module_width: float = 0.33) -> None:
@@ -280,7 +280,7 @@ def render_blog_figure(
     width: int = BLOG_FIGURE_WIDTH,
     code_white_bg: bool = True,
 ) -> None:
-    """Compose UPC + GSIN QR + GSIN DataMatrix side by side for a blog figure.
+    """Compose UPC + LGTIN QR + LGTIN DataMatrix side by side for a blog figure.
 
     The canvas is transparent. With ``code_white_bg``, each barcode gets a small
     white pad; otherwise barcode art is keyed to transparency (no white pixels).
@@ -289,8 +289,8 @@ def render_blog_figure(
     lot = next(lot for lot in manifest.lots if lot.lot_index == lot_index)
     panels: tuple[tuple[str, Path, float], ...] = (
         ("UPC", manifest.upc_png, 1.0),
-        ("GSIN QR", lot.qr_png, BLOG_2D_CODE_SCALE),
-        ("GSIN DataMatrix", lot.datamatrix_png, BLOG_2D_CODE_SCALE),
+        ("LGTIN QR", lot.qr_png, BLOG_2D_CODE_SCALE),
+        ("LGTIN DataMatrix", lot.datamatrix_png, BLOG_2D_CODE_SCALE),
     )
 
     margin_h = BLOG_MARGIN_H
@@ -373,7 +373,7 @@ def render_blog_figure(
 
 
 def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
-    """Compose a simple case label: GSIN HRI + DataMatrix + QR."""
+    """Compose a simple case label: LGTIN HRI + DataMatrix + QR."""
     dm = Image.open(lot.datamatrix_png).convert("RGB")
     qr = Image.open(lot.qr_png).convert("RGB")
     margin = 24
@@ -390,7 +390,7 @@ def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
     draw.text((margin, margin + 32), PRODUCT, fill="#333333", font=body_font)
     draw.text(
         (margin, margin + 56),
-        f"GSIN {lot.gsin_element_string}",
+        f"LGTIN {lot.lgtin_element_string}",
         fill="black",
         font=body_font,
     )
@@ -418,33 +418,33 @@ def render_lot_label_sheet(lot: LotBarcodeSet, path: Path) -> None:
 
 
 def generate_all(output_dir: Path, *, code_white_bg: bool = True) -> ProductBarcodeSet:
-    """Create UPC + three lot GSIN symbologies under ``output_dir``."""
+    """Create UPC + three lot LGTIN symbologies under ``output_dir``."""
     gtin12 = build_gtin12()
     upc_path = output_dir / "upc-a-clamshell.png"
     render_upc_a(gtin12, upc_path)
 
     lots: list[LotBarcodeSet] = []
     for idx, shipper_ref in enumerate(LOT_SHIPPER_REFS, start=1):
-        gsin = build_gsin(shipper_reference=shipper_ref)
-        element = gsin_element_string(gsin)
+        lgtin = build_lgtin(shipper_reference=shipper_ref)
+        element = lgtin_element_string(lgtin)
         lot_label = f"Delivery lot {idx}"
-        dm_path = output_dir / f"lot-{idx}-gsin-datamatrix.png"
-        qr_path = output_dir / f"lot-{idx}-gsin-qr.png"
+        dm_path = output_dir / f"lot-{idx}-lgtin-datamatrix.png"
+        qr_path = output_dir / f"lot-{idx}-lgtin-qr.png"
         render_gs1_datamatrix(element, dm_path)
         render_gs1_qrcode(element, qr_path)
         lot = LotBarcodeSet(
             lot_index=idx,
             lot_label=lot_label,
             shipper_reference=shipper_ref,
-            gsin=gsin,
-            gsin_element_string=element,
+            lgtin=lgtin,
+            lgtin_element_string=element,
             datamatrix_png=dm_path,
             qr_png=qr_path,
         )
         render_lot_label_sheet(lot, output_dir / f"lot-{idx}-case-label.png")
         lots.append(lot)
 
-    blog_path = output_dir / "upc-vs-gsin-codes.png"
+    blog_path = output_dir / "upc-vs-lgtin-codes.png"
     manifest = ProductBarcodeSet(
         brand=BRAND,
         product=PRODUCT,
@@ -476,7 +476,7 @@ def generate_all(output_dir: Path, *, code_white_bg: bool = True) -> ProductBarc
                         "GTIN-12 / UPC-A (ISO/IEC 15420). One code per consumer SKU; "
                         "does not encode lot."
                     ),
-                    "gsin": (
+                    "lgtin": (
                         "Global Shipment Identification Number: 17 digits = "
                         "GS1 company prefix + shipper reference (16) + "
                         "mod-10 check digit. "
@@ -500,10 +500,10 @@ def _print_summary(manifest: ProductBarcodeSet, output_dir: Path) -> None:
     print(f"Product : {manifest.brand} — {manifest.product}")
     print(f"UPC-A   : {manifest.upc_human_readable}  (GTIN-12 {manifest.gtin12})")
     print(f"         → {manifest.upc_png.name}")
-    print(f"Blog fig: {manifest.blog_figure_png.name}  (lot 1 GSIN)\n")
-    print("GSIN lots (AI 402, one shipment ID per delivery lot):")
+    print(f"Blog fig: {manifest.blog_figure_png.name}  (lot 1 LGTIN)\n")
+    print("LGTIN lots (AI 402, one shipment ID per delivery lot):")
     for lot in manifest.lots:
-        print(f"  Lot {lot.lot_index}: {lot.gsin_element_string}")
+        print(f"  Lot {lot.lot_index}: {lot.lgtin_element_string}")
         print(f"           DataMatrix → {lot.datamatrix_png.name}")
         print(f"           GS1 QR     → {lot.qr_png.name}")
         print(f"           Label sheet→ lot-{lot.lot_index}-case-label.png")

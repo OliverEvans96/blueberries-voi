@@ -7,4 +7,4 @@ tests/fixtures/voi_crn/seed42_abdella.json
 tests/test_t139_voi_crn_sd0.py
 experiments/data/voi_profits_after.json
 notebooks/13_filter_accuracy_knowledge_ladder.ipynb
-notebooks/14_gsin_vs_upc_filter_accuracy.ipynb
+notebooks/14_lgtin_vs_upc_filter_accuracy.ipynb
