@@ -10,12 +10,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _wheel_dir = REPO_ROOT / "dist" / "wheel"
-_gsin_bin = REPO_ROOT / "target" / "release" / "examples" / "gsin_upc_diag"
+_lgtin_bin = REPO_ROOT / "target" / "release" / "examples" / "lgtin_upc_diag"
 os.environ.setdefault("BLUEBERRIES_VOI_BACKEND", "rust")
 if _wheel_dir.is_dir():
     os.environ["BLUEBERRIES_VOI_WHEEL"] = str(_wheel_dir)
-if _gsin_bin.is_file():
-    os.environ["GSIN_UPC_DIAG_BIN"] = str(_gsin_bin)
+if _lgtin_bin.is_file():
+    os.environ["LGTIN_UPC_DIAG_BIN"] = str(_lgtin_bin)
 
 from blueberries_voi.experiments.modal_dispatch import run_batch  # noqa: E402
 from blueberries_voi.filter.types import channels_for_preset  # noqa: E402
@@ -43,11 +43,11 @@ ROLLOUT_H, N_PATHS, RADIUS = 7, 4, 1
 
 BATCHES: list[tuple[str, dict]] = [
     (
-        "nb17_gsin",
+        "nb17_lgtin",
         {
-            "job": "gsin",
-            "gsin_cells": FILTER_DIAG_CELLS,
-            "out_path": OUT / "nb17_gsin.json",
+            "job": "lgtin",
+            "lgtin_cells": FILTER_DIAG_CELLS,
+            "out_path": OUT / "nb17_lgtin.json",
         },
     ),
     (

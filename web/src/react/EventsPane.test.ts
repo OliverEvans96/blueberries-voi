@@ -166,7 +166,7 @@ describe("EventsPane (Event Log refactor)", () => {
     expect(delivery!.querySelectorAll(".events-delivery-table tbody tr").length).toBe(1);
   });
 
-  it("GSIN delivery section shows per-lot Delivered and Pack date rows", () => {
+  it("LGTIN delivery section shows per-lot Delivered and Pack date rows", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {
@@ -195,7 +195,7 @@ describe("EventsPane (Event Log refactor)", () => {
       '.events-day-card[data-day="2"] [data-testid="events-delivery-section"]',
     );
     expect(delivery).not.toBeNull();
-    expect(delivery!.querySelector(".events-delivery-table--gsin")).not.toBeNull();
+    expect(delivery!.querySelector(".events-delivery-table--lgtin")).not.toBeNull();
     const lotRows = delivery!.querySelectorAll(".events-delivery-table tbody tr");
     expect(lotRows.length).toBe(2);
     expect(delivery!.textContent).toContain("Lot 201");
@@ -487,7 +487,7 @@ describe("EventsPane (Event Log refactor)", () => {
     );
   });
 
-  it("GSIN F2 shows distinct per-lot pack dates from pack_dates_by_lot", () => {
+  it("LGTIN F2 shows distinct per-lot pack dates from pack_dates_by_lot", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {
@@ -526,7 +526,7 @@ describe("EventsPane (Event Log refactor)", () => {
     expect(lotRows[1]?.textContent).not.toContain("3, 5");
   });
 
-  it("GSIN falls back to scalar pack_date_days when pack_dates_by_lot absent", () => {
+  it("LGTIN falls back to scalar pack_date_days when pack_dates_by_lot absent", () => {
     const { container } = render(
       createElement(EventsPane, {
         vm: {

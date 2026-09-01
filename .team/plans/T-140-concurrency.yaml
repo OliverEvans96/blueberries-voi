@@ -23,7 +23,7 @@ tasks:
     role: qa
     files:
       - crates/voi_core/src/shipments.rs
-      - crates/voi_core/examples/gsin_upc_diag.rs
+      - crates/voi_core/examples/lgtin_upc_diag.rs
       - .team/qa/T-140-shipments-tests.md
     deps: [architect]
 
@@ -83,7 +83,7 @@ tasks:
     role: implement
     shard: diag-notebook
     files:
-      - crates/voi_core/examples/gsin_upc_diag.rs
+      - crates/voi_core/examples/lgtin_upc_diag.rs
       - experiments/notebook_14_source.md
       - crates/voi_core/tests/t134_arrival_f.rs
     deps: [impl-unit-pf-arrival, impl-obs-session, qa-notebook]

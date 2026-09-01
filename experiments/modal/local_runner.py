@@ -27,9 +27,9 @@ from blueberries_voi.experiments.filter_accuracy import (
     merge_channel_rows,
     nb13_job_grid,
 )
-from blueberries_voi.experiments.gsin_upc import (
-    gsin_job_grid,
-    merge_gsin_diag_rows,
+from blueberries_voi.experiments.lgtin_upc import (
+    lgtin_job_grid,
+    merge_lgtin_diag_rows,
 )
 from blueberries_voi.experiments.rollout_bakeoff import (
     merge_rollout_eval_rows,
@@ -84,26 +84,26 @@ def run_nb13_local(
     return rows
 
 
-def _gsin_worker(args: tuple[int, int]) -> dict[str, Any]:
+def _lgtin_worker(args: tuple[int, int]) -> dict[str, Any]:
     regime_index, seed_index = args
-    from blueberries_voi.experiments.gsin_upc import run_regime_seed
+    from blueberries_voi.experiments.lgtin_upc import run_regime_seed
 
     return run_regime_seed(regime_index, seed_index)
 
 
-def run_gsin_local(
+def run_lgtin_local(
     out_path: Path,
     *,
     grid: list[tuple[int, int]] | None = None,
     max_workers: int | None = None,
 ) -> list[dict[str, Any]]:
-    cells = gsin_job_grid() if grid is None else grid
+    cells = lgtin_job_grid() if grid is None else grid
     shards: list[dict[str, Any]] = []
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(_gsin_worker, cell) for cell in cells]
+        futures = [pool.submit(_lgtin_worker, cell) for cell in cells]
         for fut in as_completed(futures):
             shards.append(fut.result())
-    rows = merge_gsin_diag_rows(shards)
+    rows = merge_lgtin_diag_rows(shards)
     out_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
     return rows
 
@@ -307,11 +307,11 @@ if __name__ == "__main__":
     nb13.add_argument("out", type=Path)
     nb13.add_argument("--days", type=int, default=DEFAULT_N_DAYS)
     nb13.add_argument("--workers", type=int, default=None)
-    gsin = sub.add_parser("gsin", help="gsin_upc_diag shard merge")
-    gsin.add_argument("out", type=Path)
-    gsin.add_argument("--workers", type=int, default=None)
+    lgtin = sub.add_parser("lgtin", help="lgtin_upc_diag shard merge")
+    lgtin.add_argument("out", type=Path)
+    lgtin.add_argument("--workers", type=int, default=None)
     opts = parser.parse_args()
     if opts.job == "nb13":
         run_nb13_local(opts.out, n_days=opts.days, max_workers=opts.workers)
     else:
-        run_gsin_local(opts.out, max_workers=opts.workers)
+        run_lgtin_local(opts.out, max_workers=opts.workers)

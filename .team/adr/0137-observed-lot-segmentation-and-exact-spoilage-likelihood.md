@@ -5,7 +5,7 @@ SUPERSEDED-BY: [0143](./0143-independent-per-unit-gamma-aging.md) (§2 shared-δ
 DATE: 2026-08-20
 BOARD-ID: FIL
 GROUP: FIL
-PROVENANCE: GSIN/UPC accuracy investigation (branch `investigation/gsin-upc-accuracy`)
+PROVENANCE: LGTIN/UPC accuracy investigation (branch `investigation/lgtin-upc-accuracy`)
 TIER: 1
 RELATED: [0130](./0130-f-native-c2-a-unit-pf.md) (f-native unit PF),
 [0135](./0135-unify-p1-f1-sales-likelihood.md) (deterministic sales weights, unscored WOR removal),
@@ -14,9 +14,9 @@ RELATED: [0130](./0130-f-native-c2-a-unit-pf.md) (f-native unit PF),
 
 ## Context
 
-ADR 0135 set out to make the GSIN (lot-resolved) filter at least as accurate as the UPC
+ADR 0135 set out to make the LGTIN (lot-resolved) filter at least as accurate as the UPC
 (aggregate) filter. Measured end to end it was dramatically **worse**: on a 60-day episode
-with overlapping lots, GSIN carried **+24 units** of phantom belief mass against truth
+with overlapping lots, LGTIN carried **+24 units** of phantom belief mass against truth
 where UPC carried under 1, and its closed-loop CRN profit was roughly **a third** of the
 UPC rungs'.
 
@@ -28,7 +28,7 @@ Three defects compounded:
    unrelated: by day 12 of a typical episode truth held 4 lots and the particle row
    resolved to 2. A third, different partition (`row.len() / L`) lived in `belief_flat`.
 
-2. **Misalignment silently disabled the GSIN likelihood.** `loglik_waste_by_units` returns
+2. **Misalignment silently disabled the LGTIN likelihood.** `loglik_waste_by_units` returns
    `-∞` when `waste_by.len() != n_lots`, which after (1) was almost every day. Every
    particle scored `-1e300`, the weights normalized to uniform, and the "richer" channel
    ran as a blind bootstrap filter. `align_lot_map` masked the rest by truncating the
@@ -54,7 +54,7 @@ particle. Arrival quantity is present on **every** mask, so all particles agree 
 units arrived and when; they differ only in the freshness those units carry. A delivery
 appends exactly one segment, exactly as wide as the delivery.
 
-Under GSIN, `arrival_lot_ids` supplies real identities and `sales_by` / `waste_by` are
+Under LGTIN, `arrival_lot_ids` supplies real identities and `sales_by` / `waste_by` are
 matched to segments **by id** (`project_lot_map`), not by position. An observation that
 attributes a nonzero count to a lot the bank does not hold degrades that day to aggregate
 scoring rather than killing every particle. Under UPC the ids are internal and monotone.
@@ -76,15 +76,15 @@ a group whose sorted positive freshness values are `g_1 ≤ … ≤ g_m` confine
   (`draw_gamma_decrement_truncated`) — the fully adapted proposal, `q(δ|x,y) = p(δ|x,y)`
   with weight `p(y|x)`.
 
-UPC observes the store total and gets the pooled interval. GSIN observes `w_ℓ` per lot and
+UPC observes the store total and gets the pooled interval. LGTIN observes `w_ℓ` per lot and
 gets `⋂_ℓ I_ℓ`. Every `δ` consistent with the per-lot counts is consistent with their sum,
-so **`I_gsin ⊆ I_pooled` always**: the richer channel can never blur the posterior over `δ`.
+so **`I_lgtin ⊆ I_pooled` always**: the richer channel can never blur the posterior over `δ`.
 
 **It also never sharpens it, in this model.** Births are lot-uniform and aging is one shared
 decrement, so every live unit in a lot carries the same `f` and a lot spoils *all or
 nothing*. Under that structure the store's order statistics **are** the lot values, so the
 total already determines which lots died. Measured over 20 000 random cohort-consistent
-shelves (`gsin_waste_never_narrows_the_pooled_interval`), `I_gsin` was **exactly**
+shelves (`lgtin_waste_never_narrows_the_pooled_interval`), `I_lgtin` was **exactly**
 `I_pooled` in 91% of cases and **empty** in the other 9% — a strictly tighter non-empty
 interval never occurred.
 
@@ -104,14 +104,14 @@ at most one distinct positive value per lot.
 `filter_step_unit` runs the same four stages for every channel; only the **resolution of
 the evidence** changes:
 
-| Stage | UPC | GSIN |
+| Stage | UPC | LGTIN |
 |-------|-----|------|
 | Spoilage → `δ` interval | pooled `waste_tot` | intersection over per-lot `waste_by` |
 | Sales feasibility | pooled `alive ≥ sales_tot` | per-lot `alive_ℓ ≥ sales_ℓ` |
 | Cross-lot allocation | *(unobservable)* | `Multinomial(sales_by; lot_share)` |
 | Sales removal | pooled WOR draw | per-lot WOR conditional on `sales_ℓ` |
 
-Each GSIN term is a refinement of the corresponding UPC term on the same state.
+Each LGTIN term is a refinement of the corresponding UPC term on the same state.
 
 ### 4. Superseded primitives are removed, not muted
 
@@ -144,9 +144,9 @@ surviving terms rather than deleted:
 - **Conservation becomes exact.** With zero-init plus observed arrivals, observed sales, and
   an adapted spoilage step, `alive_t = alive_{t-1} - waste_t - sales_t + arrivals_t` holds
   in every particle. Store count error is **0.000** for every rung with `scan_waste` on.
-- **GSIN dominates UPC on every measured metric**, decisively on lot attribution (per-lot
+- **LGTIN dominates UPC on every measured metric**, decisively on lot attribution (per-lot
   count MAE 0.000 vs 0.22–0.44) and marginally on freshness level and ESS.
-- **The level gain is small for a structural reason, not a tuning one.** Both GSIN terms are
+- **The level gain is small for a structural reason, not a tuning one.** Both LGTIN terms are
   *contrast* observations and are close to blind to the common freshness level:
   - `waste_by` never narrows the decrement interval (above); it only rejects mis-ordered
     particles.
@@ -162,7 +162,7 @@ surviving terms rather than deleted:
   0.1173. Compare the two *level* channels on the same rows: adding waste totals is
   `P0 → P1` = 0.1419 → 0.1188 (−16%), and adding pack date is `P1 → F2a` = 0.1188 → 0.0883
   (−26%). Level is bought on the `delivery_history` axis, which is exactly the orthogonality
-  ADR 0133 intends — GSIN buys attribution.
+  ADR 0133 intends — LGTIN buys attribution.
 - **P0 is the one rung whose count error is not pinned**, because it has no spoilage
   observation. Its bias moved from −8.4 (an artifact of the old fixed drain) to +10.1
   (unpenalized over-stocked particles: the sales feasibility gate is one-sided). The
@@ -179,5 +179,5 @@ surviving terms rather than deleted:
   `B-state` oracle also underperforms, which localizes the problem in the policy/cost
   tuning rather than the filter. Out of scope here; flagged for a controller ticket.
 - Runtime is unchanged in order: 3–6 ms/day at N=200 for a 3–6 lot shelf. UPC got slightly
-  faster (no `iter_compositions` over waste splits); GSIN got slower than its broken self
+  faster (no `iter_compositions` over waste splits); LGTIN got slower than its broken self
   only because it now does the work it was skipping.

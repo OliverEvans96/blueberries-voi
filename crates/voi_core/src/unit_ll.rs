@@ -53,7 +53,7 @@ pub fn pb_log_pmf(probs: &[f64], w: usize) -> f64 {
     }
 }
 
-/// GSIN: sum of per-lot Poisson-binomial log PMFs.
+/// LGTIN: sum of per-lot Poisson-binomial log PMFs.
 pub fn pb_loglik_by_lot(
     freshness: &[f64],
     offsets: &[usize],
@@ -154,7 +154,7 @@ pub fn pb_sample_deaths<R: Rng + ?Sized>(
     (deaths, log_q)
 }
 
-/// GSIN: independent per-lot backward death draws (indices global in `freshness`).
+/// LGTIN: independent per-lot backward death draws (indices global in `freshness`).
 pub fn pb_sample_deaths_by_lot<R: Rng + ?Sized>(
     freshness: &[f64],
     offsets: &[usize],

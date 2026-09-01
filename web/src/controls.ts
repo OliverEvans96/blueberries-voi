@@ -44,7 +44,7 @@ export const SCENARIO_COPY: Record<
     description: "Narrows the arrival freshness prior only.",
   },
   F2: {
-    title: "GSIN + pack date",
+    title: "LGTIN + pack date",
     description: "Lot-resolved scans with pack date on delivery ASN.",
   },
   F3: {

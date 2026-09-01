@@ -192,7 +192,7 @@ fn mixture_law_mean_averages_but_variance_exceeds() {
 }
 
 /// A one-component mixture must be exactly that component — the degenerate case has to be
-/// a no-op or the UPC path would silently differ from GSIN at L=1.
+/// a no-op or the UPC path would silently differ from LGTIN at L=1.
 #[test]
 #[ignore = "cold-chain break trace loops; slow: run via cargo test -- --ignored"]
 fn single_component_mixture_is_identity() {

@@ -45,11 +45,11 @@ once heterogeneous births are baseline.
 - **Disable dispersion when F3 active** — rejected. Breaks scenario orthogonality (ADR 0133).
 
 - **Rewrite spoilage likelihood (full Stage B from 0137 roadmap)** — deferred. Stage B starts
-  with count conservation + hook; full contrast form change needs measured GSIN gains first.
+  with count conservation + hook; full contrast form change needs measured LGTIN gains first.
 
 ## Consequences
 
 - F3 re-enters AC-12 guard; T-138 spec footnote on F3 deferral superseded.
 - Contrast hook is public Rust API — Python/tests may grep export name; behaviour off at sd=0.
-- Possible small ESS shift when contrast weighting enabled; monitor in `gsin_upc_diag`.
+- Possible small ESS shift when contrast weighting enabled; monitor in `lgtin_upc_diag`.
 - T-140 (multi-lot delivery) remains blocked until Stage B count bias is green.

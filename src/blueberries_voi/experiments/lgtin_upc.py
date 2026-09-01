@@ -1,4 +1,4 @@
-"""Batch job helpers for ``gsin_upc_diag`` shards."""
+"""Batch job helpers for ``lgtin_upc_diag`` shards."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 N_REGIMES = 4
 N_SEEDS = 12
-GSIN_SCENARIOS: tuple[str, ...] = ("P0", "P1", "F1", "F2a", "F2", "F3")
+LGTIN_SCENARIOS: tuple[str, ...] = ("P0", "P1", "F1", "F2a", "F2", "F3")
 
 REGIME_TITLES: tuple[str, ...] = (
     "Homogeneous fleet, overlapping lots",
@@ -36,14 +36,14 @@ _METRIC_SUM_KEYS = (
 )
 
 
-def gsin_seed(seed_index: int) -> int:
+def lgtin_seed(seed_index: int) -> int:
     if not 0 <= seed_index < N_SEEDS:
         msg = f"seed_index must be in [0, {N_SEEDS}), got {seed_index}"
         raise ValueError(msg)
     return 90_000 + seed_index * 7
 
 
-def gsin_job_grid() -> list[tuple[int, int]]:
+def lgtin_job_grid() -> list[tuple[int, int]]:
     """48 independent cells: truth once per (regime, seed), six mask replays."""
     return [
         (regime, seed_idx) for regime in range(N_REGIMES) for seed_idx in range(N_SEEDS)
@@ -55,12 +55,12 @@ def _repo_root() -> Path:
 
 
 def diag_binary() -> Path | None:
-    """Locate the release ``gsin_upc_diag`` example binary."""
-    env = os.environ.get("GSIN_UPC_DIAG_BIN")
+    """Locate the release ``lgtin_upc_diag`` example binary."""
+    env = os.environ.get("LGTIN_UPC_DIAG_BIN")
     if env:
         path = Path(env)
         return path if path.is_file() else None
-    candidate = _repo_root() / "target" / "release" / "examples" / "gsin_upc_diag"
+    candidate = _repo_root() / "target" / "release" / "examples" / "lgtin_upc_diag"
     return candidate if candidate.is_file() else None
 
 
@@ -72,9 +72,9 @@ def run_regime_seed(regime_index: int, seed_index: int) -> dict[str, Any]:
     binary = diag_binary()
     if binary is None:
         msg = (
-            "gsin_upc_diag binary not found; build with:\n"
-            "  cargo build -p voi_core --release --example gsin_upc_diag\n"
-            "or set GSIN_UPC_DIAG_BIN"
+            "lgtin_upc_diag binary not found; build with:\n"
+            "  cargo build -p voi_core --release --example lgtin_upc_diag\n"
+            "or set LGTIN_UPC_DIAG_BIN"
         )
         raise RuntimeError(msg)
     proc = subprocess.run(
@@ -115,8 +115,8 @@ def _aggregate_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
-def merge_gsin_diag_rows(shards: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Merge shard JSON into ``experiments/data/gsin_upc_after.json`` row shape."""
+def merge_lgtin_diag_rows(shards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge shard JSON into ``experiments/data/lgtin_upc_after.json`` row shape."""
     by_key: dict[tuple[str, str], list[dict[str, Any]]] = {}
     series_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for shard in shards:

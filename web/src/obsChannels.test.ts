@@ -13,7 +13,7 @@ function readSrc(rel: string): string {
 }
 
 type ObsChannels = {
-  code_type: "upc" | "gsin";
+  code_type: "upc" | "lgtin";
   scan_waste: boolean;
   delivery_history: "none" | "pack_date" | "temperature_history";
 };
@@ -38,7 +38,7 @@ async function loadObsMask() {
   };
 }
 
-const ALL_CHANNELS: ObsChannels[] = (["upc", "gsin"] as const).flatMap((code_type) =>
+const ALL_CHANNELS: ObsChannels[] = (["upc", "lgtin"] as const).flatMap((code_type) =>
   ([false, true] as const).flatMap((scan_waste) =>
     (["none", "pack_date", "temperature_history"] as const).map(
       (delivery_history) => ({
@@ -61,7 +61,7 @@ describe("T-135 maskFromChannels", () => {
         expect(m.temperature_history).toBe(true);
       }
       if (!ch.scan_waste) expect(m.waste_total).toBe(false);
-      if (ch.code_type === "gsin") expect(m.arrival_lot_ids).toBe(true);
+      if (ch.code_type === "lgtin") expect(m.arrival_lot_ids).toBe(true);
     }
   });
 

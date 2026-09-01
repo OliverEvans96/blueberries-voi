@@ -13,12 +13,12 @@ if TYPE_CHECKING:
 SCENARIOS = [
     (
         "Lot ID + pack date + temp history",
-        "gsin + waste + temp trace",
+        "lgtin + waste + temp trace",
         "cold-chain logger on pallet",
     ),
     (
         "Lot ID + pack date",
-        "gsin + waste + pack date",
+        "lgtin + waste + pack date",
         "lot POS + supplier line",
     ),
     (
@@ -28,10 +28,10 @@ SCENARIOS = [
     ),
     (
         "Lot ID on shrink gun",
-        "gsin + waste (≡ lot at POS)",
+        "lgtin + waste (≡ lot at POS)",
         "lot waste counts only",
     ),
-    ("Lot ID at POS", "gsin + waste", "lot-resolved checkout"),
+    ("Lot ID at POS", "lgtin + waste", "lot-resolved checkout"),
     ("Shrink gun", "upc + waste", "handheld waste scanner"),
     ("Books only", "upc, no waste scan", "POS totals + receiving log"),
 ]

@@ -1,8 +1,8 @@
-//! AC-G3 / AC-G4: GSIN/UPC diagnostic regression gates (T-141).
+//! AC-G3 / AC-G4: LGTIN/UPC diagnostic regression gates (T-141).
 
 const BIAS_MAX: f64 = 1e-9;
 /// Effective sample size must stay healthy on every rung. This is a *floor*, not a
-/// GSIN-vs-UPC comparison: a richer likelihood legitimately concentrates weight and so
+/// LGTIN-vs-UPC comparison: a richer likelihood legitimately concentrates weight and so
 /// lowers ESS. Requiring `F1.ess >= P1.ess` asserted the opposite of what a more
 /// informative channel does, and only ever passed because the harness read ESS back off
 /// the post-resample (uniform) weights, where every rung reports exactly N.
@@ -17,7 +17,7 @@ const REGIMES: &[&str] = &[
     "Thermal fleet, overlapping lots",
 ];
 
-/// Regimes on which GSIN must strictly win the *store aggregate* freshness metric. The
+/// Regimes on which LGTIN must strictly win the *store aggregate* freshness metric. The
 /// thermal fixture is excluded: pack date is uninformative there by construction, so P1
 /// and F1 land within seed noise of each other (~0.4% at 12 seeds) and the sign of the
 /// difference is not meaningful. Per-lot metrics below cover all four.
@@ -38,14 +38,14 @@ struct DiagRow {
     ess: f64,
 }
 
-fn load_gsin_upc_diag_json() -> Vec<DiagRow> {
+fn load_lgtin_upc_diag_json() -> Vec<DiagRow> {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let repo = std::path::Path::new(manifest)
         .parent()
         .unwrap()
         .parent()
         .unwrap();
-    let path = repo.join("experiments/data/gsin_upc_after.json");
+    let path = repo.join("experiments/data/lgtin_upc_after.json");
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read committed {}: {e}", path.display()));
     serde_json::from_str(&text).expect("parse diag json")
@@ -58,8 +58,8 @@ fn row<'a>(rows: &'a [DiagRow], regime: &str, channel: &str) -> &'a DiagRow {
 }
 
 #[test]
-fn gsin_upc_count_bias_is_zero_on_spoilage_rungs() {
-    let rows = load_gsin_upc_diag_json();
+fn lgtin_upc_count_bias_is_zero_on_spoilage_rungs() {
+    let rows = load_lgtin_upc_diag_json();
     assert_eq!(rows.len(), 24, "expected 24 diagnostic rows");
     for row in rows {
         if !SCORED_SPOIL_CHANNELS.contains(&row.channel.as_str()) {
@@ -75,10 +75,10 @@ fn gsin_upc_count_bias_is_zero_on_spoilage_rungs() {
     }
 }
 
-/// AC-G4: GSIN rung metrics must not exceed UPC counterpart (non-regression guard).
+/// AC-G4: LGTIN rung metrics must not exceed UPC counterpart (non-regression guard).
 #[test]
-fn gsin_upc_gsin_le_upc_on_comparable_metrics() {
-    let rows = load_gsin_upc_diag_json();
+fn lgtin_upc_lgtin_le_upc_on_comparable_metrics() {
+    let rows = load_lgtin_upc_diag_json();
 
     for regime in STORE_MEAN_F_REGIMES {
         let (p1, f1) = (row(&rows, regime, "P1"), row(&rows, regime, "F1"));
@@ -94,7 +94,7 @@ fn gsin_upc_gsin_le_upc_on_comparable_metrics() {
         let (p1, f1) = (row(&rows, regime, "P1"), row(&rows, regime, "F1"));
 
         // Per-lot freshness: independent per-unit aging (ADR 0143) makes lot-resolved
-        // spoilage level-informative, so GSIN wins outright rather than within a slack.
+        // spoilage level-informative, so LGTIN wins outright rather than within a slack.
         assert!(
             f1.lot_mean_f_mae <= p1.lot_mean_f_mae + 1e-9,
             "{regime}: F1 lot_mean_f_mae {} > P1 {}",
@@ -102,7 +102,7 @@ fn gsin_upc_gsin_le_upc_on_comparable_metrics() {
             p1.lot_mean_f_mae
         );
 
-        // Per-lot count is *exact* under GSIN — sales and spoils are attributed to named
+        // Per-lot count is *exact* under LGTIN — sales and spoils are attributed to named
         // lots, so each segment conserves the way the store total does. UPC cannot do
         // this, and a UPC row reading 0.0 would mean the metric had stopped measuring.
         assert!(

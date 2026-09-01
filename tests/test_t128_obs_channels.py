@@ -96,7 +96,7 @@ PRESET_IDS = ("P0", "P1", "F1", "F1s", "F2a", "F2", "F3")
 
 ALL_CHANNELS: tuple[ObsChannels, ...] = tuple(
     ObsChannels(code_type=code, scan_waste=scan_waste, delivery_history=hist)
-    for code in ("upc", "gsin")
+    for code in ("upc", "lgtin")
     for scan_waste in (False, True)
     for hist in ("none", "pack_date", "temperature_history")
 )
@@ -111,7 +111,7 @@ def test_mask_from_channels_all_twelve_combos() -> None:
         mask = mask_from_channels(ch)
         present = present_set(mask)
         assert "arrivals" in present and "sales_total" in present
-        if ch.code_type == "gsin":
+        if ch.code_type == "lgtin":
             assert {"sales_by_lot", "lot_ids_live", "arrival_lot_ids"} <= present
         else:
             assert "sales_by_lot" not in present
@@ -146,7 +146,7 @@ def test_preset_round_trip_matches_mask_for_without_age() -> None:
 
 def test_f2_preset_uses_pack_date_not_age() -> None:
     ch = channels_for_preset("F2")
-    assert ch.code_type == "gsin" and ch.scan_waste
+    assert ch.code_type == "lgtin" and ch.scan_waste
     assert ch.delivery_history == "pack_date"
     mask = mask_from_channels(ch)
     assert "pack_date" in mask.present
@@ -158,8 +158,8 @@ def test_f1s_matches_f1_under_scan_model() -> None:
 
 
 def test_channels_cache_key_canonical() -> None:
-    ch = ObsChannels(code_type="gsin", scan_waste=True, delivery_history="none")
-    assert channels_cache_key(ch) == "code=gsin|waste=1|hist=none"
+    ch = ObsChannels(code_type="lgtin", scan_waste=True, delivery_history="none")
+    assert channels_cache_key(ch) == "code=lgtin|waste=1|hist=none"
 
 
 def test_validate_channels_rejects_unknown_enum() -> None:

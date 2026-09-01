@@ -17,7 +17,7 @@ tasks:
   - id: qa-red
     role: qa
     files:
-      - crates/voi_core/tests/gsin_upc_ac12.rs
+      - crates/voi_core/tests/lgtin_upc_ac12.rs
       - crates/voi_core/tests/t134_arrival_f.rs
       - tests/test_unit_pf.py
       - .team/qa/T-139-tests.md
@@ -30,7 +30,7 @@ tasks:
       - crates/voi_core/src/unit_pf.rs
       - crates/voi_core/src/session.rs
       - crates/voi_core/src/obs.rs
-      - crates/voi_core/tests/gsin_upc_ac12.rs
+      - crates/voi_core/tests/lgtin_upc_ac12.rs
     deps: [qa-red]
 
   - id: impl-contrast

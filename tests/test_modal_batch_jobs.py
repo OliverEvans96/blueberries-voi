@@ -34,12 +34,12 @@ from blueberries_voi.experiments.filter_accuracy import (
     nb13_job_grid,
     run_seed_channel,
 )
-from blueberries_voi.experiments.gsin_upc import (
+from blueberries_voi.experiments.lgtin_upc import (
     N_REGIMES,
     N_SEEDS,
     REGIME_TITLES,
-    gsin_job_grid,
-    merge_gsin_diag_rows,
+    lgtin_job_grid,
+    merge_lgtin_diag_rows,
 )
 from blueberries_voi.experiments.rollout_bakeoff import (
     DEFAULT_ROLLOUT_SEEDS,
@@ -100,7 +100,7 @@ def test_all_channel_combos_count() -> None:
     combos = all_channel_combos()
     assert len(combos) == 12
     keys = {c.code_type for c in combos}
-    assert keys == {"upc", "gsin"}
+    assert keys == {"upc", "lgtin"}
 
 
 def test_channel_from_factorial_matches_preset_p0() -> None:
@@ -164,11 +164,11 @@ def test_merge_channel_rows_schema() -> None:
     }
 
 
-def test_gsin_job_grid_size() -> None:
-    assert len(gsin_job_grid()) == N_REGIMES * N_SEEDS
+def test_lgtin_job_grid_size() -> None:
+    assert len(lgtin_job_grid()) == N_REGIMES * N_SEEDS
 
 
-def test_merge_gsin_diag_rows_shape() -> None:
+def test_merge_lgtin_diag_rows_shape() -> None:
     series = {
         "day": [10, 11],
         "truth_on_hand": [1.0, 2.0],
@@ -227,7 +227,7 @@ def test_merge_gsin_diag_rows_shape() -> None:
             }
         ],
     }
-    rows = merge_gsin_diag_rows([shard_a, shard_b])
+    rows = merge_lgtin_diag_rows([shard_a, shard_b])
     assert len(rows) == 1
     row = rows[0]
     assert row["regime"] == REGIME_TITLES[0]
@@ -288,7 +288,7 @@ def test_merge_voi_profit_rows_dedup() -> None:
         },
         {
             "seed": 7,
-            "key": "code=gsin|waste=1|hist=none",
+            "key": "code=lgtin|waste=1|hist=none",
             "profit": 12.0,
             "waste": 2,
             "stockout": 1,
@@ -300,7 +300,7 @@ def test_merge_voi_profit_rows_dedup() -> None:
     keys = {(r["seed"], r["key"]) for r in rows}
     assert keys == {
         (42, "code=upc|waste=0|hist=none"),
-        (7, "code=gsin|waste=1|hist=none"),
+        (7, "code=lgtin|waste=1|hist=none"),
     }
 
 
@@ -400,7 +400,7 @@ def test_modal_controller_bakeoff_grid_dry_run() -> None:
     assert len(args) == len(BAKEOFF_ARMS)
 
 
-def test_gsin_cells_subset_grid() -> None:
+def test_lgtin_cells_subset_grid() -> None:
     cells = [(2, 0), (3, 1)]
     assert len(cells) == 2
     assert all(0 <= r < N_REGIMES and 0 <= s < N_SEEDS for r, s in cells)
@@ -408,8 +408,8 @@ def test_gsin_cells_subset_grid() -> None:
 
 @_RUST
 @pytest.mark.slow
-def test_gsin_shard_cli_smoke() -> None:
-    from blueberries_voi.experiments.gsin_upc import run_regime_seed
+def test_lgtin_shard_cli_smoke() -> None:
+    from blueberries_voi.experiments.lgtin_upc import run_regime_seed
 
     shard = run_regime_seed(0, 0)
     assert shard["seed_index"] == 0

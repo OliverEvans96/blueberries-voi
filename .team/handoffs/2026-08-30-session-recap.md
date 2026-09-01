@@ -1,14 +1,14 @@
-# 2026-08-30 — Full session recap: GSIN figures, particle-filter collapse, per-channel tuning, Studio integration
+# 2026-08-30 — Full session recap: LGTIN figures, particle-filter collapse, per-channel tuning, Studio integration
 
-**Branch:** `fix/gsin-l-dim-truncation` (PR #88, off `main`)
-**Companion docs:** `.team/handoffs/2026-08-29-gsin-belief-accuracy-blog-post.md` (the earlier L-truncation bug hunt this session continues from) and `.team/plans/2026-08-29-gsin-belief-accuracy-blog-post.md` / `.team/plans/2026-08-30-particle-filter-collapse-fix.md` (decision logs for their respective arcs). This doc is the overarching narrative tying the whole night together, with heavier detail on everything from the "why did the nice result disappear" investigation onward, which isn't fully captured elsewhere.
+**Branch:** `fix/lgtin-l-dim-truncation` (PR #88, off `main`)
+**Companion docs:** `.team/handoffs/2026-08-29-lgtin-belief-accuracy-blog-post.md` (the earlier L-truncation bug hunt this session continues from) and `.team/plans/2026-08-29-lgtin-belief-accuracy-blog-post.md` / `.team/plans/2026-08-30-particle-filter-collapse-fix.md` (decision logs for their respective arcs). This doc is the overarching narrative tying the whole night together, with heavier detail on everything from the "why did the nice result disappear" investigation onward, which isn't fully captured elsewhere.
 **Purpose:** Oliver is writing a blog post about the blueberries-voi VOI/POMDP model. This session covers building the post's figures, finding and fixing a real particle-filter bug along the way, an extended investigation into why a promising early result didn't reproduce at production scale, and wiring the resulting per-channel controller tuning into Blueberry Studio.
 
 ---
 
 ## 1. Where the night started
 
-Continuing from `.team/handoffs/2026-08-29-...md`: a `belief_flat_from_unit_bank` wire-truncation bug (`L`-dim) had just been found and fixed (`DEFAULT_L_DIM` 10→50), restoring GSIN's expected "at least as informative as UPC" behavior. `notebooks/article_figures.ipynb` existed as the reproducible source for every post figure, initially run locally at 8 seeds. The immediate next steps queued up were: widen the `rho` search range, retune the shared `damped_sw` controller via Ax, and re-run the article figures at production scale.
+Continuing from `.team/handoffs/2026-08-29-...md`: a `belief_flat_from_unit_bank` wire-truncation bug (`L`-dim) had just been found and fixed (`DEFAULT_L_DIM` 10→50), restoring LGTIN's expected "at least as informative as UPC" behavior. `notebooks/article_figures.ipynb` existed as the reproducible source for every post figure, initially run locally at 8 seeds. The immediate next steps queued up were: widen the `rho` search range, retune the shared `damped_sw` controller via Ax, and re-run the article figures at production scale.
 
 ## 2. Rho range widened; first production run; independent audit requested then cancelled
 
@@ -40,7 +40,7 @@ Oliver's explicit framing throughout, which shaped everything downstream: *"I th
 
 ## 4. The particle-filter collapse bug
 
-While investigating, found (with help from a background subagent earlier, and directly here) that GSIN's belief could freeze bit-for-bit across days with real depletion, because `filter_step_unit_with_birth_cached` (`crates/voi_core/src/unit_pf.rs`) gated a particle's sales/waste removal on that particle's likelihood being finite — when *every* particle failed on the same day (a real, measured ~12.78% of days for GSIN at `filter_n=24`, vs. 0.83% for UPC), nothing got removed and the belief silently kept its stale count while the real shelf depleted toward zero, causing the controller to stop reordering entirely.
+While investigating, found (with help from a background subagent earlier, and directly here) that LGTIN's belief could freeze bit-for-bit across days with real depletion, because `filter_step_unit_with_birth_cached` (`crates/voi_core/src/unit_pf.rs`) gated a particle's sales/waste removal on that particle's likelihood being finite — when *every* particle failed on the same day (a real, measured ~12.78% of days for LGTIN at `filter_n=24`, vs. 0.83% for UPC), nothing got removed and the belief silently kept its stale count while the real shelf depleted toward zero, causing the controller to stop reordering entirely.
 
 **Two fix framings were discussed and empirically compared, not just reasoned about:**
 - **(a)** Narrow: only force unconditional depletion on literal total collapse (every particle fails); otherwise behave exactly like pre-fix code (gated on feasibility, pruned by resampling).
@@ -62,7 +62,7 @@ Oliver had floated tuning each of the 12 factorial channels independently rather
 
 Added a new per-channel tuning section to notebook 12 (12 channels tuned concurrently via `ThreadPoolExecutor`, each with its own Modal-dispatching Ax loop, genuine `run_seed_channel_joint` belief at `filter_n=200`). Hit and fixed a real bug on the first run: the new Modal image never mounted `/experiments`, so a fallback path inside `profit_session_config` crashed trying to read `tuned_alpha.json` even though its result was unused. Fixed, re-ran successfully.
 
-Results looked great at first glance: a clean monotonic ladder recovered in profit, and the "backwards" delivery-history pattern fixed. **This didn't survive scrutiny.** Comparing each channel's tuning-time profit (scored on only 4 seeds during Ax optimization) against its true profit on `article_figures.ipynb`'s independent 30-seed evaluation showed every channel inflated, and — critically — the inflation was *larger for information-richer channels* (+58 for `upc|off|none` vs. +137 for `gsin|off|temperature_history`). Classic BO overfitting to an under-sampled objective, not a real effect. Committed honestly as a finding, not a fix (`ad119ddb`).
+Results looked great at first glance: a clean monotonic ladder recovered in profit, and the "backwards" delivery-history pattern fixed. **This didn't survive scrutiny.** Comparing each channel's tuning-time profit (scored on only 4 seeds during Ax optimization) against its true profit on `article_figures.ipynb`'s independent 30-seed evaluation showed every channel inflated, and — critically — the inflation was *larger for information-richer channels* (+58 for `upc|off|none` vs. +137 for `lgtin|off|temperature_history`). Classic BO overfitting to an under-sampled objective, not a real effect. Committed honestly as a finding, not a fix (`ad119ddb`).
 
 ### 6.2 Discussed and ruled out: common random numbers (CRN)
 
@@ -103,7 +103,7 @@ Oliver asked Studio to use the per-channel tuned values by default and whenever 
 
 - **The article's central empirical question is answered, but not resolved in the direction originally hoped for.** Belief accuracy: robust, large, monotonic, publishable as-is. Profit: flat-to-noise under every honest configuration tried. Four framing options were laid out for Oliver to choose among (not decided yet): (1) lead with belief accuracy, treat profit as a secondary, carefully-caveated result; (2) invest further in de-noising per-channel tuning beyond 25 trials/30 seeds; (3) reconsider whether `DEFAULT_STORE_ECONOMICS` (never independently calibrated) is a representative cost regime, on its own merits, not to manufacture a result; (4) let the null result itself be part of the article's narrative.
 - The blog draft (`/home/oliver/job-search/afresh-blog-post/my-post/2026-08-26 Draft.md`) has **not** been updated to reflect any of tonight's work — still describes pre-fix results and an old controller framing. Explicitly out of scope tonight; flagged as still pending in earlier task tracking (rewriting the controller paragraph, swapping in final figures/numbers, adding the gamma-process figure).
-- `sequential_kernel_path_logprob` (the exact cross-lot scorer) remains unused — the real fix for the residual GSIN collapse rate, not yet undertaken.
+- `sequential_kernel_path_logprob` (the exact cross-lot scorer) remains unused — the real fix for the residual LGTIN collapse rate, not yet undertaken.
 - No further audit has been run since the one cancelled in §2; given how much has changed since, a fresh audit (if still wanted) would need to be scoped against this doc, not the earlier one.
 
 ## 11. Key files touched tonight (beyond §1's carryover)

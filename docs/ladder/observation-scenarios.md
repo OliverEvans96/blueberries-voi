@@ -33,9 +33,9 @@ single-cohort arrival story:
 | --- | --- |
 | **Books only** (P0) | Pooled sales and arrival counts only. Truth always births three shelf segments; the filter still models one merged cohort — a fixed, knowable cardinality misspecification. |
 | **Shrink gun** (P1) | Storewide waste totals. Still no delivery journey or lot identity; waste helps score spoilage but cannot split three coexisting segments. |
-| **Lot ID at POS** (F1) | Per-lot sales, waste, and arrival lot ids. Opens sequential attribution, composition (how $Q$ split across three lots), and lot-count information GSIN can express but UPC cannot. |
+| **Lot ID at POS** (F1) | Per-lot sales, waste, and arrival lot ids. Opens sequential attribution, composition (how $Q$ split across three lots), and lot-count information LGTIN can express but UPC cannot. |
 | **Pack date on the ASN** (F2a) | Pins transit duration for the delivery, but under UPC the three per-lot pack dates on the ASN are mixed into one birth law — duration information without per-lot segmentation. |
-| **Lot ID + pack date** (F2) | Same pack-date paperwork, but GSIN holds three segments each born from its own duration draw — separates lots that share a truck yet took different upstream journeys. |
+| **Lot ID + pack date** (F2) | Same pack-date paperwork, but LGTIN holds three segments each born from its own duration draw — separates lots that share a truck yet took different upstream journeys. |
 | **Lot ID + pack date + temperature history** (F3) | Full per-lot exposure traces under ADR 0150's break-event model. Mops up thermal exposure variance the pack date leaves behind — a much larger step than when the trace was decorative. |
 
 The **F2a → F2** gap is the cleanest place to see ADR 0149's structural fork: identical
@@ -83,16 +83,16 @@ that "Lot ID at POS" does not.
 | --- | --- | --- | --- |
 | **Books only** | upc, off, none | Nothing beyond ordinary POS and receiving — no new purchase. | `crates/voi_core/src/obs.rs:194` |
 | **Shrink gun** | upc, on, none | Buy a handheld scanner for daily storewide waste counts; no barcode change. | `crates/voi_core/src/obs.rs:199` |
-| **Lot ID at POS** | gsin, on, none | Switch checkout to lot-resolved (GSIN) codes; waste counts come back per lot as a side effect. | `crates/voi_core/src/obs.rs:204` |
-| **Lot ID on the shrink gun** | gsin, on, none *(identical to "Lot ID at POS" — see caveat above)* | Intended design: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:204` |
+| **Lot ID at POS** | lgtin, on, none | Switch checkout to lot-resolved (LGTIN) codes; waste counts come back per lot as a side effect. | `crates/voi_core/src/obs.rs:204` |
+| **Lot ID on the shrink gun** | lgtin, on, none *(identical to "Lot ID at POS" — see caveat above)* | Intended design: keep UPC at checkout, put lot-resolved codes only on the waste gun. Not separately representable in the current code. | `crates/voi_core/src/obs.rs:204` |
 | **Pack date on the ASN** | upc, on, pack_date | Get the supplier to print/transmit pack dates on the ASN; register still reads pooled UPC — three dates mix into one birth law. | `crates/voi_core/src/obs.rs:209` |
-| **Lot ID + pack date** | gsin, on, pack_date | Lot-resolved POS plus per-lot duration conditioning on three shelf segments. | `crates/voi_core/src/obs.rs:214` |
-| **Lot ID + pack date + temperature history** | gsin, on, temperature_history | F2 plus per-lot temperature traces that pin exposure under break-event transit. | `crates/voi_core/src/obs.rs:219` |
+| **Lot ID + pack date** | lgtin, on, pack_date | Lot-resolved POS plus per-lot duration conditioning on three shelf segments. | `crates/voi_core/src/obs.rs:214` |
+| **Lot ID + pack date + temperature history** | lgtin, on, temperature_history | F2 plus per-lot temperature traces that pin exposure under break-event transit. | `crates/voi_core/src/obs.rs:219` |
 | Preset table (TS mirror) | `PRESET_CHANNELS` | Studio UI reads the same seven presets. | `web/src/obsMask.ts:69` |
 | Round-trip test (all 7 presets) | `preset_round_trip_matches_mask_for` | | `crates/voi_core/src/obs.rs:512` |
 | "Lot ID on the shrink gun" ≡ "Lot ID at POS" assertion | `mask_for_f1s_matches_f1` | | `crates/voi_core/src/obs.rs:582` |
 | F2a mask (UPC + pack date, no lot maps) | `mask_for_f2a_is_p1_plus_pack_date` | | `crates/voi_core/src/obs.rs:587` |
-| F2 mask (GSIN maps + pack date) | `mask_for_f2_has_maps_and_pack_date` | | `crates/voi_core/src/obs.rs:595` |
+| F2 mask (LGTIN maps + pack date) | `mask_for_f2_has_maps_and_pack_date` | | `crates/voi_core/src/obs.rs:595` |
 | F3 passes trace through mask | `apply_f3_passes_shipment_trace` | | `crates/voi_core/src/obs.rs:639` |
 
 ## Caveats

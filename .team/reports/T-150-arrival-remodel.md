@@ -56,6 +56,6 @@ have not yet shown up as reliable extra dollars at this budget.
 ## What this note is not
 
 It is not a claim that Abdella’s six loads validate the generative family. It is
-not a 17-minute GSIN diagnostic refresh — that file still describes the previous
+not a 17-minute LGTIN diagnostic refresh — that file still describes the previous
 spoilage-likelihood epoch. The arrival-ladder evidence for this remodel is the
 filter-accuracy replay above.

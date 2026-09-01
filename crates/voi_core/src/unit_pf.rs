@@ -3,25 +3,25 @@
 //! # One code path, two channels
 //!
 //! `filter_step_unit` runs the same four stages for every observation channel. What
-//! changes between UPC and GSIN is only the **resolution of the evidence** fed to each
+//! changes between UPC and LGTIN is only the **resolution of the evidence** fed to each
 //! stage, never the stage itself:
 //!
-//! | Stage | UPC (`code_type = upc`) | GSIN (`code_type = gsin`) |
+//! | Stage | UPC (`code_type = upc`) | LGTIN (`code_type = lgtin`) |
 //! |-------|-------------------------|---------------------------|
 //! | Spoilage → Poisson-binomial | pooled `waste_tot` | per-lot `waste_by` |
 //! | Sales feasibility | pooled `alive ≥ sales_tot` | per-lot `alive_ℓ ≥ sales_ℓ` |
 //! | Cross-lot allocation | *(unobservable)* | `Multinomial(sales_by; lot_share)` |
 //! | Sales removal | pooled WOR draw | per-lot WOR conditional on `sales_ℓ` |
 //!
-//! Each GSIN term is a refinement of the corresponding UPC term on the same state, so
-//! GSIN cannot be less informative than UPC (see `unit_ll` module docs for the interval
+//! Each LGTIN term is a refinement of the corresponding UPC term on the same state, so
+//! LGTIN cannot be less informative than UPC (see `unit_ll` module docs for the interval
 //! containment argument).
 //!
 //! # Lot segmentation is observed, not guessed
 //!
 //! Arrival quantity is present on **every** mask, so the bank carries an explicit
 //! `lot_offsets`/`lot_ids` segmentation built from the arrival stream itself — one
-//! segment per delivery, exactly as wide as that delivery. Under GSIN, `arrival_lot_ids`
+//! segment per delivery, exactly as wide as that delivery. Under LGTIN, `arrival_lot_ids`
 //! supplies real identities so `sales_by` / `waste_by` are matched to segments **by id**.
 //! Nothing infers lot boundaries from row length.
 
@@ -58,7 +58,7 @@ pub struct UnitParticleBank {
     pub freshness: Vec<Vec<f64>>,
     /// Segment boundaries into every row: `len == n_lots + 1`, `lot_offsets[0] == 0`.
     pub lot_offsets: Vec<usize>,
-    /// Identity per segment — observed `arrival_lot_ids` under GSIN, synthetic under UPC.
+    /// Identity per segment — observed `arrival_lot_ids` under LGTIN, synthetic under UPC.
     pub lot_ids: Vec<i64>,
 }
 
@@ -353,7 +353,7 @@ fn infer_birth_code_type(obs: &FilterObs, code_type: Option<CodeType>) -> CodeTy
         return ct;
     }
     if obs.lot_ids_live.is_some() || obs.sales_by.is_some() || obs.waste_by.is_some() {
-        return CodeType::Gsin;
+        return CodeType::Lgtin;
     }
     if let Some(ids) = &obs.arrival_lot_ids {
         if ids.len() > 1 {
@@ -361,7 +361,7 @@ fn infer_birth_code_type(obs: &FilterObs, code_type: Option<CodeType>) -> CodeTy
             if (60..100).contains(&first) || first >= 200 {
                 return CodeType::Upc;
             }
-            return CodeType::Gsin;
+            return CodeType::Lgtin;
         }
     }
     CodeType::Upc
@@ -600,7 +600,7 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     // proposal doesn't fit the day's evidence is left untouched and pruned by
     // resampling below, exactly as it always was. This intentionally does NOT force
     // depletion onto every particle every day (see the 2026-08-30 fix history) —
-    // that unconditional variant was tried and measured to have no effect on GSIN's
+    // that unconditional variant was tried and measured to have no effect on LGTIN's
     // production-scale outcomes (same profit/belief numbers with it on or off,
     // confirmed by reverting the whole crate and re-running the article ladder),
     // so the narrower, less invasive gate is kept. The only day this can't rely on
@@ -704,7 +704,7 @@ pub fn filter_step_unit_with_birth_cached<R: Rng + ?Sized, B: Rng + ?Sized>(
     bank.freshness = idx.iter().map(|&j| bank.freshness[j].clone()).collect();
     bank.weights = vec![1.0 / n as f64; n];
 
-    // 3. Birth: GSIN splits L segments; UPC merges to one mixture cohort (ADR 0149).
+    // 3. Birth: LGTIN splits L segments; UPC merges to one mixture cohort (ADR 0149).
     if obs.arrivals > 0 {
         let arrivals = obs.arrivals as usize;
         let lot_ids = obs

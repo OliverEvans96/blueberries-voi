@@ -69,7 +69,7 @@ describe("EngineAdapter wire surface (T-127 AC-wire)", () => {
       before.candidates[1]!.waste_mean,
     );
     await mock.set_obs_channels({
-      code_type: "gsin",
+      code_type: "lgtin",
       scan_waste: true,
       delivery_history: "pack_date",
     });

@@ -376,7 +376,7 @@ export class MockAdapter implements EngineAdapter {
     const wasteChannelScale =
       this.config.obs_channels?.scan_waste === false
         ? 1.12
-        : this.config.obs_channels?.code_type === "gsin"
+        : this.config.obs_channels?.code_type === "lgtin"
           ? 0.92
           : 1.0;
     const stateScale = 1 + onHand * 0.02 + day * 0.015 + beliefMass * 0.08;
