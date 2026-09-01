@@ -275,7 +275,10 @@ def nb13(
 
 @app.local_entrypoint()
 def lgtin(out: str = "lgtin_upc_sharded.json") -> None:
-    from blueberries_voi.experiments.lgtin_upc import lgtin_job_grid, merge_lgtin_diag_rows
+    from blueberries_voi.experiments.lgtin_upc import (
+        lgtin_job_grid,
+        merge_lgtin_diag_rows,
+    )
 
     shards = list(lgtin_shard.starmap(lgtin_job_grid()))
     rows = merge_lgtin_diag_rows(shards)
