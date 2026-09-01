@@ -148,7 +148,7 @@ describe("meanFromHistogramMasses / truthMeanFromUnits / freshnessHistogramMeanP
     );
   });
 
-  it("returns unique mean positions for belief and truth overlays", () => {
+  it("returns mean lines for belief and truth overlays with series colors", () => {
     const edges = histogramEdges(0, 1, DISPLAY_BIN_COUNT);
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
     const belief = rebinMassesByInterval(data.f_edges, data.belief_masses, edges);
@@ -159,10 +159,12 @@ describe("meanFromHistogramMasses / truthMeanFromUnits / freshnessHistogramMeanP
       true,
     );
     expect(positions).toHaveLength(2);
-    expect(positions[0]).toBeCloseTo(0.3);
-    expect(positions[1]).toBeCloseTo(
+    expect(positions[0]?.value).toBeCloseTo(0.3);
+    expect(positions[0]?.color).toBe("#2f5d4a");
+    expect(positions[1]?.value).toBeCloseTo(
       TRUTH_UNITS.reduce((sum, unit) => sum + unit.f, 0) / TRUTH_UNITS.length,
     );
+    expect(positions[1]?.color).toBe("#f97316");
   });
 });
 
@@ -214,7 +216,7 @@ describe("renderFreshnessHistogram", () => {
     expect(labels.some((label) => label?.startsWith("Lot"))).toBe(false);
   });
 
-  it("draws dashed black vertical mean lines with a single mean legend swatch", () => {
+  it("draws dashed color-coded mean lines with a single black mean legend swatch", () => {
     const elBeliefOnly = host();
     const elBoth = host();
     const data = freshnessHistogramDataFromFlat(FLAT, TRUTH_UNITS);
@@ -224,13 +226,15 @@ describe("renderFreshnessHistogram", () => {
 
     const beliefOnlyLines = elBeliefOnly.querySelectorAll(".freshness-mean-line");
     expect(beliefOnlyLines.length).toBe(1);
-    expect(beliefOnlyLines[0]?.getAttribute("stroke")).toBe("#000");
+    expect(beliefOnlyLines[0]?.getAttribute("stroke")).toBe("#2f5d4a");
     expect(beliefOnlyLines[0]?.getAttribute("stroke-dasharray")).toBe("5,3");
 
-    const bothLines = elBoth.querySelectorAll(".freshness-mean-line");
-    expect(bothLines.length).toBe(2);
+    const bothLines = [...elBoth.querySelectorAll(".freshness-mean-line")];
+    expect(bothLines).toHaveLength(2);
+    const strokes = bothLines.map((line) => line.getAttribute("stroke"));
+    expect(strokes).toContain("#2f5d4a");
+    expect(strokes).toContain("#f97316");
     for (const line of bothLines) {
-      expect(line.getAttribute("stroke")).toBe("#000");
       expect(line.getAttribute("stroke-dasharray")).toBe("5,3");
     }
 
@@ -238,7 +242,9 @@ describe("renderFreshnessHistogram", () => {
       (node) => node.textContent === "mean",
     );
     expect(meanLegendLabels).toHaveLength(1);
-    expect(elBoth.querySelector(".freshness-mean-legend-swatch")).not.toBeNull();
+    const meanSwatch = elBoth.querySelector(".freshness-mean-legend-swatch");
+    expect(meanSwatch).not.toBeNull();
+    expect(meanSwatch?.getAttribute("stroke")).toBe("#000");
   });
 
   it("empty scaffold renders fixed-height SVG with axes", () => {

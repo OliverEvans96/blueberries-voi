@@ -22,9 +22,12 @@ const TRUTH_COLOR = TRUTH_BAR_COLOR;
 const BELIEF_FILL_OPACITY = 0.25;
 const TRUTH_FILL_OPACITY = 0.35;
 const TOP_STROKE_WIDTH = 2.5;
+/** Fixed legend swatch for "mean"; in-chart mean lines use per-series colors. */
 const MEAN_LINE_COLOR = "#000";
 const MEAN_LINE_DASH = "5,3";
 const MEAN_LINE_WIDTH = 1.5;
+
+export type FreshnessMeanLine = { value: number; color: string };
 
 type HistBin = {
   index: number;
@@ -189,34 +192,26 @@ export function truthMeanFromUnits(units: readonly Unit[]): number | null {
   return sum / units.length;
 }
 
-/** Unique mean positions for visible belief/truth overlays (rounded for dedup). */
+/** Mean lines for visible belief/truth overlays, colored to match each series. */
 export function freshnessHistogramMeanPositions(
   edges: readonly number[],
   belief: readonly number[],
   truthUnits: readonly Unit[],
   showTruth: boolean,
-): number[] {
+): FreshnessMeanLine[] {
   const centers = histogramBinCenters(edges);
-  const positions: number[] = [];
+  const lines: FreshnessMeanLine[] = [];
   const beliefMean = meanFromHistogramMasses(centers, belief);
   if (beliefMean !== null) {
-    positions.push(beliefMean);
+    lines.push({ value: beliefMean, color: BELIEF_COLOR });
   }
   if (showTruth && truthUnits.length > 0) {
     const truthMean = truthMeanFromUnits(truthUnits);
     if (truthMean !== null) {
-      positions.push(truthMean);
+      lines.push({ value: truthMean, color: TRUTH_COLOR });
     }
   }
-  const seen = new Set<number>();
-  const unique: number[] = [];
-  for (const value of positions) {
-    const key = Math.round(value * 1e6);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(value);
-  }
-  return unique;
+  return lines;
 }
 
 /** Rebin histogram chart data onto the standard 8 display bins on [0, 1]. */
@@ -337,15 +332,15 @@ export function renderFreshnessHistogram(
   );
   if (meanPositions.length > 0) {
     const meanGroup = g.append("g").attr("class", "freshness-mean-lines");
-    for (const meanF of meanPositions) {
+    for (const line of meanPositions) {
       meanGroup
         .append("line")
         .attr("class", "freshness-mean-line")
-        .attr("x1", x(meanF))
-        .attr("x2", x(meanF))
+        .attr("x1", x(line.value))
+        .attr("x2", x(line.value))
         .attr("y1", 0)
         .attr("y2", innerH)
-        .attr("stroke", MEAN_LINE_COLOR)
+        .attr("stroke", line.color)
         .attr("stroke-width", MEAN_LINE_WIDTH)
         .attr("stroke-dasharray", MEAN_LINE_DASH);
     }
