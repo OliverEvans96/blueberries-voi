@@ -88,6 +88,8 @@ _SCENARIO_PRESENT: dict[ScenarioId, frozenset[str]] = {
             "lot_ids_live",
             "arrival_lot_ids",
             "temperature_history",
+            "pack_date",
+            "pack_dates_by_lot",
         }
     ),
 }
@@ -243,6 +245,9 @@ def mask_from_channels(channels: ObsChannels) -> ObsMask:
     elif channels.delivery_history == "temperature_history":
         present.add("temperature_history")
         present.add("temp_traces_by_lot")
+        # Mirrors Rust `mask_from_channels`: temp history implies pack date.
+        present.add("pack_date")
+        present.add("pack_dates_by_lot")
     return ObsMask(present=frozenset(present))
 
 

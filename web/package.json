@@ -1,6 +1,6 @@
 {
   "name": "@oliverevans96/blueberries-voi-studio",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Embeddable React studio for blueberries value-of-information simulation",
   "type": "module",
   "files": [

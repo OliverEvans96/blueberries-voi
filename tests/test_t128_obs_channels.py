@@ -128,7 +128,8 @@ def test_mask_from_channels_all_twelve_combos() -> None:
             assert "temperature_history" not in present
         elif ch.delivery_history == "temperature_history":
             assert "temperature_history" in present
-            assert "pack_date" not in present
+            assert "pack_date" in present
+            assert "pack_dates_by_lot" in present
         else:
             assert "pack_date" not in present
             assert "temperature_history" not in present

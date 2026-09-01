@@ -150,6 +150,7 @@ export function maskFromChannels(ch: ObsChannels): ObsMask {
     m.pack_date = true;
   } else if (ch.delivery_history === "temperature_history") {
     m.temperature_history = true;
+    // Mirrors Rust `mask_from_channels` in voi_core/obs.rs (temp history ⇒ pack date).
     m.pack_date = true;
   }
   return m;

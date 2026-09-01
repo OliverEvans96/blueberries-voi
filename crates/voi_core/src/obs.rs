@@ -272,7 +272,9 @@ pub fn channels_json(ch: ObsChannels) -> serde_json::Value {
 /// Arrivals and store-wide sales are always on. Per-lot breakdowns only turn on under
 /// `Lgtin` codes, since pooled `Upc` codes can't attribute a sale/waste event to a lot; waste
 /// fields only turn on when `scan_waste` is set, and `waste_by_lot` further requires `Lgtin`.
-/// `delivery_history` maps onto exactly one of `pack_date`/`temperature_history`, never both.
+/// `delivery_history` selects pack-date and/or temperature channels: `PackDate` sets
+/// `pack_date` only; `TemperatureHistory` sets both `temperature_history` and `pack_date`
+/// (temp history includes pack date so Event Log / filter birth keep calendar dates).
 pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
     let mut m = ObsMask {
         arrivals: true,
@@ -297,6 +299,7 @@ pub fn mask_from_channels(ch: ObsChannels) -> ObsMask {
         }
         DeliveryHistory::TemperatureHistory => {
             m.temperature_history = true;
+            m.pack_date = true;
         }
     }
     m
@@ -502,7 +505,7 @@ mod tests {
                     assert!(f["pack_date"] && !f["temperature_history"]);
                 }
                 DeliveryHistory::TemperatureHistory => {
-                    assert!(!f["pack_date"] && f["temperature_history"]);
+                    assert!(f["pack_date"] && f["temperature_history"]);
                 }
             }
         }
@@ -530,7 +533,7 @@ mod tests {
     fn f3_preset_uses_temperature_history() {
         let ch = channels_for_preset("F3").unwrap();
         let m = mask_from_channels(ch);
-        assert!(m.temperature_history && !m.pack_date);
+        assert!(m.temperature_history && m.pack_date);
     }
 
     #[test]
@@ -656,6 +659,34 @@ mod tests {
         assert_eq!(obs.temp_times_d.as_deref(), Some(&[0.0, 1.0, 2.0][..]));
         assert_eq!(obs.temp_temps_c.as_deref(), Some(&[1.0, 1.0, 1.0][..]));
         assert_eq!(obs.arrival_lot_ids.as_deref(), Some(&[11i64][..]));
+    }
+
+    /// Temperature-history (F3) must keep pack dates on the masked obs — WASM Event Log
+    /// reads these fields after `ObsMask::apply`, so nulling them silently blanks the column.
+    #[test]
+    fn apply_f3_keeps_pack_date_with_temperature_history() {
+        let rich = RichDay {
+            sales_total: 0,
+            waste_total: 0,
+            arrivals: 8,
+            sales_by: vec![],
+            waste_by: vec![],
+            lot_ids: vec![10],
+            arrival_lot_ids: vec![11],
+            shipment_trace: Some(ShipmentTrace {
+                times_d: vec![0.0, 1.0],
+                temps_c: vec![2.0, 3.0],
+            }),
+            pack_date_days: Some(4),
+            pack_dates_by_lot: vec![3, 4],
+            ..Default::default()
+        };
+        let mask = mask_for("F3").unwrap();
+        assert!(mask.temperature_history && mask.pack_date);
+        let obs = mask.apply(&rich);
+        assert_eq!(obs.pack_date_days, Some(4));
+        assert_eq!(obs.pack_dates_by_lot.as_deref(), Some(&[3i32, 4][..]));
+        assert!(obs.temp_times_d.is_some());
     }
 
     #[test]
