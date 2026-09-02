@@ -6,21 +6,25 @@ sources:
 
 # Rust API (`voi_core`)
 
-The shared compute kernel is documented with **rustdoc** — API reference
-generated from inline `///` comments on the Rust source, covering public
-functions, types, and fields (plus key private helpers) across the crate.
+The shared compute kernel — the code that actually runs the simulation and the
+filter — is documented with **rustdoc**, the standard Rust documentation
+generator. Rustdoc builds an API reference straight from inline `///`
+comments in the Rust source, covering every public function, type, and field
+(plus a few key private helpers) across the crate.
 
 Browse the API:
 
 **[Open rustdoc →](/api/rust/voi_core/index.html)**
 
-`voi_core` has no Python or JavaScript in it; two thin wrapper crates expose
+`voi_core` has no Python or JavaScript in it. Two thin wrapper crates expose
 it to the rest of the project instead, and each is documented the same way:
 
-- **[`voi_py`](/api/rust/_core/index.html)** — PyO3 bindings, compiled as the
+- **[`voi_py`](/api/rust/voi_py/index.html)** — a PyO3 binding (PyO3 is a
+  Rust library for building Python extension modules), compiled as the
   `blueberries_voi._core` extension module used by notebooks, the CLI, and
   `pytest`.
 - **[`voi_wasm`](/api/rust/voi_wasm/index.html)** — a `wasm-bindgen` binding
+  (a tool that generates the glue code needed to call Rust from JavaScript),
   compiled to WebAssembly and loaded by the in-browser studio.
 
 A [combined landing page](/api/rust/index.html) links all three crates'
