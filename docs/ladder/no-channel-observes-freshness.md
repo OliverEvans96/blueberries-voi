@@ -111,10 +111,12 @@ distribution is what lets richer channels actually produce a measurably sharper 
 freshness number.** An earlier design considered measuring how long a unit had been in
 transit and converting that duration directly into one freshness value. That conversion
 collapses everything onto a single point, which conflicts with the principle above: it
-would silently discard the very uncertainty a richer channel is supposed to reveal. This
-approach isn't used by any current observation scenario — it survives only as a
-separate, non-production research path (see the fields and helpers listed in the table
-below).
+would silently discard the very uncertainty a richer channel is supposed to reveal. The
+corresponding fields (`ObsMask::age_at_receipt`, `RichDay::age_at_receipt`,
+`FilterObs::age_at_receipt`) and helper functions (`f_at_receipt_from_age`,
+`birth_f_f2_dirac`) from that design are not part of the current, live code path — this
+approach isn't used by any current observation scenario. It survives only as a separate,
+non-production research path.
 
 ## In the code
 
@@ -129,7 +131,6 @@ below).
 | $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$ | `store_temp_factor(t_store_c, t_ref_c, q10)` | `crates/voi_core/src/physics.rs:38` |
 | Filter's own choice of condition, per-day, from the day's observation record | `resolve_arrival_f_law(obs, q10, t_ref)` | `crates/voi_core/src/unit_pf.rs:298` |
 | No freshness-valued field on the wire | `struct FilterObs { .. temp_times_d, temp_temps_c, pack_date_days .. }` (no `f` field) | `crates/voi_core/src/obs.rs:90` |
-| Rejected design: observed duration converted straight to a freshness scalar (`ObsMask::age_at_receipt`, `RichDay::age_at_receipt`, `FilterObs::age_at_receipt`, `f_at_receipt_from_age`, `birth_f_f2_dirac`) — none of this is on the live path | — | `crates/voi_core/src/obs.rs`, `crates/voi_core/src/physics.rs` |
 | Retired duration↔freshness mapping (legacy Weibull — a smooth decay curve — salvage path only, not a production observation scenario) | `age_to_f`, `f_to_age` | `crates/voi_core/src/physics.rs:19`, `crates/voi_core/src/physics.rs:30` (used at `crates/voi_core/src/rollout.rs:111`) |
 
 ## Caveats

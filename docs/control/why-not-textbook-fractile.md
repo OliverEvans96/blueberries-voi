@@ -46,7 +46,7 @@ Tuning $\alpha$ by simulation recovers, empirically, a correction that the peris
 
 | Concept | Symbol | File:line |
 | --- | --- | --- |
-| Service-level target consumed by the ordering rule (the service-level policy, `rung0`) | $\alpha$ | `src/blueberries_voi/controller/rung0.py:60` (`CorrectedAgeBlindPolicy.__init__`, default `alpha: float = 0.9`) |
+| Service-level target consumed by the ordering rule | $\alpha$ | `src/blueberries_voi/controller/rung0.py:60` (`CorrectedAgeBlindPolicy.__init__`, default `alpha: float = 0.9`) |
 | Protection-interval demand quantile $F^{-1}(\alpha)$ (Rust) | $F^{-1}_{D_{t:t+L}}(\alpha)$ | `crates/voi_core/src/policy.rs:143` ([`protection_demand_quantile`](/api/rust/voi_core/policy/fn.protection_demand_quantile.html)) |
 | Order rule consuming $\alpha$ to produce $q_t$ (Rust) | $q_t$ | `crates/voi_core/src/policy.rs:246` ([`damped_sw_order_f_belief`](/api/rust/voi_core/policy/fn.damped_sw_order_f_belief.html)) |
 | Protection-interval demand quantile $F^{-1}(\alpha)$ (Python mirror) | $F^{-1}_{D_{t:t+L}}(\alpha)$ | `src/blueberries_voi/model/demand_fractile.py:91` (`protection_interval_quantile`) |

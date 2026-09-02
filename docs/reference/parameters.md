@@ -257,7 +257,9 @@ that live in TypeScript and are not part of the core Rust parameter set itself.
   setpoints are anchored to the break-free temperature centre; $\sigma_\text{pos}$ remains a
   documented adjustment knob rather than a fitted value.
 - The retired truncated-normal transit-temperature fields (`mu_T`, `sigma_T`, `temp_floor_c`)
-  have been replaced by the legged baseline plus break-episode model described above and are
+  — originally specified under design record ADR 0148, since superseded by ADR 0150 for the
+  transit-temperature approach specifically (ADR 0148's duration-fitting work is still current)
+  — have been replaced by the legged baseline plus break-episode model described above and are
   no longer used.
 - Control damping uses a parameter also named `rho` in `session.rs` — this is unrelated to the
   break hazard $\rho$ in the arrival artifact; the two happen to share a symbol, not a meaning.
