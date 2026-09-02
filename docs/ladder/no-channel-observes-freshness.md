@@ -1,5 +1,5 @@
 ---
-title: No channel observes freshness
+title: No channel ever observes freshness
 sources:
   code:
     [
@@ -12,14 +12,14 @@ sources:
 
 # No channel ever observes freshness
 
-Even the richest observation scenario on the [ladder](./observation-scenarios.md) — a
-full temperature-history trace read off a logger that rode with the pallet — never hands
-the filter a freshness number. It
-hands a *duration* or a *heat integral*. Freshness itself, `f`, depends on things no
+Even the richest scenario on the [ladder](./observation-scenarios.md) — the
+temperature-history scenario, where a logger rides along with the pallet and records the
+whole trip — never hands the filter a freshness number. It hands a *duration*, or a
+running total of heat exposure. Freshness itself, written $f$, depends on things no
 sensor in this model reads: exactly where a unit sat inside the pallet, and how that
-particular unit's own spoilage happened to run. This is why `FilterObs` (the struct
-every observation channel ultimately fills in) has no freshness-valued field at all —
-there is nothing in the wire format for it to fill.
+particular unit's own spoilage happened to run. That's why the internal record that
+carries a day's observations to the filter has no freshness-valued field at all — there
+is nothing in what any channel reports for such a field to hold.
 
 ## The idea
 
@@ -33,15 +33,16 @@ along with it:
   route. Integrated over the trip, that's a *cumulative thermal exposure* — a single
   number that combines how long the trip took **and** how much heat stress it involved.
 
-Neither one is a freshness reading. A five-day trip in a well-run reefer barely stresses
-the fruit; a five-day trip with the compressor cycling badly can spoil it outright. So
-even after you observe the pack date (or the full temperature trace), you still don't
-know the fruit's freshness — you know one input to it, and you're left holding a
-*distribution* over freshness that reflects everything else you still don't know:
-exactly how cold the truck ran on average, and, because a pallet isn't a single
+Neither one is a freshness reading. A five-day trip in a well-run refrigerated truck
+barely stresses the fruit; a five-day trip with the cooling system cycling badly can
+spoil it outright. So even after you observe the pack date — or the full temperature
+trace — you still don't know the fruit's freshness. You know one input to it. What
+you're left holding is a *distribution* over freshness: a spread of plausible values,
+never a single number. That spread reflects everything else you still don't know —
+exactly how cold the truck ran on average, and, because a pallet isn't all one
 temperature, where inside it any given unit happened to sit. Combine what you did
-observe with the model's prior over everything you didn't, and you get a spread of
-plausible freshness values — never a single point.
+observe with the model's prior over everything you didn't, and that spread is exactly
+what you get.
 
 That's also why upgrading the delivery-history channel (none → pack date → temperature
 history) narrows this spread rather than replacing a guess with a fact. The
@@ -56,15 +57,15 @@ The arrival model generates a unit's freshness through a short chain of unobserv
 partly-observed quantities:
 
 - $d$ — the **calendar transit duration** in days: time from pack to arrival.
-- $\bar T$ — the shipment's mean transit temperature, and $\bar\phi$ (`phi_bar`) — the
-  corresponding **duration-averaged Q10 temperature factor**,
-  $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$, where $q_{10}$ is the multiplicative
-  factor a 10 °C rise applies to spoilage rate and $T_{\text{ref}}$ is the reference
-  temperature.
-- $\psi$ (`psi`) — a **within-pallet position multiplier**, drawn independently per unit,
-  capturing that a unit in the coldest corner of the pallet ages slower than one in the
-  warmest.
-- $\Lambda$ (`Lambda`) — the **cumulative thermal exposure**, in reference-days:
+- $\bar T$ — the shipment's mean transit temperature — and $\bar\phi$ — the corresponding
+  **duration-averaged Q10 temperature factor**. Q10 is an Arrhenius-style rule from food
+  science: spoilage roughly multiplies by Q10 for every 10°C rise in temperature.
+  $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$, where $q_{10}$ is that multiplicative
+  factor and $T_{\text{ref}}$ is the reference temperature.
+- $\psi$ — a **within-pallet position multiplier**, drawn independently per unit,
+  capturing that a unit in the coldest corner of the pallet loses freshness more slowly
+  than one in the warmest.
+- $\Lambda$ — the **cumulative thermal exposure**, in reference-days:
   $$
   \Lambda = d \cdot \bar\phi \cdot \psi.
   $$
@@ -80,13 +81,15 @@ partly-observed quantities:
 
 No observation channel ever reports $f$, $\psi$, or the per-unit gamma draw directly.
 What a channel reports determines how much of this chain gets pinned down before the
-remaining pieces are integrated out:
+remaining pieces are integrated out. When there's no delivery history at all, the model
+falls back to the **corridor** — the general shipping-route and transit-time assumptions
+built into that lane — instead of anything specific to this shipment:
 
 | Delivery history | Observes | Conditions on | Integrates over |
 | --- | --- | --- | --- |
 | Temperature history | the full trace — timestamps **and** temperatures | $\Lambda$ (both $d$ and $\bar\phi$ together) | $\psi$, the per-unit gamma draw |
 | Pack date | pack date | $d$ only | $\bar T$ (hence $\bar\phi$), $\psi$, the per-unit gamma draw |
-| None | nothing about the delivery | the corridor configuration only | $d$, $\bar T$, $\psi$, the per-unit gamma draw |
+| None | nothing about the delivery | the corridor's default assumptions only | $d$, $\bar T$, $\psi$, the per-unit gamma draw |
 
 Whatever is "integrated over" in that table is exactly the source of the residual spread
 described above — it is not approximation error, it is the honest consequence of a
@@ -95,23 +98,25 @@ variable no observation scenario ever measures.
 ## Why it's modelled this way
 
 A date reveals a *calendar duration*. Freshness is derived by combining that duration
-with the modeled temperature distribution, which yields a **distribution** over `f`.
-That distribution, not a scalar, is what seeds the lot. Letting a delivery observation
-collapse straight to a single freshness number (a point mass) would silently discard
-real uncertainty: every observation scenario would then end up producing very similar
-beliefs, because
-the one place where richer information should sharpen the belief would instead be
-discarded at the conversion step. Keeping the full distribution is what lets richer
-channels actually produce a measurably sharper belief.
+with the modeled temperature distribution, which yields a **distribution** over
+freshness values, not a single number. That distribution, not a scalar, is what seeds
+the lot. Letting a delivery observation collapse straight to a single freshness number
+(a *point mass* — all the probability concentrated on one value, with no spread) would
+silently discard real uncertainty: every observation scenario would then end up
+producing very similar beliefs, because the one place where richer information should
+sharpen the belief would instead be thrown away at the conversion step. Keeping the full
+distribution is what lets richer channels actually produce a measurably sharper belief.
 
-**Alternative rejected — a direct age- or freshness-valued observation field.** A design
-that observes a measured age directly and converts it to a freshness scalar (via an
-`age_to_f` mapping) was considered and set aside: that conversion is a point mass on
-freshness, which conflicts with the invariant above. The corresponding fields
-(`ObsMask::age_at_receipt`, `RichDay::age_at_receipt`, `FilterObs::age_at_receipt`) and
-helpers (`f_at_receipt_from_age`, `birth_f_f2_dirac`) are not part of the live Rust
-path. The `age_to_f`/`f_to_age` mapping still exists, but only for a separate,
-non-production research path — it is not used by any current observation scenario.
+**Alternative rejected — converting an observed duration straight into a single
+freshness number.** An earlier design considered measuring how long a unit had been in
+transit and converting that duration directly into one freshness value. That conversion
+collapses everything onto a single point, which conflicts with the principle above: it
+would silently discard the very uncertainty a richer channel is supposed to reveal. The
+corresponding fields (`ObsMask::age_at_receipt`, `RichDay::age_at_receipt`,
+`FilterObs::age_at_receipt`) and helper functions (`f_at_receipt_from_age`,
+`birth_f_f2_dirac`) from that design are not part of the current, live code path — this
+approach isn't used by any current observation scenario. It survives only as a separate,
+non-production research path.
 
 ## In the code
 
@@ -120,28 +125,29 @@ non-production research path — it is not used by any current observation scena
 | Channel-conditional arrival law, mutually exclusive cases | `enum ArrivalCondition { Exposure(f64), Duration(i32), Prior }` | `crates/voi_core/src/arrival.rs:75` |
 | Temperature-history case: conditions on the full exposure $\Lambda$ | `ArrivalCondition::Exposure(f64)` | `crates/voi_core/src/arrival.rs:77` |
 | Pack-date case: conditions on duration $d$ only | `ArrivalCondition::Duration(i32)` | `crates/voi_core/src/arrival.rs:79` |
-| No-delivery-history case: corridor prior only | `ArrivalCondition::Prior` | `crates/voi_core/src/arrival.rs:81` |
+| No-delivery-history case: corridor default only | `ArrivalCondition::Prior` | `crates/voi_core/src/arrival.rs:81` |
 | Exact $\Lambda$ from an observed trace (the temperature-history integral) | `resolve_arrival_exposure(obs_temps, obs_times, q10, t_ref)` | `crates/voi_core/src/arrival.rs:2334` |
 | $P(f>x \mid \Lambda)$ / $P(f=0 \mid \Lambda)$ | `ArrivalModel::p_f_gt_at`, `ArrivalModel::p_f_zero` | `crates/voi_core/src/arrival.rs:1297`, `crates/voi_core/src/arrival.rs:1324` |
 | $\bar\phi = q_{10}^{(\bar T - T_{\text{ref}})/10}$ | `store_temp_factor(t_store_c, t_ref_c, q10)` | `crates/voi_core/src/physics.rs:38` |
-| Filter's own choice of condition, per-day, from `FilterObs` | `resolve_arrival_f_law(obs, q10, t_ref)` | `crates/voi_core/src/unit_pf.rs:298` |
+| Filter's own choice of condition, per-day, from the day's observation record | `resolve_arrival_f_law(obs, q10, t_ref)` | `crates/voi_core/src/unit_pf.rs:298` |
 | No freshness-valued field on the wire | `struct FilterObs { .. temp_times_d, temp_temps_c, pack_date_days .. }` (no `f` field) | `crates/voi_core/src/obs.rs:90` |
-| Retired age↔freshness mapping (legacy Weibull salvage path only, not a production observation scenario) | `age_to_f`, `f_to_age` | `crates/voi_core/src/physics.rs:19`, `crates/voi_core/src/physics.rs:30` (used at `crates/voi_core/src/rollout.rs:111`) |
+| Retired duration↔freshness mapping (legacy Weibull — a smooth decay curve — salvage path only, not a production observation scenario) | `age_to_f`, `f_to_age` | `crates/voi_core/src/physics.rs:19`, `crates/voi_core/src/physics.rs:30` (used at `crates/voi_core/src/rollout.rs:111`) |
 
 ## Caveats
 
 - $\psi$ (within-pallet position) and the per-unit gamma draw are **never** observed by
-  any observation scenario, including the richest one (lot ID + pack date + temperature
-  history). That is a deliberate floor on how sharp belief can ever get — and part of
-  the reason units within one lot arrive with genuinely different freshness — not a gap
-  this project intends to close with a richer channel.
+  any observation scenario, including the richest one — the temperature-history
+  scenario, which also carries an LGTIN (a lot-level identifier that pins the shipment
+  down to one production batch of one product) and a pack date. That is a deliberate
+  floor on how sharp belief can ever get — and part of the reason units within one lot
+  arrive with genuinely different freshness — not a gap this project intends to close
+  with a richer channel.
 - The whole arrival chain models the **refrigerated leg only**. The harvest-to-precool
   field-heat window before refrigeration starts is out of scope, so the freshness this
   model reports at arrival is an upper bound — real arrival freshness is likely somewhat
   lower than what any observation scenario, including the richest one, would infer.
 - The conditional laws ($P(f>x\mid\Lambda)$, the $d$-marginal for the pack-date case) are
-  built from
-  **assumed parametric families calibrated by hand against six shipments**, not fit by
-  maximum likelihood — six shipments is not enough data to support a fitted claim. Treat
-  the shape of these distributions as a documented modeling choice, not a measured fact
-  about the actual cold chain.
+  built from **assumed parametric families calibrated by hand against six shipments**,
+  not fit by maximum likelihood — six shipments is not enough data to support a fitted
+  claim. Treat the shape of these distributions as a documented modeling choice, not a
+  measured fact about the actual cold chain.

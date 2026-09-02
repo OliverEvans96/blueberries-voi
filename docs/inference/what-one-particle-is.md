@@ -24,7 +24,7 @@ $$
 f^{(i)} = \left(f^{(i)}_1, \dots, f^{(i)}_{M}\right), \qquad f^{(i)}_j \in [0, 1]
 $$
 
-where $M$ is the current number of live-or-dead slots on the shelf (it grows by one delivery's width on each arrival). This vector is partitioned into $L$ lot segments by a set of offsets
+where $M$ is the current number of live-or-dead slots on the shelf (it grows by one delivery's width on each arrival). Picture that vector as one long spreadsheet row, sliced into contiguous chunks — one chunk per delivery, in the order the deliveries arrived. We mark where each chunk starts and ends with a list of boundary markers, called offsets: $L$ lot segments are defined by a set of offsets
 
 $$
 0 = o_0 < o_1 < \dots < o_L = M
@@ -40,13 +40,13 @@ Because the offsets $o_0, \dots, o_L$ and lot ids do not carry a particle index 
 
 ## Why it's modelled this way
 
-Sharing the lot segmentation across particles, rather than letting each particle infer its own boundaries, is a deliberate simplification: delivery quantity is treated as directly observed truck-manifest data, not as something worth spending particle diversity on. Units within a lot age and spoil individually — each live unit draws its own daily decrement, rather than a single shared decrement for the whole lot — while the observed segmentation itself stays shared.
+Sharing the lot segmentation across particles, rather than letting each particle infer its own boundaries, is a deliberate simplification: delivery quantity is treated as directly observed truck-manifest data, not as something worth spending particle diversity on. Units within a lot lose freshness and spoil individually — each live unit draws its own daily decrement, rather than a single shared decrement for the whole lot — while the observed segmentation itself stays shared.
 
-**Alternative considered: let each particle guess its own lot boundaries** (re-derive them from row length, or free-running per-particle segmentation). Guessed boundaries drift apart from the true delivery boundaries over an episode, so the lot-resolved observation channel would end up scoring the wrong slots against the wrong evidence, degrading it toward an uninformative bootstrap filter. Tying every particle to one observed segmentation, built directly from the arrival stream, avoids that.
+**Alternative considered: let each particle guess its own lot boundaries** (re-derive them from row length, or free-running per-particle segmentation). Guessed boundaries drift apart from the true delivery boundaries over an episode, so the lot-resolved observation channel would end up scoring the wrong slots against the wrong evidence. Once that happens, the filter can no longer tell which slots a piece of lot-level evidence is really about, so that evidence stops being useful at all. Tying every particle to one observed segmentation, built directly from the arrival stream, avoids that.
 
 **Alternative considered: start particles pre-filled with plausible inventory.** Every particle bank and the physical shelf both start empty instead, with inventory entering only through observed arrivals — pre-filling would produce persistent "phantom" belief mass that doesn't correspond to anything the store actually received.
 
-**Caveat:** because arrival quantity is shared and only freshness is stochastic per particle, the filter is structurally unable to represent uncertainty about *how many* units arrived — if that number is ever wrong on the wire (a miscount, a data error), no particle in the bank can express doubt about it. That's a deliberate trade: a much simpler and faster filter, in exchange for treating delivery counts as ground truth.
+**Caveat:** because arrival quantity is shared and only freshness is stochastic per particle, the filter is structurally unable to represent uncertainty about *how many* units arrived — if that number is ever wrong on the wire (a miscount, a data error), no particle in the bank can express doubt about it. That's a deliberate trade: a much simpler and faster filter, in exchange for treating delivery counts as certain, unquestionable fact.
 
 ## In the code
 
@@ -63,4 +63,4 @@ Sharing the lot segmentation across particles, rather than letting each particle
 
 ## Caveats
 
-This page describes the state's *layout*, not how it's updated day to day (aging, sales, spoilage scoring) — that's covered on the filter-step page. It also doesn't cover how a unit's initial freshness is drawn at birth (the arrival model), only how the resulting values are organized once a delivery lands in the bank. And as noted above, the shared-segmentation design means arrival *quantity* is out of scope for what this filter can express uncertainty about — only arrival *freshness* is.
+This page describes the state's *layout*, not how it's updated day to day (freshness loss, sales, spoilage scoring) — that's covered on the filter-step page. It also doesn't cover how a unit's initial freshness is drawn at birth (the arrival model), only how the resulting values are organized once a delivery lands in the bank. And as noted above, the shared-segmentation design means arrival *quantity* is out of scope for what this filter can express uncertainty about — only arrival *freshness* is.

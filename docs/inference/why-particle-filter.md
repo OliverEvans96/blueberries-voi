@@ -8,7 +8,7 @@ sources:
 
 The store never sees the shelf directly — only sales, and sometimes waste counts or a lot ID. Turning those partial signals into a belief about what's actually on the shelf requires something that represents "what the shelf plausibly looks like right now" and updates that representation as each day's numbers come in. The model's state doesn't look like the smooth, single-hump distributions most textbook filters assume, so the choice of filtering method follows from the shape of the state itself.
 
-This is an actual filter output (books-only observations, day 24 of an episode): the freshness marginal across bins is lumpy and multi-modal, not a bell curve, and can sit far from the true freshness when observations are sparse — exactly the kind of shape a Gaussian summary would flatten out.
+For example, in one actual run using only books-only observations, by day 24 the filter's belief about freshness across bins was lumpy and multi-modal, not a bell curve — and it could sit far from the true freshness when observations were sparse, exactly the kind of shape a Gaussian summary would flatten out.
 
 ## The idea
 
@@ -20,41 +20,25 @@ Picture the true state of a shelf as a long list of numbers, one per unit curren
 
 A filter that assumes the state is a single smooth, symmetric bump (the working assumption behind Kalman-style filters) would have to iron out the spike at zero and the discreteness of "who got picked" to fit that shape — throwing away exactly the structure that matters for deciding when to reorder. Writing down the state's distribution exactly, unit by unit, also gets expensive fast: with many units spread across several lots, there are far too many ways sales and spoilage could have played out to enumerate.
 
-The practical alternative is to stop trying to describe the state with a formula and instead keep a **crowd of complete, concrete guesses** — call each one a *particle*. Each particle is one fully-specified hypothetical shelf: a freshness value for every unit that could be alive right now. Every day, each particle is aged forward, has sales and spoilage applied to it the same combinatorial way the real shelf would experience them, and is then scored against what was actually observed — particles whose story matches the observations better are kept more heavily, in proportion to how well they explain the data. With enough particles, the crowd's shape approximates the true state's shape — spike at zero, discreteness, and all — without writing that shape down as a formula.
+The practical alternative is to stop trying to describe the state with a formula and instead keep a **crowd of complete, concrete guesses** — call each one a *particle*. Each particle is one fully-specified hypothetical shelf: a freshness value for every unit that could be alive right now. Every day, each particle loses a little freshness, has sales and spoilage applied to it the same combinatorial way the real shelf would experience them, and is then scored against what was actually observed — particles whose story matches the observations better are kept more heavily, in proportion to how well they explain the data. With enough particles, the crowd's shape approximates the true state's shape — spike at zero, discreteness, and all — without writing that shape down as a formula.
 
 ## The math
 
-The filter's job each day is to turn yesterday's belief into today's belief given the new observation $y_t$ (sales, and possibly waste or lot IDs):
+Each day, the filter turns yesterday's belief into today's belief in four stages. First, every particle's units lose a little freshness, and any unit whose freshness crosses zero is marked spoiled. Second, that day's sales are drawn as a freshness-weighted lottery without replacement, the same "lottery" idea described above. Third, each particle is reweighted by how well its resulting story matches what was actually observed that day — sales, and possibly waste counts or lot IDs — and the crowd is periodically resampled: particles with tiny weight are dropped and particles with large weight are duplicated, so the crowd keeps tracking the informative region of the state space instead of collapsing its weight onto one lucky particle. Fourth, any new deliveries are added to the crowd as freshly-arrived lots, so tomorrow's update has them to work with.
 
-$$
-p(x_t \mid y_{1:t}) \;\propto\; p(y_t \mid x_t)\, p(x_t \mid x_{t-1})
-$$
+No Gaussian, no closed-form update: the point mass at $f=0$ (all the probability concentrated on a single value, with no spread), the without-replacement sales draw, and the threshold spoilage event are all represented directly by what the particles do, not approximated away by an assumed shape.
 
-where $x_t$ is the full shelf state (every live unit's freshness $f$, grouped into lots). A particle filter approximates this posterior with $N$ weighted particles $\{x_t^{(i)}, w_t^{(i)}\}_{i=1}^N$:
-
-$$
-p(x_t \mid y_{1:t}) \;\approx\; \sum_{i=1}^{N} w_t^{(i)}\, \delta\!\left(x_t - x_t^{(i)}\right)
-$$
-
-Each day, every particle is aged forward under the same gamma-decrement process the ground truth uses, sales and spoilage are applied consistently with what was actually observed, and its weight $w_t^{(i)}$ is updated by how well that particle's story matches the day's observation:
-
-$$
-w_t^{(i)} \;\propto\; w_{t-1}^{(i)} \cdot p\!\left(y_t \mid x_t^{(i)}\right)
-$$
-
-Periodically the particles are **resampled** — particles with tiny weight are dropped and particles with large weight are duplicated — so the crowd keeps tracking the informative region of the state space instead of collapsing its weight onto one lucky particle. In this codebase that's `systematic_resample`, used inside `filter_step_unit` in `unit_pf.rs`.
-
-No Gaussian, no closed-form update: the point mass at $f=0$, the without-replacement sales draw, and the threshold spoilage event are all represented directly by what the particles do, not approximated away by an assumed shape.
+For the full mechanics of one day's update — the exact resampling method, the observation likelihood, and how new lots are added — see [One filter day, in full](/inference/one-filter-day).
 
 ## Why it's modelled this way
 
-The unit-level, freshness-native particle filter (`unit_pf.rs`) runs the real generative process directly — gamma aging per unit, freshness-weighted picking, spoilage at $f \le 0$ — at production speed (roughly 12 ms/day for 200 particles at a modest shelf size). There's no accuracy-for-speed trade to make here: exact particle-level simulation of the real process is already fast enough.
+This unit-level, freshness-native particle filter runs the real generative process directly — gradual freshness loss per unit, freshness-weighted picking, spoilage once freshness hits zero — at production speed (roughly 12 ms/day for 200 particles at a modest shelf size). There's no accuracy-for-speed trade to make here: exact particle-level simulation of the real process is already fast enough.
 
-**Alternative considered: a cohort/age abstraction with an analytic survival curve.** Tracking a lot as a single count-and-age pair, with a Weibull survival curve standing in for spoilage, doesn't match the picking and spoilage physics unit-for-unit — a cohort abstraction can't represent that different units within the same lot drift apart in freshness and die individually, which is exactly what a richer observation channel (per-lot waste or sales counts) needs to be informative about.
+**Alternative considered: tracking each lot as a single count and calendar age, with an analytic survival curve.** This alternative would summarize a lot by how many units it has left and how long ago it arrived — calendar time on the shelf, not the freshness state this model actually tracks — and use a Weibull survival curve (a smooth decay curve) to stand in for spoilage. That doesn't match the picking and spoilage physics unit-for-unit: a cohort abstraction can't represent that different units within the same lot drift apart in freshness and die individually, which is exactly what a richer observation channel (per-lot waste or sales counts) needs to be informative about.
 
 **Alternative considered: grid/exact enumeration of the joint state.** Feasible in principle for a single lot, but the state space grows combinatorially with the number of live units and lots, and production shelves carry several lots of roughly 15 units each simultaneously.
 
-**Caveat:** a particle filter is an approximation, not an exact posterior. Its fidelity depends on having enough particles ($N=200$ by default, `session.rs`) to cover the state space, and on resampling often enough to avoid weight collapse. It also costs more per step than a closed-form filter would, which is why this design only makes sense because the per-day compute budget comfortably absorbs that cost.
+**Caveat:** a particle filter is an approximation, not an exact posterior. Its fidelity depends on having enough particles (200 by default) to cover the state space, and on resampling often enough to avoid weight collapse. It also costs more per step than a closed-form filter would, which is why this design only makes sense because the per-day compute budget comfortably absorbs that cost.
 
 ## In the code
 
@@ -71,4 +55,4 @@ The unit-level, freshness-native particle filter (`unit_pf.rs`) runs the real ge
 
 ## Caveats
 
-A particle filter trades exactness for tractability: it's an approximate posterior built from a finite sample, so it can lose track of low-probability but real scenarios if too few particles land near them, and its accuracy is only as good as the resampling schedule and particle count allow. It also doesn't explain *why* the state has this shape (that's the arrival and aging model, covered elsewhere) — this page only justifies the choice of inference method given that shape.
+A particle filter trades exactness for tractability: it's an approximate posterior built from a finite sample, so it can lose track of low-probability but real scenarios if too few particles land near them, and its accuracy is only as good as the resampling schedule and particle count allow. It also doesn't explain *why* the state has this shape (that's the arrival and freshness-loss model, covered elsewhere) — this page only justifies the choice of inference method given that shape.

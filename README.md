@@ -41,15 +41,53 @@ Individual extras remain available for `pip install blueberries-voi[…]` consum
 | `rust` | maturin (PyO3 extension builds) |
 | `modal` | Modal batch map for notebook heavy jobs |
 
+## Notebooks
+
+`uv sync` (above) already installs the `notebooks` extra (Jupyter, ipykernel,
+tqdm, Ax BO). The interactive controller notebooks additionally need the
+native Rust kernel (`blueberries_voi._core`, built with PyO3 via maturin),
+which is a separate step from `uv sync`:
+
+```bash
+uv run --python 3.11 maturin develop --release -m crates/voi_py/Cargo.toml
+uv run jupyter lab notebooks/
+```
+
+This needs a Rust toolchain ([rustup.rs](https://rustup.rs/)); the first build
+takes a few minutes. Re-run `maturin develop` after pulling changes to
+`crates/voi_core/` or `crates/voi_py/`. If your editor's kernel picker doesn't
+see the uv-managed environment, register one explicitly:
+
+```bash
+uv run --python 3.11 python -m ipykernel install --user --name blueberries-voi
+```
+
+### Build your own controller
+
+Open [`notebooks/build_your_own_controller.ipynb`](notebooks/build_your_own_controller.ipynb)
+and run its cells top to bottom — the first code cell should print
+`Rust backend ready.` (it raises with the exact `maturin develop` command
+above if the extension isn't built yet). Then edit `NaiveBaseStockController`
+— or write your own class implementing `order(ctx: ControllerContext) -> int`
+— and re-run the benchmark cells to compare it against the production
+damped survival-weighted policy (`session.act(policy="damped_sw")`) on paired
+evaluation seeds. The notebook's own “Getting started” cell has the full
+walkthrough (including a troubleshooting table) if any step above doesn't
+work as described.
+
+Put new notebooks under `notebooks/` and import `blueberries_voi` rather than
+copying logic into cells.
+
 ## Interactive studio
 
 The studio (`web/`) is a Vite + D3 store simulator. You can step day by day,
 choose among six observation levels (books-only through age at receipt), and
 Autopilot-play with controller policy knobs.
 
-The live engine runs in a **Web Worker** with the wasm-pack kernel at `/wasm/`
-(ADR 0129). There is no in-browser Python path and no local HTTP session API —
-notebooks and CLI still use the native PyO3 `EngineSession`.
+The live engine runs in a **Web Worker** with the wasm-pack kernel bundled
+directly by Vite (ADR 0129 / ADR 0139). There is no in-browser Python path and
+no local HTTP session API — notebooks and CLI still use the native PyO3
+`EngineSession`.
 
 Open the UI at **http://127.0.0.1:5173** after Vite starts. The footer says
 “Live WASM studio”; the header chip is Loading / Ready / Error. `mock` is
@@ -59,7 +97,7 @@ One-time frontend install (from the repo root):
 
 ```bash
 cd web
-cp .env.example .env.local   # optional; launcher sets WASM URLs without this
+cp .env.example .env.local   # optional; not required for local dev
 npm install
 ```
 
@@ -72,18 +110,23 @@ Build the Rust kernel (needs `rustc` and `wasm-pack`), then launch the studio:
 
 From `web/` you can use `npm run studio` (thin alias for the same script).
 
-Vite serves the worker at `/packaging/wasm/worker.js` and the wasm-pack output
-at `/wasm/` from `packaging/wasm/pkg/` (dev middleware; no `web/public`
-symlinks). If `packaging/wasm/pkg/` is missing, the launcher reminds you to run
+Vite bundles the worker (`web/src/engine/wasmWorker.ts`) and the wasm-pack
+output (`web/src/wasm/`, gitignored) directly — no dev-middleware URL rewrite.
+`build-wasm.sh` also copies the same artifacts to `packaging/wasm/pkg/` for
+legacy Node smoke/bench scripts that still import from there. If
+`web/src/wasm/` is missing, the launcher reminds you to run
 `./scripts/build-wasm.sh`. Rebuild after Rust crate changes. Smoke the kernel
 with `./scripts/smoke-wasm.sh` (see
 [`packaging/wasm/README.md`](packaging/wasm/README.md)).
 
 ### Env flags
 
-`web/.env.example` and `./scripts/studio.sh` document the same keys. The
-launcher sets `VITE_ENGINE_ADAPTER=wasm` plus `VITE_WASM_WORKER_URL` and
-`VITE_WASM_PKG_URL`. `mock` is debug-only and is never selected by the launcher.
+`web/.env.example` documents the same keys. The launcher (`studio.sh`) only
+sets `VITE_ENGINE_ADAPTER=wasm` — by default Vite bundles the worker and wasm
+pkg directly, so no URLs are required. `VITE_WASM_WORKER_URL` and
+`VITE_WASM_ASSET_BASE_URL` (legacy alias `VITE_WASM_PKG_URL`) are optional
+overrides for CDN hosting. `mock` is debug-only and is never selected by the
+launcher.
 
 ## Studio embed releases
 
@@ -164,15 +207,6 @@ npm test                      # vitest
 ```
 
 See `AGENTS.md` for the role gate ladder, conflict policy, and LFS notes.
-
-## Notebooks
-
-```bash
-uv run jupyter lab
-```
-
-Put notebooks under `notebooks/` and import `blueberries_voi` rather than
-copying logic into cells.
 
 ## CLI
 

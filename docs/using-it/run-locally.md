@@ -6,11 +6,13 @@ sources:
 
 # Run it locally
 
-Everything on this site can be run on your own machine: the Python package that notebooks and the CLI import, and the interactive browser studio that runs the same physics compiled to WebAssembly. The two have separate setup steps because they're separate build targets from one shared Rust core, not two independent implementations of the model.
+Everything on this site can be run on your own machine: the Python package that the notebooks and command-line tool import, and the interactive browser studio that runs the same simulation compiled to WebAssembly — a format that lets compiled code run directly in a browser. Setting each one up looks a little different, because they're two separate build targets. But both compile from the same shared Rust code underneath, not two separate copies of the model.
 
 ## The idea
 
-The model's hot compute lives in one place — the Rust crate `voi_core` — with two doors into it. Python notebooks, the CLI, and pytest reach it through a PyO3 extension built by `uv`. The browser studio reaches the *same* Rust code through a `wasm-pack` build compiled to WebAssembly and loaded by Vite. Getting notebooks running only needs Python tooling; getting the interactive studio running also needs a working Rust toolchain, because the browser's copy of the physics has to be compiled from source before Vite can serve it.
+Running things locally lets you reproduce the numbers on this site yourself, poke at the model beyond what the docs show, or make a change and see its effect right away in the interactive studio. Here's how the pieces fit together, and how to get each one running.
+
+The model's core computation lives in one place — a Rust code library called `voi_core` (in Rust, a packaged unit of code like this is called a "crate") — with two doors into it. Python notebooks, the command-line tool, and the test suite reach it through PyO3, a tool that lets Python code call directly into compiled Rust. The browser studio reaches the *same* Rust code by compiling it to WebAssembly with a tool called `wasm-pack`, then loading the result with Vite, the frontend build tool. Getting notebooks running only needs Python tooling. Getting the interactive studio running also needs a working Rust toolchain, because the browser's copy of the simulation has to be compiled from source before Vite can serve it.
 
 ### Python package, CLI, and notebooks
 
@@ -30,7 +32,7 @@ uv run jupyter lab         # notebooks
 
 ### Interactive studio
 
-The studio needs a one-time frontend install and a Rust→WASM build before its first launch.
+The studio needs a one-time frontend install and a Rust-to-WebAssembly build before its first launch.
 
 ```bash
 cd web
@@ -40,17 +42,17 @@ cd ..
 ./scripts/studio.sh         # launches the Vite dev server
 ```
 
-`./scripts/studio.sh` sets the engine adapter to the live WASM kernel and starts Vite; open the URL it prints (`http://127.0.0.1:5173` by default) in a browser. From `web/` you can also run `npm run studio`, a thin alias for the same launcher script.
+`./scripts/studio.sh` points the studio's engine adapter — the layer that lets the browser talk to the simulator — at the compiled simulator code running inside the browser, then starts Vite. Open the URL it prints (`http://127.0.0.1:5173` by default) in a browser. From `web/` you can also run `npm run studio`, a shorter alias for the same launcher script.
 
 **Rebuild after any change under `crates/`.** `./scripts/build-wasm.sh` compiles `crates/voi_wasm` to `web/src/wasm/`, which Vite bundles directly — the studio does not re-read Rust source, so editing physics or filter code in Rust has no effect on the browser until you rerun the build script and reload.
 
-To sanity-check the Rust↔WASM build in isolation, without the browser or Vite:
+To sanity-check the Rust-to-WebAssembly build in isolation, without the browser or Vite:
 
 ```bash
 ./scripts/smoke-wasm.sh
 ```
 
-This builds `voi_wasm` for a Node target and drives the same init/reset/step/act contract the browser worker uses, checking that responses have the shape the studio expects.
+This builds `voi_wasm` for a Node.js target and drives it through the same request/response cycle the browser uses, checking that its responses have the shape the studio expects.
 
 ### Rust API docs (rustdoc)
 
@@ -66,9 +68,9 @@ hand-authored landing page linking the three crates together, into
 
 ## Why it's modelled this way
 
-The model's hot compute lives in one Rust crate, reachable from both Python (via PyO3) and the browser (via `wasm-bindgen`), rather than a second from-scratch implementation of the physics in JavaScript or running Python itself in the browser (Pyodide). A shared kernel means the studio and the notebooks can't quietly drift apart on how freshness decays or how demand is drawn — there is exactly one implementation to keep correct. Other language choices for the shared core (Julia, Numba/Cython) were set aside because none gives a browser target without still needing something like Pyodide. Rust and NumPy random-number streams are not made bit-identical, because NumPy's generator isn't a public bit-stable contract to port against; instead Rust and Python paths are held to matching moments/distributions in tests, not identical numbers.
+The model's core computation lives in one Rust code library, reachable from both Python (via PyO3) and the browser (via `wasm-bindgen`, the tool that connects Rust to JavaScript). The alternative would have been a second, from-scratch implementation of the simulation written in JavaScript, or running Python itself inside the browser using a tool called Pyodide — either way, a second copy of the model to keep in sync with the first. A single shared implementation means the studio and the notebooks can't quietly drift apart on how freshness decays or how demand is drawn: there's exactly one version of the logic to keep correct. Other language choices for the shared core, like Julia or Numba/Cython, were set aside because none of them gives a browser target without still needing something like Pyodide. Rust's and NumPy's random-number generators don't produce identical output from the same seed — there's no public specification for NumPy's generator to match bit-for-bit against. Instead, tests check that the Rust and Python paths produce matching summary statistics (moments, like the mean and variance) and matching distributions, not identical numbers.
 
-**Caveat.** This design's cost is the extra local build step above. Python is the source of truth for citeable VOI numbers, and the repo carries two working implementations of the same physics rather than one — so a change to the model has to be made (or at least checked) in both places, and anyone running the studio locally needs a working Rust toolchain that notebook-only users don't.
+**Caveat.** This design's cost is the extra local build step described above. Python is the source of truth for the Value of Information (VOI) numbers published on this site. The project also carries two working implementations of the same physics rather than one, so a change to the model has to be made — or at least checked — in both places. And anyone running the studio locally needs a working Rust toolchain that notebook-only users don't.
 
 ## In the code
 
@@ -77,15 +79,15 @@ The model's hot compute lives in one Rust crate, reachable from both Python (via
 | Python package + all extras | `uv sync` | `README.md:21` |
 | Test suite | `uv run pytest` | `README.md:155` |
 | CLI entry point | `uv run blueberries-voi --help` | `README.md:180` |
-| Rust→WASM build (crate → `web/src/wasm/`, mirrored to `packaging/wasm/pkg/`) | `./scripts/build-wasm.sh` | `scripts/build-wasm.sh:13` |
+| Rust-to-WebAssembly build (crate → `web/src/wasm/`, mirrored to `packaging/wasm/pkg/`) | `./scripts/build-wasm.sh` | `scripts/build-wasm.sh:13` |
 | Studio dev-server launcher (sets `VITE_ENGINE_ADAPTER=wasm`, runs Vite) | `./scripts/studio.sh` | `scripts/studio.sh:8` |
 | Same launcher via npm | `npm run studio` (from `web/`) | `web/package.json:18` |
-| WASM kernel contract smoke test (Node target) | `./scripts/smoke-wasm.sh` | `scripts/smoke-wasm.sh:1` |
+| Compiled-simulator response check, Node.js target (drives the `init`/`reset`/`step`/`act` calls) | `./scripts/smoke-wasm.sh` | `scripts/smoke-wasm.sh:1` |
 | Engine adapter env flags (`wasm` default; `mock` debug-only) | `web/.env.example` | `web/.env.example:4` |
 | Rust API docs (rustdoc) build | `./scripts/build-rustdoc.sh` | `scripts/build-rustdoc.sh:1` |
 
 ## Caveats
 
 - `mock` is a debug-only engine adapter (`VITE_ENGINE_ADAPTER=mock`) and is never selected silently by the launcher script — if you see mock data in the studio, an environment variable was set explicitly.
-- The Rust↔Python golden tests hold deterministic kernels to tight numeric tolerance and stochastic paths to matching moments, not bit-identical output — do not expect a Rust run and a Python run seeded the same way to produce byte-identical traces.
+- The tests that compare Rust and Python — regression tests that check outputs stay consistent — hold the deterministic parts of the simulation to a tight numeric tolerance, and the random parts to matching summary statistics (moments, like the mean and variance), not identical output. Don't expect a Rust run and a Python run seeded the same way to produce byte-for-byte identical results.
 - These are the commands this page could verify against `README.md` and the scripts themselves; other repo scripts under `scripts/` and `packaging/` exist for CI and release workflows and are out of scope here.

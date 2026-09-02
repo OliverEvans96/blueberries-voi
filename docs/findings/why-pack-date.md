@@ -14,131 +14,138 @@ sources:
 # Why a pack date does so much
 
 [The previous finding](./does-belief-sharpen) showed that adding a supplier pack date to
-the delivery record cuts belief error roughly 3× — the largest single step on the whole
-knowledge ladder — while a full temperature-logger trace on top of that pack date buys a
-smaller further gain under the *old* model, but a **larger** one now that cold-chain breaks
-and a generative trace replace the retired truncated-normal temperature law (ADR 0150). This
-page explains why duration still dominates, and why the temperature channel finally has
-something real left to learn once a pack date is known.
+the delivery record cuts belief error by more than half — the single biggest jump on the
+observation ladder. A full temperature-logger trace on top of that pack date used to buy
+only a small further gain, but it buys a **larger** one now: the model simulates cold-chain
+breaks directly instead of faking a temperature trace to match a number drawn elsewhere.
+This page explains why trip duration still dominates, and why the temperature-history
+scenario finally has something real left to learn once a pack date is already known.
 
 ## The idea
 
-Every delivery's freshness at arrival is driven by one number: cumulative thermal exposure
-Λ (roughly "duration times average heat," plus break damage when the chain fails). Two
-things could make Λ vary from one truck to the next: the trip could take a different number
-of days, or the truck could run warmer or suffer cold-chain breaks. If you only get to
-observe *one* of those two things, which one explains the most variation?
+Every delivery's freshness at arrival comes down to one number: cumulative thermal
+exposure, written Λ (Lambda) — roughly "how long the trip took, times how warm it ran,"
+plus extra damage from any cold-chain breaks along the way. Two things can make Λ differ
+from one truck to the next: the trip can take a different number of days, or the truck can
+run warmer, or worse, suffer a cold-chain break (a stop, a door left open). If you could
+only observe *one* of those two things — duration or temperature — which one would tell
+you more?
 
-Measured against the six real Abdella cold-chain shipments used to anchor this model's
-assumed families, **duration still swings much more than the clean-chain temperature
-factor** — roughly 1.9 to 6.5 days versus a narrow φ̄ band (roughly 1.29 to 1.48 on the
-overlay). A pack date pins calendar duration `d` — that's why it still buys so much
-belief-sharpening for so little instrumentation.
+Measured against six real refrigerated shipments used to calibrate this model's timing
+assumptions, **duration swings far more than temperature does on a clean run** — trip
+length ranges roughly 1.9 to 6.5 days, while the clean-chain temperature factor stays in a
+narrow band (roughly 1.29 to 1.48). A pack date pins down calendar duration exactly —
+that's why knowing it buys so much belief-sharpening for so little extra instrumentation.
 
-The old story overstated how little temperature could matter *after* a pack date. Under the
-retired truncated-normal sub-model (`mu_T` / `sigma_T`, now removed from the artifact),
-`shipments.rs::truth_transit_trace` **fabricated** a trace and bisected a constant offset
-until its φ̄ matched an already-drawn scalar — so the trace carried almost no information
-beyond duration plus a temperature draw that barely moved. That produced a **98.4% / 1.6%**
-split in `Var(log Λ)` between duration and φ̄. It was a measurement of six clean shipments
-*and* a modelling artifact, not a universal law.
+The older version of this model understated how much temperature could still matter once
+duration was known. It worked by drawing a temperature summary number first, then building
+a fake trace that was bent to match it — so the trace itself carried almost no information
+beyond "duration, plus a temperature draw that barely moved." That produced a **98.4% /
+1.6%** split of the shipment-to-shipment variance between duration and temperature. That
+split was really a fact about six clean shipments *and* an artifact of how the old model
+was built, not a universal law about cold chains.
 
-The current model (ADR 0150) makes the **path generative**: `truth_transit_trace` builds a
-legged baseline, punches compound-Poisson break events into it, and Λ comes back out of the
-path via `resolve_arrival_exposure` — the same integration the F3 observation channel uses.
-Break severity is **duration at a fixed break temperature**, not a wider ambient draw, so
-thermal uncertainty that a pack date cannot see is real again. At default break parameters
-(`rho = 0.08` / day, `tau_bar = 0.5` d, `T_break = 12 °C`), the artifact provenance
-documents a **~80% duration / ~20% break-thermal** share of `Var(log Λ)` — versus ~100% /
-~0% at `rho = 0` on a break-free path. A pack date still removes most shipment-level
-uncertainty by pinning `d`; a full temperature trace now mops up a **meaningful** residual,
-not a decorative 1.6% mop-up.
+The current model instead simulates the whole trip leg by leg, including realistic
+cold-chain break events — a process where disruptions like a door left open arrive randomly
+and can cluster together — and reads the thermal exposure back out of that simulated path.
+Break severity is modeled as *extra time spent at a fixed, higher break temperature*, not
+just a wider random guess at ambient temperature, so the thermal uncertainty that a pack
+date alone can't see is real again. At the model's default break settings, a full
+temperature trace now mops up a **meaningful** share of the remaining uncertainty, not the
+old model's decorative 1.6%.
 
 ## The math
 
-Define $\Lambda = d \cdot \bar\varphi \cdot \psi$ on a break-free clean chain, or more
-generally $\Lambda = d \cdot \phi_{\mathrm{set}} + \sum_j \tau_j (\phi_{\mathrm{break}} -
-\phi_{\mathrm{set}})$ when breaks occur inside total calendar duration $d$ (see
-[the cold-chain arrival model](/store/cold-chain-arrival) and ADR 0150). Decompose the log
-of the shared, per-shipment part of exposure:
+The two things driving shipment-to-shipment variation — trip duration and the thermal
+path — can be split apart the same way you'd split any two contributing causes: by looking
+at how much each one's variance contributes to the total. On a clean chain (no breaks),
+exposure is duration times an average temperature factor times a small per-unit noise term:
+$\Lambda = d \cdot \bar\varphi \cdot \psi$, where $d$ is trip duration in days, $\bar\varphi$
+is the average temperature factor over the trip, and $\psi$ is inter-lot position noise —
+each unit in a shipment doesn't experience quite the same conditions, so its own freshness
+wobbles a little around the shipment average (this matches the model's default inter-lot
+noise setting, sigma_pos = 0.08). More generally, once cold-chain breaks are allowed,
+exposure adds up the normal running time plus any break time at a warmer temperature:
+$\Lambda = d \cdot \phi_{\mathrm{set}} + \sum_j \tau_j (\phi_{\mathrm{break}} -
+\phi_{\mathrm{set}})$, where $\phi_{\mathrm{set}}$ is the temperature factor while running
+normally, $\tau_j$ is how long break $j$ lasted, and $\phi_{\mathrm{break}}$ is the
+temperature factor during a break (see [the cold-chain arrival model](/store/cold-chain-arrival)
+for the full derivation). Splitting the variance of log exposure into its two shipment-level
+sources, and setting aside the per-unit noise term above (it varies unit to unit, not trip
+to trip):
 
 $$
 \mathrm{Var}(\log \Lambda) \approx \mathrm{Var}(\log d) + \mathrm{Var}(\log \bar\varphi_{\mathrm{thermal}})
 $$
 
-(treating the dominant factors as approximately independent across shipments, and ignoring
-the per-unit position term $\psi$, which is drawn independently per unit rather than
-varying trip-to-trip).
-
-**Duration (still anchored to the six shipments).** Computed directly from the Abdella
-parquet over the refrigerated leg:
+**Duration, measured directly from the six calibration shipments:**
 
 $$
 \mathrm{Var}(\log d) = 0.205
 $$
 
-This number is a **hard calibration check** on the fitted corridor duration family — it
-does not depend on the thermal sub-model.
+This number is a hard calibration check on the fitted trip-duration assumptions — it
+doesn't depend on which thermal model is used.
 
-**Thermal piece (model-dependent).** Under the old truncated-normal + decorative trace,
-$\mathrm{Var}(\log \bar\varphi) = 0.00335$, giving the familiar **98.4% / 1.6%** duration
-share. That split is **retired** as a guard target: it mixed a real duration measurement
-with a temperature law that left almost nothing generative for F3 to observe.
+**The thermal piece is model-dependent.** Under the old, retired temperature model, the
+thermal variance was tiny (giving that familiar 98.4% / 1.6% duration-vs-temperature
+split). That split has been retired as a target: it mixed a real duration measurement with
+a temperature model that left almost nothing for a temperature trace to observe.
 
-Under the break-event model at default `rho`, the artifact provenance records a duration
-share of **~82%** of `Var(log \Lambda)` — roughly **~80% duration / ~20% break thermal**
-at the documented default parameters, a **scenario design** number, not something estimated
-from six clean chains that never broke. At `rho = 0`, duration share approaches 100% on the
-deterministic legged baseline.
+Under the current break-event model, at its default settings, duration accounts for
+roughly **~80%** of the shipment-to-shipment variance and cold-chain breaks account for the
+other **~20%** — a deliberate scenario design choice documented alongside the model, not a
+number measured from six shipments that happened never to break. With breaks turned off
+entirely, duration's share climbs back toward 100%, as on the old deterministic baseline.
 
-A pack date is observationally a duration measurement (calendar days from pack to arrival,
-once rounded to a whole day). Knowing it removes most of the shipment-level uncertainty in
-$\Lambda$ from $d$ alone. A full temperature trace adds path detail — breaks, setpoint legs,
-and (once the v2 transit plan lands) trip thermal mode and hourly noise — which is why F3
-should matter more than the old 1.6% mop-up suggested, even though duration remains the
-headline driver.
+A pack date is, in effect, a duration measurement: the calendar days between packing and
+arrival, rounded to a whole day. Knowing it removes most of the shipment-level uncertainty
+that comes from duration alone. A full temperature trace adds real path detail on top —
+setpoint legs and break events — which is why the temperature-history scenario should now
+matter more than the old model's 1.6% suggested, even though duration remains the headline
+driver. A more detailed transit model with graded trip conditions is a planned future
+refinement.
 
 ## Why it's modelled this way
 
-This isn't an assumption baked into the model without measurement — the **duration**
-moments come from six real Abdella shipments, and they directly shape a modeling decision:
-duration is treated as an *explicit corridor input* (drawn from a fitted family per
-corridor) because six shipments are nowhere near enough to *infer* a duration distribution
-reliably from data alone, but they are enough to establish that duration is the dominant
-source of variation worth modeling carefully.
+The duration numbers above come from measuring six real refrigerated shipments, and that
+measurement directly shapes a modeling choice: duration is treated as an *explicit input*
+drawn from a fitted family per corridor (the shipping-route / transit-assumption profile a
+delivery uses), rather than something the model tries to infer from scratch. Six shipments
+aren't enough to reliably fit a full duration distribution from data alone, but they are
+enough to show that duration is the dominant source of variation and deserves to be
+modeled carefully.
 
-**What changed (ADR 0150).** The retired truncated-normal draw (`mu_T`, `sigma_T`) and
-decorative bisection trace are replaced by deterministic **legs** (duration-weighted
-setpoints), **break events** (`rho`, `tau_bar`, `T_break`), and path integration. Break
-frequency is **assumed**, not fit — all six Abdella shipments are clean chains — but break
-*severity* is duration at a fixed break temperature, which is exactly the residual thermal
-risk a pack date cannot see.
+**What changed.** The old approach drew a single temperature summary number first, then
+built a trace bent to match it after the fact — so the trace added almost no information of
+its own. The current model instead builds a realistic leg-by-leg trip path and layers
+break events onto it, so thermal exposure is a genuine output of the simulated path rather
+than a number worked backward from a draw. Break frequency is still an assumption, not
+something fit to data (all six calibration shipments happened to be clean chains with no
+breaks) — but break severity is modeled as extra time at a fixed, elevated temperature,
+which is exactly the kind of residual thermal risk a pack date alone can't reveal.
 
-**Calibration guards (updated).** The old guard that required reproducing the **98.4%**
-duration share at `rho \to 0` under a fully deterministic baseline was unachievable (share
-→ 100%). The replacement keeps **`Var(log d) \approx 0.205`** as the hard Abdella duration
-check and treats the default-`rho` duration-vs-break share as a documented modelling regime
-in artifact provenance, not a measurement from six clean traces.
+**Calibration checks.** The old check required reproducing the 98.4% duration share once
+breaks were turned off — but that's mathematically impossible under the new model (the
+share approaches 100% instead). The replacement check keeps $\mathrm{Var}(\log d) \approx
+0.205$ as the hard calibration target from the six real shipments, and treats the ~80%/20%
+duration-vs-break split at default settings as a documented design choice, not a
+measurement.
 
-**Planned (not yet in code).** The transit generative v2 plan (see handoff on the integrate
-branch) will restore **mild clean-chain φ̄ scatter** via trip cool/nominal/warm modes and
-required hourly OU on the path — tuned to match the six shipments' φ̄ moments at `rho = 0`,
-without reintroducing `mu_T` / `sigma_T`. That work is planned; Stage 1 on the integrate
-branch ships deterministic legs + breaks first.
+**An alternative considered.** One idea was to require that observing temperature explain
+more of the remaining uncertainty than observing duration does. Under the old model's
+98.4%/1.6% split that requirement was backwards — temperature barely helped at all. Under
+the current break-event model, the residual left for a temperature trace to explain is
+larger by design, which is the whole point of the redesign.
 
-**An alternative considered.** One candidate calibration criterion required residual
-variance *after* observing temperature to be smaller than residual variance after
-observing duration ($\mathrm{Var}(f \mid \bar\varphi) < \mathrm{Var}(f \mid d)$). Given
-the old 98.4%/1.6% split, this was backwards. Under the break model the F3 residual is
-larger by design — that is the point of the redesign.
-
-**Honest caveat.** The **0.205** duration variance and the overlay's duration-vs-φ̄ scatter
-come from **six** cold-chain shipments (Abdella, Brecht & Uysal 2021), refrigerated leg
-only. They are not claims about universal cold-chain physics — with six data points the
-confidence interval on any split is wide, and the underlying dataset is a strawberry logger
-study substituted for blueberry kinetics (see [Limitations](./limitations)). The **~80%/20%**
-default-`rho` split is an assumed scenario documented in provenance, not measured from those
-six traces. This is a *between-shipment* decomposition, not a within-shipment one.
+**Honest caveat.** The 0.205 duration variance and the duration-vs-temperature comparison
+above come from just six cold-chain shipments (Abdella, Brecht & Uysal 2021), refrigerated
+leg only. They aren't claims about universal cold-chain physics — with six data points, the
+uncertainty around any split is wide, and the underlying dataset is a strawberry logger
+study substituted for blueberry behavior (see [Limitations](./limitations)). The ~80%/20%
+default-break split is an assumed scenario design, not something measured from those six
+shipments. This is also a comparison *across* shipments — how much trips differ from each
+other — not a statement about how much temperature matters within any single trip.
 
 ## In the code
 
@@ -146,27 +153,28 @@ six traces. This is a *between-shipment* decomposition, not a within-shipment on
 | --- | --- | --- |
 | Deterministic transit legs (break-free baseline) | `legs` | `crates/voi_core/src/arrival.rs:233-235` |
 | Cold-chain break hazard and mean break duration | `rho`, `tau_bar`, `T_break` | `crates/voi_core/src/arrival.rs:240-248` |
-| Cumulative exposure with breaks inside calendar `d` | `lambda_from_breaks` | `crates/voi_core/src/arrival.rs:1115-1124` |
-| Generative path + integrated Λ | `draw_transit`, `truth_transit_trace` | `crates/voi_core/src/arrival.rs:1335-1342`, `crates/voi_core/src/shipments.rs:97-102` |
-| Q10 exposure from an observed trace (F3 channel) | `resolve_arrival_exposure` | `crates/voi_core/src/arrival.rs:2334` |
-| Per-unit truth draw (duration + breaks + position) | `draw_unit_f` | `crates/voi_core/src/arrival.rs:1375` |
-| Corridor duration family + break defaults | `corridors`, `rho`, `tau_bar`, `legs` | `data/abdella/arrival_model.json` |
-| Abdella duration fit and provenance notes | — | `scripts/fit_abdella_arrival.py`, `data/abdella/arrival_model.json` (`provenance.adjustment_notes.breaks`) |
-| Six-shipment empirical overlay (duration vs. φ̄) | — | `data/abdella/calibration_note.md`, `data/abdella/arrival_calibration_overlay.png` |
+| Cumulative exposure when breaks occur within the trip | `lambda_from_breaks` | `crates/voi_core/src/arrival.rs:1115-1124` |
+| Simulates the trip leg-by-leg and derives exposure from it | `draw_transit`, `truth_transit_trace` | `crates/voi_core/src/arrival.rs:1335-1342`, `crates/voi_core/src/shipments.rs:97-102` |
+| Spoilage-rate conversion from an observed temperature trace (the temperature-history scenario) | `resolve_arrival_exposure` | `crates/voi_core/src/arrival.rs:2334` |
+| Per-unit truth draw (duration + breaks + position noise) | `draw_unit_f` | `crates/voi_core/src/arrival.rs:1375` |
+| Corridor duration family and break defaults | `corridors`, `rho`, `tau_bar`, `legs` | `data/abdella/arrival_model.json` |
+| Duration fit and provenance notes for the six calibration shipments | — | `scripts/fit_abdella_arrival.py`, `data/abdella/arrival_model.json` (`provenance.adjustment_notes.breaks`) |
+| Six-shipment empirical overlay (duration vs. temperature) | — | `data/abdella/calibration_note.md`, `data/abdella/arrival_calibration_overlay.png` |
 
 ## Caveats
 
-- **`Var(log d) = 0.205`** is measured across only **six** shipments — treat it as a strong
-  directional anchor, not a precisely-known population parameter.
-- The **~80%/20%** default-`rho` split is a **documented modelling regime** in artifact
-  provenance, not an empirical measurement from those six clean chains.
-- The decomposition is between-shipment (why do trips differ from each other), not
-  within-shipment (how much does temperature matter to any one trip's outcome).
+- `Var(log d) = 0.205` is measured across only six shipments — treat it as a strong
+  directional signal, not a precisely-known population parameter.
+- The ~80%/20% default-break split is a documented modeling choice, not an empirical
+  measurement from those six clean shipments.
+- The comparison is between shipments (why do trips differ from each other), not within a
+  single shipment (how much temperature matters to any one trip's outcome).
 - The underlying transit dataset is a strawberry cold-chain logger study, not a
   blueberry-specific one; see [Limitations](./limitations).
-- Clean-chain **φ̄ mode/OU scatter** from the v2 transit plan is **planned, not yet shipped**
-  — until then, mild thermal variation on break-free paths comes from setpoint legs only.
-- This explains why *duration* observations (pack date) help so much and why *temperature*
-  observations should help **more than before** once breaks are generative — it does not by
-  itself explain why waste totals fail to help; see
+- A more detailed transit model with graded trip conditions is a planned future
+  refinement — until then, mild thermal variation on break-free paths comes from the
+  fixed setpoint legs only.
+- This explains why duration observations (pack date) help so much, and why temperature
+  observations should help more than before now that breaks are simulated realistically —
+  it doesn't by itself explain why waste totals fail to help; see
   [Does belief actually sharpen?](./does-belief-sharpen)

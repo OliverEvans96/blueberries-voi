@@ -39,8 +39,8 @@ export default defineConfig({
         text: "The store — physics and ground truth",
         items: [
           { text: "Freshness, not age", link: "/store/freshness-not-age" },
-          { text: "How fruit ages: the gamma process", link: "/store/gamma-aging" },
-          { text: "The cold chain: from truck to door", link: "/store/cold-chain-arrival" },
+          { text: "How fruit loses freshness — the gamma process", link: "/store/gamma-aging" },
+          { text: "Cold-Chain Arrival Model", link: "/store/cold-chain-arrival" },
           { text: "Who buys which punnet", link: "/store/picking" },
           { text: "Spoilage and waste", link: "/store/spoilage-waste" },
           { text: "Demand: a calendar, not a coin", link: "/store/demand-calendar" },
@@ -50,8 +50,8 @@ export default defineConfig({
       {
         text: "What the store can see — the knowledge ladder",
         items: [
-          { text: "Three channels, not seven scenarios", link: "/ladder/channels" },
-          { text: "The observation scenarios, in a real store", link: "/ladder/observation-scenarios" },
+          { text: "Observation channels", link: "/ladder/channels" },
+          { text: "The observation ladder", link: "/ladder/observation-scenarios" },
           {
             text: "No channel ever observes freshness",
             link: "/ladder/no-channel-observes-freshness",
@@ -63,16 +63,13 @@ export default defineConfig({
         items: [
           { text: "Why a particle filter", link: "/inference/why-particle-filter" },
           { text: "What one particle is", link: "/inference/what-one-particle-is" },
-          { text: "One filter day, four stages", link: "/inference/one-filter-day" },
-          { text: "UPC vs LGTIN: refinement, not a different model", link: "/inference/upc-vs-lgtin" },
-          { text: "Birth freshness: what each observation scenario conditions on", link: "/inference/birth-freshness" },
-          { text: "From particles to charts: the wire", link: "/inference/belief-wire" },
+          { text: "UPC vs LGTIN", link: "/inference/upc-vs-lgtin" },
         ],
       },
       {
         text: "What the store orders — control",
         items: [
-          { text: "Newsvendor in one page", link: "/control/newsvendor" },
+          { text: "The newsvendor problem", link: "/control/newsvendor" },
           { text: "Why not the textbook fractile", link: "/control/why-not-textbook-fractile" },
           { text: "Effective inventory", link: "/control/effective-inventory" },
           { text: "The ordering rule", link: "/control/ordering-rule" },
@@ -90,10 +87,10 @@ export default defineConfig({
       {
         text: "Findings — honestly",
         items: [
-          { text: "Does information sharpen belief?", link: "/findings/does-belief-sharpen" },
-          { text: "Why pack date buys the most", link: "/findings/why-pack-date" },
-          { text: "Does sharper belief make money?", link: "/findings/does-money-follow" },
-          { text: "Limitations, in one place", link: "/findings/limitations" },
+          { text: "Does belief actually sharpen as you climb the ladder?", link: "/findings/does-belief-sharpen" },
+          { text: "Why a pack date does so much", link: "/findings/why-pack-date" },
+          { text: "Does the money follow?", link: "/findings/does-money-follow" },
+          { text: "Limitations", link: "/findings/limitations" },
         ],
       },
       {
@@ -104,10 +101,14 @@ export default defineConfig({
         ],
       },
       {
-        text: "Reference",
+        text: "Appendix",
         items: [
-          { text: "Parameter reference", link: "/reference/parameters" },
+          { text: "Model parameters", link: "/reference/parameters" },
           { text: "Rust API (voi_core)", link: "/reference/rust-api" },
+          { text: "The Belief Wire", link: "/inference/belief-wire" },
+          { text: "Birth Freshness by Observation Scenario", link: "/inference/birth-freshness" },
+          { text: "One Filter Day", link: "/inference/one-filter-day" },
+          { text: "Window service-level ordering", link: "/control/window-service-level" },
         ],
       },
     ],
