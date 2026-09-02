@@ -19,7 +19,7 @@ Browse the API:
 `voi_core` has no Python or JavaScript in it. Two thin wrapper crates expose
 it to the rest of the project instead, and each is documented the same way:
 
-- **[`voi_py`](/api/rust/voi_py/index.html)** — a PyO3 binding (PyO3 is a
+- **[`voi_py`](/api/rust/_core/index.html)** — a PyO3 binding (PyO3 is a
   Rust library for building Python extension modules), compiled as the
   `blueberries_voi._core` extension module used by notebooks, the CLI, and
   `pytest`.
