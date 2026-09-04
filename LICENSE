@@ -1,0 +1,140 @@
+# Commercial License Agreement
+
+**Software:** blueberries-voi
+**Copyright:** © 2026 Oliver Evans
+
+This Commercial License Agreement ("Agreement") grants a commercial license to use blueberries-voi ("Software") where use of the Software is not permitted or not desired under the GNU Affero General Public License, version 3 ("AGPL-3.0").
+
+## 1. Grant of License
+
+Subject to payment of the applicable license fees and compliance with this Agreement, Oliver Evans grants you a non-exclusive, non-transferable, worldwide license to:
+
+* use the Software for commercial purposes;
+* reproduce the Software;
+* modify the Software;
+* incorporate the Software into proprietary or closed-source software;
+* distribute products incorporating the Software; and
+* deploy the Software, including as part of a commercial hosted or network-accessible service.
+
+This license applies to the Software identified in the applicable order, subscription, invoice, or other written agreement between you and Oliver Evans.
+
+## 2. AGPL-3.0 Alternative
+
+The Software is also made available under the GNU Affero General Public License, version 3.
+
+You may use, modify, and distribute the Software under the AGPL-3.0 instead of this Agreement, subject to all terms and conditions of the AGPL-3.0.
+
+A commercial license is not required for use that is fully permitted by the AGPL-3.0.
+
+The commercial license is intended primarily for users who wish to use the Software in circumstances where the obligations of the AGPL-3.0 are incompatible with their intended use, including proprietary software and proprietary hosted services.
+
+## 3. Commercial Use
+
+For purposes of this Agreement, "Commercial Use" means use of the Software:
+
+1. by or on behalf of a business, organization, or other entity for its internal business operations;
+2. in a product or service offered to customers or other third parties for payment or other commercial consideration;
+3. as part of a proprietary or closed-source application, library, service, or platform;
+4. in a hosted, cloud, SaaS, or other network-accessible service operated for commercial purposes; or
+5. in any other use for which the user has obtained a commercial license from Oliver Evans.
+
+A separate commercial license is not required merely because the user is a business if that use is otherwise fully permitted under the AGPL-3.0.
+
+## 4. Permitted Non-Commercial and Open-Source Use
+
+No payment is required for use of the Software under the AGPL-3.0.
+
+In particular, Oliver Evans intends the Software to remain freely available for:
+
+* academic and scientific research;
+* education and teaching;
+* personal and hobby use;
+* evaluation and experimentation;
+* development of software released under the AGPL-3.0 or another license compatible with the AGPL-3.0; and
+* other uses permitted by the AGPL-3.0.
+
+Nothing in this Agreement limits rights granted to you by the AGPL-3.0.
+
+## 5. Fees
+
+Commercial license fees are established separately by Oliver Evans.
+
+Unless otherwise agreed in writing, a commercial license is granted only after the applicable fees have been paid.
+
+Commercial licenses may be offered on a perpetual, subscription, per-developer, per-organization, per-product, or other basis.
+
+## 6. Restrictions
+
+Except as expressly permitted by this Agreement, you may not:
+
+* sublicense the commercial license;
+* transfer the commercial license to another legal entity;
+* represent that the Software is proprietary software of the licensee;
+* remove copyright or other required notices from the Software; or
+* redistribute the Software as a standalone component under this commercial license.
+
+You may distribute your own proprietary software incorporating the Software, subject to the terms of this Agreement.
+
+## 7. Ownership
+
+The Software remains the property of Oliver Evans and its contributors.
+
+This Agreement does not transfer ownership of the Software or any intellectual property rights in the Software to the licensee.
+
+You retain ownership of your own software, data, content, and other intellectual property.
+
+## 8. Third-Party Components
+
+The Software may contain or depend upon components distributed under separate licenses.
+
+Those components remain subject to their respective licenses. This Agreement does not grant rights beyond those provided by the applicable third-party licenses.
+
+## 9. Termination
+
+This Agreement terminates automatically if you materially violate its terms and fail to cure the violation within thirty (30) days after receiving written notice.
+
+Upon termination, you must cease new use and distribution of the Software under this Agreement.
+
+Termination does not affect rights that you have independently obtained under the AGPL-3.0.
+
+## 10. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.
+
+Oliver Evans DISCLAIMS ALL WARRANTIES, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+## 11. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, Oliver Evans SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES ARISING FROM OR RELATING TO THE SOFTWARE OR THIS AGREEMENT.
+
+## 12. Entire Agreement
+
+This Agreement constitutes the entire agreement between the parties concerning the commercial licensing of the Software and supersedes prior agreements concerning that subject matter.
+
+Any amendment must be made in writing and agreed to by both parties.
+
+## 13. Governing Law
+
+This Agreement shall be governed by the laws of [STATE/COUNTRY], without regard to its conflict-of-law provisions.
+
+## 14. Contact
+
+For commercial licensing inquiries:
+
+**Oliver Evans**
+**[EMAIL ADDRESS]**
+**[WEBSITE]**
+
+---
+
+# Relationship to the AGPL-3.0
+
+The Software is offered under **two alternative licensing options**:
+
+1. **GNU Affero General Public License v3.0 (AGPL-3.0)** — available at no charge and granting the rights specified by that license; or
+2. **This Commercial License** — available under the commercial terms agreed with Oliver Evans.
+
+You may choose whichever license is appropriate for your intended use.
+
+If you have received the Software under the AGPL-3.0, nothing in this Commercial License Agreement removes or restricts your rights under the AGPL-3.0.
+
